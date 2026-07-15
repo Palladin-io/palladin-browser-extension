@@ -20,6 +20,10 @@ export function routePortMessage(message: BridgeMessage): BridgeMessage | null {
       // Slot for the passkey interceptor (CVT-362). No-op until that strategy
       // exists; recorded here without any credential data.
       return null;
+    case "session/activity":
+      // Activity heartbeat. The idle auto-lock reset is a side effect handled by
+      // the worker bootstrap (index.ts); routing stays pure and answers nothing.
+      return null;
     default: {
       const _exhaustive: never = message;
       return _exhaustive;
