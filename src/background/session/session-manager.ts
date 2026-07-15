@@ -99,6 +99,37 @@ export class SessionManager {
     return this.keys;
   }
 
+  /**
+   * Current access token for in-worker REST consumers (the vault data layer), or
+   * null when signed out. Read straight from the store so it always reflects the
+   * latest rotation.
+   */
+  async getAccessToken(): Promise<string | null> {
+    const tokens = await this.store.getTokens();
+    return tokens?.accessToken ?? null;
+  }
+
+  /**
+   * Rotate the access token via the refresh token and persist the new pair.
+   * Returns the fresh access token, or null when there is no session or the
+   * refresh is rejected (the caller then treats the request as unauthenticated).
+   */
+  async refreshAccessToken(): Promise<string | null> {
+    const tokens = await this.store.getTokens();
+    if (!tokens) return null;
+    try {
+      const auth = await this.authClient.refresh(tokens.refreshToken);
+      await this.store.setTokens({
+        accessToken: auth.accessToken,
+        refreshToken: auth.refreshToken,
+        userId: auth.userId,
+      });
+      return auth.accessToken;
+    } catch {
+      return null;
+    }
+  }
+
   // ─── Login ────────────────────────────────────────────────────────────────
 
   /**

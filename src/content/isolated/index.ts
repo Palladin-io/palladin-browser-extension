@@ -22,13 +22,29 @@ import {
   createEnvelope,
   generateNonce,
   isBridgeMessage,
+  isFillRequestMessage,
   validateInboundEnvelope,
+  type FillOutcome,
 } from "@shared/messaging";
+
+import { performFill } from "./fill";
 
 const sessionNonce = generateNonce();
 const selfOrigin = window.location.origin;
 
 const port = chrome.runtime.connect({ name: CONTENT_PORT });
+
+// Fill requests arrive as a direct, tab-addressed runtime message from the
+// worker (never the page). We perform the DOM write here in the isolated world
+// and reply with the outcome. The secret value stays in this world — it is
+// written into the page's inputs but is NEVER forwarded to the main-world script
+// (see the Port relay below, which explicitly excludes fill traffic).
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (!isFillRequestMessage(message)) return undefined;
+  const outcome: FillOutcome = performFill(document, message.fields);
+  sendResponse(outcome);
+  return undefined;
+});
 
 // Worker -> main world: forward anything the worker sends down to the page's
 // main world, re-wrapped as an isolated->main envelope.

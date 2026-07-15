@@ -26,8 +26,11 @@ describe("buildManifest (chromium)", () => {
   });
 
   it("requests only the least-privilege start permissions", () => {
+    // `offscreen` is required to wipe the clipboard after a copied secret's TTL:
+    // a service worker has no clipboard, so the timed wipe runs in a short-lived
+    // offscreen document (MV3 CLIPBOARD reason). It grants no host or data access.
     expect(new Set(manifest.permissions)).toEqual(
-      new Set(["storage", "activeTab", "alarms"]),
+      new Set(["storage", "activeTab", "alarms", "offscreen"]),
     );
     // No broad host_permissions on day zero — access comes via activeTab +
     // content_scripts, pending the CVT-382 least-privilege review.

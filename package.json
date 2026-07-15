@@ -19,7 +19,8 @@
   "dependencies": {
     "@palladin/crypto": "github:Palladin-io/palladin-crypto#660e958",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "tldts": "^7.4.8"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.2.0",
