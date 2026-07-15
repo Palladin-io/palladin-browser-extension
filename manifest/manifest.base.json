@@ -38,7 +38,7 @@
       "all_frames": true
     }
   ],
-  "permissions": ["storage", "activeTab", "alarms"],
+  "permissions": ["storage", "activeTab", "alarms", "offscreen"],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; base-uri 'self'"
   }

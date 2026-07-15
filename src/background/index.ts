@@ -13,6 +13,8 @@ import { routePortMessage } from "./router";
 import { handleRuntimeMessage } from "./session/commands";
 import { sessionAutoLock, sessionManager } from "./session/runtime";
 import { logger } from "./telemetry/logger";
+import { handleVaultRuntimeMessage } from "./vault/commands";
+import { clipboardGuard, vaultCommandDeps, vaultData } from "./vault/runtime";
 
 const SYNC_ALARM = "palladin.sync";
 
@@ -29,6 +31,18 @@ function refreshBadge(): void {
 // logout — refreshBadge re-reads the actual status either way.)
 sessionManager.hooks.onUnlocked(() => refreshBadge());
 sessionManager.hooks.onLocked(() => refreshBadge());
+
+// Sync the vault metadata cache on unlock (plan §6 trigger). Metadata + wrapped
+// keys are non-secret; this refetch never decrypts.
+sessionManager.hooks.onUnlocked(() => {
+  void vaultData.refresh().catch(() => logger.warn("vault refresh on unlock failed"));
+});
+// On a full sign-out (not a plain lock), drop the cached metadata + wrapped keys.
+sessionManager.hooks.onLocked(() => {
+  void sessionManager.getStatus().then((status) => {
+    if (status === "signed-out") return vaultData.clearCache();
+  });
+});
 
 // Rehydrate any session that survived a worker restart in chrome.storage.session
 // (an already-unlocked session comes back unlocked, no re-derive).
@@ -56,11 +70,19 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 });
 
-// Popup ↔ worker command channel (login / unlock / lock / logout / settings).
+// Popup ↔ worker command channel. Session commands (login / unlock / lock /
+// logout / settings) are tried first; anything they don't recognise is offered
+// to the vault command surface (list / sync / reveal / totp / fill).
 chrome.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
-  void handleRuntimeMessage(sessionManager, raw).then((result) => {
-    if (result !== null) sendResponse(result);
-  });
+  void (async () => {
+    const sessionResult = await handleRuntimeMessage(sessionManager, raw);
+    if (sessionResult !== null) {
+      sendResponse(sessionResult);
+      return;
+    }
+    const vaultResult = await handleVaultRuntimeMessage(vaultCommandDeps, raw);
+    if (vaultResult !== null) sendResponse(vaultResult);
+  })();
   // Returning true keeps the message channel open for the async response.
   return true;
 });
@@ -73,7 +95,9 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.alarms.onAlarm.addListener((alarm) => {
   // Idle auto-lock: the manager wipes keys when this fires.
   sessionAutoLock.dispatch(alarm.name);
+  // Clipboard hygiene: wipe a copied secret once its TTL elapses.
+  void clipboardGuard.handleAlarm(alarm.name);
   if (alarm.name !== SYNC_ALARM) return;
-  // Sync engine lands later; today the tick is a value-free no-op.
-  void sessionManager.getStatus();
+  // Periodic delta-sync trigger (plan §6): refresh the metadata cache.
+  void vaultData.refresh().catch(() => logger.warn("vault refresh on alarm failed"));
 });

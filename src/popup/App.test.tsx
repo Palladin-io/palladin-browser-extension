@@ -40,7 +40,7 @@ describe("popup state machine", () => {
     await user.type(screen.getByLabelText("Master password"), "correct horse");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByRole("heading", { name: "You're unlocked" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Your vault" })).toBeInTheDocument();
     expect(client.login).toHaveBeenCalledWith("user@palladin.io", "correct horse");
   });
 
@@ -89,7 +89,7 @@ describe("popup state machine", () => {
     await user.type(await screen.findByLabelText("Authentication code"), " 123456 ");
     await user.click(screen.getByRole("button", { name: "Verify" }));
 
-    expect(await screen.findByRole("heading", { name: "You're unlocked" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Your vault" })).toBeInTheDocument();
     // Code trimmed; the retained password passes through untrimmed.
     expect(client.completeTotp).toHaveBeenCalledWith("chal", "123456", "pw with space ");
   });
@@ -102,7 +102,7 @@ describe("popup state machine", () => {
     await user.type(await screen.findByLabelText("Master password"), "let me in");
     await user.click(screen.getByRole("button", { name: "Unlock" }));
 
-    expect(await screen.findByRole("heading", { name: "You're unlocked" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Your vault" })).toBeInTheDocument();
     expect(client.unlock).toHaveBeenCalledWith("let me in");
   });
 
@@ -130,7 +130,7 @@ describe("popup state machine", () => {
     // Unlock with a secret, reach the unlocked screen.
     await user.type(await screen.findByLabelText("Master password"), "topsecret");
     await user.click(screen.getByRole("button", { name: "Unlock" }));
-    await screen.findByRole("heading", { name: "You're unlocked" });
+    await screen.findByRole("heading", { name: "Your vault" });
 
     // Lock again — the fresh unlock form must not retain the old secret.
     await user.click(screen.getByRole("button", { name: "Lock" }));

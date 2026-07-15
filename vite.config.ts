@@ -21,6 +21,12 @@ export default defineConfig({
     // MV3 forbids remote code; everything must be bundled locally.
     target: "esnext",
     rollupOptions: {
+      // The offscreen clipboard document is created at runtime (not declared in
+      // the manifest), so it must be listed explicitly as an input for @crxjs to
+      // build it to a stable path.
+      input: {
+        offscreen: fileURLToPath(new URL("./src/offscreen/index.html", import.meta.url)),
+      },
       output: {
         // Deterministic asset names keep the least-privilege review diff-able.
         chunkFileNames: "assets/[name]-[hash].js",
