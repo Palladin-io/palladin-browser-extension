@@ -8,6 +8,7 @@
 
 import { CONTENT_PORT, isBridgeMessage } from "@shared/messaging";
 
+import { applyBadge } from "./badge";
 import { routePortMessage } from "./router";
 import { handleRuntimeMessage } from "./session/commands";
 import { sessionAutoLock, sessionManager } from "./session/runtime";
@@ -15,11 +16,28 @@ import { logger } from "./telemetry/logger";
 
 const SYNC_ALARM = "palladin.sync";
 
+/** Re-read the session state and repaint the toolbar padlock badge. */
+function refreshBadge(): void {
+  void sessionManager
+    .getStatus()
+    .then((status) => applyBadge(chrome.action, status))
+    .catch(() => logger.warn("badge refresh failed"));
+}
+
+// Keep the badge in lockstep with the session: unlock clears the padlock,
+// lock/logout restores it. (`onLocked` fires for both an explicit lock and a
+// logout — refreshBadge re-reads the actual status either way.)
+sessionManager.hooks.onUnlocked(() => refreshBadge());
+sessionManager.hooks.onLocked(() => refreshBadge());
+
 // Rehydrate any session that survived a worker restart in chrome.storage.session
 // (an already-unlocked session comes back unlocked, no re-derive).
 void sessionManager
   .initialize()
-  .then((status) => logger.debug("session initialized", { status }))
+  .then((status) => {
+    logger.debug("session initialized", { status });
+    void applyBadge(chrome.action, status);
+  })
   .catch(() => logger.warn("session init failed"));
 
 chrome.runtime.onConnect.addListener((port) => {

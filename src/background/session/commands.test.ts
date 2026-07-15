@@ -70,6 +70,15 @@ describe("dispatchSessionCommand", () => {
     });
   });
 
+  it("reports session capabilities (runtime unlock unavailable today)", async () => {
+    const account = await buildTestAccount();
+    const mgr = await makeManager(account);
+    expect(await dispatchSessionCommand(mgr, { type: "session/capabilities" })).toEqual({
+      ok: true,
+      capabilities: { runtimeUnlock: false },
+    });
+  });
+
   it("reads and sets the auto-lock policy, rejecting an unknown value", async () => {
     const account = await buildTestAccount();
     const mgr = await makeManager(account);

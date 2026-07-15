@@ -14,6 +14,7 @@
 
 import type { AutoLockPolicy } from "./auto-lock";
 import { isAutoLockPolicy } from "./auto-lock";
+import { getSessionCapabilities, type SessionCapabilities } from "./capabilities";
 import type { SessionManager } from "./session-manager";
 import {
   SessionError,
@@ -24,6 +25,7 @@ import {
 
 export type SessionCommand =
   | { readonly type: "session/status" }
+  | { readonly type: "session/capabilities" }
   | { readonly type: "session/login"; readonly email: string; readonly password: string }
   | {
       readonly type: "session/completeTotp";
@@ -41,6 +43,7 @@ export type SessionCommandType = SessionCommand["type"];
 
 export type SessionCommandResult =
   | { readonly ok: true; readonly status: SessionStatus }
+  | { readonly ok: true; readonly capabilities: SessionCapabilities }
   | { readonly ok: true; readonly login: LoginResult }
   | { readonly ok: true; readonly policy: AutoLockPolicy }
   | { readonly ok: true }
@@ -68,6 +71,8 @@ export async function dispatchSessionCommand(
     switch (command.type) {
       case "session/status":
         return { ok: true, status: await manager.getStatus() };
+      case "session/capabilities":
+        return { ok: true, capabilities: getSessionCapabilities() };
       case "session/login":
         return { ok: true, login: await manager.login(command.email, command.password) };
       case "session/completeTotp":
