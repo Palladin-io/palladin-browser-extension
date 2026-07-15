@@ -1,91 +1,62 @@
-# Palladin Browser Extension
+# palladin-browser-extension
 
-> **Status: experimental and deferred.** The default branch does not contain a
-> buildable browser extension, and Palladin does not currently publish or
-> support an extension from this repository.
+Palladin browser extension - user autofill + secure AI agent fill (Manifest V3).
+Zero-knowledge: keys never leave your device.
 
-This repository records the intended security boundary and development process
-for a possible Manifest V3 companion to Palladin. Historical public development
-branches contain separate, unsupported experiments that were never
-security-reviewed as one product or promoted to a release. Those branch refs
-will be removed during the OSS cleanup; `main` is the repository's only
-authoritative surface.
+Two use cases:
 
-Do not install branch builds with real credentials or treat screenshots,
-manifests, or prototype behavior as a statement of a shipped Palladin feature.
+1. **User autofill** - a classic password-manager experience: unlock, fill,
+   capture, generate, TOTP.
+2. **Agent fill** - a browser-using AI agent logs in through the extension while
+   the secret bypasses the LLM context, gated by an explicit grant.
 
-## Intended scope
+## Status
 
-If development resumes, the extension is expected to cover two distinct flows:
+Scaffold. This repository currently ships the MV3 skeleton: a service worker, a
+placeholder popup, three-layer content scripts (isolated + main world), and the
+typed message bridge that everything else builds on. No crypto and no secrets
+yet - the crypto package and the fill engine arrive in later phases.
 
-- user-selected credential filling in a browser tab;
-- agent-assisted filling where an authorized runtime asks the extension to use
-  a prepared value without placing that value in model context.
+## Requirements
 
-These are design goals, not capabilities available from `main` today. Capture,
-passkeys, multi-browser packaging, store publication, and production update
-signing are likewise not current releases.
+- Node.js >= 20
 
-## Security requirements
+## Development
 
-Any implementation proposed for the default branch must preserve these
-invariants:
+```bash
+npm ci          # install
+npm run dev     # Vite dev server with HMR
+npm run build   # typecheck + production build -> dist/
+npm test        # Vitest
+```
 
-- the web page and main-world script are untrusted;
-- secrets cross into a page only for a narrowly authorized fill action;
-- key material stays in JavaScript memory or ephemeral
-  `chrome.storage.session`, never durable browser storage;
-- local caches contain ciphertext and non-secret structural data only;
-- no password, key, token, mnemonic, or plaintext field reaches logs,
-  analytics, crash reports, or extension messages that do not need it;
-- every fill revalidates the active frame, HTTPS state, domain scope, user or
-  runtime authorization, and current session immediately before use;
-- Manifest permissions and host access are minimal and justified in review;
-- the extension bundles all executable code locally, as required by Manifest
-  V3, and does not load remote code.
+### Load the unpacked extension
 
-The proposed trust boundaries are described in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). A future implementation is not
-ready for release merely because it builds; the security gates in
-[`docs/STATUS.md`](docs/STATUS.md) must also be satisfied.
+1. `npm run build`
+2. Open `chrome://extensions` (Chrome / Brave / Edge / Opera) and enable
+   **Developer mode**.
+3. **Load unpacked** and select the `dist/` folder.
 
-## Repository state
+The same build targets all Chromium browsers. Firefox and Safari builds land as
+separate manifest overlays in a later phase.
 
-| Item | Current state on `main` |
-|---|---|
-| Installable extension | Not present |
-| Package manifest and lockfile | Repository documentation tooling only; no extension dependencies |
-| Browser-store release | Not published from this repository |
-| Supported versions | None |
-| Development status | Deferred; `main` is the only authoritative branch |
+### Icons
 
-Historical branch experiments explored a Manifest V3 scaffold, service-worker
-session handling, popup unlock and entry selection, domain-gated filling,
-password generation, and an integration path. They are unsupported artifacts,
-not release history or maintained research inputs, and their public branch refs
-are scheduled for deletion. Any future implementation must start from `main`
-and arrive through a reviewed pull request.
+`icons/*.png` are placeholders. Regenerate them with:
 
-## Contributing
+```bash
+node scripts/generate-icons.mjs
+```
 
-Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) and open an issue before a large
-implementation. Pull requests should target `main` and include a
-security-boundary analysis. Do not submit real
-credentials or production-derived vault data in examples, fixtures, issues, or
-screenshots.
+## Architecture
 
-Suspected vulnerabilities must be reported privately as described in
-[`SECURITY.md`](SECURITY.md).
+```
+page main world  <-- window.postMessage -->  isolated world  <-- chrome Port -->  service worker
+```
 
-Project decisions and release authority are documented in
-[`GOVERNANCE.md`](GOVERNANCE.md).
+See [`AGENTS.md`](./AGENTS.md) for the full architecture, security rules, and
+conventions. Security reports: [`SECURITY.md`](./SECURITY.md).
 
-## License and trademarks
+## License
 
-The repository's software and technical documentation are licensed under the
-[Apache License 2.0](LICENSE). Contributions must follow
-[the DCO](DCO) and [contribution guide](CONTRIBUTING.md). Third-party components
-retain their own licenses; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
-
-The software license does not grant rights to Palladin names, logos, or future
-extension store identity. See [`TRADEMARKS.md`](TRADEMARKS.md).
+[GPL-3.0](./LICENSE)

@@ -1,35 +1,39 @@
 # Security Policy
 
-Palladin is a password manager. Do not report security vulnerabilities through
-public GitHub issues, discussions, or pull requests.
+Palladin is a zero-knowledge password manager. We take security reports
+seriously and appreciate responsible disclosure.
 
 ## Reporting a vulnerability
 
-Email **patryk.roguszewski@palladin.io** with `Security` in the subject, or
-follow the instructions at
-[palladin.io/.well-known/security.txt](https://palladin.io/.well-known/security.txt).
+Please report suspected vulnerabilities privately to **security@palladin.io**.
 
-Include the affected protocol version or commit, impact, and minimal safe
-reproduction steps. Do not send acquired secrets or personal data; an
-anonymized proof is sufficient.
+- Do **not** open a public issue, pull request, or discussion for a security
+  problem.
+- Include enough detail to reproduce: affected version/commit, browser and
+  version, steps, and impact. Proof-of-concept code is welcome.
+- Do **not** include real credentials, master passwords, recovery phrases, or
+  other secrets in your report.
 
-There are currently no supported extension versions from this repository.
-While historical prototype refs remain public during cleanup, reports may still
-identify an affected commit, but those experiments are unsupported and are not
-authoritative project surfaces. Include the affected commit, browser and version
-where relevant, and whether the issue could persist plaintext or keys, expose a
-value to a visited page or log, bypass frame/domain/session checks, broaden
-manifest permissions, or accept unauthenticated extension messages.
+## Our commitment
 
-## Safe harbor and testing boundaries
+- We will acknowledge your report within **3 business days**.
+- We will keep you updated on our assessment and remediation progress.
+- We will credit reporters who wish to be named once a fix has shipped.
 
-Good-faith research limited to the minimum necessary test on data you own, or
-in an environment you are expressly authorized to test, will not be treated as
-a violation of Palladin's vulnerability-testing restrictions.
+## Scope
 
-The complete process and safe-harbor conditions are defined in Palladin's
-[Vulnerability Disclosure Policy](https://palladin.io/vulnerability-disclosure).
+In scope: this browser extension (background service worker, content scripts,
+popup, and the message bridge between them). Vulnerabilities that break the
+zero-knowledge model - a path by which plaintext credentials, keys, or the master
+password could leak to the server, to a web page, or to persistent storage - are
+the highest priority.
 
-Do not access another person's data, perform social engineering, disrupt
-availability, destroy data, retain or disclose secrets, or publicly disclose a
-vulnerability before Palladin has had a reasonable opportunity to remediate it.
+Out of scope: threats explicitly outside our model, including malware already
+running with the user's privileges on the local device. We still want to hear
+about anything that surprises you.
+
+## Safe harbor
+
+We will not pursue legal action for good-faith security research that respects
+user privacy, avoids data destruction and service disruption, and gives us a
+reasonable chance to remediate before public disclosure.
