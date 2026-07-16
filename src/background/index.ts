@@ -13,15 +13,11 @@ import { routePortMessage } from "./router";
 import { handleRuntimeMessage } from "./session/commands";
 import { sessionAutoLock, sessionManager } from "./session/runtime";
 import { logger } from "./telemetry/logger";
+import { isTrustedExtensionPage } from "./trusted-sender";
 import { handleVaultRuntimeMessage } from "./vault/commands";
 import { clipboardGuard, vaultCommandDeps, vaultData } from "./vault/runtime";
 
 const SYNC_ALARM = "palladin.sync";
-
-function isTrustedExtensionPage(sender: chrome.runtime.MessageSender): boolean {
-  const extensionOrigin = chrome.runtime.getURL("");
-  return sender.id === chrome.runtime.id && !sender.tab && sender.url?.startsWith(extensionOrigin) === true;
-}
 
 /** Re-read the session state and repaint the toolbar padlock badge. */
 function refreshBadge(): void {
@@ -75,7 +71,7 @@ chrome.runtime.onConnect.addListener((port) => {
 // logout / settings) are tried first; anything they don't recognise is offered
 // to the vault command surface (list / sync / reveal / totp / fill).
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
-  if (!isTrustedExtensionPage(sender)) return false;
+  if (!isTrustedExtensionPage(sender, chrome.runtime.id, chrome.runtime.getURL(""))) return false;
   void (async () => {
     await sessionManager.touchActivity();
     const sessionResult = await handleRuntimeMessage(sessionManager, raw);

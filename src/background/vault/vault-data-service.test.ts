@@ -32,6 +32,22 @@ describe("VaultDataService.refresh", () => {
     expect(await service.getMetadata()).toHaveLength(2);
   });
 
+  it("skips organization-visible vaults that have no wrapped key", async () => {
+    const world = await buildVaultWorld();
+    const backend = vaultBackend(world, {
+      validToken: "valid-token",
+      inaccessibleVaultIds: ["vault-1"],
+    });
+    const service = new VaultDataService({
+      client: new VaultClient(backend.fetch, API),
+      store: new VaultStore(new FakeStorageArea()),
+      session: fakeSession(world),
+    });
+
+    await expect(service.refresh()).resolves.toEqual([]);
+    expect(backend.calls).not.toContain("/api/vaults/vault-1/entries");
+  });
+
   it("clears the cache when signed out", async () => {
     const world = await buildVaultWorld();
     const storage = new FakeStorageArea();
