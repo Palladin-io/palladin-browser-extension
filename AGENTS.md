@@ -167,9 +167,10 @@ GitHub Actions on pull requests to `main`:
 - `test.yml` - `npm ci` -> `npm run build` -> `npm test`. Triggered by
   `pull_request` (never `pull_request_target`) and uses no secrets, so it is
   safe to run on fork PRs.
-- `pr-review.yml` / `fix-pr.yml` - Claude Code review + fix. The secret-using
-  jobs are gated to same-repo PRs (`head.repo.full_name == github.repository`),
-  so fork PRs never expose secrets. `timeout-minutes: 30`, `--max-turns 120`.
+- `codex-pr-review.yml` - Codex-only automated review. It reads PR metadata and
+  diff without checking out untrusted PR code, runs Codex in an empty workspace,
+  and publishes the formal automated verdict. Claude Code PR workflows are not
+  permitted.
 
 **All changes go through PRs** - CI must pass before merge.
 
@@ -177,3 +178,8 @@ GitHub Actions on pull requests to `main`:
 
 `AGENTS.md` and `CLAUDE.md` are maintained as complete, byte-for-byte identical
 copies. Every change must update both in the same commit and verify with `cmp`.
+
+Pull-request review and remediation automation is Codex-only. Keep the review
+rubric under `.agents/` and workflow configuration under `.github/codex/`; do
+not add Claude Code PR workflows or `.claude/skills/pr-review` /
+`.claude/skills/fix-pr` adapters.
