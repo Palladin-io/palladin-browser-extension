@@ -39,6 +39,11 @@
     }
   ],
   "permissions": ["storage", "activeTab", "alarms", "offscreen"],
+  "host_permissions": [
+    "http://localhost:5000/*",
+    "https://api.stage.palladin.io/*",
+    "https://api.palladin.io/*"
+  ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; base-uri 'self'"
   }

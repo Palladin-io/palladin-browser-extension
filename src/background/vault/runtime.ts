@@ -66,10 +66,11 @@ async function sendFill(
   fields: readonly FillField[],
 ): Promise<FillOutcome> {
   try {
-    const outcome = await chrome.tabs.sendMessage(tabId, {
-      channel: FILL_REQUEST_CHANNEL,
-      fields,
-    });
+    const outcome = await chrome.tabs.sendMessage(
+      tabId,
+      { channel: FILL_REQUEST_CHANNEL, fields },
+      { frameId: 0 },
+    );
     return isFillOutcome(outcome) ? outcome : { ok: false, reason: "no-form" };
   } catch {
     // No content script on the page (or it is not reachable) — nothing to fill.

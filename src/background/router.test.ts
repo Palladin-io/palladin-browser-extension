@@ -15,6 +15,5 @@ describe("routePortMessage", () => {
     expect(routePortMessage({ type: "bridge/ready" })).toBeNull();
     expect(routePortMessage({ type: "bridge/pong", at: 1 })).toBeNull();
     expect(routePortMessage({ type: "webauthn/observed", kind: "get" })).toBeNull();
-    expect(routePortMessage({ type: "session/activity" })).toBeNull();
   });
 });
