@@ -1,0 +1,40 @@
+{
+  "name": "palladin-browser-extension",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Palladin browser extension - user autofill + secure AI agent fill (MV3). Zero-knowledge: keys never leave your device.",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@palladin/crypto": "github:Palladin-io/palladin-crypto#bcd2d511f45cd2a68036ca2e459ea23c544e52f0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "tldts": "^7.4.8"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.2.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/chrome": "^0.0.287",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.7.0",
+    "vite": "^6.3.5",
+    "vitest": "^3.0.0"
+  }
+}
