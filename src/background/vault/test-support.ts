@@ -103,6 +103,8 @@ function json(body: unknown, status = 200): Response {
 export interface VaultBackendOptions {
   /** Token the backend accepts; any other → 401 (drives the refresh path). */
   validToken?: string;
+  /** Vaults visible as metadata but without a user-wrapped key/membership. */
+  inaccessibleVaultIds?: readonly string[];
 }
 
 export interface VaultBackend {
@@ -131,9 +133,15 @@ export function vaultBackend(
     }
     for (const vault of world.vaults) {
       if (path === `/api/vaults/${vault.id}`) {
+        if (options.inaccessibleVaultIds?.includes(vault.id)) {
+          return Promise.resolve(json({ id: vault.id }));
+        }
         return Promise.resolve(json({ id: vault.id, wrappedVK: vault.wrappedVK }));
       }
       if (path === `/api/vaults/${vault.id}/entries`) {
+        if (options.inaccessibleVaultIds?.includes(vault.id)) {
+          return Promise.resolve(json(null, 403));
+        }
         return Promise.resolve(
           json({
             items: vault.entries.map((entry) => ({
