@@ -78,6 +78,17 @@ function setFieldValue(input: HTMLInputElement, value: string): void {
  * found; a lone password still fills.
  */
 export function performFill(doc: Document, fields: readonly FillField[]): FillOutcome {
+  const generated = fields.find((field) => field.kind === "generated");
+  if (generated) {
+    const active = doc.activeElement;
+    const target = active instanceof HTMLInputElement && isFillable(active)
+      ? active
+      : firstFillablePassword(doc);
+    if (!target) return { ok: false, reason: "no-form" };
+    setFieldValue(target, generated.value);
+    return { ok: true };
+  }
+
   const password = firstFillablePassword(doc);
   if (!password) return { ok: false, reason: "no-form" };
 

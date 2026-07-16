@@ -4,6 +4,7 @@ import { Button } from "../components/Button";
 import { EntryList } from "../components/EntryList";
 import { ListSkeleton } from "../components/ListSkeleton";
 import { SearchBar } from "../components/SearchBar";
+import { GeneratorPanel } from "../generator/GeneratorPanel";
 import { createVaultClient, type VaultClient } from "../vault/client";
 import { filterEntries } from "../vault/filter";
 import { useVaultList } from "../vault/useVaultList";
@@ -31,6 +32,7 @@ export function UnlockedScreen({
   const client = useMemo(() => vaultClient ?? createVaultClient(), [vaultClient]);
   const list = useVaultList(client);
   const [query, setQuery] = useState("");
+  const [view, setView] = useState<"vault" | "generator">("vault");
 
   const searching = query.trim().length > 0;
   const results = useMemo(() => filterEntries(list.all, query), [list.all, query]);
@@ -38,6 +40,12 @@ export function UnlockedScreen({
   return (
     <section className="vault">
       <h2 className="sr-only">Your vault</h2>
+      <div className="vault-tabs" role="tablist" aria-label="Popup view">
+        <button type="button" role="tab" aria-selected={view === "vault"} onClick={() => setView("vault")}>Vault</button>
+        <button type="button" role="tab" aria-selected={view === "generator"} onClick={() => setView("generator")}>Generator</button>
+      </div>
+
+      {view === "generator" ? <GeneratorPanel client={client} /> : <>
       <SearchBar value={query} onChange={setQuery} />
 
       {list.status === "loading" ? (
@@ -65,6 +73,7 @@ export function UnlockedScreen({
           </ListSection>
         </div>
       )}
+      </>}
 
       <UnlockedFooter onLock={onLock} onSignOut={onSignOut} />
     </section>

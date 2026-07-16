@@ -37,6 +37,8 @@ function makeClient(over: Partial<VaultClient> = {}): VaultClient {
     reveal: vi.fn(async () => "s3cr3t"),
     totp: vi.fn(async () => null),
     fill: vi.fn(async () => ({ status: "filled" }) as const),
+    fillGenerated: vi.fn(async () => ({ status: "filled" }) as const),
+    armClipboardClear: vi.fn(async () => undefined),
     ...over,
   };
 }
@@ -116,6 +118,36 @@ describe("UnlockedScreen", () => {
     render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={makeClient()} />);
     expect(await screen.findByRole("button", { name: "Lock" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+  });
+
+  it("generates, copies, and fills a password without saving it", async () => {
+    const client = makeClient();
+    render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={client} />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("tab", { name: "Generator" }));
+    const generated = screen.getByLabelText("Generated value").textContent ?? "";
+    expect(generated.length).toBeGreaterThanOrEqual(8);
+
+    await user.click(screen.getByRole("button", { name: "Copy" }));
+    await waitFor(() => expect(client.armClipboardClear).toHaveBeenCalledOnce());
+    expect(await navigator.clipboard.readText()).toBe(generated);
+
+    await user.click(screen.getByRole("button", { name: "Fill" }));
+    await waitFor(() => expect(client.fillGenerated).toHaveBeenCalledWith(generated));
+    expect(screen.getByText("Filled in the active page")).toBeInTheDocument();
+  });
+
+  it("supports passphrases and does not persist generated values", async () => {
+    const client = makeClient();
+    render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={client} />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("tab", { name: "Generator" }));
+    const syncCallsBeforeGeneration = vi.mocked(client.sync).mock.calls.length;
+    await user.click(screen.getByRole("button", { name: "Passphrase" }));
+    expect(screen.getByLabelText("Generated value").textContent?.split("-")).toHaveLength(6);
+    expect(client.sync).toHaveBeenCalledTimes(syncCallsBeforeGeneration);
   });
 
   it("shows an empty state when the vault has no entries", async () => {

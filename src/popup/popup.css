@@ -667,6 +667,127 @@ body {
   gap: 8px;
 }
 
+/* Generator */
+.vault-tabs,
+.generator-mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 3px;
+  margin-bottom: 12px;
+  border-radius: 9px;
+  background: var(--cv-surface);
+  border: 1px solid var(--cv-border);
+}
+
+.vault-tabs button,
+.generator-mode button {
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cv-t3);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vault-tabs button[aria-selected="true"],
+.generator-mode .generator-mode-active {
+  background: var(--cv-btn-subtle-bg);
+  color: var(--cv-t1);
+}
+
+.generator-output {
+  display: block;
+  min-height: 66px;
+  padding: 12px;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--cv-border);
+  border-radius: 9px;
+  background: var(--cv-input-bg);
+  color: var(--cv-t1);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.generator-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.generator-range {
+  grid-column: 1 / -1;
+}
+
+.generator-range span,
+.generator-select,
+.generator-check {
+  color: var(--cv-t2);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.generator-range span {
+  display: flex;
+  justify-content: space-between;
+}
+
+.generator-range input {
+  width: 100%;
+  margin: 8px 0 0;
+  accent-color: var(--cv-primary);
+}
+
+.generator-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.generator-check input {
+  accent-color: var(--cv-primary);
+}
+
+.generator-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.generator-select select {
+  max-width: 92px;
+  padding: 5px;
+  border: 1px solid var(--cv-input-border);
+  border-radius: 6px;
+  background: var(--cv-input-bg);
+  color: var(--cv-input-text);
+}
+
+.generator-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+}
+
+.generator-status {
+  min-height: 16px;
+  margin: 8px 0 0;
+  color: var(--cv-t2);
+  font-size: 11px;
+}
+
+.generator-note {
+  margin: 4px 0 12px;
+  color: var(--cv-t3);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
 /* ── Loading / error init ────────────────────────────────────────────────── */
 
 .centered {

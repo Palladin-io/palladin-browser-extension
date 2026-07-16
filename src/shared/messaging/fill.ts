@@ -15,7 +15,7 @@
  * to our own extension.
  */
 
-export type FillFieldKind = "username" | "password";
+export type FillFieldKind = "username" | "password" | "generated";
 
 /** One ready-to-write value. The content script maps `kind` to a detected input. */
 export interface FillField {
@@ -43,7 +43,7 @@ function isFillField(value: unknown): value is FillField {
   if (typeof value !== "object" || value === null) return false;
   const field = value as { kind?: unknown; value?: unknown };
   return (
-    (field.kind === "username" || field.kind === "password") &&
+    (field.kind === "username" || field.kind === "password" || field.kind === "generated") &&
     typeof field.value === "string"
   );
 }

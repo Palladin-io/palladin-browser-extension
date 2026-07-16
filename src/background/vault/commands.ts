@@ -51,7 +51,9 @@ export type VaultCommand =
       readonly field: VaultRevealField;
     }
   | { readonly type: "vault/totp"; readonly vaultId: string; readonly entryId: string }
-  | { readonly type: "vault/fill"; readonly vaultId: string; readonly entryId: string };
+  | { readonly type: "vault/fill"; readonly vaultId: string; readonly entryId: string }
+  | { readonly type: "vault/fill-generated"; readonly value: string }
+  | { readonly type: "vault/clipboard-arm" };
 
 export type VaultCommandType = VaultCommand["type"];
 
@@ -100,6 +102,7 @@ export type VaultCommandResult =
   | { readonly ok: true; readonly reveal: { readonly value: string } }
   | { readonly ok: true; readonly totp: TotpView | null }
   | { readonly ok: true; readonly fill: FillResult }
+  | { readonly ok: true; readonly clipboardArmed: true }
   | { readonly ok: false; readonly code: VaultCommandErrorCode; readonly message: string };
 
 // ─── Injected effects ─────────────────────────────────────────────────────────
@@ -140,6 +143,11 @@ export async function dispatchVaultCommand(
         return await totpView(deps, command.vaultId, command.entryId);
       case "vault/fill":
         return { ok: true, fill: await fillActiveTab(deps, command.vaultId, command.entryId) };
+      case "vault/fill-generated":
+        return { ok: true, fill: await fillGeneratedValue(deps, command.value) };
+      case "vault/clipboard-arm":
+        deps.clipboard.arm();
+        return { ok: true, clipboardArmed: true };
       default: {
         const _exhaustive: never = command;
         return _exhaustive;
@@ -148,6 +156,14 @@ export async function dispatchVaultCommand(
   } catch (error) {
     return failure(error);
   }
+}
+
+async function fillGeneratedValue(deps: VaultCommandDeps, value: string): Promise<FillResult> {
+  const tab = await deps.getActiveTab();
+  if (!tab) return { status: "blocked", reason: "no-active-tab" };
+  if (!isSecurePage(tab.url)) return { status: "blocked", reason: "insecure-page" };
+  const outcome = await deps.sendFill(tab.id, [{ kind: "generated", value }]);
+  return outcome.ok ? { status: "filled" } : { status: "no-form" };
 }
 
 async function buildListView(deps: VaultCommandDeps): Promise<VaultListView> {
@@ -288,7 +304,12 @@ export function isVaultCommand(value: unknown): value is VaultCommand {
   switch (command.type) {
     case "vault/list":
     case "vault/sync":
+    case "vault/clipboard-arm":
       return true;
+    case "vault/fill-generated": {
+      const c = value as { value?: unknown };
+      return isString(c.value) && c.value.length > 0 && c.value.length <= 4096;
+    }
     case "vault/reveal": {
       const c = value as { vaultId?: unknown; entryId?: unknown; field?: unknown };
       return (
