@@ -152,6 +152,31 @@ describe("vault/fill gates", () => {
   });
 });
 
+describe("generated secret actions", () => {
+  it("fills only the password field on a secure active page", async () => {
+    const world = await buildVaultWorld();
+    const { deps, sendFill } = await makeHarness(world, { id: 7, url: HTTPS_MATCH });
+    const result = await dispatchVaultCommand(deps, { type: "vault/fill-generated", value: "new-secret" });
+    expect(result).toEqual({ ok: true, fill: { status: "filled" } });
+    expect(sendFill).toHaveBeenCalledWith(7, [{ kind: "generated", value: "new-secret" }]);
+  });
+
+  it("blocks generated fill on an insecure page", async () => {
+    const world = await buildVaultWorld();
+    const { deps, sendFill } = await makeHarness(world, { id: 7, url: "http://example.com" });
+    const result = await dispatchVaultCommand(deps, { type: "vault/fill-generated", value: "new-secret" });
+    expect(result).toEqual({ ok: true, fill: { status: "blocked", reason: "insecure-page" } });
+    expect(sendFill).not.toHaveBeenCalled();
+  });
+
+  it("arms clipboard clearing without receiving the generated value", async () => {
+    const world = await buildVaultWorld();
+    const { deps, arm } = await makeHarness(world, null);
+    expect(await dispatchVaultCommand(deps, { type: "vault/clipboard-arm" })).toEqual({ ok: true, clipboardArmed: true });
+    expect(arm).toHaveBeenCalledOnce();
+  });
+});
+
 describe("vault/reveal + vault/totp", () => {
   it("reveals a field and arms the clipboard wipe", async () => {
     const world = await buildVaultWorld();
@@ -203,6 +228,9 @@ describe("isVaultCommand", () => {
     expect(isVaultCommand({ type: "vault/reveal", vaultId: "v", entryId: "e", field: "password" })).toBe(true);
     expect(isVaultCommand({ type: "vault/reveal", vaultId: "v", entryId: "e", field: "bogus" })).toBe(false);
     expect(isVaultCommand({ type: "vault/fill", vaultId: "v" })).toBe(false);
+    expect(isVaultCommand({ type: "vault/fill-generated", value: "secret" })).toBe(true);
+    expect(isVaultCommand({ type: "vault/fill-generated", value: "" })).toBe(false);
+    expect(isVaultCommand({ type: "vault/clipboard-arm" })).toBe(true);
     expect(isVaultCommand({ type: "session/status" })).toBe(false);
     expect(isVaultCommand(null)).toBe(false);
   });

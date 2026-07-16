@@ -17,7 +17,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@palladin/crypto": "github:Palladin-io/palladin-crypto#660e958",
+    "@palladin/crypto": "github:Palladin-io/palladin-crypto#bcd2d511f45cd2a68036ca2e459ea23c544e52f0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tldts": "^7.4.8"

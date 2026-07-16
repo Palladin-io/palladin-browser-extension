@@ -48,6 +48,21 @@ describe("performFill", () => {
     expect((doc.getElementById("user") as HTMLInputElement).value).toBe("");
   });
 
+  it("inserts a generated value into the focused field", () => {
+    const doc = mount(`<form><input type="text" id="focused" /><input type="password" id="pass" /></form>`);
+    const focused = doc.getElementById("focused") as HTMLInputElement;
+    focused.focus();
+    expect(performFill(doc, [{ kind: "generated", value: "fresh-secret" }])).toEqual({ ok: true });
+    expect(focused.value).toBe("fresh-secret");
+    expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("");
+  });
+
+  it("falls back to a password field when no field is focused", () => {
+    const doc = mount(`<form><input type="password" id="pass" /></form>`);
+    expect(performFill(doc, [{ kind: "generated", value: "fresh-secret" }])).toEqual({ ok: true });
+    expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("fresh-secret");
+  });
+
   it("skips hidden, disabled, and readonly inputs", () => {
     const doc = mount(`
       <form>

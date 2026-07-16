@@ -33,6 +33,8 @@ export interface VaultClient {
   reveal(vaultId: string, entryId: string, field: VaultRevealField): Promise<string>;
   totp(vaultId: string, entryId: string): Promise<TotpView | null>;
   fill(vaultId: string, entryId: string): Promise<FillResult>;
+  fillGenerated(value: string): Promise<FillResult>;
+  armClipboardClear(): Promise<void>;
 }
 
 export type VaultSend = (command: VaultCommand) => Promise<VaultCommandResult | undefined>;
@@ -79,6 +81,15 @@ export function createVaultClient(send: VaultSend = chromeSend): VaultClient {
       const result = await dispatch(send, { type: "vault/fill", vaultId, entryId });
       if (!("fill" in result)) throw new VaultClientError("network");
       return result.fill;
+    },
+    async fillGenerated(value) {
+      const result = await dispatch(send, { type: "vault/fill-generated", value });
+      if (!("fill" in result)) throw new VaultClientError("network");
+      return result.fill;
+    },
+    async armClipboardClear() {
+      const result = await dispatch(send, { type: "vault/clipboard-arm" });
+      if (!("clipboardArmed" in result)) throw new VaultClientError("network");
     },
   };
 }
