@@ -28,7 +28,7 @@ describe("isBridgeMessage", () => {
     expect(isBridgeMessage({ type: "bridge/ping", at: 1 })).toBe(true);
     expect(isBridgeMessage({ type: "bridge/pong", at: 2 })).toBe(true);
     expect(isBridgeMessage({ type: "webauthn/observed", kind: "get" })).toBe(true);
-    expect(isBridgeMessage({ type: "session/activity" })).toBe(true);
+    expect(isBridgeMessage({ type: "session/activity" })).toBe(false);
   });
 
   it("rejects malformed variants", () => {

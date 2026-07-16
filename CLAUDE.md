@@ -32,9 +32,10 @@ treat any violation below as a Critical (blocking) finding.
   Suffix List) must equal the entry's registered domain; HTTPS-only; re-checked
   after navigation. Subdomains do NOT match by default (per-entry opt-in). An
   entry with no domain is fail-closed.
-- **Fill is driven by grant or explicit user choice, never by page content** -
-  the defense against prompt-injection. A page cannot talk the extension into a
-  fill.
+- **Fill is driven by explicit user choice or an authenticated native runtime,
+  never by page content.** User autofill does not use grants. Agent grants are
+  enforced by the Rust runtime before it sends prepared values over Native
+  Messaging; the extension never evaluates grant policy.
 - **Security over convenience.** If a shortcut weakens the model, it is not
   acceptable regardless of deadline pressure.
 
@@ -50,7 +51,8 @@ page main world  <-- window.postMessage -->  isolated world  <-- chrome Port -->
 ```
 
 - **Service worker** (`src/background/`) - bootstrap, Port routing, session
-  state. Later: sync engine, push registration, grant-gated dispatch. It is the
+  state. Later: sync engine, push registration, and authenticated native-runtime
+  dispatch. It is the
   trust boundary: it never performs a security-sensitive action on the strength
   of a page-originated message alone.
 - **Popup** (`src/popup/`) - thin React surface (unlock, list, search, generator,
@@ -126,8 +128,9 @@ src/
 
 ## Manifest & Permissions
 
-- **Least privilege.** Start permissions are `storage`, `activeTab`, `alarms`
-  only - no broad `host_permissions`. `content_scripts` match `<all_urls>`
+- **Least privilege.** Permissions are `storage`, `activeTab`, `alarms`, and
+  `offscreen`; host permissions are restricted to the Palladin API origins.
+  `content_scripts` match `<all_urls>`
   pending a dedicated least-privilege review; narrowing this is tracked work, not
   a default to widen.
 - Adding a permission or host is a security decision - justify it in the PR and

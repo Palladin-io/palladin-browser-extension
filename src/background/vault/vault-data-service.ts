@@ -99,7 +99,8 @@ export class VaultDataService {
 
     for (const vault of vaults) {
       const detail = await this.client.getVault(accessToken, vault.id);
-      if (detail.wrappedVK) wrappedKeys[vault.id] = detail.wrappedVK;
+      if (!detail.wrappedVK) continue;
+      wrappedKeys[vault.id] = detail.wrappedVK;
 
       const items = await this.client.listAllEntries(accessToken, vault.id);
       for (const item of items) {

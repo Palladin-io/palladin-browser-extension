@@ -36,11 +36,7 @@ export type BridgeMessage =
   | { readonly type: "bridge/ready" }
   | { readonly type: "bridge/ping"; readonly at: number }
   | { readonly type: "bridge/pong"; readonly at: number }
-  | { readonly type: "webauthn/observed"; readonly kind: "get" | "create" }
-  // User-activity heartbeat: resets the idle auto-lock timer in the worker
-  // (see background/session). Carries no data — it is a bare signal, and it is
-  // never a trust anchor for a fill (fills are gated separately).
-  | { readonly type: "session/activity" };
+  | { readonly type: "webauthn/observed"; readonly kind: "get" | "create" };
 
 export type BridgeMessageType = BridgeMessage["type"];
 
@@ -50,7 +46,6 @@ const BRIDGE_MESSAGE_TYPES: ReadonlySet<string> = new Set<BridgeMessageType>([
   "bridge/ping",
   "bridge/pong",
   "webauthn/observed",
-  "session/activity",
 ]);
 
 /** Envelope wrapping a {@link BridgeMessage} for the window.postMessage transport. */
@@ -87,8 +82,6 @@ export function isBridgeMessage(value: unknown): value is BridgeMessage {
       return typeof message.at === "number" && Number.isFinite(message.at);
     case "webauthn/observed":
       return message.kind === "get" || message.kind === "create";
-    case "session/activity":
-      return true;
     default: {
       const _exhaustive: never = message;
       return _exhaustive;

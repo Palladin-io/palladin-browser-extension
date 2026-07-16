@@ -18,6 +18,11 @@ import { clipboardGuard, vaultCommandDeps, vaultData } from "./vault/runtime";
 
 const SYNC_ALARM = "palladin.sync";
 
+function isTrustedExtensionPage(sender: chrome.runtime.MessageSender): boolean {
+  const extensionOrigin = chrome.runtime.getURL("");
+  return sender.id === chrome.runtime.id && !sender.tab && sender.url?.startsWith(extensionOrigin) === true;
+}
+
 /** Re-read the session state and repaint the toolbar padlock badge. */
 function refreshBadge(): void {
   void sessionManager
@@ -61,10 +66,6 @@ chrome.runtime.onConnect.addListener((port) => {
     // The Port is isolated from the page, but the content script forwards
     // page-adjacent traffic — validate the shape before acting.
     if (!isBridgeMessage(raw)) return;
-    if (raw.type === "session/activity") {
-      // User activity: push the idle auto-lock deadline out (side effect).
-      void sessionManager.touchActivity();
-    }
     const reply = routePortMessage(raw);
     if (reply) port.postMessage(reply);
   });
@@ -73,8 +74,10 @@ chrome.runtime.onConnect.addListener((port) => {
 // Popup ↔ worker command channel. Session commands (login / unlock / lock /
 // logout / settings) are tried first; anything they don't recognise is offered
 // to the vault command surface (list / sync / reveal / totp / fill).
-chrome.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
+  if (!isTrustedExtensionPage(sender)) return false;
   void (async () => {
+    await sessionManager.touchActivity();
     const sessionResult = await handleRuntimeMessage(sessionManager, raw);
     if (sessionResult !== null) {
       sendResponse(sessionResult);
@@ -86,6 +89,8 @@ chrome.runtime.onMessage.addListener((raw, _sender, sendResponse) => {
   // Returning true keeps the message channel open for the async response.
   return true;
 });
+
+void chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
 
 chrome.runtime.onInstalled.addListener(() => {
   // ~5 min cadence for the future delta-sync trigger (see the sync plan).

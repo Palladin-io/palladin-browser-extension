@@ -32,9 +32,11 @@ describe("buildManifest (chromium)", () => {
     expect(new Set(manifest.permissions)).toEqual(
       new Set(["storage", "activeTab", "alarms", "offscreen"]),
     );
-    // No broad host_permissions on day zero — access comes via activeTab +
-    // content_scripts, pending the CVT-382 least-privilege review.
-    expect(manifest.host_permissions ?? []).toEqual([]);
+    expect(manifest.host_permissions).toEqual([
+      "http://localhost:5000/*",
+      "https://api.stage.palladin.io/*",
+      "https://api.palladin.io/*",
+    ]);
   });
 
   it("declares both bridge worlds: an isolated script and a MAIN-world slot", () => {
