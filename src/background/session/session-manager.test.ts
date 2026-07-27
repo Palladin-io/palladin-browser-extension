@@ -17,7 +17,6 @@ import {
   type TestAccount,
 } from "./test-support";
 
-const KEYS_KEY = "palladin.session.keys";
 const TOKENS_KEY = "palladin.session.tokens";
 const MATERIAL_KEY = "palladin.session.material";
 
@@ -59,8 +58,8 @@ describe("SessionManager — full lifecycle", () => {
     const keys = mgr.getKeys();
     expect(keys).not.toBeNull();
     expect(toBase64(keys!.privateKey)).toBe(account.privateKeyB64);
-    // Keys, tokens, and cached material all land in storage.session.
-    expect(storage.has(KEYS_KEY)).toBe(true);
+    // Only tokens and encrypted account material land in storage.session.
+    expect(storage.keys()).not.toContain("palladin.session.keys");
     expect(storage.has(TOKENS_KEY)).toBe(true);
     expect(storage.has(MATERIAL_KEY)).toBe(true);
   });
@@ -83,7 +82,7 @@ describe("SessionManager — full lifecycle", () => {
     expect(mgr.getKeys()).toBeNull();
     // The in-memory buffer was zeroed in place, not merely dereferenced.
     expect(liveMasterKey.every((b) => b === 0)).toBe(true);
-    expect(storage.has(KEYS_KEY)).toBe(false);
+    expect(storage.keys()).not.toContain("palladin.session.keys");
     expect(storage.has(TOKENS_KEY)).toBe(true);
     expect(storage.has(MATERIAL_KEY)).toBe(true);
   });
@@ -145,13 +144,13 @@ describe("SessionManager — full lifecycle", () => {
 });
 
 describe("SessionManager — service-worker restart", () => {
-  it("rehydrates an unlocked session from storage.session across a fresh module instance", async () => {
+  it("fails closed to locked because key material is never stored", async () => {
     const account = await buildTestAccount();
     const storage = new FakeStorageArea();
     const alarms = new FakeAlarms();
     const authClient = new AuthClient(mockBackend(account).fetch, "http://api.test");
 
-    // First worker instance: log in, keys land in storage.session.
+    // First worker instance: log in, keys exist only in that manager's memory.
     const first = new SessionManager({
       store: new SessionStore(storage),
       authClient,
@@ -166,10 +165,13 @@ describe("SessionManager — service-worker restart", () => {
       autoLock: new AutoLock(alarms, () => {}),
     });
 
-    expect(await second.initialize()).toBe("unlocked");
+    expect(await second.initialize()).toBe("locked");
+    expect(second.getKeys()).toBeNull();
+    expect(alarms.created.has(AUTO_LOCK_ALARM)).toBe(false);
+
+    await second.unlockWithPassword(account.password);
+    expect(await second.getStatus()).toBe("unlocked");
     expect(toBase64(second.getKeys()!.privateKey)).toBe(account.privateKeyB64);
-    // The idle alarm is re-armed on rehydrate.
-    expect(alarms.created.has(AUTO_LOCK_ALARM)).toBe(true);
   });
 });
 

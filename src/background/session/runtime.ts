@@ -11,8 +11,8 @@ import { AutoLock, type AlarmScheduler } from "./auto-lock";
 import { SessionManager } from "./session-manager";
 import { SessionStore, type StorageArea } from "./session-store";
 
-// Keys live EXCLUSIVELY in chrome.storage.session (memory-backed, cleared on
-// browser close). This adapter is the concrete binding behind SessionStore.
+// Only tokens, encrypted account material, and policy metadata use
+// chrome.storage.session. Cryptographic keys remain in SessionManager memory.
 const storageArea: StorageArea = {
   get: (keys) => chrome.storage.session.get(keys),
   set: (items) => chrome.storage.session.set(items),

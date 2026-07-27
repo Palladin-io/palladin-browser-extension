@@ -1,5 +1,5 @@
 /**
- * Guard test: key material must live EXCLUSIVELY in `chrome.storage.session`.
+ * Guard test: key material must never be written to extension storage.
  * This greps the entire background source tree (comments stripped, so a prose
  * mention of the rule does not trip it) and fails if any forbidden persistence
  * API appears in code. A regression that reaches for localStorage / IndexedDB /
@@ -55,8 +55,12 @@ describe("key-storage guard", () => {
     expect(violations).toEqual([]);
   });
 
-  it("does keep the sanctioned chrome.storage.session binding", () => {
+  it("uses storage.session only through the non-key SessionStore binding", () => {
     const runtime = readFileSync(join(BACKGROUND_DIR, "session/runtime.ts"), "utf8");
     expect(runtime).toContain("chrome.storage.session");
+    const store = readFileSync(join(BACKGROUND_DIR, "session/session-store.ts"), "utf8");
+    expect(store).not.toContain("setKeys(");
+    expect(store).not.toContain("getKeys(");
+    expect(store).not.toContain("palladin.session.keys");
   });
 });

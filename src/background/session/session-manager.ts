@@ -2,11 +2,9 @@
  * The service worker's session brain: login, unlock, lock, logout, and the
  * auto-lock lifecycle — a session SEPARATE from the web panel's (plan §12.4).
  *
- * Key material lives in two places in lockstep: as `Uint8Array` buffers in
- * worker memory (fast access for decryption) and, via {@link SessionStore}, as
- * base64 in `chrome.storage.session` so an unlocked session survives a
- * service-worker restart. `lock` wipes the buffers AND drops the stored copy;
- * `logout` additionally clears tokens. The JWT can outlive the keys (auto-lock),
+ * Key material lives only as `Uint8Array` buffers in this worker instance.
+ * A service-worker restart loses the keys and returns the session to locked.
+ * `lock` wipes the buffers; `logout` additionally clears tokens. The JWT can outlive the keys (auto-lock),
  * so `unlock` re-derives keys OFFLINE from the cached, non-secret account
  * material — no re-login, no network.
  *
@@ -73,18 +71,13 @@ export class SessionManager {
   }
 
   /**
-   * Rehydrate after a service-worker restart. `storage.session` outlives the
-   * worker, so if keys are still there the session comes back UNLOCKED without
-   * re-deriving; the idle alarm is re-armed from the persisted activity stamp.
+   * Initialize after a service-worker restart. Keys are intentionally not
+   * recoverable from storage, so a token-bearing session comes back locked.
    */
   async initialize(): Promise<SessionStatus> {
-    const stored = await this.store.getKeys();
-    if (stored) {
-      this.keys = stored;
-      const record = await this.store.getAutoLock();
-      const policy = record?.policy ?? DEFAULT_AUTO_LOCK_POLICY;
-      this.autoLock.arm(policy, record?.lastActivityAt ?? this.now());
-    }
+    // Chrome alarms outlive an MV3 worker instance. Since the corresponding
+    // in-memory keys do not, discard the previous worker's stale deadline.
+    this.autoLock.disarm();
     return this.getStatus();
   }
 
@@ -219,8 +212,6 @@ export class SessionManager {
   private async setUnlocked(keys: SessionKeys, userId: string): Promise<void> {
     this.wipeKeys();
     this.keys = keys;
-    await this.store.setKeys(keys);
-
     const record = await this.store.getAutoLock();
     const policy = record?.policy ?? DEFAULT_AUTO_LOCK_POLICY;
     await this.store.setAutoLock({ policy, lastActivityAt: this.now() });
@@ -238,7 +229,6 @@ export class SessionManager {
     if (!this.keys) return;
     const tokens = await this.store.getTokens();
     this.wipeKeys();
-    await this.store.clearKeys();
     this.autoLock.disarm();
     if (tokens) this.hooks.emitLocked({ userId: tokens.userId });
   }

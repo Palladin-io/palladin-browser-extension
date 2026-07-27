@@ -12,10 +12,11 @@ encryption/decryption happens on-device - the server never sees plaintext.
 credentials. Security is a hard constraint, never a trade-off.** PR reviewers must
 treat any violation below as a Critical (blocking) finding.
 
-- **Keys live only in `chrome.storage.session`** (memory-backed, cleared when the
-  browser closes) or in JS memory. NEVER `localStorage`, `sessionStorage`,
-  `IndexedDB`, `chrome.storage.local`, or `chrome.storage.sync`. Auto-lock and
-  wipe keys on lock/logout.
+- **Keys live only in the active service-worker JS memory.** Never write MK,
+  private keys, VK, VDK, EntryDEK, or derived keys to `chrome.storage.session`,
+  `localStorage`, `sessionStorage`, `IndexedDB`, `chrome.storage.local`, or
+  `chrome.storage.sync`. A service-worker restart fails closed to locked and
+  requires a fresh client-side unlock. Auto-lock and wipe keys on lock/logout.
 - **No inline crypto.** All encryption/decryption comes from the shared crypto
   package (bundled locally - MV3 forbids remote code). Never hand-roll crypto in
   a background handler, content script, or popup component.
