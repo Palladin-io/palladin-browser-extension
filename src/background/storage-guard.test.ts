@@ -13,10 +13,16 @@ import { describe, expect, it } from "vitest";
 
 const BACKGROUND_DIR = resolve(process.cwd(), "src/background");
 
-const FORBIDDEN: readonly { readonly label: string; readonly pattern: RegExp }[] = [
+const CIPHERTEXT_CACHE = join('vault', 'protocol2', 'cache.ts');
+
+const FORBIDDEN: readonly {
+  readonly label: string;
+  readonly pattern: RegExp;
+  readonly allowInSuffix?: string;
+}[] = [
   { label: "localStorage", pattern: /\blocalStorage\b/ },
   { label: "sessionStorage", pattern: /\bsessionStorage\b/ },
-  { label: "indexedDB", pattern: /\bindexedDB\b/i },
+  { label: "indexedDB", pattern: /\bindexedDB\b/i, allowInSuffix: CIPHERTEXT_CACHE },
   { label: "storage.local", pattern: /\bstorage\.local\b/ },
   { label: "storage.sync", pattern: /\bstorage\.sync\b/ },
 ];
@@ -48,8 +54,10 @@ describe("key-storage guard", () => {
     const violations: string[] = [];
     for (const file of files) {
       const code = stripComments(readFileSync(file, "utf8"));
-      for (const { label, pattern } of FORBIDDEN) {
-        if (pattern.test(code)) violations.push(`${file}: ${label}`);
+      for (const { label, pattern, allowInSuffix } of FORBIDDEN) {
+        if (pattern.test(code) && !(allowInSuffix && file.endsWith(allowInSuffix))) {
+          violations.push(`${file}: ${label}`);
+        }
       }
     }
     expect(violations).toEqual([]);
@@ -62,5 +70,11 @@ describe("key-storage guard", () => {
     expect(store).not.toContain("setKeys(");
     expect(store).not.toContain("getKeys(");
     expect(store).not.toContain("palladin.session.keys");
+  });
+
+  it("keeps the IndexedDB exception ciphertext-only", () => {
+    const cache = stripComments(readFileSync(join(BACKGROUND_DIR, CIPHERTEXT_CACHE), "utf8"));
+    expect(cache).toContain("indexedDB");
+    expect(cache).not.toMatch(/\b(masterKey|privateKey|vaultKey|entryDek|memberSecret)\b/i);
   });
 });
