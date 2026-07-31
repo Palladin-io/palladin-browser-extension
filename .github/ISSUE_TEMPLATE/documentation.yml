@@ -1,0 +1,22 @@
+name: Documentation issue
+description: Report inaccurate, missing, or unclear public documentation.
+title: "[Docs] "
+labels: [documentation]
+body:
+  - type: textarea
+    id: location
+    attributes:
+      label: Location
+      description: Link to or name the affected file and section.
+    validations:
+      required: true
+  - type: textarea
+    id: issue
+    attributes:
+      label: What is inaccurate or unclear?
+    validations:
+      required: true
+  - type: textarea
+    id: correction
+    attributes:
+      label: Suggested correction
