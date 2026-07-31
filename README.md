@@ -5,9 +5,11 @@
 > support an extension from this repository.
 
 This repository records the intended security boundary and development process
-for a possible Manifest V3 companion to Palladin. Public development branches
-contain separate experiments, but those branches have not been consolidated,
-security-reviewed as one product, or promoted to a release.
+for a possible Manifest V3 companion to Palladin. Historical public development
+branches contain separate, unsupported experiments that were never
+security-reviewed as one product or promoted to a release. Those branch refs
+will be removed during the OSS cleanup; `main` is the repository's only
+authoritative surface.
 
 Do not install branch builds with real credentials or treat screenshots,
 manifests, or prototype behavior as a statement of a shipped Palladin feature.
@@ -55,25 +57,25 @@ ready for release merely because it builds; the security gates in
 | Package manifest and lockfile | Repository documentation tooling only; no extension dependencies |
 | Browser-store release | Not published from this repository |
 | Supported versions | None |
-| Development status | Deferred pending branch consolidation and security review |
+| Development status | Deferred; `main` is the only authoritative branch |
 
-The public branch experiments explore a Manifest V3 scaffold, service-worker
+Historical branch experiments explored a Manifest V3 scaffold, service-worker
 session handling, popup unlock and entry selection, domain-gated filling,
-password generation, and an integration path. They are useful research inputs,
-not a linear release history. Any restart should consolidate them through a
-reviewed pull request instead of declaring one branch authoritative.
+password generation, and an integration path. They are unsupported artifacts,
+not release history or maintained research inputs, and their public branch refs
+are scheduled for deletion. Any future implementation must start from `main`
+and arrive through a reviewed pull request.
 
 ## Contributing
 
 Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) and open an issue before a large
-implementation. Pull requests should target `main`, state which prototype ideas
-they retain, and include a security-boundary analysis. Do not submit real
+implementation. Pull requests should target `main` and include a
+security-boundary analysis. Do not submit real
 credentials or production-derived vault data in examples, fixtures, issues, or
 screenshots.
 
 Suspected vulnerabilities must be reported privately as described in
-[`SECURITY.md`](SECURITY.md), including issues found in public prototype
-branches.
+[`SECURITY.md`](SECURITY.md).
 
 Project decisions and release authority are documented in
 [`GOVERNANCE.md`](GOVERNANCE.md).

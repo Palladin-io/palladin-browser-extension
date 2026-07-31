@@ -3,11 +3,11 @@
 Development is deferred. The default branch intentionally contains no
 installable extension and there are no supported versions.
 
-Public prototype branches explored useful pieces independently. Their presence
-does not establish a supported branch, a release candidate, or an integration
-order. Before implementation resumes, maintainers should compare the branches,
-select the smallest coherent baseline, and bring it to `main` through normal
-review.
+Historical public prototype branches contain unsupported experiments. They are
+not release candidates, maintained research inputs, or part of an integration
+plan, and their branch refs will be removed during the OSS cleanup. `main` is
+the only authoritative project surface. Any future implementation must start
+from `main` and arrive through normal review.
 
 ## Minimum gates for a development baseline
 

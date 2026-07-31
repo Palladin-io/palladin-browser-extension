@@ -2,7 +2,7 @@
 
 Thank you for helping evaluate the Palladin browser-extension design. The
 project is deferred and has no buildable default branch, so contributions should
-start with a scoped issue rather than assuming a prototype branch will merge.
+start with a scoped issue and target `main`, the only authoritative branch.
 
 ## Before opening a pull request
 
@@ -22,7 +22,7 @@ Describe:
 - any added browser permission, host, persistent state, or external service;
 - failure and cleanup behavior;
 - tests performed and remaining limitations;
-- which public prototype ideas, if any, were used as input.
+- the provenance and license of any design or code used as input.
 
 Security-sensitive behavior needs rejection-path tests, not only a happy-path
 test. A buildable implementation should use strict TypeScript, locked

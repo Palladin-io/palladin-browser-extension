@@ -14,11 +14,12 @@ reproduction steps. Do not send acquired secrets or personal data; an
 anonymized proof is sufficient.
 
 There are currently no supported extension versions from this repository.
-Reports may still concern repository configuration or public prototype
-branches. Include the affected branch and commit, browser and version where
-relevant, and whether the issue could persist plaintext or keys, expose a value
-to a visited page or log, bypass frame/domain/session checks, broaden manifest
-permissions, or accept unauthenticated extension messages.
+While historical prototype refs remain public during cleanup, reports may still
+identify an affected commit, but those experiments are unsupported and are not
+authoritative project surfaces. Include the affected commit, browser and version
+where relevant, and whether the issue could persist plaintext or keys, expose a
+value to a visited page or log, bypass frame/domain/session checks, broaden
+manifest permissions, or accept unauthenticated extension messages.
 
 ## Safe harbor and testing boundaries
 

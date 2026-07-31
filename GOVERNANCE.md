@@ -1,8 +1,9 @@
 # Project governance
 
 The Palladin browser extension is maintained by the Palladin project. The
-maintainers decide when deferred development resumes, which experiments are
-consolidated, and whether a change satisfies the security and release gates.
+maintainers decide whether deferred development resumes and whether a change
+proposed against `main` satisfies the security and release gates. Historical
+prototype branches are unsupported and do not participate in governance.
 
 ## Decision process
 
