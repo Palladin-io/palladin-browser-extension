@@ -1,19 +1,20 @@
 {
-  "name": "palladin-browser-extension",
+  "name": "@palladin/browser-extension",
   "version": "0.0.0",
   "private": true,
-  "description": "Palladin browser extension - user autofill + secure AI agent fill (MV3). Zero-knowledge: keys never leave your device.",
-  "license": "GPL-3.0-only",
+  "description": "Palladin browser extension - user autofill and secure AI agent fill (Manifest V3).",
+  "license": "Apache-2.0",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "check:docs": "node scripts/check-docs.mjs",
+    "test": "npm run check:docs && vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {

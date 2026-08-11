@@ -1,62 +1,54 @@
-# palladin-browser-extension
+# Palladin Browser Extension
 
-Palladin browser extension - user autofill + secure AI agent fill (Manifest V3).
-Zero-knowledge: keys never leave your device.
+Palladin's Manifest V3 browser extension is under active development. It has one
+product surface with two explicitly separated authorization paths:
 
-Two use cases:
+1. **User autofill** - a classic password-manager flow initiated by the user.
+2. **Agent fill** - an authenticated Palladin Runtime asks the same extension to
+   fill an approved credential without returning its value to the AI model.
 
-1. **User autofill** - a classic password-manager experience: unlock, fill,
-   capture, generate, TOTP.
-2. **Agent fill** - a browser-using AI agent logs in through the extension while
-   the secret bypasses the LLM context, gated by an explicit grant.
+Neither path trusts the visited page. Agent fill does not reuse or weaken the
+user-autofill authorization path, and user autofill never requires an Agent grant.
 
 ## Status
 
-Scaffold. This repository currently ships the MV3 skeleton: a service worker, a
-placeholder popup, three-layer content scripts (isolated + main world), and the
-typed message bridge that everything else builds on. No crypto and no secrets
-yet - the crypto package and the fill engine arrive in later phases.
+The current development branch contains the Chromium MV3 foundation, in-memory
+session and key lifecycle, encrypted Vault protocol/cache, popup unlock and
+domain-matched entry selection, TOTP, generation, and a typed content-script
+bridge. Native-runtime pairing and production store publication remain in
+development. Do not use development builds with production credentials.
+
+See [`docs/STATUS.md`](docs/STATUS.md) for the release gates and
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for trust boundaries.
 
 ## Requirements
 
-- Node.js >= 20
+- Node.js 22 or newer
 
 ## Development
 
 ```bash
-npm ci          # install
-npm run dev     # Vite dev server with HMR
-npm run build   # typecheck + production build -> dist/
-npm test        # Vitest
+npm ci
+npm run dev
+npm run build
+npm test
 ```
 
-### Load the unpacked extension
+To load the Chromium development build, enable Developer mode at
+`chrome://extensions`, choose **Load unpacked**, and select `dist/` after a build.
 
-1. `npm run build`
-2. Open `chrome://extensions` (Chrome / Brave / Edge / Opera) and enable
-   **Developer mode**.
-3. **Load unpacked** and select the `dist/` folder.
+One Chromium build targets Chrome, Chromium, Brave, Edge, and Opera. Future
+Firefox and Safari builds are manifest/platform adapters over the same extension
+core, not separate Palladin products.
 
-The same build targets all Chromium browsers. Firefox and Safari builds land as
-separate manifest overlays in a later phase.
+## Security and contribution
 
-### Icons
+Read [`AGENTS.md`](AGENTS.md), [`CONTRIBUTING.md`](CONTRIBUTING.md), and
+[`SECURITY.md`](SECURITY.md) before changing the extension. Every change goes
+through a pull request to `main` with security-boundary tests.
 
-`icons/*.png` are placeholders. Regenerate them with:
+## License and trademarks
 
-```bash
-node scripts/generate-icons.mjs
-```
-
-## Architecture
-
-```
-page main world  <-- window.postMessage -->  isolated world  <-- chrome Port -->  service worker
-```
-
-See [`AGENTS.md`](./AGENTS.md) for the full architecture, security rules, and
-conventions. Security reports: [`SECURITY.md`](./SECURITY.md).
-
-## License
-
-[GPL-3.0](./LICENSE)
+Licensed under [Apache-2.0](LICENSE). The license does not grant rights to
+Palladin names, logos, or browser-store identity; see
+[`TRADEMARKS.md`](TRADEMARKS.md).
