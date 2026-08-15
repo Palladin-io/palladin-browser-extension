@@ -14,28 +14,15 @@
 
 import { matchesTab } from "./domain";
 
-/** Entry types serialised by the backend as camelCase strings. */
-export type EntryTypeWire = "key" | "credential" | "script" | number;
-
 export const ENTRY_TYPE_KEY = 0 as const;
 export const ENTRY_TYPE_CREDENTIAL = 1 as const;
 export const ENTRY_TYPE_SCRIPT = 2 as const;
+export const ENTRY_TYPE_CREDIT_CARD = 3 as const;
 export type EntryTypeCode =
   | typeof ENTRY_TYPE_KEY
   | typeof ENTRY_TYPE_CREDENTIAL
-  | typeof ENTRY_TYPE_SCRIPT;
-
-/**
- * Normalise the wire `type` (camelCase string, or a legacy integer) into the
- * numeric code the client compares against — mirrors the web panel boundary
- * normalisation so `"credential"` never silently compares unequal to `1`.
- */
-export function normalizeEntryType(raw: EntryTypeWire): EntryTypeCode {
-  const value = typeof raw === "string" ? raw.toLowerCase() : raw;
-  if (value === "key" || value === ENTRY_TYPE_KEY) return ENTRY_TYPE_KEY;
-  if (value === "script" || value === ENTRY_TYPE_SCRIPT) return ENTRY_TYPE_SCRIPT;
-  return ENTRY_TYPE_CREDENTIAL;
-}
+  | typeof ENTRY_TYPE_SCRIPT
+  | typeof ENTRY_TYPE_CREDIT_CARD;
 
 /**
  * One cached entry. Every field is non-secret: `name` is the label, `urlDomain`

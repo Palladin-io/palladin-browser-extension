@@ -1,3 +1,5 @@
 {
-  "minimum_chrome_version": "116"
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwoBnwRudbfjL/px3vhHC9SBdmcmXOKY8OvQQ1u/FjAX75+SCojesO5AVYPDQLY9Y1Y0YGr5oy9R4pXuupgVViP2wvkygWUtnfDZ8V9ePybwdkwRY0b7ZRFAgC+WcK8aVpt8fWJs6yiYYVRz7PEHe/rC5YdkimVBu/GlTh9yKklRsB93NJ7qVTWdcj1rpvGhIknaCbzktaAYQqLF4hLO3lcvfI55TNO9Q60q14kalf3aY3U9ehDOanlNT7oVuXBhmfLNJVxFep16Fni9/pGIzotQXhHSf/WuOzigd8YEYtrxrl5nGVYMmrzV0s7ZKyJJjN828NE9SZVBvYo+2aY4KIQIDAQAB",
+  "minimum_chrome_version": "116",
+  "permissions": ["storage", "activeTab", "alarms", "offscreen", "nativeMessaging"]
 }

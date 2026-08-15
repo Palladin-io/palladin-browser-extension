@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ENTRY_TYPE_CREDENTIAL,
-  ENTRY_TYPE_KEY,
-  ENTRY_TYPE_SCRIPT,
   entriesForTab,
-  normalizeEntryType,
   searchEntries,
   type EntryMetadata,
 } from "./entry-metadata";
@@ -18,20 +15,6 @@ function meta(over: Partial<EntryMetadata> & Pick<EntryMetadata, "id" | "name">)
     ...over,
   };
 }
-
-describe("normalizeEntryType", () => {
-  it("maps the camelCase wire strings to numeric codes", () => {
-    expect(normalizeEntryType("key")).toBe(ENTRY_TYPE_KEY);
-    expect(normalizeEntryType("credential")).toBe(ENTRY_TYPE_CREDENTIAL);
-    expect(normalizeEntryType("script")).toBe(ENTRY_TYPE_SCRIPT);
-  });
-
-  it("tolerates legacy integers and defaults unknowns to credential", () => {
-    expect(normalizeEntryType(0)).toBe(ENTRY_TYPE_KEY);
-    expect(normalizeEntryType(2)).toBe(ENTRY_TYPE_SCRIPT);
-    expect(normalizeEntryType("weird" as never)).toBe(ENTRY_TYPE_CREDENTIAL);
-  });
-});
 
 describe("entriesForTab", () => {
   const entries = [

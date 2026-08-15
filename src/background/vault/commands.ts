@@ -18,23 +18,30 @@
  */
 
 import {
-  ENTRY_TYPE_CREDENTIAL,
-  ENTRY_TYPE_KEY,
   generateTotp,
-  parseOtpauthUri,
-  type EntryPlaintext,
+  type MemberSecretV1,
   type TotpParams,
 } from "@palladin/crypto";
 
 import type { FillField, FillOutcome } from "@shared/messaging";
 
 import { isSecurePage, matchesTab, registrableDomain } from "./domain";
-import { entriesForTab, searchEntries, type EntryMetadata } from "./entry-metadata";
+import type { VaultDataSource } from "./data-source";
+import {
+  ENTRY_TYPE_CREDENTIAL,
+  ENTRY_TYPE_CREDIT_CARD,
+  entriesForTab,
+  searchEntries,
+  type EntryMetadata,
+} from "./entry-metadata";
+import type {
+  CreditCardSaveInput,
+  CreditCardSaveResult,
+} from "./protocol2/service";
 import {
   VaultDataError,
   type VaultDataErrorCode,
-  type VaultDataService,
-} from "./vault-data-service";
+} from "./errors";
 
 // ─── Command + result vocabulary ──────────────────────────────────────────────
 
@@ -53,6 +60,7 @@ export type VaultCommand =
   | { readonly type: "vault/totp"; readonly vaultId: string; readonly entryId: string }
   | { readonly type: "vault/fill"; readonly vaultId: string; readonly entryId: string }
   | { readonly type: "vault/fill-generated"; readonly value: string }
+  | { readonly type: "vault/card-save"; readonly card: CreditCardSaveInput }
   | { readonly type: "vault/clipboard-arm" };
 
 export type VaultCommandType = VaultCommand["type"];
@@ -87,6 +95,7 @@ export type FillBlockReason =
   | "domain-mismatch"
   | "not-found"
   | "not-fillable"
+  | "target-changed"
   | "decrypt-failed"
   | "network";
 
@@ -102,6 +111,7 @@ export type VaultCommandResult =
   | { readonly ok: true; readonly reveal: { readonly value: string } }
   | { readonly ok: true; readonly totp: TotpView | null }
   | { readonly ok: true; readonly fill: FillResult }
+  | { readonly ok: true; readonly cardSave: CreditCardSaveResult }
   | { readonly ok: true; readonly clipboardArmed: true }
   | { readonly ok: false; readonly code: VaultCommandErrorCode; readonly message: string };
 
@@ -110,16 +120,25 @@ export type VaultCommandResult =
 export interface ActiveTab {
   readonly id: number;
   readonly url: string;
+  /** Isolated page-load id, checked again inside that document. */
+  readonly documentId: string;
+  /** Browser-issued target used by tabs.sendMessage routing. */
+  readonly browserDocumentId: string;
 }
 
 export interface VaultCommandDeps {
-  data: VaultDataService;
+  data: VaultDataSource;
+  cardWriter?: { saveCreditCard(input: CreditCardSaveInput): Promise<CreditCardSaveResult> };
   /** Resolve the active tab (activeTab permission grants URL access on invocation). */
   getActiveTab(): Promise<ActiveTab | null>;
-  /** Deliver ready field values to a tab's isolated content script. */
-  sendFill(tabId: number, fields: readonly FillField[]): Promise<FillOutcome>;
+  /** Deliver values only to the exact top-frame document prepared pre-decrypt. */
+  sendFill(
+    target: ActiveTab,
+    expectedDomain: string | null,
+    fields: readonly FillField[],
+  ): Promise<FillOutcome>;
   /** Schedule the clipboard wipe after a value was copied. */
-  clipboard: { arm(): void };
+  clipboard: { readonly available: boolean; arm(): void };
   /** Injectable clock for TOTP (ms since epoch). */
   now?: () => number;
 }
@@ -138,6 +157,9 @@ export async function dispatchVaultCommand(
         await deps.data.refresh();
         return { ok: true, list: await buildListView(deps) };
       case "vault/reveal":
+        if (!deps.clipboard.available) {
+          return { ok: false, code: "bad-request", message: "Copy is unavailable on this browser" };
+        }
         return await revealField(deps, command.vaultId, command.entryId, command.field);
       case "vault/totp":
         return await totpView(deps, command.vaultId, command.entryId);
@@ -145,7 +167,15 @@ export async function dispatchVaultCommand(
         return { ok: true, fill: await fillActiveTab(deps, command.vaultId, command.entryId) };
       case "vault/fill-generated":
         return { ok: true, fill: await fillGeneratedValue(deps, command.value) };
+      case "vault/card-save":
+        if (!deps.cardWriter) {
+          return { ok: false, code: "network", message: "Card saving is unavailable" };
+        }
+        return { ok: true, cardSave: await deps.cardWriter.saveCreditCard(command.card) };
       case "vault/clipboard-arm":
+        if (!deps.clipboard.available) {
+          return { ok: false, code: "bad-request", message: "Clipboard wipe is unavailable" };
+        }
         deps.clipboard.arm();
         return { ok: true, clipboardArmed: true };
       default: {
@@ -162,8 +192,8 @@ async function fillGeneratedValue(deps: VaultCommandDeps, value: string): Promis
   const tab = await deps.getActiveTab();
   if (!tab) return { status: "blocked", reason: "no-active-tab" };
   if (!isSecurePage(tab.url)) return { status: "blocked", reason: "insecure-page" };
-  const outcome = await deps.sendFill(tab.id, [{ kind: "generated", value }]);
-  return outcome.ok ? { status: "filled" } : { status: "no-form" };
+  const outcome = await deps.sendFill(tab, null, [{ kind: "generated", value }]);
+  return fillResult(outcome);
 }
 
 async function buildListView(deps: VaultCommandDeps): Promise<VaultListView> {
@@ -222,34 +252,57 @@ async function fillActiveTab(
   );
   if (!meta) return { status: "blocked", reason: "not-found" };
   // Re-check the origin gate at click time, not just when the list was drawn.
-  if (!matchesTab(tab.url, meta.urlDomain)) return { status: "blocked", reason: "domain-mismatch" };
-  if (meta.type !== ENTRY_TYPE_CREDENTIAL) return { status: "blocked", reason: "not-fillable" };
+  if (meta.type === ENTRY_TYPE_CREDENTIAL && !matchesTab(tab.url, meta.urlDomain)) {
+    return { status: "blocked", reason: "domain-mismatch" };
+  }
+  if (meta.type !== ENTRY_TYPE_CREDENTIAL && meta.type !== ENTRY_TYPE_CREDIT_CARD) {
+    return { status: "blocked", reason: "not-fillable" };
+  }
 
-  let plaintext: EntryPlaintext;
+  let plaintext: MemberSecretV1;
   try {
     plaintext = await deps.data.revealEntry(vaultId, entryId);
   } catch (error) {
     return { status: "blocked", reason: fillReasonFor(error) };
   }
-  if (plaintext.type !== ENTRY_TYPE_CREDENTIAL) return { status: "blocked", reason: "not-fillable" };
+  if (plaintext.entryType === "creditCard") {
+    const card = plaintext.content;
+    const fields: FillField[] = [
+      { kind: "cardholder", value: card.cardholderName },
+      { kind: "card-number", value: card.cardNumber },
+      { kind: "card-expiry-month", value: card.expiryMonth },
+      { kind: "card-expiry-year", value: card.expiryYear },
+      { kind: "card-expiry", value: `${card.expiryMonth}/${card.expiryYear.slice(-2)}` },
+      ...(card.billingAddress
+        ? [{ kind: "billing-address", value: card.billingAddress } as const]
+        : []),
+    ];
+    const outcome = await deps.sendFill(tab, null, fields);
+    return fillResult(outcome);
+  }
+  if (!isCredential(plaintext)) return { status: "blocked", reason: "not-fillable" };
 
   const fields: FillField[] = [];
-  if (plaintext.username) fields.push({ kind: "username", value: plaintext.username });
-  fields.push({ kind: "password", value: plaintext.password });
+  const username = credentialUsername(plaintext);
+  if (username) fields.push({ kind: "username", value: username });
+  fields.push({ kind: "password", value: credentialPassword(plaintext) });
 
-  const outcome = await deps.sendFill(tab.id, fields);
-  return outcome.ok ? { status: "filled" } : { status: "no-form" };
+  const outcome = await deps.sendFill(tab, meta.urlDomain ?? null, fields);
+  return fillResult(outcome);
 }
 
 // ─── Plaintext extraction ─────────────────────────────────────────────────────
 
-function extractField(plaintext: EntryPlaintext, field: VaultRevealField): string | null {
+function extractField(
+  plaintext: MemberSecretV1,
+  field: VaultRevealField,
+): string | null {
   if (field === "value") {
-    return plaintext.type === ENTRY_TYPE_KEY ? plaintext.value : null;
+    return plaintext.entryType === "key" ? plaintext.content.value : null;
   }
-  if (plaintext.type !== ENTRY_TYPE_CREDENTIAL) return null;
-  if (field === "username") return plaintext.username;
-  if (field === "password") return plaintext.password;
+  if (!isCredential(plaintext)) return null;
+  if (field === "username") return credentialUsername(plaintext);
+  if (field === "password") return credentialPassword(plaintext);
   return null;
 }
 
@@ -257,23 +310,62 @@ function extractField(plaintext: EntryPlaintext, field: VaultRevealField): strin
  * The entry's TOTP seed, from the credential's `otpauth://` URI first, else the
  * first `totp` custom field (its value is already a parsed {@link TotpParams}).
  */
-function extractTotpParams(plaintext: EntryPlaintext): TotpParams | null {
-  if (plaintext.type === ENTRY_TYPE_CREDENTIAL && plaintext.totp) {
-    const parsed = parseOtpauthUri(plaintext.totp);
-    if (parsed) return parsed;
+function extractTotpParams(plaintext: MemberSecretV1): TotpParams | null {
+  if (plaintext.entryType === "credential" && plaintext.content.totp) {
+    const canonical = plaintext.content.totp;
+    return {
+      secret: canonical.secret,
+      algorithm: canonical.algorithm,
+      digits: canonical.digits,
+      period: canonical.period,
+      ...(canonical.issuer ? { issuer: canonical.issuer } : {}),
+      ...(canonical.account ? { account: canonical.account } : {}),
+    };
   }
-  for (const fieldEntry of plaintext.fields ?? []) {
-    if (fieldEntry.type === "totp" && typeof fieldEntry.value === "object" && fieldEntry.value !== null) {
-      return fieldEntry.value;
-    }
+  for (const fieldEntry of plaintext.content.customFields) {
+    if (fieldEntry.type === "totp" && isTotpParams(fieldEntry.value)) return fieldEntry.value;
   }
   return null;
+}
+
+function isCredential(
+  plaintext: MemberSecretV1,
+): plaintext is Extract<MemberSecretV1, { entryType: "credential" }> {
+  return plaintext.entryType === "credential";
+}
+
+function credentialUsername(
+  plaintext: Extract<MemberSecretV1, { entryType: "credential" }>,
+): string {
+  return plaintext.content.username;
+}
+
+function credentialPassword(
+  plaintext: Extract<MemberSecretV1, { entryType: "credential" }>,
+): string {
+  return plaintext.content.password;
+}
+
+function isTotpParams(value: unknown): value is TotpParams {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Partial<TotpParams>;
+  return typeof candidate.secret === "string"
+    && (candidate.algorithm === "SHA1" || candidate.algorithm === "SHA256" || candidate.algorithm === "SHA512")
+    && typeof candidate.digits === "number"
+    && typeof candidate.period === "number";
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function sortByName(entries: readonly EntryMetadata[]): EntryMetadata[] {
   return [...entries].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function fillResult(outcome: FillOutcome): FillResult {
+  if (outcome.ok) return { status: "filled" };
+  return outcome.reason === "target-changed"
+    ? { status: "blocked", reason: "target-changed" }
+    : { status: "no-form" };
 }
 
 function fillReasonFor(error: unknown): FillBlockReason {
@@ -310,6 +402,10 @@ export function isVaultCommand(value: unknown): value is VaultCommand {
       const c = value as { value?: unknown };
       return isString(c.value) && c.value.length > 0 && c.value.length <= 4096;
     }
+    case "vault/card-save": {
+      const c = value as { card?: unknown };
+      return isCreditCardSaveInput(c.card);
+    }
     case "vault/reveal": {
       const c = value as { vaultId?: unknown; entryId?: unknown; field?: unknown };
       return (
@@ -329,6 +425,21 @@ export function isVaultCommand(value: unknown): value is VaultCommand {
     default:
       return false;
   }
+}
+
+function isCreditCardSaveInput(value: unknown): value is CreditCardSaveInput {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const card = value as Record<string, unknown>;
+  const keys = ["label", "cardholderName", "cardNumber", "expiryMonth", "expiryYear", "billingAddress", "notes"];
+  if (!Object.keys(card).every((key) => keys.includes(key))) return false;
+  return typeof card.label === "string" && card.label.trim().length > 0 && card.label.length <= 256
+    && typeof card.cardholderName === "string" && card.cardholderName.length <= 256
+    && typeof card.cardNumber === "string" && /^[0-9 -]{8,32}$/.test(card.cardNumber)
+    && typeof card.expiryMonth === "string" && /^(0[1-9]|1[0-2])$/.test(card.expiryMonth)
+    && typeof card.expiryYear === "string" && /^[0-9]{4}$/.test(card.expiryYear)
+    && (card.billingAddress === undefined
+      || (typeof card.billingAddress === "string" && card.billingAddress.length <= 2048))
+    && (card.notes === undefined || (typeof card.notes === "string" && card.notes.length <= 4096));
 }
 
 /**

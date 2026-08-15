@@ -21,18 +21,36 @@ import {
   CONTENT_PORT,
   createEnvelope,
   generateNonce,
+  isAgentInjectStepMessage,
+  isAgentInjectTransitionMessage,
   isBridgeMessage,
   isFillRequestMessage,
+  isTabUrlRequestMessage,
   validateInboundEnvelope,
+  type AgentInjectStepMessage,
   type FillOutcome,
 } from "@shared/messaging";
+import { isCaptureFillRequestMessage } from "@shared/messaging/capture";
 
-import { performFill } from "./fill";
+import { startPasswordCaptureDetection } from "./capture";
+import { inspectAgentInjectTransition, performAgentInjectStep } from "./agent-inject";
+import { performBoundFill } from "./fill";
 
 const sessionNonce = generateNonce();
+const documentId = generateNonce();
 const selfOrigin = window.location.origin;
 
 const port = chrome.runtime.connect({ name: CONTENT_PORT });
+const passwordCapture = startPasswordCaptureDetection(
+  document,
+  () => window.location.href,
+  documentId,
+  (message) => {
+    // Shape-only observation: candidate id + kind. No page value crosses.
+    void chrome.runtime.sendMessage(message).catch(() => undefined);
+  },
+  window.top === window,
+);
 
 // Fill requests arrive as a direct, tab-addressed runtime message from the
 // worker (never the page). We perform the DOM write here in the isolated world
@@ -40,11 +58,47 @@ const port = chrome.runtime.connect({ name: CONTENT_PORT });
 // written into the page's inputs but is NEVER forwarded to the main-world script
 // (see the Port relay below, which explicitly excludes fill traffic).
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (isTabUrlRequestMessage(message)) {
+    sendResponse({ url: window.location.href, documentId });
+    return undefined;
+  }
+  if (isCaptureFillRequestMessage(message)) {
+    sendResponse(passwordCapture.controller.fill(message));
+    return undefined;
+  }
+  if (isAgentInjectTransitionMessage(message)) {
+    sendResponse(inspectAgentInjectTransition(
+      document,
+      message.selector,
+      message.expectedDomain,
+      () => window.location.href,
+    ));
+    return undefined;
+  }
+  if (isAgentInjectStepMessage(message)) {
+    try {
+      sendResponse(performAgentInjectStep(document, message, () => window.location.href));
+    } catch {
+      sendResponse({ ok: false, outcome: "provider-unavailable" });
+    } finally {
+      wipeStepValues(message);
+    }
+    return undefined;
+  }
   if (!isFillRequestMessage(message)) return undefined;
-  const outcome: FillOutcome = performFill(document, message.fields);
+  const outcome: FillOutcome = performBoundFill(
+    document,
+    message,
+    window.location.href,
+    documentId,
+  );
   sendResponse(outcome);
   return undefined;
 });
+
+function wipeStepValues(message: AgentInjectStepMessage): void {
+  for (const field of message.values) (field as { value: string }).value = "";
+}
 
 // Worker -> main world: forward anything the worker sends down to the page's
 // main world, re-wrapped as an isolated->main envelope.
@@ -77,6 +131,3 @@ window.postMessage(
   }),
   selfOrigin,
 );
-
-// TODO(fill-engine): detect credential/password fields (language-independent
-// heuristics: autocomplete, type=password, name/id) and drive the inline menu.

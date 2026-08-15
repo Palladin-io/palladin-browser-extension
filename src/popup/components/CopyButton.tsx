@@ -10,6 +10,7 @@
 
 import { useCallback, useRef, useState } from "react";
 
+import { clipboardCopyAvailable } from "@shared/config/build-target";
 import type { VaultRevealField } from "../../background/vault/commands";
 import type { VaultClient } from "../vault/client";
 
@@ -24,6 +25,12 @@ export interface CopyButtonProps {
 type CopyState = "idle" | "copied" | "error";
 
 export function CopyButton({
+  ...props
+}: CopyButtonProps): React.JSX.Element | null {
+  return clipboardCopyAvailable ? <EnabledCopyButton {...props} /> : null;
+}
+
+function EnabledCopyButton({
   client,
   vaultId,
   entryId,

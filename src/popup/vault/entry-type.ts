@@ -8,3 +8,4 @@
 export const ENTRY_KEY = 0;
 export const ENTRY_CREDENTIAL = 1;
 export const ENTRY_SCRIPT = 2;
+export const ENTRY_CREDIT_CARD = 3;

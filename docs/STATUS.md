@@ -1,24 +1,36 @@
 # Project status and restart gates
 
-Development is deferred. The default branch intentionally contains no
-installable extension and there are no supported versions.
+The repository contains development artifacts for one shared extension core:
+Chromium-family MV3, Firefox, and a Safari conversion foundation. It includes
+canonical Vault Protocol 2 user autofill and explicit write paths. Agent Inject
+keeps its separate provider contract but its Native Messaging transport is
+fail-closed until trusted host pairing is implemented. It remains pre-production
+and has no supported production version until every release gate below is complete.
 
-Historical public prototype branches contain unsupported experiments. They are
-not release candidates, maintained research inputs, or part of an integration
-plan, and their branch refs will be removed during the OSS cleanup. `main` is
-the only authoritative project surface. Any future implementation must start
-from `main` and arrive through normal review.
+`main` remains the authoritative product surface. Work starts from current
+`main` and arrives through normal review; historical prototype branches are not
+release candidates.
 
-## Minimum gates for a development baseline
+## Development baseline
 
-- one buildable source tree on `main` with a locked dependency graph;
-- repository-local instructions and architecture that match the merged code;
-- CI that runs safely for forks without repository secrets;
-- manifest permission and host inventory with least-privilege justification;
-- tests for messaging, session lock/wipe, storage guards, domain matching, fill
-  authorization, and logging redaction;
-- no credentials, keys, private endpoints, or production-derived fixtures;
-- an explicit compatibility statement for supported browsers and versions.
+- One buildable source tree with a locked dependency graph.
+- CI and local tests cover messaging, session lock/wipe, ciphertext-only cache,
+  canonical writes, domain matching, credential/card fill, payment-field
+  exclusions, Agent fill, replay rejection, and logging redaction.
+- One Chromium artifact targets Chrome, Edge, Brave, and Opera; Firefox and
+  Safari use manifest overlays over the same core.
+- Copy is available only in the Chromium artifact, where the reviewed offscreen
+  TTL wipe exists. Firefox and Safari hide Copy and reject copy commands before
+  decrypting a value.
+- Card storage/autofill supports cardholder, PAN, expiry, billing, and notes.
+  Canonical custom fields stay neutral and are never inferred as payment
+  authentication data; there is no dedicated field or heuristic for it.
+- The Native Messaging host name and authenticated session framing are explicit
+  and tested. No `session.open` is sent without a pinned signing key/fingerprint.
+- No trusted pairing flow currently creates that pin, so production Agent Inject
+  is intentionally unavailable rather than falling back to plaintext/TOFU.
+- Development compatibility targets current Chrome, Chromium, Brave, Edge, and
+  Opera MV3 builds. Store certification and version support are not yet claimed.
 
 ## Additional gates for any release
 
@@ -28,6 +40,10 @@ from `main` and arrive through normal review.
 - dependency audit, SBOM, artifact hashes, and build provenance;
 - browser-store signing, update, rollback, and incident-response procedures;
 - end-to-end tests against a compatible public Palladin API contract;
+- trusted-runtime pairing with an independent user-verification channel and
+  installed-browser Native Messaging tests;
+- replace the temporary Git SHA crypto dependency with the reviewed published
+  `@palladin/crypto` semver release before merge/release;
 - release notes that distinguish implemented behavior from future work.
 
 Until every release gate is complete, documentation and UI must continue to use

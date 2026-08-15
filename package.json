@@ -2,15 +2,22 @@
   "name": "@palladin/browser-extension",
   "version": "0.0.0",
   "private": true,
-  "description": "Palladin browser extension - user autofill and secure AI agent fill (Manifest V3).",
+  "description": "Palladin browser extension - user autofill and encrypted Vault access (Manifest V3).",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "dev": "node scripts/run-vite-target.mjs dev chromium",
+    "dev:chromium": "node scripts/run-vite-target.mjs dev chromium",
+    "dev:firefox": "node scripts/run-vite-target.mjs dev firefox",
+    "dev:safari": "node scripts/run-vite-target.mjs dev safari",
+    "build": "npm run build:all",
+    "build:all": "npm run typecheck && node scripts/run-vite-target.mjs build all",
+    "build:chromium": "npm run typecheck && node scripts/run-vite-target.mjs build chromium",
+    "build:firefox": "npm run typecheck && node scripts/run-vite-target.mjs build firefox",
+    "build:safari": "npm run typecheck && node scripts/run-vite-target.mjs build safari",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "check:docs": "node scripts/check-docs.mjs",
@@ -18,7 +25,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@palladin/crypto": "github:Palladin-io/palladin-crypto#bcd2d511f45cd2a68036ca2e459ea23c544e52f0",
+    "@palladin/crypto": "github:Palladin-io/palladin-crypto#543c705779578fd4161e678aabd8db072bfcb6df",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tldts": "^7.4.8",

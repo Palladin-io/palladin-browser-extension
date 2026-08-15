@@ -12,14 +12,22 @@ user-autofill authorization path, and user autofill never requires an Agent gran
 
 ## Status
 
-The current development branch contains the Chromium MV3 foundation, in-memory
-session and key lifecycle, encrypted Vault protocol/cache, popup unlock and
-domain-matched entry selection, TOTP, generation, and a typed content-script
-bridge. Native-runtime pairing and production store publication remain in
-development. Do not use development builds with production credentials.
+The current development branch contains MV3 build foundations for the Chromium
+family, Firefox, and Safari, plus in-memory session and key lifecycle, encrypted
+Vault Protocol 2 sync/read/write, popup unlock and domain-matched credential
+selection, explicit generated-password save/update, TOTP, and card save/autofill
+for cardholder, PAN, expiry, and billing fields. Agent Inject has a typed
+`form+values` provider and authenticated-channel foundation, but stays
+fail-closed until trusted pairing and native-runtime packaging exist.
+Clipboard Copy is intentionally disabled on Firefox and Safari until those
+targets have a reviewed TTL wipe. Cross-browser runtime validation and
+production store publication remain in development. Do not use development
+builds with production credentials.
 
 See [`docs/STATUS.md`](docs/STATUS.md) for the release gates and
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for trust boundaries.
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for trust boundaries. The exact
+target matrix and known gaps are in
+[`docs/BROWSER-COMPATIBILITY.md`](docs/BROWSER-COMPATIBILITY.md).
 
 ## Requirements
 
@@ -35,11 +43,14 @@ npm test
 ```
 
 To load the Chromium development build, enable Developer mode at
-`chrome://extensions`, choose **Load unpacked**, and select `dist/` after a build.
+`chrome://extensions`, choose **Load unpacked**, and select `dist/chromium/` after
+a build.
 
-One Chromium build targets Chrome, Chromium, Brave, Edge, and Opera. Future
-Firefox and Safari builds are manifest/platform adapters over the same extension
-core, not separate Palladin products.
+`npm run build` builds all three target manifests. Use `npm run build:chromium`,
+`npm run build:firefox`, or `npm run build:safari` for one target, and the matching
+`dev:*` script for development. Chrome, Chromium, Brave, Edge, and Opera use the
+same `dist/chromium/` artifact. Firefox and Safari are manifest/platform adapters
+over the same extension core, not separate Palladin products.
 
 ## Security and contribution
 

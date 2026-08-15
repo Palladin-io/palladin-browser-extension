@@ -102,6 +102,12 @@ export class SessionManager {
     return tokens?.accessToken ?? null;
   }
 
+  /** Stable cache partition for the authenticated account; never a key or token. */
+  async getUserId(): Promise<string | null> {
+    const tokens = await this.store.getTokens();
+    return tokens?.userId ?? null;
+  }
+
   /**
    * Rotate the access token via the refresh token and persist the new pair.
    * Returns the fresh access token, or null when there is no session or the

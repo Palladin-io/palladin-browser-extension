@@ -1,5 +1,9 @@
 import { useMemo, useState } from "react";
 
+import { CapturePrompt } from "../capture/CapturePrompt";
+import { CardForm } from "../cards/CardForm";
+import { createCaptureClient, type CaptureClient } from "../capture/client";
+import { useCapturePrompt } from "../capture/useCapturePrompt";
 import { Button } from "../components/Button";
 import { EntryList } from "../components/EntryList";
 import { ListSkeleton } from "../components/ListSkeleton";
@@ -22,17 +26,26 @@ export interface UnlockedScreenProps {
   onSignOut(): Promise<void>;
   /** Injected in tests; defaults to the real `chrome.runtime` vault channel. */
   vaultClient?: VaultClient;
+  /** Injected in tests; defaults to the worker-owned capture prompt channel. */
+  captureClient?: CaptureClient;
 }
 
 export function UnlockedScreen({
   onLock,
   onSignOut,
   vaultClient,
+  captureClient,
 }: UnlockedScreenProps): React.JSX.Element {
   const client = useMemo(() => vaultClient ?? createVaultClient(), [vaultClient]);
+  const promptClient = useMemo(
+    () => captureClient ?? createCaptureClient(),
+    [captureClient],
+  );
+  const capture = useCapturePrompt(promptClient);
   const list = useVaultList(client);
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<"vault" | "generator">("vault");
+  const [view, setView] = useState<"vault" | "generator" | "card">("vault");
+  const [capturePrompt, setCapturePrompt] = useState(capture.prompt);
 
   const searching = query.trim().length > 0;
   const results = useMemo(() => filterEntries(list.all, query), [list.all, query]);
@@ -40,12 +53,37 @@ export function UnlockedScreen({
   return (
     <section className="vault">
       <h2 className="sr-only">Your vault</h2>
+      {capture.prompt !== null && view === "vault" ? (
+        <CapturePrompt
+          prompt={capture.prompt}
+          onUseStrongPassword={() => {
+            setCapturePrompt(capture.prompt);
+            setView("generator");
+          }}
+          onDismiss={() => {
+            setCapturePrompt(null);
+            void capture.dismiss().catch(() => undefined);
+          }}
+        />
+      ) : null}
       <div className="vault-tabs" role="tablist" aria-label="Popup view">
         <button type="button" role="tab" aria-selected={view === "vault"} onClick={() => setView("vault")}>Vault</button>
         <button type="button" role="tab" aria-selected={view === "generator"} onClick={() => setView("generator")}>Generator</button>
+        <button type="button" role="tab" aria-selected={view === "card"} onClick={() => setView("card")}>Add card</button>
       </div>
 
-      {view === "generator" ? <GeneratorPanel client={client} /> : <>
+      {view === "card" ? <CardForm client={client} /> : view === "generator" ? (
+        capturePrompt === null ? <GeneratorPanel client={client} /> : (
+          <GeneratorPanel
+            client={client}
+            capture={{
+              site: capturePrompt.site,
+              fill: (value) => promptClient.fillGenerated(capturePrompt.id, value),
+              save: (value) => promptClient.save(capturePrompt.id, value),
+            }}
+          />
+        )
+      ) : <>
       <SearchBar value={query} onChange={setQuery} />
 
       {list.status === "loading" ? (

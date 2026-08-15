@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { CaptureClient } from "../capture/client";
 import { ENTRY_CREDENTIAL, ENTRY_KEY } from "../vault/entry-type";
 import type { EntryMetadata } from "../../background/vault/entry-metadata";
 import type { VaultListView } from "../../background/vault/commands";
@@ -38,7 +39,18 @@ function makeClient(over: Partial<VaultClient> = {}): VaultClient {
     totp: vi.fn(async () => null),
     fill: vi.fn(async () => ({ status: "filled" }) as const),
     fillGenerated: vi.fn(async () => ({ status: "filled" }) as const),
+    saveCreditCard: vi.fn(async () => ({ status: "saved" }) as const),
     armClipboardClear: vi.fn(async () => undefined),
+    ...over,
+  };
+}
+
+function makeCaptureClient(over: Partial<CaptureClient> = {}): CaptureClient {
+  return {
+    getPrompt: vi.fn(async () => null),
+    dismiss: vi.fn(async () => undefined),
+    fillGenerated: vi.fn(async () => ({ status: "filled", saveAvailable: true }) as const),
+    save: vi.fn(async () => ({ status: "saved", action: "created" }) as const),
     ...over,
   };
 }
@@ -148,6 +160,43 @@ describe("UnlockedScreen", () => {
     await user.click(screen.getByRole("button", { name: "Passphrase" }));
     expect(screen.getByLabelText("Generated value").textContent?.split("-")).toHaveLength(6);
     expect(client.sync).toHaveBeenCalledTimes(syncCallsBeforeGeneration);
+  });
+
+  it("offers a strong password in extension UI and fills only the bound candidate", async () => {
+    const captureClient = makeCaptureClient({
+      getPrompt: vi.fn(async () => ({
+        id: "prompt_0123456789abcdef",
+        kind: "password-change",
+        site: "example.com",
+      } as const)),
+    });
+    render(
+      <UnlockedScreen
+        onLock={noop}
+        onSignOut={noop}
+        vaultClient={makeClient()}
+        captureClient={captureClient}
+      />,
+    );
+    const user = userEvent.setup();
+
+    expect(await screen.findByText("Password change detected")).toBeInTheDocument();
+    expect(screen.getByText(/then choose whether to save it/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Use strong password" }));
+
+    const generated = screen.getByLabelText("Generated value").textContent ?? "";
+    await user.click(screen.getByRole("button", { name: "Fill" }));
+    await waitFor(() => expect(captureClient.fillGenerated).toHaveBeenCalledWith(
+      "prompt_0123456789abcdef",
+      generated,
+    ));
+    expect(screen.getByText("Filled in the active page")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save to Palladin" }));
+    await waitFor(() => expect(captureClient.save).toHaveBeenCalledWith(
+      "prompt_0123456789abcdef",
+      generated,
+    ));
+    expect(screen.getByText("Saved securely to Palladin")).toBeInTheDocument();
   });
 
   it("shows an empty state when the vault has no entries", async () => {

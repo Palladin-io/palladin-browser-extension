@@ -4,6 +4,9 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  define: {
+    __PALLADIN_TARGET__: JSON.stringify("chromium"),
+  },
   plugins: [react()],
   resolve: {
     alias: {

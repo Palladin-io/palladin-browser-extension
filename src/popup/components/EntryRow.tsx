@@ -12,7 +12,7 @@ import { useCallback, useRef, useState } from "react";
 
 import type { EntryMetadata } from "../../background/vault/entry-metadata";
 import type { VaultClient } from "../vault/client";
-import { ENTRY_CREDENTIAL, ENTRY_KEY } from "../vault/entry-type";
+import { ENTRY_CREDIT_CARD, ENTRY_CREDENTIAL, ENTRY_KEY } from "../vault/entry-type";
 import { entryDeepLink } from "@shared/config/web-app";
 import { fillMessage } from "../vault/messages";
 import { CopyButton } from "./CopyButton";
@@ -31,6 +31,7 @@ export function EntryRow({ client, entry }: EntryRowProps): React.JSX.Element {
 
   const isCredential = entry.type === ENTRY_CREDENTIAL;
   const isKey = entry.type === ENTRY_KEY;
+  const isCard = entry.type === ENTRY_CREDIT_CARD;
 
   const fill = useCallback(async () => {
     setStatus("Filling…");
@@ -62,6 +63,7 @@ export function EntryRow({ client, entry }: EntryRowProps): React.JSX.Element {
           {entry.urlDomain ? <span className="entry-sub">{entry.urlDomain}</span> : null}
         </span>
         {isCredential ? <span className="entry-tag">Login</span> : null}
+        {isCard ? <span className="entry-tag">Card</span> : null}
         <svg
           className={`entry-chevron${open ? " entry-chevron--open" : ""}`}
           viewBox="0 0 20 20"
@@ -84,6 +86,11 @@ export function EntryRow({ client, entry }: EntryRowProps): React.JSX.Element {
                 <CopyButton client={client} vaultId={entry.vaultId} entryId={entry.id} field="username" label="Copy username" />
                 <CopyButton client={client} vaultId={entry.vaultId} entryId={entry.id} field="password" label="Copy password" />
               </>
+            ) : null}
+            {isCard ? (
+              <button type="button" className="chip-btn chip-btn--accent" onClick={() => void fill()}>
+                Fill
+              </button>
             ) : null}
             {isKey ? (
               <CopyButton client={client} vaultId={entry.vaultId} entryId={entry.id} field="value" label="Copy value" />

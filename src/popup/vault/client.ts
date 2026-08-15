@@ -19,6 +19,10 @@ import type {
   VaultListView,
   VaultRevealField,
 } from "../../background/vault/commands";
+import type {
+  CreditCardSaveInput,
+  CreditCardSaveResult,
+} from "../../background/vault/protocol2/service";
 
 export class VaultClientError extends Error {
   constructor(readonly code: VaultCommandErrorCode) {
@@ -34,6 +38,7 @@ export interface VaultClient {
   totp(vaultId: string, entryId: string): Promise<TotpView | null>;
   fill(vaultId: string, entryId: string): Promise<FillResult>;
   fillGenerated(value: string): Promise<FillResult>;
+  saveCreditCard(card: CreditCardSaveInput): Promise<CreditCardSaveResult>;
   armClipboardClear(): Promise<void>;
 }
 
@@ -86,6 +91,11 @@ export function createVaultClient(send: VaultSend = chromeSend): VaultClient {
       const result = await dispatch(send, { type: "vault/fill-generated", value });
       if (!("fill" in result)) throw new VaultClientError("network");
       return result.fill;
+    },
+    async saveCreditCard(card) {
+      const result = await dispatch(send, { type: "vault/card-save", card });
+      if (!("cardSave" in result)) throw new VaultClientError("network");
+      return result.cardSave;
     },
     async armClipboardClear() {
       const result = await dispatch(send, { type: "vault/clipboard-arm" });

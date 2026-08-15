@@ -26,6 +26,8 @@ function blockedMessage(reason: FillBlockReason): string {
       return "This entry is not for the current site";
     case "no-active-tab":
       return "No active tab to fill";
+    case "target-changed":
+      return "The page changed - try again";
     case "locked":
       return "Locked - reopen to unlock";
     case "not-fillable":

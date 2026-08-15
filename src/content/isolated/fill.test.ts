@@ -1,17 +1,37 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 
-import type { FillField } from "@shared/messaging";
-import { performFill } from "./fill";
+import type { FillField, FillRequestMessage } from "@shared/messaging";
+import { performBoundFill, performFill } from "./fill";
 
 const CREDS: FillField[] = [
   { kind: "username", value: "ada@example.com" },
   { kind: "password", value: "s3cr3t" },
 ];
 
+const CARD: FillField[] = [
+  { kind: "cardholder", value: "Ada Lovelace" },
+  { kind: "card-number", value: "4111111111111111" },
+  { kind: "card-expiry-month", value: "08" },
+  { kind: "card-expiry-year", value: "2030" },
+  { kind: "card-expiry", value: "08/30" },
+  { kind: "billing-address", value: "12 Computing Lane" },
+];
+
 function mount(html: string): Document {
   document.body.innerHTML = html;
   return document;
+}
+
+function bound(fields: readonly FillField[], over: Partial<FillRequestMessage> = {}): FillRequestMessage {
+  return {
+    channel: "palladin.fill/request",
+    documentId: "document-1",
+    expectedOrigin: "https://example.com",
+    expectedDomain: null,
+    fields,
+    ...over,
+  };
 }
 
 describe("performFill", () => {
@@ -83,6 +103,18 @@ describe("performFill", () => {
     expect(performFill(doc, CREDS)).toEqual({ ok: false, reason: "no-form" });
   });
 
+  it("does not fill transparent password-manager decoys", () => {
+    const doc = mount(`
+      <form>
+        <input type="password" id="decoy" style="opacity:0;pointer-events:none" />
+        <input type="password" id="pass" />
+      </form>
+    `);
+    expect(performFill(doc, CREDS)).toEqual({ ok: true });
+    expect((doc.getElementById("decoy") as HTMLInputElement).value).toBe("");
+    expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("s3cr3t");
+  });
+
   it("uses the field just before the password, not one after it", () => {
     const doc = mount(`
       <form>
@@ -114,5 +146,92 @@ describe("performFill", () => {
     } finally {
       if (original) Object.defineProperty(HTMLInputElement.prototype, "value", original);
     }
+  });
+
+  it("fills only standardized payment and billing autocomplete fields", () => {
+    const doc = mount(`
+      <form>
+        <input id="name" autocomplete="cc-name" />
+        <input id="number" autocomplete="cc-number" />
+        <input id="month" autocomplete="cc-exp-month" />
+        <input id="year" autocomplete="cc-exp-year" />
+        <input id="expiry" autocomplete="cc-exp" />
+        <textarea id="billing" autocomplete="billing street-address"></textarea>
+      </form>
+    `);
+
+    expect(performFill(doc, CARD)).toEqual({ ok: true });
+    expect((doc.getElementById("name") as HTMLInputElement).value).toBe("Ada Lovelace");
+    expect((doc.getElementById("number") as HTMLInputElement).value).toBe("4111111111111111");
+    expect((doc.getElementById("month") as HTMLInputElement).value).toBe("08");
+    expect((doc.getElementById("year") as HTMLInputElement).value).toBe("2030");
+    expect((doc.getElementById("expiry") as HTMLInputElement).value).toBe("08/30");
+    expect((doc.getElementById("billing") as HTMLTextAreaElement).value).toBe("12 Computing Lane");
+  });
+
+  it("never detects or fills payment authentication fields or label-based lookalikes", () => {
+    const doc = mount(`
+      <form>
+        <input id="standard-code" autocomplete="cc-csc" />
+        <input id="named-code" name="securityCode" aria-label="Card security code" />
+        <input id="named-pin" name="pin" aria-label="PIN" />
+        <input id="custom-code" autocomplete="off" name="customField" aria-label="Verification number" />
+      </form>
+    `);
+
+    expect(performFill(doc, CARD)).toEqual({ ok: false, reason: "no-form" });
+    for (const id of ["standard-code", "named-code", "named-pin", "custom-code"]) {
+      expect((doc.getElementById(id) as HTMLInputElement).value).toBe("");
+    }
+  });
+
+  it("does not put the billing address into shipping or unqualified address fields", () => {
+    const doc = mount(`
+      <form>
+        <input id="shipping" autocomplete="shipping street-address" />
+        <input id="ambiguous" autocomplete="street-address" />
+      </form>
+    `);
+
+    expect(performFill(doc, CARD)).toEqual({ ok: false, reason: "no-form" });
+    expect((doc.getElementById("shipping") as HTMLInputElement).value).toBe("");
+    expect((doc.getElementById("ambiguous") as HTMLInputElement).value).toBe("");
+  });
+});
+
+describe("performBoundFill", () => {
+  it("does not write a credential after the top-frame document changes", () => {
+    const doc = mount(`<form><input id="user"><input id="pass" type="password"></form>`);
+    expect(performBoundFill(
+      doc,
+      bound(CREDS, { expectedDomain: "example.com" }),
+      "https://example.com/login",
+      "document-2",
+    )).toEqual({ ok: false, reason: "target-changed" });
+    expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("");
+  });
+
+  it("does not write card data after the exact origin changes", () => {
+    const doc = mount(`<form><input id="number" autocomplete="cc-number"></form>`);
+    expect(performBoundFill(
+      doc,
+      bound(CARD, { expectedOrigin: "https://checkout.example.com" }),
+      "https://payments.example.com/next",
+      "document-1",
+    )).toEqual({ ok: false, reason: "target-changed" });
+    expect((doc.getElementById("number") as HTMLInputElement).value).toBe("");
+  });
+
+  it("does not write a generated value after the prepared domain changes", () => {
+    const doc = mount(`<form><input id="pass" type="password"></form>`);
+    expect(performBoundFill(
+      doc,
+      bound([{ kind: "generated", value: "fresh-secret" }], {
+        expectedDomain: "example.com",
+      }),
+      "https://evil.test/login",
+      "document-1",
+    )).toEqual({ ok: false, reason: "target-changed" });
+    expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("");
   });
 });

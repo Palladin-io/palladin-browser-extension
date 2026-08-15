@@ -96,7 +96,9 @@ that blocks the others.
 ```
 manifest/          # Manifest source of truth (auditable JSON, merged by build-manifest.ts)
   manifest.base.json       # shared MV3 base
-  manifest.chromium.json   # Chromium overlay (Firefox/Safari overlays land later)
+  manifest.chromium.json   # Chrome / Chromium / Brave / Edge / Opera overlay
+  manifest.firefox.json    # Firefox-specific compatibility and signing metadata
+  manifest.safari.json     # Safari-specific compatibility metadata
   build-manifest.ts        # small pure deep-merge; the ONLY manifest generator
 icons/             # placeholder PNGs (regenerate: node scripts/generate-icons.mjs)
 scripts/           # build/dev helpers (no deps)
@@ -116,16 +118,18 @@ src/
 |-------|--------|-------|
 | Bundler | Vite + `@crxjs/vite-plugin` | MV3-native: handles worlds, SW module bundling, HMR |
 | UI | React 19 + TypeScript (strict) | popup only |
-| Manifest | MV3, one Chromium build | Chrome / Brave / Edge / Opera share it |
+| Manifest | MV3 target overlays | One Chromium-family artifact plus Firefox and Safari adapters |
 | Tests | Vitest | node environment; pure units |
 
-- **One build serves all Chromium browsers.** Future Firefox and Safari targets
-  are new overlays in `manifest/` selected by `PALLADIN_TARGET`, merged by
-  `build-manifest.ts`. Do not fork the base manifest.
+- **One build serves all Chromium browsers.** Chrome, Chromium, Brave, Edge, and
+  Opera share the `chromium` target. Firefox and Safari use small overlays in
+  `manifest/`, selected by `PALLADIN_TARGET` and merged by `build-manifest.ts`.
+  Do not fork the base manifest or add an Opera target.
 - **The manifest source of truth is `manifest/*.json`,** never the generated
   `dist/manifest.json`. Least-privilege review reads our source.
-- Verify: `npm ci && npm run build` produces a loadable unpacked `dist/`;
-  `npm test` is green.
+- Verify: `npm ci && npm run build` produces target artifacts under `dist/`;
+  `npm test` is green. See `docs/BROWSER-COMPATIBILITY.md` before claiming
+  runtime or store support for a target.
 
 ## Manifest & Permissions
 

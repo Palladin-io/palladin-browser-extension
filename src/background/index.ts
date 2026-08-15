@@ -8,10 +8,16 @@
 
 import { CONTENT_PORT, isBridgeMessage } from "@shared/messaging";
 
+import { connectNativeAgentProvider, handleNativeAgentAlarm } from "./agent/runtime";
 import { applyBadge } from "./badge";
+import {
+  handleCaptureContentRuntimeMessage,
+  handleCapturePopupRuntimeMessage,
+} from "./capture/runtime";
 import { routePortMessage } from "./router";
 import { handleRuntimeMessage } from "./session/commands";
 import { sessionAutoLock, sessionManager } from "./session/runtime";
+import { registerTopFrameDocument } from "./tab-documents";
 import { logger } from "./telemetry/logger";
 import { isTrustedExtensionPage } from "./trusted-sender";
 import { handleVaultRuntimeMessage } from "./vault/commands";
@@ -55,8 +61,16 @@ void sessionManager
   })
   .catch(() => logger.warn("session init failed"));
 
+// Agent Inject is independent of the popup lock state, but this connection opens
+// only when a previously verified host signing key is pinned. The current build
+// has no pairing writer, so an unpaired installation remains fail-closed.
+connectNativeAgentProvider();
+
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== CONTENT_PORT) return;
+
+  const unregisterDocument = registerTopFrameDocument(port, chrome.runtime.id);
+  if (unregisterDocument !== null) port.onDisconnect.addListener(unregisterDocument);
 
   port.onMessage.addListener((raw) => {
     // The Port is isolated from the page, but the content script forwards
@@ -67,9 +81,18 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 });
 
+// Content scripts may report only a shape-only, top-frame new-password
+// candidate. This listener has a separate sender gate from the popup channel.
+chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
+  const result = handleCaptureContentRuntimeMessage(raw, sender, chrome.runtime.id);
+  if (result === null) return false;
+  sendResponse(result);
+  return false;
+});
+
 // Popup ↔ worker command channel. Session commands (login / unlock / lock /
 // logout / settings) are tried first; anything they don't recognise is offered
-// to the vault command surface (list / sync / reveal / totp / fill).
+// to capture and then the vault command surface.
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isTrustedExtensionPage(sender, chrome.runtime.id, chrome.runtime.getURL(""))) return false;
   void (async () => {
@@ -77,6 +100,11 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
     const sessionResult = await handleRuntimeMessage(sessionManager, raw);
     if (sessionResult !== null) {
       sendResponse(sessionResult);
+      return;
+    }
+    const captureResult = handleCapturePopupRuntimeMessage(raw);
+    if (captureResult !== null) {
+      sendResponse(await captureResult);
       return;
     }
     const vaultResult = await handleVaultRuntimeMessage(vaultCommandDeps, raw);
@@ -94,6 +122,7 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
+  handleNativeAgentAlarm(alarm.name);
   // Idle auto-lock: the manager wipes keys when this fires.
   sessionAutoLock.dispatch(alarm.name);
   // Clipboard hygiene: wipe a copied secret once its TTL elapses.

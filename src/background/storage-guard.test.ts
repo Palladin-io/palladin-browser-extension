@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 const BACKGROUND_DIR = resolve(process.cwd(), "src/background");
 
 const CIPHERTEXT_CACHE = join('vault', 'protocol2', 'cache.ts');
+const PUBLIC_HOST_PAIRING_STORE = join('agent', 'pairing-store.ts');
 
 const FORBIDDEN: readonly {
   readonly label: string;
@@ -23,7 +24,7 @@ const FORBIDDEN: readonly {
   { label: "localStorage", pattern: /\blocalStorage\b/ },
   { label: "sessionStorage", pattern: /\bsessionStorage\b/ },
   { label: "indexedDB", pattern: /\bindexedDB\b/i, allowInSuffix: CIPHERTEXT_CACHE },
-  { label: "storage.local", pattern: /\bstorage\.local\b/ },
+  { label: "storage.local", pattern: /\bstorage\.local\b/, allowInSuffix: PUBLIC_HOST_PAIRING_STORE },
   { label: "storage.sync", pattern: /\bstorage\.sync\b/ },
 ];
 
@@ -76,5 +77,12 @@ describe("key-storage guard", () => {
     const cache = stripComments(readFileSync(join(BACKGROUND_DIR, CIPHERTEXT_CACHE), "utf8"));
     expect(cache).toContain("indexedDB");
     expect(cache).not.toMatch(/\b(masterKey|privateKey|vaultKey|entryDek|memberSecret)\b/i);
+  });
+
+  it("keeps the durable Native Messaging exception read-only and public", () => {
+    const store = stripComments(readFileSync(join(BACKGROUND_DIR, PUBLIC_HOST_PAIRING_STORE), "utf8"));
+    expect(store).toContain("storage.local.get");
+    expect(store).not.toContain("storage.local.set");
+    expect(store).not.toMatch(/\b(privateKey|sessionKey|ephemeralKey|nonce|ciphertext|accessToken|refreshToken)\b/);
   });
 });

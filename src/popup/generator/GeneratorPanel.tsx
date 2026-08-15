@@ -11,13 +11,28 @@ import {
 } from "@palladin/crypto";
 import { useCallback, useState } from "react";
 
+import { clipboardCopyAvailable } from "@shared/config/build-target";
+import type { CaptureGeneratedFillResult, CaptureSaveResult } from "@shared/messaging/capture";
+
 import { Button } from "../components/Button";
 import type { VaultClient } from "../vault/client";
 
 type GeneratorMode = "password" | "passphrase";
-type ActionStatus = "idle" | "copied" | "filled" | "no-form" | "blocked" | "error";
+type ActionStatus = "idle" | "copied" | "filled" | "saved" | "no-form" | "blocked" | "error";
 
-export function GeneratorPanel({ client }: { client: VaultClient }): React.JSX.Element {
+export interface CaptureGeneratorContext {
+  readonly site: string;
+  fill(value: string): Promise<CaptureGeneratedFillResult>;
+  save(value: string): Promise<CaptureSaveResult>;
+}
+
+export function GeneratorPanel({
+  client,
+  capture,
+}: {
+  client: VaultClient;
+  capture?: CaptureGeneratorContext;
+}): React.JSX.Element {
   const [mode, setMode] = useState<GeneratorMode>("password");
   const [length, setLength] = useState(PASSWORD_DEFAULT_LENGTH);
   const [digits, setDigits] = useState(true);
@@ -37,9 +52,11 @@ export function GeneratorPanel({ client }: { client: VaultClient }): React.JSX.E
     generatePassword({ length: PASSWORD_DEFAULT_LENGTH, digits: true, symbols: true }),
   );
   const [status, setStatus] = useState<ActionStatus>("idle");
+  const [saveReady, setSaveReady] = useState(false);
 
   function regenerate(nextMode = mode): void {
     setStatus("idle");
+    setSaveReady(false);
     setValue(
       nextMode === "password"
         ? generatePassword({ length, digits, symbols })
@@ -64,8 +81,26 @@ export function GeneratorPanel({ client }: { client: VaultClient }): React.JSX.E
 
   async function fill(): Promise<void> {
     try {
+      if (capture) {
+        const result = await capture.fill(value);
+        setStatus(result.status === "filled" ? "filled" : result.status === "no-form" ? "no-form" : "blocked");
+        setSaveReady(result.status === "filled" && result.saveAvailable);
+        return;
+      }
       const result = await client.fillGenerated(value);
       setStatus(result.status === "filled" ? "filled" : result.status === "no-form" ? "no-form" : "blocked");
+      setSaveReady(false);
+    } catch {
+      setStatus("error");
+    }
+  }
+
+  async function save(): Promise<void> {
+    if (!capture || !saveReady) return;
+    try {
+      const result = await capture.save(value);
+      setStatus(result.status === "saved" ? "saved" : "blocked");
+      if (result.status === "saved") setSaveReady(false);
     } catch {
       setStatus("error");
     }
@@ -106,12 +141,17 @@ export function GeneratorPanel({ client }: { client: VaultClient }): React.JSX.E
       )}
 
       <div className="generator-actions">
-        <Button variant="subtle" onClick={() => { setValue(makeValue()); setStatus("idle"); }}>Regenerate</Button>
-        <Button variant="subtle" onClick={copy}>Copy</Button>
+        <Button variant="subtle" onClick={() => { setValue(makeValue()); setStatus("idle"); setSaveReady(false); }}>Regenerate</Button>
+        {clipboardCopyAvailable ? <Button variant="subtle" onClick={copy}>Copy</Button> : null}
         <Button onClick={fill}>Fill</Button>
+        {capture && saveReady ? <Button onClick={save}>Save to Palladin</Button> : null}
       </div>
       <p className="generator-status" role="status">{statusText(status)}</p>
-      <p className="generator-note">Generated only in memory. Copied values clear after 30 seconds.</p>
+      <p className="generator-note">
+        {capture
+          ? `Detected form on ${capture.site}. Fill first, then explicitly save the generated value.`
+          : "Generated only in memory. Copied values clear after 30 seconds."}
+      </p>
     </div>
   );
 }
@@ -123,6 +163,7 @@ function Check({ label, checked, onChange }: { label: string; checked: boolean; 
 function statusText(status: ActionStatus): string {
   if (status === "copied") return "Copied - clipboard clears in 30 seconds";
   if (status === "filled") return "Filled in the active page";
+  if (status === "saved") return "Saved securely to Palladin";
   if (status === "no-form") return "No password field found";
   if (status === "blocked") return "Fill is available only on a secure active page";
   if (status === "error") return "Action failed - try again";

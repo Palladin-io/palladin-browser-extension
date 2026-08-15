@@ -14,19 +14,31 @@
  * controlled inputs so frameworks observe the change.
  */
 
-import type { FillField, FillOutcome } from "@shared/messaging";
+import type { FillField, FillOutcome, FillRequestMessage } from "@shared/messaging";
+import { matchesTab } from "@shared/security/domain";
 
 type TextLikeInput = HTMLInputElement;
+type FillControl = HTMLInputElement | HTMLTextAreaElement;
 
 const USERNAME_TYPES = new Set(["text", "email", "tel", ""]);
+const CARD_AUTOCOMPLETE_KIND: Readonly<Record<string, FillField["kind"]>> = {
+  "cc-name": "cardholder",
+  "cc-number": "card-number",
+  "cc-exp-month": "card-expiry-month",
+  "cc-exp-year": "card-expiry-year",
+  "cc-exp": "card-expiry",
+};
 
 /** Attribute-only visibility check (no layout needed, so it is testable in jsdom). */
-function isFillable(input: HTMLInputElement): boolean {
+function isFillable(input: FillControl): boolean {
   if (input.disabled || input.readOnly) return false;
-  if (input.hidden || input.type === "hidden") return false;
+  if (input.hidden || (input instanceof HTMLInputElement && input.type === "hidden")) return false;
   if (input.getAttribute("aria-hidden") === "true") return false;
   const style = input.getAttribute("style") ?? "";
   if (/display\s*:\s*none/i.test(style) || /visibility\s*:\s*hidden/i.test(style)) {
+    return false;
+  }
+  if (/opacity\s*:\s*0(?:\D|$)/i.test(style) || /pointer-events\s*:\s*none/i.test(style)) {
     return false;
   }
   return true;
@@ -60,9 +72,11 @@ function usernameFieldFor(
 }
 
 /** Set a controlled input's value so React/Vue-style frameworks observe the change. */
-function setFieldValue(input: HTMLInputElement, value: string): void {
+function setFieldValue(input: FillControl, value: string): void {
   const setter = Object.getOwnPropertyDescriptor(
-    HTMLInputElement.prototype,
+    input instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype,
     "value",
   )?.set;
   if (setter) setter.call(input, value);
@@ -89,6 +103,11 @@ export function performFill(doc: Document, fields: readonly FillField[]): FillOu
     return { ok: true };
   }
 
+  const cardFields = fields.filter((field) => field.kind.startsWith("card-")
+    || field.kind === "cardholder"
+    || field.kind === "billing-address");
+  if (cardFields.length > 0) return performCardFill(doc, cardFields);
+
   const password = firstFillablePassword(doc);
   if (!password) return { ok: false, reason: "no-form" };
 
@@ -98,4 +117,55 @@ export function performFill(doc: Document, fields: readonly FillField[]): FillOu
     else if (field.kind === "username" && username) setFieldValue(username, field.value);
   }
   return { ok: true };
+}
+
+/** Final isolated-world binding check immediately before any DOM write. */
+export function performBoundFill(
+  doc: Document,
+  message: FillRequestMessage,
+  currentUrl: string,
+  currentDocumentId: string,
+): FillOutcome {
+  if (currentDocumentId !== message.documentId) {
+    return { ok: false, reason: "target-changed" };
+  }
+  try {
+    const current = new URL(currentUrl);
+    if (current.protocol !== "https:" || current.origin !== message.expectedOrigin) {
+      return { ok: false, reason: "target-changed" };
+    }
+  } catch {
+    return { ok: false, reason: "target-changed" };
+  }
+  if (message.expectedDomain !== null && !matchesTab(currentUrl, message.expectedDomain)) {
+    return { ok: false, reason: "target-changed" };
+  }
+  return performFill(doc, message.fields);
+}
+
+function performCardFill(doc: Document, fields: readonly FillField[]): FillOutcome {
+  const values = new Map(fields.map((field) => [field.kind, field.value]));
+  const filledKinds = new Set<FillField["kind"]>();
+  for (const input of doc.querySelectorAll<FillControl>("input[autocomplete], textarea[autocomplete]")) {
+    if (!isFillable(input)) continue;
+    const tokens = (input.getAttribute("autocomplete") ?? "")
+      .trim()
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean);
+    const fieldName = tokens.at(-1) ?? "";
+    let kind = CARD_AUTOCOMPLETE_KIND[fieldName];
+    if ((fieldName === "street-address" || fieldName === "address-line1")
+      && tokens.includes("billing")) {
+      kind = "billing-address";
+    }
+    // Deliberately ignore cc-csc and every label/name heuristic. A neutral
+    // custom field must never become payment authentication data by accident.
+    if (kind === undefined || filledKinds.has(kind)) continue;
+    const value = values.get(kind);
+    if (value === undefined || value.length === 0) continue;
+    setFieldValue(input, value);
+    filledKinds.add(kind);
+  }
+  return filledKinds.size > 0 ? { ok: true } : { ok: false, reason: "no-form" };
 }

@@ -1,54 +1,132 @@
 import { describe, expect, it, vi } from "vitest";
+import type { MemberSecretV1 } from "@palladin/crypto";
 
 import type { FillField, FillOutcome } from "@shared/messaging";
 
-import { FakeStorageArea } from "../session/test-support";
 import {
   dispatchVaultCommand,
   isVaultCommand,
   type ActiveTab,
   type VaultCommandDeps,
 } from "./commands";
-import { VaultClient } from "./vault-client";
-import { VaultDataService } from "./vault-data-service";
-import { VaultStore } from "./vault-store";
-import { buildVaultWorld, fakeSession, vaultBackend, type VaultWorld } from "./test-support";
+import type { EntryMetadata } from "./entry-metadata";
 
-const API = "http://api.test";
 const HTTPS_MATCH = "https://example.com/login";
 
 interface Harness {
   deps: VaultCommandDeps;
   sendFill: ReturnType<typeof vi.fn>;
   arm: ReturnType<typeof vi.fn>;
+  revealEntry: ReturnType<typeof vi.fn>;
+}
+
+type TestTab = Omit<ActiveTab, "documentId" | "browserDocumentId"> & {
+  readonly documentId?: string;
+  readonly browserDocumentId?: string;
+};
+
+interface CommandWorld {
+  readonly metadata: EntryMetadata[];
+  readonly secrets: Map<string, MemberSecretV1>;
+}
+
+const COMMON_SECRET = {
+  schema: "palladin.member-secret.v1",
+  agentLabel: null,
+  discoverable: false,
+  description: null,
+  icon: null,
+  color: null,
+  agentFieldAccess: {},
+} as const;
+
+function buildVaultWorld(): CommandWorld {
+  const credential: MemberSecretV1 = {
+    ...COMMON_SECRET,
+    entryType: "credential",
+    memberLabel: "Example login",
+    content: {
+      username: "ada@example.com",
+      password: "s3cr3t-p@ss",
+      url: "https://example.com/login",
+      urlDomain: "example.com",
+      totp: {
+        secret: "JBSWY3DPEHPK3PXP",
+        algorithm: "SHA1",
+        digits: 6,
+        period: 30,
+        issuer: "Palladin",
+        account: "me",
+      },
+      notes: null,
+      customFields: [],
+    },
+  };
+  const key: MemberSecretV1 = {
+    ...COMMON_SECRET,
+    entryType: "key",
+    memberLabel: "API key",
+    content: { value: "sk-key-value-xyz", notes: null, customFields: [] },
+  };
+  return {
+    metadata: [
+      {
+        id: "entry-cred",
+        vaultId: "vault-1",
+        name: "Example login",
+        type: 1,
+        urlDomain: "www.example.com",
+        updatedAt: "2026-07-15T00:00:00Z",
+      },
+      {
+        id: "entry-key",
+        vaultId: "vault-1",
+        name: "API key",
+        type: 0,
+        updatedAt: "2026-07-15T00:00:00Z",
+      },
+    ],
+    secrets: new Map<string, MemberSecretV1>([
+      ["entry-cred", credential],
+      ["entry-key", key],
+    ]),
+  };
 }
 
 async function makeHarness(
-  world: VaultWorld,
-  tab: ActiveTab | null,
+  world: CommandWorld,
+  tab: TestTab | null,
   fillOutcome: FillOutcome = { ok: true },
 ): Promise<Harness> {
-  const client = new VaultClient(vaultBackend(world, { validToken: "valid-token" }).fetch, API);
-  const service = new VaultDataService({
-    client,
-    store: new VaultStore(new FakeStorageArea()),
-    session: fakeSession(world),
-  });
-  await service.refresh();
-
   const sendFill = vi.fn(
-    (_tabId: number, _fields: readonly FillField[]): Promise<FillOutcome> =>
+    (_target: ActiveTab, _expectedDomain: string | null, _fields: readonly FillField[]): Promise<FillOutcome> =>
       Promise.resolve(fillOutcome),
   );
   const arm = vi.fn();
+  const revealEntry = vi.fn(async (_vaultId: string, entryId: string) => {
+    const secret = world.secrets.get(entryId);
+    if (secret === undefined) throw new Error("missing fixture");
+    return secret;
+  });
   const deps: VaultCommandDeps = {
-    data: service,
-    getActiveTab: () => Promise.resolve(tab),
+    data: {
+      refresh: async () => world.metadata,
+      clearCache: async () => undefined,
+      getMetadata: async () => world.metadata,
+      revealEntry,
+    },
+    getActiveTab: () => Promise.resolve(tab === null
+      ? null
+      : {
+          ...tab,
+          documentId: tab.documentId ?? "document-1",
+          browserDocumentId: tab.browserDocumentId ?? "browser-document-1",
+        }),
     sendFill,
-    clipboard: { arm },
+    clipboard: { available: true, arm },
     now: () => 0,
   };
-  return { deps, sendFill, arm };
+  return { deps, sendFill, arm, revealEntry };
 }
 
 describe("vault/list", () => {
@@ -77,7 +155,14 @@ describe("vault/fill gates", () => {
     });
     expect(result).toEqual({ ok: true, fill: { status: "filled" } });
     // Username + password handed over — password last.
-    const [, fields] = sendFill.mock.calls[0];
+    const [target, expectedDomain, fields] = sendFill.mock.calls[0];
+    expect(target).toEqual({
+      id: 7,
+      url: HTTPS_MATCH,
+      documentId: "document-1",
+      browserDocumentId: "browser-document-1",
+    });
+    expect(expectedDomain).toBe("www.example.com");
     expect(fields).toEqual([
       { kind: "username", value: "ada@example.com" },
       { kind: "password", value: "s3cr3t-p@ss" },
@@ -113,7 +198,7 @@ describe("vault/fill gates", () => {
   it("blocks a non-credential entry", async () => {
     const world = await buildVaultWorld();
     // Give the KEY entry a matching domain so only the type gate can block it.
-    world.vaults[0].entries[1].urlDomain = "www.example.com";
+    world.metadata[1] = { ...world.metadata[1]!, urlDomain: "www.example.com" };
     const { deps } = await makeHarness(world, { id: 1, url: HTTPS_MATCH });
 
     const result = await dispatchVaultCommand(deps, {
@@ -139,6 +224,20 @@ describe("vault/fill gates", () => {
     expect(result).toEqual({ ok: true, fill: { status: "no-form" } });
   });
 
+  it("fails closed when the prepared credential document changes before the DOM write", async () => {
+    const world = buildVaultWorld();
+    const { deps } = await makeHarness(world, { id: 1, url: HTTPS_MATCH }, {
+      ok: false,
+      reason: "target-changed",
+    });
+
+    expect(await dispatchVaultCommand(deps, {
+      type: "vault/fill",
+      vaultId: "vault-1",
+      entryId: "entry-cred",
+    })).toEqual({ ok: true, fill: { status: "blocked", reason: "target-changed" } });
+  });
+
   it("blocks with no active tab", async () => {
     const world = await buildVaultWorld();
     const { deps } = await makeHarness(world, null);
@@ -152,13 +251,157 @@ describe("vault/fill gates", () => {
   });
 });
 
+describe("credit card commands", () => {
+  it("fills canonical card fields on an explicitly selected secure page without a site binding", async () => {
+    const sendFill = vi.fn(async (): Promise<FillOutcome> => ({ ok: true }));
+    const deps: VaultCommandDeps = {
+      data: {
+        refresh: async () => [],
+        clearCache: async () => undefined,
+        getMetadata: async () => [{
+          id: "card-1",
+          vaultId: "vault-1",
+          name: "Personal card",
+          type: 3,
+          updatedAt: "2026-08-16T12:00:00Z",
+        }],
+        revealEntry: async () => ({
+          schema: "palladin.member-secret.v1",
+          entryType: "creditCard",
+          memberLabel: "Personal card",
+          agentLabel: null,
+          discoverable: false,
+          description: null,
+          icon: null,
+          color: null,
+          agentFieldAccess: {},
+          content: {
+            cardholderName: "Ada Lovelace",
+            cardNumber: "4111111111111111",
+            expiryMonth: "08",
+            expiryYear: "2030",
+            billingAddress: "12 Computing Lane",
+            notes: null,
+            customFields: [],
+          },
+        }),
+      },
+      getActiveTab: async () => ({
+        id: 7,
+        url: "https://checkout.shop.test/pay",
+        documentId: "checkout-document",
+        browserDocumentId: "browser-checkout-document",
+      }),
+      sendFill,
+      clipboard: { available: true, arm: vi.fn() },
+    };
+
+    expect(await dispatchVaultCommand(deps, {
+      type: "vault/fill",
+      vaultId: "vault-1",
+      entryId: "card-1",
+    })).toEqual({ ok: true, fill: { status: "filled" } });
+    expect(sendFill).toHaveBeenCalledWith({
+      id: 7,
+      url: "https://checkout.shop.test/pay",
+      documentId: "checkout-document",
+      browserDocumentId: "browser-checkout-document",
+    }, null, [
+      { kind: "cardholder", value: "Ada Lovelace" },
+      { kind: "card-number", value: "4111111111111111" },
+      { kind: "card-expiry-month", value: "08" },
+      { kind: "card-expiry-year", value: "2030" },
+      { kind: "card-expiry", value: "08/30" },
+      { kind: "billing-address", value: "12 Computing Lane" },
+    ]);
+  });
+
+  it("fails closed when the prepared card document changes before the DOM write", async () => {
+    const world = buildVaultWorld();
+    world.metadata.push({
+      id: "card-1",
+      vaultId: "vault-1",
+      name: "Card",
+      type: 3,
+      updatedAt: "2026-08-16T12:00:00Z",
+    });
+    const card = {
+      ...COMMON_SECRET,
+      entryType: "creditCard",
+      memberLabel: "Card",
+      content: {
+        cardholderName: "Ada",
+        cardNumber: "4111111111111111",
+        expiryMonth: "08",
+        expiryYear: "2030",
+        billingAddress: null,
+        notes: null,
+        customFields: [],
+      },
+    } as const satisfies MemberSecretV1;
+    world.secrets.set("card-1", card);
+    const { deps } = await makeHarness(world, {
+      id: 7,
+      url: "https://checkout.shop.test/pay",
+    }, { ok: false, reason: "target-changed" });
+
+    expect(await dispatchVaultCommand(deps, {
+      type: "vault/fill",
+      vaultId: "vault-1",
+      entryId: "card-1",
+    })).toEqual({ ok: true, fill: { status: "blocked", reason: "target-changed" } });
+  });
+
+  it("accepts only the reviewed card save fields", () => {
+    const card = {
+      label: "Personal card",
+      cardholderName: "Ada Lovelace",
+      cardNumber: "4111 1111 1111 1111",
+      expiryMonth: "08",
+      expiryYear: "2030",
+      billingAddress: "12 Computing Lane",
+      notes: "Primary",
+    };
+    expect(isVaultCommand({ type: "vault/card-save", card })).toBe(true);
+    expect(isVaultCommand({
+      type: "vault/card-save",
+      card: { ...card, verificationCode: "123" },
+    })).toBe(false);
+    expect(isVaultCommand({
+      type: "vault/card-save",
+      card: { ...card, pin: "1234" },
+    })).toBe(false);
+  });
+});
+
 describe("generated secret actions", () => {
   it("fills only the password field on a secure active page", async () => {
     const world = await buildVaultWorld();
     const { deps, sendFill } = await makeHarness(world, { id: 7, url: HTTPS_MATCH });
     const result = await dispatchVaultCommand(deps, { type: "vault/fill-generated", value: "new-secret" });
     expect(result).toEqual({ ok: true, fill: { status: "filled" } });
-    expect(sendFill).toHaveBeenCalledWith(7, [{ kind: "generated", value: "new-secret" }]);
+    expect(sendFill).toHaveBeenCalledWith(
+      {
+        id: 7,
+        url: HTTPS_MATCH,
+        documentId: "document-1",
+        browserDocumentId: "browser-document-1",
+      },
+      null,
+      [{ kind: "generated", value: "new-secret" }],
+    );
+  });
+
+  it("fails closed when the prepared generated-fill document changes", async () => {
+    const world = buildVaultWorld();
+    const { deps } = await makeHarness(world, { id: 7, url: HTTPS_MATCH }, {
+      ok: false,
+      reason: "target-changed",
+    });
+    expect(await dispatchVaultCommand(deps, {
+      type: "vault/fill-generated",
+      value: "new-secret",
+    })).toEqual({ ok: true, fill: { status: "blocked", reason: "target-changed" } });
   });
 
   it("blocks generated fill on an insecure page", async () => {
@@ -178,6 +421,30 @@ describe("generated secret actions", () => {
 });
 
 describe("vault/reveal + vault/totp", () => {
+  it("rejects reveal and clipboard arming before decryption when timed wipe is unavailable", async () => {
+    const world = buildVaultWorld();
+    const { deps, revealEntry, arm } = await makeHarness(world, { id: 1, url: HTTPS_MATCH });
+    deps.clipboard = { available: false, arm };
+
+    expect(await dispatchVaultCommand(deps, {
+      type: "vault/reveal",
+      vaultId: "vault-1",
+      entryId: "entry-cred",
+      field: "password",
+    })).toEqual({
+      ok: false,
+      code: "bad-request",
+      message: "Copy is unavailable on this browser",
+    });
+    expect(await dispatchVaultCommand(deps, { type: "vault/clipboard-arm" })).toEqual({
+      ok: false,
+      code: "bad-request",
+      message: "Clipboard wipe is unavailable",
+    });
+    expect(revealEntry).not.toHaveBeenCalled();
+    expect(arm).not.toHaveBeenCalled();
+  });
+
   it("reveals a field and arms the clipboard wipe", async () => {
     const world = await buildVaultWorld();
     const { deps, arm } = await makeHarness(world, { id: 1, url: HTTPS_MATCH });

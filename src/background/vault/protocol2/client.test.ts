@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { Protocol2ResetRequiredError, Protocol2VaultClient } from './client'
+import {
+  Protocol2MutationConflictError,
+  Protocol2ResetRequiredError,
+  Protocol2VaultClient,
+} from './client'
 
 const API = 'https://api.test'
 const TOKEN = 'opaque-access-token'
@@ -64,5 +68,54 @@ describe('Protocol2VaultClient transport boundary', () => {
 
     await expect(new Protocol2VaultClient(doFetch, API).delta(TOKEN, VAULT_ID, '1', null))
       .rejects.toBeInstanceOf(Protocol2ResetRequiredError)
+  })
+
+  it('uses a server-issued Entry id and sends the canonical create body unchanged', async () => {
+    const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/creation-challenges')) {
+        expect(init?.method).toBe('POST')
+        expect(JSON.parse(String(init?.body))).toEqual({ vaultId: VAULT_ID, count: 1 })
+        return json({
+          items: [{
+            entryId: '33333333-3333-4333-8333-333333333333',
+            expiresAt: '2026-08-16T12:00:00Z',
+          }],
+        })
+      }
+      expect(init?.method).toBe('POST')
+      expect(JSON.parse(String(init?.body))).toMatchObject({
+        vaultId: VAULT_ID,
+        entryId: '33333333-3333-4333-8333-333333333333',
+        grantEnvelopes: [],
+      })
+      return json({ id: '33333333-3333-4333-8333-333333333333', currentRevision: '1' }, 201)
+    })
+    const client = new Protocol2VaultClient(doFetch, API)
+    const entryId = await client.issueEntryCreationChallenge(TOKEN, VAULT_ID)
+    await expect(client.createEntry(TOKEN, {
+      vaultId: VAULT_ID,
+      entryId,
+      entryKey: {} as never,
+      memberIndex: {} as never,
+      memberSecret: {} as never,
+      agentDiscovery: null,
+      grantEnvelopes: [],
+    })).resolves.toMatchObject({ currentRevision: '1' })
+  })
+
+  it('keeps a canonical mutation conflict distinct so the UI never claims it saved', async () => {
+    const client = new Protocol2VaultClient(async () => json({}, 409), API)
+    await expect(client.updateEntry(TOKEN, {
+      vaultId: VAULT_ID,
+      entryId: '33333333-3333-4333-8333-333333333333',
+      baseRevision: '1',
+      newEntryKey: {} as never,
+      memberSecret: {} as never,
+      memberIndex: {} as never,
+      agentDiscoveryChanged: false,
+      agentDiscovery: null,
+      grantEnvelopes: [],
+    })).rejects.toBeInstanceOf(Protocol2MutationConflictError)
   })
 })
