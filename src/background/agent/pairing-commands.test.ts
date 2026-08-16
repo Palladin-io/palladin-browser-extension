@@ -150,6 +150,37 @@ describe("Agent pairing popup commands", () => {
     expect(effects.clearPairing).toHaveBeenCalledOnce();
   });
 
+  it("compensates a stale pin written while a later clear is waiting in the FIFO", async () => {
+    let releaseSave: (() => void) | undefined;
+    let stored = false;
+    const savePairing = vi.fn(() => new Promise<void>((resolve) => {
+      releaseSave = () => {
+        stored = true;
+        resolve();
+      };
+    }));
+    const clearPairing = vi.fn(async () => {
+      stored = false;
+    });
+    const effects = deps({ savePairing, clearPairing });
+    const handle = createAgentPairingRuntimeHandler(effects);
+
+    const pairing = handle({
+      type: "agent-pairing/save",
+      pairingBundle: BUNDLE,
+      confirmed: true,
+    });
+    await vi.waitFor(() => expect(savePairing).toHaveBeenCalledOnce());
+    const clearing = handle({ type: "agent-pairing/clear" });
+    releaseSave?.();
+
+    await expect(pairing).resolves.toMatchObject({ ok: false, code: "superseded" });
+    await expect(clearing).resolves.toEqual({ ok: true, status: { paired: false } });
+    expect(effects.connect).not.toHaveBeenCalled();
+    expect(clearPairing).toHaveBeenCalledTimes(2);
+    expect(stored).toBe(false);
+  });
+
   it("reports only verified persisted status", async () => {
     const record = { hostSigningPublicKey: KEY, fingerprint: FINGERPRINT };
     const effects = deps({ readVerifiedPairing: vi.fn(async () => record) });

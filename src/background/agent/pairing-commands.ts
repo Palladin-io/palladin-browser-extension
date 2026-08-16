@@ -100,10 +100,17 @@ async function dispatchAgentPairingCommand(
           fingerprint: derivedFingerprint,
         };
         await deps.savePairing(record);
-        if (!isCurrent()) return failure("superseded");
+        if (!isCurrent()) {
+          // A later clear/re-pair intent may arrive while storage.set is in
+          // flight. Remove the now-stale pin before yielding the FIFO so a
+          // worker restart cannot resurrect it in that window.
+          await deps.clearPairing();
+          return failure("superseded");
+        }
         await deps.connect();
         if (!isCurrent()) {
           deps.disconnect();
+          await deps.clearPairing();
           return failure("superseded");
         }
         return { ok: true, status: statusFrom(record) };
