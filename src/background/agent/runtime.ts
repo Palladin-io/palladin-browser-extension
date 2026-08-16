@@ -24,7 +24,8 @@ import { isCanonicalBase64Url32 } from "@shared/agent/pairing";
 
 import { logger } from "../telemetry/logger";
 import {
-  loadHostPairingRecord,
+  isHostPairingIntentToken,
+  loadHostPairingSnapshot,
   type HostPairingRecord,
 } from "./pairing-store";
 import {
@@ -243,8 +244,10 @@ async function handleSecureNativeMessage(
 }
 
 export async function readVerifiedPairing(): Promise<HostPairingRecord | null> {
-  const candidate = await loadHostPairingRecord();
+  const { record: candidate, intentToken } = await loadHostPairingSnapshot();
+  if (!isHostPairingIntentToken(intentToken)) return null;
   if (!isHostPairingRecord(candidate)) return null;
+  if (candidate.intentToken !== intentToken) return null;
   try {
     return await injectHostKeyFingerprint(candidate.hostSigningPublicKey) === candidate.fingerprint
       ? candidate
@@ -257,9 +260,10 @@ export async function readVerifiedPairing(): Promise<HostPairingRecord | null> {
 function isHostPairingRecord(value: unknown): value is HostPairingRecord {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
-  return Object.keys(record).length === 2
+  return Object.keys(record).length === 3
     && isCanonicalBase64Url32(record.hostSigningPublicKey)
-    && isCanonicalBase64Url32(record.fingerprint);
+    && isCanonicalBase64Url32(record.fingerprint)
+    && isHostPairingIntentToken(record.intentToken);
 }
 
 export function parseSessionReady(value: unknown): InjectSessionReady | null {

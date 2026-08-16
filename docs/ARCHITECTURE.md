@@ -34,8 +34,11 @@ Palladin local runtime              Palladin services
   User autofill never authorizes Agent access. Agent Inject requires a pinned
   host signing key plus a signed ephemeral session and AEAD-protected frames;
   Native Messaging host allowlisting alone is not treated as authentication.
-- The pin contains only the host public signing key and its derived fingerprint
-  in extension local storage. No host or session secret is persisted. The popup
+- Durable pairing state contains only the host public signing key, its derived
+  fingerprint, and an opaque non-secret mutation-intent token in extension
+  local storage. An active pin is accepted only when its token matches the
+  latest durable intent, so interrupted clear/re-pair writes restart
+  fail-closed. No host or session secret is persisted. The popup
   accepts the strict `palladin.inject-pairing.v1` JSON bundle printed by the
   trusted runtime CLI, recomputes the fingerprint, and writes the pin only after
   explicit user confirmation. There is no TOFU path and Native Messaging cannot

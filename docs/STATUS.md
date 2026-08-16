@@ -32,7 +32,8 @@ release candidates.
   printed by `palladin browser install`, derives and verifies the public-key
   fingerprint, and requires explicit user confirmation before persisting the
   public pin. Saving connects; unpairing disconnects and disposes immediately.
-  Plaintext and TOFU fallbacks do not exist.
+  A durable non-secret intent token makes interrupted clear/re-pair operations
+  restart fail-closed. Plaintext and TOFU fallbacks do not exist.
 - Development compatibility targets current Chrome, Chromium, Brave, Edge, and
   Opera MV3 builds. Store certification and version support are not yet claimed.
 

@@ -9,6 +9,8 @@ import {
 
 const KEY = `${"a".repeat(42)}A`;
 const FINGERPRINT = `${"b".repeat(42)}Q`;
+const INTENT_1 = "00000000-0000-4000-8000-000000000001";
+const INTENT_2 = "00000000-0000-4000-8000-000000000002";
 const BUNDLE = JSON.stringify({
   protocol: AGENT_PAIRING_PROTOCOL,
   hostSigningPublicKey: KEY,
@@ -16,9 +18,12 @@ const BUNDLE = JSON.stringify({
 });
 
 function deps(overrides: Partial<AgentPairingCommandDeps> = {}): AgentPairingCommandDeps {
+  let intent = 0;
   return {
     readVerifiedPairing: vi.fn(async () => null),
     deriveFingerprint: vi.fn(async () => FINGERPRINT),
+    createIntentToken: vi.fn(() => [INTENT_1, INTENT_2][intent++] ?? crypto.randomUUID()),
+    savePairingIntent: vi.fn(async () => undefined),
     savePairing: vi.fn(async () => undefined),
     clearPairing: vi.fn(async () => undefined),
     connect: vi.fn(async () => undefined),
@@ -28,7 +33,7 @@ function deps(overrides: Partial<AgentPairingCommandDeps> = {}): AgentPairingCom
 }
 
 describe("Agent pairing popup commands", () => {
-  it("persists only the verified public key and derived fingerprint, then connects", async () => {
+  it("persists the verified public pin bound to its durable intent, then connects", async () => {
     const effects = deps();
     const handle = createAgentPairingRuntimeHandler(effects);
     await expect(handle({
@@ -40,9 +45,48 @@ describe("Agent pairing popup commands", () => {
     expect(effects.savePairing).toHaveBeenCalledWith({
       hostSigningPublicKey: KEY,
       fingerprint: FINGERPRINT,
+      intentToken: INTENT_1,
     });
-    expect(effects.disconnect).toHaveBeenCalledOnce();
+    expect(effects.savePairingIntent).toHaveBeenCalledWith(INTENT_1);
+    expect(vi.mocked(effects.savePairingIntent).mock.invocationCallOrder[0])
+      .toBeLessThan(vi.mocked(effects.deriveFingerprint).mock.invocationCallOrder[0]!);
+    expect(effects.disconnect).toHaveBeenCalledTimes(2);
     expect(effects.connect).toHaveBeenCalledOnce();
+  });
+
+  it("drops an old-pin alarm reconnect before connecting the durable replacement", async () => {
+    let releaseDerive: ((fingerprint: string) => void) | undefined;
+    let durablePin: "old" | "new" = "old";
+    let activePin: "old" | "new" | null = "old";
+    const deriveFingerprint = vi.fn(() => new Promise<string>((resolve) => {
+      releaseDerive = resolve;
+    }));
+    const disconnect = vi.fn(() => { activePin = null; });
+    const savePairing = vi.fn(async () => { durablePin = "new"; });
+    const connect = vi.fn(async () => {
+      if (activePin === null) activePin = durablePin;
+    });
+    const effects = deps({ deriveFingerprint, disconnect, savePairing, connect });
+    const handle = createAgentPairingRuntimeHandler(effects);
+
+    const pairing = handle({
+      type: "agent-pairing/save",
+      pairingBundle: BUNDLE,
+      confirmed: true,
+    });
+    await vi.waitFor(() => expect(deriveFingerprint).toHaveBeenCalledOnce());
+    // Simulate an alarm event already queued before alarms.clear completing.
+    activePin = "old";
+    releaseDerive?.(FINGERPRINT);
+
+    await expect(pairing).resolves.toEqual({
+      ok: true,
+      status: { paired: true, fingerprint: FINGERPRINT },
+    });
+    expect(disconnect).toHaveBeenCalledTimes(2);
+    expect(savePairing).toHaveBeenCalledOnce();
+    expect(connect).toHaveBeenCalledOnce();
+    expect(activePin).toBe("new");
   });
 
   it("rejects a mismatched fingerprint without persisting or connecting", async () => {
@@ -95,19 +139,25 @@ describe("Agent pairing popup commands", () => {
     expect(effects.savePairing).not.toHaveBeenCalled();
   });
 
-  it("disconnects synchronously before awaiting durable clear", async () => {
+  it("disconnects before durable clear and drops an old-pin alarm reconnect afterward", async () => {
     let releaseClear: (() => void) | undefined;
+    let activePin: "old" | null = "old";
     const clearPairing = vi.fn(() => new Promise<void>((resolve) => {
       releaseClear = resolve;
     }));
-    const effects = deps({ clearPairing });
+    const disconnect = vi.fn(() => { activePin = null; });
+    const effects = deps({ clearPairing, disconnect });
     const handle = createAgentPairingRuntimeHandler(effects);
 
     const clearing = handle({ type: "agent-pairing/clear" });
     expect(effects.disconnect).toHaveBeenCalledOnce();
     await vi.waitFor(() => expect(clearPairing).toHaveBeenCalledOnce());
+    // Simulate an alarm event queued before alarms.clear completed.
+    activePin = "old";
     releaseClear?.();
     await expect(clearing).resolves.toEqual({ ok: true, status: { paired: false } });
+    expect(effects.disconnect).toHaveBeenCalledTimes(2);
+    expect(activePin).toBeNull();
   });
 
   it("always stays disconnected when durable clear fails", async () => {
@@ -116,13 +166,31 @@ describe("Agent pairing popup commands", () => {
     await expect(handle({ type: "agent-pairing/clear" }))
       .resolves.toEqual({ ok: true, status: { paired: false } });
     expect(effects.clearPairing).toHaveBeenCalledOnce();
-    expect(effects.disconnect).toHaveBeenCalledOnce();
+    expect(effects.disconnect).toHaveBeenCalledTimes(2);
 
     const failing = deps({ clearPairing: vi.fn(async () => { throw new Error("storage"); }) });
     const handleFailing = createAgentPairingRuntimeHandler(failing);
     await expect(handleFailing({ type: "agent-pairing/clear" }))
       .resolves.toMatchObject({ ok: false, code: "unavailable" });
     expect(failing.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it("returns a value-free failure when the durable intent cannot be written", async () => {
+    const effects = deps({
+      savePairingIntent: vi.fn(async () => { throw new Error(`storage ${KEY}`); }),
+    });
+    const handle = createAgentPairingRuntimeHandler(effects);
+
+    const result = await handle({ type: "agent-pairing/clear" });
+
+    expect(result).toEqual({
+      ok: false,
+      code: "unavailable",
+      message: "Agent runtime pairing is unavailable",
+    });
+    expect(JSON.stringify(result)).not.toContain(KEY);
+    expect(effects.clearPairing).not.toHaveBeenCalled();
+    expect(effects.disconnect).toHaveBeenCalledOnce();
   });
 
   it("lets a later clear cancel a save suspended in fingerprint derivation", async () => {
@@ -152,17 +220,31 @@ describe("Agent pairing popup commands", () => {
 
   it("compensates a stale pin written while a later clear is waiting in the FIFO", async () => {
     let releaseSave: (() => void) | undefined;
-    let stored = false;
-    const savePairing = vi.fn(() => new Promise<void>((resolve) => {
+    let releaseCompensatingClear: (() => void) | undefined;
+    let persistedIntent: string | null = null;
+    let stored: { readonly intentToken: string } | null = null;
+    const savePairingIntent = vi.fn(async (intentToken: string) => {
+      persistedIntent = intentToken;
+    });
+    const savePairing = vi.fn((record: { readonly intentToken: string }) => new Promise<void>((resolve) => {
       releaseSave = () => {
-        stored = true;
+        stored = record;
         resolve();
       };
     }));
-    const clearPairing = vi.fn(async () => {
-      stored = false;
+    const clearPairing = vi.fn(() => {
+      if (clearPairing.mock.calls.length === 1) {
+        return new Promise<void>((resolve) => {
+          releaseCompensatingClear = () => {
+            stored = null;
+            resolve();
+          };
+        });
+      }
+      stored = null;
+      return Promise.resolve();
     });
-    const effects = deps({ savePairing, clearPairing });
+    const effects = deps({ savePairingIntent, savePairing, clearPairing });
     const handle = createAgentPairingRuntimeHandler(effects);
 
     const pairing = handle({
@@ -172,17 +254,28 @@ describe("Agent pairing popup commands", () => {
     });
     await vi.waitFor(() => expect(savePairing).toHaveBeenCalledOnce());
     const clearing = handle({ type: "agent-pairing/clear" });
+    await vi.waitFor(() => expect(savePairingIntent).toHaveBeenCalledTimes(2));
+    expect(persistedIntent).toBe(INTENT_2);
     releaseSave?.();
+    await vi.waitFor(() => expect(clearPairing).toHaveBeenCalledOnce());
+
+    // Simulate a worker restart after the stale active record lands but before
+    // best-effort cleanup. The durable intent mismatch keeps it fail-closed.
+    const restartRecord = stored as unknown as { readonly intentToken: string } | null;
+    expect(restartRecord?.intentToken).toBe(INTENT_1);
+    expect(restartRecord?.intentToken === persistedIntent).toBe(false);
+
+    releaseCompensatingClear?.();
 
     await expect(pairing).resolves.toMatchObject({ ok: false, code: "superseded" });
     await expect(clearing).resolves.toEqual({ ok: true, status: { paired: false } });
     expect(effects.connect).not.toHaveBeenCalled();
     expect(clearPairing).toHaveBeenCalledTimes(2);
-    expect(stored).toBe(false);
+    expect(stored).toBeNull();
   });
 
   it("reports only verified persisted status", async () => {
-    const record = { hostSigningPublicKey: KEY, fingerprint: FINGERPRINT };
+    const record = { hostSigningPublicKey: KEY, fingerprint: FINGERPRINT, intentToken: INTENT_1 };
     const effects = deps({ readVerifiedPairing: vi.fn(async () => record) });
     const handle = createAgentPairingRuntimeHandler(effects);
     await expect(handle({ type: "agent-pairing/status" }))

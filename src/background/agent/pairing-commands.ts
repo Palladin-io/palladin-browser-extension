@@ -5,7 +5,11 @@ import {
   type AgentPairingStatus,
 } from "@shared/agent/pairing";
 
-import type { HostPairingRecord } from "./pairing-store";
+import {
+  isHostPairingIntentToken,
+  type HostPairingIntentToken,
+  type HostPairingRecord,
+} from "./pairing-store";
 
 export type AgentPairingCommand =
   | { readonly type: "agent-pairing/status" }
@@ -29,6 +33,8 @@ export type AgentPairingCommandResult =
 export interface AgentPairingCommandDeps {
   readVerifiedPairing(): Promise<HostPairingRecord | null>;
   deriveFingerprint(hostSigningPublicKey: string): Promise<string>;
+  createIntentToken(): HostPairingIntentToken;
+  savePairingIntent(intentToken: HostPairingIntentToken): Promise<void>;
   savePairing(record: HostPairingRecord): Promise<void>;
   clearPairing(): Promise<void>;
   connect(): Promise<void>;
@@ -43,14 +49,15 @@ export type AgentPairingRuntimeHandler = (
  * Create the single FIFO command processor owned by the service worker.
  *
  * A clear or replacement-pair intent disconnects synchronously, before any
- * storage await. Its generation also cancels an older save that may be suspended
- * in fingerprint derivation or persistence, while the FIFO preserves final
- * durable ordering.
+ * storage await. Intent writes have their own FIFO so a later command can
+ * durably invalidate an older active-record write while that older operation is
+ * still suspended. The operation FIFO preserves the final cleanup/write order.
  */
 export function createAgentPairingRuntimeHandler(
   deps: AgentPairingCommandDeps,
 ): AgentPairingRuntimeHandler {
   let tail: Promise<void> = Promise.resolve();
+  let intentTail: Promise<void> = Promise.resolve();
   let intentGeneration = 0;
 
   return (raw) => {
@@ -59,22 +66,44 @@ export function createAgentPairingRuntimeHandler(
     if (command === null) return Promise.resolve(failure("invalid-bundle"));
 
     const mutatesPairing = command.type !== "agent-pairing/status";
-    const commandGeneration = mutatesPairing
-      ? ++intentGeneration
-      : intentGeneration;
+    let intentToken: HostPairingIntentToken | null = null;
     if (mutatesPairing) {
+      try {
+        intentToken = deps.createIntentToken();
+        if (!isHostPairingIntentToken(intentToken)) return Promise.resolve(failure("unavailable"));
+      } catch {
+        return Promise.resolve(failure("unavailable"));
+      }
+    }
+    const commandGeneration = mutatesPairing ? ++intentGeneration : intentGeneration;
+    let intentReady: Promise<void> | null = null;
+    if (intentToken !== null) {
       try {
         deps.disconnect();
       } catch {
         return Promise.resolve(failure("unavailable"));
       }
+      const token = intentToken;
+      intentReady = intentTail.then(() => deps.savePairingIntent(token));
+      intentTail = intentReady.then(() => undefined, () => undefined);
     }
 
-    const result = tail.then(() => dispatchAgentPairingCommand(
-      deps,
-      command,
-      () => commandGeneration === intentGeneration,
-    ));
+    const result = tail.then(async () => {
+      if (intentReady !== null) {
+        try {
+          await intentReady;
+        } catch {
+          return failure("unavailable");
+        }
+        if (commandGeneration !== intentGeneration) return failure("superseded");
+      }
+      return dispatchAgentPairingCommand(
+        deps,
+        command,
+        () => commandGeneration === intentGeneration,
+        intentToken,
+      );
+    });
     tail = result.then(() => undefined, () => undefined);
     return result;
   };
@@ -84,12 +113,14 @@ async function dispatchAgentPairingCommand(
   deps: AgentPairingCommandDeps,
   command: AgentPairingCommand,
   isCurrent: () => boolean,
+  intentToken: HostPairingIntentToken | null,
 ): Promise<AgentPairingCommandResult> {
   try {
     switch (command.type) {
       case "agent-pairing/status":
         return { ok: true, status: statusFrom(await deps.readVerifiedPairing()) };
       case "agent-pairing/save": {
+        if (intentToken === null) return failure("unavailable");
         const bundle = parseAgentPairingBundle(command.pairingBundle);
         if (bundle === null) return failure("invalid-bundle");
         const derivedFingerprint = await deps.deriveFingerprint(bundle.hostSigningPublicKey);
@@ -98,6 +129,7 @@ async function dispatchAgentPairingCommand(
         const record: HostPairingRecord = {
           hostSigningPublicKey: bundle.hostSigningPublicKey,
           fingerprint: derivedFingerprint,
+          intentToken,
         };
         await deps.savePairing(record);
         if (!isCurrent()) {
@@ -107,6 +139,11 @@ async function dispatchAgentPairingCommand(
           await deps.clearPairing();
           return failure("superseded");
         }
+        // An alarm that was already queued before the first disconnect may
+        // have re-opened the old persisted pin while derivation/storage was in
+        // flight. Tear it down again after the replacement is durable, then
+        // connect only from the newly verified record.
+        deps.disconnect();
         await deps.connect();
         if (!isCurrent()) {
           deps.disconnect();
@@ -117,6 +154,10 @@ async function dispatchAgentPairingCommand(
       }
       case "agent-pairing/clear":
         await deps.clearPairing();
+        // A reconnect alarm already queued before the intent write may have
+        // opened the old pin while clear was in flight. Close it again after
+        // the active record is gone so success always leaves no live channel.
+        deps.disconnect();
         return { ok: true, status: { paired: false } };
       default: {
         const _exhaustive: never = command;

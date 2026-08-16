@@ -12,6 +12,7 @@ import { CONTENT_PORT, isBridgeMessage } from "@shared/messaging";
 import { createAgentPairingRuntimeHandler } from "./agent/pairing-commands";
 import {
   clearHostPairingRecord,
+  saveHostPairingIntent,
   saveHostPairingRecord,
 } from "./agent/pairing-store";
 import {
@@ -39,6 +40,8 @@ const SYNC_ALARM = "palladin.sync";
 const handleAgentPairingRuntimeMessage = createAgentPairingRuntimeHandler({
   readVerifiedPairing,
   deriveFingerprint: injectHostKeyFingerprint,
+  createIntentToken: () => crypto.randomUUID(),
+  savePairingIntent: saveHostPairingIntent,
   savePairing: saveHostPairingRecord,
   clearPairing: clearHostPairingRecord,
   connect: connectPairedNativeAgentProvider,

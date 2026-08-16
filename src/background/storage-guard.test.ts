@@ -86,6 +86,7 @@ describe("key-storage guard", () => {
     expect(store).toContain("storage.local.remove");
     expect(store).toContain("hostSigningPublicKey: record.hostSigningPublicKey");
     expect(store).toContain("fingerprint: record.fingerprint");
+    expect(store).toContain("intentToken: record.intentToken");
     expect(store).not.toMatch(/\b(privateKey|sessionKey|ephemeralKey|nonce|ciphertext|accessToken|refreshToken)\b/);
   });
 });

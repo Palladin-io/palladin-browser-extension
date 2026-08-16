@@ -20,6 +20,7 @@ import {
 const PUBLIC_KEY = toBase64Url(new Uint8Array(32));
 const B32 = PUBLIC_KEY;
 const SIGNATURE = toBase64Url(new Uint8Array(64));
+const INTENT_TOKEN = "00000000-0000-4000-8000-000000000001";
 
 afterEach(() => {
   disconnectNativeAgentProvider();
@@ -59,6 +60,7 @@ function fakeNativePort(): FakeNativePort {
 function stubChrome(
   stored: unknown,
   native = fakeNativePort(),
+  currentIntent: unknown = INTENT_TOKEN,
 ): {
   readonly connectNative: ReturnType<typeof vi.fn>;
   readonly alarmsCreate: ReturnType<typeof vi.fn>;
@@ -69,7 +71,14 @@ function stubChrome(
   const alarmsCreate = vi.fn();
   const alarmsClear = vi.fn(async () => true);
   vi.stubGlobal("chrome", {
-    storage: { local: { get: vi.fn(async () => ({ agentInjectHostPairing: stored })) } },
+    storage: {
+      local: {
+        get: vi.fn(async () => ({
+          agentInjectHostPairing: stored,
+          agentInjectHostPairingIntent: currentIntent,
+        })),
+      },
+    },
     runtime: {
       getURL: vi.fn(() => "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"),
       connectNative,
@@ -89,22 +98,29 @@ describe("secure Native Messaging frame boundary", () => {
 
   it("accepts only a public host key whose stored fingerprint verifies", async () => {
     const fingerprint = await injectHostKeyFingerprint(PUBLIC_KEY);
-    stubChrome({ hostSigningPublicKey: PUBLIC_KEY, fingerprint });
+    stubChrome({ hostSigningPublicKey: PUBLIC_KEY, fingerprint, intentToken: INTENT_TOKEN });
     await expect(readVerifiedPairing()).resolves.toEqual({
       hostSigningPublicKey: PUBLIC_KEY,
       fingerprint,
+      intentToken: INTENT_TOKEN,
     });
 
     stubChrome({
       hostSigningPublicKey: PUBLIC_KEY,
       fingerprint: toBase64Url(new Uint8Array(32).fill(2)),
+      intentToken: INTENT_TOKEN,
     });
     await expect(readVerifiedPairing()).resolves.toBeNull();
 
     for (const malformed of [
-      { hostSigningPublicKey: "not-base64url", fingerprint },
-      { hostSigningPublicKey: "a".repeat(43), fingerprint },
-      { hostSigningPublicKey: PUBLIC_KEY, fingerprint, extra: true },
+      { hostSigningPublicKey: "not-base64url", fingerprint, intentToken: INTENT_TOKEN },
+      { hostSigningPublicKey: "a".repeat(43), fingerprint, intentToken: INTENT_TOKEN },
+      { hostSigningPublicKey: PUBLIC_KEY, fingerprint, intentToken: INTENT_TOKEN, extra: true },
+      {
+        hostSigningPublicKey: PUBLIC_KEY,
+        fingerprint,
+        intentToken: "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
+      },
       { hostSigningPublicKey: PUBLIC_KEY },
     ]) {
       stubChrome(malformed);
@@ -112,9 +128,27 @@ describe("secure Native Messaging frame boundary", () => {
     }
   });
 
+  it("rejects a stale active pin after restart when a later durable intent won", async () => {
+    const fingerprint = await injectHostKeyFingerprint(PUBLIC_KEY);
+    const laterIntent = "00000000-0000-4000-8000-000000000002";
+    const { connectNative } = stubChrome(
+      { hostSigningPublicKey: PUBLIC_KEY, fingerprint, intentToken: INTENT_TOKEN },
+      fakeNativePort(),
+      laterIntent,
+    );
+
+    await expect(readVerifiedPairing()).resolves.toBeNull();
+    await connectPairedNativeAgentProvider();
+    expect(connectNative).not.toHaveBeenCalled();
+  });
+
   it("disconnects and disposes a channel authenticated against the wrong pin", async () => {
     const fingerprint = await injectHostKeyFingerprint(PUBLIC_KEY);
-    const { native } = stubChrome({ hostSigningPublicKey: PUBLIC_KEY, fingerprint });
+    const { native } = stubChrome({
+      hostSigningPublicKey: PUBLIC_KEY,
+      fingerprint,
+      intentToken: INTENT_TOKEN,
+    });
     await connectPairedNativeAgentProvider();
     const open = native.postMessage.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(open).toMatchObject({ type: "session.open" });
@@ -138,6 +172,7 @@ describe("secure Native Messaging frame boundary", () => {
     const { native, alarmsCreate, alarmsClear } = stubChrome({
       hostSigningPublicKey: PUBLIC_KEY,
       fingerprint,
+      intentToken: INTENT_TOKEN,
     });
     await connectPairedNativeAgentProvider();
 
