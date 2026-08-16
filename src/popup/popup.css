@@ -98,16 +98,20 @@ body {
 
 .brand-logo {
   display: block;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   flex: 0 0 auto;
 }
 
 .wordmark {
   margin: 0;
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: -0.01em;
+  color: var(--cv-t1);
+}
+
+.wordmark-tld {
   color: var(--cv-primary);
 }
 
@@ -304,22 +308,54 @@ body {
 }
 
 .field-feedback {
-  min-height: 16px;
   margin: 5px 0 0;
   padding-left: 2px;
   font-size: 11px;
   font-weight: 500;
   color: var(--cv-primary);
-  opacity: 0;
-  transform: translateY(2px);
-  transition:
-    opacity 0.2s ease-out,
-    transform 0.2s ease-out;
 }
 
-.field-feedback--visible {
-  opacity: 1;
-  transform: translateY(0);
+/* ── Settings ────────────────────────────────────────────────────────────── */
+
+.settings-screen,
+.server-settings,
+.server-settings-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-screen {
+  gap: 16px;
+}
+
+.server-settings-form {
+  gap: 10px;
+}
+
+.settings-divider {
+  height: 1px;
+  background: var(--cv-border);
+}
+
+.settings-warning,
+.settings-notice {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.settings-warning {
+  color: var(--cv-t3);
+}
+
+.settings-notice {
+  color: var(--cv-success);
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 /* ── Buttons ─────────────────────────────────────────────────────────────── */

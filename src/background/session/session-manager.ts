@@ -96,7 +96,7 @@ export class SessionManager {
 
   async getStatus(): Promise<SessionStatus> {
     if (this.keys) return "unlocked";
-    const tokens = await this.store.getTokens();
+    const tokens = await this.getBoundTokens();
     return tokens ? "locked" : "signed-out";
   }
 
@@ -111,13 +111,13 @@ export class SessionManager {
    * latest rotation.
    */
   async getAccessToken(): Promise<string | null> {
-    const tokens = await this.store.getTokens();
+    const tokens = await this.getBoundTokens();
     return tokens?.accessToken ?? null;
   }
 
   /** Stable cache partition for the authenticated account; never a key or token. */
   async getUserId(): Promise<string | null> {
-    const tokens = await this.store.getTokens();
+    const tokens = await this.getBoundTokens();
     return tokens?.userId ?? null;
   }
 
@@ -127,7 +127,7 @@ export class SessionManager {
    * refresh is rejected (the caller then treats the request as unauthenticated).
    */
   async refreshAccessToken(): Promise<string | null> {
-    const tokens = await this.store.getTokens();
+    const tokens = await this.getBoundTokens();
     if (!tokens) return null;
     try {
       const auth = await this.authClient.refresh(tokens.refreshToken);
@@ -135,6 +135,7 @@ export class SessionManager {
         accessToken: auth.accessToken,
         refreshToken: auth.refreshToken,
         userId: auth.userId,
+        apiUrl: this.authClient.currentApiUrl(),
       });
       return auth.accessToken;
     } catch {
@@ -196,6 +197,7 @@ export class SessionManager {
       accessToken: auth.accessToken,
       refreshToken: auth.refreshToken,
       userId: auth.userId,
+      apiUrl: this.authClient.currentApiUrl(),
     };
     await this.store.setTokens(tokens);
     this.assertLifecycleGeneration(generation);
@@ -231,7 +233,7 @@ export class SessionManager {
     if (!material) {
       throw new SessionError("no-account-material", "No cached material to unlock");
     }
-    const tokens = await this.store.getTokens();
+    const tokens = await this.getBoundTokens();
     this.assertLifecycleGeneration(generation);
     if (!tokens) {
       throw new SessionError("not-authenticated", "Cannot unlock without a session");
@@ -284,7 +286,7 @@ export class SessionManager {
       this.wipeKeys();
       this.autoLock.disarm();
       if (!wasUnlocked) return;
-      const tokens = await this.store.getTokens();
+      const tokens = await this.getBoundTokens();
       if (tokens) this.hooks.emitLocked({ userId: tokens.userId });
     } finally {
       this.endLifecycleTermination();
@@ -297,7 +299,7 @@ export class SessionManager {
     try {
       this.wipeKeys();
       this.autoLock.disarm();
-      const tokens = await this.store.getTokens();
+      const tokens = await this.getBoundTokens();
       if (tokens) {
         await this.authClient.logout(tokens.refreshToken);
         void this.push.unregister(tokens.userId);
@@ -318,6 +320,14 @@ export class SessionManager {
   private wipeSessionKeys(keys: SessionKeys): void {
     wipe(keys.masterKey);
     wipe(keys.privateKey);
+  }
+
+  private async getBoundTokens(): Promise<SessionTokens | null> {
+    const tokens = await this.store.getTokens();
+    if (!tokens) return null;
+    if (tokens.apiUrl === this.authClient.currentApiUrl()) return tokens;
+    await this.store.clearAll();
+    return null;
   }
 
   private beginLifecycleTermination(): void {

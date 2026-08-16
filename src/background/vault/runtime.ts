@@ -17,7 +17,7 @@ import {
 } from "@shared/messaging";
 import { clipboardCopyAvailable } from "@shared/config/build-target";
 
-import { env } from "../config/env";
+import { serverConfig } from "../config/server-runtime";
 import type { AlarmScheduler } from "../session/auto-lock";
 import { sessionManager } from "../session/runtime";
 import { browserDocumentIdForTab } from "../tab-documents";
@@ -46,7 +46,7 @@ const session: Protocol2SessionAccessor = {
 };
 
 export const vaultData = new Protocol2VaultDataService({
-  client: new Protocol2VaultClient((...args) => fetch(...args), env.apiUrl),
+  client: new Protocol2VaultClient((...args) => fetch(...args), () => serverConfig.apiUrl),
   cache: new IndexedDbProtocol2Cache(),
   session,
 });

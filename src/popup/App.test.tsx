@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import type { AgentPairingClient } from "./agent/client";
+import type { ServerConfigClient } from "./config/client";
 import { PopupSessionError } from "./session/errors";
 import type { SessionClient } from "./session/client";
 
@@ -32,6 +33,13 @@ function makePairingClient(): AgentPairingClient {
   };
 }
 
+function makeServerConfigClient(): ServerConfigClient {
+  return {
+    get: vi.fn(async () => ({ apiUrl: "https://api.palladin.io", changed: false })),
+    save: vi.fn(async (apiUrl) => ({ apiUrl, changed: true })),
+  };
+}
+
 beforeEach(() => vi.clearAllMocks());
 
 describe("popup state machine", () => {
@@ -40,11 +48,18 @@ describe("popup state machine", () => {
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
   });
 
-  it("opens the extension-owned Agent runtime pairing screen from any session phase", async () => {
-    render(<App client={makeClient()} pairingClient={makePairingClient()} />);
+  it("opens server and Agent runtime settings from any session phase", async () => {
+    render(
+      <App
+        client={makeClient()}
+        pairingClient={makePairingClient()}
+        serverConfigClient={makeServerConfigClient()}
+      />,
+    );
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole("button", { name: "Runtime" }));
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    expect(await screen.findByRole("heading", { name: "Server" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Pair Agent runtime" }))
       .toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));

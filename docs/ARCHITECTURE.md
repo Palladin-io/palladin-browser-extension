@@ -114,6 +114,16 @@ have a documented consumer and threat analysis. Prefer temporary `activeTab`
 access and narrow hosts over persistent access. A proposed `<all_urls>` content
 script requires explicit security review and is not an assumed default.
 
+The production, staging, and default localhost API origins are install-time host
+permissions. An HTTPS self-hosted origin or `127.0.0.1` is requested only after
+the user submits its exact URL in extension-owned Settings; the service worker
+checks that permission again before committing the change. HTTP is rejected for
+every non-loopback host. The persisted setting contains only the normalized,
+non-secret API base URL. A changed URL first terminates the current session,
+wipes in-memory keys, and clears the ciphertext cache. Session tokens carry the
+exact issuing API URL and are rejected and cleared if they do not match the
+current server, so a token can never cross a server boundary.
+
 ## Build and release boundary
 
 A resumed implementation should produce auditable, reproducible Chromium

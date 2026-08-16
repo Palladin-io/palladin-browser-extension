@@ -43,8 +43,14 @@ npm ci
 npm run build:chromium
 ```
 
-The default API is `http://localhost:5000` and the default web panel is
-`http://localhost:5173`. To build for staging, set only the public endpoints:
+The default API is `https://api.palladin.io`; the default web-panel deep link is
+`http://localhost:5173` until production packaging sets `VITE_WEB_APP_URL`.
+For local testing, open **Settings** in the popup and set the server to
+`http://localhost:5000`. The extension allows plaintext HTTP only for
+`localhost` and `127.0.0.1`; custom remote servers must use HTTPS. Changing the
+server signs out the current session and clears the local encrypted cache.
+
+You can still set a public build-time default for staging packaging:
 
 ```bash
 VITE_API_URL=https://api.stage.palladin.io \
@@ -71,6 +77,11 @@ that identity is not a valid test.
 
 After rebuilding, use the extension card's **Reload** button and refresh the
 test page so its content scripts come from the current artifact.
+
+For an HTTPS self-hosted server, open **Settings**, enter the API base URL, and
+approve the browser's exact-origin permission prompt. The server must accept the
+extension origin in its CORS policy. Denying or revoking that permission leaves
+the server unchanged or unreachable; the extension never widens access silently.
 
 ## 4. Sign in and test the session lifecycle
 

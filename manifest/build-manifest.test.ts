@@ -21,6 +21,7 @@ interface Manifest {
   };
   permissions?: string[];
   host_permissions?: string[];
+  optional_host_permissions?: string[];
   content_scripts?: Array<{ matches: string[]; js: string[]; world?: string }>;
   minimum_chrome_version?: string;
   browser_specific_settings?: {
@@ -48,6 +49,11 @@ describe("buildManifest (shared)", () => {
       "http://localhost:5000/*",
       "https://api.stage.palladin.io/*",
       "https://api.palladin.io/*",
+    ]);
+    expect(manifest.optional_host_permissions).toEqual([
+      "http://localhost/*",
+      "http://127.0.0.1/*",
+      "https://*/*",
     ]);
 
     const worlds = (manifest.content_scripts ?? []).map(

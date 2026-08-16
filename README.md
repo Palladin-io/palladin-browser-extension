@@ -20,6 +20,10 @@ for cardholder, PAN, expiry, and billing fields. Agent Inject has a typed
 `form+values` provider, authenticated channel, and explicit out-of-band runtime
 pairing. It stays fail-closed until the user verifies and confirms the runtime's
 public-key fingerprint; production native-runtime packaging remains a release gate.
+The popup defaults to `https://api.palladin.io` and exposes an extension-owned
+server setting for staging, localhost, or an HTTPS self-hosted deployment.
+Changing the server signs out the current session and clears the local encrypted
+cache; custom origins require an explicit browser permission prompt.
 Clipboard Copy is intentionally disabled on Firefox and Safari until those
 targets have a reviewed TTL wipe. Cross-browser runtime validation and
 production store publication remain in development. Do not use development

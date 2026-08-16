@@ -18,6 +18,14 @@ export function validateBuiltManifest(root, target) {
     ]),
     `${target}: unexpected host permissions`,
   );
+  invariant(
+    sameSet(manifest.optional_host_permissions, [
+      "http://localhost/*",
+      "http://127.0.0.1/*",
+      "https://*/*",
+    ]),
+    `${target}: unexpected optional host permissions`,
+  );
 
   if (target === "chromium") validateChromium(manifest, outputDirectory);
   if (target === "firefox") validateFirefox(manifest, outputDirectory);

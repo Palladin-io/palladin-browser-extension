@@ -117,8 +117,12 @@ async function readBoundedJson(response: Response): Promise<unknown> {
 export class Protocol2VaultClient {
   constructor(
     private readonly doFetch: FetchLike,
-    private readonly apiUrl: string,
+    private readonly apiUrlSource: string | (() => string),
   ) {}
+
+  private get apiUrl(): string {
+    return typeof this.apiUrlSource === 'function' ? this.apiUrlSource() : this.apiUrlSource
+  }
 
   private async request(
     path: string,

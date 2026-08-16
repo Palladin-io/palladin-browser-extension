@@ -21,6 +21,8 @@ export interface SessionTokens {
   readonly accessToken: string;
   readonly refreshToken: string;
   readonly userId: string;
+  /** Exact API base URL that issued this session; tokens never cross server boundaries. */
+  readonly apiUrl: string;
 }
 
 /**

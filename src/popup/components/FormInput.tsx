@@ -2,10 +2,8 @@ import type { InputHTMLAttributes } from "react";
 import { useId } from "react";
 
 /**
- * Labelled text input with an inline error slot below it — the popup's local
- * mirror of the web panel `FormInput` + `FieldFeedback`. The error row keeps a
- * reserved height so the form doesn't jump when a message appears, and carries
- * `role="alert"` so it's announced.
+ * Labelled text input with a self-collapsing inline error below it, mirroring
+ * the web panel `FormInput` + `FeedbackSlot` density.
  */
 export interface FormInputProps
   extends Omit<InputHTMLAttributes<HTMLInputElement>, "className"> {
@@ -29,12 +27,7 @@ export function FormInput({ label, error, id, ...props }: FormInputProps): React
         aria-invalid={hasError || undefined}
         {...props}
       />
-      <p
-        className={`field-feedback${hasError ? " field-feedback--visible" : ""}`}
-        role={hasError ? "alert" : undefined}
-      >
-        {error}
-      </p>
+      {hasError ? <p className="field-feedback" role="alert">{error}</p> : null}
     </div>
   );
 }

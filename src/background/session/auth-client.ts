@@ -45,12 +45,21 @@ export interface AccountResponse {
 }
 
 export type FetchLike = typeof fetch;
+export type ApiUrlSource = string | (() => string);
 
 export class AuthClient {
   constructor(
     private readonly doFetch: FetchLike,
-    private readonly apiUrl: string = env.apiUrl,
+    private readonly apiUrlSource: ApiUrlSource = env.apiUrl,
   ) {}
+
+  private get apiUrl(): string {
+    return typeof this.apiUrlSource === "function" ? this.apiUrlSource() : this.apiUrlSource;
+  }
+
+  currentApiUrl(): string {
+    return this.apiUrl;
+  }
 
   private async postJson<T>(path: string, body: unknown, accessToken?: string): Promise<T> {
     const headers: Record<string, string> = { "content-type": "application/json" };

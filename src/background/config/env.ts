@@ -1,9 +1,11 @@
+import { PRODUCTION_API_URL } from "@shared/config/server";
+
 /**
  * Environment configuration for the service worker.
  *
  * One Chromium build serves every environment, so — unlike the web panel, which
  * bakes `VITE_API_URL` at build time and throws when it is missing — the
- * extension defaults to the local backend and lets a build-time `VITE_*` var
+ * extension defaults to the production backend and lets a build-time `VITE_*` var
  * override it for staging/production packaging. Nothing here is secret: it is
  * only the backend base URL and the (public) PostHog project key.
  *
@@ -20,9 +22,7 @@ export interface ExtensionEnv {
 }
 
 const DEFAULTS = {
-  // Local backend (see root CLAUDE.md → Environments). Staging/production
-  // packaging overrides this with `VITE_API_URL`.
-  apiUrl: "http://localhost:5000",
+  apiUrl: PRODUCTION_API_URL,
   posthogHost: "https://eu.i.posthog.com",
 } as const;
 

@@ -8,6 +8,7 @@
 
 import { injectHostKeyFingerprint } from "@palladin/crypto";
 import { CONTENT_PORT, isBridgeMessage } from "@shared/messaging";
+import { serverPermissionOrigin } from "@shared/config/server";
 
 import { createAgentPairingRuntimeHandler } from "./agent/pairing-commands";
 import {
@@ -24,6 +25,8 @@ import {
   readVerifiedPairing,
 } from "./agent/runtime";
 import { applyBadge } from "./badge";
+import { handleServerConfigRuntimeMessage } from "./config/server-commands";
+import { initializeServerConfig, serverConfig } from "./config/server-runtime";
 import {
   handleCaptureContentRuntimeMessage,
   handleCapturePopupRuntimeMessage,
@@ -78,8 +81,8 @@ sessionManager.hooks.onLocked(() => {
 
 // Rehydrate any session that survived a worker restart in chrome.storage.session
 // (an already-unlocked session comes back unlocked, no re-derive).
-void sessionManager
-  .initialize()
+void initializeServerConfig()
+  .then(() => sessionManager.initialize())
   .then((status) => {
     logger.debug("session initialized", { status });
     void applyBadge(chrome.action, status);
@@ -120,6 +123,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isTrustedExtensionPage(sender, chrome.runtime.id, chrome.runtime.getURL(""))) return false;
   void (async () => {
+    await initializeServerConfig();
     await sessionManager.touchActivity();
     const sessionResult = await handleRuntimeMessage(sessionManager, raw);
     if (sessionResult !== null) {
@@ -129,6 +133,22 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
     const pairingResult = await handleAgentPairingRuntimeMessage(raw);
     if (pairingResult !== null) {
       sendResponse(pairingResult);
+      return;
+    }
+    const serverConfigResult = await handleServerConfigRuntimeMessage({
+      getApiUrl: () => serverConfig.apiUrl,
+      hasAccess: async (apiUrl) => {
+        const origin = serverPermissionOrigin(apiUrl);
+        return origin !== null && chrome.permissions.contains({ origins: [origin] });
+      },
+      beforeChange: async () => {
+        await sessionManager.logout();
+        await vaultData.clearCache();
+      },
+      save: (apiUrl) => serverConfig.save(apiUrl),
+    }, raw);
+    if (serverConfigResult !== null) {
+      sendResponse(serverConfigResult);
       return;
     }
     const captureResult = handleCapturePopupRuntimeMessage(raw);
@@ -158,5 +178,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   void clipboardGuard.handleAlarm(alarm.name);
   if (alarm.name !== SYNC_ALARM) return;
   // Periodic delta-sync trigger (plan §6): refresh the metadata cache.
-  void vaultData.refresh().catch(() => logger.warn("vault refresh on alarm failed"));
+  void initializeServerConfig()
+    .then(() => vaultData.refresh())
+    .catch(() => logger.warn("vault refresh on alarm failed"));
 });

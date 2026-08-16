@@ -11,10 +11,11 @@ import { createAgentPairingClient, type AgentPairingClient } from "./agent/clien
 import { Button } from "./components/Button";
 import { Header } from "./components/Header";
 import { Spinner } from "./components/Spinner";
+import { createServerConfigClient, type ServerConfigClient } from "./config/client";
 import { createSessionClient, type SessionClient } from "./session/client";
 import { useSession, type SessionPhase } from "./session/useSession";
 import { SignInScreen } from "./screens/SignInScreen";
-import { PairingScreen } from "./screens/PairingScreen";
+import { SettingsScreen } from "./screens/SettingsScreen";
 import { TotpScreen } from "./screens/TotpScreen";
 import { UnlockScreen } from "./screens/UnlockScreen";
 import { UnlockedScreen } from "./screens/UnlockedScreen";
@@ -25,6 +26,8 @@ export interface AppProps {
   client?: SessionClient;
   /** Injected in tests; defaults to the pairing command channel. */
   pairingClient?: AgentPairingClient;
+  /** Injected in tests; defaults to the server configuration channel. */
+  serverConfigClient?: ServerConfigClient;
 }
 
 /** The header chip mirrors the lock state; hidden while the phase is unknown. */
@@ -42,23 +45,33 @@ function headerStatus(phase: SessionPhase): SessionStatus | undefined {
   }
 }
 
-export function App({ client, pairingClient }: AppProps): React.JSX.Element {
+export function App({ client, pairingClient, serverConfigClient }: AppProps): React.JSX.Element {
   const sessionClient = useMemo(() => client ?? createSessionClient(), [client]);
   const runtimeClient = useMemo(
     () => pairingClient ?? createAgentPairingClient(),
     [pairingClient],
   );
+  const serverClient = useMemo(
+    () => serverConfigClient ?? createServerConfigClient(),
+    [serverConfigClient],
+  );
   const session = useSession(sessionClient);
-  const [agentRuntimeOpen, setAgentRuntimeOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <main className="popup">
       <Header
         status={headerStatus(session.phase)}
-        agentRuntimeOpen={agentRuntimeOpen}
-        onToggleAgentRuntime={() => setAgentRuntimeOpen((open) => !open)}
+        settingsOpen={settingsOpen}
+        onToggleSettings={() => setSettingsOpen((open) => !open)}
       />
-      {agentRuntimeOpen ? <PairingScreen client={runtimeClient} /> : renderPhase()}
+      {settingsOpen ? (
+        <SettingsScreen
+          serverClient={serverClient}
+          pairingClient={runtimeClient}
+          onServerChanged={session.retryInit}
+        />
+      ) : renderPhase()}
     </main>
   );
 

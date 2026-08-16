@@ -20,6 +20,10 @@ release candidates.
   exclusions, Agent fill, replay rejection, and logging redaction.
 - One Chromium artifact targets Chrome, Edge, Brave, and Opera; Firefox and
   Safari use manifest overlays over the same core.
+- The popup defaults to the production API. Settings can select staging,
+  localhost, or an HTTPS self-hosted API through an exact optional host
+  permission. A change signs out and clears the local encrypted cache, and
+  stored session tokens are bound to their issuing API URL.
 - Copy is available only in the Chromium artifact, where the reviewed offscreen
   TTL wipe exists. Firefox and Safari hide Copy and reject copy commands before
   decrypting a value.

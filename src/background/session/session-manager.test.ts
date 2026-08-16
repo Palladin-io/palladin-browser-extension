@@ -434,6 +434,29 @@ describe("SessionManager — service-worker restart", () => {
     expect(await second.getStatus()).toBe("unlocked");
     expect(toBase64(second.getKeys()!.privateKey)).toBe(account.privateKeyB64);
   });
+
+  it("never reuses a stored session after the configured server changes", async () => {
+    const account = await buildTestAccount();
+    const storage = new FakeStorageArea();
+    const alarms = new FakeAlarms();
+    const first = new SessionManager({
+      store: new SessionStore(storage),
+      authClient: new AuthClient(mockBackend(account).fetch, "https://old.example.com"),
+      autoLock: new AutoLock(alarms, () => {}),
+    });
+    await first.login(account.email, account.password);
+
+    const secondBackend = mockBackend(account);
+    const second = new SessionManager({
+      store: new SessionStore(storage),
+      authClient: new AuthClient(secondBackend.fetch, "https://new.example.com"),
+      autoLock: new AutoLock(alarms, () => {}),
+    });
+
+    expect(await second.initialize()).toBe("signed-out");
+    expect(storage.keys()).toHaveLength(0);
+    expect(secondBackend.calls).toHaveLength(0);
+  });
 });
 
 describe("SessionManager — TOTP second factor", () => {
