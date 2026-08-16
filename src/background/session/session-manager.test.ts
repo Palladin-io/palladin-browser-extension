@@ -264,6 +264,18 @@ describe("SessionManager — full lifecycle", () => {
     expect(storage.keys()).toHaveLength(0);
   });
 
+  it("does not let a stalled remote revocation block the authoritative local logout", async () => {
+    const stalledLogout = deferred<Response>();
+    const { mgr, storage } = makeHarness(account, { logoutResponse: stalledLogout.promise });
+    await mgr.login(account.email, account.password);
+
+    await expect(mgr.logout()).resolves.toBeUndefined();
+
+    expect(await mgr.getStatus()).toBe("signed-out");
+    expect(mgr.getKeys()).toBeNull();
+    expect(storage.keys()).toHaveLength(0);
+  });
+
   it("wipes keys synchronously when logout storage lookup fails", async () => {
     const { mgr, storage } = makeHarness(account);
     await mgr.login(account.email, account.password);

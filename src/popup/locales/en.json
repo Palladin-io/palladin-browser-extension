@@ -146,6 +146,8 @@
   "card.number": "Card number",
   "card.expiryMonth": "Expiry month",
   "card.expiryYear": "Expiry year",
+  "card.expiryMonthPlaceholder": "MM",
+  "card.expiryYearPlaceholder": "YYYY",
   "card.billingAddress": "Billing address",
   "card.notes": "Notes",
   "card.save": "Save card",

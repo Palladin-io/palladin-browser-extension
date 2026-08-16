@@ -59,8 +59,8 @@ export function CardForm({ client }: { client: VaultClient }): React.JSX.Element
       <CardField label={t("card.cardholder")} value={card.cardholderName} onChange={(value) => update("cardholderName", value)} required autoComplete="cc-name" />
       <CardField label={t("card.number")} isCardNumber value={card.cardNumber} onChange={(value) => update("cardNumber", value)} required autoComplete="cc-number" inputMode="numeric" pattern="[0-9 -]{8,32}" />
       <div className="card-form-expiry">
-        <CardField label={t("card.expiryMonth")} value={card.expiryMonth} onChange={(value) => update("expiryMonth", value)} required autoComplete="cc-exp-month" inputMode="numeric" pattern="(0[1-9]|1[0-2])" placeholder="MM" />
-        <CardField label={t("card.expiryYear")} value={card.expiryYear} onChange={(value) => update("expiryYear", value)} required autoComplete="cc-exp-year" inputMode="numeric" pattern="[0-9]{4}" placeholder="YYYY" />
+        <CardField label={t("card.expiryMonth")} value={card.expiryMonth} onChange={(value) => update("expiryMonth", value)} required autoComplete="cc-exp-month" inputMode="numeric" pattern="(0[1-9]|1[0-2])" placeholder={t("card.expiryMonthPlaceholder")} />
+        <CardField label={t("card.expiryYear")} value={card.expiryYear} onChange={(value) => update("expiryYear", value)} required autoComplete="cc-exp-year" inputMode="numeric" pattern="[0-9]{4}" placeholder={t("card.expiryYearPlaceholder")} />
       </div>
       <label>
         <span className="field-label">{t("card.billingAddress")}</span>

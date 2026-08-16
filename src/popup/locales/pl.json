@@ -146,6 +146,8 @@
   "card.number": "Numer karty",
   "card.expiryMonth": "Miesiąc ważności",
   "card.expiryYear": "Rok ważności",
+  "card.expiryMonthPlaceholder": "MM",
+  "card.expiryYearPlaceholder": "RRRR",
   "card.billingAddress": "Adres rozliczeniowy",
   "card.notes": "Notatki",
   "card.save": "Zapisz kartę",

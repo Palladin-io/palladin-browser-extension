@@ -344,7 +344,10 @@ export class SessionManager {
       this.autoLock.disarm();
       const tokens = await this.getBoundTokens();
       if (tokens) {
-        await this.authClient.logout(tokens.refreshToken, tokens.apiUrl);
+        // Remote revocation is best-effort and pinned to the issuing host. Do
+        // not let an unavailable old/self-hosted server block the authoritative
+        // local wipe or a subsequent server change.
+        void this.authClient.logout(tokens.refreshToken, tokens.apiUrl);
         void this.push.unregister(tokens.userId);
       }
       await this.store.clearAll();
