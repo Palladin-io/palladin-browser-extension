@@ -21,40 +21,61 @@ function fakePort(): FakePort {
 }
 
 describe("reconnecting isolated-world worker Port", () => {
-  it("consumes the expected BFCache lastError and reconnects on the next post", () => {
+  it("consumes a worker disconnect and immediately re-registers the document", () => {
     const first = fakePort();
     const second = fakePort();
     const connect = vi.fn()
       .mockReturnValueOnce(first)
       .mockReturnValueOnce(second);
-    const consumeLastError = vi.fn();
-    const bridge = createReconnectingWorkerPort(connect, vi.fn(), consumeLastError);
+    const consumeDisconnectReason = vi.fn(() => "worker" as const);
+    createReconnectingWorkerPort(connect, vi.fn(), consumeDisconnectReason);
 
-    bridge.postMessage({ type: "bridge/ping" });
     first.emitDisconnect();
-    bridge.postMessage({ type: "bridge/ping" });
 
-    expect(consumeLastError).toHaveBeenCalledOnce();
+    expect(consumeDisconnectReason).toHaveBeenCalledOnce();
     expect(connect).toHaveBeenCalledTimes(2);
-    expect(first.postMessage).toHaveBeenCalledTimes(1);
-    expect(second.postMessage).toHaveBeenCalledTimes(1);
   });
 
-  it("replaces the cached Port explicitly on a BFCache pageshow", () => {
+  it("waits for BFCache pageshow before replacing the disconnected Port", () => {
     const first = fakePort();
     const second = fakePort();
     const onMessage = vi.fn();
     const connect = vi.fn()
       .mockReturnValueOnce(first)
       .mockReturnValueOnce(second);
-    const bridge = createReconnectingWorkerPort(connect, onMessage, vi.fn());
+    const bridge = createReconnectingWorkerPort(
+      connect,
+      onMessage,
+      vi.fn(() => "bfcache" as const),
+    );
 
-    bridge.postMessage({ type: "bridge/ping" });
+    first.emitDisconnect();
+    expect(connect).toHaveBeenCalledOnce();
     bridge.reconnect();
     second.emitMessage({ type: "bridge/pong" });
 
-    expect(first.disconnect).toHaveBeenCalledOnce();
     expect(connect).toHaveBeenCalledTimes(2);
     expect(onMessage).toHaveBeenCalledWith({ type: "bridge/pong" });
+  });
+
+  it("reopens and retries once when postMessage observes a dead Port", () => {
+    const first = fakePort();
+    const second = fakePort();
+    vi.mocked(first.postMessage).mockImplementationOnce(() => { throw new Error("closed"); });
+    const connect = vi.fn()
+      .mockReturnValueOnce(first)
+      .mockReturnValueOnce(second);
+    const bridge = createReconnectingWorkerPort(
+      connect,
+      vi.fn(),
+      vi.fn(() => "worker" as const),
+    );
+    const message = { type: "bridge/ping", at: 123 } as const;
+
+    bridge.postMessage(message);
+
+    expect(connect).toHaveBeenCalledTimes(2);
+    expect(first.postMessage).toHaveBeenCalledWith(message);
+    expect(second.postMessage).toHaveBeenCalledWith(message);
   });
 });

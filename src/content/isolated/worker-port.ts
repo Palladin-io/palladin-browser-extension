@@ -1,3 +1,5 @@
+import type { BridgeMessage } from "@shared/messaging";
+
 export interface ContentWorkerPort {
   readonly onMessage: {
     addListener(listener: (message: unknown) => void): void;
@@ -5,14 +7,16 @@ export interface ContentWorkerPort {
   readonly onDisconnect: {
     addListener(listener: () => void): void;
   };
-  postMessage(message: unknown): void;
+  postMessage(message: BridgeMessage): void;
   disconnect(): void;
 }
 
 export interface ReconnectingWorkerPort {
-  postMessage(message: unknown): void;
+  postMessage(message: BridgeMessage): void;
   reconnect(): void;
 }
+
+export type ContentPortDisconnectReason = "bfcache" | "worker";
 
 /**
  * Keeps the isolated-world Port valid across service-worker restarts and BFCache
@@ -22,7 +26,7 @@ export interface ReconnectingWorkerPort {
 export function createReconnectingWorkerPort(
   connect: () => ContentWorkerPort,
   onMessage: (message: unknown) => void,
-  consumeLastError: () => void,
+  consumeDisconnectReason: () => ContentPortDisconnectReason,
 ): ReconnectingWorkerPort {
   let current: ContentWorkerPort | null = null;
 
@@ -31,8 +35,19 @@ export function createReconnectingWorkerPort(
     current = next;
     next.onMessage.addListener(onMessage);
     next.onDisconnect.addListener(() => {
-      consumeLastError();
-      if (current === next) current = null;
+      const reason = consumeDisconnectReason();
+      if (current !== next) return;
+      current = null;
+      // A worker restart erases its live document registry, so reconnect now
+      // and wake the new worker. A BFCache document cannot keep a Port alive;
+      // pageshow restores it explicitly instead.
+      if (reason === "worker") {
+        try {
+          open();
+        } catch {
+          // Extension reload/uninstall invalidates this content-script context.
+        }
+      }
     });
     return next;
   }
@@ -52,6 +67,13 @@ export function createReconnectingWorkerPort(
         target.postMessage(message);
       } catch {
         if (current === target) current = null;
+        // The Port can close between active() and postMessage(). Re-register
+        // and retry this one typed message once; never recurse indefinitely.
+        try {
+          active().postMessage(message);
+        } catch {
+          current = null;
+        }
       }
     },
     reconnect() {

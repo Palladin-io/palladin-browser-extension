@@ -50,7 +50,10 @@ const port = createReconnectingWorkerPort(
       selfOrigin,
     );
   },
-  () => { void chrome.runtime.lastError; },
+  () => {
+    const message = chrome.runtime.lastError?.message ?? "";
+    return /back\/forward cache/i.test(message) ? "bfcache" : "worker";
+  },
 );
 const passwordCapture = startPasswordCaptureDetection(
   document,
