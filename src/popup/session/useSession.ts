@@ -1,15 +1,14 @@
 /**
  * The popup's session state machine. It owns the coarse {@link SessionPhase}
  * and the small amount of state that must survive a screen transition — the
- * popup copy of a pending TOTP challenge (and the password needed to finish it).
+ * popup copy of a pending TOTP challenge. The password-derived key stays only
+ * in the service worker's host-bound pending context.
  * The service worker independently owns and host-binds the authoritative
  * challenge context. Screens call
  * the returned actions and handle their own inline errors and busy state; the
  * actions here re-throw so a screen can localise the failure and stay put.
  *
- * SECURITY: the pending TOTP password lives only in this hook's memory and is
- * dropped when the second factor completes, the user backs out, or the server
- * changes — never persisted, never logged.
+ * SECURITY: the popup never retains the password after the login command.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -28,7 +27,6 @@ export type SessionPhase =
 
 interface PendingTotp {
   readonly challengeToken: string;
-  readonly password: string;
 }
 
 export interface UseSession {
@@ -82,7 +80,7 @@ export function useSession(client: SessionClient): UseSession {
     async (email: string, password: string) => {
       const result = await client.login(email, password);
       if (result.status === "totp-required") {
-        pendingTotp.current = { challengeToken: result.challengeToken, password };
+        pendingTotp.current = { challengeToken: result.challengeToken };
         setPhase("totp");
         return;
       }
@@ -98,7 +96,7 @@ export function useSession(client: SessionClient): UseSession {
         setPhase("signed-out");
         return;
       }
-      const status = await client.completeTotp(pending.challengeToken, code, pending.password);
+      const status = await client.completeTotp(pending.challengeToken, code);
       pendingTotp.current = null;
       setPhase(phaseFor(status));
     },

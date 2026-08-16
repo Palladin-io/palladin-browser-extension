@@ -12,14 +12,24 @@ describe("SessionStore", () => {
       userId: "u",
       apiUrl: "https://api.palladin.io",
     });
-    await store.setMaterial({ salt: "s", encryptedPrivateKey: "e" });
+    const material = {
+      accountId: "00112233-4455-4677-8899-aabbccddeeff",
+      kdf: {
+        securityVersion: 1,
+        minimumSecurityVersion: 1,
+        profileId: "identity-argon2id-password-v1",
+        kdfSalt: "AAECAwQFBgcICQoLDA0ODw",
+      },
+      encryptedPrivateKey: "e",
+    };
+    await store.setMaterial(material);
     expect(await store.getTokens()).toEqual({
       accessToken: "a",
       refreshToken: "r",
       userId: "u",
       apiUrl: "https://api.palladin.io",
     });
-    expect(await store.getMaterial()).toEqual({ salt: "s", encryptedPrivateKey: "e" });
+    expect(await store.getMaterial()).toEqual(material);
   });
 
   it("clearAll wipes every entry", async () => {

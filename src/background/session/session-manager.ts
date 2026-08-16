@@ -12,9 +12,24 @@
  * so the whole lifecycle is unit-testable against fakes.
  */
 
-import { deriveKey, fromBase64, toBase64, wipe } from "@palladin/crypto";
+import {
+  assertIdentityKdfProfile,
+  decryptWithKey,
+  deriveIdentityV1,
+  fromBase64Url,
+  IDENTITY_KDF_PROFILE_ID,
+  IDENTITY_SECURITY_VERSION,
+  toBase64Url,
+  wipe,
+} from "@palladin/crypto";
 
-import { AuthClient, isTotpRequired, type AuthResponse } from "./auth-client";
+import {
+  AuthClient,
+  isTotpRequired,
+  type AccountResponse,
+  type AuthResponse,
+  type LoginKdfBootstrap,
+} from "./auth-client";
 import {
   AutoLock,
   DEFAULT_AUTO_LOCK_POLICY,
@@ -59,6 +74,8 @@ interface PendingTotpContext {
   readonly challengeToken: string;
   readonly apiUrl: string;
   readonly lifecycleGeneration: number;
+  readonly bootstrap: LoginKdfBootstrap & { readonly accountId: string };
+  readonly masterKey: Uint8Array;
 }
 
 export class SessionManager {
@@ -155,40 +172,72 @@ export class SessionManager {
   // ─── Login ────────────────────────────────────────────────────────────────
 
   /**
-   * Start email+password login: fetch authSalt, prove the password with the
-   * double-Argon2id authHash, and either finish (derive keys, unlock) or surface
-   * a TOTP challenge. The password stays on the client; only `authHash` is sent.
+   * Start email+password login through the canonical Identity KDF and either
+   * finish or retain only the derived MK for a host-bound TOTP challenge. The
+   * password stays on the client; only `authCredential` is sent.
    */
   async login(email: string, password: string): Promise<LoginResult> {
-    this.pendingTotp = null;
+    this.clearPendingTotp();
     const generation = this.captureLifecycleGeneration();
     const apiUrl = this.authClient.currentApiUrl();
-    const { authSalt } = await this.authClient.fetchLoginSalt(email, apiUrl);
+    const bootstrap = await this.authClient.fetchLoginKdf(
+      email,
+      IDENTITY_KDF_PROFILE_ID,
+      apiUrl,
+    );
     this.assertLifecycleGeneration(generation);
     this.assertApiUrl(apiUrl);
-    const authHash = await this.deriveAuthHash(password, authSalt);
-    this.assertLifecycleGeneration(generation);
-    this.assertApiUrl(apiUrl);
-    const response = await this.authClient.login(email, authHash, apiUrl);
-    this.assertLifecycleGeneration(generation);
-    this.assertApiUrl(apiUrl);
-    if (isTotpRequired(response)) {
-      this.pendingTotp = {
-        challengeToken: response.challengeToken,
-        apiUrl,
-        lifecycleGeneration: generation,
-      };
-      return { status: "totp-required", challengeToken: response.challengeToken };
+    this.assertLoginBootstrap(bootstrap);
+    if (!bootstrap.accountId) {
+      throw new SessionError("invalid-credentials", "Invalid email or master password");
     }
-    await this.establishSession(response, password, generation, apiUrl);
-    return { status: "unlocked" };
+
+    const completeBootstrap = { ...bootstrap, accountId: bootstrap.accountId };
+    const salt = fromBase64Url(bootstrap.kdfSalt, 16);
+    const identity = await deriveIdentityV1(password, bootstrap.accountId, salt);
+    let transferredMasterKey = false;
+    try {
+      this.assertLifecycleGeneration(generation);
+      this.assertApiUrl(apiUrl);
+      const response = await this.authClient.login({
+        email,
+        securityVersion: IDENTITY_SECURITY_VERSION,
+        kdfProfileId: IDENTITY_KDF_PROFILE_ID,
+        authCredential: toBase64Url(identity.authCredential),
+      }, apiUrl);
+      this.assertLifecycleGeneration(generation);
+      this.assertApiUrl(apiUrl);
+      if (isTotpRequired(response)) {
+        this.pendingTotp = {
+          challengeToken: response.challengeToken,
+          apiUrl,
+          lifecycleGeneration: generation,
+          bootstrap: completeBootstrap,
+          masterKey: identity.masterKey,
+        };
+        transferredMasterKey = true;
+        return { status: "totp-required", challengeToken: response.challengeToken };
+      }
+      transferredMasterKey = true;
+      await this.establishSession(
+        response,
+        identity.masterKey,
+        completeBootstrap,
+        generation,
+        apiUrl,
+      );
+      return { status: "unlocked" };
+    } finally {
+      wipe(salt);
+      wipe(identity.authCredential);
+      if (!transferredMasterKey) wipe(identity.masterKey);
+    }
   }
 
   /** Second factor: exchange the TOTP/recovery code, then establish the session. */
   async completeTotp(
     challengeToken: string,
     code: string,
-    password: string,
   ): Promise<void> {
     const pending = this.pendingTotp;
     const generation = this.captureLifecycleGeneration();
@@ -198,7 +247,7 @@ export class SessionManager {
       || pending.lifecycleGeneration !== generation
       || pending.apiUrl !== this.authClient.currentApiUrl()
     ) {
-      this.pendingTotp = null;
+      this.clearPendingTotp();
       throw new SessionError("network", "TOTP challenge is no longer valid");
     }
     const response = await this.authClient.totpLogin(
@@ -209,61 +258,114 @@ export class SessionManager {
     this.assertLifecycleGeneration(generation);
     this.assertApiUrl(pending.apiUrl);
     this.pendingTotp = null;
-    await this.establishSession(response, password, generation, pending.apiUrl);
+    await this.establishSession(
+      response,
+      pending.masterKey,
+      pending.bootstrap,
+      generation,
+      pending.apiUrl,
+    );
   }
 
   cancelTotp(): void {
-    this.pendingTotp = null;
+    this.clearPendingTotp();
   }
 
-  private async deriveAuthHash(password: string, authSalt: string): Promise<string> {
-    // authHash = base64(Argon2id(password, authSalt)); wiped right after send.
-    const hash = await deriveKey(password, fromBase64(authSalt));
+  private assertLoginBootstrap(bootstrap: LoginKdfBootstrap): void {
     try {
-      return toBase64(hash);
-    } finally {
-      wipe(hash);
+      assertIdentityKdfProfile(bootstrap);
+    } catch {
+      throw new SessionError("unsupported-security", "Unsupported Identity KDF profile");
     }
   }
 
   private async establishSession(
     auth: AuthResponse,
-    password: string,
+    masterKey: Uint8Array,
+    bootstrap: LoginKdfBootstrap & { readonly accountId: string },
     generation: number,
     apiUrl: string,
   ): Promise<void> {
-    this.assertLifecycleGeneration(generation);
-    this.assertApiUrl(apiUrl);
-    const tokens: SessionTokens = {
-      accessToken: auth.accessToken,
-      refreshToken: auth.refreshToken,
-      userId: auth.userId,
-      apiUrl,
-    };
-    await this.store.setTokens(tokens);
-    this.assertLifecycleGeneration(generation);
-    this.assertApiUrl(apiUrl);
+    let handedToSession = false;
+    let privateKey: Uint8Array | null = null;
+    let encryptedPrivateKey: Uint8Array | null = null;
+    try {
+      this.assertLifecycleGeneration(generation);
+      this.assertApiUrl(apiUrl);
+      const tokens: SessionTokens = {
+        accessToken: auth.accessToken,
+        refreshToken: auth.refreshToken,
+        userId: auth.userId,
+        apiUrl,
+      };
 
-    const account = await this.authClient.getAccount(auth.accessToken, apiUrl);
-    this.assertLifecycleGeneration(generation);
-    this.assertApiUrl(apiUrl);
-    if (!account.salt || !account.encryptedPrivateKey) {
-      // A password account always has this material; its absence means the
-      // account isn't set up to unlock. Leave tokens, stay locked, signal why.
-      throw new SessionError(
-        "no-account-material",
-        "Account has no key material to unlock",
-      );
+      const account = await this.authClient.getAccount(auth.accessToken, apiUrl);
+      this.assertLifecycleGeneration(generation);
+      this.assertApiUrl(apiUrl);
+      if (!account.kdf || !account.encryptedPrivateKey) {
+        // A password account always has this material; its absence means the
+        // account isn't set up to unlock. Do not persist the new session.
+        throw new SessionError(
+          "no-account-material",
+          "Account has no key material to unlock",
+        );
+      }
+      this.assertAuthenticatedAccount(account, bootstrap, auth.userId);
+      const material = {
+        accountId: account.userId,
+        kdf: {
+          securityVersion: account.kdf.securityVersion,
+          minimumSecurityVersion: account.kdf.minimumSecurityVersion,
+          profileId: account.kdf.profileId,
+          kdfSalt: account.kdf.kdfSalt,
+        },
+        encryptedPrivateKey: account.encryptedPrivateKey,
+      };
+      encryptedPrivateKey = fromBase64Url(account.encryptedPrivateKey, 4_096);
+      try {
+        privateKey = await decryptWithKey(encryptedPrivateKey, masterKey);
+      } catch {
+        throw new SessionError(
+          "incorrect-password",
+          "Account key material could not be opened",
+        );
+      }
+
+      await this.store.setMaterial(material);
+      this.assertLifecycleGeneration(generation);
+      this.assertApiUrl(apiUrl);
+      await this.store.setTokens(tokens);
+      this.assertLifecycleGeneration(generation);
+      this.assertApiUrl(apiUrl);
+
+      const keys = { masterKey, privateKey };
+      privateKey = null;
+      handedToSession = true;
+      await this.setUnlocked(keys, tokens.userId, generation);
+    } finally {
+      if (encryptedPrivateKey) wipe(encryptedPrivateKey);
+      if (privateKey) wipe(privateKey);
+      if (!handedToSession) wipe(masterKey);
     }
-    const material = {
-      salt: account.salt,
-      encryptedPrivateKey: account.encryptedPrivateKey,
-    };
-    await this.store.setMaterial(material);
-    this.assertLifecycleGeneration(generation);
+  }
 
-    const keys = await this.createPasswordUnlock(password).deriveKeys(material);
-    await this.setUnlocked(keys, tokens.userId, generation);
+  private assertAuthenticatedAccount(
+    account: AccountResponse,
+    bootstrap: LoginKdfBootstrap & { readonly accountId: string },
+    authenticatedUserId: string,
+  ): void {
+    if (
+      !account.kdf
+      || account.userId !== authenticatedUserId
+      || account.userId !== bootstrap.accountId
+      || account.kdf.securityVersion !== IDENTITY_SECURITY_VERSION
+      || account.kdf.minimumSecurityVersion > IDENTITY_SECURITY_VERSION
+      || account.kdf.profileId !== IDENTITY_KDF_PROFILE_ID
+      || account.kdf.kdfSalt !== bootstrap.kdfSalt
+    ) {
+      throw new SessionError("unsupported-security", "Identity KDF state mismatch");
+    }
+    this.assertLoginBootstrap({ ...bootstrap, kdfSalt: account.kdf.kdfSalt });
   }
 
   // ─── Unlock (session locked, JWT may still be alive) ────────────────────────
@@ -377,9 +479,15 @@ export class SessionManager {
   }
 
   private beginLifecycleTermination(): void {
-    this.pendingTotp = null;
+    this.clearPendingTotp();
     this.lifecycleTerminations += 1;
     this.lifecycleGeneration += 1;
+  }
+
+  private clearPendingTotp(): void {
+    if (!this.pendingTotp) return;
+    wipe(this.pendingTotp.masterKey);
+    this.pendingTotp = null;
   }
 
   private endLifecycleTermination(): void {

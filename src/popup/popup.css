@@ -16,6 +16,7 @@
   --cv-t2: #3d4e66;
   --cv-t3: #8a95a6;
   --cv-border: rgba(12, 14, 18, 0.1);
+  --cv-divider: rgba(12, 14, 18, 0.08);
 
   --cv-input-bg: #ffffff;
   --cv-input-border: rgba(12, 14, 18, 0.14);
@@ -37,7 +38,8 @@
   --cv-t1: #e8eaed;
   --cv-t2: #b8c5d4;
   --cv-t3: #8a95a6;
-  --cv-border: rgba(232, 234, 237, 0.13);
+  --cv-border: rgba(232, 234, 237, 0.1);
+  --cv-divider: rgba(232, 234, 237, 0.09);
 
   --cv-input-bg: rgba(232, 234, 237, 0.04);
   --cv-input-border: rgba(232, 234, 237, 0.15);
@@ -60,11 +62,15 @@
 html,
 body {
   margin: 0;
+  background: var(--cv-bg);
 }
 
 .popup {
   width: 340px;
   padding: 18px 18px 20px;
+  overflow: hidden;
+  border: 1px solid var(--cv-border);
+  border-radius: 12px;
   font-family:
     system-ui,
     -apple-system,
@@ -83,6 +89,8 @@ body {
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--cv-divider);
 }
 
 .brand-lockup {
@@ -321,7 +329,63 @@ body {
 }
 
 .settings-screen {
-  gap: 16px;
+  gap: 8px;
+}
+
+.settings-section {
+  overflow: hidden;
+  border: 1px solid var(--cv-border);
+  border-radius: 10px;
+  background: var(--cv-surface);
+}
+
+.settings-section-heading {
+  margin: 0;
+}
+
+.settings-section-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 13px;
+  border: 0;
+  background: transparent;
+  color: var(--cv-t1);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-section-trigger:hover {
+  background: var(--cv-btn-ghost-hover);
+}
+
+.settings-section-trigger:focus-visible {
+  outline: 2px solid rgb(var(--cv-primary-rgb) / 0.45);
+  outline-offset: -2px;
+}
+
+.settings-section-chevron {
+  flex: 0 0 auto;
+  color: var(--cv-t3);
+  transition: transform 0.18s ease;
+}
+
+.settings-section--open .settings-section-chevron {
+  transform: rotate(180deg);
+}
+
+.settings-section-content {
+  padding: 13px;
+  border-top: 1px solid var(--cv-divider);
+}
+
+.settings-section-content .screen-subtitle {
+  margin-bottom: 13px;
 }
 
 .appearance-grid {

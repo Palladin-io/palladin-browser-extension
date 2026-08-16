@@ -125,7 +125,6 @@ describe("dispatchSessionCommand", () => {
       type: "session/completeTotp",
       challengeToken: "challenge-1",
       code: "424242",
-      password: account.password,
     })).toMatchObject({ ok: false, code: "network" });
   });
 });

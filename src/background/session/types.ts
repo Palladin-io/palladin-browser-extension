@@ -31,7 +31,13 @@ export interface SessionTokens {
  * is ciphertext wrapped by the master key — neither is a secret at rest.
  */
 export interface AccountMaterial {
-  readonly salt: string;
+  readonly accountId: string;
+  readonly kdf: {
+    readonly securityVersion: number;
+    readonly minimumSecurityVersion: number;
+    readonly profileId: string;
+    readonly kdfSalt: string;
+  };
   readonly encryptedPrivateKey: string;
 }
 
@@ -53,6 +59,7 @@ export type SessionErrorCode =
   | "invalid-credentials"
   | "incorrect-password"
   | "no-account-material"
+  | "unsupported-security"
   | "not-authenticated"
   | "network";
 

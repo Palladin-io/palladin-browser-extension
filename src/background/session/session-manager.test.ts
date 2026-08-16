@@ -199,23 +199,26 @@ describe("SessionManager — full lifecycle", () => {
     expect(unlocked).toHaveBeenCalledTimes(1);
   });
 
-  it("cancels an earlier login before lock can be undone by its derived keys", async () => {
-    const candidate = deferredUnlock();
-    const { mgr, alarms, hooks } = makeHarness(account, {}, {
-      createPasswordUnlock: () => candidate.source,
+  it("cancels an earlier login before lock can publish its derived keys", async () => {
+    const { mgr, storage, alarms, hooks } = makeHarness(account);
+    const originalSet = storage.set.bind(storage);
+    const saveStarted = deferred<void>();
+    const releaseSave = deferred<void>();
+    vi.spyOn(storage, "set").mockImplementationOnce(async (items) => {
+      saveStarted.resolve();
+      await releaseSave.promise;
+      return originalSet(items);
     });
     const unlocked = vi.fn();
     hooks.onUnlocked(unlocked);
     const login = mgr.login(account.email, account.password);
     const cancelled = expect(login).rejects.toThrow("Session lifecycle changed");
-    await candidate.started;
+    await saveStarted.promise;
 
     await mgr.lock();
-    candidate.release();
+    releaseSave.resolve();
     await cancelled;
 
-    expect(candidate.keys.masterKey.every((byte) => byte === 0)).toBe(true);
-    expect(candidate.keys.privateKey.every((byte) => byte === 0)).toBe(true);
     expect(mgr.getKeys()).toBeNull();
     expect(alarms.created.has(AUTO_LOCK_ALARM)).toBe(false);
     expect(unlocked).not.toHaveBeenCalled();
@@ -316,7 +319,7 @@ describe("SessionManager — full lifecycle", () => {
     await expect(mgr.login(account.email, account.password)).rejects.toThrow(
       "Session lifecycle changed",
     );
-    await expect(mgr.completeTotp("challenge", "123456", account.password)).rejects.toThrow(
+    await expect(mgr.completeTotp("challenge", "123456")).rejects.toThrow(
       "Session lifecycle changed",
     );
     await expect(mgr.unlock({ id: "logout-race", deriveKeys })).rejects.toThrow(
@@ -412,7 +415,10 @@ describe("SessionManager — full lifecycle", () => {
     await mgr.login(account.email, account.password);
     await mgr.lock();
 
-    expect(events).toEqual(["unlocked:user-1", "locked:user-1"]);
+    expect(events).toEqual([
+      `unlocked:${account.accountId}`,
+      `locked:${account.accountId}`,
+    ]);
   });
 });
 
@@ -480,7 +486,7 @@ describe("SessionManager — TOTP second factor", () => {
     expect(start).toEqual({ status: "totp-required", challengeToken: "challenge-1" });
     expect(await mgr.getStatus()).toBe("signed-out");
 
-    await mgr.completeTotp("challenge-1", "424242", account.password);
+    await mgr.completeTotp("challenge-1", "424242");
     expect(await mgr.getStatus()).toBe("unlocked");
     expect(toBase64(mgr.getKeys()!.privateKey)).toBe(account.privateKeyB64);
   });
@@ -499,7 +505,7 @@ describe("SessionManager — TOTP second factor", () => {
     await manager.login(account.email, account.password);
     apiUrl = "https://self-host.example.com";
 
-    await expect(manager.completeTotp("challenge-1", "424242", account.password))
+    await expect(manager.completeTotp("challenge-1", "424242"))
       .rejects.toMatchObject({ name: "SessionError", code: "network" });
     expect(backend.calls.filter((url) => url.endsWith("/api/auth/login/totp"))).toEqual([]);
     expect(await manager.getStatus()).toBe("signed-out");
@@ -514,7 +520,7 @@ describe("SessionManager — TOTP second factor", () => {
     await mgr.login(account.email, account.password);
     mgr.cancelTotp();
 
-    await expect(mgr.completeTotp("challenge-1", "424242", account.password))
+    await expect(mgr.completeTotp("challenge-1", "424242"))
       .rejects.toMatchObject({ name: "SessionError", code: "network" });
     expect(backendCalls.filter((url) => url.endsWith("/api/auth/login/totp"))).toEqual([]);
   });

@@ -49,7 +49,7 @@ describe("popup state machine", () => {
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
   });
 
-  it("opens server and Agent runtime settings from any session phase", async () => {
+  it("opens compact settings sections and expands one section at a time", async () => {
     render(
       <App
         client={makeClient()}
@@ -60,9 +60,26 @@ describe("popup state machine", () => {
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole("button", { name: "Settings" }));
-    expect(await screen.findByRole("heading", { name: "Server" })).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: "Pair Agent runtime" }))
-      .toBeInTheDocument();
+    const appearance = screen.getByRole("button", { name: "Appearance" });
+    const server = screen.getByRole("button", { name: "Server URL" });
+    const pairing = screen.getByRole("button", { name: "Pair Agent runtime" });
+    expect(appearance).toHaveAttribute("aria-expanded", "false");
+    expect(server).toHaveAttribute("aria-expanded", "false");
+    expect(pairing).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(appearance);
+    expect(await screen.findByLabelText("Language")).toBeInTheDocument();
+    expect(appearance).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(server);
+    expect(await screen.findByLabelText("Server URL")).toBeInTheDocument();
+    expect(appearance).toHaveAttribute("aria-expanded", "false");
+    expect(server).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(pairing);
+    expect(await screen.findByLabelText("Pairing bundle")).toBeInTheDocument();
+    expect(server).toHaveAttribute("aria-expanded", "false");
+    expect(pairing).toHaveAttribute("aria-expanded", "true");
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
   });
@@ -126,11 +143,11 @@ describe("popup state machine", () => {
     await user.click(screen.getByRole("button", { name: "Verify" }));
 
     expect(await screen.findByRole("heading", { name: "Your vault" })).toBeInTheDocument();
-    // Code trimmed; the retained password passes through untrimmed.
-    expect(client.completeTotp).toHaveBeenCalledWith("chal", "123456", "pw with space ");
+    // Code is trimmed; the popup does not retain or resend the master password.
+    expect(client.completeTotp).toHaveBeenCalledWith("chal", "123456");
   });
 
-  it("drops a pending TOTP password when the server changes", async () => {
+  it("drops a pending TOTP challenge when the server changes", async () => {
     const client = makeClient({
       login: vi.fn(async () => ({ status: "totp-required", challengeToken: "prod-chal" }) as const),
     });
@@ -148,6 +165,7 @@ describe("popup state machine", () => {
     await screen.findByRole("heading", { name: "Enter your code" });
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByRole("button", { name: "Server URL" }));
     await user.clear(await screen.findByLabelText("Server URL"));
     await user.type(screen.getByLabelText("Server URL"), "https://self-host.example.com");
     await user.click(screen.getByRole("button", { name: "Save server" }));
