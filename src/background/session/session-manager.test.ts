@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AuthClient } from "./auth-client";
 import { AutoLock, AUTO_LOCK_ALARM } from "./auto-lock";
@@ -87,6 +87,19 @@ describe("SessionManager — full lifecycle", () => {
     expect(storage.has(MATERIAL_KEY)).toBe(true);
   });
 
+  it("wipes keys synchronously when lock storage lookup fails", async () => {
+    const { mgr, storage } = makeHarness(account);
+    await mgr.login(account.email, account.password);
+    const liveMasterKey = mgr.getKeys()!.masterKey;
+    vi.spyOn(storage, "get").mockRejectedValueOnce(new Error("storage unavailable"));
+
+    const locking = mgr.lock();
+
+    expect(mgr.getKeys()).toBeNull();
+    expect(liveMasterKey.every((byte) => byte === 0)).toBe(true);
+    await expect(locking).rejects.toThrow("storage unavailable");
+  });
+
   it("unlock re-derives keys offline from cached material after a lock", async () => {
     const { mgr } = makeHarness(account);
     await mgr.login(account.email, account.password);
@@ -128,6 +141,19 @@ describe("SessionManager — full lifecycle", () => {
     expect(await mgr.getStatus()).toBe("signed-out");
     expect(mgr.getKeys()).toBeNull();
     expect(storage.keys()).toHaveLength(0);
+  });
+
+  it("wipes keys synchronously when logout storage lookup fails", async () => {
+    const { mgr, storage } = makeHarness(account);
+    await mgr.login(account.email, account.password);
+    const livePrivateKey = mgr.getKeys()!.privateKey;
+    vi.spyOn(storage, "get").mockRejectedValueOnce(new Error("storage unavailable"));
+
+    const loggingOut = mgr.logout();
+
+    expect(mgr.getKeys()).toBeNull();
+    expect(livePrivateKey.every((byte) => byte === 0)).toBe(true);
+    await expect(loggingOut).rejects.toThrow("storage unavailable");
   });
 
   it("emits unlocked then locked lifecycle hooks", async () => {

@@ -9,7 +9,7 @@
  *   - reveal/totp require an unlocked session (the data service enforces it) and
  *     return a value the popup uses transiently; the worker arms a clipboard wipe
  *     when the value was copied.
- *   - fill re-resolves the active tab and re-checks the eTLD+1 match and HTTPS at
+ *   - fill re-resolves the active tab and re-checks the registered host and HTTPS at
  *     the moment of the click (not just when the list was rendered), decrypts,
  *     and only then hands ready values to the tab's content script.
  *
@@ -281,13 +281,17 @@ async function fillActiveTab(
     return fillResult(outcome);
   }
   if (!isCredential(plaintext)) return { status: "blocked", reason: "not-fillable" };
+  const currentDomain = plaintext.content.urlDomain;
+  if (!matchesTab(tab.url, currentDomain)) {
+    return { status: "blocked", reason: "domain-mismatch" };
+  }
 
   const fields: FillField[] = [];
   const username = credentialUsername(plaintext);
   if (username) fields.push({ kind: "username", value: username });
   fields.push({ kind: "password", value: credentialPassword(plaintext) });
 
-  const outcome = await deps.sendFill(tab, meta.urlDomain ?? null, fields);
+  const outcome = await deps.sendFill(tab, currentDomain, fields);
   return fillResult(outcome);
 }
 

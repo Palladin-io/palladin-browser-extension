@@ -10,6 +10,7 @@ import {
   resetSchema,
   snapshotSchema,
   type EncryptedVaultSummary,
+  type EncryptedVaultListSummary,
   type MemberDeltaPage,
   type MemberSnapshotPage,
 } from './contracts'
@@ -153,8 +154,8 @@ export class Protocol2VaultClient {
     }
   }
 
-  async listVaults(accessToken: string, signal?: AbortSignal): Promise<EncryptedVaultSummary[]> {
-    const vaults: EncryptedVaultSummary[] = []
+  async listVaults(accessToken: string, signal?: AbortSignal): Promise<EncryptedVaultListSummary[]> {
+    const vaults: EncryptedVaultListSummary[] = []
     let offset = 0
     let total: number | undefined
     do {
@@ -178,10 +179,14 @@ export class Protocol2VaultClient {
   }
 
   async getVault(accessToken: string, vaultId: string, signal?: AbortSignal): Promise<EncryptedVaultSummary> {
-    return this.parse(
+    const vault = await this.parse(
       await this.request(`/api/vaults/${encodeURIComponent(vaultId)}`, accessToken, { ...(signal ? { signal } : {}) }),
       encryptedVaultSummarySchema,
     )
+    if (vault.id !== vaultId) {
+      throw new VaultClientError('network', 'Vault response id does not match the requested Vault')
+    }
+    return vault
   }
 
   async snapshot(

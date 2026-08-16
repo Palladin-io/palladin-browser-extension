@@ -233,21 +233,21 @@ export class SessionManager {
   /** Wipe key material and stop the idle timer; tokens + material survive. */
   async lock(): Promise<void> {
     if (!this.keys) return;
-    const tokens = await this.store.getTokens();
     this.wipeKeys();
     this.autoLock.disarm();
+    const tokens = await this.store.getTokens();
     if (tokens) this.hooks.emitLocked({ userId: tokens.userId });
   }
 
   /** Lock, revoke the refresh token server-side, and clear ALL session state. */
   async logout(): Promise<void> {
-    const tokens = await this.store.getTokens();
     this.wipeKeys();
+    this.autoLock.disarm();
+    const tokens = await this.store.getTokens();
     if (tokens) {
       await this.authClient.logout(tokens.refreshToken);
       void this.push.unregister(tokens.userId);
     }
-    this.autoLock.disarm();
     await this.store.clearAll();
     if (tokens) this.hooks.emitLocked({ userId: tokens.userId });
   }

@@ -1,7 +1,7 @@
 import {
   openMemberIndex,
   openMemberSecret,
-  openMemberVaultKey,
+  openVaultProjection,
   openVaultDerivedEnvelope,
   presentationIconReference,
   projectAgentDiscovery,
@@ -90,15 +90,16 @@ export class Protocol2VaultDataService implements VaultDataSource {
       return []
     }
 
-    const vaults = await this.withAuth((token) => this.deps.client.listVaults(token))
+    const listedVaults = await this.withAuth((token) => this.deps.client.listVaults(token))
     this.lastUserId = userId
     this.currentVaults.clear()
-    for (const vault of vaults) {
+    for (const listedVault of listedVaults) {
+      const vault = await this.withAuth((token) => this.deps.client.getVault(token, listedVault.id))
       await this.syncVault(userId, vault)
       const active = await this.deps.cache.getActiveState(userId, vault.id)
       this.currentVaults.set(vault.id, active?.vault ?? vault)
     }
-    await this.deps.cache.removeMissingVaults(userId, new Set(vaults.map((vault) => vault.id)))
+    await this.deps.cache.removeMissingVaults(userId, new Set(listedVaults.map((vault) => vault.id)))
     return this.getMetadata()
   }
 
@@ -113,7 +114,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
       if (active === null) continue
       let vaultKey: Uint8Array | null = null
       try {
-        vaultKey = await openMemberVaultKey(active.vault.memberVaultKey, privateKey)
+        vaultKey = await openProjectionVaultKey(active.vault, privateKey, userId)
         let afterEntryId: string | null = null
         do {
           const page = await this.deps.cache.readActiveItemPage(
@@ -156,11 +157,13 @@ export class Protocol2VaultDataService implements VaultDataSource {
   async revealEntry(vaultId: string, entryId: string): Promise<MemberSecretV1> {
     const privateKey = this.deps.session.getPrivateKey()
     if (privateKey === null) throw new VaultDataError('locked', 'Session is locked')
+    const userId = await this.deps.session.getUserId()
+    if (userId === null) throw new VaultDataError('not-authenticated', 'No session')
     const detail = await this.withAuth((token) => this.deps.client.getEntry(token, vaultId, entryId))
     const vault = await this.requireVault(vaultId)
     let vaultKey: Uint8Array | null = null
     try {
-      vaultKey = await openMemberVaultKey(vault.memberVaultKey, privateKey)
+      vaultKey = await openProjectionVaultKey(vault, privateKey, userId)
       return await openMemberSecret(detail.entryKey, detail.memberSecret, vaultKey, {
         organizationId: detail.organizationId,
         vaultId,
@@ -195,10 +198,10 @@ export class Protocol2VaultDataService implements VaultDataSource {
       )
       if (matches.length > 1) return { status: 'blocked', reason: 'ambiguous-target' }
       if (matches.length === 1) {
-        return this.updateCredential(matches[0]!, input.password)
+        return this.updateCredential(matches[0]!, input.password, input.url)
       }
     }
-    return this.createCredential(input.site, parsed.origin, input.password)
+    return this.createCredential(input.site, parsed.origin, parsed.host, input.password)
   }
 
   async saveCreditCard(input: CreditCardSaveInput): Promise<CreditCardSaveResult> {
@@ -219,9 +222,10 @@ export class Protocol2VaultDataService implements VaultDataSource {
   private async createCredential(
     site: string,
     origin: string,
+    host: string,
     password: string,
   ): Promise<GeneratedPasswordSaveResult> {
-    return this.createCanonicalEntry(credentialSecret(site, origin, password))
+    return this.createCanonicalEntry(credentialSecret(site, origin, host, password))
   }
 
   private async createCanonicalEntry(
@@ -229,6 +233,8 @@ export class Protocol2VaultDataService implements VaultDataSource {
   ): Promise<Extract<GeneratedPasswordSaveResult, { status: 'created' | 'blocked' }>> {
     const privateKey = this.deps.session.getPrivateKey()
     if (privateKey === null) throw new VaultDataError('locked', 'Session is locked')
+    const userId = await this.deps.session.getUserId()
+    if (userId === null) throw new VaultDataError('not-authenticated', 'No session')
     const vault = [...this.currentVaults.values()].find((candidate) => candidate.isDefault)
       ?? [...this.currentVaults.values()][0]
     if (vault === undefined) throw new VaultDataError('network', 'No Vault is available')
@@ -237,7 +243,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
     let vaultKey: Uint8Array | null = null
     let discoveryKey: Uint8Array | null = null
     try {
-      vaultKey = await openMemberVaultKey(vault.memberVaultKey, privateKey)
+      vaultKey = await openProjectionVaultKey(vault, privateKey, userId)
       discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, vaultKey)
       const material = await sealCanonicalEntry({
         organizationId: vault.memberVaultKey.wrappedVaultKey.descriptor.scope.organizationId,
@@ -272,9 +278,12 @@ export class Protocol2VaultDataService implements VaultDataSource {
   private async updateCredential(
     metadata: EntryMetadata,
     password: string,
+    captureUrl: string,
   ): Promise<GeneratedPasswordSaveResult> {
     const privateKey = this.deps.session.getPrivateKey()
     if (privateKey === null) throw new VaultDataError('locked', 'Session is locked')
+    const userId = await this.deps.session.getUserId()
+    if (userId === null) throw new VaultDataError('not-authenticated', 'No session')
     const [vault, detail] = await Promise.all([
       this.requireVault(metadata.vaultId),
       this.withAuth((token) => this.deps.client.getEntry(token, metadata.vaultId, metadata.id)),
@@ -282,7 +291,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
     let vaultKey: Uint8Array | null = null
     let discoveryKey: Uint8Array | null = null
     try {
-      vaultKey = await openMemberVaultKey(vault.memberVaultKey, privateKey)
+      vaultKey = await openProjectionVaultKey(vault, privateKey, userId)
       discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, vaultKey)
       const previous = await openMemberSecret(detail.entryKey, detail.memberSecret, vaultKey, {
         organizationId: detail.organizationId,
@@ -292,6 +301,9 @@ export class Protocol2VaultDataService implements VaultDataSource {
       })
       if (previous.entryType !== 'credential') {
         throw new VaultDataError('decrypt-failed', 'Matched entry is not a credential')
+      }
+      if (!matchesTab(captureUrl, previous.content.urlDomain)) {
+        return { status: 'blocked', reason: 'ambiguous-target' }
       }
       const next: MemberSecretV1 = {
         ...previous,
@@ -434,7 +446,24 @@ export class Protocol2VaultDataService implements VaultDataSource {
   }
 }
 
-function credentialSecret(site: string, origin: string, password: string): MemberSecretV1 {
+async function openProjectionVaultKey(
+  vault: EncryptedVaultSummary,
+  privateKey: Uint8Array,
+  memberId: string,
+): Promise<Uint8Array> {
+  const opened = await openVaultProjection({
+    id: vault.id,
+    organizationId: vault.organizationId,
+    metadataRevision: vault.metadataRevision,
+    memberKeyGeneration: vault.memberKeyGeneration,
+    currentKeyEpoch: vault.currentKeyEpoch,
+    memberVaultMetadata: vault.memberVaultMetadata,
+    memberVaultKey: vault.memberVaultKey,
+  }, privateKey, memberId)
+  return opened.vaultKey
+}
+
+function credentialSecret(site: string, origin: string, host: string, password: string): MemberSecretV1 {
   return {
     schema: 'palladin.member-secret.v1',
     entryType: 'credential',
@@ -462,7 +491,7 @@ function credentialSecret(site: string, origin: string, password: string): Membe
       username: '',
       password,
       url: origin,
-      urlDomain: site,
+      urlDomain: host,
       totp: null,
       notes: null,
       customFields: [],
@@ -513,11 +542,12 @@ function entryTypeCode(entryType: MemberSecretV1['entryType']): EntryTypeCode {
   return ENTRY_TYPE_CREDENTIAL
 }
 
-function parseSecureSite(url: string): { origin: string; site: string } | null {
+function parseSecureSite(url: string): { origin: string; site: string; host: string } | null {
   try {
     const parsed = new URL(url)
     const site = registrableDomain(url)
-    return parsed.protocol === 'https:' && site !== null ? { origin: parsed.origin, site } : null
+    const host = parsed.hostname.toLowerCase().replace(/\.$/, '')
+    return parsed.protocol === 'https:' && site !== null ? { origin: parsed.origin, site, host } : null
   } catch {
     return null
   }

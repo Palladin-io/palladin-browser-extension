@@ -24,7 +24,7 @@ describe("entriesForTab", () => {
   ];
 
   it("keeps only entries whose registered domain matches the tab", () => {
-    const result = entriesForTab(entries, "https://example.com/login");
+    const result = entriesForTab(entries, "https://www.example.com/login");
     expect(result.map((e) => e.id)).toEqual(["a"]);
   });
 

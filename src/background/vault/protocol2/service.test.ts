@@ -11,7 +11,10 @@ import { Protocol2VaultDataService, type Protocol2SessionAccessor } from './serv
 const cryptoMocks = vi.hoisted(() => ({
   openMemberIndex: vi.fn(),
   openMemberSecret: vi.fn(),
-  openMemberVaultKey: vi.fn(async () => new Uint8Array(32).fill(1)),
+  openVaultProjection: vi.fn(async () => ({
+    metadata: {},
+    vaultKey: new Uint8Array(32).fill(1),
+  })),
   openVaultDerivedEnvelope: vi.fn(async () => new Uint8Array(32).fill(2)),
   sealCanonicalEntry: vi.fn(),
   wipe: vi.fn(),
@@ -28,7 +31,9 @@ const ENTRY_ID = '33333333-3333-4333-8333-333333333333'
 
 const vault = {
   id: VAULT_ID,
+  organizationId: USER_ID,
   isDefault: true,
+  metadataRevision: '1',
   memberSequence: '1',
   memberKeyGeneration: 1,
   currentKeyEpoch: { vaultKeyVersion: 1, vdkVersion: 1 },
@@ -120,7 +125,7 @@ beforeEach(() => {
     icon: null,
     color: null,
     username: null,
-    urlDomain: 'example.com',
+    urlDomain: 'accounts.example.com',
     customIndex: [],
   })
   cryptoMocks.openMemberSecret.mockResolvedValue({
@@ -150,7 +155,7 @@ beforeEach(() => {
       username: 'person@example.com',
       password: 'old-password',
       url: 'https://example.com',
-      urlDomain: 'example.com',
+      urlDomain: 'accounts.example.com',
       totp: null,
       notes: null,
       customFields: [],
@@ -159,6 +164,24 @@ beforeEach(() => {
 })
 
 describe('Protocol2VaultDataService canonical password capture', () => {
+  it('opens cached Vaults with the authoritative metadata revision from strict GET detail', async () => {
+    const { service, client } = harness([head])
+
+    await service.refresh()
+    await service.getMetadata()
+
+    expect(client.getVault).toHaveBeenCalledWith('token', VAULT_ID)
+    expect(cryptoMocks.openVaultProjection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: VAULT_ID,
+        organizationId: USER_ID,
+        metadataRevision: '1',
+      }),
+      expect.any(Uint8Array),
+      USER_ID,
+    )
+  })
+
   it('creates with a server-issued Entry id and empty grant envelopes after explicit save', async () => {
     const { service, client } = harness()
     await service.refresh()
@@ -176,7 +199,7 @@ describe('Protocol2VaultDataService canonical password capture', () => {
       discoverable: false,
       content: {
         password: 'generated-password',
-        urlDomain: 'example.com',
+        urlDomain: 'accounts.example.com',
       },
     })
     expect(client.createEntry).toHaveBeenCalledWith('token', expect.objectContaining({
@@ -208,6 +231,41 @@ describe('Protocol2VaultDataService canonical password capture', () => {
       baseRevision: '1',
       grantEnvelopes: [],
     }))
+  })
+
+  it('blocks a stale cached match when the latest credential moved to another host', async () => {
+    const { service, client } = harness([head])
+    await service.refresh()
+    cryptoMocks.openMemberSecret.mockResolvedValueOnce({
+      schema: 'palladin.member-secret.v1',
+      entryType: 'credential',
+      memberLabel: 'Moved',
+      agentLabel: null,
+      discoverable: false,
+      description: null,
+      icon: null,
+      color: null,
+      agentFieldAccess: {},
+      content: {
+        username: 'person@example.com',
+        password: 'current-password',
+        url: 'https://login.other.test',
+        urlDomain: 'login.other.test',
+        totp: null,
+        notes: null,
+        customFields: [],
+      },
+    })
+
+    await expect(service.saveGeneratedPassword({
+      kind: 'password-change',
+      site: 'example.com',
+      url: 'https://accounts.example.com/change-password',
+      password: 'next-password',
+    })).resolves.toEqual({ status: 'blocked', reason: 'ambiguous-target' })
+
+    expect(cryptoMocks.sealCanonicalEntry).not.toHaveBeenCalled()
+    expect(client.updateEntry).not.toHaveBeenCalled()
   })
 
   it('keeps a committed create successful when the follow-up refresh fails', async () => {

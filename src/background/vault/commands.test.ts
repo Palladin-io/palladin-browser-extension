@@ -75,7 +75,7 @@ function buildVaultWorld(): CommandWorld {
         vaultId: "vault-1",
         name: "Example login",
         type: 1,
-        urlDomain: "www.example.com",
+        urlDomain: "example.com",
         updatedAt: "2026-07-15T00:00:00Z",
       },
       {
@@ -162,7 +162,7 @@ describe("vault/fill gates", () => {
       documentId: "document-1",
       browserDocumentId: "browser-document-1",
     });
-    expect(expectedDomain).toBe("www.example.com");
+    expect(expectedDomain).toBe("example.com");
     expect(fields).toEqual([
       { kind: "username", value: "ada@example.com" },
       { kind: "password", value: "s3cr3t-p@ss" },
@@ -182,6 +182,28 @@ describe("vault/fill gates", () => {
     expect(sendFill).not.toHaveBeenCalled();
   });
 
+  it("blocks when latest decrypt moved the credential off the cached host", async () => {
+    const world = await buildVaultWorld();
+    const current = world.secrets.get("entry-cred");
+    if (!current || current.entryType !== "credential") throw new Error("expected credential");
+    world.secrets.set("entry-cred", {
+      ...current,
+      content: {
+        ...current.content,
+        url: "https://login.other.test",
+        urlDomain: "login.other.test",
+      },
+    });
+    const { deps, sendFill } = await makeHarness(world, { id: 1, url: HTTPS_MATCH });
+
+    expect(await dispatchVaultCommand(deps, {
+      type: "vault/fill",
+      vaultId: "vault-1",
+      entryId: "entry-cred",
+    })).toEqual({ ok: true, fill: { status: "blocked", reason: "domain-mismatch" } });
+    expect(sendFill).not.toHaveBeenCalled();
+  });
+
   it("blocks a non-https page", async () => {
     const world = await buildVaultWorld();
     const { deps, sendFill } = await makeHarness(world, { id: 1, url: "http://example.com/login" });
@@ -198,7 +220,7 @@ describe("vault/fill gates", () => {
   it("blocks a non-credential entry", async () => {
     const world = await buildVaultWorld();
     // Give the KEY entry a matching domain so only the type gate can block it.
-    world.metadata[1] = { ...world.metadata[1]!, urlDomain: "www.example.com" };
+    world.metadata[1] = { ...world.metadata[1]!, urlDomain: "example.com" };
     const { deps } = await makeHarness(world, { id: 1, url: HTTPS_MATCH });
 
     const result = await dispatchVaultCommand(deps, {

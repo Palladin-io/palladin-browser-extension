@@ -29,10 +29,19 @@ describe("registrableDomain", () => {
 });
 
 describe("matchesTab", () => {
-  it("matches when the tab and the entry share a registrable domain", () => {
-    // Entry stored as a full host; tab on the apex or another subdomain still matches.
-    expect(matchesTab("https://example.com/login", "www.example.com")).toBe(true);
-    expect(matchesTab("https://login.example.com", "example.com")).toBe(true);
+  it("matches only the registered host by default", () => {
+    expect(matchesTab("https://login.example.com/start", "login.example.com")).toBe(true);
+    expect(matchesTab("https://example.com/login", "example.com")).toBe(true);
+    expect(matchesTab("https://evil.example.com", "login.example.com")).toBe(false);
+    expect(matchesTab("https://login.example.com", "example.com")).toBe(false);
+  });
+
+  it("allows site-wide matching only through the explicit option", () => {
+    expect(matchesTab(
+      "https://accounts.example.com/login",
+      "login.example.com",
+      { exactSubdomain: false },
+    )).toBe(true);
   });
 
   it("does not match across different registrable domains", () => {

@@ -25,7 +25,7 @@ const vaultKeyEpochSchema = z.object({
   manifestSigningKeyVersion: u32,
 }).strict()
 
-export const encryptedVaultSummarySchema = z.object({
+const encryptedVaultSummaryShape = {
   id: canonicalUuid,
   isDefault: z.boolean(),
   protocolVersion: z.literal(2),
@@ -42,7 +42,14 @@ export const encryptedVaultSummarySchema = z.object({
   memberCount: z.number().int().nonnegative(),
   entryCount: z.number().int().nonnegative(),
   activeGrantCount: z.number().int().nonnegative(),
-}).strict().superRefine((vault, context) => {
+} as const
+
+const encryptedVaultListSummaryObjectSchema = z.object(encryptedVaultSummaryShape).strict()
+
+function validateEncryptedVaultSummary(
+  vault: z.infer<typeof encryptedVaultListSummaryObjectSchema>,
+  context: z.RefinementCtx,
+): void {
   const metadata = vault.memberVaultMetadata.descriptor
   const memberKey = vault.memberVaultKey.wrappedVaultKey.descriptor
   if (vault.id !== metadata.scope.vaultId || vault.id !== memberKey.scope.vaultId) {
@@ -56,6 +63,42 @@ export const encryptedVaultSummarySchema = z.object({
   }
   if (vault.currentKeyEpoch.vaultKeyVersion !== memberKey.wrappedKeyVersion) {
     context.addIssue({ code: 'custom', message: 'Vault key version mismatch' })
+  }
+}
+
+export const encryptedVaultListSummarySchema = encryptedVaultListSummaryObjectSchema
+  .superRefine(validateEncryptedVaultSummary)
+
+const vaultPublicKeySchema = z.object({
+  protocolVersion: z.literal(2),
+  schemeId: z.enum(['palladin-x25519-v1', 'palladin-ed25519-v1']),
+  keyKind: z.enum(['agentMessageX25519', 'manifestSigningEd25519']),
+  keyVersion: u32,
+  encodedPublicKey: z.string().min(1),
+  fingerprint: z.string().min(1),
+}).strict()
+
+export const encryptedVaultSummarySchema = z.object({
+  ...encryptedVaultSummaryShape,
+  organizationId: canonicalUuid,
+  metadataRevision: canonicalU64,
+  vaultAgentMessagePublicKey: vaultPublicKeySchema,
+  vaultManifestSigningPublicKey: vaultPublicKeySchema,
+}).strict().superRefine((vault, context) => {
+  validateEncryptedVaultSummary(vault, context)
+  const metadataOrganizationId = vault.memberVaultMetadata.descriptor.scope.organizationId
+  const memberKeyOrganizationId = vault.memberVaultKey.wrappedVaultKey.descriptor.scope.organizationId
+  if (vault.organizationId !== metadataOrganizationId
+    || vault.organizationId !== memberKeyOrganizationId) {
+    context.addIssue({ code: 'custom', message: 'Vault outer organization scope mismatch' })
+  }
+  if (vault.vaultAgentMessagePublicKey.keyKind !== 'agentMessageX25519'
+    || vault.vaultAgentMessagePublicKey.schemeId !== 'palladin-x25519-v1'
+    || vault.vaultAgentMessagePublicKey.keyVersion !== vault.currentKeyEpoch.agentMessageKeyVersion
+    || vault.vaultManifestSigningPublicKey.keyKind !== 'manifestSigningEd25519'
+    || vault.vaultManifestSigningPublicKey.schemeId !== 'palladin-ed25519-v1'
+    || vault.vaultManifestSigningPublicKey.keyVersion !== vault.currentKeyEpoch.manifestSigningKeyVersion) {
+    context.addIssue({ code: 'custom', message: 'Vault public key epoch mismatch' })
   }
 })
 
@@ -102,7 +145,7 @@ const tombstoneSchema = z.object({
 export const memberSyncItemSchema = z.discriminatedUnion('kind', [headSchema, tombstoneSchema])
 
 export const listVaultsSchema = z.object({
-  vaults: z.array(encryptedVaultSummarySchema).max(200),
+  vaults: z.array(encryptedVaultListSummarySchema).max(200),
   total: z.number().int().nonnegative(),
 }).strict()
 
@@ -127,6 +170,7 @@ export const resetSchema = z.object({
 }).strict()
 
 export type EncryptedVaultSummary = z.infer<typeof encryptedVaultSummarySchema>
+export type EncryptedVaultListSummary = z.infer<typeof encryptedVaultListSummarySchema>
 export type MemberSyncItem = z.infer<typeof memberSyncItemSchema>
 export type MemberSnapshotPage = z.infer<typeof snapshotSchema>
 export type MemberDeltaPage = z.infer<typeof deltaSchema>
