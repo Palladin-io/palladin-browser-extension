@@ -26,10 +26,15 @@ Changing the server signs out the current session and clears the local encrypted
 cache; custom origins require an explicit browser permission prompt. A
 background-owned generation barrier drains API-backed work before the switch,
 invalidates pending TOTP, and serializes optional-permission cleanup.
+Appearance, Server URL, and Agent Runtime pairing are compact disclosure
+sections in Settings, so advanced controls do not crowd the everyday popup.
 The popup ships complete English and Polish catalogs (including localized
 manifest metadata), follows the browser language by default, and allows an
 explicit language override. Its `System / Light / Dark` preference defaults to
 the operating-system color scheme and reuses the web panel's `--cv-*` tokens.
+Password login uses the shared, frozen Identity KDF profile; a TOTP continuation
+keeps only its host-bound derived key in worker memory and never retains or
+resends the master password from the popup.
 Clipboard Copy is intentionally disabled on Firefox and Safari until those
 targets have a reviewed TTL wipe. Cross-browser runtime validation and
 production store publication remain in development. Do not use development
