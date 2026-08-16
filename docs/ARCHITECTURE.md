@@ -1,7 +1,7 @@
-# Proposed architecture
+# Architecture
 
-This document is a design boundary for future work. It does not describe code
-available on the default branch.
+This document describes the implemented development architecture. It is not a
+claim that the extension has passed its production release gates.
 
 ## Trust boundaries
 
@@ -15,10 +15,10 @@ isolated-world content script
           | typed extension messages
           v
 background service worker  <---->  extension popup
-          |
-          | authenticated, least-privilege API/native-runtime channel
-          v
-Palladin services or local runtime
+          |                              |
+          | Native Messaging             | HTTPS API
+          v                              v
+Palladin local runtime              Palladin services
 ```
 
 - The page main world is controlled by the visited site. It is never a trust
@@ -30,23 +30,35 @@ Palladin services or local runtime
   message alone can never authorize secret access.
 - Security-relevant confirmation belongs to extension-owned UI. A visited page
   must not be able to read, restyle, or overlay it.
+- The same extension has two separate callers: user autofill and Agent Inject.
+  User autofill never authorizes Agent access. Agent Inject requires a pinned
+  host signing key plus a signed ephemeral session and AEAD-protected frames;
+  Native Messaging host allowlisting alone is not treated as authentication.
+- The pin may contain only the host public signing key and its fingerprint in
+  extension local storage. No host or session secret is persisted. The current
+  build has no TOFU path and no trusted pairing writer, so Agent Inject remains
+  fail-closed.
+- Playwright and AgentBrowser use their own provider adapters and do not connect
+  to this extension.
 
 ## Secret lifecycle
 
 1. Establish an authenticated Palladin session without persisting bearer
    credentials to durable extension storage.
-2. Keep keys in JavaScript memory or `chrome.storage.session`, which is cleared
-   with the browser session. Explicit lock and logout wipe them immediately.
-3. Fetch ciphertext and structural metadata; decrypt only at the latest point
+2. Keep cryptographic keys only in service-worker JavaScript memory. A worker
+   restart loses them; explicit lock and logout wipe them immediately.
+3. Persist only canonical ciphertext envelopes and structural sync cursors in
+   IndexedDB; decrypt only at the latest point
    required for a user-approved operation.
-4. Validate the active tab, exact frame, HTTPS state, registered domain, and
-   authorization again immediately before filling.
+4. Bind preparation to the active tab and browser-issued top-frame document ID,
+   then validate the isolated page-load ID, exact HTTPS origin, registered
+   domain, and authorization again immediately before filling.
 5. Drop plaintext references after use and clear temporary byte buffers where
    the platform permits it.
 
-The extension must use the shared Palladin cryptographic package once a reviewed
-package boundary is selected. Cryptography must not be reimplemented in popup,
-content-script, or service-worker handlers.
+The extension uses the shared Palladin cryptographic package for canonical Vault
+Protocol 2 envelopes and the Inject secure session. Cryptography is not
+reimplemented in popup, content-script, or service-worker handlers.
 
 ## Messaging contract
 
@@ -57,6 +69,27 @@ of wrong source, direction, frame, origin, nonce, type, payload, and session.
 Messages must carry the minimum data needed for one operation. Broad state
 snapshots and generic `unknown` payload relays make review harder and are not an
 acceptable extension point.
+
+Agent Inject uses `palladin.inject-provider.v1`. The local runtime decrypts an
+approved Inject grant and transfers one credential over private pipes to the
+Native Messaging host. A paired session begins with `session.open` /
+`session.ready`; the signed transcript binds the extension origin, both nonces,
+and both ephemeral keys. All prepare/inject traffic then travels only in
+sequence-checked AEAD `secure` frames. The extension validates replay state,
+active tab/document, HTTPS origin, and the authenticated runtime-provided target
+domain before fill and before submit. It returns only a value-free outcome. The
+declarative payload remains `form+values`; there is no CDP transport. Pairing
+and the production host are not complete, therefore this path is not enabled in
+release builds today.
+
+User card fill is a separate explicit popup action. It maps canonical card data
+only to standardized `cc-name`, `cc-number`, expiry, and explicitly billing
+address autocomplete fields. It does not infer payment fields from labels or
+generic custom fields.
+
+Copy is exposed only on Chromium, where an offscreen document performs the
+reviewed TTL clipboard wipe. Firefox and Safari hide the control, and their
+workers reject copy reveal/arm commands before requesting plaintext.
 
 ## Browser permissions
 

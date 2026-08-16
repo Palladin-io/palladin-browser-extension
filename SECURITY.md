@@ -1,7 +1,7 @@
 # Security Policy
 
-Palladin is a password manager. Do not report security vulnerabilities through
-public GitHub issues, discussions, or pull requests.
+Palladin is a zero-knowledge password manager. Do not report security
+vulnerabilities through public GitHub issues, discussions, or pull requests.
 
 ## Reporting a vulnerability
 
@@ -9,17 +9,14 @@ Email **patryk.roguszewski@palladin.io** with `Security` in the subject, or
 follow the instructions at
 [palladin.io/.well-known/security.txt](https://palladin.io/.well-known/security.txt).
 
-Include the affected protocol version or commit, impact, and minimal safe
-reproduction steps. Do not send acquired secrets or personal data; an
-anonymized proof is sufficient.
+Include the affected protocol version or commit, browser and version, impact,
+and minimal safe reproduction steps. Do not send acquired secrets or personal
+data; an anonymized proof is sufficient.
 
-There are currently no supported extension versions from this repository.
-While historical prototype refs remain public during cleanup, reports may still
-identify an affected commit, but those experiments are unsupported and are not
-authoritative project surfaces. Include the affected commit, browser and version
-where relevant, and whether the issue could persist plaintext or keys, expose a
-value to a visited page or log, bypass frame/domain/session checks, broaden
-manifest permissions, or accept unauthenticated extension messages.
+High-priority extension issues include any path that persists plaintext or keys,
+exposes values to a visited page, model context, logs, or analytics, bypasses
+frame/domain/session/runtime-authentication checks, broadens manifest permissions,
+or accepts unauthenticated extension/native-runtime messages.
 
 ## Safe harbor and testing boundaries
 

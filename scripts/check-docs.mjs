@@ -16,7 +16,7 @@ const markdownFiles = [];
 
 async function collect(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
-    if (entry.name === '.git') continue;
+    if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === 'dist') continue;
     const path = resolve(directory, entry.name);
     if (entry.isDirectory()) await collect(path);
     if (entry.isFile() && entry.name.endsWith('.md')) markdownFiles.push(path);

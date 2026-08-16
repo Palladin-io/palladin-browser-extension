@@ -1,0 +1,14 @@
+{
+  "background": {
+    "scripts": ["src/background/index.ts"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "browser-extension@palladin.io",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["authenticationInfo", "browsingActivity"]
+      }
+    }
+  }
+}

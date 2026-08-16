@@ -1,91 +1,65 @@
 # Palladin Browser Extension
 
-> **Status: experimental and deferred.** The default branch does not contain a
-> buildable browser extension, and Palladin does not currently publish or
-> support an extension from this repository.
+Palladin's Manifest V3 browser extension is under active development. It has one
+product surface with two explicitly separated authorization paths:
 
-This repository records the intended security boundary and development process
-for a possible Manifest V3 companion to Palladin. Historical public development
-branches contain separate, unsupported experiments that were never
-security-reviewed as one product or promoted to a release. Those branch refs
-will be removed during the OSS cleanup; `main` is the repository's only
-authoritative surface.
+1. **User autofill** - a classic password-manager flow initiated by the user.
+2. **Agent fill** - an authenticated Palladin Runtime asks the same extension to
+   fill an approved credential without returning its value to the AI model.
 
-Do not install branch builds with real credentials or treat screenshots,
-manifests, or prototype behavior as a statement of a shipped Palladin feature.
+Neither path trusts the visited page. Agent fill does not reuse or weaken the
+user-autofill authorization path, and user autofill never requires an Agent grant.
 
-## Intended scope
+## Status
 
-If development resumes, the extension is expected to cover two distinct flows:
+The current development branch contains MV3 build foundations for the Chromium
+family, Firefox, and Safari, plus in-memory session and key lifecycle, encrypted
+Vault Protocol 2 sync/read/write, popup unlock and domain-matched credential
+selection, explicit generated-password save/update, TOTP, and card save/autofill
+for cardholder, PAN, expiry, and billing fields. Agent Inject has a typed
+`form+values` provider and authenticated-channel foundation, but stays
+fail-closed until trusted pairing and native-runtime packaging exist.
+Clipboard Copy is intentionally disabled on Firefox and Safari until those
+targets have a reviewed TTL wipe. Cross-browser runtime validation and
+production store publication remain in development. Do not use development
+builds with production credentials.
 
-- user-selected credential filling in a browser tab;
-- agent-assisted filling where an authorized runtime asks the extension to use
-  a prepared value without placing that value in model context.
+See [`docs/STATUS.md`](docs/STATUS.md) for the release gates and
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for trust boundaries. The exact
+target matrix and known gaps are in
+[`docs/BROWSER-COMPATIBILITY.md`](docs/BROWSER-COMPATIBILITY.md).
 
-These are design goals, not capabilities available from `main` today. Capture,
-passkeys, multi-browser packaging, store publication, and production update
-signing are likewise not current releases.
+## Requirements
 
-## Security requirements
+- Node.js 22 or newer
 
-Any implementation proposed for the default branch must preserve these
-invariants:
+## Development
 
-- the web page and main-world script are untrusted;
-- secrets cross into a page only for a narrowly authorized fill action;
-- key material stays in JavaScript memory or ephemeral
-  `chrome.storage.session`, never durable browser storage;
-- local caches contain ciphertext and non-secret structural data only;
-- no password, key, token, mnemonic, or plaintext field reaches logs,
-  analytics, crash reports, or extension messages that do not need it;
-- every fill revalidates the active frame, HTTPS state, domain scope, user or
-  runtime authorization, and current session immediately before use;
-- Manifest permissions and host access are minimal and justified in review;
-- the extension bundles all executable code locally, as required by Manifest
-  V3, and does not load remote code.
+```bash
+npm ci
+npm run dev
+npm run build
+npm test
+```
 
-The proposed trust boundaries are described in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). A future implementation is not
-ready for release merely because it builds; the security gates in
-[`docs/STATUS.md`](docs/STATUS.md) must also be satisfied.
+To load the Chromium development build, enable Developer mode at
+`chrome://extensions`, choose **Load unpacked**, and select `dist/chromium/` after
+a build.
 
-## Repository state
+`npm run build` builds all three target manifests. Use `npm run build:chromium`,
+`npm run build:firefox`, or `npm run build:safari` for one target, and the matching
+`dev:*` script for development. Chrome, Chromium, Brave, Edge, and Opera use the
+same `dist/chromium/` artifact. Firefox and Safari are manifest/platform adapters
+over the same extension core, not separate Palladin products.
 
-| Item | Current state on `main` |
-|---|---|
-| Installable extension | Not present |
-| Package manifest and lockfile | Repository documentation tooling only; no extension dependencies |
-| Browser-store release | Not published from this repository |
-| Supported versions | None |
-| Development status | Deferred; `main` is the only authoritative branch |
+## Security and contribution
 
-Historical branch experiments explored a Manifest V3 scaffold, service-worker
-session handling, popup unlock and entry selection, domain-gated filling,
-password generation, and an integration path. They are unsupported artifacts,
-not release history or maintained research inputs, and their public branch refs
-are scheduled for deletion. Any future implementation must start from `main`
-and arrive through a reviewed pull request.
-
-## Contributing
-
-Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) and open an issue before a large
-implementation. Pull requests should target `main` and include a
-security-boundary analysis. Do not submit real
-credentials or production-derived vault data in examples, fixtures, issues, or
-screenshots.
-
-Suspected vulnerabilities must be reported privately as described in
-[`SECURITY.md`](SECURITY.md).
-
-Project decisions and release authority are documented in
-[`GOVERNANCE.md`](GOVERNANCE.md).
+Read [`AGENTS.md`](AGENTS.md), [`CONTRIBUTING.md`](CONTRIBUTING.md), and
+[`SECURITY.md`](SECURITY.md) before changing the extension. Every change goes
+through a pull request to `main` with security-boundary tests.
 
 ## License and trademarks
 
-The repository's software and technical documentation are licensed under the
-[Apache License 2.0](LICENSE). Contributions must follow
-[the DCO](DCO) and [contribution guide](CONTRIBUTING.md). Third-party components
-retain their own licenses; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
-
-The software license does not grant rights to Palladin names, logos, or future
-extension store identity. See [`TRADEMARKS.md`](TRADEMARKS.md).
+Licensed under [Apache-2.0](LICENSE). The license does not grant rights to
+Palladin names, logos, or browser-store identity; see
+[`TRADEMARKS.md`](TRADEMARKS.md).
