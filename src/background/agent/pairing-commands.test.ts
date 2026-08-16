@@ -89,14 +89,24 @@ describe("Agent pairing popup commands", () => {
     expect(activePin).toBe("new");
   });
 
-  it("rejects a mismatched fingerprint without persisting or connecting", async () => {
-    const effects = deps({ deriveFingerprint: vi.fn(async () => `${"c".repeat(42)}g`) });
+  it("rejects a mismatched fingerprint and tears down an alarm reconnect", async () => {
+    let releaseDerive: ((fingerprint: string) => void) | undefined;
+    let activePin: "old" | null = "old";
+    const deriveFingerprint = vi.fn(() => new Promise<string>((resolve) => {
+      releaseDerive = resolve;
+    }));
+    const disconnect = vi.fn(() => { activePin = null; });
+    const effects = deps({ deriveFingerprint, disconnect });
     const handle = createAgentPairingRuntimeHandler(effects);
-    const result = await handle({
+    const pairing = handle({
       type: "agent-pairing/save",
       pairingBundle: BUNDLE,
       confirmed: true,
     });
+    await vi.waitFor(() => expect(deriveFingerprint).toHaveBeenCalledOnce());
+    activePin = "old";
+    releaseDerive?.(`${"c".repeat(42)}g`);
+    const result = await pairing;
 
     expect(result).toEqual({
       ok: false,
@@ -105,6 +115,8 @@ describe("Agent pairing popup commands", () => {
     });
     expect(effects.savePairing).not.toHaveBeenCalled();
     expect(effects.connect).not.toHaveBeenCalled();
+    expect(effects.disconnect).toHaveBeenCalledTimes(2);
+    expect(activePin).toBeNull();
     expect(JSON.stringify(result)).not.toContain(KEY);
   });
 
@@ -168,20 +180,44 @@ describe("Agent pairing popup commands", () => {
     expect(effects.clearPairing).toHaveBeenCalledOnce();
     expect(effects.disconnect).toHaveBeenCalledTimes(2);
 
-    const failing = deps({ clearPairing: vi.fn(async () => { throw new Error("storage"); }) });
+    let rejectClear: ((reason?: unknown) => void) | undefined;
+    let activePin: "old" | null = "old";
+    const clearPairing = vi.fn(() => new Promise<void>((_resolve, reject) => {
+      rejectClear = reject;
+    }));
+    const disconnect = vi.fn(() => { activePin = null; });
+    const failing = deps({ clearPairing, disconnect });
     const handleFailing = createAgentPairingRuntimeHandler(failing);
-    await expect(handleFailing({ type: "agent-pairing/clear" }))
+    const failedClear = handleFailing({ type: "agent-pairing/clear" });
+    await vi.waitFor(() => expect(clearPairing).toHaveBeenCalledOnce());
+    activePin = "old";
+    rejectClear?.(new Error("storage"));
+
+    await expect(failedClear)
       .resolves.toMatchObject({ ok: false, code: "unavailable" });
-    expect(failing.disconnect).toHaveBeenCalledOnce();
+    expect(failing.disconnect).toHaveBeenCalledTimes(2);
+    expect(activePin).toBeNull();
   });
 
-  it("returns a value-free failure when the durable intent cannot be written", async () => {
+  it("tears down a reconnect during deferred durable-intent failure", async () => {
+    let rejectIntent: ((reason?: unknown) => void) | undefined;
+    let activePin: "old" | null = "old";
+    const savePairingIntent = vi.fn(() => new Promise<void>((_resolve, reject) => {
+      rejectIntent = reject;
+    }));
+    const disconnect = vi.fn(() => { activePin = null; });
     const effects = deps({
-      savePairingIntent: vi.fn(async () => { throw new Error(`storage ${KEY}`); }),
+      savePairingIntent,
+      disconnect,
     });
     const handle = createAgentPairingRuntimeHandler(effects);
 
-    const result = await handle({ type: "agent-pairing/clear" });
+    const clearing = handle({ type: "agent-pairing/clear" });
+    expect(disconnect).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(savePairingIntent).toHaveBeenCalledOnce());
+    activePin = "old";
+    rejectIntent?.(new Error(`storage ${KEY}`));
+    const result = await clearing;
 
     expect(result).toEqual({
       ok: false,
@@ -190,7 +226,8 @@ describe("Agent pairing popup commands", () => {
     });
     expect(JSON.stringify(result)).not.toContain(KEY);
     expect(effects.clearPairing).not.toHaveBeenCalled();
-    expect(effects.disconnect).toHaveBeenCalledOnce();
+    expect(effects.disconnect).toHaveBeenCalledTimes(2);
+    expect(activePin).toBeNull();
   });
 
   it("lets a later clear cancel a save suspended in fingerprint derivation", async () => {

@@ -93,9 +93,13 @@ export function createAgentPairingRuntimeHandler(
         try {
           await intentReady;
         } catch {
+          disconnectIgnoringErrors(deps);
           return failure("unavailable");
         }
-        if (commandGeneration !== intentGeneration) return failure("superseded");
+        if (commandGeneration !== intentGeneration) {
+          disconnectIgnoringErrors(deps);
+          return failure("superseded");
+        }
       }
       return dispatchAgentPairingCommand(
         deps,
@@ -115,6 +119,7 @@ async function dispatchAgentPairingCommand(
   isCurrent: () => boolean,
   intentToken: HostPairingIntentToken | null,
 ): Promise<AgentPairingCommandResult> {
+  let keepVerifiedConnection = false;
   try {
     switch (command.type) {
       case "agent-pairing/status":
@@ -146,18 +151,14 @@ async function dispatchAgentPairingCommand(
         deps.disconnect();
         await deps.connect();
         if (!isCurrent()) {
-          deps.disconnect();
           await deps.clearPairing();
           return failure("superseded");
         }
+        keepVerifiedConnection = true;
         return { ok: true, status: statusFrom(record) };
       }
       case "agent-pairing/clear":
         await deps.clearPairing();
-        // A reconnect alarm already queued before the intent write may have
-        // opened the old pin while clear was in flight. Close it again after
-        // the active record is gone so success always leaves no live channel.
-        deps.disconnect();
         return { ok: true, status: { paired: false } };
       default: {
         const _exhaustive: never = command;
@@ -166,6 +167,22 @@ async function dispatchAgentPairingCommand(
     }
   } catch {
     return failure("unavailable");
+  } finally {
+    // A reconnect alarm already queued before the initial teardown can open an
+    // old pin during any awaited intent/derive/storage operation. Only a fully
+    // verified Pair happy path may retain its new connection; clear, error, and
+    // superseded outcomes all tear down again before resolving.
+    if (command.type !== "agent-pairing/status" && !keepVerifiedConnection) {
+      disconnectIgnoringErrors(deps);
+    }
+  }
+}
+
+function disconnectIgnoringErrors(deps: AgentPairingCommandDeps): void {
+  try {
+    deps.disconnect();
+  } catch {
+    // The caller still receives a value-free failure; no internal value leaks.
   }
 }
 
