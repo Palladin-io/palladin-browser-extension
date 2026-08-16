@@ -80,7 +80,10 @@ worker's session, key, or authorization state.
 
 The extension uses the shared Palladin cryptographic package for canonical Vault
 Protocol 2 envelopes and the Inject secure session. Cryptography is not
-reimplemented in popup, content-script, or service-worker handlers.
+reimplemented in popup, content-script, or service-worker handlers. Extension
+pages allow the narrow Manifest V3 CSP source `wasm-unsafe-eval` solely because
+that reviewed package instantiates its bundled WebAssembly module; generic
+`unsafe-eval`, remote scripts, and remote WebAssembly remain prohibited.
 
 ## Messaging contract
 
@@ -91,6 +94,11 @@ of wrong source, direction, frame, origin, nonce, type, payload, and session.
 Messages must carry the minimum data needed for one operation. Broad state
 snapshots and generic `unknown` payload relays make review harder and are not an
 acceptable extension point.
+
+Chrome closes long-lived extension ports when a page enters the back/forward
+cache. The isolated content script consumes that expected disconnect and opens
+a new typed port when the preserved document is restored. The normal
+top-frame/document/origin checks still apply to every fill after reconnection.
 
 Agent Inject uses `palladin.inject-provider.v1`. The local runtime decrypts an
 approved Inject grant and transfers one credential over private pipes to the

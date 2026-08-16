@@ -8,7 +8,7 @@
  * without a toast system.
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { clipboardCopyAvailable } from "@shared/config/build-target";
 import type { VaultRevealField } from "../../background/vault/commands";
@@ -41,6 +41,10 @@ function EnabledCopyButton({
   const { t } = useI18n();
   const [state, setState] = useState<CopyState>("idle");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
 
   const flash = useCallback((next: CopyState) => {
     setState(next);

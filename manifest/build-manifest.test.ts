@@ -23,6 +23,7 @@ interface Manifest {
   permissions?: string[];
   host_permissions?: string[];
   optional_host_permissions?: string[];
+  content_security_policy?: { extension_pages?: string };
   content_scripts?: Array<{ matches: string[]; js: string[]; world?: string }>;
   minimum_chrome_version?: string;
   browser_specific_settings?: {
@@ -57,6 +58,12 @@ describe("buildManifest (shared)", () => {
       "http://127.0.0.1/*",
       "https://*/*",
     ]);
+    expect(manifest.content_security_policy?.extension_pages).toBe(
+      "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; base-uri 'self'",
+    );
+    expect(manifest.content_security_policy?.extension_pages).not.toMatch(
+      /(?:^|\s)'unsafe-eval'(?:\s|;|$)/,
+    );
 
     const worlds = (manifest.content_scripts ?? []).map(
       (contentScript) => contentScript.world ?? "ISOLATED",
