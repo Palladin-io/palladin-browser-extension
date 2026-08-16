@@ -38,7 +38,9 @@ Palladin local runtime              Palladin services
   fingerprint, and an opaque non-secret mutation-intent token in extension
   local storage. An active pin is accepted only when its token matches the
   latest durable intent, so interrupted clear/re-pair writes restart
-  fail-closed. No host or session secret is persisted. The popup
+  fail-closed. A synchronous runtime mutation gate also blocks alarm and manual
+  reconnects from opening the previous pin anywhere inside an awaited pairing
+  operation. No host or session secret is persisted. The popup
   accepts the strict `palladin.inject-pairing.v1` JSON bundle printed by the
   trusted runtime CLI, recomputes the fingerprint, and writes the pin only after
   explicit user confirmation. There is no TOFU path and Native Messaging cannot

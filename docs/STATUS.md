@@ -33,7 +33,8 @@ release candidates.
   fingerprint, and requires explicit user confirmation before persisting the
   public pin. Saving connects; unpairing disconnects and disposes immediately.
   A durable non-secret intent token makes interrupted clear/re-pair operations
-  restart fail-closed. Plaintext and TOFU fallbacks do not exist.
+  restart fail-closed, while an in-memory mutation gate suppresses reconnects
+  until the new durable outcome is safe. Plaintext and TOFU fallbacks do not exist.
 - Development compatibility targets current Chrome, Chromium, Brave, Edge, and
   Opera MV3 builds. Store certification and version support are not yet claimed.
 

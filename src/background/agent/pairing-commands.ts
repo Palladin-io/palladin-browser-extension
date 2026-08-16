@@ -34,6 +34,7 @@ export interface AgentPairingCommandDeps {
   readVerifiedPairing(): Promise<HostPairingRecord | null>;
   deriveFingerprint(hostSigningPublicKey: string): Promise<string>;
   createIntentToken(): HostPairingIntentToken;
+  beginMutation(): () => void;
   savePairingIntent(intentToken: HostPairingIntentToken): Promise<void>;
   savePairing(record: HostPairingRecord): Promise<void>;
   clearPairing(): Promise<void>;
@@ -77,10 +78,21 @@ export function createAgentPairingRuntimeHandler(
     }
     const commandGeneration = mutatesPairing ? ++intentGeneration : intentGeneration;
     let intentReady: Promise<void> | null = null;
+    let releaseMutation: (() => void) | null = null;
+    const releaseMutationOnce = () => {
+      const release = releaseMutation;
+      if (release === null) return;
+      releaseMutation = null;
+      release();
+    };
     if (intentToken !== null) {
       try {
+        // Runtime reconnect suppression must be live before the first teardown;
+        // otherwise an already-queued alarm can reopen the old pin mid-await.
+        releaseMutation = deps.beginMutation();
         deps.disconnect();
       } catch {
+        releaseMutationOnce();
         return Promise.resolve(failure("unavailable"));
       }
       const token = intentToken;
@@ -93,11 +105,15 @@ export function createAgentPairingRuntimeHandler(
         try {
           await intentReady;
         } catch {
+          // No durable intent exists to invalidate the old active record. Keep
+          // runtime reconnects suppressed until a later mutation establishes a
+          // new generation; releasing here would resurrect that old pin.
           disconnectIgnoringErrors(deps);
           return failure("unavailable");
         }
         if (commandGeneration !== intentGeneration) {
           disconnectIgnoringErrors(deps);
+          releaseMutationOnce();
           return failure("superseded");
         }
       }
@@ -106,6 +122,7 @@ export function createAgentPairingRuntimeHandler(
         command,
         () => commandGeneration === intentGeneration,
         intentToken,
+        releaseMutationOnce,
       );
     });
     tail = result.then(() => undefined, () => undefined);
@@ -118,6 +135,7 @@ async function dispatchAgentPairingCommand(
   command: AgentPairingCommand,
   isCurrent: () => boolean,
   intentToken: HostPairingIntentToken | null,
+  releaseMutation: () => void,
 ): Promise<AgentPairingCommandResult> {
   let keepVerifiedConnection = false;
   try {
@@ -144,11 +162,13 @@ async function dispatchAgentPairingCommand(
           await deps.clearPairing();
           return failure("superseded");
         }
-        // An alarm that was already queued before the first disconnect may
-        // have re-opened the old persisted pin while derivation/storage was in
-        // flight. Tear it down again after the replacement is durable, then
-        // connect only from the newly verified record.
+        // A connection attempt already executing before mutation suppression
+        // may have observed the old pin. Tear it down again after the
+        // replacement is durable, then connect only from the verified record.
         deps.disconnect();
+        // The durable active record is now bound to the current intent. Release
+        // suppression immediately before the one permitted explicit connect.
+        releaseMutation();
         await deps.connect();
         if (!isCurrent()) {
           await deps.clearPairing();
@@ -174,6 +194,7 @@ async function dispatchAgentPairingCommand(
     // superseded outcomes all tear down again before resolving.
     if (command.type !== "agent-pairing/status" && !keepVerifiedConnection) {
       disconnectIgnoringErrors(deps);
+      releaseMutation();
     }
   }
 }

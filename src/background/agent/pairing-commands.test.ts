@@ -23,12 +23,39 @@ function deps(overrides: Partial<AgentPairingCommandDeps> = {}): AgentPairingCom
     readVerifiedPairing: vi.fn(async () => null),
     deriveFingerprint: vi.fn(async () => FINGERPRINT),
     createIntentToken: vi.fn(() => [INTENT_1, INTENT_2][intent++] ?? crypto.randomUUID()),
+    beginMutation: vi.fn(() => vi.fn()),
     savePairingIntent: vi.fn(async () => undefined),
     savePairing: vi.fn(async () => undefined),
     clearPairing: vi.fn(async () => undefined),
     connect: vi.fn(async () => undefined),
     disconnect: vi.fn(),
     ...overrides,
+  };
+}
+
+function reconnectGate() {
+  let generation = 0;
+  let suppressed = false;
+  let activePin: "old" | null = "old";
+  const beginMutation = vi.fn(() => {
+    const ownGeneration = ++generation;
+    suppressed = true;
+    return () => {
+      if (ownGeneration === generation) suppressed = false;
+    };
+  });
+  const disconnect = vi.fn(() => { activePin = null; });
+  const attemptReconnect = vi.fn(() => {
+    if (!suppressed) activePin = "old";
+  });
+  const attemptInject = vi.fn(() => !suppressed && activePin === "old");
+  return {
+    beginMutation,
+    disconnect,
+    attemptReconnect,
+    attemptInject,
+    activePin: () => activePin,
+    suppressed: () => suppressed,
   };
 }
 
@@ -48,6 +75,8 @@ describe("Agent pairing popup commands", () => {
       intentToken: INTENT_1,
     });
     expect(effects.savePairingIntent).toHaveBeenCalledWith(INTENT_1);
+    expect(vi.mocked(effects.beginMutation).mock.invocationCallOrder[0])
+      .toBeLessThan(vi.mocked(effects.disconnect).mock.invocationCallOrder[0]!);
     expect(vi.mocked(effects.savePairingIntent).mock.invocationCallOrder[0])
       .toBeLessThan(vi.mocked(effects.deriveFingerprint).mock.invocationCallOrder[0]!);
     expect(effects.disconnect).toHaveBeenCalledTimes(2);
@@ -91,12 +120,15 @@ describe("Agent pairing popup commands", () => {
 
   it("rejects a mismatched fingerprint and tears down an alarm reconnect", async () => {
     let releaseDerive: ((fingerprint: string) => void) | undefined;
-    let activePin: "old" | null = "old";
+    const gate = reconnectGate();
     const deriveFingerprint = vi.fn(() => new Promise<string>((resolve) => {
       releaseDerive = resolve;
     }));
-    const disconnect = vi.fn(() => { activePin = null; });
-    const effects = deps({ deriveFingerprint, disconnect });
+    const effects = deps({
+      deriveFingerprint,
+      beginMutation: gate.beginMutation,
+      disconnect: gate.disconnect,
+    });
     const handle = createAgentPairingRuntimeHandler(effects);
     const pairing = handle({
       type: "agent-pairing/save",
@@ -104,7 +136,10 @@ describe("Agent pairing popup commands", () => {
       confirmed: true,
     });
     await vi.waitFor(() => expect(deriveFingerprint).toHaveBeenCalledOnce());
-    activePin = "old";
+    gate.attemptReconnect();
+    expect(gate.activePin()).toBeNull();
+    expect(gate.attemptInject()).toBe(false);
+    expect(gate.suppressed()).toBe(true);
     releaseDerive?.(`${"c".repeat(42)}g`);
     const result = await pairing;
 
@@ -116,7 +151,8 @@ describe("Agent pairing popup commands", () => {
     expect(effects.savePairing).not.toHaveBeenCalled();
     expect(effects.connect).not.toHaveBeenCalled();
     expect(effects.disconnect).toHaveBeenCalledTimes(2);
-    expect(activePin).toBeNull();
+    expect(gate.activePin()).toBeNull();
+    expect(gate.suppressed()).toBe(false);
     expect(JSON.stringify(result)).not.toContain(KEY);
   });
 
@@ -181,41 +217,50 @@ describe("Agent pairing popup commands", () => {
     expect(effects.disconnect).toHaveBeenCalledTimes(2);
 
     let rejectClear: ((reason?: unknown) => void) | undefined;
-    let activePin: "old" | null = "old";
+    const gate = reconnectGate();
     const clearPairing = vi.fn(() => new Promise<void>((_resolve, reject) => {
       rejectClear = reject;
     }));
-    const disconnect = vi.fn(() => { activePin = null; });
-    const failing = deps({ clearPairing, disconnect });
+    const failing = deps({
+      clearPairing,
+      beginMutation: gate.beginMutation,
+      disconnect: gate.disconnect,
+    });
     const handleFailing = createAgentPairingRuntimeHandler(failing);
     const failedClear = handleFailing({ type: "agent-pairing/clear" });
     await vi.waitFor(() => expect(clearPairing).toHaveBeenCalledOnce());
-    activePin = "old";
+    gate.attemptReconnect();
+    expect(gate.activePin()).toBeNull();
+    expect(gate.attemptInject()).toBe(false);
+    expect(gate.suppressed()).toBe(true);
     rejectClear?.(new Error("storage"));
 
     await expect(failedClear)
       .resolves.toMatchObject({ ok: false, code: "unavailable" });
     expect(failing.disconnect).toHaveBeenCalledTimes(2);
-    expect(activePin).toBeNull();
+    expect(gate.activePin()).toBeNull();
+    expect(gate.suppressed()).toBe(false);
   });
 
   it("tears down a reconnect during deferred durable-intent failure", async () => {
     let rejectIntent: ((reason?: unknown) => void) | undefined;
-    let activePin: "old" | null = "old";
+    const gate = reconnectGate();
     const savePairingIntent = vi.fn(() => new Promise<void>((_resolve, reject) => {
       rejectIntent = reject;
     }));
-    const disconnect = vi.fn(() => { activePin = null; });
     const effects = deps({
       savePairingIntent,
-      disconnect,
+      beginMutation: gate.beginMutation,
+      disconnect: gate.disconnect,
     });
     const handle = createAgentPairingRuntimeHandler(effects);
 
     const clearing = handle({ type: "agent-pairing/clear" });
-    expect(disconnect).toHaveBeenCalledOnce();
+    expect(gate.disconnect).toHaveBeenCalledOnce();
     await vi.waitFor(() => expect(savePairingIntent).toHaveBeenCalledOnce());
-    activePin = "old";
+    gate.attemptReconnect();
+    expect(gate.activePin()).toBeNull();
+    expect(gate.attemptInject()).toBe(false);
     rejectIntent?.(new Error(`storage ${KEY}`));
     const result = await clearing;
 
@@ -227,7 +272,8 @@ describe("Agent pairing popup commands", () => {
     expect(JSON.stringify(result)).not.toContain(KEY);
     expect(effects.clearPairing).not.toHaveBeenCalled();
     expect(effects.disconnect).toHaveBeenCalledTimes(2);
-    expect(activePin).toBeNull();
+    expect(gate.activePin()).toBeNull();
+    expect(gate.suppressed()).toBe(true);
   });
 
   it("lets a later clear cancel a save suspended in fingerprint derivation", async () => {

@@ -9,9 +9,11 @@ import {
   type AgentProviderSession,
 } from "./native-provider";
 import {
+  beginNativeAgentPairingMutation,
   connectPairedNativeAgentProvider,
   disconnectNativeAgentProvider,
   gateAgentFillDeps,
+  handleNativeAgentAlarm,
   parseSecureFrame,
   parseSessionReady,
   readVerifiedPairing,
@@ -140,6 +142,29 @@ describe("secure Native Messaging frame boundary", () => {
     await expect(readVerifiedPairing()).resolves.toBeNull();
     await connectPairedNativeAgentProvider();
     expect(connectNative).not.toHaveBeenCalled();
+  });
+
+  it("blocks reconnects until the newest pairing mutation releases its gate", async () => {
+    const fingerprint = await injectHostKeyFingerprint(PUBLIC_KEY);
+    const { connectNative } = stubChrome({
+      hostSigningPublicKey: PUBLIC_KEY,
+      fingerprint,
+      intentToken: INTENT_TOKEN,
+    });
+    const releaseOlderMutation = beginNativeAgentPairingMutation();
+    const releaseCurrentMutation = beginNativeAgentPairingMutation();
+    releaseOlderMutation();
+
+    try {
+      handleNativeAgentAlarm("palladin.native-agent.reconnect");
+      await connectPairedNativeAgentProvider();
+      expect(connectNative).not.toHaveBeenCalled();
+    } finally {
+      releaseCurrentMutation();
+    }
+
+    await connectPairedNativeAgentProvider();
+    expect(connectNative).toHaveBeenCalledOnce();
   });
 
   it("disconnects and disposes a channel authenticated against the wrong pin", async () => {

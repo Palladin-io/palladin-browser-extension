@@ -67,6 +67,8 @@ let clientSession: InjectClientSession | null = null;
 let secureChannel: InjectSecureChannel | null = null;
 let connectionAttempt: Promise<void> | null = null;
 let lifecycleVersion = 0;
+let pairingMutationGeneration = 0;
+let pairingMutationSuppressed = false;
 
 const agentFillDeps: AgentFillDeps = {
   getActivePage,
@@ -111,10 +113,11 @@ export function connectNativeAgentProvider(): void {
 }
 
 export function handleNativeAgentAlarm(name: string): void {
-  if (name === RECONNECT_ALARM) connectNativeAgentProvider();
+  if (name === RECONNECT_ALARM && !pairingMutationSuppressed) connectNativeAgentProvider();
 }
 
 export async function connectPairedNativeAgentProvider(): Promise<void> {
+  if (pairingMutationSuppressed) return;
   if (nativePort !== null) return;
   if (connectionAttempt !== null) return connectionAttempt;
   const attempt = openPairedNativeAgentProvider(lifecycleVersion);
@@ -126,9 +129,30 @@ export async function connectPairedNativeAgentProvider(): Promise<void> {
   }
 }
 
+/**
+ * Suppress every automatic/manual reconnect for one pairing mutation.
+ *
+ * Generation ownership means completion of an older superseded mutation cannot
+ * release a newer mutation's suppression. Calling the returned release twice is
+ * harmless.
+ */
+export function beginNativeAgentPairingMutation(): () => void {
+  const generation = ++pairingMutationGeneration;
+  pairingMutationSuppressed = true;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    if (generation === pairingMutationGeneration) pairingMutationSuppressed = false;
+  };
+}
+
 async function openPairedNativeAgentProvider(expectedLifecycle: number): Promise<void> {
   const pairing = await readVerifiedPairing();
-  if (pairing === null || nativePort !== null || lifecycleVersion !== expectedLifecycle) return;
+  if (pairingMutationSuppressed
+    || pairing === null
+    || nativePort !== null
+    || lifecycleVersion !== expectedLifecycle) return;
   let nextClient: InjectClientSession | null = null;
   let port: chrome.runtime.Port;
   try {
@@ -137,7 +161,9 @@ async function openPairedNativeAgentProvider(expectedLifecycle: number): Promise
       extensionOrigin: chrome.runtime.getURL(""),
       pinnedHostSigningPublicKey: pairing.hostSigningPublicKey,
     });
-    if (nativePort !== null || lifecycleVersion !== expectedLifecycle) {
+    if (pairingMutationSuppressed
+      || nativePort !== null
+      || lifecycleVersion !== expectedLifecycle) {
       nextClient.dispose();
       return;
     }

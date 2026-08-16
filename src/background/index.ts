@@ -16,6 +16,7 @@ import {
   saveHostPairingRecord,
 } from "./agent/pairing-store";
 import {
+  beginNativeAgentPairingMutation,
   connectNativeAgentProvider,
   connectPairedNativeAgentProvider,
   disconnectNativeAgentProvider,
@@ -41,6 +42,7 @@ const handleAgentPairingRuntimeMessage = createAgentPairingRuntimeHandler({
   readVerifiedPairing,
   deriveFingerprint: injectHostKeyFingerprint,
   createIntentToken: () => crypto.randomUUID(),
+  beginMutation: beginNativeAgentPairingMutation,
   savePairingIntent: saveHostPairingIntent,
   savePairing: saveHostPairingRecord,
   clearPairing: clearHostPairingRecord,
