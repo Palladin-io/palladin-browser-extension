@@ -3,7 +3,9 @@
 export const AGENT_PAIRING_PROTOCOL = "palladin.inject-pairing.v1" as const;
 
 const MAX_PAIRING_BUNDLE_LENGTH = 2_048;
-const BASE64URL_32 = /^[A-Za-z0-9_-]{43}$/;
+// A 32-byte value has 42 complete base64url characters plus four data bits in
+// the final character. Its two unused low bits must be zero.
+const BASE64URL_32 = /^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/;
 
 export interface AgentPairingBundle {
   readonly protocol: typeof AGENT_PAIRING_PROTOCOL;
@@ -36,16 +38,18 @@ export function parseAgentPairingBundle(value: string): AgentPairingBundle | nul
     "fingerprint",
   ])) return null;
   if (parsed.protocol !== AGENT_PAIRING_PROTOCOL
-    || typeof parsed.hostSigningPublicKey !== "string"
-    || !BASE64URL_32.test(parsed.hostSigningPublicKey)
-    || typeof parsed.fingerprint !== "string"
-    || !BASE64URL_32.test(parsed.fingerprint)) return null;
+    || !isCanonicalBase64Url32(parsed.hostSigningPublicKey)
+    || !isCanonicalBase64Url32(parsed.fingerprint)) return null;
   return parsed as unknown as AgentPairingBundle;
 }
 
 /** Public identifiers are always displayed with both a prefix and suffix. */
 export function shortenPublicIdentifier(value: string): string {
   return `${value.slice(0, 8)}…${value.slice(-6)}`;
+}
+
+export function isCanonicalBase64Url32(value: unknown): value is string {
+  return typeof value === "string" && BASE64URL_32.test(value);
 }
 
 function onlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {

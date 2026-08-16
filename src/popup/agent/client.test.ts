@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createAgentPairingClient, AgentPairingClientError } from "./client";
 
-const FINGERPRINT = "b".repeat(43);
+const FINGERPRINT = `${"b".repeat(42)}Q`;
 
 describe("Agent pairing popup client", () => {
   it("sends the explicit-confirmation save command", async () => {

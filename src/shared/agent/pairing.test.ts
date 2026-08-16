@@ -6,8 +6,8 @@ import {
   shortenPublicIdentifier,
 } from "./pairing";
 
-const KEY = "a".repeat(43);
-const FINGERPRINT = "b".repeat(43);
+const KEY = `${"a".repeat(42)}A`;
+const FINGERPRINT = `${"b".repeat(42)}Q`;
 
 describe("Agent runtime pairing bundle", () => {
   it("accepts only the frozen canonical JSON shape", () => {
@@ -22,6 +22,10 @@ describe("Agent runtime pairing bundle", () => {
     expect(parseAgentPairingBundle(JSON.stringify({ ...bundle, protocol: "pairing.v0" }))).toBeNull();
     expect(parseAgentPairingBundle(JSON.stringify({ ...bundle, fingerprint: "not-base64url" })))
       .toBeNull();
+    expect(parseAgentPairingBundle(JSON.stringify({
+      ...bundle,
+      hostSigningPublicKey: "a".repeat(43),
+    }))).toBeNull();
     expect(parseAgentPairingBundle("not-json")).toBeNull();
   });
 

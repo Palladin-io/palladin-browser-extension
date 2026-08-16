@@ -9,7 +9,7 @@
 import { injectHostKeyFingerprint } from "@palladin/crypto";
 import { CONTENT_PORT, isBridgeMessage } from "@shared/messaging";
 
-import { handleAgentPairingRuntimeMessage } from "./agent/pairing-commands";
+import { createAgentPairingRuntimeHandler } from "./agent/pairing-commands";
 import {
   clearHostPairingRecord,
   saveHostPairingRecord,
@@ -36,6 +36,14 @@ import { handleVaultRuntimeMessage } from "./vault/commands";
 import { clipboardGuard, vaultCommandDeps, vaultData } from "./vault/runtime";
 
 const SYNC_ALARM = "palladin.sync";
+const handleAgentPairingRuntimeMessage = createAgentPairingRuntimeHandler({
+  readVerifiedPairing,
+  deriveFingerprint: injectHostKeyFingerprint,
+  savePairing: saveHostPairingRecord,
+  clearPairing: clearHostPairingRecord,
+  connect: connectPairedNativeAgentProvider,
+  disconnect: disconnectNativeAgentProvider,
+});
 
 /** Re-read the session state and repaint the toolbar padlock badge. */
 function refreshBadge(): void {
@@ -113,14 +121,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
       sendResponse(sessionResult);
       return;
     }
-    const pairingResult = await handleAgentPairingRuntimeMessage({
-      readVerifiedPairing,
-      deriveFingerprint: injectHostKeyFingerprint,
-      savePairing: saveHostPairingRecord,
-      clearPairing: clearHostPairingRecord,
-      connect: connectPairedNativeAgentProvider,
-      disconnect: disconnectNativeAgentProvider,
-    }, raw);
+    const pairingResult = await handleAgentPairingRuntimeMessage(raw);
     if (pairingResult !== null) {
       sendResponse(pairingResult);
       return;

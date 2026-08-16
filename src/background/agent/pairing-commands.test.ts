@@ -3,13 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 import { AGENT_PAIRING_PROTOCOL } from "@shared/agent/pairing";
 
 import {
-  dispatchAgentPairingCommand,
-  handleAgentPairingRuntimeMessage,
+  createAgentPairingRuntimeHandler,
   type AgentPairingCommandDeps,
 } from "./pairing-commands";
 
-const KEY = "a".repeat(43);
-const FINGERPRINT = "b".repeat(43);
+const KEY = `${"a".repeat(42)}A`;
+const FINGERPRINT = `${"b".repeat(42)}Q`;
 const BUNDLE = JSON.stringify({
   protocol: AGENT_PAIRING_PROTOCOL,
   hostSigningPublicKey: KEY,
@@ -31,7 +30,8 @@ function deps(overrides: Partial<AgentPairingCommandDeps> = {}): AgentPairingCom
 describe("Agent pairing popup commands", () => {
   it("persists only the verified public key and derived fingerprint, then connects", async () => {
     const effects = deps();
-    await expect(dispatchAgentPairingCommand(effects, {
+    const handle = createAgentPairingRuntimeHandler(effects);
+    await expect(handle({
       type: "agent-pairing/save",
       pairingBundle: BUNDLE,
       confirmed: true,
@@ -46,8 +46,9 @@ describe("Agent pairing popup commands", () => {
   });
 
   it("rejects a mismatched fingerprint without persisting or connecting", async () => {
-    const effects = deps({ deriveFingerprint: vi.fn(async () => "c".repeat(43)) });
-    const result = await dispatchAgentPairingCommand(effects, {
+    const effects = deps({ deriveFingerprint: vi.fn(async () => `${"c".repeat(42)}g`) });
+    const handle = createAgentPairingRuntimeHandler(effects);
+    const result = await handle({
       type: "agent-pairing/save",
       pairingBundle: BUNDLE,
       confirmed: true,
@@ -65,7 +66,8 @@ describe("Agent pairing popup commands", () => {
 
   it("rejects malformed commands and bundles with value-free errors", async () => {
     const effects = deps();
-    const malformed = await handleAgentPairingRuntimeMessage(effects, {
+    const handle = createAgentPairingRuntimeHandler(effects);
+    const malformed = await handle({
       type: "agent-pairing/save",
       pairingBundle: `${BUNDLE}private-value`,
       confirmed: true,
@@ -83,7 +85,8 @@ describe("Agent pairing popup commands", () => {
 
   it("requires explicit confirmation at the worker boundary", async () => {
     const effects = deps();
-    const result = await handleAgentPairingRuntimeMessage(effects, {
+    const handle = createAgentPairingRuntimeHandler(effects);
+    const result = await handle({
       type: "agent-pairing/save",
       pairingBundle: BUNDLE,
       confirmed: false,
@@ -92,23 +95,66 @@ describe("Agent pairing popup commands", () => {
     expect(effects.savePairing).not.toHaveBeenCalled();
   });
 
-  it("clears persistence and always disconnects the active secure session", async () => {
+  it("disconnects synchronously before awaiting durable clear", async () => {
+    let releaseClear: (() => void) | undefined;
+    const clearPairing = vi.fn(() => new Promise<void>((resolve) => {
+      releaseClear = resolve;
+    }));
+    const effects = deps({ clearPairing });
+    const handle = createAgentPairingRuntimeHandler(effects);
+
+    const clearing = handle({ type: "agent-pairing/clear" });
+    expect(effects.disconnect).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(clearPairing).toHaveBeenCalledOnce());
+    releaseClear?.();
+    await expect(clearing).resolves.toEqual({ ok: true, status: { paired: false } });
+  });
+
+  it("always stays disconnected when durable clear fails", async () => {
     const effects = deps();
-    await expect(dispatchAgentPairingCommand(effects, { type: "agent-pairing/clear" }))
+    const handle = createAgentPairingRuntimeHandler(effects);
+    await expect(handle({ type: "agent-pairing/clear" }))
       .resolves.toEqual({ ok: true, status: { paired: false } });
     expect(effects.clearPairing).toHaveBeenCalledOnce();
     expect(effects.disconnect).toHaveBeenCalledOnce();
 
     const failing = deps({ clearPairing: vi.fn(async () => { throw new Error("storage"); }) });
-    await expect(dispatchAgentPairingCommand(failing, { type: "agent-pairing/clear" }))
+    const handleFailing = createAgentPairingRuntimeHandler(failing);
+    await expect(handleFailing({ type: "agent-pairing/clear" }))
       .resolves.toMatchObject({ ok: false, code: "unavailable" });
     expect(failing.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it("lets a later clear cancel a save suspended in fingerprint derivation", async () => {
+    let releaseDerive: ((fingerprint: string) => void) | undefined;
+    const deriveFingerprint = vi.fn(() => new Promise<string>((resolve) => {
+      releaseDerive = resolve;
+    }));
+    const effects = deps({ deriveFingerprint });
+    const handle = createAgentPairingRuntimeHandler(effects);
+
+    const pairing = handle({
+      type: "agent-pairing/save",
+      pairingBundle: BUNDLE,
+      confirmed: true,
+    });
+    await vi.waitFor(() => expect(deriveFingerprint).toHaveBeenCalledOnce());
+    const clearing = handle({ type: "agent-pairing/clear" });
+    expect(effects.disconnect).toHaveBeenCalledTimes(2);
+
+    releaseDerive?.(FINGERPRINT);
+    await expect(pairing).resolves.toMatchObject({ ok: false, code: "superseded" });
+    await expect(clearing).resolves.toEqual({ ok: true, status: { paired: false } });
+    expect(effects.savePairing).not.toHaveBeenCalled();
+    expect(effects.connect).not.toHaveBeenCalled();
+    expect(effects.clearPairing).toHaveBeenCalledOnce();
   });
 
   it("reports only verified persisted status", async () => {
     const record = { hostSigningPublicKey: KEY, fingerprint: FINGERPRINT };
     const effects = deps({ readVerifiedPairing: vi.fn(async () => record) });
-    await expect(dispatchAgentPairingCommand(effects, { type: "agent-pairing/status" }))
+    const handle = createAgentPairingRuntimeHandler(effects);
+    await expect(handle({ type: "agent-pairing/status" }))
       .resolves.toEqual({ ok: true, status: { paired: true, fingerprint: FINGERPRINT } });
   });
 });

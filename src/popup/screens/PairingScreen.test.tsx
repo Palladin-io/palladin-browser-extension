@@ -11,8 +11,8 @@ import {
 } from "../agent/client";
 import { PairingScreen } from "./PairingScreen";
 
-const KEY = "a".repeat(43);
-const FINGERPRINT = "12345678" + "b".repeat(29) + "uvwxyz";
+const KEY = `${"a".repeat(42)}A`;
+const FINGERPRINT = "12345678" + "b".repeat(29) + "uvwxyw";
 const BUNDLE = JSON.stringify({
   protocol: AGENT_PAIRING_PROTOCOL,
   hostSigningPublicKey: KEY,
@@ -41,14 +41,14 @@ describe("Agent runtime pairing screen", () => {
 
     await user.clear(input);
     fireEvent.change(input, { target: { value: BUNDLE } });
-    expect(screen.getByText("12345678…uvwxyz")).toBeInTheDocument();
+    expect(screen.getByText("12345678…uvwxyw")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Pair runtime" })).toBeDisabled();
     await user.click(screen.getByRole("checkbox", { name: /verified this fingerprint/i }));
     await user.click(screen.getByRole("button", { name: "Pair runtime" }));
 
     await waitFor(() => expect(pairing.save).toHaveBeenCalledWith(BUNDLE));
     expect(await screen.findByText("Paired fingerprint")).toBeInTheDocument();
-    expect(screen.getByText("12345678…uvwxyz")).toBeInTheDocument();
+    expect(screen.getByText("12345678…uvwxyw")).toBeInTheDocument();
     expect(document.body.textContent).not.toContain(FINGERPRINT);
     expect(document.body.textContent).not.toContain(KEY);
   });
@@ -78,7 +78,7 @@ describe("Agent runtime pairing screen", () => {
     render(<PairingScreen client={pairing} />);
     const user = userEvent.setup();
 
-    expect(await screen.findByText("12345678…uvwxyz")).toBeInTheDocument();
+    expect(await screen.findByText("12345678…uvwxyw")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Unpair runtime" }));
     await waitFor(() => expect(pairing.clear).toHaveBeenCalledOnce());
     expect(await screen.findByLabelText("Pairing bundle")).toBeInTheDocument();

@@ -20,6 +20,7 @@ import {
   type AgentInjectStepOutcome,
   type AgentInjectTransitionOutcome,
 } from "@shared/messaging";
+import { isCanonicalBase64Url32 } from "@shared/agent/pairing";
 
 import { logger } from "../telemetry/logger";
 import {
@@ -72,6 +73,38 @@ const agentFillDeps: AgentFillDeps = {
   probeTransition,
 };
 
+/** Gate every awaited lookup and page operation against pairing lifecycle. */
+export function gateAgentFillDeps(
+  deps: AgentFillDeps,
+  isActive: () => boolean,
+): AgentFillDeps {
+  return {
+    async getActivePage() {
+      if (!isActive()) return null;
+      const page = await deps.getActivePage();
+      return isActive() ? page : null;
+    },
+    async sendStep(tabId, expectedDomain, step, values) {
+      if (!isActive()) return null;
+      const outcome = await deps.sendStep(tabId, expectedDomain, step, values);
+      return isActive() ? outcome : null;
+    },
+    async probeTransition(tabId, expectedDomain, selector) {
+      if (!isActive()) return null;
+      const outcome = await deps.probeTransition(tabId, expectedDomain, selector);
+      return isActive() ? outcome : null;
+    },
+    async wait(milliseconds) {
+      if (!isActive()) return;
+      if (deps.wait) {
+        await deps.wait(milliseconds);
+      } else {
+        await new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+      }
+    },
+  };
+}
+
 export function connectNativeAgentProvider(): void {
   void connectPairedNativeAgentProvider();
 }
@@ -111,10 +144,18 @@ async function openPairedNativeAgentProvider(expectedLifecycle: number): Promise
     clientSession = nextClient;
     nativePort = port;
     const providerSession: AgentProviderSession = { prepared: null };
+    const isActive = () => nativePort === port && lifecycleVersion === expectedLifecycle;
+    const lifecycleDeps = gateAgentFillDeps(agentFillDeps, isActive);
     let queue = Promise.resolve();
     port.onMessage.addListener((raw) => {
       queue = queue
-        .then(() => handleSecureNativeMessage(port, providerSession, raw))
+        .then(() => handleSecureNativeMessage(
+          port,
+          providerSession,
+          lifecycleDeps,
+          expectedLifecycle,
+          raw,
+        ))
         .catch(() => disconnectSecurePort(port));
     });
     port.onDisconnect.addListener(() => {
@@ -157,30 +198,45 @@ export function disconnectNativeAgentProvider(): void {
 async function handleSecureNativeMessage(
   port: chrome.runtime.Port,
   providerSession: AgentProviderSession,
+  deps: AgentFillDeps,
+  expectedLifecycle: number,
   raw: unknown,
 ): Promise<void> {
-  if (nativePort !== port) return;
+  const isActive = () => nativePort === port && lifecycleVersion === expectedLifecycle;
+  if (!isActive()) return;
   if (secureChannel === null) {
     const ready = parseSessionReady(raw);
-    if (ready === null || clientSession === null) throw new Error("Invalid secure session ready frame");
-    secureChannel = await clientSession.acceptReady(ready);
+    const session = clientSession;
+    if (ready === null || session === null) throw new Error("Invalid secure session ready frame");
+    const channel = await session.acceptReady(ready);
+    if (!isActive() || clientSession !== session) {
+      channel.dispose();
+      return;
+    }
+    secureChannel = channel;
     clientSession = null;
     return;
   }
+  const channel = secureChannel;
   const frame = parseSecureFrame(raw);
   if (frame === null) throw new Error("Plain or malformed Native Messaging frame rejected");
-  const plaintext = await secureChannel.open(frame);
+  const plaintext = await channel.open(frame);
+  if (!isActive()) {
+    plaintext.fill(0);
+    return;
+  }
   let request: unknown;
   try {
     request = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(plaintext));
   } finally {
     plaintext.fill(0);
   }
-  const response = await handleNativeAgentMessage(agentFillDeps, replay, providerSession, request)
+  const response = await handleNativeAgentMessage(deps, replay, providerSession, request)
     .catch(() => unavailableResponse(request));
+  if (!isActive()) return;
   const responseBytes = new TextEncoder().encode(JSON.stringify(response));
   try {
-    postIfConnected(port, await secureChannel.seal(responseBytes));
+    postIfConnected(port, await channel.seal(responseBytes));
   } finally {
     responseBytes.fill(0);
   }
@@ -202,10 +258,8 @@ function isHostPairingRecord(value: unknown): value is HostPairingRecord {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
   return Object.keys(record).length === 2
-    && typeof record.hostSigningPublicKey === "string"
-    && /^[A-Za-z0-9_-]{43}$/.test(record.hostSigningPublicKey)
-    && typeof record.fingerprint === "string"
-    && /^[A-Za-z0-9_-]{43}$/.test(record.fingerprint);
+    && isCanonicalBase64Url32(record.hostSigningPublicKey)
+    && isCanonicalBase64Url32(record.fingerprint);
 }
 
 export function parseSessionReady(value: unknown): InjectSessionReady | null {
@@ -215,9 +269,10 @@ export function parseSessionReady(value: unknown): InjectSessionReady | null {
   if (Object.keys(frame).length !== keys.length || !keys.every((key) => key in frame)) return null;
   if (frame.protocol !== INJECT_PROVIDER_PROTOCOL || frame.type !== "session.ready") return null;
   if (![frame.extensionNonce, frame.hostNonce, frame.hostEphemeralPublicKey, frame.hostSigningPublicKey]
-    .every((item) => typeof item === "string" && /^[A-Za-z0-9_-]{43}$/.test(item))) return null;
-  if (typeof frame.signature !== "string" || !/^[A-Za-z0-9_-]{86}$/.test(frame.signature)) return null;
-  if (typeof frame.sessionId !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(frame.sessionId)) return null;
+    .every(isCanonicalBase64Url32)) return null;
+  if (typeof frame.signature !== "string"
+    || !/^[A-Za-z0-9_-]{85}[AQgw]$/.test(frame.signature)) return null;
+  if (!isCanonicalBase64Url32(frame.sessionId)) return null;
   return frame as unknown as InjectSessionReady;
 }
 
@@ -227,8 +282,7 @@ export function parseSecureFrame(value: unknown): InjectSecureFrame | null {
   if (Object.keys(frame).length !== 5
     || frame.protocol !== INJECT_PROVIDER_PROTOCOL
     || frame.type !== "secure"
-    || typeof frame.sessionId !== "string"
-    || !/^[A-Za-z0-9_-]{43}$/.test(frame.sessionId)
+    || !isCanonicalBase64Url32(frame.sessionId)
     || typeof frame.sequence !== "string"
     || !/^(0|[1-9][0-9]{0,19})$/.test(frame.sequence)
     || typeof frame.ciphertext !== "string"

@@ -19,6 +19,7 @@ export type AgentPairingCommand =
 export type AgentPairingErrorCode =
   | "invalid-bundle"
   | "fingerprint-mismatch"
+  | "superseded"
   | "unavailable";
 
 export type AgentPairingCommandResult =
@@ -34,9 +35,55 @@ export interface AgentPairingCommandDeps {
   disconnect(): void;
 }
 
-export async function dispatchAgentPairingCommand(
+export type AgentPairingRuntimeHandler = (
+  raw: unknown,
+) => Promise<AgentPairingCommandResult | null>;
+
+/**
+ * Create the single FIFO command processor owned by the service worker.
+ *
+ * A clear or replacement-pair intent disconnects synchronously, before any
+ * storage await. Its generation also cancels an older save that may be suspended
+ * in fingerprint derivation or persistence, while the FIFO preserves final
+ * durable ordering.
+ */
+export function createAgentPairingRuntimeHandler(
+  deps: AgentPairingCommandDeps,
+): AgentPairingRuntimeHandler {
+  let tail: Promise<void> = Promise.resolve();
+  let intentGeneration = 0;
+
+  return (raw) => {
+    if (!isAgentPairingNamespace(raw)) return Promise.resolve(null);
+    const command = parseAgentPairingCommand(raw);
+    if (command === null) return Promise.resolve(failure("invalid-bundle"));
+
+    const mutatesPairing = command.type !== "agent-pairing/status";
+    const commandGeneration = mutatesPairing
+      ? ++intentGeneration
+      : intentGeneration;
+    if (mutatesPairing) {
+      try {
+        deps.disconnect();
+      } catch {
+        return Promise.resolve(failure("unavailable"));
+      }
+    }
+
+    const result = tail.then(() => dispatchAgentPairingCommand(
+      deps,
+      command,
+      () => commandGeneration === intentGeneration,
+    ));
+    tail = result.then(() => undefined, () => undefined);
+    return result;
+  };
+}
+
+async function dispatchAgentPairingCommand(
   deps: AgentPairingCommandDeps,
   command: AgentPairingCommand,
+  isCurrent: () => boolean,
 ): Promise<AgentPairingCommandResult> {
   try {
     switch (command.type) {
@@ -46,24 +93,23 @@ export async function dispatchAgentPairingCommand(
         const bundle = parseAgentPairingBundle(command.pairingBundle);
         if (bundle === null) return failure("invalid-bundle");
         const derivedFingerprint = await deps.deriveFingerprint(bundle.hostSigningPublicKey);
+        if (!isCurrent()) return failure("superseded");
         if (derivedFingerprint !== bundle.fingerprint) return failure("fingerprint-mismatch");
         const record: HostPairingRecord = {
           hostSigningPublicKey: bundle.hostSigningPublicKey,
           fingerprint: derivedFingerprint,
         };
-        // A re-pair must never leave a channel authenticated by the old pin alive.
-        deps.disconnect();
         await deps.savePairing(record);
+        if (!isCurrent()) return failure("superseded");
         await deps.connect();
+        if (!isCurrent()) {
+          deps.disconnect();
+          return failure("superseded");
+        }
         return { ok: true, status: statusFrom(record) };
       }
       case "agent-pairing/clear":
-        try {
-          await deps.clearPairing();
-        } finally {
-          // Fail closed even if durable storage is temporarily unavailable.
-          deps.disconnect();
-        }
+        await deps.clearPairing();
         return { ok: true, status: { paired: false } };
       default: {
         const _exhaustive: never = command;
@@ -73,16 +119,6 @@ export async function dispatchAgentPairingCommand(
   } catch {
     return failure("unavailable");
   }
-}
-
-export async function handleAgentPairingRuntimeMessage(
-  deps: AgentPairingCommandDeps,
-  raw: unknown,
-): Promise<AgentPairingCommandResult | null> {
-  if (!isAgentPairingNamespace(raw)) return null;
-  const command = parseAgentPairingCommand(raw);
-  if (command === null) return failure("invalid-bundle");
-  return dispatchAgentPairingCommand(deps, command);
 }
 
 function parseAgentPairingCommand(value: Record<string, unknown>): AgentPairingCommand | null {
@@ -116,6 +152,7 @@ function failure(code: AgentPairingErrorCode): AgentPairingCommandResult {
   const message: Record<AgentPairingErrorCode, string> = {
     "invalid-bundle": "Pairing bundle is invalid",
     "fingerprint-mismatch": "Pairing fingerprint does not match the host public key",
+    superseded: "Pairing command was superseded",
     unavailable: "Agent runtime pairing is unavailable",
   };
   return { ok: false, code, message: message[code] };

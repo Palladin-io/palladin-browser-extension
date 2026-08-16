@@ -1,9 +1,17 @@
 import { injectHostKeyFingerprint, toBase64Url } from "@palladin/crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { AgentInjectionRequest } from "@shared/messaging";
+
+import {
+  handleNativeAgentMessage,
+  type AgentFillDeps,
+  type AgentProviderSession,
+} from "./native-provider";
 import {
   connectPairedNativeAgentProvider,
   disconnectNativeAgentProvider,
+  gateAgentFillDeps,
   parseSecureFrame,
   parseSessionReady,
   readVerifiedPairing,
@@ -87,11 +95,15 @@ describe("secure Native Messaging frame boundary", () => {
       fingerprint,
     });
 
-    stubChrome({ hostSigningPublicKey: PUBLIC_KEY, fingerprint: "b".repeat(43) });
+    stubChrome({
+      hostSigningPublicKey: PUBLIC_KEY,
+      fingerprint: toBase64Url(new Uint8Array(32).fill(2)),
+    });
     await expect(readVerifiedPairing()).resolves.toBeNull();
 
     for (const malformed of [
       { hostSigningPublicKey: "not-base64url", fingerprint },
+      { hostSigningPublicKey: "a".repeat(43), fingerprint },
       { hostSigningPublicKey: PUBLIC_KEY, fingerprint, extra: true },
       { hostSigningPublicKey: PUBLIC_KEY },
     ]) {
@@ -137,6 +149,70 @@ describe("secure Native Messaging frame boundary", () => {
     expect(alarmsCreate).not.toHaveBeenCalled();
   });
 
+  it("cancels a decrypted Inject before its next page side effect and wipes values", async () => {
+    let active = true;
+    let pageReads = 0;
+    const page = {
+      id: 7,
+      page: { url: "https://login.example.com", documentId: "d".repeat(32) },
+    };
+    const base: AgentFillDeps = {
+      getActivePage: vi.fn(async () => {
+        pageReads += 1;
+        if (pageReads === 2) active = false;
+        return page;
+      }),
+      sendStep: vi.fn(async () => ({ ok: true } as const)),
+      probeTransition: vi.fn(async () => ({ status: "ready" } as const)),
+      wait: vi.fn(async () => undefined),
+    };
+    const gated = gateAgentFillDeps(base, () => active);
+    const request: AgentInjectionRequest = {
+      protocol: "palladin.inject-provider.v1",
+      type: "inject",
+      transactionId: "tx-cancelled",
+      grantId: "grant-1",
+      entryId: "entry-1",
+      expectedDomain: "login.example.com",
+      form: {
+        version: 1,
+        steps: [{
+          fields: [{
+            entryFieldId: "credential.password",
+            selector: "#password",
+            control: "password",
+          }],
+          submit: { action: "click", selector: "#submit" },
+        }],
+      },
+      values: [{
+        entryFieldId: "credential.password",
+        value: "synthetic-password-value",
+      }],
+    };
+    const session: AgentProviderSession = {
+      prepared: { tabId: 7, documentId: "d".repeat(32) },
+    };
+
+    const response = await handleNativeAgentMessage(
+      gated,
+      { consume: vi.fn(async () => true) },
+      session,
+      request,
+    );
+
+    expect(response).toMatchObject({ outcome: "provider-unavailable" });
+    expect(base.sendStep).not.toHaveBeenCalled();
+    expect(base.probeTransition).not.toHaveBeenCalled();
+    expect(request.values[0]?.value).toBe("");
+    await expect(gated.sendStep(7, "login.example.com", request.form.steps[0]!, []))
+      .resolves.toBeNull();
+    await expect(gated.probeTransition(7, "login.example.com", "#password"))
+      .resolves.toBeNull();
+    expect(base.sendStep).not.toHaveBeenCalled();
+    expect(base.probeTransition).not.toHaveBeenCalled();
+  });
+
   it("accepts only the frozen session.ready shape", () => {
     const ready = {
       protocol: "palladin.inject-provider.v1",
@@ -151,6 +227,8 @@ describe("secure Native Messaging frame boundary", () => {
     expect(parseSessionReady(ready)).toEqual(ready);
     expect(parseSessionReady({ ...ready, hostPublicKey: B32 })).toBeNull();
     expect(parseSessionReady({ ...ready, signature: "not-base64url" })).toBeNull();
+    expect(parseSessionReady({ ...ready, extensionNonce: "a".repeat(43) })).toBeNull();
+    expect(parseSessionReady({ ...ready, signature: "a".repeat(86) })).toBeNull();
   });
 
   it("accepts canonical secure sequence text and rejects plaintext provider frames", () => {

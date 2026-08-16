@@ -7,8 +7,8 @@ import {
 } from "./pairing-store";
 
 const RECORD = {
-  hostSigningPublicKey: "a".repeat(43),
-  fingerprint: "b".repeat(43),
+  hostSigningPublicKey: `${"a".repeat(42)}A`,
+  fingerprint: `${"b".repeat(42)}Q`,
 };
 
 const get = vi.fn();

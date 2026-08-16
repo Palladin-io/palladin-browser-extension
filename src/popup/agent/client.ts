@@ -1,6 +1,9 @@
 /** Typed popup client for the extension-owned Agent runtime pairing screen. */
 
-import type { AgentPairingStatus } from "@shared/agent/pairing";
+import {
+  isCanonicalBase64Url32,
+  type AgentPairingStatus,
+} from "@shared/agent/pairing";
 
 import type {
   AgentPairingCommand,
@@ -72,13 +75,13 @@ function isAgentPairingStatus(value: unknown): value is AgentPairingStatus {
   if (!isRecord(value) || typeof value.paired !== "boolean") return false;
   if (!value.paired) return exactKeys(value, ["paired"]);
   return exactKeys(value, ["paired", "fingerprint"])
-    && typeof value.fingerprint === "string"
-    && /^[A-Za-z0-9_-]{43}$/.test(value.fingerprint);
+    && isCanonicalBase64Url32(value.fingerprint);
 }
 
 function isAgentPairingErrorCode(value: unknown): value is AgentPairingErrorCode {
   return value === "invalid-bundle"
     || value === "fingerprint-mismatch"
+    || value === "superseded"
     || value === "unavailable";
 }
 
