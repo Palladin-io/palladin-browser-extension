@@ -100,7 +100,7 @@ manifest/          # Manifest source of truth (auditable JSON, merged by build-m
   manifest.firefox.json    # Firefox-specific compatibility and signing metadata
   manifest.safari.json     # Safari-specific compatibility metadata
   build-manifest.ts        # small pure deep-merge; the ONLY manifest generator
-icons/             # placeholder PNGs (regenerate: node scripts/generate-icons.mjs)
+icons/             # reviewed Palladin brand source + 16/32/48/128 PNG derivatives
 scripts/           # build/dev helpers (no deps)
 src/
   background/      # service worker: bootstrap, router (pure), session stub

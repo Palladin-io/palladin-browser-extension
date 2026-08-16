@@ -89,6 +89,20 @@ body {
   margin-bottom: 16px;
 }
 
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+}
+
+.brand-logo {
+  display: block;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+}
+
 .wordmark {
   margin: 0;
   font-size: 18px;
