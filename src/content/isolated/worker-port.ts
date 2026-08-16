@@ -29,11 +29,15 @@ export function createReconnectingWorkerPort(
   consumeDisconnectReason: () => ContentPortDisconnectReason,
 ): ReconnectingWorkerPort {
   let current: ContentWorkerPort | null = null;
+  let immediateWorkerReconnectUsed = false;
 
   function open(): ContentWorkerPort {
     const next = connect();
     current = next;
-    next.onMessage.addListener(onMessage);
+    next.onMessage.addListener((message) => {
+      immediateWorkerReconnectUsed = false;
+      onMessage(message);
+    });
     next.onDisconnect.addListener(() => {
       const reason = consumeDisconnectReason();
       if (current !== next) return;
@@ -41,7 +45,8 @@ export function createReconnectingWorkerPort(
       // A worker restart erases its live document registry, so reconnect now
       // and wake the new worker. A BFCache document cannot keep a Port alive;
       // pageshow restores it explicitly instead.
-      if (reason === "worker") {
+      if (reason === "worker" && !immediateWorkerReconnectUsed) {
+        immediateWorkerReconnectUsed = true;
         try {
           open();
         } catch {
@@ -65,6 +70,7 @@ export function createReconnectingWorkerPort(
       const target = active();
       try {
         target.postMessage(message);
+        immediateWorkerReconnectUsed = false;
       } catch {
         if (current === target) current = null;
         // The Port can close between active() and postMessage(). Re-register
@@ -77,6 +83,7 @@ export function createReconnectingWorkerPort(
       }
     },
     reconnect() {
+      immediateWorkerReconnectUsed = false;
       const previous = current;
       current = null;
       try {

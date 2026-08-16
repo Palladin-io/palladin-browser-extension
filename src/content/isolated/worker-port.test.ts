@@ -36,6 +36,22 @@ describe("reconnecting isolated-world worker Port", () => {
     expect(connect).toHaveBeenCalledTimes(2);
   });
 
+  it("stops after one immediate retry when no worker receiver exists", () => {
+    const first = fakePort();
+    const second = fakePort();
+    const connect = vi.fn()
+      .mockReturnValueOnce(first)
+      .mockReturnValueOnce(second);
+    const consumeDisconnectReason = vi.fn(() => "worker" as const);
+    createReconnectingWorkerPort(connect, vi.fn(), consumeDisconnectReason);
+
+    first.emitDisconnect();
+    second.emitDisconnect();
+
+    expect(consumeDisconnectReason).toHaveBeenCalledTimes(2);
+    expect(connect).toHaveBeenCalledTimes(2);
+  });
+
   it("waits for BFCache pageshow before replacing the disconnected Port", () => {
     const first = fakePort();
     const second = fakePort();
