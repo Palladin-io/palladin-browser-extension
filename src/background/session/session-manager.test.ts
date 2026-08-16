@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthClient } from "./auth-client";
 import { AutoLock, AUTO_LOCK_ALARM } from "./auto-lock";
 import { SessionHooks } from "./hooks";
-import { SessionManager, type SessionManagerDeps } from "./session-manager";
+import {
+  PENDING_TOTP_TTL_MS,
+  SessionManager,
+  type SessionManagerDeps,
+} from "./session-manager";
 import { SessionStore } from "./session-store";
 import { MasterPasswordUnlock, type UnlockSource } from "./unlock-source";
 import { SessionError, type SessionKeys } from "./types";
@@ -32,7 +36,10 @@ interface Harness {
 function makeHarness(
   account: TestAccount,
   opts: MockBackendOptions = {},
-  overrides: Pick<SessionManagerDeps, "createPasswordUnlock"> = {},
+  overrides: Pick<
+    SessionManagerDeps,
+    "createPasswordUnlock" | "pendingTotpTimers"
+  > = {},
 ): Harness {
   const storage = new FakeStorageArea();
   const alarms = new FakeAlarms();
@@ -489,6 +496,35 @@ describe("SessionManager — TOTP second factor", () => {
     await mgr.completeTotp("challenge-1", "424242");
     expect(await mgr.getStatus()).toBe("unlocked");
     expect(toBase64(mgr.getKeys()!.privateKey)).toBe(account.privateKeyB64);
+  });
+
+  it("expires a pending TOTP key even when the popup never cancels", async () => {
+    const timer = { expire: null as (() => void) | null };
+    const cancel = vi.fn();
+    const schedule = vi.fn((callback: () => void, _delayMs: number): unknown => {
+      timer.expire = callback;
+      return "totp-timeout";
+    });
+    const account = await buildTestAccount();
+    const { mgr, backendCalls } = makeHarness(
+      account,
+      { totpRequired: true, totpCode: "424242" },
+      { pendingTotpTimers: { schedule, cancel } },
+    );
+
+    await expect(mgr.login(account.email, account.password)).resolves.toEqual({
+      status: "totp-required",
+      challengeToken: "challenge-1",
+    });
+    expect(schedule).toHaveBeenCalledWith(expect.any(Function), PENDING_TOTP_TTL_MS);
+
+    if (timer.expire === null) throw new Error("TOTP expiry was not scheduled");
+    timer.expire();
+
+    await expect(mgr.completeTotp("challenge-1", "424242"))
+      .rejects.toMatchObject({ name: "SessionError", code: "network" });
+    expect(backendCalls.filter((url) => url.endsWith("/api/auth/login/totp"))).toEqual([]);
+    expect(await mgr.getStatus()).toBe("signed-out");
   });
 
   it("never sends a pending production challenge to a newly selected host", async () => {

@@ -61,7 +61,13 @@ export interface SessionManagerDeps {
   push?: PushRegistration;
   now?: () => number;
   createPasswordUnlock?: (password: string) => UnlockSource;
+  pendingTotpTimers?: {
+    schedule(callback: () => void, delayMs: number): unknown;
+    cancel(handle: unknown): void;
+  };
 }
+
+export const PENDING_TOTP_TTL_MS = 5 * 60 * 1_000;
 
 class SessionLifecycleChangedError extends Error {
   constructor() {
@@ -84,6 +90,7 @@ export class SessionManager {
   private readonly autoLock: AutoLock;
   private readonly now: () => number;
   private readonly createPasswordUnlock: (password: string) => UnlockSource;
+  private readonly pendingTotpTimers: NonNullable<SessionManagerDeps["pendingTotpTimers"]>;
 
   readonly hooks: SessionHooks;
   private readonly sync: SyncTrigger;
@@ -92,6 +99,7 @@ export class SessionManager {
   /** In-memory keys — the authoritative live copy while unlocked. */
   private keys: SessionKeys | null = null;
   private pendingTotp: PendingTotpContext | null = null;
+  private pendingTotpTimer: unknown | null = null;
   private lifecycleGeneration = 0;
   private lifecycleTerminations = 0;
 
@@ -105,6 +113,10 @@ export class SessionManager {
     this.now = deps.now ?? (() => Date.now());
     this.createPasswordUnlock = deps.createPasswordUnlock
       ?? ((password) => new MasterPasswordUnlock(password));
+    this.pendingTotpTimers = deps.pendingTotpTimers ?? {
+      schedule: (callback, delayMs) => globalThis.setTimeout(callback, delayMs),
+      cancel: (handle) => globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>),
+    };
   }
 
   /**
@@ -208,13 +220,25 @@ export class SessionManager {
       this.assertLifecycleGeneration(generation);
       this.assertApiUrl(apiUrl);
       if (isTotpRequired(response)) {
-        this.pendingTotp = {
+        const pending: PendingTotpContext = {
           challengeToken: response.challengeToken,
           apiUrl,
           lifecycleGeneration: generation,
           bootstrap: completeBootstrap,
           masterKey: identity.masterKey,
         };
+        this.pendingTotp = pending;
+        try {
+          this.pendingTotpTimer = this.pendingTotpTimers.schedule(() => {
+            this.pendingTotpTimer = null;
+            if (this.pendingTotp !== pending) return;
+            wipe(pending.masterKey);
+            this.pendingTotp = null;
+          }, PENDING_TOTP_TTL_MS);
+        } catch (error) {
+          this.pendingTotp = null;
+          throw error;
+        }
         transferredMasterKey = true;
         return { status: "totp-required", challengeToken: response.challengeToken };
       }
@@ -257,7 +281,11 @@ export class SessionManager {
     );
     this.assertLifecycleGeneration(generation);
     this.assertApiUrl(pending.apiUrl);
+    if (this.pendingTotp !== pending) {
+      throw new SessionError("network", "TOTP challenge expired during verification");
+    }
     this.pendingTotp = null;
+    this.cancelPendingTotpTimer();
     await this.establishSession(
       response,
       pending.masterKey,
@@ -485,9 +513,15 @@ export class SessionManager {
   }
 
   private clearPendingTotp(): void {
-    if (!this.pendingTotp) return;
-    wipe(this.pendingTotp.masterKey);
+    this.cancelPendingTotpTimer();
+    if (this.pendingTotp) wipe(this.pendingTotp.masterKey);
     this.pendingTotp = null;
+  }
+
+  private cancelPendingTotpTimer(): void {
+    if (this.pendingTotpTimer === null) return;
+    this.pendingTotpTimers.cancel(this.pendingTotpTimer);
+    this.pendingTotpTimer = null;
   }
 
   private endLifecycleTermination(): void {
