@@ -39,13 +39,16 @@ export async function handleServerConfigRuntimeMessage(
 
   const normalized = normalizeServerUrl(raw.apiUrl);
   if (normalized === null) return { ok: false, code: "invalid-server" };
-  if (!(await deps.hasAccess(normalized))) return { ok: false, code: "unavailable" };
   if (normalized === deps.getApiUrl()) {
     return { ok: true, apiUrl: normalized, changed: false };
   }
 
   const previousApiUrl = deps.getApiUrl();
   try {
+    if (!(await deps.hasAccess(normalized))) {
+      await deps.afterFailedChange(normalized, deps.getApiUrl()).catch(() => undefined);
+      return { ok: false, code: "unavailable" };
+    }
     await deps.beforeChange();
     const apiUrl = await deps.save(normalized);
     await deps.afterChange(previousApiUrl, apiUrl).catch(() => undefined);

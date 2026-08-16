@@ -13,12 +13,13 @@ export interface ServerOperationLease {
 export class ServerOperationBarrier {
   private generation = 0;
   private activeOperations = 0;
-  private mutationActive = false;
+  private pendingMutations = 0;
+  private mutationTail: Promise<void> = Promise.resolve();
   private drain: Promise<void> | null = null;
   private resolveDrain: (() => void) | null = null;
 
   tryAcquire(): ServerOperationLease | null {
-    if (this.mutationActive) return null;
+    if (this.pendingMutations > 0) return null;
     this.activeOperations += 1;
     const generation = this.generation;
     let released = false;
@@ -38,8 +39,11 @@ export class ServerOperationBarrier {
   }
 
   async mutate<T>(operation: (generation: number) => Promise<T>): Promise<T> {
-    if (this.mutationActive) throw new Error("Server change already in progress");
-    this.mutationActive = true;
+    this.pendingMutations += 1;
+    const previousMutation = this.mutationTail;
+    let releaseTurn!: () => void;
+    this.mutationTail = new Promise<void>((resolve) => { releaseTurn = resolve; });
+    await previousMutation;
     this.generation += 1;
     const generation = this.generation;
     try {
@@ -49,7 +53,8 @@ export class ServerOperationBarrier {
       }
       return await operation(generation);
     } finally {
-      this.mutationActive = false;
+      this.pendingMutations -= 1;
+      releaseTurn();
     }
   }
 }

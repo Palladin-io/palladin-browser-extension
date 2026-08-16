@@ -57,6 +57,10 @@ describe("server configuration commands", () => {
     })).resolves.toEqual({ ok: false, code: "unavailable" });
     expect(commandDeps.beforeChange).not.toHaveBeenCalled();
     expect(commandDeps.save).not.toHaveBeenCalled();
+    expect(commandDeps.afterFailedChange).toHaveBeenCalledWith(
+      "https://vault.example.com",
+      "https://api.palladin.io",
+    );
   });
 
   it("signs out and clears local state before committing a changed server", async () => {
@@ -94,6 +98,7 @@ describe("server configuration commands", () => {
       changed: false,
     });
     expect(commandDeps.beforeChange).not.toHaveBeenCalled();
+    expect(commandDeps.hasAccess).not.toHaveBeenCalled();
   });
 
   it("cleans an unused requested origin when the transaction fails", async () => {

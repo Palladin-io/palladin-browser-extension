@@ -189,9 +189,6 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
           : await execute();
         sendResponse(result);
       } catch {
-        if (raw.type === "config/server/set") {
-          await removeUnusedServerPermission(raw.apiUrl, serverConfig.apiUrl);
-        }
         sendResponse({ ok: false, code: "unavailable" });
       }
       return;
