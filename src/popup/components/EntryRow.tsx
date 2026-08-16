@@ -8,7 +8,7 @@
  * worker's gates and returns a value-free result the row surfaces inline.
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { EntryMetadata } from "../../background/vault/entry-metadata";
 import type { VaultClient } from "../vault/client";
@@ -30,6 +30,10 @@ export function EntryRow({ client, entry }: EntryRowProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
 
   const isCredential = entry.type === ENTRY_CREDENTIAL;
   const isKey = entry.type === ENTRY_KEY;

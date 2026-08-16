@@ -35,12 +35,26 @@ import { isCaptureFillRequestMessage } from "@shared/messaging/capture";
 import { startPasswordCaptureDetection } from "./capture";
 import { inspectAgentInjectTransition, performAgentInjectStep } from "./agent-inject";
 import { performBoundFill } from "./fill";
+import { createReconnectingWorkerPort } from "./worker-port";
 
 const sessionNonce = generateNonce();
 const documentId = generateNonce();
 const selfOrigin = window.location.origin;
 
-const port = chrome.runtime.connect({ name: CONTENT_PORT });
+const port = createReconnectingWorkerPort(
+  () => chrome.runtime.connect({ name: CONTENT_PORT }),
+  (raw) => {
+    if (!isBridgeMessage(raw)) return;
+    window.postMessage(
+      createEnvelope("isolated->main", sessionNonce, raw),
+      selfOrigin,
+    );
+  },
+  () => {
+    const message = chrome.runtime.lastError?.message ?? "";
+    return /back\/forward cache/i.test(message) ? "bfcache" : "worker";
+  },
+);
 const passwordCapture = startPasswordCaptureDetection(
   document,
   () => window.location.href,
@@ -100,16 +114,6 @@ function wipeStepValues(message: AgentInjectStepMessage): void {
   for (const field of message.values) (field as { value: string }).value = "";
 }
 
-// Worker -> main world: forward anything the worker sends down to the page's
-// main world, re-wrapped as an isolated->main envelope.
-port.onMessage.addListener((raw) => {
-  if (!isBridgeMessage(raw)) return;
-  window.postMessage(
-    createEnvelope("isolated->main", sessionNonce, raw),
-    selfOrigin,
-  );
-});
-
 // Main world -> worker: accept only messages we can attribute to this frame and
 // this page load, then forward the unwrapped payload to the worker.
 window.addEventListener("message", (event: MessageEvent) => {
@@ -121,6 +125,13 @@ window.addEventListener("message", (event: MessageEvent) => {
   });
   if (!result.ok) return;
   port.postMessage(result.message);
+});
+
+// Chrome closes extension Ports when a document enters BFCache. The document
+// and content-script state survive, so restore a fresh worker registration when
+// the same page returns instead of logging an unchecked runtime.lastError.
+window.addEventListener("pageshow", (event: PageTransitionEvent) => {
+  if (event.persisted) port.reconnect();
 });
 
 // Handshake: hand the session nonce to the main-world slot so it can talk back.

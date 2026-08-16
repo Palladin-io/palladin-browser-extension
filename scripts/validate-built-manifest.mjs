@@ -11,6 +11,11 @@ export function validateBuiltManifest(root, target) {
   invariant(manifest.manifest_version === 3, `${target}: expected Manifest V3`);
   invariant(manifest.name === "__MSG_extensionName__", `${target}: unexpected extension name`);
   invariant(manifest.default_locale === "en", `${target}: unexpected default locale`);
+  invariant(
+    manifest.content_security_policy?.extension_pages
+      === "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; base-uri 'self'",
+    `${target}: unexpected extension-page CSP`,
+  );
   for (const locale of ["en", "pl"]) {
     invariant(
       existsSync(resolve(outputDirectory, "_locales", locale, "messages.json")),

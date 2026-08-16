@@ -17,7 +17,8 @@ release candidates.
 - One buildable source tree with a locked dependency graph.
 - CI and local tests cover messaging, session lock/wipe, ciphertext-only cache,
   canonical writes, domain matching, credential/card fill, payment-field
-  exclusions, Agent fill, replay rejection, and logging redaction.
+  exclusions, Agent fill, replay rejection, BFCache port restoration, manifest
+  CSP validation for the bundled crypto WebAssembly, and logging redaction.
 - One Chromium artifact targets Chrome, Edge, Brave, and Opera; Firefox and
   Safari use manifest overlays over the same core.
 - The popup defaults to the production API. Settings can select staging,

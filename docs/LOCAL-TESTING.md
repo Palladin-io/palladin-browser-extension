@@ -78,6 +78,10 @@ that identity is not a valid test.
 After rebuilding, use the extension card's **Reload** button and refresh the
 test page so its content scripts come from the current artifact.
 
+If Reload does not show the current popup, remove the unpacked extension and
+load the exact `dist/chromium/` directory produced by the build above. Reload
+never changes the source directory originally selected in Chrome.
+
 For an HTTPS self-hosted server, open **Settings**, enter the API base URL, and
 approve the browser's exact-origin permission prompt. The server must accept the
 extension origin in its CORS policy. Denying or revoking that permission leaves
