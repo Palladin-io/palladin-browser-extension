@@ -81,6 +81,7 @@ function isAgentPairingStatus(value: unknown): value is AgentPairingStatus {
 function isAgentPairingErrorCode(value: unknown): value is AgentPairingErrorCode {
   return value === "invalid-bundle"
     || value === "fingerprint-mismatch"
+    || value === "mutation-not-committed"
     || value === "superseded"
     || value === "unavailable";
 }

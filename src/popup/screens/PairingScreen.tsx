@@ -145,8 +145,11 @@ export function PairingScreen({ client }: PairingScreenProps): React.JSX.Element
     setError(null);
     try {
       setStatus(await client.clear());
-    } catch {
-      setError("Couldn't unpair the Agent runtime. Try again.");
+    } catch (cause) {
+      setError(cause instanceof AgentPairingClientError
+        && cause.code === "mutation-not-committed"
+        ? "Unpairing wasn't committed. Retry before restarting the extension."
+        : "Couldn't unpair the Agent runtime. Try again.");
     } finally {
       setBusy(false);
     }
@@ -159,6 +162,9 @@ function pairingError(error: unknown): string {
       return "Fingerprint mismatch. Generate a new pairing bundle and verify it again.";
     }
     if (error.code === "invalid-bundle") return "Pairing bundle is malformed.";
+    if (error.code === "mutation-not-committed") {
+      return "Pairing wasn't committed. Retry before restarting the extension.";
+    }
   }
   return "Couldn't pair the Agent runtime. Try again.";
 }

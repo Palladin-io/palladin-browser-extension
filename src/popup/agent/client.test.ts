@@ -30,4 +30,15 @@ describe("Agent pairing popup client", () => {
     }) as never));
     await expect(client.getStatus()).rejects.toEqual(new AgentPairingClientError("unavailable"));
   });
+
+  it("preserves the explicit not-committed failure code", async () => {
+    const client = createAgentPairingClient(vi.fn(async () => ({
+      ok: false as const,
+      code: "mutation-not-committed" as const,
+      message: "value-free",
+    })));
+
+    await expect(client.clear())
+      .rejects.toEqual(new AgentPairingClientError("mutation-not-committed"));
+  });
 });

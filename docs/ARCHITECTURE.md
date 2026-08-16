@@ -37,10 +37,18 @@ Palladin local runtime              Palladin services
 - Durable pairing state contains only the host public signing key, its derived
   fingerprint, and an opaque non-secret mutation-intent token in extension
   local storage. An active pin is accepted only when its token matches the
-  latest durable intent, so interrupted clear/re-pair writes restart
-  fail-closed. A synchronous runtime mutation gate also blocks alarm and manual
-  reconnects from opening the previous pin anywhere inside an awaited pairing
-  operation. No host or session secret is persisted. The popup
+  latest successfully written durable intent, so later active-record writes
+  restart fail-closed after that intent commits. If the intent write fails, the
+  worker attempts to remove the active record, which restarts unpaired when
+  successful. If both storage operations fail, the current worker stays
+  suppressed and the UI instructs the user to retry before restarting, because
+  durable revocation cannot be claimed.
+- A synchronous runtime mutation barrier blocks reconnect and new Inject
+  admission, then drains fills admitted before the barrier. A DOM message that
+  was already dispatched may finish before this linearization point, but Pair or
+  Clear cannot commit the active record or return success until it finishes and
+  its values are wiped. Therefore no old fill can write after mutation success.
+  No host or session secret is persisted. The popup
   accepts the strict `palladin.inject-pairing.v1` JSON bundle printed by the
   trusted runtime CLI, recomputes the fingerprint, and writes the pin only after
   explicit user confirmation. There is no TOFU path and Native Messaging cannot

@@ -153,14 +153,14 @@ describe("secure Native Messaging frame boundary", () => {
     });
     const releaseOlderMutation = beginNativeAgentPairingMutation();
     const releaseCurrentMutation = beginNativeAgentPairingMutation();
-    releaseOlderMutation();
+    releaseOlderMutation.release();
 
     try {
       handleNativeAgentAlarm("palladin.native-agent.reconnect");
       await connectPairedNativeAgentProvider();
       expect(connectNative).not.toHaveBeenCalled();
     } finally {
-      releaseCurrentMutation();
+      releaseCurrentMutation.release();
     }
 
     await connectPairedNativeAgentProvider();

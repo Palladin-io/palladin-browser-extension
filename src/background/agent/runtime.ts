@@ -29,8 +29,13 @@ import {
   type HostPairingRecord,
 } from "./pairing-store";
 import {
+  AgentFillMutationBarrier,
+  type AgentPairingMutationLease,
+} from "./mutation-barrier";
+import {
   NATIVE_HOST_NAME,
   handleNativeAgentMessage,
+  wipeAgentMessageValues,
   type AgentFillDeps,
   type AgentProviderSession,
   type AgentTabState,
@@ -67,8 +72,7 @@ let clientSession: InjectClientSession | null = null;
 let secureChannel: InjectSecureChannel | null = null;
 let connectionAttempt: Promise<void> | null = null;
 let lifecycleVersion = 0;
-let pairingMutationGeneration = 0;
-let pairingMutationSuppressed = false;
+const pairingMutationBarrier = new AgentFillMutationBarrier();
 
 const agentFillDeps: AgentFillDeps = {
   getActivePage,
@@ -113,11 +117,13 @@ export function connectNativeAgentProvider(): void {
 }
 
 export function handleNativeAgentAlarm(name: string): void {
-  if (name === RECONNECT_ALARM && !pairingMutationSuppressed) connectNativeAgentProvider();
+  if (name === RECONNECT_ALARM && !pairingMutationBarrier.isBlocked) {
+    connectNativeAgentProvider();
+  }
 }
 
 export async function connectPairedNativeAgentProvider(): Promise<void> {
-  if (pairingMutationSuppressed) return;
+  if (pairingMutationBarrier.isBlocked) return;
   if (nativePort !== null) return;
   if (connectionAttempt !== null) return connectionAttempt;
   const attempt = openPairedNativeAgentProvider(lifecycleVersion);
@@ -130,26 +136,19 @@ export async function connectPairedNativeAgentProvider(): Promise<void> {
 }
 
 /**
- * Suppress every automatic/manual reconnect for one pairing mutation.
+ * Suppress reconnect/new-fill admission and drain old fills for one mutation.
  *
  * Generation ownership means completion of an older superseded mutation cannot
  * release a newer mutation's suppression. Calling the returned release twice is
  * harmless.
  */
-export function beginNativeAgentPairingMutation(): () => void {
-  const generation = ++pairingMutationGeneration;
-  pairingMutationSuppressed = true;
-  let released = false;
-  return () => {
-    if (released) return;
-    released = true;
-    if (generation === pairingMutationGeneration) pairingMutationSuppressed = false;
-  };
+export function beginNativeAgentPairingMutation(): AgentPairingMutationLease {
+  return pairingMutationBarrier.beginMutation();
 }
 
 async function openPairedNativeAgentProvider(expectedLifecycle: number): Promise<void> {
   const pairing = await readVerifiedPairing();
-  if (pairingMutationSuppressed
+  if (pairingMutationBarrier.isBlocked
     || pairing === null
     || nativePort !== null
     || lifecycleVersion !== expectedLifecycle) return;
@@ -161,7 +160,7 @@ async function openPairedNativeAgentProvider(expectedLifecycle: number): Promise
       extensionOrigin: chrome.runtime.getURL(""),
       pinnedHostSigningPublicKey: pairing.hostSigningPublicKey,
     });
-    if (pairingMutationSuppressed
+    if (pairingMutationBarrier.isBlocked
       || nativePort !== null
       || lifecycleVersion !== expectedLifecycle) {
       nextClient.dispose();
@@ -171,7 +170,9 @@ async function openPairedNativeAgentProvider(expectedLifecycle: number): Promise
     clientSession = nextClient;
     nativePort = port;
     const providerSession: AgentProviderSession = { prepared: null };
-    const isActive = () => nativePort === port && lifecycleVersion === expectedLifecycle;
+    const isActive = () => nativePort === port
+      && lifecycleVersion === expectedLifecycle
+      && !pairingMutationBarrier.isBlocked;
     const lifecycleDeps = gateAgentFillDeps(agentFillDeps, isActive);
     let queue = Promise.resolve();
     port.onMessage.addListener((raw) => {
@@ -229,7 +230,9 @@ async function handleSecureNativeMessage(
   expectedLifecycle: number,
   raw: unknown,
 ): Promise<void> {
-  const isActive = () => nativePort === port && lifecycleVersion === expectedLifecycle;
+  const isActive = () => nativePort === port
+    && lifecycleVersion === expectedLifecycle
+    && !pairingMutationBarrier.isBlocked;
   if (!isActive()) return;
   if (secureChannel === null) {
     const ready = parseSessionReady(raw);
@@ -258,8 +261,14 @@ async function handleSecureNativeMessage(
   } finally {
     plaintext.fill(0);
   }
-  const response = await handleNativeAgentMessage(deps, replay, providerSession, request)
-    .catch(() => unavailableResponse(request));
+  const responseOperation = pairingMutationBarrier.admit(() =>
+    handleNativeAgentMessage(deps, replay, providerSession, request)
+      .catch(() => unavailableResponse(request)));
+  if (responseOperation === null) {
+    wipeAgentMessageValues(request);
+    return;
+  }
+  const response = await responseOperation;
   if (!isActive()) return;
   const responseBytes = new TextEncoder().encode(JSON.stringify(response));
   try {

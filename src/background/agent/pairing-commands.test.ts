@@ -1,11 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { AGENT_PAIRING_PROTOCOL } from "@shared/agent/pairing";
+import type { AgentInjectionRequest } from "@shared/messaging";
 
 import {
   createAgentPairingRuntimeHandler,
   type AgentPairingCommandDeps,
 } from "./pairing-commands";
+import { AgentFillMutationBarrier } from "./mutation-barrier";
+import {
+  handleNativeAgentMessage,
+  type AgentProviderSession,
+} from "./native-provider";
 
 const KEY = `${"a".repeat(42)}A`;
 const FINGERPRINT = `${"b".repeat(42)}Q`;
@@ -23,7 +29,7 @@ function deps(overrides: Partial<AgentPairingCommandDeps> = {}): AgentPairingCom
     readVerifiedPairing: vi.fn(async () => null),
     deriveFingerprint: vi.fn(async () => FINGERPRINT),
     createIntentToken: vi.fn(() => [INTENT_1, INTENT_2][intent++] ?? crypto.randomUUID()),
-    beginMutation: vi.fn(() => vi.fn()),
+    beginMutation: vi.fn(() => ({ drain: Promise.resolve(), release: vi.fn() })),
     savePairingIntent: vi.fn(async () => undefined),
     savePairing: vi.fn(async () => undefined),
     clearPairing: vi.fn(async () => undefined),
@@ -40,8 +46,11 @@ function reconnectGate() {
   const beginMutation = vi.fn(() => {
     const ownGeneration = ++generation;
     suppressed = true;
-    return () => {
-      if (ownGeneration === generation) suppressed = false;
+    return {
+      drain: Promise.resolve(),
+      release: () => {
+        if (ownGeneration === generation) suppressed = false;
+      },
     };
   });
   const disconnect = vi.fn(() => { activePin = null; });
@@ -242,8 +251,9 @@ describe("Agent pairing popup commands", () => {
     expect(gate.suppressed()).toBe(false);
   });
 
-  it("tears down a reconnect during deferred durable-intent failure", async () => {
+  it("completes Clear through active-pin removal when the intent write fails", async () => {
     let rejectIntent: ((reason?: unknown) => void) | undefined;
+    let storedActivePin = true;
     const gate = reconnectGate();
     const savePairingIntent = vi.fn(() => new Promise<void>((_resolve, reject) => {
       rejectIntent = reject;
@@ -252,6 +262,7 @@ describe("Agent pairing popup commands", () => {
       savePairingIntent,
       beginMutation: gate.beginMutation,
       disconnect: gate.disconnect,
+      clearPairing: vi.fn(async () => { storedActivePin = false; }),
     });
     const handle = createAgentPairingRuntimeHandler(effects);
 
@@ -264,16 +275,146 @@ describe("Agent pairing popup commands", () => {
     rejectIntent?.(new Error(`storage ${KEY}`));
     const result = await clearing;
 
-    expect(result).toEqual({
-      ok: false,
-      code: "unavailable",
-      message: "Agent runtime pairing is unavailable",
-    });
+    expect(result).toEqual({ ok: true, status: { paired: false } });
     expect(JSON.stringify(result)).not.toContain(KEY);
-    expect(effects.clearPairing).not.toHaveBeenCalled();
+    expect(effects.clearPairing).toHaveBeenCalledOnce();
     expect(effects.disconnect).toHaveBeenCalledTimes(2);
     expect(gate.activePin()).toBeNull();
+    expect(gate.suppressed()).toBe(false);
+    expect(storedActivePin).toBe(false);
+  });
+
+  it("fails Pair but leaves storage unpaired when fallback active-pin removal succeeds", async () => {
+    let storedActivePin = true;
+    const gate = reconnectGate();
+    const effects = deps({
+      beginMutation: gate.beginMutation,
+      disconnect: gate.disconnect,
+      savePairingIntent: vi.fn(async () => { throw new Error("intent storage"); }),
+      clearPairing: vi.fn(async () => { storedActivePin = false; }),
+    });
+    const handle = createAgentPairingRuntimeHandler(effects);
+
+    const result = await handle({
+      type: "agent-pairing/save",
+      pairingBundle: BUNDLE,
+      confirmed: true,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      code: "mutation-not-committed",
+      message: "Pairing change was not committed; retry before restarting the extension",
+    });
+    expect(effects.clearPairing).toHaveBeenCalledOnce();
+    expect(effects.savePairing).not.toHaveBeenCalled();
+    expect(effects.connect).not.toHaveBeenCalled();
+    expect(storedActivePin).toBe(false);
+    expect(gate.suppressed()).toBe(false);
+  });
+
+  it("fails clearly and stays suppressed when intent and fallback clear both fail", async () => {
+    const gate = reconnectGate();
+    const effects = deps({
+      beginMutation: gate.beginMutation,
+      disconnect: gate.disconnect,
+      savePairingIntent: vi.fn(async () => { throw new Error("intent storage"); }),
+      clearPairing: vi.fn(async () => { throw new Error("active storage"); }),
+    });
+    const handle = createAgentPairingRuntimeHandler(effects);
+
+    const result = await handle({ type: "agent-pairing/clear" });
+
+    expect(result).toEqual({
+      ok: false,
+      code: "mutation-not-committed",
+      message: "Pairing change was not committed; retry before restarting the extension",
+    });
+    expect(effects.clearPairing).toHaveBeenCalledOnce();
+    expect(effects.disconnect).toHaveBeenCalledTimes(2);
     expect(gate.suppressed()).toBe(true);
+    gate.attemptReconnect();
+    expect(gate.activePin()).toBeNull();
+    expect(gate.attemptInject()).toBe(false);
+  });
+
+  it("drains an already-dispatched Inject before Clear commits and succeeds", async () => {
+    const barrier = new AgentFillMutationBarrier();
+    let releaseStep: (() => void) | undefined;
+    let clearCompleted = false;
+    let rejectedOldWrites = 0;
+    const page = {
+      id: 7,
+      page: { url: "https://login.example.com", documentId: "d".repeat(32) },
+    };
+    const sendStep = vi.fn(() => new Promise<{ readonly ok: true }>((resolve) => {
+      releaseStep = () => resolve({ ok: true });
+    }));
+    const request: AgentInjectionRequest = {
+      protocol: "palladin.inject-provider.v1",
+      type: "inject",
+      transactionId: "tx-linearized-clear",
+      grantId: "grant-1",
+      entryId: "entry-1",
+      expectedDomain: "login.example.com",
+      form: {
+        version: 1,
+        steps: [{
+          fields: [{
+            entryFieldId: "credential.password",
+            selector: "#password",
+            control: "password",
+          }],
+          submit: { action: "click", selector: "#submit" },
+        }],
+      },
+      values: [{
+        entryFieldId: "credential.password",
+        value: "synthetic-password-value",
+      }],
+    };
+    const session: AgentProviderSession = {
+      prepared: { tabId: 7, documentId: "d".repeat(32) },
+    };
+    const fill = barrier.admit(() => handleNativeAgentMessage(
+      {
+        getActivePage: vi.fn(async () => page),
+        sendStep,
+        probeTransition: vi.fn(async () => ({ status: "ready" } as const)),
+      },
+      { consume: vi.fn(async () => true) },
+      session,
+      request,
+    ));
+    expect(fill).not.toBeNull();
+    await vi.waitFor(() => expect(sendStep).toHaveBeenCalledOnce());
+
+    const clearPairing = vi.fn(async () => { clearCompleted = true; });
+    const effects = deps({
+      beginMutation: vi.fn(() => barrier.beginMutation()),
+      clearPairing,
+    });
+    const handle = createAgentPairingRuntimeHandler(effects);
+    let commandResolved = false;
+    const clearing = handle({ type: "agent-pairing/clear" }).then((result) => {
+      commandResolved = true;
+      return result;
+    });
+    await vi.waitFor(() => expect(effects.savePairingIntent).toHaveBeenCalledOnce());
+
+    expect(barrier.isBlocked).toBe(true);
+    expect(clearPairing).not.toHaveBeenCalled();
+    expect(commandResolved).toBe(false);
+    const rejectedOldFill = barrier.admit(async () => { rejectedOldWrites += 1; });
+    expect(rejectedOldFill).toBeNull();
+
+    releaseStep?.();
+    await expect(fill).resolves.toMatchObject({ outcome: "injected" });
+    expect(request.values[0]?.value).toBe("");
+    await expect(clearing).resolves.toEqual({ ok: true, status: { paired: false } });
+    expect(clearCompleted).toBe(true);
+    expect(rejectedOldWrites).toBe(0);
+    expect(barrier.isBlocked).toBe(false);
   });
 
   it("lets a later clear cancel a save suspended in fingerprint derivation", async () => {

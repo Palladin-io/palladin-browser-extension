@@ -10,6 +10,7 @@ import {
   type HostPairingIntentToken,
   type HostPairingRecord,
 } from "./pairing-store";
+import type { AgentPairingMutationLease } from "./mutation-barrier";
 
 export type AgentPairingCommand =
   | { readonly type: "agent-pairing/status" }
@@ -23,6 +24,7 @@ export type AgentPairingCommand =
 export type AgentPairingErrorCode =
   | "invalid-bundle"
   | "fingerprint-mismatch"
+  | "mutation-not-committed"
   | "superseded"
   | "unavailable";
 
@@ -34,7 +36,7 @@ export interface AgentPairingCommandDeps {
   readVerifiedPairing(): Promise<HostPairingRecord | null>;
   deriveFingerprint(hostSigningPublicKey: string): Promise<string>;
   createIntentToken(): HostPairingIntentToken;
-  beginMutation(): () => void;
+  beginMutation(): AgentPairingMutationLease;
   savePairingIntent(intentToken: HostPairingIntentToken): Promise<void>;
   savePairing(record: HostPairingRecord): Promise<void>;
   clearPairing(): Promise<void>;
@@ -52,7 +54,8 @@ export type AgentPairingRuntimeHandler = (
  * A clear or replacement-pair intent disconnects synchronously, before any
  * storage await. Intent writes have their own FIFO so a later command can
  * durably invalidate an older active-record write while that older operation is
- * still suspended. The operation FIFO preserves the final cleanup/write order.
+ * still suspended. The runtime lease drains already-admitted Agent fills before
+ * active-record commit or success. The operation FIFO preserves final ordering.
  */
 export function createAgentPairingRuntimeHandler(
   deps: AgentPairingCommandDeps,
@@ -78,18 +81,18 @@ export function createAgentPairingRuntimeHandler(
     }
     const commandGeneration = mutatesPairing ? ++intentGeneration : intentGeneration;
     let intentReady: Promise<void> | null = null;
-    let releaseMutation: (() => void) | null = null;
+    let mutationLease: AgentPairingMutationLease | null = null;
     const releaseMutationOnce = () => {
-      const release = releaseMutation;
-      if (release === null) return;
-      releaseMutation = null;
-      release();
+      const lease = mutationLease;
+      if (lease === null) return;
+      mutationLease = null;
+      lease.release();
     };
     if (intentToken !== null) {
       try {
         // Runtime reconnect suppression must be live before the first teardown;
         // otherwise an already-queued alarm can reopen the old pin mid-await.
-        releaseMutation = deps.beginMutation();
+        mutationLease = deps.beginMutation();
         deps.disconnect();
       } catch {
         releaseMutationOnce();
@@ -105,10 +108,33 @@ export function createAgentPairingRuntimeHandler(
         try {
           await intentReady;
         } catch {
-          // No durable intent exists to invalidate the old active record. Keep
-          // runtime reconnects suppressed until a later mutation establishes a
-          // new generation; releasing here would resurrect that old pin.
+          // The intent did not commit, so remove the still-valid old active pin
+          // as a best-effort fallback. If storage is wholly unavailable, keep
+          // this runtime suppressed; a restart cannot be claimed fail-closed.
+          let fallbackCleared = false;
+          try {
+            await mutationLease?.drain;
+            await deps.clearPairing();
+            fallbackCleared = true;
+          } catch {
+            // The value-free result below reports that durable state is unknown.
+          }
           disconnectIgnoringErrors(deps);
+          if (fallbackCleared) {
+            releaseMutationOnce();
+            if (command.type === "agent-pairing/clear") {
+              return { ok: true as const, status: { paired: false as const } };
+            }
+          }
+          return failure("mutation-not-committed");
+        }
+        try {
+          // Linearization point: no active fill admitted by the old pin can
+          // still perform page work after this barrier resolves.
+          await mutationLease?.drain;
+        } catch {
+          disconnectIgnoringErrors(deps);
+          releaseMutationOnce();
           return failure("unavailable");
         }
         if (commandGeneration !== intentGeneration) {
@@ -238,6 +264,7 @@ function failure(code: AgentPairingErrorCode): AgentPairingCommandResult {
   const message: Record<AgentPairingErrorCode, string> = {
     "invalid-bundle": "Pairing bundle is invalid",
     "fingerprint-mismatch": "Pairing fingerprint does not match the host public key",
+    "mutation-not-committed": "Pairing change was not committed; retry before restarting the extension",
     superseded: "Pairing command was superseded",
     unavailable: "Agent runtime pairing is unavailable",
   };

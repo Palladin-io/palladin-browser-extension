@@ -32,9 +32,13 @@ release candidates.
   printed by `palladin browser install`, derives and verifies the public-key
   fingerprint, and requires explicit user confirmation before persisting the
   public pin. Saving connects; unpairing disconnects and disposes immediately.
-  A durable non-secret intent token makes interrupted clear/re-pair operations
-  restart fail-closed, while an in-memory mutation gate suppresses reconnects
-  until the new durable outcome is safe. Plaintext and TOFU fallbacks do not exist.
+  After a durable non-secret intent succeeds, interrupted clear/re-pair writes
+  restart fail-closed. An in-memory mutation barrier suppresses new work and
+  drains already-dispatched fills before pairing success. If both the intent
+  write and fallback active-pin removal fail (a successful fallback restarts
+  unpaired), the current worker remains suppressed and the user must retry
+  before restarting; no durable revocation guarantee is claimed for total
+  storage failure. Plaintext and TOFU fallbacks do not exist.
 - Development compatibility targets current Chrome, Chromium, Brave, Edge, and
   Opera MV3 builds. Store certification and version support are not yet claimed.
 
