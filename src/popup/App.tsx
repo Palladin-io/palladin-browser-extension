@@ -5,14 +5,16 @@
  * testable against a fake command channel, with no live `chrome`.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
+import { createAgentPairingClient, type AgentPairingClient } from "./agent/client";
 import { Button } from "./components/Button";
 import { Header } from "./components/Header";
 import { Spinner } from "./components/Spinner";
 import { createSessionClient, type SessionClient } from "./session/client";
 import { useSession, type SessionPhase } from "./session/useSession";
 import { SignInScreen } from "./screens/SignInScreen";
+import { PairingScreen } from "./screens/PairingScreen";
 import { TotpScreen } from "./screens/TotpScreen";
 import { UnlockScreen } from "./screens/UnlockScreen";
 import { UnlockedScreen } from "./screens/UnlockedScreen";
@@ -21,6 +23,8 @@ import type { SessionStatus } from "../background/session/types";
 export interface AppProps {
   /** Injected in tests; defaults to the real `chrome.runtime` channel. */
   client?: SessionClient;
+  /** Injected in tests; defaults to the pairing command channel. */
+  pairingClient?: AgentPairingClient;
 }
 
 /** The header chip mirrors the lock state; hidden while the phase is unknown. */
@@ -38,14 +42,23 @@ function headerStatus(phase: SessionPhase): SessionStatus | undefined {
   }
 }
 
-export function App({ client }: AppProps): React.JSX.Element {
+export function App({ client, pairingClient }: AppProps): React.JSX.Element {
   const sessionClient = useMemo(() => client ?? createSessionClient(), [client]);
+  const runtimeClient = useMemo(
+    () => pairingClient ?? createAgentPairingClient(),
+    [pairingClient],
+  );
   const session = useSession(sessionClient);
+  const [agentRuntimeOpen, setAgentRuntimeOpen] = useState(false);
 
   return (
     <main className="popup">
-      <Header status={headerStatus(session.phase)} />
-      {renderPhase()}
+      <Header
+        status={headerStatus(session.phase)}
+        agentRuntimeOpen={agentRuntimeOpen}
+        onToggleAgentRuntime={() => setAgentRuntimeOpen((open) => !open)}
+      />
+      {agentRuntimeOpen ? <PairingScreen client={runtimeClient} /> : renderPhase()}
     </main>
   );
 

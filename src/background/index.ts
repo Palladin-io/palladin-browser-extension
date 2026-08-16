@@ -6,9 +6,23 @@
  * the strength of a page-originated message — fills stay gated downstream.
  */
 
+import { injectHostKeyFingerprint } from "@palladin/crypto";
 import { CONTENT_PORT, isBridgeMessage } from "@shared/messaging";
 
-import { connectNativeAgentProvider, handleNativeAgentAlarm } from "./agent/runtime";
+import { createAgentPairingRuntimeHandler } from "./agent/pairing-commands";
+import {
+  clearHostPairingRecord,
+  saveHostPairingIntent,
+  saveHostPairingRecord,
+} from "./agent/pairing-store";
+import {
+  beginNativeAgentPairingMutation,
+  connectNativeAgentProvider,
+  connectPairedNativeAgentProvider,
+  disconnectNativeAgentProvider,
+  handleNativeAgentAlarm,
+  readVerifiedPairing,
+} from "./agent/runtime";
 import { applyBadge } from "./badge";
 import {
   handleCaptureContentRuntimeMessage,
@@ -24,6 +38,17 @@ import { handleVaultRuntimeMessage } from "./vault/commands";
 import { clipboardGuard, vaultCommandDeps, vaultData } from "./vault/runtime";
 
 const SYNC_ALARM = "palladin.sync";
+const handleAgentPairingRuntimeMessage = createAgentPairingRuntimeHandler({
+  readVerifiedPairing,
+  deriveFingerprint: injectHostKeyFingerprint,
+  createIntentToken: () => crypto.randomUUID(),
+  beginMutation: beginNativeAgentPairingMutation,
+  savePairingIntent: saveHostPairingIntent,
+  savePairing: saveHostPairingRecord,
+  clearPairing: clearHostPairingRecord,
+  connect: connectPairedNativeAgentProvider,
+  disconnect: disconnectNativeAgentProvider,
+});
 
 /** Re-read the session state and repaint the toolbar padlock badge. */
 function refreshBadge(): void {
@@ -61,9 +86,8 @@ void sessionManager
   })
   .catch(() => logger.warn("session init failed"));
 
-// Agent Inject is independent of the popup lock state, but this connection opens
-// only when a previously verified host signing key is pinned. The current build
-// has no pairing writer, so an unpaired installation remains fail-closed.
+// Agent Inject is independent of the popup lock state. The connection opens only
+// after the user explicitly confirms an out-of-band host signing-key bundle.
 connectNativeAgentProvider();
 
 chrome.runtime.onConnect.addListener((port) => {
@@ -100,6 +124,11 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
     const sessionResult = await handleRuntimeMessage(sessionManager, raw);
     if (sessionResult !== null) {
       sendResponse(sessionResult);
+      return;
+    }
+    const pairingResult = await handleAgentPairingRuntimeMessage(raw);
+    if (pairingResult !== null) {
+      sendResponse(pairingResult);
       return;
     }
     const captureResult = handleCapturePopupRuntimeMessage(raw);

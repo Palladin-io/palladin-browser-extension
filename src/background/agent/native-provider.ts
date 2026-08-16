@@ -103,7 +103,7 @@ export async function handleNativeAgentMessage(
   session.prepared = null;
   const request = parseAgentInjectionRequest(raw);
   if (request === null) {
-    wipeRawValues(raw);
+    wipeAgentMessageValues(raw);
     return result(safeTransactionId(raw), "rejected");
   }
   if (prepared === null) {
@@ -236,7 +236,7 @@ function wipeValues(values: readonly AgentInjectFieldValue[]): void {
   for (const field of values) (field as { value: string }).value = "";
 }
 
-function wipeRawValues(value: unknown): void {
+export function wipeAgentMessageValues(value: unknown): void {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return;
   const values = (value as Record<string, unknown>).values;
   if (!Array.isArray(values)) return;

@@ -20,12 +20,22 @@ import {
   type AgentInjectStepOutcome,
   type AgentInjectTransitionOutcome,
 } from "@shared/messaging";
+import { isCanonicalBase64Url32 } from "@shared/agent/pairing";
 
 import { logger } from "../telemetry/logger";
-import { loadHostPairingRecord } from "./pairing-store";
+import {
+  isHostPairingIntentToken,
+  loadHostPairingSnapshot,
+  type HostPairingRecord,
+} from "./pairing-store";
+import {
+  AgentFillMutationBarrier,
+  type AgentPairingMutationLease,
+} from "./mutation-barrier";
 import {
   NATIVE_HOST_NAME,
   handleNativeAgentMessage,
+  wipeAgentMessageValues,
   type AgentFillDeps,
   type AgentProviderSession,
   type AgentTabState,
@@ -60,6 +70,9 @@ const replay = new SessionReplayGuard();
 let nativePort: chrome.runtime.Port | null = null;
 let clientSession: InjectClientSession | null = null;
 let secureChannel: InjectSecureChannel | null = null;
+let connectionAttempt: Promise<void> | null = null;
+let lifecycleVersion = 0;
+const pairingMutationBarrier = new AgentFillMutationBarrier();
 
 const agentFillDeps: AgentFillDeps = {
   getActivePage,
@@ -67,91 +80,209 @@ const agentFillDeps: AgentFillDeps = {
   probeTransition,
 };
 
+/** Gate every awaited lookup and page operation against pairing lifecycle. */
+export function gateAgentFillDeps(
+  deps: AgentFillDeps,
+  isActive: () => boolean,
+): AgentFillDeps {
+  return {
+    async getActivePage() {
+      if (!isActive()) return null;
+      const page = await deps.getActivePage();
+      return isActive() ? page : null;
+    },
+    async sendStep(tabId, expectedDomain, step, values) {
+      if (!isActive()) return null;
+      const outcome = await deps.sendStep(tabId, expectedDomain, step, values);
+      return isActive() ? outcome : null;
+    },
+    async probeTransition(tabId, expectedDomain, selector) {
+      if (!isActive()) return null;
+      const outcome = await deps.probeTransition(tabId, expectedDomain, selector);
+      return isActive() ? outcome : null;
+    },
+    async wait(milliseconds) {
+      if (!isActive()) return;
+      if (deps.wait) {
+        await deps.wait(milliseconds);
+      } else {
+        await new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+      }
+    },
+  };
+}
+
 export function connectNativeAgentProvider(): void {
-  if (nativePort !== null) return;
   void connectPairedNativeAgentProvider();
 }
 
 export function handleNativeAgentAlarm(name: string): void {
-  if (name === RECONNECT_ALARM) connectNativeAgentProvider();
+  if (name === RECONNECT_ALARM && !pairingMutationBarrier.isBlocked) {
+    connectNativeAgentProvider();
+  }
 }
 
 export async function connectPairedNativeAgentProvider(): Promise<void> {
+  if (pairingMutationBarrier.isBlocked) return;
+  if (nativePort !== null) return;
+  if (connectionAttempt !== null) return connectionAttempt;
+  const attempt = openPairedNativeAgentProvider(lifecycleVersion);
+  connectionAttempt = attempt;
+  try {
+    await attempt;
+  } finally {
+    if (connectionAttempt === attempt) connectionAttempt = null;
+  }
+}
+
+/**
+ * Suppress reconnect/new-fill admission and drain old fills for one mutation.
+ *
+ * Generation ownership means completion of an older superseded mutation cannot
+ * release a newer mutation's suppression. Calling the returned release twice is
+ * harmless.
+ */
+export function beginNativeAgentPairingMutation(): AgentPairingMutationLease {
+  return pairingMutationBarrier.beginMutation();
+}
+
+async function openPairedNativeAgentProvider(expectedLifecycle: number): Promise<void> {
   const pairing = await readVerifiedPairing();
-  // Pairing requires a separate trusted user-verification channel. Until that
-  // exists, no record can be created and Native Messaging stays fail-closed.
-  if (pairing === null || nativePort !== null) return;
+  if (pairingMutationBarrier.isBlocked
+    || pairing === null
+    || nativePort !== null
+    || lifecycleVersion !== expectedLifecycle) return;
+  let nextClient: InjectClientSession | null = null;
   let port: chrome.runtime.Port;
   try {
-    const nextClient = await createInjectClientSession({
+    nextClient = await createInjectClientSession({
       protocol: INJECT_PROVIDER_PROTOCOL,
       extensionOrigin: chrome.runtime.getURL(""),
       pinnedHostSigningPublicKey: pairing.hostSigningPublicKey,
     });
+    if (pairingMutationBarrier.isBlocked
+      || nativePort !== null
+      || lifecycleVersion !== expectedLifecycle) {
+      nextClient.dispose();
+      return;
+    }
     port = chrome.runtime.connectNative(NATIVE_HOST_NAME);
     clientSession = nextClient;
     nativePort = port;
     const providerSession: AgentProviderSession = { prepared: null };
+    const isActive = () => nativePort === port
+      && lifecycleVersion === expectedLifecycle
+      && !pairingMutationBarrier.isBlocked;
+    const lifecycleDeps = gateAgentFillDeps(agentFillDeps, isActive);
     let queue = Promise.resolve();
     port.onMessage.addListener((raw) => {
       queue = queue
-        .then(() => handleSecureNativeMessage(port, providerSession, raw))
+        .then(() => handleSecureNativeMessage(
+          port,
+          providerSession,
+          lifecycleDeps,
+          expectedLifecycle,
+          raw,
+        ))
         .catch(() => disconnectSecurePort(port));
     });
     port.onDisconnect.addListener(() => {
       void chrome.runtime.lastError;
+      // Explicit unpair/re-pair disposes first, so its disconnect event cannot
+      // resurrect the old channel through the reconnect alarm.
+      if (nativePort !== port) return;
       providerSession.prepared = null;
       disposeSecureSession(port);
       chrome.alarms.create(RECONNECT_ALARM, { delayInMinutes: 0.5 });
     });
     port.postMessage(nextClient.openFrame);
   } catch {
+    nextClient?.dispose();
+    if (lifecycleVersion !== expectedLifecycle) return;
     disposeSecureSession();
     logger.debug("paired native Agent provider unavailable");
     chrome.alarms.create(RECONNECT_ALARM, { delayInMinutes: 0.5 });
   }
 }
 
+/** Stop reconnects and synchronously dispose all ephemeral channel material. */
+export function disconnectNativeAgentProvider(): void {
+  lifecycleVersion += 1;
+  // A stale in-flight attempt observes the lifecycle change and disposes its
+  // own client. Clearing this slot lets a newly saved pin connect immediately.
+  connectionAttempt = null;
+  const port = nativePort;
+  disposeSecureSession(port ?? undefined);
+  if (port !== null) {
+    try {
+      port.disconnect();
+    } catch {
+      // The port is already detached and all channel material is disposed.
+    }
+  }
+  if (typeof chrome !== "undefined") void chrome.alarms.clear(RECONNECT_ALARM);
+}
+
 async function handleSecureNativeMessage(
   port: chrome.runtime.Port,
   providerSession: AgentProviderSession,
+  deps: AgentFillDeps,
+  expectedLifecycle: number,
   raw: unknown,
 ): Promise<void> {
-  if (nativePort !== port) return;
+  const isActive = () => nativePort === port
+    && lifecycleVersion === expectedLifecycle
+    && !pairingMutationBarrier.isBlocked;
+  if (!isActive()) return;
   if (secureChannel === null) {
     const ready = parseSessionReady(raw);
-    if (ready === null || clientSession === null) throw new Error("Invalid secure session ready frame");
-    secureChannel = await clientSession.acceptReady(ready);
+    const session = clientSession;
+    if (ready === null || session === null) throw new Error("Invalid secure session ready frame");
+    const channel = await session.acceptReady(ready);
+    if (!isActive() || clientSession !== session) {
+      channel.dispose();
+      return;
+    }
+    secureChannel = channel;
     clientSession = null;
     return;
   }
+  const channel = secureChannel;
   const frame = parseSecureFrame(raw);
   if (frame === null) throw new Error("Plain or malformed Native Messaging frame rejected");
-  const plaintext = await secureChannel.open(frame);
+  const plaintext = await channel.open(frame);
+  if (!isActive()) {
+    plaintext.fill(0);
+    return;
+  }
   let request: unknown;
   try {
     request = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(plaintext));
   } finally {
     plaintext.fill(0);
   }
-  const response = await handleNativeAgentMessage(agentFillDeps, replay, providerSession, request)
-    .catch(() => unavailableResponse(request));
+  const responseOperation = pairingMutationBarrier.admit(() =>
+    handleNativeAgentMessage(deps, replay, providerSession, request)
+      .catch(() => unavailableResponse(request)));
+  if (responseOperation === null) {
+    wipeAgentMessageValues(request);
+    return;
+  }
+  const response = await responseOperation;
+  if (!isActive()) return;
   const responseBytes = new TextEncoder().encode(JSON.stringify(response));
   try {
-    postIfConnected(port, await secureChannel.seal(responseBytes));
+    postIfConnected(port, await channel.seal(responseBytes));
   } finally {
     responseBytes.fill(0);
   }
 }
 
-interface HostPairingRecord {
-  readonly hostSigningPublicKey: string;
-  readonly fingerprint: string;
-}
-
 export async function readVerifiedPairing(): Promise<HostPairingRecord | null> {
-  const candidate = await loadHostPairingRecord();
+  const { record: candidate, intentToken } = await loadHostPairingSnapshot();
+  if (!isHostPairingIntentToken(intentToken)) return null;
   if (!isHostPairingRecord(candidate)) return null;
+  if (candidate.intentToken !== intentToken) return null;
   try {
     return await injectHostKeyFingerprint(candidate.hostSigningPublicKey) === candidate.fingerprint
       ? candidate
@@ -164,11 +295,10 @@ export async function readVerifiedPairing(): Promise<HostPairingRecord | null> {
 function isHostPairingRecord(value: unknown): value is HostPairingRecord {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
-  return Object.keys(record).length === 2
-    && typeof record.hostSigningPublicKey === "string"
-    && /^[A-Za-z0-9_-]{43}$/.test(record.hostSigningPublicKey)
-    && typeof record.fingerprint === "string"
-    && /^[A-Za-z0-9_-]{43}$/.test(record.fingerprint);
+  return Object.keys(record).length === 3
+    && isCanonicalBase64Url32(record.hostSigningPublicKey)
+    && isCanonicalBase64Url32(record.fingerprint)
+    && isHostPairingIntentToken(record.intentToken);
 }
 
 export function parseSessionReady(value: unknown): InjectSessionReady | null {
@@ -178,9 +308,10 @@ export function parseSessionReady(value: unknown): InjectSessionReady | null {
   if (Object.keys(frame).length !== keys.length || !keys.every((key) => key in frame)) return null;
   if (frame.protocol !== INJECT_PROVIDER_PROTOCOL || frame.type !== "session.ready") return null;
   if (![frame.extensionNonce, frame.hostNonce, frame.hostEphemeralPublicKey, frame.hostSigningPublicKey]
-    .every((item) => typeof item === "string" && /^[A-Za-z0-9_-]{43}$/.test(item))) return null;
-  if (typeof frame.signature !== "string" || !/^[A-Za-z0-9_-]{86}$/.test(frame.signature)) return null;
-  if (typeof frame.sessionId !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(frame.sessionId)) return null;
+    .every(isCanonicalBase64Url32)) return null;
+  if (typeof frame.signature !== "string"
+    || !/^[A-Za-z0-9_-]{85}[AQgw]$/.test(frame.signature)) return null;
+  if (!isCanonicalBase64Url32(frame.sessionId)) return null;
   return frame as unknown as InjectSessionReady;
 }
 
@@ -190,8 +321,7 @@ export function parseSecureFrame(value: unknown): InjectSecureFrame | null {
   if (Object.keys(frame).length !== 5
     || frame.protocol !== INJECT_PROVIDER_PROTOCOL
     || frame.type !== "secure"
-    || typeof frame.sessionId !== "string"
-    || !/^[A-Za-z0-9_-]{43}$/.test(frame.sessionId)
+    || !isCanonicalBase64Url32(frame.sessionId)
     || typeof frame.sequence !== "string"
     || !/^(0|[1-9][0-9]{0,19})$/.test(frame.sequence)
     || typeof frame.ciphertext !== "string"

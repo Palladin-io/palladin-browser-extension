@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
+import type { AgentPairingClient } from "./agent/client";
 import { PopupSessionError } from "./session/errors";
 import type { SessionClient } from "./session/client";
 
@@ -23,11 +24,30 @@ function makeClient(overrides: Partial<SessionClient> = {}): Fake {
   return base as Fake;
 }
 
+function makePairingClient(): AgentPairingClient {
+  return {
+    getStatus: vi.fn(async () => ({ paired: false as const })),
+    save: vi.fn(async () => ({ paired: false as const })),
+    clear: vi.fn(async () => ({ paired: false as const })),
+  };
+}
+
 beforeEach(() => vi.clearAllMocks());
 
 describe("popup state machine", () => {
   it("lands on Sign in when signed-out", async () => {
     render(<App client={makeClient()} />);
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  it("opens the extension-owned Agent runtime pairing screen from any session phase", async () => {
+    render(<App client={makeClient()} pairingClient={makePairingClient()} />);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "Runtime" }));
+    expect(await screen.findByRole("heading", { name: "Pair Agent runtime" }))
+      .toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back" }));
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
   });
 

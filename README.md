@@ -17,8 +17,9 @@ family, Firefox, and Safari, plus in-memory session and key lifecycle, encrypted
 Vault Protocol 2 sync/read/write, popup unlock and domain-matched credential
 selection, explicit generated-password save/update, TOTP, and card save/autofill
 for cardholder, PAN, expiry, and billing fields. Agent Inject has a typed
-`form+values` provider and authenticated-channel foundation, but stays
-fail-closed until trusted pairing and native-runtime packaging exist.
+`form+values` provider, authenticated channel, and explicit out-of-band runtime
+pairing. It stays fail-closed until the user verifies and confirms the runtime's
+public-key fingerprint; production native-runtime packaging remains a release gate.
 Clipboard Copy is intentionally disabled on Firefox and Safari until those
 targets have a reviewed TTL wipe. Cross-browser runtime validation and
 production store publication remain in development. Do not use development
@@ -45,6 +46,11 @@ npm test
 To load the Chromium development build, enable Developer mode at
 `chrome://extensions`, choose **Load unpacked**, and select `dist/chromium/` after
 a build.
+
+For a complete local smoke test - sign-in, user autofill, generated-password
+capture, card fill, and the macOS Chrome Agent Inject path - follow
+[`docs/LOCAL-TESTING.md`](docs/LOCAL-TESTING.md). Use disposable development
+data only.
 
 `npm run build` builds all three target manifests. Use `npm run build:chromium`,
 `npm run build:firefox`, or `npm run build:safari` for one target, and the matching
