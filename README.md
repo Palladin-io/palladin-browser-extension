@@ -47,6 +47,11 @@ To load the Chromium development build, enable Developer mode at
 `chrome://extensions`, choose **Load unpacked**, and select `dist/chromium/` after
 a build.
 
+For a complete local smoke test - sign-in, user autofill, generated-password
+capture, card fill, and the macOS Chrome Agent Inject path - follow
+[`docs/LOCAL-TESTING.md`](docs/LOCAL-TESTING.md). Use disposable development
+data only.
+
 `npm run build` builds all three target manifests. Use `npm run build:chromium`,
 `npm run build:firefox`, or `npm run build:safari` for one target, and the matching
 `dev:*` script for development. Chrome, Chromium, Brave, Edge, and Opera use the
