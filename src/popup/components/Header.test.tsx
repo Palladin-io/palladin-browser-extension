@@ -8,10 +8,9 @@ describe("Header", () => {
   it("renders the packaged Palladin logo next to the wordmark", () => {
     const { container } = render(<Header status="locked" />);
 
-    expect(screen.getByRole("heading", { name: "Palladin" })).toBeInTheDocument();
-    expect(container.querySelector(".brand-logo")).toHaveAttribute(
-      "src",
-      "/icons/icon-48.png",
-    );
+    expect(screen.getByRole("heading", { name: "Palladin.io" })).toBeInTheDocument();
+    expect(container.querySelector(".brand-logo")?.getAttribute("src"))
+      .toContain("logo-source.png");
+    expect(container.querySelector(".wordmark-tld")).toHaveTextContent(".io");
   });
 });

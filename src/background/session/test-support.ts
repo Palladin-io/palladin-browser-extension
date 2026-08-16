@@ -129,6 +129,7 @@ const AUTH_RESPONSE = {
 export interface MockBackendOptions {
   totpRequired?: boolean;
   totpCode?: string;
+  logoutResponse?: Promise<Response>;
 }
 
 export interface MockBackend {
@@ -172,7 +173,9 @@ export function mockBackend(
       return Promise.resolve(json(AUTH_RESPONSE));
     }
     if (url.endsWith("/api/auth/refresh")) return Promise.resolve(json(AUTH_RESPONSE));
-    if (url.endsWith("/api/auth/logout")) return Promise.resolve(json(null, 204));
+    if (url.endsWith("/api/auth/logout")) {
+      return options.logoutResponse ?? Promise.resolve(json(null, 204));
+    }
     if (url.endsWith("/api/account")) {
       return Promise.resolve(
         json({

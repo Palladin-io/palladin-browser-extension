@@ -6,16 +6,31 @@ import { FakeStorageArea } from "./test-support";
 describe("SessionStore", () => {
   it("round-trips tokens and account material", async () => {
     const store = new SessionStore(new FakeStorageArea());
-    await store.setTokens({ accessToken: "a", refreshToken: "r", userId: "u" });
+    await store.setTokens({
+      accessToken: "a",
+      refreshToken: "r",
+      userId: "u",
+      apiUrl: "https://api.palladin.io",
+    });
     await store.setMaterial({ salt: "s", encryptedPrivateKey: "e" });
-    expect(await store.getTokens()).toEqual({ accessToken: "a", refreshToken: "r", userId: "u" });
+    expect(await store.getTokens()).toEqual({
+      accessToken: "a",
+      refreshToken: "r",
+      userId: "u",
+      apiUrl: "https://api.palladin.io",
+    });
     expect(await store.getMaterial()).toEqual({ salt: "s", encryptedPrivateKey: "e" });
   });
 
   it("clearAll wipes every entry", async () => {
     const area = new FakeStorageArea();
     const store = new SessionStore(area);
-    await store.setTokens({ accessToken: "a", refreshToken: "r", userId: "u" });
+    await store.setTokens({
+      accessToken: "a",
+      refreshToken: "r",
+      userId: "u",
+      apiUrl: "https://api.palladin.io",
+    });
     await store.setAutoLock({ policy: "4h", lastActivityAt: 5 });
 
     await store.clearAll();

@@ -1,3 +1,5 @@
+import { useI18n } from "../i18n";
+
 /**
  * Search field for the unlocked list. Stays visible while the list below it
  * loads (skeleton is scoped to the list region, per the app-wide rule). Matches
@@ -9,6 +11,7 @@ export interface SearchBarProps {
 }
 
 export function SearchBar({ value, onChange }: SearchBarProps): React.JSX.Element {
+  const { t } = useI18n();
   return (
     <div className="search-bar">
       <svg className="search-icon" viewBox="0 0 20 20" aria-hidden="true" width="16" height="16">
@@ -22,8 +25,8 @@ export function SearchBar({ value, onChange }: SearchBarProps): React.JSX.Elemen
         className="search-input"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        placeholder="Search entries"
-        aria-label="Search entries"
+        placeholder={t("vault.search")}
+        aria-label={t("vault.search")}
         autoComplete="off"
         spellCheck={false}
       />

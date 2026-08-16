@@ -13,6 +13,7 @@ import { createVaultClient, type VaultClient } from "../vault/client";
 import { filterEntries } from "../vault/filter";
 import { useVaultList } from "../vault/useVaultList";
 import { webAppUrl } from "@shared/config/web-app";
+import { useI18n } from "../i18n";
 
 /**
  * The unlocked home: search, the entries for the current site, and the full
@@ -36,6 +37,7 @@ export function UnlockedScreen({
   vaultClient,
   captureClient,
 }: UnlockedScreenProps): React.JSX.Element {
+  const { t } = useI18n();
   const client = useMemo(() => vaultClient ?? createVaultClient(), [vaultClient]);
   const promptClient = useMemo(
     () => captureClient ?? createCaptureClient(),
@@ -52,7 +54,7 @@ export function UnlockedScreen({
 
   return (
     <section className="vault">
-      <h2 className="sr-only">Your vault</h2>
+      <h2 className="sr-only">{t("vault.title")}</h2>
       {capture.prompt !== null && view === "vault" ? (
         <CapturePrompt
           prompt={capture.prompt}
@@ -66,10 +68,10 @@ export function UnlockedScreen({
           }}
         />
       ) : null}
-      <div className="vault-tabs" role="tablist" aria-label="Popup view">
-        <button type="button" role="tab" aria-selected={view === "vault"} onClick={() => setView("vault")}>Vault</button>
-        <button type="button" role="tab" aria-selected={view === "generator"} onClick={() => setView("generator")}>Generator</button>
-        <button type="button" role="tab" aria-selected={view === "card"} onClick={() => setView("card")}>Add card</button>
+      <div className="vault-tabs" role="tablist" aria-label={t("vault.popupView")}>
+        <button type="button" role="tab" aria-selected={view === "vault"} onClick={() => setView("vault")}>{t("vault.tab")}</button>
+        <button type="button" role="tab" aria-selected={view === "generator"} onClick={() => setView("generator")}>{t("vault.generatorTab")}</button>
+        <button type="button" role="tab" aria-selected={view === "card"} onClick={() => setView("card")}>{t("vault.addCardTab")}</button>
       </div>
 
       {view === "card" ? <CardForm client={client} /> : view === "generator" ? (
@@ -90,20 +92,20 @@ export function UnlockedScreen({
         <ListSkeleton />
       ) : list.status === "error" ? (
         <p className="vault-error" role="alert">
-          Couldn't load your entries. Open the popup again to retry.
+          {t("vault.loadError")}
         </p>
       ) : (
         <div className="vault-scroll">
           {!searching && list.forSite.length > 0 ? (
-            <ListSection title="For this site">
+            <ListSection title={t("vault.forSite")}>
               <EntryList client={client} entries={list.forSite} />
             </ListSection>
           ) : null}
 
-          <ListSection title={searching ? "Results" : "All items"}>
+          <ListSection title={searching ? t("vault.results") : t("vault.allItems")}>
             {results.length === 0 ? (
               <p className="vault-empty">
-                {searching ? "No entries match your search." : "No entries yet."}
+                {searching ? t("vault.noResults") : t("vault.empty")}
               </p>
             ) : (
               <EntryList client={client} entries={results} />
@@ -137,6 +139,7 @@ function UnlockedFooter({
   onLock,
   onSignOut,
 }: Pick<UnlockedScreenProps, "onLock" | "onSignOut">): React.JSX.Element {
+  const { t } = useI18n();
   const [busy, setBusy] = useState<"lock" | "signout" | null>(null);
 
   async function run(kind: "lock" | "signout", action: () => Promise<void>): Promise<void> {
@@ -157,7 +160,7 @@ function UnlockedFooter({
         className="link-btn"
         onClick={() => chrome.tabs.create({ url: webAppUrl })}
       >
-        Open Palladin
+        {t("vault.openPalladin")}
       </button>
       <div className="vault-footer-actions">
         <Button
@@ -166,7 +169,7 @@ function UnlockedFooter({
           loading={busy === "lock"}
           disabled={busy !== null}
         >
-          Lock
+          {t("vault.lock")}
         </Button>
         <Button
           variant="danger"
@@ -174,7 +177,7 @@ function UnlockedFooter({
           loading={busy === "signout"}
           disabled={busy !== null}
         >
-          Sign out
+          {t("vault.signOut")}
         </Button>
       </div>
     </div>

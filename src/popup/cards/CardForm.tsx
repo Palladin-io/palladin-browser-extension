@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { Button } from "../components/Button";
+import { useI18n, type Translate } from "../i18n";
 import type { VaultClient } from "../vault/client";
 
 type SaveStatus = "idle" | "saving" | "saved" | "blocked" | "error";
@@ -16,6 +17,7 @@ const INITIAL = {
 };
 
 export function CardForm({ client }: { client: VaultClient }): React.JSX.Element {
+  const { t } = useI18n();
   const [card, setCard] = useState(INITIAL);
   const [status, setStatus] = useState<SaveStatus>("idle");
 
@@ -51,17 +53,17 @@ export function CardForm({ client }: { client: VaultClient }): React.JSX.Element
   return (
     <form className="card-form" onSubmit={(event) => void submit(event)}>
       <p className="card-form-note">
-        Save cardholder, card number, expiry, and billing details in your encrypted vault.
+        {t("card.note")}
       </p>
-      <CardField label="Card label" value={card.label} onChange={(value) => update("label", value)} required autoComplete="off" />
-      <CardField label="Cardholder name" value={card.cardholderName} onChange={(value) => update("cardholderName", value)} required autoComplete="cc-name" />
-      <CardField label="Card number" value={card.cardNumber} onChange={(value) => update("cardNumber", value)} required autoComplete="cc-number" inputMode="numeric" pattern="[0-9 -]{8,32}" />
+      <CardField label={t("card.label")} value={card.label} onChange={(value) => update("label", value)} required autoComplete="off" />
+      <CardField label={t("card.cardholder")} value={card.cardholderName} onChange={(value) => update("cardholderName", value)} required autoComplete="cc-name" />
+      <CardField label={t("card.number")} isCardNumber value={card.cardNumber} onChange={(value) => update("cardNumber", value)} required autoComplete="cc-number" inputMode="numeric" pattern="[0-9 -]{8,32}" />
       <div className="card-form-expiry">
-        <CardField label="Expiry month" value={card.expiryMonth} onChange={(value) => update("expiryMonth", value)} required autoComplete="cc-exp-month" inputMode="numeric" pattern="(0[1-9]|1[0-2])" placeholder="MM" />
-        <CardField label="Expiry year" value={card.expiryYear} onChange={(value) => update("expiryYear", value)} required autoComplete="cc-exp-year" inputMode="numeric" pattern="[0-9]{4}" placeholder="YYYY" />
+        <CardField label={t("card.expiryMonth")} value={card.expiryMonth} onChange={(value) => update("expiryMonth", value)} required autoComplete="cc-exp-month" inputMode="numeric" pattern="(0[1-9]|1[0-2])" placeholder={t("card.expiryMonthPlaceholder")} />
+        <CardField label={t("card.expiryYear")} value={card.expiryYear} onChange={(value) => update("expiryYear", value)} required autoComplete="cc-exp-year" inputMode="numeric" pattern="[0-9]{4}" placeholder={t("card.expiryYearPlaceholder")} />
       </div>
       <label>
-        <span className="field-label">Billing address</span>
+        <span className="field-label">{t("card.billingAddress")}</span>
         <textarea
           className="field-input card-form-textarea"
           autoComplete="billing street-address"
@@ -71,7 +73,7 @@ export function CardForm({ client }: { client: VaultClient }): React.JSX.Element
         />
       </label>
       <label>
-        <span className="field-label">Notes</span>
+        <span className="field-label">{t("card.notes")}</span>
         <textarea
           className="field-input card-form-textarea"
           autoComplete="off"
@@ -81,9 +83,9 @@ export function CardForm({ client }: { client: VaultClient }): React.JSX.Element
         />
       </label>
       <Button type="submit" loading={status === "saving"} disabled={status === "saving"}>
-        Save card
+        {t("card.save")}
       </Button>
-      <p className="card-form-status" role="status">{statusMessage(status)}</p>
+      <p className="card-form-status" role="status">{statusMessage(status, t)}</p>
     </form>
   );
 }
@@ -97,6 +99,7 @@ interface CardFieldProps {
   readonly inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   readonly pattern?: string;
   readonly placeholder?: string;
+  readonly isCardNumber?: boolean;
 }
 
 function CardField(props: CardFieldProps): React.JSX.Element {
@@ -106,7 +109,7 @@ function CardField(props: CardFieldProps): React.JSX.Element {
       <input
         className="field-input"
         type="text"
-        maxLength={props.label === "Card number" ? 32 : 256}
+        maxLength={props.isCardNumber ? 32 : 256}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
         required={props.required}
@@ -119,9 +122,9 @@ function CardField(props: CardFieldProps): React.JSX.Element {
   );
 }
 
-function statusMessage(status: SaveStatus): string {
-  if (status === "saved") return "Card saved securely";
-  if (status === "blocked") return "Save needs grant refresh in the web panel";
-  if (status === "error") return "Could not save this card";
+function statusMessage(status: SaveStatus, t: Translate): string {
+  if (status === "saved") return t("card.saved");
+  if (status === "blocked") return t("card.blocked");
+  if (status === "error") return t("card.error");
   return "";
 }

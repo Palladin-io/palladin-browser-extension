@@ -5,7 +5,7 @@
  * unit-testable. Imported solely by the worker bootstrap — never by tests.
  */
 
-import { env } from "../config/env";
+import { serverConfig } from "../config/server-runtime";
 import { AuthClient } from "./auth-client";
 import { AutoLock, type AlarmScheduler } from "./auto-lock";
 import { SessionManager } from "./session-manager";
@@ -33,7 +33,7 @@ export const sessionAutoLock = new AutoLock(alarms, () => {
 
 manager = new SessionManager({
   store: new SessionStore(storageArea),
-  authClient: new AuthClient((...args) => fetch(...args), env.apiUrl),
+  authClient: new AuthClient((...args) => fetch(...args), () => serverConfig.apiUrl),
   autoLock: sessionAutoLock,
 });
 

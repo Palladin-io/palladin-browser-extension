@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { API_URL_PLACEHOLDERS, resolveEnv } from "./env";
 
 describe("resolveEnv", () => {
-  it("defaults to the local backend when VITE_API_URL is unset", () => {
-    expect(resolveEnv({}).apiUrl).toBe("http://localhost:5000");
+  it("defaults to the production backend when VITE_API_URL is unset", () => {
+    expect(resolveEnv({}).apiUrl).toBe("https://api.palladin.io");
   });
 
   it("honours an override and trims a trailing slash", () => {

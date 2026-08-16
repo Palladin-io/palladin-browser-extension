@@ -264,6 +264,18 @@ describe("SessionManager — full lifecycle", () => {
     expect(storage.keys()).toHaveLength(0);
   });
 
+  it("does not let a stalled remote revocation block the authoritative local logout", async () => {
+    const stalledLogout = deferred<Response>();
+    const { mgr, storage } = makeHarness(account, { logoutResponse: stalledLogout.promise });
+    await mgr.login(account.email, account.password);
+
+    await expect(mgr.logout()).resolves.toBeUndefined();
+
+    expect(await mgr.getStatus()).toBe("signed-out");
+    expect(mgr.getKeys()).toBeNull();
+    expect(storage.keys()).toHaveLength(0);
+  });
+
   it("wipes keys synchronously when logout storage lookup fails", async () => {
     const { mgr, storage } = makeHarness(account);
     await mgr.login(account.email, account.password);
@@ -434,6 +446,29 @@ describe("SessionManager — service-worker restart", () => {
     expect(await second.getStatus()).toBe("unlocked");
     expect(toBase64(second.getKeys()!.privateKey)).toBe(account.privateKeyB64);
   });
+
+  it("never reuses a stored session after the configured server changes", async () => {
+    const account = await buildTestAccount();
+    const storage = new FakeStorageArea();
+    const alarms = new FakeAlarms();
+    const first = new SessionManager({
+      store: new SessionStore(storage),
+      authClient: new AuthClient(mockBackend(account).fetch, "https://old.example.com"),
+      autoLock: new AutoLock(alarms, () => {}),
+    });
+    await first.login(account.email, account.password);
+
+    const secondBackend = mockBackend(account);
+    const second = new SessionManager({
+      store: new SessionStore(storage),
+      authClient: new AuthClient(secondBackend.fetch, "https://new.example.com"),
+      autoLock: new AutoLock(alarms, () => {}),
+    });
+
+    expect(await second.initialize()).toBe("signed-out");
+    expect(storage.keys()).toHaveLength(0);
+    expect(secondBackend.calls).toHaveLength(0);
+  });
 });
 
 describe("SessionManager — TOTP second factor", () => {
@@ -448,5 +483,39 @@ describe("SessionManager — TOTP second factor", () => {
     await mgr.completeTotp("challenge-1", "424242", account.password);
     expect(await mgr.getStatus()).toBe("unlocked");
     expect(toBase64(mgr.getKeys()!.privateKey)).toBe(account.privateKeyB64);
+  });
+
+  it("never sends a pending production challenge to a newly selected host", async () => {
+    const account = await buildTestAccount();
+    const backend = mockBackend(account, { totpRequired: true, totpCode: "424242" });
+    const storage = new FakeStorageArea();
+    const alarms = new FakeAlarms();
+    let apiUrl = "https://api.palladin.io";
+    const manager = new SessionManager({
+      store: new SessionStore(storage),
+      authClient: new AuthClient(backend.fetch, () => apiUrl),
+      autoLock: new AutoLock(alarms, () => {}),
+    });
+    await manager.login(account.email, account.password);
+    apiUrl = "https://self-host.example.com";
+
+    await expect(manager.completeTotp("challenge-1", "424242", account.password))
+      .rejects.toMatchObject({ name: "SessionError", code: "network" });
+    expect(backend.calls.filter((url) => url.endsWith("/api/auth/login/totp"))).toEqual([]);
+    expect(await manager.getStatus()).toBe("signed-out");
+  });
+
+  it("invalidates the background challenge when the popup cancels TOTP", async () => {
+    const account = await buildTestAccount();
+    const { mgr, backendCalls } = makeHarness(account, {
+      totpRequired: true,
+      totpCode: "424242",
+    });
+    await mgr.login(account.email, account.password);
+    mgr.cancelTotp();
+
+    await expect(mgr.completeTotp("challenge-1", "424242", account.password))
+      .rejects.toMatchObject({ name: "SessionError", code: "network" });
+    expect(backendCalls.filter((url) => url.endsWith("/api/auth/login/totp"))).toEqual([]);
   });
 });

@@ -8,6 +8,10 @@
 
 import { injectHostKeyFingerprint } from "@palladin/crypto";
 import { CONTENT_PORT, isBridgeMessage } from "@shared/messaging";
+import {
+  isRequiredServerOrigin,
+  serverPermissionOrigin,
+} from "@shared/config/server";
 
 import { createAgentPairingRuntimeHandler } from "./agent/pairing-commands";
 import {
@@ -25,6 +29,12 @@ import {
 } from "./agent/runtime";
 import { applyBadge } from "./badge";
 import {
+  handleServerConfigRuntimeMessage,
+  isServerConfigCommand,
+} from "./config/server-commands";
+import { ServerOperationBarrier } from "./config/server-operation-barrier";
+import { initializeServerConfig, serverConfig } from "./config/server-runtime";
+import {
   handleCaptureContentRuntimeMessage,
   handleCapturePopupRuntimeMessage,
 } from "./capture/runtime";
@@ -38,6 +48,7 @@ import { handleVaultRuntimeMessage } from "./vault/commands";
 import { clipboardGuard, vaultCommandDeps, vaultData } from "./vault/runtime";
 
 const SYNC_ALARM = "palladin.sync";
+const serverOperations = new ServerOperationBarrier();
 const handleAgentPairingRuntimeMessage = createAgentPairingRuntimeHandler({
   readVerifiedPairing,
   deriveFingerprint: injectHostKeyFingerprint,
@@ -58,6 +69,31 @@ function refreshBadge(): void {
     .catch(() => logger.warn("badge refresh failed"));
 }
 
+function runServerOperation(operation: () => Promise<void>, warning: string): void {
+  const lease = serverOperations.tryAcquire();
+  if (lease === null) return;
+  void operation()
+    .catch(() => logger.warn(warning))
+    .finally(() => lease.release());
+}
+
+function unavailableDuringServerChange(raw: unknown): unknown {
+  const type = typeof raw === "object" && raw !== null
+    ? (raw as Record<string, unknown>)["type"]
+    : null;
+  if (typeof type !== "string") return null;
+  if (type.startsWith("session/")) {
+    return { ok: false, code: "network", message: "Server change in progress" };
+  }
+  if (type.startsWith("vault/")) {
+    return { ok: false, code: "network", message: "Server change in progress" };
+  }
+  if (type.startsWith("capture/")) {
+    return { ok: false, code: "unavailable", message: "Server change in progress" };
+  }
+  return null;
+}
+
 // Keep the badge in lockstep with the session: unlock clears the padlock,
 // lock/logout restores it. (`onLocked` fires for both an explicit lock and a
 // logout — refreshBadge re-reads the actual status either way.)
@@ -67,24 +103,27 @@ sessionManager.hooks.onLocked(() => refreshBadge());
 // Sync the vault metadata cache on unlock (plan §6 trigger). Metadata + wrapped
 // keys are non-secret; this refetch never decrypts.
 sessionManager.hooks.onUnlocked(() => {
-  void vaultData.refresh().catch(() => logger.warn("vault refresh on unlock failed"));
+  runServerOperation(
+    () => vaultData.refresh().then(() => undefined),
+    "vault refresh on unlock failed",
+  );
 });
 // On a full sign-out (not a plain lock), drop the cached metadata + wrapped keys.
 sessionManager.hooks.onLocked(() => {
-  void sessionManager.getStatus().then((status) => {
-    if (status === "signed-out") return vaultData.clearCache();
-  });
+  runServerOperation(async () => {
+    if (await sessionManager.getStatus() === "signed-out") await vaultData.clearCache();
+  }, "vault cache clear on logout failed");
 });
 
 // Rehydrate any session that survived a worker restart in chrome.storage.session
 // (an already-unlocked session comes back unlocked, no re-derive).
-void sessionManager
-  .initialize()
-  .then((status) => {
+void initializeServerConfig().then(() => {
+  runServerOperation(async () => {
+    const status = await sessionManager.initialize();
     logger.debug("session initialized", { status });
-    void applyBadge(chrome.action, status);
-  })
-  .catch(() => logger.warn("session init failed"));
+    await applyBadge(chrome.action, status);
+  }, "session init failed");
+});
 
 // Agent Inject is independent of the popup lock state. The connection opens only
 // after the user explicitly confirms an out-of-band host signing-key bundle.
@@ -120,28 +159,82 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isTrustedExtensionPage(sender, chrome.runtime.id, chrome.runtime.getURL(""))) return false;
   void (async () => {
-    await sessionManager.touchActivity();
-    const sessionResult = await handleRuntimeMessage(sessionManager, raw);
-    if (sessionResult !== null) {
-      sendResponse(sessionResult);
-      return;
-    }
+    await initializeServerConfig();
     const pairingResult = await handleAgentPairingRuntimeMessage(raw);
     if (pairingResult !== null) {
       sendResponse(pairingResult);
       return;
     }
-    const captureResult = handleCapturePopupRuntimeMessage(raw);
-    if (captureResult !== null) {
-      sendResponse(await captureResult);
+
+    if (isServerConfigCommand(raw)) {
+      const execute = () => handleServerConfigRuntimeMessage({
+        getApiUrl: () => serverConfig.apiUrl,
+        hasAccess: async (apiUrl) => {
+          const origin = serverPermissionOrigin(apiUrl);
+          return origin !== null && chrome.permissions.contains({ origins: [origin] });
+        },
+        beforeChange: async () => {
+          await sessionManager.logout();
+          await vaultData.clearAllCache();
+        },
+        save: (apiUrl) => serverConfig.save(apiUrl),
+        afterChange: (previousApiUrl, nextApiUrl) =>
+          removeUnusedServerPermission(previousApiUrl, nextApiUrl),
+        afterFailedChange: (attemptedApiUrl, activeApiUrl) =>
+          removeUnusedServerPermission(attemptedApiUrl, activeApiUrl),
+      }, raw);
+      try {
+        const result = raw.type === "config/server/set"
+          ? await serverOperations.mutate(() => execute())
+          : await execute();
+        sendResponse(result);
+      } catch {
+        sendResponse({ ok: false, code: "unavailable" });
+      }
       return;
     }
-    const vaultResult = await handleVaultRuntimeMessage(vaultCommandDeps, raw);
-    if (vaultResult !== null) sendResponse(vaultResult);
+
+    const lease = serverOperations.tryAcquire();
+    if (lease === null) {
+      const unavailable = unavailableDuringServerChange(raw);
+      if (unavailable !== null) sendResponse(unavailable);
+      return;
+    }
+    try {
+      await sessionManager.touchActivity();
+      const sessionResult = await handleRuntimeMessage(sessionManager, raw);
+      if (sessionResult !== null) {
+        sendResponse(sessionResult);
+        return;
+      }
+      const captureResult = handleCapturePopupRuntimeMessage(raw);
+      if (captureResult !== null) {
+        sendResponse(await captureResult);
+        return;
+      }
+      const vaultResult = await handleVaultRuntimeMessage(vaultCommandDeps, raw);
+      if (vaultResult !== null) sendResponse(vaultResult);
+    } finally {
+      lease.release();
+    }
   })();
   // Returning true keeps the message channel open for the async response.
   return true;
 });
+
+async function removeUnusedServerPermission(
+  candidateApiUrl: string,
+  activeApiUrl: string,
+): Promise<void> {
+  const candidateOrigin = serverPermissionOrigin(candidateApiUrl);
+  const activeOrigin = serverPermissionOrigin(activeApiUrl);
+  if (
+    candidateOrigin === null
+    || candidateOrigin === activeOrigin
+    || isRequiredServerOrigin(candidateOrigin)
+  ) return;
+  await chrome.permissions.remove({ origins: [candidateOrigin] }).catch(() => false);
+}
 
 void chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
 
@@ -158,5 +251,10 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   void clipboardGuard.handleAlarm(alarm.name);
   if (alarm.name !== SYNC_ALARM) return;
   // Periodic delta-sync trigger (plan §6): refresh the metadata cache.
-  void vaultData.refresh().catch(() => logger.warn("vault refresh on alarm failed"));
+  void initializeServerConfig().then(() => {
+    runServerOperation(
+      () => vaultData.refresh().then(() => undefined),
+      "vault refresh on alarm failed",
+    );
+  });
 });

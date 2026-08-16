@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import type { TotpView } from "../../background/vault/commands";
 import type { VaultClient } from "../vault/client";
 import { CopyButton } from "./CopyButton";
+import { useI18n } from "../i18n";
 
 export interface TotpBadgeProps {
   client: VaultClient;
@@ -36,6 +37,7 @@ function formatCode(code: string): string {
 }
 
 export function TotpBadge({ client, vaultId, entryId }: TotpBadgeProps): React.JSX.Element | null {
+  const { t } = useI18n();
   // undefined = still loading; null = no TOTP on this entry.
   const [live, setLive] = useState<Live | null | undefined>(undefined);
   const [remaining, setRemaining] = useState(0);
@@ -88,7 +90,7 @@ export function TotpBadge({ client, vaultId, entryId }: TotpBadgeProps): React.J
   }, [live, client, vaultId, entryId]);
 
   if (live === undefined) {
-    return <div className="totp totp--loading">Loading code…</div>;
+    return <div className="totp totp--loading">{t("vault.loadingCode")}</div>;
   }
   if (live === null) return null;
 
@@ -110,7 +112,7 @@ export function TotpBadge({ client, vaultId, entryId }: TotpBadgeProps): React.J
         />
       </svg>
       <span className="totp-code">{formatCode(live.code)}</span>
-      <span className="totp-secs" aria-label={`${remaining} seconds left`}>
+      <span className="totp-secs" aria-label={t("vault.secondsLeft", { count: remaining })}>
         {remaining}s
       </span>
       <CopyButton
@@ -118,7 +120,7 @@ export function TotpBadge({ client, vaultId, entryId }: TotpBadgeProps): React.J
         vaultId={vaultId}
         entryId={entryId}
         field="totp"
-        label="Copy code"
+        label={t("vault.copyCode")}
       />
     </div>
   );

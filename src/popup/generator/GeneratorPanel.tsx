@@ -15,6 +15,7 @@ import { clipboardCopyAvailable } from "@shared/config/build-target";
 import type { CaptureGeneratedFillResult, CaptureSaveResult } from "@shared/messaging/capture";
 
 import { Button } from "../components/Button";
+import { useI18n, type Translate } from "../i18n";
 import type { VaultClient } from "../vault/client";
 
 type GeneratorMode = "password" | "passphrase";
@@ -33,6 +34,7 @@ export function GeneratorPanel({
   client: VaultClient;
   capture?: CaptureGeneratorContext;
 }): React.JSX.Element {
+  const { t } = useI18n();
   const [mode, setMode] = useState<GeneratorMode>("password");
   const [length, setLength] = useState(PASSWORD_DEFAULT_LENGTH);
   const [digits, setDigits] = useState(true);
@@ -108,49 +110,49 @@ export function GeneratorPanel({
 
   return (
     <div className="generator">
-      <div className="generator-mode" role="group" aria-label="Generator type">
-        <button type="button" className={mode === "password" ? "generator-mode-active" : ""} onClick={() => changeMode("password")}>Password</button>
-        <button type="button" className={mode === "passphrase" ? "generator-mode-active" : ""} onClick={() => changeMode("passphrase")}>Passphrase</button>
+      <div className="generator-mode" role="group" aria-label={t("generator.type")}>
+        <button type="button" className={mode === "password" ? "generator-mode-active" : ""} onClick={() => changeMode("password")}>{t("generator.password")}</button>
+        <button type="button" className={mode === "passphrase" ? "generator-mode-active" : ""} onClick={() => changeMode("passphrase")}>{t("generator.passphrase")}</button>
       </div>
 
-      <output className="generator-output" aria-label="Generated value">{value}</output>
+      <output className="generator-output" aria-label={t("generator.generatedValue")}>{value}</output>
 
       {mode === "password" ? (
         <div className="generator-options">
           <label className="generator-range">
-            <span>Length <strong>{length}</strong></span>
-            <input aria-label="Password length" type="range" min={PASSWORD_MIN_LENGTH} max={PASSWORD_MAX_LENGTH} value={length} onChange={(event) => setLength(Number(event.target.value))} />
+            <span>{t("generator.length")} <strong>{length}</strong></span>
+            <input aria-label={t("generator.passwordLength")} type="range" min={PASSWORD_MIN_LENGTH} max={PASSWORD_MAX_LENGTH} value={length} onChange={(event) => setLength(Number(event.target.value))} />
           </label>
-          <Check label="Numbers" checked={digits} onChange={setDigits} />
-          <Check label="Symbols" checked={symbols} onChange={setSymbols} />
+          <Check label={t("generator.numbers")} checked={digits} onChange={setDigits} />
+          <Check label={t("generator.symbols")} checked={symbols} onChange={setSymbols} />
         </div>
       ) : (
         <div className="generator-options">
           <label className="generator-range">
-            <span>Words <strong>{words}</strong></span>
-            <input aria-label="Passphrase words" type="range" min={PASSPHRASE_MIN_WORDS} max={PASSPHRASE_MAX_WORDS} value={words} onChange={(event) => setWords(Number(event.target.value))} />
+            <span>{t("generator.words")} <strong>{words}</strong></span>
+            <input aria-label={t("generator.passphraseWords")} type="range" min={PASSPHRASE_MIN_WORDS} max={PASSPHRASE_MAX_WORDS} value={words} onChange={(event) => setWords(Number(event.target.value))} />
           </label>
-          <label className="generator-select">Separator
+          <label className="generator-select">{t("generator.separator")}
             <select value={separator} onChange={(event) => setSeparator(event.target.value as PassphraseSeparator)}>
-              <option value="-">Hyphen</option><option value=".">Dot</option><option value="_">Underscore</option><option value=" ">Space</option>
+              <option value="-">{t("generator.hyphen")}</option><option value=".">{t("generator.dot")}</option><option value="_">{t("generator.underscore")}</option><option value=" ">{t("generator.space")}</option>
             </select>
           </label>
-          <Check label="Capitalize" checked={capitalize} onChange={setCapitalize} />
-          <Check label="Add number" checked={includeNumber} onChange={setIncludeNumber} />
+          <Check label={t("generator.capitalize")} checked={capitalize} onChange={setCapitalize} />
+          <Check label={t("generator.addNumber")} checked={includeNumber} onChange={setIncludeNumber} />
         </div>
       )}
 
       <div className="generator-actions">
-        <Button variant="subtle" onClick={() => { setValue(makeValue()); setStatus("idle"); setSaveReady(false); }}>Regenerate</Button>
-        {clipboardCopyAvailable ? <Button variant="subtle" onClick={copy}>Copy</Button> : null}
-        <Button onClick={fill}>Fill</Button>
-        {capture && saveReady ? <Button onClick={save}>Save to Palladin</Button> : null}
+        <Button variant="subtle" onClick={() => { setValue(makeValue()); setStatus("idle"); setSaveReady(false); }}>{t("generator.regenerate")}</Button>
+        {clipboardCopyAvailable ? <Button variant="subtle" onClick={copy}>{t("common.copy")}</Button> : null}
+        <Button onClick={fill}>{t("common.fill")}</Button>
+        {capture && saveReady ? <Button onClick={save}>{t("generator.saveToPalladin")}</Button> : null}
       </div>
-      <p className="generator-status" role="status">{statusText(status)}</p>
+      <p className="generator-status" role="status">{statusText(status, t)}</p>
       <p className="generator-note">
         {capture
-          ? `Detected form on ${capture.site}. Fill first, then explicitly save the generated value.`
-          : "Generated only in memory. Copied values clear after 30 seconds."}
+          ? t("generator.captureNote", { site: capture.site })
+          : t("generator.memoryNote")}
       </p>
     </div>
   );
@@ -160,12 +162,12 @@ function Check({ label, checked, onChange }: { label: string; checked: boolean; 
   return <label className="generator-check"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />{label}</label>;
 }
 
-function statusText(status: ActionStatus): string {
-  if (status === "copied") return "Copied - clipboard clears in 30 seconds";
-  if (status === "filled") return "Filled in the active page";
-  if (status === "saved") return "Saved securely to Palladin";
-  if (status === "no-form") return "No password field found";
-  if (status === "blocked") return "Fill is available only on a secure active page";
-  if (status === "error") return "Action failed - try again";
+function statusText(status: ActionStatus, t: Translate): string {
+  if (status === "copied") return t("generator.copied");
+  if (status === "filled") return t("generator.filled");
+  if (status === "saved") return t("generator.saved");
+  if (status === "no-form") return t("generator.noForm");
+  if (status === "blocked") return t("generator.blocked");
+  if (status === "error") return t("generator.error");
   return "";
 }

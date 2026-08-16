@@ -15,16 +15,21 @@ const BACKGROUND_DIR = resolve(process.cwd(), "src/background");
 
 const CIPHERTEXT_CACHE = join('vault', 'protocol2', 'cache.ts');
 const PUBLIC_HOST_PAIRING_STORE = join('agent', 'pairing-store.ts');
+const PUBLIC_SERVER_CONFIG_STORE = join('config', 'server-runtime.ts');
 
 const FORBIDDEN: readonly {
   readonly label: string;
   readonly pattern: RegExp;
-  readonly allowInSuffix?: string;
+  readonly allowInSuffixes?: readonly string[];
 }[] = [
   { label: "localStorage", pattern: /\blocalStorage\b/ },
   { label: "sessionStorage", pattern: /\bsessionStorage\b/ },
-  { label: "indexedDB", pattern: /\bindexedDB\b/i, allowInSuffix: CIPHERTEXT_CACHE },
-  { label: "storage.local", pattern: /\bstorage\.local\b/, allowInSuffix: PUBLIC_HOST_PAIRING_STORE },
+  { label: "indexedDB", pattern: /\bindexedDB\b/i, allowInSuffixes: [CIPHERTEXT_CACHE] },
+  {
+    label: "storage.local",
+    pattern: /\bstorage\.local\b/,
+    allowInSuffixes: [PUBLIC_HOST_PAIRING_STORE, PUBLIC_SERVER_CONFIG_STORE],
+  },
   { label: "storage.sync", pattern: /\bstorage\.sync\b/ },
 ];
 
@@ -55,8 +60,8 @@ describe("key-storage guard", () => {
     const violations: string[] = [];
     for (const file of files) {
       const code = stripComments(readFileSync(file, "utf8"));
-      for (const { label, pattern, allowInSuffix } of FORBIDDEN) {
-        if (pattern.test(code) && !(allowInSuffix && file.endsWith(allowInSuffix))) {
+      for (const { label, pattern, allowInSuffixes } of FORBIDDEN) {
+        if (pattern.test(code) && !allowInSuffixes?.some((suffix) => file.endsWith(suffix))) {
           violations.push(`${file}: ${label}`);
         }
       }
@@ -88,5 +93,17 @@ describe("key-storage guard", () => {
     expect(store).toContain("fingerprint: record.fingerprint");
     expect(store).toContain("intentToken: record.intentToken");
     expect(store).not.toMatch(/\b(privateKey|sessionKey|ephemeralKey|nonce|ciphertext|accessToken|refreshToken)\b/);
+  });
+
+  it("keeps the durable server exception limited to a non-secret API URL", () => {
+    const runtime = stripComments(
+      readFileSync(join(BACKGROUND_DIR, PUBLIC_SERVER_CONFIG_STORE), "utf8"),
+    );
+    expect(runtime).toContain("storage.local.get");
+    expect(runtime).toContain("storage.local.set");
+    expect(runtime).toContain("storage.local.remove");
+    expect(runtime).not.toMatch(
+      /\b(privateKey|masterKey|vaultKey|sessionKey|password|ciphertext|accessToken|refreshToken)\b/,
+    );
   });
 });

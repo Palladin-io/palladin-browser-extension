@@ -157,6 +157,14 @@ backend. **No `*-viewed` events** - screen/tab views are covered generically.
   (no `text-transform: uppercase`) - render strings in the case written.
 - **Colors** mirror the web panel `--cv-*` tokens; do not invent brand hexes
   (brand red is `#EB4747`).
+- **Every user-facing string is localized.** English and Polish catalogs are
+  required from the first implementation; never add literal UI copy in a React
+  component. Keep popup catalogs and manifest `_locales` in exact key parity,
+  use English as the fallback, and add tests for every new locale.
+- **Theme follows an explicit `System / Light / Dark` preference.** System is
+  the default and tracks `prefers-color-scheme`; a user's Light or Dark override
+  is persisted as non-secret UI state. Reuse the web panel `--cv-*` light/dark
+  tokens and keep controls readable in both modes.
 - **Key/ID display** is always shortened prefix + suffix, never prefix-only.
 - Co-locate tests next to source (`*.test.ts`). Every bridge/protocol change
   ships with tests covering the rejection paths, not just the happy path.

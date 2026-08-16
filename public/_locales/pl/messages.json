@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "Palladin"
+  },
+  "extensionDescription": {
+    "message": "Menedżer haseł Palladin z autouzupełnianiem i dostępem do zaszyfrowanego sejfu. Zero-knowledge: klucze nigdy nie opuszczają Twojego urządzenia."
+  },
+  "extensionActionTitle": {
+    "message": "Otwórz Palladin"
+  }
+}

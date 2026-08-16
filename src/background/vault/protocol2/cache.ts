@@ -40,6 +40,7 @@ export interface MemberSyncCache {
   completeSnapshot(userId: string, vault: EncryptedVaultSummary, namespace: string, appliedThroughSequence: string): Promise<void>
   applyActiveDeltaPage(userId: string, vault: EncryptedVaultSummary, expectedSequence: string, page: MemberDeltaPage): Promise<void>
   removeMissingVaults(userId: string, retainedVaultIds: ReadonlySet<string>): Promise<void>
+  clearAll(): Promise<void>
 }
 
 const DATABASE_NAME = 'palladin-vault-ciphertext-cache'
@@ -165,6 +166,17 @@ export class IndexedDbProtocol2Cache implements MemberSyncCache {
   private getDatabase(): Promise<IDBDatabase> {
     this.database ??= openDatabase(this.databaseName)
     return this.database
+  }
+
+  async clearAll(): Promise<void> {
+    const database = await this.getDatabase()
+    const transaction = database.transaction([VAULT_STORE, ITEM_STORE], 'readwrite')
+    const done = transactionDone(transaction)
+    await Promise.all([
+      request(transaction.objectStore(VAULT_STORE).clear()),
+      request(transaction.objectStore(ITEM_STORE).clear()),
+    ])
+    await done
   }
 
   async getActiveState(userId: string, vaultId: string): Promise<ActiveCacheState | null> {
@@ -323,4 +335,3 @@ export class IndexedDbProtocol2Cache implements MemberSyncCache {
     }
   }
 }
-

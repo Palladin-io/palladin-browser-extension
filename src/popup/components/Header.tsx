@@ -1,4 +1,6 @@
 import type { SessionStatus } from "../../background/session/types";
+import brandLogoUrl from "../../../icons/logo-source.png";
+import { useI18n, type TranslationKey } from "../i18n";
 
 /**
  * Popup header: the Palladin brand lockup plus a small status chip mirroring the
@@ -8,38 +10,41 @@ import type { SessionStatus } from "../../background/session/types";
  */
 export interface HeaderProps {
   status?: SessionStatus | undefined;
-  agentRuntimeOpen?: boolean;
-  onToggleAgentRuntime?(): void;
+  settingsOpen?: boolean;
+  onToggleSettings?(): void;
 }
 
-const CHIP: Record<SessionStatus, { label: string; dot: string }> = {
-  unlocked: { label: "Unlocked", dot: "status-dot--unlocked" },
-  locked: { label: "Locked", dot: "status-dot--locked" },
-  "signed-out": { label: "Signed out", dot: "" },
+const CHIP: Record<SessionStatus, { label: TranslationKey; dot: string }> = {
+  unlocked: { label: "status.unlocked", dot: "status-dot--unlocked" },
+  locked: { label: "status.locked", dot: "status-dot--locked" },
+  "signed-out": { label: "status.signedOut", dot: "" },
 };
 
 export function Header({
   status,
-  agentRuntimeOpen = false,
-  onToggleAgentRuntime,
+  settingsOpen = false,
+  onToggleSettings,
 }: HeaderProps): React.JSX.Element {
+  const { t } = useI18n();
   const chip = status ? CHIP[status] : null;
   return (
     <header className="popup-header">
       <div className="brand-lockup">
-        <img className="brand-logo" src="/icons/icon-48.png" alt="" aria-hidden="true" />
-        <h1 className="wordmark">Palladin</h1>
+        <img className="brand-logo" src={brandLogoUrl} alt="" aria-hidden="true" />
+        <h1 className="wordmark" aria-label="Palladin.io">
+          <span>Palladin</span><span className="wordmark-tld">.io</span>
+        </h1>
       </div>
       <div className="popup-header-actions">
         {chip ? (
           <span className="status-chip" role="status">
             <span className={`status-dot ${chip.dot}`.trim()} aria-hidden="true" />
-            {chip.label}
+            {t(chip.label)}
           </span>
         ) : null}
-        {onToggleAgentRuntime ? (
-          <button type="button" className="header-link" onClick={onToggleAgentRuntime}>
-            {agentRuntimeOpen ? "Back" : "Runtime"}
+        {onToggleSettings ? (
+          <button type="button" className="header-link" onClick={onToggleSettings}>
+            {settingsOpen ? t("common.back") : t("common.settings")}
           </button>
         ) : null}
       </div>

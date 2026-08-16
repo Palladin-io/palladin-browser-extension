@@ -18,6 +18,7 @@ import { fillMessage } from "../vault/messages";
 import { CopyButton } from "./CopyButton";
 import { EntryIcon } from "./EntryIcon";
 import { TotpBadge } from "./TotpBadge";
+import { useI18n } from "../i18n";
 
 export interface EntryRowProps {
   client: VaultClient;
@@ -25,6 +26,7 @@ export interface EntryRowProps {
 }
 
 export function EntryRow({ client, entry }: EntryRowProps): React.JSX.Element {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -34,16 +36,16 @@ export function EntryRow({ client, entry }: EntryRowProps): React.JSX.Element {
   const isCard = entry.type === ENTRY_CREDIT_CARD;
 
   const fill = useCallback(async () => {
-    setStatus("Filling…");
+    setStatus(t("fill.filling"));
     try {
       const result = await client.fill(entry.vaultId, entry.id);
-      setStatus(fillMessage(result));
+      setStatus(fillMessage(result, t));
     } catch {
-      setStatus("Could not fill this entry");
+      setStatus(t("fill.error"));
     }
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setStatus(null), 2500);
-  }, [client, entry.vaultId, entry.id]);
+  }, [client, entry.vaultId, entry.id, t]);
 
   const openInPanel = useCallback(() => {
     chrome.tabs.create({ url: entryDeepLink(entry.vaultId, entry.id) });
@@ -62,8 +64,8 @@ export function EntryRow({ client, entry }: EntryRowProps): React.JSX.Element {
           <span className="entry-name">{entry.name}</span>
           {entry.urlDomain ? <span className="entry-sub">{entry.urlDomain}</span> : null}
         </span>
-        {isCredential ? <span className="entry-tag">Login</span> : null}
-        {isCard ? <span className="entry-tag">Card</span> : null}
+        {isCredential ? <span className="entry-tag">{t("vault.login")}</span> : null}
+        {isCard ? <span className="entry-tag">{t("vault.card")}</span> : null}
         <svg
           className={`entry-chevron${open ? " entry-chevron--open" : ""}`}
           viewBox="0 0 20 20"
@@ -81,26 +83,26 @@ export function EntryRow({ client, entry }: EntryRowProps): React.JSX.Element {
             {isCredential ? (
               <>
                 <button type="button" className="chip-btn chip-btn--accent" onClick={() => void fill()}>
-                  Fill
+                  {t("common.fill")}
                 </button>
-                <CopyButton client={client} vaultId={entry.vaultId} entryId={entry.id} field="username" label="Copy username" />
-                <CopyButton client={client} vaultId={entry.vaultId} entryId={entry.id} field="password" label="Copy password" />
+                <CopyButton client={client} vaultId={entry.vaultId} entryId={entry.id} field="username" label={t("vault.copyUsername")} />
+                <CopyButton client={client} vaultId={entry.vaultId} entryId={entry.id} field="password" label={t("vault.copyPassword")} />
               </>
             ) : null}
             {isCard ? (
               <button type="button" className="chip-btn chip-btn--accent" onClick={() => void fill()}>
-                Fill
+                {t("common.fill")}
               </button>
             ) : null}
             {isKey ? (
-              <CopyButton client={client} vaultId={entry.vaultId} entryId={entry.id} field="value" label="Copy value" />
+              <CopyButton client={client} vaultId={entry.vaultId} entryId={entry.id} field="value" label={t("vault.copyValue")} />
             ) : null}
           </div>
 
           {isCredential ? <TotpBadge client={client} vaultId={entry.vaultId} entryId={entry.id} /> : null}
 
           <button type="button" className="link-btn" onClick={openInPanel}>
-            Open in web panel
+            {t("vault.openPanel")}
           </button>
 
           {status ? (

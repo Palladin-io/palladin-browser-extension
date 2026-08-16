@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import type { AgentPairingClient } from "./agent/client";
+import type { ServerConfigClient } from "./config/client";
 import { PopupSessionError } from "./session/errors";
 import type { SessionClient } from "./session/client";
 
@@ -16,6 +17,7 @@ function makeClient(overrides: Partial<SessionClient> = {}): Fake {
     getCapabilities: vi.fn(async () => ({ runtimeUnlock: false })),
     login: vi.fn(async () => ({ status: "unlocked" }) as const),
     completeTotp: vi.fn(async () => "unlocked" as const),
+    cancelTotp: vi.fn(async () => {}),
     unlock: vi.fn(async () => "unlocked" as const),
     lock: vi.fn(async () => {}),
     logout: vi.fn(async () => {}),
@@ -32,6 +34,13 @@ function makePairingClient(): AgentPairingClient {
   };
 }
 
+function makeServerConfigClient(): ServerConfigClient {
+  return {
+    get: vi.fn(async () => ({ apiUrl: "https://api.palladin.io", changed: false })),
+    save: vi.fn(async (apiUrl) => ({ apiUrl, changed: true })),
+  };
+}
+
 beforeEach(() => vi.clearAllMocks());
 
 describe("popup state machine", () => {
@@ -40,11 +49,18 @@ describe("popup state machine", () => {
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
   });
 
-  it("opens the extension-owned Agent runtime pairing screen from any session phase", async () => {
-    render(<App client={makeClient()} pairingClient={makePairingClient()} />);
+  it("opens server and Agent runtime settings from any session phase", async () => {
+    render(
+      <App
+        client={makeClient()}
+        pairingClient={makePairingClient()}
+        serverConfigClient={makeServerConfigClient()}
+      />,
+    );
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole("button", { name: "Runtime" }));
+    await user.click(await screen.findByRole("button", { name: "Settings" }));
+    expect(await screen.findByRole("heading", { name: "Server" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Pair Agent runtime" }))
       .toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Back" }));
@@ -112,6 +128,35 @@ describe("popup state machine", () => {
     expect(await screen.findByRole("heading", { name: "Your vault" })).toBeInTheDocument();
     // Code trimmed; the retained password passes through untrimmed.
     expect(client.completeTotp).toHaveBeenCalledWith("chal", "123456", "pw with space ");
+  });
+
+  it("drops a pending TOTP password when the server changes", async () => {
+    const client = makeClient({
+      login: vi.fn(async () => ({ status: "totp-required", challengeToken: "prod-chal" }) as const),
+    });
+    render(
+      <App
+        client={client}
+        pairingClient={makePairingClient()}
+        serverConfigClient={makeServerConfigClient()}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Email"), "user@palladin.io");
+    await user.type(screen.getByLabelText("Master password"), "pending password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await screen.findByRole("heading", { name: "Enter your code" });
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.clear(await screen.findByLabelText("Server URL"));
+    await user.type(screen.getByLabelText("Server URL"), "https://self-host.example.com");
+    await user.click(screen.getByRole("button", { name: "Save server" }));
+    await waitFor(() => expect(client.getStatus).toHaveBeenCalledTimes(2));
+    await user.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.queryByText("pending password")).not.toBeInTheDocument();
+    expect(client.completeTotp).not.toHaveBeenCalled();
   });
 
   it("unlocks a locked session with the master password", async () => {

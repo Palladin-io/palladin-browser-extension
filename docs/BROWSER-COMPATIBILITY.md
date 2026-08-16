@@ -39,6 +39,12 @@ The scripts validate the target before starting Vite. Each manifest is the deep
 merge of `manifest/manifest.base.json` and exactly one target overlay. Arrays are
 replaced, not appended, so permission differences remain explicit and auditable.
 
+All targets package production, staging, and `localhost:5000` as known API
+origins. The shared popup may request one exact custom HTTPS origin (or
+`127.0.0.1`) from the browser when the user changes Server in Settings. The
+permission is optional until that action; changing the setting signs out and
+clears the local encrypted cache.
+
 ## Manifest differences
 
 ### Chromium family

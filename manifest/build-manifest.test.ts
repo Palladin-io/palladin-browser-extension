@@ -13,6 +13,7 @@ import {
 interface Manifest {
   manifest_version: number;
   name: string;
+  default_locale?: string;
   key?: string;
   background?: {
     service_worker?: string;
@@ -21,6 +22,7 @@ interface Manifest {
   };
   permissions?: string[];
   host_permissions?: string[];
+  optional_host_permissions?: string[];
   content_scripts?: Array<{ matches: string[]; js: string[]; world?: string }>;
   minimum_chrome_version?: string;
   browser_specific_settings?: {
@@ -41,13 +43,19 @@ describe("buildManifest (shared)", () => {
   it.each(BUILD_TARGETS)("builds a valid %s MV3 manifest", (target) => {
     const manifest = manifests[target];
     expect(manifest.manifest_version).toBe(3);
-    expect(manifest.name).toBe("Palladin");
+    expect(manifest.name).toBe("__MSG_extensionName__");
+    expect(manifest.default_locale).toBe("en");
     expect(manifest.background?.service_worker).toBeTruthy();
     expect(manifest.background?.type).toBe("module");
     expect(manifest.host_permissions).toEqual([
       "http://localhost:5000/*",
       "https://api.stage.palladin.io/*",
       "https://api.palladin.io/*",
+    ]);
+    expect(manifest.optional_host_permissions).toEqual([
+      "http://localhost/*",
+      "http://127.0.0.1/*",
+      "https://*/*",
     ]);
 
     const worlds = (manifest.content_scripts ?? []).map(

@@ -45,19 +45,42 @@ export interface AccountResponse {
 }
 
 export type FetchLike = typeof fetch;
+export type ApiUrlSource = string | (() => string);
 
 export class AuthClient {
   constructor(
     private readonly doFetch: FetchLike,
-    private readonly apiUrl: string = env.apiUrl,
+    private readonly apiUrlSource: ApiUrlSource = env.apiUrl,
   ) {}
 
-  private async postJson<T>(path: string, body: unknown, accessToken?: string): Promise<T> {
+  private get apiUrl(): string {
+    return typeof this.apiUrlSource === "function" ? this.apiUrlSource() : this.apiUrlSource;
+  }
+
+  currentApiUrl(): string {
+    return this.apiUrl;
+  }
+
+  private boundApiUrl(expectedApiUrl?: string): string {
+    const apiUrl = this.apiUrl;
+    if (expectedApiUrl !== undefined && apiUrl !== expectedApiUrl) {
+      throw new SessionError("network", "Server changed during authentication");
+    }
+    return apiUrl;
+  }
+
+  private async postJson<T>(
+    path: string,
+    body: unknown,
+    accessToken?: string,
+    expectedApiUrl?: string,
+  ): Promise<T> {
+    const apiUrl = this.boundApiUrl(expectedApiUrl);
     const headers: Record<string, string> = { "content-type": "application/json" };
     if (accessToken) headers["authorization"] = `Bearer ${accessToken}`;
     let response: Response;
     try {
-      response = await this.doFetch(`${this.apiUrl}${path}`, {
+      response = await this.doFetch(`${apiUrl}${path}`, {
         method: "POST",
         headers,
         body: JSON.stringify(body),
@@ -79,26 +102,32 @@ export class AuthClient {
   }
 
   /** Pre-login salt fetch (anti-enumeration: unknown emails still get a salt). */
-  fetchLoginSalt(email: string): Promise<{ authSalt: string }> {
-    return this.postJson("/api/auth/login/salt", { email });
+  fetchLoginSalt(email: string, expectedApiUrl?: string): Promise<{ authSalt: string }> {
+    return this.postJson("/api/auth/login/salt", { email }, undefined, expectedApiUrl);
   }
 
-  login(email: string, authHash: string): Promise<PasswordLoginResponse> {
-    return this.postJson("/api/auth/login", { email, authHash });
+  login(email: string, authHash: string, expectedApiUrl?: string): Promise<PasswordLoginResponse> {
+    return this.postJson("/api/auth/login", { email, authHash }, undefined, expectedApiUrl);
   }
 
-  totpLogin(challengeToken: string, code: string): Promise<AuthResponse> {
-    return this.postJson("/api/auth/login/totp", { challengeToken, code });
+  totpLogin(challengeToken: string, code: string, expectedApiUrl?: string): Promise<AuthResponse> {
+    return this.postJson(
+      "/api/auth/login/totp",
+      { challengeToken, code },
+      undefined,
+      expectedApiUrl,
+    );
   }
 
-  refresh(refreshToken: string): Promise<AuthResponse> {
-    return this.postJson("/api/auth/refresh", { refreshToken });
+  refresh(refreshToken: string, expectedApiUrl?: string): Promise<AuthResponse> {
+    return this.postJson("/api/auth/refresh", { refreshToken }, undefined, expectedApiUrl);
   }
 
-  async logout(refreshToken: string): Promise<void> {
+  async logout(refreshToken: string, expectedApiUrl?: string): Promise<void> {
     // Best-effort server-side revocation; local wipe happens regardless.
     try {
-      await this.doFetch(`${this.apiUrl}/api/auth/logout`, {
+      const apiUrl = this.boundApiUrl(expectedApiUrl);
+      await this.doFetch(`${apiUrl}/api/auth/logout`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ refreshToken }),
@@ -108,10 +137,11 @@ export class AuthClient {
     }
   }
 
-  async getAccount(accessToken: string): Promise<AccountResponse> {
+  async getAccount(accessToken: string, expectedApiUrl?: string): Promise<AccountResponse> {
+    const apiUrl = this.boundApiUrl(expectedApiUrl);
     let response: Response;
     try {
-      response = await this.doFetch(`${this.apiUrl}/api/account`, {
+      response = await this.doFetch(`${apiUrl}/api/account`, {
         headers: { authorization: `Bearer ${accessToken}` },
       });
     } catch {
