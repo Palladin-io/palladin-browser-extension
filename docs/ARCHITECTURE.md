@@ -71,7 +71,8 @@ worker's session, key, or authorization state.
    profile and strict bootstrap/account-state binding. A pending TOTP challenge
    owns only its derived master key in worker memory, is bound to the exact API
    URL and lifecycle generation, and is wiped on cancel, logout, server change,
-   or failed completion; the popup never retains the master password.
+   failed completion, or a five-minute worker-owned expiry; the popup never
+   retains the master password.
 2. Keep cryptographic keys only in service-worker JavaScript memory. A worker
    restart loses them; explicit lock and logout wipe them immediately.
 3. Persist only canonical ciphertext envelopes and structural sync cursors in
