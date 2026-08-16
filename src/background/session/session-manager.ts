@@ -45,6 +45,14 @@ export interface SessionManagerDeps {
   sync?: SyncTrigger;
   push?: PushRegistration;
   now?: () => number;
+  createPasswordUnlock?: (password: string) => UnlockSource;
+}
+
+class SessionLifecycleChangedError extends Error {
+  constructor() {
+    super("Session lifecycle changed while unlocking");
+    this.name = "SessionLifecycleChangedError";
+  }
 }
 
 export class SessionManager {
@@ -52,6 +60,7 @@ export class SessionManager {
   private readonly authClient: AuthClient;
   private readonly autoLock: AutoLock;
   private readonly now: () => number;
+  private readonly createPasswordUnlock: (password: string) => UnlockSource;
 
   readonly hooks: SessionHooks;
   private readonly sync: SyncTrigger;
@@ -59,6 +68,7 @@ export class SessionManager {
 
   /** In-memory keys — the authoritative live copy while unlocked. */
   private keys: SessionKeys | null = null;
+  private lifecycleGeneration = 0;
 
   constructor(deps: SessionManagerDeps) {
     this.store = deps.store;
@@ -68,6 +78,8 @@ export class SessionManager {
     this.sync = deps.sync ?? new NoopSyncTrigger();
     this.push = deps.push ?? new NoopPushRegistration();
     this.now = deps.now ?? (() => Date.now());
+    this.createPasswordUnlock = deps.createPasswordUnlock
+      ?? ((password) => new MasterPasswordUnlock(password));
   }
 
   /**
@@ -137,13 +149,17 @@ export class SessionManager {
    * a TOTP challenge. The password stays on the client; only `authHash` is sent.
    */
   async login(email: string, password: string): Promise<LoginResult> {
+    const generation = this.lifecycleGeneration;
     const { authSalt } = await this.authClient.fetchLoginSalt(email);
+    this.assertLifecycleGeneration(generation);
     const authHash = await this.deriveAuthHash(password, authSalt);
+    this.assertLifecycleGeneration(generation);
     const response = await this.authClient.login(email, authHash);
+    this.assertLifecycleGeneration(generation);
     if (isTotpRequired(response)) {
       return { status: "totp-required", challengeToken: response.challengeToken };
     }
-    await this.establishSession(response, password);
+    await this.establishSession(response, password, generation);
     return { status: "unlocked" };
   }
 
@@ -153,8 +169,10 @@ export class SessionManager {
     code: string,
     password: string,
   ): Promise<void> {
+    const generation = this.lifecycleGeneration;
     const response = await this.authClient.totpLogin(challengeToken, code.trim());
-    await this.establishSession(response, password);
+    this.assertLifecycleGeneration(generation);
+    await this.establishSession(response, password, generation);
   }
 
   private async deriveAuthHash(password: string, authSalt: string): Promise<string> {
@@ -167,15 +185,22 @@ export class SessionManager {
     }
   }
 
-  private async establishSession(auth: AuthResponse, password: string): Promise<void> {
+  private async establishSession(
+    auth: AuthResponse,
+    password: string,
+    generation: number,
+  ): Promise<void> {
+    this.assertLifecycleGeneration(generation);
     const tokens: SessionTokens = {
       accessToken: auth.accessToken,
       refreshToken: auth.refreshToken,
       userId: auth.userId,
     };
     await this.store.setTokens(tokens);
+    this.assertLifecycleGeneration(generation);
 
     const account = await this.authClient.getAccount(auth.accessToken);
+    this.assertLifecycleGeneration(generation);
     if (!account.salt || !account.encryptedPrivateKey) {
       // A password account always has this material; its absence means the
       // account isn't set up to unlock. Leave tokens, stay locked, signal why.
@@ -189,58 +214,81 @@ export class SessionManager {
       encryptedPrivateKey: account.encryptedPrivateKey,
     };
     await this.store.setMaterial(material);
+    this.assertLifecycleGeneration(generation);
 
-    const keys = await new MasterPasswordUnlock(password).deriveKeys(material);
-    await this.setUnlocked(keys, tokens.userId);
+    const keys = await this.createPasswordUnlock(password).deriveKeys(material);
+    await this.setUnlocked(keys, tokens.userId, generation);
   }
 
   // ─── Unlock (session locked, JWT may still be alive) ────────────────────────
 
   /** Re-derive keys for a locked session from cached material, via any source. */
   async unlock(source: UnlockSource): Promise<void> {
+    const generation = this.lifecycleGeneration;
     const material = await this.store.getMaterial();
+    this.assertLifecycleGeneration(generation);
     if (!material) {
       throw new SessionError("no-account-material", "No cached material to unlock");
     }
     const tokens = await this.store.getTokens();
+    this.assertLifecycleGeneration(generation);
     if (!tokens) {
       throw new SessionError("not-authenticated", "Cannot unlock without a session");
     }
     const keys = await source.deriveKeys(material);
-    await this.setUnlocked(keys, tokens.userId);
+    await this.setUnlocked(keys, tokens.userId, generation);
   }
 
   /** Convenience for the default master-password source. */
   unlockWithPassword(password: string): Promise<void> {
-    return this.unlock(new MasterPasswordUnlock(password));
+    return this.unlock(this.createPasswordUnlock(password));
   }
 
-  private async setUnlocked(keys: SessionKeys, userId: string): Promise<void> {
-    this.wipeKeys();
-    this.keys = keys;
-    const record = await this.store.getAutoLock();
-    const policy = record?.policy ?? DEFAULT_AUTO_LOCK_POLICY;
-    await this.store.setAutoLock({ policy, lastActivityAt: this.now() });
-    this.autoLock.arm(policy, this.now());
+  private async setUnlocked(
+    keys: SessionKeys,
+    userId: string,
+    generation: number,
+  ): Promise<void> {
+    let published = false;
+    try {
+      this.assertLifecycleGeneration(generation);
+      const record = await this.store.getAutoLock();
+      this.assertLifecycleGeneration(generation);
+      const policy = record?.policy ?? DEFAULT_AUTO_LOCK_POLICY;
+      const unlockedAt = this.now();
+      await this.store.setAutoLock({ policy, lastActivityAt: unlockedAt });
+      this.assertLifecycleGeneration(generation);
 
-    this.hooks.emitUnlocked({ userId });
-    this.sync.requestSync("unlocked");
-    void this.push.register(userId);
+      this.wipeKeys();
+      this.keys = keys;
+      published = true;
+      this.autoLock.arm(policy, unlockedAt);
+      this.hooks.emitUnlocked({ userId });
+      if (generation !== this.lifecycleGeneration) return;
+      this.sync.requestSync("unlocked");
+      if (generation !== this.lifecycleGeneration) return;
+      void this.push.register(userId);
+    } finally {
+      if (!published) this.wipeSessionKeys(keys);
+    }
   }
 
   // ─── Lock / logout ──────────────────────────────────────────────────────────
 
   /** Wipe key material and stop the idle timer; tokens + material survive. */
   async lock(): Promise<void> {
-    if (!this.keys) return;
+    this.invalidatePendingUnlocks();
+    const wasUnlocked = this.keys !== null;
     this.wipeKeys();
     this.autoLock.disarm();
+    if (!wasUnlocked) return;
     const tokens = await this.store.getTokens();
     if (tokens) this.hooks.emitLocked({ userId: tokens.userId });
   }
 
   /** Lock, revoke the refresh token server-side, and clear ALL session state. */
   async logout(): Promise<void> {
+    this.invalidatePendingUnlocks();
     this.wipeKeys();
     this.autoLock.disarm();
     const tokens = await this.store.getTokens();
@@ -254,9 +302,23 @@ export class SessionManager {
 
   private wipeKeys(): void {
     if (!this.keys) return;
-    wipe(this.keys.masterKey);
-    wipe(this.keys.privateKey);
+    this.wipeSessionKeys(this.keys);
     this.keys = null;
+  }
+
+  private wipeSessionKeys(keys: SessionKeys): void {
+    wipe(keys.masterKey);
+    wipe(keys.privateKey);
+  }
+
+  private invalidatePendingUnlocks(): void {
+    this.lifecycleGeneration += 1;
+  }
+
+  private assertLifecycleGeneration(generation: number): void {
+    if (generation !== this.lifecycleGeneration) {
+      throw new SessionLifecycleChangedError();
+    }
   }
 
   // ─── Auto-lock ────────────────────────────────────────────────────────────

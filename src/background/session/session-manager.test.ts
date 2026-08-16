@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthClient } from "./auth-client";
 import { AutoLock, AUTO_LOCK_ALARM } from "./auto-lock";
 import { SessionHooks } from "./hooks";
-import { SessionManager } from "./session-manager";
+import { SessionManager, type SessionManagerDeps } from "./session-manager";
 import { SessionStore } from "./session-store";
-import { MasterPasswordUnlock } from "./unlock-source";
-import { SessionError } from "./types";
+import { MasterPasswordUnlock, type UnlockSource } from "./unlock-source";
+import { SessionError, type SessionKeys } from "./types";
 import {
   buildTestAccount,
   FakeAlarms,
@@ -28,7 +28,11 @@ interface Harness {
   now: { value: number };
 }
 
-function makeHarness(account: TestAccount, opts: MockBackendOptions = {}): Harness {
+function makeHarness(
+  account: TestAccount,
+  opts: MockBackendOptions = {},
+  overrides: Pick<SessionManagerDeps, "createPasswordUnlock"> = {},
+): Harness {
   const storage = new FakeStorageArea();
   const alarms = new FakeAlarms();
   const store = new SessionStore(storage);
@@ -38,8 +42,45 @@ function makeHarness(account: TestAccount, opts: MockBackendOptions = {}): Harne
   let mgr: SessionManager;
   const autoLock = new AutoLock(alarms, () => void mgr.lock());
   alarms.onFire((name) => autoLock.dispatch(name));
-  mgr = new SessionManager({ store, authClient, autoLock, hooks, now: () => now.value });
+  mgr = new SessionManager({
+    store,
+    authClient,
+    autoLock,
+    hooks,
+    now: () => now.value,
+    ...overrides,
+  });
   return { mgr, storage, alarms, hooks, now };
+}
+
+function deferredUnlock(): {
+  source: UnlockSource;
+  keys: SessionKeys;
+  started: Promise<void>;
+  release(): void;
+} {
+  const keys: SessionKeys = {
+    masterKey: new Uint8Array(32).fill(0x41),
+    privateKey: new Uint8Array(32).fill(0x42),
+  };
+  let markStarted!: () => void;
+  const started = new Promise<void>((resolve) => { markStarted = resolve; });
+  let release!: () => void;
+  const pending = new Promise<SessionKeys>((resolve) => {
+    release = () => resolve(keys);
+  });
+  return {
+    keys,
+    started,
+    release,
+    source: {
+      id: "deferred-test",
+      deriveKeys: () => {
+        markStarted();
+        return pending;
+      },
+    },
+  };
 }
 
 describe("SessionManager — full lifecycle", () => {
@@ -100,6 +141,28 @@ describe("SessionManager — full lifecycle", () => {
     await expect(locking).rejects.toThrow("storage unavailable");
   });
 
+  it("cancels an earlier login before lock can be undone by its derived keys", async () => {
+    const candidate = deferredUnlock();
+    const { mgr, alarms, hooks } = makeHarness(account, {}, {
+      createPasswordUnlock: () => candidate.source,
+    });
+    const unlocked = vi.fn();
+    hooks.onUnlocked(unlocked);
+    const login = mgr.login(account.email, account.password);
+    const cancelled = expect(login).rejects.toThrow("Session lifecycle changed");
+    await candidate.started;
+
+    await mgr.lock();
+    candidate.release();
+    await cancelled;
+
+    expect(candidate.keys.masterKey.every((byte) => byte === 0)).toBe(true);
+    expect(candidate.keys.privateKey.every((byte) => byte === 0)).toBe(true);
+    expect(mgr.getKeys()).toBeNull();
+    expect(alarms.created.has(AUTO_LOCK_ALARM)).toBe(false);
+    expect(unlocked).not.toHaveBeenCalled();
+  });
+
   it("unlock re-derives keys offline from cached material after a lock", async () => {
     const { mgr } = makeHarness(account);
     await mgr.login(account.email, account.password);
@@ -154,6 +217,29 @@ describe("SessionManager — full lifecycle", () => {
     expect(mgr.getKeys()).toBeNull();
     expect(livePrivateKey.every((byte) => byte === 0)).toBe(true);
     await expect(loggingOut).rejects.toThrow("storage unavailable");
+  });
+
+  it("cancels an earlier unlock before logout can be undone by its derived keys", async () => {
+    const { mgr, storage, alarms, hooks } = makeHarness(account);
+    await mgr.login(account.email, account.password);
+    await mgr.lock();
+    const candidate = deferredUnlock();
+    const unlocked = vi.fn();
+    hooks.onUnlocked(unlocked);
+    const unlocking = mgr.unlock(candidate.source);
+    const cancelled = expect(unlocking).rejects.toThrow("Session lifecycle changed");
+    await candidate.started;
+
+    await mgr.logout();
+    candidate.release();
+    await cancelled;
+
+    expect(candidate.keys.masterKey.every((byte) => byte === 0)).toBe(true);
+    expect(candidate.keys.privateKey.every((byte) => byte === 0)).toBe(true);
+    expect(mgr.getKeys()).toBeNull();
+    expect(alarms.created.has(AUTO_LOCK_ALARM)).toBe(false);
+    expect(unlocked).not.toHaveBeenCalled();
+    expect(storage.keys()).toHaveLength(0);
   });
 
   it("emits unlocked then locked lifecycle hooks", async () => {
