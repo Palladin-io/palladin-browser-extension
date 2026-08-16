@@ -97,6 +97,26 @@ body {
   color: var(--cv-primary);
 }
 
+.popup-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.header-link {
+  padding: 4px 7px;
+  border: 0;
+  background: transparent;
+  color: var(--cv-t2);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.header-link:hover {
+  color: var(--cv-t1);
+}
+
 .status-chip {
   display: inline-flex;
   align-items: center;
@@ -145,6 +165,92 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* ── Explicit Agent runtime pairing ─────────────────────────────────────── */
+
+.pairing-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pairing-screen .screen-subtitle {
+  margin-bottom: 0;
+}
+
+.pairing-loading {
+  min-height: 120px;
+}
+
+.pairing-input {
+  width: 100%;
+  min-height: 84px;
+  padding: 10px 12px;
+  resize: vertical;
+  border-radius: 8px;
+  border: 1px solid var(--cv-input-border);
+  background: var(--cv-input-bg);
+  color: var(--cv-input-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.pairing-input:focus {
+  outline: none;
+  border-color: var(--cv-t2);
+}
+
+.pairing-input.field-input--error,
+.pairing-input.field-input--error:focus {
+  border-color: var(--cv-primary);
+}
+
+.pairing-status-card,
+.pairing-confirmation {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--cv-border);
+  border-radius: 9px;
+  background: var(--cv-surface);
+}
+
+.pairing-status-label {
+  color: var(--cv-t3);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pairing-fingerprint {
+  color: var(--cv-t1);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pairing-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--cv-t2);
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.pairing-check input {
+  margin: 2px 0 0;
+  accent-color: var(--cv-primary);
+}
+
+.pairing-error {
+  margin: 0;
+  color: var(--cv-primary);
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 /* ── Field ───────────────────────────────────────────────────────────────── */

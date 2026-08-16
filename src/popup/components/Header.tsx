@@ -7,6 +7,8 @@ import type { SessionStatus } from "../../background/session/types";
  */
 export interface HeaderProps {
   status?: SessionStatus | undefined;
+  agentRuntimeOpen?: boolean;
+  onToggleAgentRuntime?(): void;
 }
 
 const CHIP: Record<SessionStatus, { label: string; dot: string }> = {
@@ -15,17 +17,28 @@ const CHIP: Record<SessionStatus, { label: string; dot: string }> = {
   "signed-out": { label: "Signed out", dot: "" },
 };
 
-export function Header({ status }: HeaderProps): React.JSX.Element {
+export function Header({
+  status,
+  agentRuntimeOpen = false,
+  onToggleAgentRuntime,
+}: HeaderProps): React.JSX.Element {
   const chip = status ? CHIP[status] : null;
   return (
     <header className="popup-header">
       <h1 className="wordmark">Palladin</h1>
-      {chip ? (
-        <span className="status-chip" role="status">
-          <span className={`status-dot ${chip.dot}`.trim()} aria-hidden="true" />
-          {chip.label}
-        </span>
-      ) : null}
+      <div className="popup-header-actions">
+        {chip ? (
+          <span className="status-chip" role="status">
+            <span className={`status-dot ${chip.dot}`.trim()} aria-hidden="true" />
+            {chip.label}
+          </span>
+        ) : null}
+        {onToggleAgentRuntime ? (
+          <button type="button" className="header-link" onClick={onToggleAgentRuntime}>
+            {agentRuntimeOpen ? "Back" : "Runtime"}
+          </button>
+        ) : null}
+      </div>
     </header>
   );
 }

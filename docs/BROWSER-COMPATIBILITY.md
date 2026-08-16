@@ -44,6 +44,9 @@ replaced, not appended, so permission differences remain explicit and auditable.
 ### Chromium family
 
 - `manifest.chromium.json` owns the public-key-derived Chromium extension ID.
+  The native-host allowlist is locked to the resulting exact origin
+  `chrome-extension://hmljnknogdeonphikmeofcbkikmpokba/`; changing the manifest
+  key is therefore a cross-component protocol and packaging change.
 - The artifact requests `offscreen` because Chromium's service worker delegates
   timed clipboard clearing to a short-lived offscreen document.
 - Chrome, Chromium, Brave, Edge, and Opera consume this same artifact.
@@ -87,8 +90,11 @@ replaced, not appended, so permission differences remain explicit and auditable.
   not enabled by producing `dist/safari/` alone.
 - Automated checks currently cover generated manifests, TypeScript, and bundle
   creation. They do not replace installed-browser or store-review testing.
-- Trusted host pairing is not implemented on any target. Plain Native Messaging
-  and TOFU are deliberately not used as a fallback.
+- The shared popup implements explicit out-of-band public-key pairing without
+  TOFU. Chromium uses the fixed manifest-key-derived extension origin. Firefox
+  still needs a reviewed host installer/origin adapter, while Safari needs its
+  containing-app adapter; storing a pin alone does not claim runtime support on
+  those targets.
 
 These gaps are why the Firefox and Safari rows describe a build foundation, not
 feature parity or production support.

@@ -22,7 +22,10 @@ import {
 } from "@shared/messaging";
 
 import { logger } from "../telemetry/logger";
-import { loadHostPairingRecord } from "./pairing-store";
+import {
+  loadHostPairingRecord,
+  type HostPairingRecord,
+} from "./pairing-store";
 import {
   NATIVE_HOST_NAME,
   handleNativeAgentMessage,
@@ -60,6 +63,8 @@ const replay = new SessionReplayGuard();
 let nativePort: chrome.runtime.Port | null = null;
 let clientSession: InjectClientSession | null = null;
 let secureChannel: InjectSecureChannel | null = null;
+let connectionAttempt: Promise<void> | null = null;
+let lifecycleVersion = 0;
 
 const agentFillDeps: AgentFillDeps = {
   getActivePage,
@@ -68,7 +73,6 @@ const agentFillDeps: AgentFillDeps = {
 };
 
 export function connectNativeAgentProvider(): void {
-  if (nativePort !== null) return;
   void connectPairedNativeAgentProvider();
 }
 
@@ -77,17 +81,32 @@ export function handleNativeAgentAlarm(name: string): void {
 }
 
 export async function connectPairedNativeAgentProvider(): Promise<void> {
+  if (nativePort !== null) return;
+  if (connectionAttempt !== null) return connectionAttempt;
+  const attempt = openPairedNativeAgentProvider(lifecycleVersion);
+  connectionAttempt = attempt;
+  try {
+    await attempt;
+  } finally {
+    if (connectionAttempt === attempt) connectionAttempt = null;
+  }
+}
+
+async function openPairedNativeAgentProvider(expectedLifecycle: number): Promise<void> {
   const pairing = await readVerifiedPairing();
-  // Pairing requires a separate trusted user-verification channel. Until that
-  // exists, no record can be created and Native Messaging stays fail-closed.
-  if (pairing === null || nativePort !== null) return;
+  if (pairing === null || nativePort !== null || lifecycleVersion !== expectedLifecycle) return;
+  let nextClient: InjectClientSession | null = null;
   let port: chrome.runtime.Port;
   try {
-    const nextClient = await createInjectClientSession({
+    nextClient = await createInjectClientSession({
       protocol: INJECT_PROVIDER_PROTOCOL,
       extensionOrigin: chrome.runtime.getURL(""),
       pinnedHostSigningPublicKey: pairing.hostSigningPublicKey,
     });
+    if (nativePort !== null || lifecycleVersion !== expectedLifecycle) {
+      nextClient.dispose();
+      return;
+    }
     port = chrome.runtime.connectNative(NATIVE_HOST_NAME);
     clientSession = nextClient;
     nativePort = port;
@@ -100,16 +119,39 @@ export async function connectPairedNativeAgentProvider(): Promise<void> {
     });
     port.onDisconnect.addListener(() => {
       void chrome.runtime.lastError;
+      // Explicit unpair/re-pair disposes first, so its disconnect event cannot
+      // resurrect the old channel through the reconnect alarm.
+      if (nativePort !== port) return;
       providerSession.prepared = null;
       disposeSecureSession(port);
       chrome.alarms.create(RECONNECT_ALARM, { delayInMinutes: 0.5 });
     });
     port.postMessage(nextClient.openFrame);
   } catch {
+    nextClient?.dispose();
+    if (lifecycleVersion !== expectedLifecycle) return;
     disposeSecureSession();
     logger.debug("paired native Agent provider unavailable");
     chrome.alarms.create(RECONNECT_ALARM, { delayInMinutes: 0.5 });
   }
+}
+
+/** Stop reconnects and synchronously dispose all ephemeral channel material. */
+export function disconnectNativeAgentProvider(): void {
+  lifecycleVersion += 1;
+  // A stale in-flight attempt observes the lifecycle change and disposes its
+  // own client. Clearing this slot lets a newly saved pin connect immediately.
+  connectionAttempt = null;
+  const port = nativePort;
+  disposeSecureSession(port ?? undefined);
+  if (port !== null) {
+    try {
+      port.disconnect();
+    } catch {
+      // The port is already detached and all channel material is disposed.
+    }
+  }
+  if (typeof chrome !== "undefined") void chrome.alarms.clear(RECONNECT_ALARM);
 }
 
 async function handleSecureNativeMessage(
@@ -142,11 +184,6 @@ async function handleSecureNativeMessage(
   } finally {
     responseBytes.fill(0);
   }
-}
-
-interface HostPairingRecord {
-  readonly hostSigningPublicKey: string;
-  readonly fingerprint: string;
 }
 
 export async function readVerifiedPairing(): Promise<HostPairingRecord | null> {

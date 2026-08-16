@@ -79,10 +79,13 @@ describe("key-storage guard", () => {
     expect(cache).not.toMatch(/\b(masterKey|privateKey|vaultKey|entryDek|memberSecret)\b/i);
   });
 
-  it("keeps the durable Native Messaging exception read-only and public", () => {
+  it("keeps the durable Native Messaging exception limited to the public host pin", () => {
     const store = stripComments(readFileSync(join(BACKGROUND_DIR, PUBLIC_HOST_PAIRING_STORE), "utf8"));
     expect(store).toContain("storage.local.get");
-    expect(store).not.toContain("storage.local.set");
+    expect(store).toContain("storage.local.set");
+    expect(store).toContain("storage.local.remove");
+    expect(store).toContain("hostSigningPublicKey: record.hostSigningPublicKey");
+    expect(store).toContain("fingerprint: record.fingerprint");
     expect(store).not.toMatch(/\b(privateKey|sessionKey|ephemeralKey|nonce|ciphertext|accessToken|refreshToken)\b/);
   });
 });

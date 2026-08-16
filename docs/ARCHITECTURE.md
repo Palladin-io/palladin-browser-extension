@@ -34,10 +34,12 @@ Palladin local runtime              Palladin services
   User autofill never authorizes Agent access. Agent Inject requires a pinned
   host signing key plus a signed ephemeral session and AEAD-protected frames;
   Native Messaging host allowlisting alone is not treated as authentication.
-- The pin may contain only the host public signing key and its fingerprint in
-  extension local storage. No host or session secret is persisted. The current
-  build has no TOFU path and no trusted pairing writer, so Agent Inject remains
-  fail-closed.
+- The pin contains only the host public signing key and its derived fingerprint
+  in extension local storage. No host or session secret is persisted. The popup
+  accepts the strict `palladin.inject-pairing.v1` JSON bundle printed by the
+  trusted runtime CLI, recomputes the fingerprint, and writes the pin only after
+  explicit user confirmation. There is no TOFU path and Native Messaging cannot
+  create or replace the pin.
 - Playwright and AgentBrowser use their own provider adapters and do not connect
   to this extension.
 
@@ -78,9 +80,10 @@ and both ephemeral keys. All prepare/inject traffic then travels only in
 sequence-checked AEAD `secure` frames. The extension validates replay state,
 active tab/document, HTTPS origin, and the authenticated runtime-provided target
 domain before fill and before submit. It returns only a value-free outcome. The
-declarative payload remains `form+values`; there is no CDP transport. Pairing
-and the production host are not complete, therefore this path is not enabled in
-release builds today.
+declarative payload remains `form+values`; there is no CDP transport. Removing
+the pin immediately disconnects and disposes the channel. Production host
+packaging and installed-browser validation remain release gates, so this path is
+not enabled in release builds today.
 
 User card fill is a separate explicit popup action. It maps canonical card data
 only to standardized `cc-name`, `cc-number`, expiry, and explicitly billing

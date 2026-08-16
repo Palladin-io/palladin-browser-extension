@@ -6,9 +6,21 @@
  * the strength of a page-originated message — fills stay gated downstream.
  */
 
+import { injectHostKeyFingerprint } from "@palladin/crypto";
 import { CONTENT_PORT, isBridgeMessage } from "@shared/messaging";
 
-import { connectNativeAgentProvider, handleNativeAgentAlarm } from "./agent/runtime";
+import { handleAgentPairingRuntimeMessage } from "./agent/pairing-commands";
+import {
+  clearHostPairingRecord,
+  saveHostPairingRecord,
+} from "./agent/pairing-store";
+import {
+  connectNativeAgentProvider,
+  connectPairedNativeAgentProvider,
+  disconnectNativeAgentProvider,
+  handleNativeAgentAlarm,
+  readVerifiedPairing,
+} from "./agent/runtime";
 import { applyBadge } from "./badge";
 import {
   handleCaptureContentRuntimeMessage,
@@ -61,9 +73,8 @@ void sessionManager
   })
   .catch(() => logger.warn("session init failed"));
 
-// Agent Inject is independent of the popup lock state, but this connection opens
-// only when a previously verified host signing key is pinned. The current build
-// has no pairing writer, so an unpaired installation remains fail-closed.
+// Agent Inject is independent of the popup lock state. The connection opens only
+// after the user explicitly confirms an out-of-band host signing-key bundle.
 connectNativeAgentProvider();
 
 chrome.runtime.onConnect.addListener((port) => {
@@ -100,6 +111,18 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
     const sessionResult = await handleRuntimeMessage(sessionManager, raw);
     if (sessionResult !== null) {
       sendResponse(sessionResult);
+      return;
+    }
+    const pairingResult = await handleAgentPairingRuntimeMessage({
+      readVerifiedPairing,
+      deriveFingerprint: injectHostKeyFingerprint,
+      savePairing: saveHostPairingRecord,
+      clearPairing: clearHostPairingRecord,
+      connect: connectPairedNativeAgentProvider,
+      disconnect: disconnectNativeAgentProvider,
+    }, raw);
+    if (pairingResult !== null) {
+      sendResponse(pairingResult);
       return;
     }
     const captureResult = handleCapturePopupRuntimeMessage(raw);

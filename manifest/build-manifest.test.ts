@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -75,6 +76,15 @@ describe("buildManifest (chromium)", () => {
 
   it("keeps one Chromium-family identity and compatibility floor", () => {
     expect(manifest.key).toBeTruthy();
+    const digest = createHash("sha256")
+      .update(Buffer.from(manifest.key ?? "", "base64"))
+      .digest()
+      .subarray(0, 16);
+    const extensionId = [...digest]
+      .map((byte) => String.fromCharCode(97 + (byte >> 4), 97 + (byte & 15)))
+      .join("");
+    // The native-host allowlist and signed session transcript depend on this ID.
+    expect(extensionId).toBe("hmljnknogdeonphikmeofcbkikmpokba");
     expect(manifest.minimum_chrome_version).toBe("116");
     expect(manifest.browser_specific_settings).toBeUndefined();
   });

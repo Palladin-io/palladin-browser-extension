@@ -4,8 +4,9 @@ The repository contains development artifacts for one shared extension core:
 Chromium-family MV3, Firefox, and a Safari conversion foundation. It includes
 canonical Vault Protocol 2 user autofill and explicit write paths. Agent Inject
 keeps its separate provider contract but its Native Messaging transport is
-fail-closed until trusted host pairing is implemented. It remains pre-production
-and has no supported production version until every release gate below is complete.
+fail-closed until the user explicitly verifies and pins the local runtime. It
+remains pre-production and has no supported production version until every
+release gate below is complete.
 
 `main` remains the authoritative product surface. Work starts from current
 `main` and arrives through normal review; historical prototype branches are not
@@ -27,8 +28,11 @@ release candidates.
   authentication data; there is no dedicated field or heuristic for it.
 - The Native Messaging host name and authenticated session framing are explicit
   and tested. No `session.open` is sent without a pinned signing key/fingerprint.
-- No trusted pairing flow currently creates that pin, so production Agent Inject
-  is intentionally unavailable rather than falling back to plaintext/TOFU.
+- The extension-owned popup accepts only the strict out-of-band pairing bundle
+  printed by `palladin browser install`, derives and verifies the public-key
+  fingerprint, and requires explicit user confirmation before persisting the
+  public pin. Saving connects; unpairing disconnects and disposes immediately.
+  Plaintext and TOFU fallbacks do not exist.
 - Development compatibility targets current Chrome, Chromium, Brave, Edge, and
   Opera MV3 builds. Store certification and version support are not yet claimed.
 
