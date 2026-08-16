@@ -100,6 +100,34 @@ describe("dispatchSessionCommand", () => {
       await dispatchSessionCommand(mgr, { type: "session/setAutoLock", policy: "bogus" }),
     ).toEqual({ ok: false, code: "invalid-credentials", message: expect.any(String) });
   });
+
+  it("cancels a pending TOTP challenge in the background", async () => {
+    const account = await buildTestAccount();
+    const storage = new FakeStorageArea();
+    const alarms = new FakeAlarms();
+    const backend = mockBackend(account, { totpRequired: true, totpCode: "424242" });
+    let mgr: SessionManager;
+    const autoLock = new AutoLock(alarms, () => void mgr.lock());
+    mgr = new SessionManager({
+      store: new SessionStore(storage),
+      authClient: new AuthClient(backend.fetch, "http://api.test"),
+      autoLock,
+    });
+    await dispatchSessionCommand(mgr, {
+      type: "session/login",
+      email: account.email,
+      password: account.password,
+    });
+
+    expect(await dispatchSessionCommand(mgr, { type: "session/cancelTotp" }))
+      .toEqual({ ok: true });
+    expect(await dispatchSessionCommand(mgr, {
+      type: "session/completeTotp",
+      challengeToken: "challenge-1",
+      code: "424242",
+      password: account.password,
+    })).toMatchObject({ ok: false, code: "network" });
+  });
 });
 
 describe("handleRuntimeMessage", () => {

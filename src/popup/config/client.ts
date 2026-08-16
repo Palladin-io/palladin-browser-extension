@@ -36,7 +36,6 @@ export type SendServerConfigCommand = (
 
 export interface PermissionClient {
   request(permissions: chrome.permissions.Permissions): Promise<boolean>;
-  remove(permissions: chrome.permissions.Permissions): Promise<boolean>;
 }
 
 const chromeSend: SendServerConfigCommand = (command) =>
@@ -44,7 +43,6 @@ const chromeSend: SendServerConfigCommand = (command) =>
 
 const chromePermissions: PermissionClient = {
   request: (permissions) => chrome.permissions.request(permissions),
-  remove: (permissions) => chrome.permissions.remove(permissions),
 };
 
 export function createServerConfigClient(
@@ -63,31 +61,12 @@ export function createServerConfigClient(
       }
 
       const permission = { origins: [nextOrigin] };
-      let grantedForChange = false;
       if (!isRequiredServerOrigin(nextOrigin)) {
-        grantedForChange = await permissions.request(permission);
-        if (!grantedForChange) throw new ServerConfigClientError("permission-denied");
+        const granted = await permissions.request(permission);
+        if (!granted) throw new ServerConfigClientError("permission-denied");
       }
 
-      const current = await dispatch(send, { type: "config/server/get" });
-      const currentOrigin = serverPermissionOrigin(current.apiUrl);
-      try {
-        const result = await dispatch(send, { type: "config/server/set", apiUrl });
-        if (
-          result.changed
-          && currentOrigin !== null
-          && currentOrigin !== nextOrigin
-          && !isRequiredServerOrigin(currentOrigin)
-        ) {
-          await permissions.remove({ origins: [currentOrigin] }).catch(() => false);
-        }
-        return result;
-      } catch (error) {
-        if (grantedForChange) {
-          await permissions.remove(permission).catch(() => false);
-        }
-        throw error;
-      }
+      return dispatch(send, { type: "config/server/set", apiUrl });
     },
   };
 }

@@ -17,6 +17,7 @@ function makeClient(overrides: Partial<SessionClient> = {}): Fake {
     getCapabilities: vi.fn(async () => ({ runtimeUnlock: false })),
     login: vi.fn(async () => ({ status: "unlocked" }) as const),
     completeTotp: vi.fn(async () => "unlocked" as const),
+    cancelTotp: vi.fn(async () => {}),
     unlock: vi.fn(async () => "unlocked" as const),
     lock: vi.fn(async () => {}),
     logout: vi.fn(async () => {}),
@@ -127,6 +128,35 @@ describe("popup state machine", () => {
     expect(await screen.findByRole("heading", { name: "Your vault" })).toBeInTheDocument();
     // Code trimmed; the retained password passes through untrimmed.
     expect(client.completeTotp).toHaveBeenCalledWith("chal", "123456", "pw with space ");
+  });
+
+  it("drops a pending TOTP password when the server changes", async () => {
+    const client = makeClient({
+      login: vi.fn(async () => ({ status: "totp-required", challengeToken: "prod-chal" }) as const),
+    });
+    render(
+      <App
+        client={client}
+        pairingClient={makePairingClient()}
+        serverConfigClient={makeServerConfigClient()}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Email"), "user@palladin.io");
+    await user.type(screen.getByLabelText("Master password"), "pending password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await screen.findByRole("heading", { name: "Enter your code" });
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.clear(await screen.findByLabelText("Server URL"));
+    await user.type(screen.getByLabelText("Server URL"), "https://self-host.example.com");
+    await user.click(screen.getByRole("button", { name: "Save server" }));
+    await waitFor(() => expect(client.getStatus).toHaveBeenCalledTimes(2));
+    await user.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.queryByText("pending password")).not.toBeInTheDocument();
+    expect(client.completeTotp).not.toHaveBeenCalled();
   });
 
   it("unlocks a locked session with the master password", async () => {

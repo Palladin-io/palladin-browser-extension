@@ -10,7 +10,6 @@ import {
 function permissionClient(overrides: Partial<PermissionClient> = {}): PermissionClient {
   return {
     request: vi.fn(async () => true),
-    remove: vi.fn(async () => true),
     ...overrides,
   };
 }
@@ -67,25 +66,16 @@ describe("popup server configuration client", () => {
     expect(command).not.toHaveBeenCalled();
   });
 
-  it("removes a newly granted origin when the worker rejects the change", async () => {
+  it("leaves serialized permission cleanup to the background transaction", async () => {
     const permissions = permissionClient();
-    const command = vi.fn<SendServerConfigCommand>(async (message) => message.type === "config/server/get"
-      ? { ok: true as const, apiUrl: "https://api.palladin.io", changed: false }
-      : { ok: false as const, code: "unavailable" });
+    const command = vi.fn<SendServerConfigCommand>(async () => ({
+      ok: false as const,
+      code: "unavailable",
+    }));
     const client = createServerConfigClient(command, permissions);
 
     await expect(client.save("https://vault.example.com")).rejects
       .toEqual(new ServerConfigClientError("unavailable"));
-    expect(permissions.remove).toHaveBeenCalledWith({
-      origins: ["https://vault.example.com/*"],
-    });
-  });
-
-  it("removes the previous custom origin after a committed change", async () => {
-    const permissions = permissionClient();
-    const client = createServerConfigClient(send("https://old.example.com"), permissions);
-
-    await client.save("https://new.example.com");
-    expect(permissions.remove).toHaveBeenCalledWith({ origins: ["https://old.example.com/*"] });
+    expect(command).toHaveBeenCalledTimes(1);
   });
 });

@@ -33,6 +33,7 @@ export type SessionCommand =
       readonly code: string;
       readonly password: string;
     }
+  | { readonly type: "session/cancelTotp" }
   | { readonly type: "session/unlock"; readonly password: string }
   | { readonly type: "session/lock" }
   | { readonly type: "session/logout" }
@@ -78,6 +79,9 @@ export async function dispatchSessionCommand(
       case "session/completeTotp":
         await manager.completeTotp(command.challengeToken, command.code, command.password);
         return { ok: true, status: await manager.getStatus() };
+      case "session/cancelTotp":
+        manager.cancelTotp();
+        return { ok: true };
       case "session/unlock":
         await manager.unlockWithPassword(command.password);
         return { ok: true, status: "unlocked" };

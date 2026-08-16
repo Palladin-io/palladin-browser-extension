@@ -13,6 +13,7 @@ import { useState } from "react";
 import type { EntryMetadata } from "../../background/vault/entry-metadata";
 import type { VaultClient } from "../vault/client";
 import { EntryRow } from "./EntryRow";
+import { useI18n } from "../i18n";
 
 export const CAP = 100;
 
@@ -22,6 +23,7 @@ export interface EntryListProps {
 }
 
 export function EntryList({ client, entries }: EntryListProps): React.JSX.Element {
+  const { t } = useI18n();
   const [showAll, setShowAll] = useState(false);
   const visible = showAll ? entries : entries.slice(0, CAP);
   const hidden = entries.length - visible.length;
@@ -33,7 +35,7 @@ export function EntryList({ client, entries }: EntryListProps): React.JSX.Elemen
       ))}
       {hidden > 0 ? (
         <button type="button" className="show-more" onClick={() => setShowAll(true)}>
-          Show {hidden} more
+          {t("vault.showMore", { count: hidden })}
         </button>
       ) : null}
     </div>

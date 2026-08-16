@@ -185,6 +185,12 @@ export class Protocol2VaultDataService implements VaultDataSource {
     this.lastUserId = null
   }
 
+  async clearAllCache(): Promise<void> {
+    this.currentVaults.clear()
+    this.lastUserId = null
+    await this.deps.cache.clearAll()
+  }
+
   async saveGeneratedPassword(input: SaveGeneratedPasswordInput): Promise<GeneratedPasswordSaveResult> {
     const parsed = parseSecureSite(input.url)
     if (parsed === null || parsed.site !== input.site) {

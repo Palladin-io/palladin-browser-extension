@@ -23,7 +23,13 @@ release candidates.
 - The popup defaults to the production API. Settings can select staging,
   localhost, or an HTTPS self-hosted API through an exact optional host
   permission. A change signs out and clears the local encrypted cache, and
-  stored session tokens are bound to their issuing API URL.
+  stored session tokens and pending TOTP challenges are bound to their issuing
+  API URL. A generation barrier drains old-host operations before the durable
+  switch and serializes exact-origin permission cleanup.
+- English and Polish cover the complete popup and manifest metadata. Language
+  defaults to the browser UI language (English fallback) with an explicit
+  override. Theme defaults to the system color scheme and supports persistent
+  Light/Dark overrides using the web panel's reviewed `--cv-*` tokens.
 - Copy is available only in the Chromium artifact, where the reviewed offscreen
   TTL wipe exists. Firefox and Safari hide Copy and reject copy commands before
   decrypting a value.

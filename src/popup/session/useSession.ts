@@ -1,13 +1,15 @@
 /**
  * The popup's session state machine. It owns the coarse {@link SessionPhase}
  * and the small amount of state that must survive a screen transition — the
- * pending TOTP challenge (and the password needed to finish it). Screens call
+ * popup copy of a pending TOTP challenge (and the password needed to finish it).
+ * The service worker independently owns and host-binds the authoritative
+ * challenge context. Screens call
  * the returned actions and handle their own inline errors and busy state; the
  * actions here re-throw so a screen can localise the failure and stay put.
  *
  * SECURITY: the pending TOTP password lives only in this hook's memory and is
- * dropped the moment the second factor completes or the user backs out — never
- * persisted, never logged.
+ * dropped when the second factor completes, the user backs out, or the server
+ * changes — never persisted, never logged.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -104,9 +106,10 @@ export function useSession(client: SessionClient): UseSession {
   );
 
   const cancelTotp = useCallback(() => {
+    void client.cancelTotp();
     pendingTotp.current = null;
     setPhase("signed-out");
-  }, []);
+  }, [client]);
 
   const unlock = useCallback(
     async (password: string) => {
@@ -127,7 +130,10 @@ export function useSession(client: SessionClient): UseSession {
     setPhase("signed-out");
   }, [client]);
 
-  const retryInit = useCallback(() => setInitNonce((n) => n + 1), []);
+  const retryInit = useCallback(() => {
+    pendingTotp.current = null;
+    setInitNonce((n) => n + 1);
+  }, []);
 
   return {
     phase,

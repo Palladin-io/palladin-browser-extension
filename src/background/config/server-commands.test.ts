@@ -12,6 +12,8 @@ function deps(): ServerConfigCommandDeps {
     hasAccess: vi.fn(async () => true),
     beforeChange: vi.fn(async () => undefined),
     save: vi.fn(async (apiUrl) => apiUrl),
+    afterChange: vi.fn(async () => undefined),
+    afterFailedChange: vi.fn(async () => undefined),
   };
 }
 
@@ -75,6 +77,10 @@ describe("server configuration commands", () => {
       changed: true,
     });
     expect(order).toEqual(["wipe", "save"]);
+    expect(commandDeps.afterChange).toHaveBeenCalledWith(
+      "https://api.palladin.io",
+      "https://vault.example.com",
+    );
   });
 
   it("does not sign out when the normalized URL is unchanged", async () => {
@@ -88,5 +94,19 @@ describe("server configuration commands", () => {
       changed: false,
     });
     expect(commandDeps.beforeChange).not.toHaveBeenCalled();
+  });
+
+  it("cleans an unused requested origin when the transaction fails", async () => {
+    const commandDeps = deps();
+    vi.mocked(commandDeps.save).mockRejectedValue(new Error("storage unavailable"));
+
+    await expect(handleServerConfigRuntimeMessage(commandDeps, {
+      type: "config/server/set",
+      apiUrl: "https://vault.example.com",
+    })).resolves.toEqual({ ok: false, code: "unavailable" });
+    expect(commandDeps.afterFailedChange).toHaveBeenCalledWith(
+      "https://vault.example.com",
+      "https://api.palladin.io",
+    );
   });
 });

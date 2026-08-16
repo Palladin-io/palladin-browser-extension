@@ -12,6 +12,7 @@ import { Button } from "./components/Button";
 import { Header } from "./components/Header";
 import { Spinner } from "./components/Spinner";
 import { createServerConfigClient, type ServerConfigClient } from "./config/client";
+import { useI18n } from "./i18n";
 import { createSessionClient, type SessionClient } from "./session/client";
 import { useSession, type SessionPhase } from "./session/useSession";
 import { SignInScreen } from "./screens/SignInScreen";
@@ -46,6 +47,7 @@ function headerStatus(phase: SessionPhase): SessionStatus | undefined {
 }
 
 export function App({ client, pairingClient, serverConfigClient }: AppProps): React.JSX.Element {
+  const { t } = useI18n();
   const sessionClient = useMemo(() => client ?? createSessionClient(), [client]);
   const runtimeClient = useMemo(
     () => pairingClient ?? createAgentPairingClient(),
@@ -81,15 +83,15 @@ export function App({ client, pairingClient, serverConfigClient }: AppProps): Re
         return (
           <div className="centered">
             <Spinner />
-            <span className="muted">Checking your session…</span>
+            <span className="muted">{t("app.checkingSession")}</span>
           </div>
         );
       case "unavailable":
         return (
           <div className="centered">
-            <span className="muted">Can't reach the Palladin background service.</span>
+            <span className="muted">{t("app.backgroundUnavailable")}</span>
             <Button variant="subtle" onClick={session.retryInit}>
-              Try again
+              {t("common.tryAgain")}
             </Button>
           </div>
         );

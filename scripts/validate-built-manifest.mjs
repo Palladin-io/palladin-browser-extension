@@ -9,7 +9,14 @@ export function validateBuiltManifest(root, target) {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 
   invariant(manifest.manifest_version === 3, `${target}: expected Manifest V3`);
-  invariant(manifest.name === "Palladin", `${target}: unexpected extension name`);
+  invariant(manifest.name === "__MSG_extensionName__", `${target}: unexpected extension name`);
+  invariant(manifest.default_locale === "en", `${target}: unexpected default locale`);
+  for (const locale of ["en", "pl"]) {
+    invariant(
+      existsSync(resolve(outputDirectory, "_locales", locale, "messages.json")),
+      `${target}: missing ${locale} manifest messages`,
+    );
+  }
   invariant(
     sameSet(manifest.host_permissions, [
       "http://localhost:5000/*",

@@ -50,4 +50,13 @@ describe("createSessionClient", () => {
       password: "  spaced  ",
     });
   });
+
+  it("cancels the background-owned pending TOTP context", async () => {
+    const send = vi.fn<SendCommand>(async () => ({ ok: true }) as const);
+    const client = createSessionClient(send);
+
+    await client.cancelTotp();
+
+    expect(send).toHaveBeenCalledWith({ type: "session/cancelTotp" });
+  });
 });

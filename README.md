@@ -23,7 +23,13 @@ public-key fingerprint; production native-runtime packaging remains a release ga
 The popup defaults to `https://api.palladin.io` and exposes an extension-owned
 server setting for staging, localhost, or an HTTPS self-hosted deployment.
 Changing the server signs out the current session and clears the local encrypted
-cache; custom origins require an explicit browser permission prompt.
+cache; custom origins require an explicit browser permission prompt. A
+background-owned generation barrier drains API-backed work before the switch,
+invalidates pending TOTP, and serializes optional-permission cleanup.
+The popup ships complete English and Polish catalogs (including localized
+manifest metadata), follows the browser language by default, and allows an
+explicit language override. Its `System / Light / Dark` preference defaults to
+the operating-system color scheme and reuses the web panel's `--cv-*` tokens.
 Clipboard Copy is intentionally disabled on Firefox and Safari until those
 targets have a reviewed TTL wipe. Cross-browser runtime validation and
 production store publication remain in development. Do not use development

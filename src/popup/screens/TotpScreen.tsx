@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { Button } from "../components/Button";
 import { FormInput } from "../components/FormInput";
 import { messageForError } from "../session/errors";
+import { useI18n } from "../i18n";
 
 /**
  * Second factor: a 6-digit authenticator (or recovery) code for the pending
@@ -16,6 +17,7 @@ export interface TotpScreenProps {
 }
 
 export function TotpScreen({ onSubmitTotp, onBack }: TotpScreenProps): React.JSX.Element {
+  const { t } = useI18n();
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -30,20 +32,18 @@ export function TotpScreen({ onSubmitTotp, onBack }: TotpScreenProps): React.JSX
     try {
       await onSubmitTotp(code.trim());
     } catch (err) {
-      setError(messageForError(err, "totp"));
+      setError(messageForError(err, "totp", t));
       setSubmitting(false);
     }
   }
 
   return (
     <section>
-      <h2 className="screen-title">Enter your code</h2>
-      <p className="screen-subtitle">
-        Two-factor is on for this account. Enter the code from your authenticator app.
-      </p>
+      <h2 className="screen-title">{t("auth.totp.title")}</h2>
+      <p className="screen-subtitle">{t("auth.totp.subtitle")}</p>
       <form className="form" onSubmit={handleSubmit} noValidate>
         <FormInput
-          label="Authentication code"
+          label={t("auth.totp.code")}
           type="text"
           inputMode="numeric"
           autoComplete="one-time-code"
@@ -54,10 +54,10 @@ export function TotpScreen({ onSubmitTotp, onBack }: TotpScreenProps): React.JSX
           disabled={submitting}
         />
         <Button type="submit" variant="accent" block disabled={!canSubmit} loading={submitting}>
-          Verify
+          {t("auth.totp.verify")}
         </Button>
         <Button type="button" variant="ghost" block onClick={onBack} disabled={submitting}>
-          Back
+          {t("common.back")}
         </Button>
       </form>
     </section>

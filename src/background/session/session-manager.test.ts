@@ -472,4 +472,38 @@ describe("SessionManager — TOTP second factor", () => {
     expect(await mgr.getStatus()).toBe("unlocked");
     expect(toBase64(mgr.getKeys()!.privateKey)).toBe(account.privateKeyB64);
   });
+
+  it("never sends a pending production challenge to a newly selected host", async () => {
+    const account = await buildTestAccount();
+    const backend = mockBackend(account, { totpRequired: true, totpCode: "424242" });
+    const storage = new FakeStorageArea();
+    const alarms = new FakeAlarms();
+    let apiUrl = "https://api.palladin.io";
+    const manager = new SessionManager({
+      store: new SessionStore(storage),
+      authClient: new AuthClient(backend.fetch, () => apiUrl),
+      autoLock: new AutoLock(alarms, () => {}),
+    });
+    await manager.login(account.email, account.password);
+    apiUrl = "https://self-host.example.com";
+
+    await expect(manager.completeTotp("challenge-1", "424242", account.password))
+      .rejects.toMatchObject({ name: "SessionError", code: "network" });
+    expect(backend.calls.filter((url) => url.endsWith("/api/auth/login/totp"))).toEqual([]);
+    expect(await manager.getStatus()).toBe("signed-out");
+  });
+
+  it("invalidates the background challenge when the popup cancels TOTP", async () => {
+    const account = await buildTestAccount();
+    const { mgr, backendCalls } = makeHarness(account, {
+      totpRequired: true,
+      totpCode: "424242",
+    });
+    await mgr.login(account.email, account.password);
+    mgr.cancelTotp();
+
+    await expect(mgr.completeTotp("challenge-1", "424242", account.password))
+      .rejects.toMatchObject({ name: "SessionError", code: "network" });
+    expect(backendCalls.filter((url) => url.endsWith("/api/auth/login/totp"))).toEqual([]);
+  });
 });

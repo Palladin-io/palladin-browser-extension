@@ -13,6 +13,8 @@ export interface ServerConfigCommandDeps {
   hasAccess(apiUrl: string): Promise<boolean>;
   beforeChange(): Promise<void>;
   save(apiUrl: string): Promise<string>;
+  afterChange(previousApiUrl: string, nextApiUrl: string): Promise<void>;
+  afterFailedChange(attemptedApiUrl: string, activeApiUrl: string): Promise<void>;
 }
 
 export function isServerConfigCommand(value: unknown): value is ServerConfigCommand {
@@ -42,10 +44,14 @@ export async function handleServerConfigRuntimeMessage(
     return { ok: true, apiUrl: normalized, changed: false };
   }
 
+  const previousApiUrl = deps.getApiUrl();
   try {
     await deps.beforeChange();
-    return { ok: true, apiUrl: await deps.save(normalized), changed: true };
+    const apiUrl = await deps.save(normalized);
+    await deps.afterChange(previousApiUrl, apiUrl).catch(() => undefined);
+    return { ok: true, apiUrl, changed: true };
   } catch {
+    await deps.afterFailedChange(normalized, deps.getApiUrl()).catch(() => undefined);
     return { ok: false, code: "unavailable" };
   }
 }

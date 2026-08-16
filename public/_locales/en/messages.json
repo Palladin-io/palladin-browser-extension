@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "Palladin"
+  },
+  "extensionDescription": {
+    "message": "Palladin password manager with user autofill and encrypted Vault access. Zero-knowledge: keys never leave your device."
+  },
+  "extensionActionTitle": {
+    "message": "Open Palladin"
+  }
+}

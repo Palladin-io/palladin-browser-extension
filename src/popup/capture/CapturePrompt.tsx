@@ -1,6 +1,7 @@
 import type { CapturePromptView } from "@shared/messaging/capture";
 
 import { Button } from "../components/Button";
+import { useI18n } from "../i18n";
 
 export interface CapturePromptProps {
   readonly prompt: CapturePromptView;
@@ -13,16 +14,17 @@ export function CapturePrompt({
   onUseStrongPassword,
   onDismiss,
 }: CapturePromptProps): React.JSX.Element {
+  const { t } = useI18n();
   const title = prompt.kind === "registration"
-    ? "New password form detected"
-    : "Password change detected";
+    ? t("capture.registration")
+    : t("capture.passwordChange");
   return (
     <section className="capture-prompt" aria-labelledby="capture-prompt-title">
       <h3 id="capture-prompt-title">{title}</h3>
-      <p>Generate and fill a strong password for {prompt.site}, then choose whether to save it.</p>
+      <p>{t("capture.description", { site: prompt.site })}</p>
       <div className="capture-actions">
-        <Button onClick={onUseStrongPassword}>Use strong password</Button>
-        <Button variant="ghost" onClick={onDismiss}>Not now</Button>
+        <Button onClick={onUseStrongPassword}>{t("capture.useStrong")}</Button>
+        <Button variant="ghost" onClick={onDismiss}>{t("capture.notNow")}</Button>
       </div>
     </section>
   );

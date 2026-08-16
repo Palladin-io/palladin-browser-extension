@@ -6,36 +6,40 @@
  */
 
 import type { FillBlockReason, FillResult } from "../../background/vault/commands";
+import { translate, type Translate } from "../i18n";
 
-export function fillMessage(result: FillResult): string {
+export function fillMessage(
+  result: FillResult,
+  t: Translate = (key, values) => translate("en", key, values),
+): string {
   switch (result.status) {
     case "filled":
-      return "Filled";
+      return t("fill.filled");
     case "no-form":
-      return "No login form found";
+      return t("fill.noLoginForm");
     case "blocked":
-      return blockedMessage(result.reason);
+      return blockedMessage(result.reason, t);
   }
 }
 
-function blockedMessage(reason: FillBlockReason): string {
+function blockedMessage(reason: FillBlockReason, t: Translate): string {
   switch (reason) {
     case "insecure-page":
-      return "Fill only works on HTTPS pages";
+      return t("fill.insecure");
     case "domain-mismatch":
-      return "This entry is not for the current site";
+      return t("fill.domainMismatch");
     case "no-active-tab":
-      return "No active tab to fill";
+      return t("fill.noActiveTab");
     case "target-changed":
-      return "The page changed - try again";
+      return t("fill.targetChanged");
     case "locked":
-      return "Locked - reopen to unlock";
+      return t("fill.locked");
     case "not-fillable":
-      return "This entry has no login to fill";
+      return t("fill.notFillable");
     case "not-found":
     case "decrypt-failed":
     case "network":
     default:
-      return "Could not fill this entry";
+      return t("fill.error");
   }
 }

@@ -9,6 +9,7 @@
  */
 
 import type { SessionErrorCode } from "../../background/session/types";
+import { translate, type Translate, type TranslationKey } from "../i18n";
 
 export type ErrorContext = "sign-in" | "totp" | "unlock";
 
@@ -20,32 +21,33 @@ export class PopupSessionError extends Error {
   }
 }
 
-const GENERIC = "Something went wrong. Try again.";
-
-const SHARED: Partial<Record<SessionErrorCode, string>> = {
-  network: "Can't reach Palladin. Check your connection and try again.",
-  "no-account-material":
-    "This account isn't set up for unlock yet. Finish setup in the web panel.",
-  "not-authenticated": "Your session has expired. Sign in again.",
+const SHARED: Partial<Record<SessionErrorCode, TranslationKey>> = {
+  network: "error.network",
+  "no-account-material": "error.noAccountMaterial",
+  "not-authenticated": "error.sessionExpired",
 };
 
-const BY_CONTEXT: Record<ErrorContext, Partial<Record<SessionErrorCode, string>>> = {
+const BY_CONTEXT: Record<ErrorContext, Partial<Record<SessionErrorCode, TranslationKey>>> = {
   "sign-in": {
-    "invalid-credentials": "Incorrect email or master password.",
-    "incorrect-password": "Incorrect email or master password.",
+    "invalid-credentials": "error.invalidSignIn",
+    "incorrect-password": "error.invalidSignIn",
   },
   totp: {
-    "invalid-credentials": "That code didn't match. Try again.",
-    "incorrect-password": "That code didn't match. Try again.",
+    "invalid-credentials": "error.invalidTotp",
+    "incorrect-password": "error.invalidTotp",
   },
   unlock: {
-    "invalid-credentials": "Incorrect master password.",
-    "incorrect-password": "Incorrect master password.",
-    "not-authenticated": "Your session has expired. Sign in again.",
+    "invalid-credentials": "error.invalidPassword",
+    "incorrect-password": "error.invalidPassword",
+    "not-authenticated": "error.sessionExpired",
   },
 };
 
-export function messageForError(error: unknown, context: ErrorContext): string {
-  if (!(error instanceof PopupSessionError)) return GENERIC;
-  return BY_CONTEXT[context][error.code] ?? SHARED[error.code] ?? GENERIC;
+export function messageForError(
+  error: unknown,
+  context: ErrorContext,
+  t: Translate = (key, values) => translate("en", key, values),
+): string {
+  if (!(error instanceof PopupSessionError)) return t("error.generic");
+  return t(BY_CONTEXT[context][error.code] ?? SHARED[error.code] ?? "error.generic");
 }

@@ -1,9 +1,7 @@
 /*
- * Popup styling. Dark is the primary experience (the popup should read as
- * Palladin, not a generic form); light is a `prefers-color-scheme` override.
- * Tokens mirror the web panel `--cv-*` values so the two surfaces stay in step —
- * no invented brand hexes. No `text-transform: uppercase` anywhere: strings
- * render in the case written.
+ * Popup styling. Light and dark tokens mirror the web panel `--cv-*` values;
+ * `[data-theme]` is resolved from System / Light / Dark by the preference
+ * provider. No invented brand hexes and no `text-transform: uppercase`.
  */
 
 :root {
@@ -12,6 +10,28 @@
   --cv-primary-rgb: 235 71 71;
   --cv-success: #10b981;
 
+  --cv-bg: #f3f5f8;
+  --cv-surface: #ffffff;
+  --cv-t1: #0c0e12;
+  --cv-t2: #3d4e66;
+  --cv-t3: #8a95a6;
+  --cv-border: rgba(12, 14, 18, 0.1);
+
+  --cv-input-bg: #ffffff;
+  --cv-input-border: rgba(12, 14, 18, 0.14);
+  --cv-input-text: #0c0e12;
+  --cv-input-placeholder: #8a95a6;
+  --cv-label-text: #5a6478;
+
+  --cv-btn-subtle-bg: rgba(12, 14, 18, 0.05);
+  --cv-btn-subtle-text: #0c0e12;
+  --cv-btn-subtle-border: rgba(12, 14, 18, 0.12);
+  --cv-btn-subtle-hover: rgba(12, 14, 18, 0.09);
+  --cv-btn-ghost-text: #5a6478;
+  --cv-btn-ghost-hover: rgba(12, 14, 18, 0.05);
+}
+
+:root[data-theme="dark"] {
   --cv-bg: #16161a;
   --cv-surface: rgba(232, 234, 237, 0.04);
   --cv-t1: #e8eaed;
@@ -31,30 +51,6 @@
   --cv-btn-subtle-hover: rgba(232, 234, 237, 0.12);
   --cv-btn-ghost-text: #b4b8c0;
   --cv-btn-ghost-hover: rgba(232, 234, 237, 0.06);
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --cv-bg: #f3f5f8;
-    --cv-surface: #ffffff;
-    --cv-t1: #0c0e12;
-    --cv-t2: #3d4e66;
-    --cv-t3: #8a95a6;
-    --cv-border: rgba(12, 14, 18, 0.1);
-
-    --cv-input-bg: #ffffff;
-    --cv-input-border: rgba(12, 14, 18, 0.14);
-    --cv-input-text: #0c0e12;
-    --cv-input-placeholder: #8a95a6;
-    --cv-label-text: #5a6478;
-
-    --cv-btn-subtle-bg: rgba(12, 14, 18, 0.05);
-    --cv-btn-subtle-text: #0c0e12;
-    --cv-btn-subtle-border: rgba(12, 14, 18, 0.12);
-    --cv-btn-subtle-hover: rgba(12, 14, 18, 0.09);
-    --cv-btn-ghost-text: #5a6478;
-    --cv-btn-ghost-hover: rgba(12, 14, 18, 0.05);
-  }
 }
 
 * {
@@ -326,6 +322,17 @@ body {
 
 .settings-screen {
   gap: 16px;
+}
+
+.appearance-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.settings-select {
+  appearance: auto;
+  cursor: pointer;
 }
 
 .server-settings-form {

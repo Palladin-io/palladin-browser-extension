@@ -1,5 +1,6 @@
 import type { SessionStatus } from "../../background/session/types";
 import brandLogoUrl from "../../../icons/logo-source.png";
+import { useI18n, type TranslationKey } from "../i18n";
 
 /**
  * Popup header: the Palladin brand lockup plus a small status chip mirroring the
@@ -13,10 +14,10 @@ export interface HeaderProps {
   onToggleSettings?(): void;
 }
 
-const CHIP: Record<SessionStatus, { label: string; dot: string }> = {
-  unlocked: { label: "Unlocked", dot: "status-dot--unlocked" },
-  locked: { label: "Locked", dot: "status-dot--locked" },
-  "signed-out": { label: "Signed out", dot: "" },
+const CHIP: Record<SessionStatus, { label: TranslationKey; dot: string }> = {
+  unlocked: { label: "status.unlocked", dot: "status-dot--unlocked" },
+  locked: { label: "status.locked", dot: "status-dot--locked" },
+  "signed-out": { label: "status.signedOut", dot: "" },
 };
 
 export function Header({
@@ -24,6 +25,7 @@ export function Header({
   settingsOpen = false,
   onToggleSettings,
 }: HeaderProps): React.JSX.Element {
+  const { t } = useI18n();
   const chip = status ? CHIP[status] : null;
   return (
     <header className="popup-header">
@@ -37,12 +39,12 @@ export function Header({
         {chip ? (
           <span className="status-chip" role="status">
             <span className={`status-dot ${chip.dot}`.trim()} aria-hidden="true" />
-            {chip.label}
+            {t(chip.label)}
           </span>
         ) : null}
         {onToggleSettings ? (
           <button type="button" className="header-link" onClick={onToggleSettings}>
-            {settingsOpen ? "Back" : "Settings"}
+            {settingsOpen ? t("common.back") : t("common.settings")}
           </button>
         ) : null}
       </div>

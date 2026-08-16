@@ -21,6 +21,13 @@ background service worker  <---->  extension popup
 Palladin local runtime              Palladin services
 ```
 
+The popup owns only non-secret presentation preferences. `language` defaults to
+the browser UI language and `theme` defaults to `prefers-color-scheme`; explicit
+EN/PL and Light/Dark overrides are persisted in `chrome.storage.local`. Runtime
+copy comes from exact-parity locale catalogs, while manifest/store-facing copy
+uses MV3 `_locales`. Theme tokens mirror the web panel and never alter the
+worker's session, key, or authorization state.
+
 - The page main world is controlled by the visited site. It is never a trust
   anchor, even if a message contains a nonce that page scripts can observe.
 - The isolated-world script validates shape, direction, frame, origin, and
@@ -123,6 +130,15 @@ non-secret API base URL. A changed URL first terminates the current session,
 wipes in-memory keys, and clears the ciphertext cache. Session tokens carry the
 exact issuing API URL and are rejected and cleared if they do not match the
 current server, so a token can never cross a server boundary.
+
+The service worker owns a generation/lease barrier for this transition. Login,
+TOTP, refresh, popup Vault commands, capture writes, unlock refresh, and periodic
+sync hold a lease across the complete operation. A server mutation closes new
+admission, drains the old generation, invalidates any background-owned TOTP
+challenge, logs out, clears every IndexedDB ciphertext-cache partition, commits
+the new URL, and only then reopens admission. Optional permission cleanup runs
+inside the same serialized transition; popup contexts never remove permissions
+from stale pre-change state.
 
 ## Build and release boundary
 

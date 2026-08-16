@@ -13,6 +13,7 @@ import {
 interface Manifest {
   manifest_version: number;
   name: string;
+  default_locale?: string;
   key?: string;
   background?: {
     service_worker?: string;
@@ -42,7 +43,8 @@ describe("buildManifest (shared)", () => {
   it.each(BUILD_TARGETS)("builds a valid %s MV3 manifest", (target) => {
     const manifest = manifests[target];
     expect(manifest.manifest_version).toBe(3);
-    expect(manifest.name).toBe("Palladin");
+    expect(manifest.name).toBe("__MSG_extensionName__");
+    expect(manifest.default_locale).toBe("en");
     expect(manifest.background?.service_worker).toBeTruthy();
     expect(manifest.background?.type).toBe("module");
     expect(manifest.host_permissions).toEqual([

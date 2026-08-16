@@ -138,5 +138,23 @@ describe('encrypted Protocol 2 sync cache', () => {
     expect(serialized).not.toContain('vaultKey')
     expect(serialized).not.toContain('privateKey')
   })
-})
 
+  it('clears every persisted user partition during a server change', async () => {
+    const subject = cache()
+    const otherUser = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const entryId = '33333333-3333-4333-8333-333333333333'
+    await subject.beginSnapshot(userId, vault('1'), 'first', '1')
+    await subject.applySnapshotPage(userId, vaultId, 'first', [head(entryId, '1')], null)
+    await subject.completeSnapshot(userId, vault('1'), 'first', '1')
+    await subject.beginSnapshot(otherUser, vault('2'), 'second', '2')
+    await subject.applySnapshotPage(otherUser, vaultId, 'second', [head(entryId, '2')], null)
+    await subject.completeSnapshot(otherUser, vault('2'), 'second', '2')
+
+    await subject.clearAll()
+
+    expect(await subject.getActiveState(userId, vaultId)).toBeNull()
+    expect(await subject.getActiveState(otherUser, vaultId)).toBeNull()
+    expect((await subject.readActiveItemPage(userId, vaultId, null, 100)).items).toEqual([])
+    expect((await subject.readActiveItemPage(otherUser, vaultId, null, 100)).items).toEqual([])
+  })
+})

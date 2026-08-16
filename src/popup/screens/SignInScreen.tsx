@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { Button } from "../components/Button";
 import { FormInput } from "../components/FormInput";
 import { messageForError } from "../session/errors";
+import { useI18n } from "../i18n";
 
 /**
  * Signed-out state: email + master password. On submit the worker either
@@ -16,6 +17,7 @@ export interface SignInScreenProps {
 }
 
 export function SignInScreen({ onSignIn }: SignInScreenProps): React.JSX.Element {
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -31,18 +33,18 @@ export function SignInScreen({ onSignIn }: SignInScreenProps): React.JSX.Element
     try {
       await onSignIn(email.trim(), password);
     } catch (err) {
-      setError(messageForError(err, "sign-in"));
+      setError(messageForError(err, "sign-in", t));
       setSubmitting(false);
     }
   }
 
   return (
     <section>
-      <h2 className="screen-title">Sign in</h2>
-      <p className="screen-subtitle">Unlock Palladin for you and your agents.</p>
+      <h2 className="screen-title">{t("auth.signIn.title")}</h2>
+      <p className="screen-subtitle">{t("auth.signIn.subtitle")}</p>
       <form className="form" onSubmit={handleSubmit} noValidate>
         <FormInput
-          label="Email"
+          label={t("auth.email")}
           type="email"
           autoComplete="username"
           autoFocus
@@ -51,7 +53,7 @@ export function SignInScreen({ onSignIn }: SignInScreenProps): React.JSX.Element
           disabled={submitting}
         />
         <FormInput
-          label="Master password"
+          label={t("auth.masterPassword")}
           type="password"
           autoComplete="current-password"
           value={password}
@@ -60,7 +62,7 @@ export function SignInScreen({ onSignIn }: SignInScreenProps): React.JSX.Element
           disabled={submitting}
         />
         <Button type="submit" variant="accent" block disabled={!canSubmit} loading={submitting}>
-          Sign in
+          {t("auth.signIn.action")}
         </Button>
       </form>
     </section>

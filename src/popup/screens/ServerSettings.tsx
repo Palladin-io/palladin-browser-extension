@@ -4,6 +4,7 @@ import { PRODUCTION_API_URL, normalizeServerUrl } from "@shared/config/server";
 
 import { Button } from "../components/Button";
 import { FormInput } from "../components/FormInput";
+import { useI18n, type Translate } from "../i18n";
 import {
   ServerConfigClientError,
   type ServerConfigClient,
@@ -15,6 +16,7 @@ export interface ServerSettingsProps {
 }
 
 export function ServerSettings({ client, onChanged }: ServerSettingsProps): React.JSX.Element {
+  const { t } = useI18n();
   const [current, setCurrent] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -30,10 +32,10 @@ export function ServerSettings({ client, onChanged }: ServerSettingsProps): Reac
         setInput(status.apiUrl);
       })
       .catch(() => {
-        if (active) setError("Can't read the current server.");
+        if (active) setError(t("settings.server.readError"));
       });
     return () => { active = false; };
-  }, [client]);
+  }, [client, t]);
 
   const normalized = normalizeServerUrl(input);
   const canSave = current !== null && normalized !== null && !busy;
@@ -48,10 +50,10 @@ export function ServerSettings({ client, onChanged }: ServerSettingsProps): Reac
       const status = await client.save(input.trim());
       setCurrent(status.apiUrl);
       setInput(status.apiUrl);
-      setNotice(status.changed ? "Server updated. You were signed out." : "Server is unchanged.");
+      setNotice(status.changed ? t("settings.server.updated") : t("settings.server.unchanged"));
       if (status.changed) onChanged();
     } catch (cause) {
-      setError(serverError(cause));
+      setError(serverError(cause, t));
     } finally {
       setBusy(false);
     }
@@ -59,13 +61,11 @@ export function ServerSettings({ client, onChanged }: ServerSettingsProps): Reac
 
   return (
     <section className="server-settings">
-      <h2 className="screen-title">Server</h2>
-      <p className="screen-subtitle">
-        Production is the default. HTTPS is required; HTTP is allowed only on localhost.
-      </p>
+      <h2 className="screen-title">{t("settings.server.title")}</h2>
+      <p className="screen-subtitle">{t("settings.server.subtitle")}</p>
       <form className="server-settings-form" onSubmit={handleSubmit} noValidate>
         <FormInput
-          label="Server URL"
+          label={t("settings.server.url")}
           type="url"
           inputMode="url"
           spellCheck={false}
@@ -81,15 +81,15 @@ export function ServerSettings({ client, onChanged }: ServerSettingsProps): Reac
           }}
         />
         <p className="settings-warning">
-          Changing the server signs you out and clears the local encrypted cache.
+          {t("settings.server.warning")}
         </p>
         {notice ? <p className="settings-notice" role="status">{notice}</p> : null}
         <div className="settings-actions">
           <Button type="button" variant="ghost" onClick={() => setInput(PRODUCTION_API_URL)} disabled={busy}>
-            Use production
+            {t("settings.server.production")}
           </Button>
           <Button type="submit" variant="accent" disabled={!canSave} loading={busy}>
-            Save server
+            {t("settings.server.save")}
           </Button>
         </div>
       </form>
@@ -97,14 +97,14 @@ export function ServerSettings({ client, onChanged }: ServerSettingsProps): Reac
   );
 }
 
-function serverError(error: unknown): string {
+function serverError(error: unknown, t: Translate): string {
   if (error instanceof ServerConfigClientError) {
     if (error.code === "invalid-server") {
-      return "Enter an HTTPS URL or an HTTP localhost URL.";
+      return t("settings.server.invalid");
     }
     if (error.code === "permission-denied") {
-      return "Allow access to this server to use it with Palladin.";
+      return t("settings.server.permission");
     }
   }
-  return "Couldn't update the server. Try again.";
+  return t("settings.server.updateError");
 }

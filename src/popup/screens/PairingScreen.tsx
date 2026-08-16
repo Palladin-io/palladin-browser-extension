@@ -12,12 +12,14 @@ import {
 } from "../agent/client";
 import { Button } from "../components/Button";
 import { Spinner } from "../components/Spinner";
+import { useI18n, type Translate } from "../i18n";
 
 export interface PairingScreenProps {
   client: AgentPairingClient;
 }
 
 export function PairingScreen({ client }: PairingScreenProps): React.JSX.Element {
+  const { t } = useI18n();
   const [status, setStatus] = useState<AgentPairingStatus | null>(null);
   const [bundleInput, setBundleInput] = useState("");
   const [confirmed, setConfirmed] = useState(false);
@@ -32,18 +34,18 @@ export function PairingScreen({ client }: PairingScreenProps): React.JSX.Element
         if (active) setStatus(next);
       })
       .catch(() => {
-        if (active) setError("Can't read Agent runtime pairing status.");
+        if (active) setError(t("pairing.readError"));
       });
     return () => { active = false; };
-  }, [client]);
+  }, [client, t]);
 
   if (status === null && error === null) {
     return (
       <section className="pairing-screen">
-        <h2 className="screen-title">Agent runtime</h2>
+        <h2 className="screen-title">{t("pairing.runtime")}</h2>
         <div className="centered pairing-loading">
           <Spinner />
-          <span className="muted">Checking pairing status…</span>
+          <span className="muted">{t("pairing.checking")}</span>
         </div>
       </section>
     );
@@ -52,19 +54,17 @@ export function PairingScreen({ client }: PairingScreenProps): React.JSX.Element
   if (status?.paired) {
     return (
       <section className="pairing-screen">
-        <h2 className="screen-title">Agent runtime</h2>
-        <p className="screen-subtitle">
-          This extension accepts Agent fill requests only from the pinned local runtime.
-        </p>
+        <h2 className="screen-title">{t("pairing.runtime")}</h2>
+        <p className="screen-subtitle">{t("pairing.pairedSubtitle")}</p>
         <div className="pairing-status-card">
-          <span className="pairing-status-label">Paired fingerprint</span>
+          <span className="pairing-status-label">{t("pairing.pairedFingerprint")}</span>
           <code className="pairing-fingerprint">
             {shortenPublicIdentifier(status.fingerprint)}
           </code>
         </div>
         {error ? <p className="pairing-error" role="alert">{error}</p> : null}
         <Button variant="danger" block loading={busy} onClick={() => void unpair()}>
-          Unpair runtime
+          {t("pairing.unpair")}
         </Button>
       </section>
     );
@@ -73,12 +73,12 @@ export function PairingScreen({ client }: PairingScreenProps): React.JSX.Element
   const malformed = bundleInput.length > 0 && bundle === null;
   return (
     <section className="pairing-screen">
-      <h2 className="screen-title">Pair Agent runtime</h2>
+      <h2 className="screen-title">{t("pairing.title")}</h2>
       <p className="screen-subtitle">
-        Run <code>palladin browser install</code> in a trusted terminal, then paste its
-        one-line pairing bundle here. Native Messaging cannot create or replace this pin.
+        {t("pairing.instructionsBefore")} <code>palladin browser install</code>{" "}
+        {t("pairing.instructionsAfter")}
       </p>
-      <label className="field-label" htmlFor="agent-pairing-bundle">Pairing bundle</label>
+      <label className="field-label" htmlFor="agent-pairing-bundle">{t("pairing.bundle")}</label>
       <textarea
         id="agent-pairing-bundle"
         className={`pairing-input${malformed ? " field-input--error" : ""}`}
@@ -94,11 +94,11 @@ export function PairingScreen({ client }: PairingScreenProps): React.JSX.Element
         }}
       />
       {malformed ? (
-        <p className="pairing-error" role="alert">Pairing bundle is malformed.</p>
+        <p className="pairing-error" role="alert">{t("pairing.malformed")}</p>
       ) : null}
       {bundle !== null ? (
         <div className="pairing-confirmation">
-          <span className="pairing-status-label">Fingerprint to verify</span>
+          <span className="pairing-status-label">{t("pairing.verifyFingerprint")}</span>
           <code className="pairing-fingerprint">
             {shortenPublicIdentifier(bundle.fingerprint)}
           </code>
@@ -108,7 +108,7 @@ export function PairingScreen({ client }: PairingScreenProps): React.JSX.Element
               checked={confirmed}
               onChange={(event) => setConfirmed(event.target.checked)}
             />
-            <span>I verified this fingerprint in the Palladin Runtime terminal.</span>
+            <span>{t("pairing.confirm")}</span>
           </label>
         </div>
       ) : null}
@@ -119,7 +119,7 @@ export function PairingScreen({ client }: PairingScreenProps): React.JSX.Element
         disabled={bundle === null || !confirmed}
         onClick={() => void pair()}
       >
-        Pair runtime
+        {t("pairing.action")}
       </Button>
     </section>
   );
@@ -134,7 +134,7 @@ export function PairingScreen({ client }: PairingScreenProps): React.JSX.Element
       setBundleInput("");
       setConfirmed(false);
     } catch (cause) {
-      setError(pairingError(cause));
+      setError(pairingError(cause, t));
     } finally {
       setBusy(false);
     }
@@ -148,23 +148,23 @@ export function PairingScreen({ client }: PairingScreenProps): React.JSX.Element
     } catch (cause) {
       setError(cause instanceof AgentPairingClientError
         && cause.code === "mutation-not-committed"
-        ? "Unpairing wasn't committed. Retry before restarting the extension."
-        : "Couldn't unpair the Agent runtime. Try again.");
+        ? t("pairing.unpairNotCommitted")
+        : t("pairing.unpairError"));
     } finally {
       setBusy(false);
     }
   }
 }
 
-function pairingError(error: unknown): string {
+function pairingError(error: unknown, t: Translate): string {
   if (error instanceof AgentPairingClientError) {
     if (error.code === "fingerprint-mismatch") {
-      return "Fingerprint mismatch. Generate a new pairing bundle and verify it again.";
+      return t("pairing.fingerprintMismatch");
     }
-    if (error.code === "invalid-bundle") return "Pairing bundle is malformed.";
+    if (error.code === "invalid-bundle") return t("pairing.malformed");
     if (error.code === "mutation-not-committed") {
-      return "Pairing wasn't committed. Retry before restarting the extension.";
+      return t("pairing.notCommitted");
     }
   }
-  return "Couldn't pair the Agent runtime. Try again.";
+  return t("pairing.error");
 }

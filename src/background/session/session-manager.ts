@@ -55,6 +55,12 @@ class SessionLifecycleChangedError extends Error {
   }
 }
 
+interface PendingTotpContext {
+  readonly challengeToken: string;
+  readonly apiUrl: string;
+  readonly lifecycleGeneration: number;
+}
+
 export class SessionManager {
   private readonly store: SessionStore;
   private readonly authClient: AuthClient;
@@ -68,6 +74,7 @@ export class SessionManager {
 
   /** In-memory keys — the authoritative live copy while unlocked. */
   private keys: SessionKeys | null = null;
+  private pendingTotp: PendingTotpContext | null = null;
   private lifecycleGeneration = 0;
   private lifecycleTerminations = 0;
 
@@ -130,15 +137,17 @@ export class SessionManager {
     const tokens = await this.getBoundTokens();
     if (!tokens) return null;
     try {
-      const auth = await this.authClient.refresh(tokens.refreshToken);
+      const auth = await this.authClient.refresh(tokens.refreshToken, tokens.apiUrl);
+      this.assertApiUrl(tokens.apiUrl);
       await this.store.setTokens({
         accessToken: auth.accessToken,
         refreshToken: auth.refreshToken,
         userId: auth.userId,
-        apiUrl: this.authClient.currentApiUrl(),
+        apiUrl: tokens.apiUrl,
       });
       return auth.accessToken;
     } catch {
+      if (tokens.apiUrl !== this.authClient.currentApiUrl()) await this.store.clearAll();
       return null;
     }
   }
@@ -151,17 +160,27 @@ export class SessionManager {
    * a TOTP challenge. The password stays on the client; only `authHash` is sent.
    */
   async login(email: string, password: string): Promise<LoginResult> {
+    this.pendingTotp = null;
     const generation = this.captureLifecycleGeneration();
-    const { authSalt } = await this.authClient.fetchLoginSalt(email);
+    const apiUrl = this.authClient.currentApiUrl();
+    const { authSalt } = await this.authClient.fetchLoginSalt(email, apiUrl);
     this.assertLifecycleGeneration(generation);
+    this.assertApiUrl(apiUrl);
     const authHash = await this.deriveAuthHash(password, authSalt);
     this.assertLifecycleGeneration(generation);
-    const response = await this.authClient.login(email, authHash);
+    this.assertApiUrl(apiUrl);
+    const response = await this.authClient.login(email, authHash, apiUrl);
     this.assertLifecycleGeneration(generation);
+    this.assertApiUrl(apiUrl);
     if (isTotpRequired(response)) {
+      this.pendingTotp = {
+        challengeToken: response.challengeToken,
+        apiUrl,
+        lifecycleGeneration: generation,
+      };
       return { status: "totp-required", challengeToken: response.challengeToken };
     }
-    await this.establishSession(response, password, generation);
+    await this.establishSession(response, password, generation, apiUrl);
     return { status: "unlocked" };
   }
 
@@ -171,10 +190,30 @@ export class SessionManager {
     code: string,
     password: string,
   ): Promise<void> {
+    const pending = this.pendingTotp;
     const generation = this.captureLifecycleGeneration();
-    const response = await this.authClient.totpLogin(challengeToken, code.trim());
+    if (
+      pending === null
+      || pending.challengeToken !== challengeToken
+      || pending.lifecycleGeneration !== generation
+      || pending.apiUrl !== this.authClient.currentApiUrl()
+    ) {
+      this.pendingTotp = null;
+      throw new SessionError("network", "TOTP challenge is no longer valid");
+    }
+    const response = await this.authClient.totpLogin(
+      challengeToken,
+      code.trim(),
+      pending.apiUrl,
+    );
     this.assertLifecycleGeneration(generation);
-    await this.establishSession(response, password, generation);
+    this.assertApiUrl(pending.apiUrl);
+    this.pendingTotp = null;
+    await this.establishSession(response, password, generation, pending.apiUrl);
+  }
+
+  cancelTotp(): void {
+    this.pendingTotp = null;
   }
 
   private async deriveAuthHash(password: string, authSalt: string): Promise<string> {
@@ -191,19 +230,23 @@ export class SessionManager {
     auth: AuthResponse,
     password: string,
     generation: number,
+    apiUrl: string,
   ): Promise<void> {
     this.assertLifecycleGeneration(generation);
+    this.assertApiUrl(apiUrl);
     const tokens: SessionTokens = {
       accessToken: auth.accessToken,
       refreshToken: auth.refreshToken,
       userId: auth.userId,
-      apiUrl: this.authClient.currentApiUrl(),
+      apiUrl,
     };
     await this.store.setTokens(tokens);
     this.assertLifecycleGeneration(generation);
+    this.assertApiUrl(apiUrl);
 
-    const account = await this.authClient.getAccount(auth.accessToken);
+    const account = await this.authClient.getAccount(auth.accessToken, apiUrl);
     this.assertLifecycleGeneration(generation);
+    this.assertApiUrl(apiUrl);
     if (!account.salt || !account.encryptedPrivateKey) {
       // A password account always has this material; its absence means the
       // account isn't set up to unlock. Leave tokens, stay locked, signal why.
@@ -301,7 +344,7 @@ export class SessionManager {
       this.autoLock.disarm();
       const tokens = await this.getBoundTokens();
       if (tokens) {
-        await this.authClient.logout(tokens.refreshToken);
+        await this.authClient.logout(tokens.refreshToken, tokens.apiUrl);
         void this.push.unregister(tokens.userId);
       }
       await this.store.clearAll();
@@ -331,6 +374,7 @@ export class SessionManager {
   }
 
   private beginLifecycleTermination(): void {
+    this.pendingTotp = null;
     this.lifecycleTerminations += 1;
     this.lifecycleGeneration += 1;
   }
@@ -349,6 +393,12 @@ export class SessionManager {
       this.lifecycleTerminations > 0
       || generation !== this.lifecycleGeneration
     ) {
+      throw new SessionLifecycleChangedError();
+    }
+  }
+
+  private assertApiUrl(apiUrl: string): void {
+    if (apiUrl !== this.authClient.currentApiUrl()) {
       throw new SessionLifecycleChangedError();
     }
   }

@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { Button } from "../components/Button";
 import { FormInput } from "../components/FormInput";
 import { messageForError } from "../session/errors";
+import { useI18n } from "../i18n";
 
 /**
  * Locked state (still authenticated): re-derive keys from the master password,
@@ -25,6 +26,7 @@ export function UnlockScreen({
   biometricAvailable,
   onBiometricUnlock,
 }: UnlockScreenProps): React.JSX.Element {
+  const { t } = useI18n();
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -39,18 +41,18 @@ export function UnlockScreen({
     try {
       await onUnlock(password);
     } catch (err) {
-      setError(messageForError(err, "unlock"));
+      setError(messageForError(err, "unlock", t));
       setSubmitting(false);
     }
   }
 
   return (
     <section>
-      <h2 className="screen-title">Unlock</h2>
-      <p className="screen-subtitle">Enter your master password to unlock your vault.</p>
+      <h2 className="screen-title">{t("auth.unlock.title")}</h2>
+      <p className="screen-subtitle">{t("auth.unlock.subtitle")}</p>
       <form className="form" onSubmit={handleSubmit} noValidate>
         <FormInput
-          label="Master password"
+          label={t("auth.masterPassword")}
           type="password"
           autoComplete="current-password"
           autoFocus
@@ -60,7 +62,7 @@ export function UnlockScreen({
           disabled={submitting}
         />
         <Button type="submit" variant="accent" block disabled={!canSubmit} loading={submitting}>
-          Unlock
+          {t("auth.unlock.action")}
         </Button>
         {biometricAvailable ? (
           <Button
@@ -70,7 +72,7 @@ export function UnlockScreen({
             onClick={onBiometricUnlock}
             disabled={submitting}
           >
-            Unlock with Touch ID
+            {t("auth.unlock.biometric")}
           </Button>
         ) : null}
       </form>
