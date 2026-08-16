@@ -69,6 +69,7 @@ export class SessionManager {
   /** In-memory keys — the authoritative live copy while unlocked. */
   private keys: SessionKeys | null = null;
   private lifecycleGeneration = 0;
+  private lifecycleTerminations = 0;
 
   constructor(deps: SessionManagerDeps) {
     this.store = deps.store;
@@ -149,7 +150,7 @@ export class SessionManager {
    * a TOTP challenge. The password stays on the client; only `authHash` is sent.
    */
   async login(email: string, password: string): Promise<LoginResult> {
-    const generation = this.lifecycleGeneration;
+    const generation = this.captureLifecycleGeneration();
     const { authSalt } = await this.authClient.fetchLoginSalt(email);
     this.assertLifecycleGeneration(generation);
     const authHash = await this.deriveAuthHash(password, authSalt);
@@ -169,7 +170,7 @@ export class SessionManager {
     code: string,
     password: string,
   ): Promise<void> {
-    const generation = this.lifecycleGeneration;
+    const generation = this.captureLifecycleGeneration();
     const response = await this.authClient.totpLogin(challengeToken, code.trim());
     this.assertLifecycleGeneration(generation);
     await this.establishSession(response, password, generation);
@@ -224,7 +225,7 @@ export class SessionManager {
 
   /** Re-derive keys for a locked session from cached material, via any source. */
   async unlock(source: UnlockSource): Promise<void> {
-    const generation = this.lifecycleGeneration;
+    const generation = this.captureLifecycleGeneration();
     const material = await this.store.getMaterial();
     this.assertLifecycleGeneration(generation);
     if (!material) {
@@ -277,27 +278,35 @@ export class SessionManager {
 
   /** Wipe key material and stop the idle timer; tokens + material survive. */
   async lock(): Promise<void> {
-    this.invalidatePendingUnlocks();
-    const wasUnlocked = this.keys !== null;
-    this.wipeKeys();
-    this.autoLock.disarm();
-    if (!wasUnlocked) return;
-    const tokens = await this.store.getTokens();
-    if (tokens) this.hooks.emitLocked({ userId: tokens.userId });
+    this.beginLifecycleTermination();
+    try {
+      const wasUnlocked = this.keys !== null;
+      this.wipeKeys();
+      this.autoLock.disarm();
+      if (!wasUnlocked) return;
+      const tokens = await this.store.getTokens();
+      if (tokens) this.hooks.emitLocked({ userId: tokens.userId });
+    } finally {
+      this.endLifecycleTermination();
+    }
   }
 
   /** Lock, revoke the refresh token server-side, and clear ALL session state. */
   async logout(): Promise<void> {
-    this.invalidatePendingUnlocks();
-    this.wipeKeys();
-    this.autoLock.disarm();
-    const tokens = await this.store.getTokens();
-    if (tokens) {
-      await this.authClient.logout(tokens.refreshToken);
-      void this.push.unregister(tokens.userId);
+    this.beginLifecycleTermination();
+    try {
+      this.wipeKeys();
+      this.autoLock.disarm();
+      const tokens = await this.store.getTokens();
+      if (tokens) {
+        await this.authClient.logout(tokens.refreshToken);
+        void this.push.unregister(tokens.userId);
+      }
+      await this.store.clearAll();
+      if (tokens) this.hooks.emitLocked({ userId: tokens.userId });
+    } finally {
+      this.endLifecycleTermination();
     }
-    await this.store.clearAll();
-    if (tokens) this.hooks.emitLocked({ userId: tokens.userId });
   }
 
   private wipeKeys(): void {
@@ -311,12 +320,25 @@ export class SessionManager {
     wipe(keys.privateKey);
   }
 
-  private invalidatePendingUnlocks(): void {
+  private beginLifecycleTermination(): void {
+    this.lifecycleTerminations += 1;
     this.lifecycleGeneration += 1;
   }
 
+  private endLifecycleTermination(): void {
+    this.lifecycleTerminations -= 1;
+  }
+
+  private captureLifecycleGeneration(): number {
+    this.assertLifecycleGeneration(this.lifecycleGeneration);
+    return this.lifecycleGeneration;
+  }
+
   private assertLifecycleGeneration(generation: number): void {
-    if (generation !== this.lifecycleGeneration) {
+    if (
+      this.lifecycleTerminations > 0
+      || generation !== this.lifecycleGeneration
+    ) {
       throw new SessionLifecycleChangedError();
     }
   }
