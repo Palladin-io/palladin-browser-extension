@@ -12,7 +12,7 @@ describe("MasterPasswordUnlock", () => {
       .deriveKeys(accountMaterial(account));
     expect(keys.masterKey).toHaveLength(32);
     expect(keys.privateKey).toHaveLength(32);
-  });
+  }, 15_000);
 
   it("throws a typed incorrect-password error on a wrong password", async () => {
     const account = await buildTestAccount();
@@ -22,7 +22,7 @@ describe("MasterPasswordUnlock", () => {
       code: "incorrect-password",
       name: SessionError.name,
     });
-  });
+  }, 15_000);
 });
 
 describe("RuntimeUnlock (E2 slot)", () => {

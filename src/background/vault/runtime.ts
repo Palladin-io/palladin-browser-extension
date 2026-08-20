@@ -57,17 +57,21 @@ export const clipboardGuard = new ClipboardGuard({ alarms, clear: clearClipboard
 async function getActiveTab(): Promise<ActiveTab | null> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab || tab.id === undefined) return null;
-  const browserDocumentId = browserDocumentIdForTab(tab.id);
+  return resolveTabDocument(tab.id);
+}
+
+async function resolveTabDocument(tabId: number): Promise<ActiveTab | null> {
+  const browserDocumentId = browserDocumentIdForTab(tabId);
   if (browserDocumentId === null) return null;
   try {
     const response = await chrome.tabs.sendMessage(
-      tab.id,
+      tabId,
       { channel: TAB_URL_REQUEST_CHANNEL },
       { documentId: browserDocumentId },
     );
     return isTabUrlResponse(response)
       ? {
-          id: tab.id,
+          id: tabId,
           url: response.url,
           documentId: response.documentId,
           browserDocumentId,
@@ -78,11 +82,44 @@ async function getActiveTab(): Promise<ActiveTab | null> {
   }
 }
 
+/**
+ * Open a new login tab, then bind to the exact top-frame document only after
+ * navigation has completed. This pending operation contains no secret: the
+ * caller supplies an HTTPS host derived from MemberIndex and decrypts only
+ * after this function returns the final live document.
+ */
+async function openLoginTab(url: string): Promise<ActiveTab | null> {
+  let created: chrome.tabs.Tab;
+  try {
+    created = await chrome.tabs.create({ url, active: true });
+  } catch {
+    return null;
+  }
+  if (created.id === undefined) return null;
+
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    let tab: chrome.tabs.Tab;
+    try {
+      tab = await chrome.tabs.get(created.id);
+    } catch {
+      return null;
+    }
+    if (tab.status === "complete") {
+      const target = await resolveTabDocument(created.id);
+      if (target !== null) return target;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 125));
+  }
+  return null;
+}
+
 /** Hand ready field values to a tab's isolated content script; absent = no form. */
 async function sendFill(
   target: ActiveTab,
   expectedDomain: string | null,
   fields: readonly FillField[],
+  submit: boolean,
 ): Promise<FillOutcome> {
   const expectedOrigin = httpsOrigin(target.url);
   if (expectedOrigin === null) return { ok: false, reason: "target-changed" };
@@ -94,6 +131,7 @@ async function sendFill(
         documentId: target.documentId,
         expectedOrigin,
         expectedDomain,
+        submit,
         fields,
       },
       { documentId: target.browserDocumentId },
@@ -116,8 +154,9 @@ function httpsOrigin(url: string): string | null {
 
 export const vaultCommandDeps: VaultCommandDeps = {
   data: vaultData,
-  cardWriter: vaultData,
+  entryWriter: vaultData,
   getActiveTab,
+  openLoginTab,
   sendFill,
   clipboard: { available: clipboardCopyAvailable, arm: () => clipboardGuard.arm() },
 };

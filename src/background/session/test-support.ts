@@ -56,6 +56,10 @@ export class FakeStorageArea implements StorageArea {
   has(key: string): boolean {
     return this.map.has(key);
   }
+
+  values(): unknown[] {
+    return [...this.map.values()];
+  }
 }
 
 interface CreatedAlarm {

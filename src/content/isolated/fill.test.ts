@@ -29,6 +29,7 @@ function bound(fields: readonly FillField[], over: Partial<FillRequestMessage> =
     documentId: "document-1",
     expectedOrigin: "https://example.com",
     expectedDomain: null,
+    submit: false,
     fields,
     ...over,
   };
@@ -200,6 +201,48 @@ describe("performFill", () => {
 });
 
 describe("performBoundFill", () => {
+  it("submits the exact owning form after an explicitly requested credential fill", () => {
+    const doc = mount(`
+      <form id="login">
+        <input id="user">
+        <input id="pass" type="password">
+        <button id="login-submit" type="submit">Log in</button>
+      </form>
+      <form id="other"><button id="other-submit" type="submit">Other</button></form>
+    `);
+    const login = doc.getElementById("login") as HTMLFormElement;
+    const other = doc.getElementById("other") as HTMLFormElement;
+    const loginSubmit = doc.getElementById("login-submit") as HTMLButtonElement;
+    const requestLogin = vi.fn();
+    const requestOther = vi.fn();
+    login.requestSubmit = requestLogin;
+    other.requestSubmit = requestOther;
+
+    expect(performBoundFill(
+      doc,
+      bound(CREDS, { expectedDomain: "example.com", submit: true }),
+      "https://example.com/login",
+      "document-1",
+    )).toEqual({ ok: true });
+    expect(requestLogin).toHaveBeenCalledWith(loginSubmit);
+    expect(requestOther).not.toHaveBeenCalled();
+  });
+
+  it("does not submit during an ordinary fill", () => {
+    const doc = mount(`<form id="login"><input id="pass" type="password"></form>`);
+    const form = doc.getElementById("login") as HTMLFormElement;
+    const requestSubmit = vi.fn();
+    form.requestSubmit = requestSubmit;
+
+    expect(performBoundFill(
+      doc,
+      bound(CREDS, { expectedDomain: "example.com" }),
+      "https://example.com/login",
+      "document-1",
+    )).toEqual({ ok: true });
+    expect(requestSubmit).not.toHaveBeenCalled();
+  });
+
   it("does not write a credential after the top-frame document changes", () => {
     const doc = mount(`<form><input id="user"><input id="pass" type="password"></form>`);
     expect(performBoundFill(

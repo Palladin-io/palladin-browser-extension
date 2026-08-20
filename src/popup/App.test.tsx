@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import type { AgentPairingClient } from "./agent/client";
 import type { ServerConfigClient } from "./config/client";
+import type { PasswordManagerOnboardingClient } from "./onboarding/client";
 import { PopupSessionError } from "./session/errors";
 import type { SessionClient } from "./session/client";
+import { sessionChanged } from "@shared/messaging";
 
 type Fake = { [K in keyof SessionClient]: ReturnType<typeof vi.fn> } & SessionClient;
 
@@ -41,6 +43,17 @@ function makeServerConfigClient(): ServerConfigClient {
   };
 }
 
+function makeOnboardingClient(
+  status: "pending" | "completed" = "completed",
+): PasswordManagerOnboardingClient {
+  return {
+    getStatus: vi.fn(async () => status),
+    complete: vi.fn(async () => undefined),
+    openPasswordSettings: vi.fn(async () => undefined),
+    openExtensionManager: vi.fn(async () => undefined),
+  };
+}
+
 beforeEach(() => vi.clearAllMocks());
 
 describe("popup state machine", () => {
@@ -55,6 +68,7 @@ describe("popup state machine", () => {
         client={makeClient()}
         pairingClient={makePairingClient()}
         serverConfigClient={makeServerConfigClient()}
+        onboardingClient={makeOnboardingClient()}
       />,
     );
     const user = userEvent.setup();
@@ -82,6 +96,22 @@ describe("popup state machine", () => {
     expect(pairing).toHaveAttribute("aria-expanded", "true");
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  it("shows password-manager guidance once before the session UI", async () => {
+    const onboarding = makeOnboardingClient("pending");
+    render(<App client={makeClient()} onboardingClient={onboarding} />);
+    const user = userEvent.setup();
+
+    expect(await screen.findByRole("heading", { name: "One password manager works best" }))
+      .toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Sign in" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Settings" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Continue to Palladin" }));
+
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    expect(onboarding.complete).toHaveBeenCalledOnce();
   });
 
   it("signs in and shows the unlocked screen", async () => {
@@ -189,6 +219,20 @@ describe("popup state machine", () => {
     expect(client.unlock).toHaveBeenCalledWith("let me in");
   });
 
+  it("signs out directly from a locked session without unlocking", async () => {
+    const client = makeClient({ getStatus: vi.fn(async () => "locked" as const) });
+    render(<App client={client} />);
+    const user = userEvent.setup();
+
+    await user.type(await screen.findByLabelText("Master password"), "do not retain");
+    await user.click(screen.getByRole("button", { name: "Sign out" }));
+
+    expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    expect(client.logout).toHaveBeenCalledOnce();
+    expect(document.body.innerHTML).not.toContain("do not retain");
+    expect(client.unlock).not.toHaveBeenCalled();
+  });
+
   it("hides the biometric button while the runtime can't unlock", async () => {
     const client = makeClient({ getStatus: vi.fn(async () => "locked" as const) });
     render(<App client={client} />);
@@ -245,5 +289,41 @@ describe("popup state machine", () => {
 
     await user.click(await screen.findByRole("button", { name: "Try again" }));
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+  });
+
+  it("keeps a persistent side panel in sync with value-free worker lifecycle events", async () => {
+    let messageListener: ((raw: unknown) => void) | undefined;
+    const removeListener = vi.fn();
+    vi.stubGlobal("chrome", {
+      runtime: {
+        onMessage: {
+          addListener: vi.fn((listener: (raw: unknown) => void) => {
+            messageListener = listener;
+          }),
+          removeListener,
+        },
+      },
+      tabs: {
+        onActivated: { addListener: vi.fn(), removeListener: vi.fn() },
+        onUpdated: { addListener: vi.fn(), removeListener: vi.fn() },
+      },
+    });
+
+    try {
+      const { unmount } = render(
+        <App
+          surface="side-panel"
+          client={makeClient({ getStatus: vi.fn(async () => "unlocked" as const) })}
+        />,
+      );
+      expect(await screen.findByRole("heading", { name: "Your vault" })).toBeInTheDocument();
+
+      act(() => messageListener?.(sessionChanged("locked")));
+      expect(await screen.findByRole("heading", { name: "Unlock" })).toBeInTheDocument();
+      unmount();
+      expect(removeListener).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

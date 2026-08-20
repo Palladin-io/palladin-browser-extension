@@ -11,6 +11,7 @@ const TOKEN = 'opaque-access-token'
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111'
 const VAULT_ID = '22222222-2222-4222-8222-222222222222'
 const MEMBER_ID = '33333333-3333-4333-8333-333333333333'
+const ENTRY_ID = '44444444-4444-4444-8444-444444444444'
 
 function json(body: unknown, status = 200, headers?: HeadersInit): Response {
   return new Response(JSON.stringify(body), {
@@ -114,6 +115,44 @@ function vaultDetail(metadataRevision: unknown = '1') {
   }
 }
 
+function syncHead(state: number) {
+  const entryScope = {
+    organizationId: ORGANIZATION_ID,
+    vaultId: VAULT_ID,
+    entryId: ENTRY_ID,
+    grantOrRequestId: null,
+    agentId: null,
+    memberId: null,
+  }
+  const envelope = (
+    purpose: 'memberIndex' | 'entryDekByVaultKey',
+    binding: Record<string, never> | { wrappingVaultKeyVersion: number },
+  ) => ({
+    descriptor: {
+      protocolVersion: 2,
+      cryptoSuiteId: 'palladin-vault-xchacha-v1',
+      purpose,
+      scope: entryScope,
+      resourceRevision: '1',
+      keyVersion: 1,
+      memberKeyGeneration: 1,
+      binding,
+    },
+    encodedSuitePayload: 'encoded-payload',
+  })
+  return {
+    entryId: ENTRY_ID,
+    kind: 'head',
+    state,
+    updatedAt: '2026-08-16T12:00:00Z',
+    currentRevision: '1',
+    memberIndexRevision: '1',
+    currentKeyVersion: 1,
+    entryKey: envelope('entryDekByVaultKey', { wrappingVaultKeyVersion: 1 }),
+    memberIndex: envelope('memberIndex', {}),
+  }
+}
+
 describe('Protocol2VaultClient transport boundary', () => {
   it('paginates the strict Vault list and authenticates without logging values', async () => {
     const doFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -146,6 +185,32 @@ describe('Protocol2VaultClient transport boundary', () => {
 
     await expect(new Protocol2VaultClient(doFetch, API).snapshot(TOKEN, VAULT_ID, null))
       .resolves.toEqual({ snapshotBaseSequence: '0', items: [], nextCursor: null })
+  })
+
+  it.each([
+    [1, 'active'],
+    [2, 'archived'],
+    [3, 'deleted'],
+  ] as const)('maps canonical backend EntryState %i to %s', async (wireState, expectedState) => {
+    const client = new Protocol2VaultClient(async () => json({
+      snapshotBaseSequence: '1',
+      items: [syncHead(wireState)],
+      nextCursor: null,
+    }), API)
+
+    const page = await client.snapshot(TOKEN, VAULT_ID, null)
+    expect(page.items[0]?.state).toBe(expectedState)
+  })
+
+  it('rejects the legacy zero-based EntryState wire value', async () => {
+    const client = new Protocol2VaultClient(async () => json({
+      snapshotBaseSequence: '1',
+      items: [syncHead(0)],
+      nextCursor: null,
+    }), API)
+
+    await expect(client.snapshot(TOKEN, VAULT_ID, null))
+      .rejects.toMatchObject({ code: 'network' })
   })
 
   it('fails closed on unknown response fields', async () => {

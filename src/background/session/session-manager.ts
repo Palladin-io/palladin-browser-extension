@@ -14,11 +14,15 @@
 
 import {
   assertIdentityKdfProfile,
+  type BrowserSessionEnvelope,
+  type BrowserSessionEnvelopeContext,
   decryptWithKey,
   deriveIdentityV1,
   fromBase64Url,
   IDENTITY_KDF_PROFILE_ID,
   IDENTITY_SECURITY_VERSION,
+  openBrowserSessionEnvelope,
+  sealBrowserSessionEnvelope,
   toBase64Url,
   wipe,
 } from "@palladin/crypto";
@@ -46,6 +50,7 @@ import { SessionStore } from "./session-store";
 import { MasterPasswordUnlock, type UnlockSource } from "./unlock-source";
 import {
   SessionError,
+  type AccountMaterial,
   type LoginResult,
   type SessionKeys,
   type SessionStatus,
@@ -65,9 +70,29 @@ export interface SessionManagerDeps {
     schedule(callback: () => void, delayMs: number): unknown;
     cancel(handle: unknown): void;
   };
+  /** Browser-owned stable extension ID. Updates keep it; a different client fails closed. */
+  clientId?: string;
+  /** Absolute durable-session lifetime. Mirrors the backend refresh-session lifetime. */
+  durableSessionTtlMs?: number;
 }
 
 export const PENDING_TOTP_TTL_MS = 5 * 60 * 1_000;
+export const DURABLE_SESSION_TTL_MS = 365 * 24 * 60 * 60 * 1_000;
+
+interface ActiveDurableSessionPayload extends SessionTokens {
+  readonly state: "active";
+}
+
+interface RefreshPendingDurableSessionPayload {
+  readonly state: "refresh-pending";
+}
+
+type DurableSessionPayload =
+  | ActiveDurableSessionPayload
+  | RefreshPendingDurableSessionPayload;
+
+const MAX_ACCESS_TOKEN_CHARS = 32_768;
+const MAX_REFRESH_TOKEN_CHARS = 8_192;
 
 class SessionLifecycleChangedError extends Error {
   constructor() {
@@ -91,6 +116,8 @@ export class SessionManager {
   private readonly now: () => number;
   private readonly createPasswordUnlock: (password: string) => UnlockSource;
   private readonly pendingTotpTimers: NonNullable<SessionManagerDeps["pendingTotpTimers"]>;
+  private readonly clientId: string;
+  private readonly durableSessionTtlMs: number;
 
   readonly hooks: SessionHooks;
   private readonly sync: SyncTrigger;
@@ -98,6 +125,7 @@ export class SessionManager {
 
   /** In-memory keys — the authoritative live copy while unlocked. */
   private keys: SessionKeys | null = null;
+  private tokens: SessionTokens | null = null;
   private pendingTotp: PendingTotpContext | null = null;
   private pendingTotpTimer: unknown | null = null;
   private lifecycleGeneration = 0;
@@ -113,6 +141,14 @@ export class SessionManager {
     this.now = deps.now ?? (() => Date.now());
     this.createPasswordUnlock = deps.createPasswordUnlock
       ?? ((password) => new MasterPasswordUnlock(password));
+    this.clientId = deps.clientId ?? "palladin-browser-extension-test-client";
+    this.durableSessionTtlMs = deps.durableSessionTtlMs ?? DURABLE_SESSION_TTL_MS;
+    if (
+      !Number.isSafeInteger(this.durableSessionTtlMs)
+      || this.durableSessionTtlMs <= 0
+    ) {
+      throw new TypeError("Durable session TTL must be a positive safe integer");
+    }
     this.pendingTotpTimers = deps.pendingTotpTimers ?? {
       schedule: (callback, delayMs) => globalThis.setTimeout(callback, delayMs),
       cancel: (handle) => globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>),
@@ -127,13 +163,14 @@ export class SessionManager {
     // Chrome alarms outlive an MV3 worker instance. Since the corresponding
     // in-memory keys do not, discard the previous worker's stale deadline.
     this.autoLock.disarm();
+    await this.store.clearLegacyPlaintext();
     return this.getStatus();
   }
 
   async getStatus(): Promise<SessionStatus> {
     if (this.keys) return "unlocked";
-    const tokens = await this.getBoundTokens();
-    return tokens ? "locked" : "signed-out";
+    if (await this.getBoundMemoryTokens()) return "locked";
+    return await this.getBoundEnvelope() ? "locked" : "signed-out";
   }
 
   /** Live keys for in-worker consumers (fill engine, later). Null when locked. */
@@ -147,14 +184,15 @@ export class SessionManager {
    * latest rotation.
    */
   async getAccessToken(): Promise<string | null> {
-    const tokens = await this.getBoundTokens();
+    const tokens = await this.getBoundMemoryTokens();
     return tokens?.accessToken ?? null;
   }
 
   /** Stable cache partition for the authenticated account; never a key or token. */
   async getUserId(): Promise<string | null> {
-    const tokens = await this.getBoundTokens();
-    return tokens?.userId ?? null;
+    const tokens = await this.getBoundMemoryTokens();
+    if (tokens) return tokens.userId;
+    return (await this.getBoundEnvelope())?.context.accountId ?? null;
   }
 
   /**
@@ -163,20 +201,57 @@ export class SessionManager {
    * refresh is rejected (the caller then treats the request as unauthenticated).
    */
   async refreshAccessToken(): Promise<string | null> {
-    const tokens = await this.getBoundTokens();
-    if (!tokens) return null;
+    const generation = this.captureLifecycleGeneration();
+    const tokens = await this.getBoundMemoryTokens();
+    const keys = this.keys;
+    if (!tokens || !keys) return null;
+    const envelope = await this.getBoundEnvelope();
+    if (!envelope) return null;
+
+    // Write a sealed pending marker before contacting the rotation endpoint.
+    // If the worker dies after the server rotates but before the replacement
+    // envelope commits, the next unlock sees the marker and requires re-login.
+    const pending = await this.sealDurablePayload(
+      { state: "refresh-pending" },
+      keys.masterKey,
+      envelope.context,
+    );
+    await this.store.setSealedSession(pending);
+    this.tokens = null;
+    this.assertLifecycleGeneration(generation);
+    this.assertApiUrl(tokens.apiUrl);
     try {
       const auth = await this.authClient.refresh(tokens.refreshToken, tokens.apiUrl);
+      this.assertLifecycleGeneration(generation);
       this.assertApiUrl(tokens.apiUrl);
-      await this.store.setTokens({
+      const replacementTokens: SessionTokens = {
         accessToken: auth.accessToken,
         refreshToken: auth.refreshToken,
         userId: auth.userId,
         apiUrl: tokens.apiUrl,
-      });
+      };
+      if (replacementTokens.userId !== envelope.context.accountId) {
+        throw new SessionError("not-authenticated", "Refreshed session account changed");
+      }
+      const replacement = await this.sealDurablePayload(
+        { state: "active", ...replacementTokens },
+        keys.masterKey,
+        envelope.context,
+      );
+      await this.store.setSealedSession(replacement);
+      this.assertLifecycleGeneration(generation);
+      this.assertApiUrl(tokens.apiUrl);
+      this.tokens = replacementTokens;
       return auth.accessToken;
     } catch {
-      if (tokens.apiUrl !== this.authClient.currentApiUrl()) await this.store.clearAll();
+      // A pending marker means the durable session cannot be proven current.
+      // Clear it before returning so neither old nor unpersisted rotated tokens
+      // can be presented as a restorable session.
+      this.wipeKeys();
+      this.autoLock.disarm();
+      this.tokens = null;
+      await this.store.clearAll();
+      this.hooks.emitLocked({ userId: tokens.userId });
       return null;
     }
   }
@@ -315,6 +390,7 @@ export class SessionManager {
     apiUrl: string,
   ): Promise<void> {
     let handedToSession = false;
+    let persistedSession = false;
     let privateKey: Uint8Array | null = null;
     let encryptedPrivateKey: Uint8Array | null = null;
     try {
@@ -359,21 +435,39 @@ export class SessionManager {
         );
       }
 
-      await this.store.setMaterial(material);
-      this.assertLifecycleGeneration(generation);
-      this.assertApiUrl(apiUrl);
-      await this.store.setTokens(tokens);
+      const issuedAt = this.now();
+      const context: BrowserSessionEnvelopeContext = {
+        apiUrl,
+        accountId: material.accountId,
+        clientId: this.clientId,
+        identitySecurityVersion: material.kdf.securityVersion,
+        minimumIdentitySecurityVersion: material.kdf.minimumSecurityVersion,
+        kdfProfileId: material.kdf.profileId,
+        kdfSalt: material.kdf.kdfSalt,
+        encryptedPrivateKey: material.encryptedPrivateKey,
+        issuedAt,
+        expiresAt: issuedAt + this.durableSessionTtlMs,
+      };
+      const envelope = await this.sealDurablePayload(
+        { state: "active", ...tokens },
+        masterKey,
+        context,
+      );
+      await this.store.setSealedSession(envelope);
+      persistedSession = true;
       this.assertLifecycleGeneration(generation);
       this.assertApiUrl(apiUrl);
 
       const keys = { masterKey, privateKey };
       privateKey = null;
       handedToSession = true;
+      this.tokens = tokens;
       await this.setUnlocked(keys, tokens.userId, generation);
     } finally {
       if (encryptedPrivateKey) wipe(encryptedPrivateKey);
       if (privateKey) wipe(privateKey);
       if (!handedToSession) wipe(masterKey);
+      if (!handedToSession && persistedSession) await this.store.clearSealedSession();
     }
   }
 
@@ -401,18 +495,54 @@ export class SessionManager {
   /** Re-derive keys for a locked session from cached material, via any source. */
   async unlock(source: UnlockSource): Promise<void> {
     const generation = this.captureLifecycleGeneration();
-    const material = await this.store.getMaterial();
+    const envelope = await this.getBoundEnvelope();
     this.assertLifecycleGeneration(generation);
-    if (!material) {
+    if (!envelope) {
       throw new SessionError("no-account-material", "No cached material to unlock");
     }
-    const tokens = await this.getBoundTokens();
-    this.assertLifecycleGeneration(generation);
-    if (!tokens) {
-      throw new SessionError("not-authenticated", "Cannot unlock without a session");
-    }
+    const material = this.materialFromEnvelope(envelope);
     const keys = await source.deriveKeys(material);
-    await this.setUnlocked(keys, tokens.userId, generation);
+    try {
+      this.assertLifecycleGeneration(generation);
+    } catch (error) {
+      this.wipeSessionKeys(keys);
+      throw error;
+    }
+    let tokens = await this.getBoundMemoryTokens();
+    if (!tokens) {
+      try {
+        const payload = await this.openDurablePayload(envelope, keys.masterKey);
+        this.assertLifecycleGeneration(generation);
+        if (payload.state !== "active") {
+          throw new SessionError(
+            "not-authenticated",
+            "Stored session refresh did not complete",
+          );
+        }
+        tokens = payload;
+      } catch (error) {
+        this.wipeSessionKeys(keys);
+        // Derivation succeeded, so the password is correct. Any failure after
+        // that point is authenticated-envelope tamper, an interrupted refresh,
+        // or an obsolete protocol. Delete it fail-closed. A wrong password
+        // rejects in the UnlockSource above and never reaches this branch.
+        await this.store.clearSealedSession();
+        this.tokens = null;
+        if (error instanceof SessionLifecycleChangedError) throw error;
+        throw new SessionError("not-authenticated", "Stored session is invalid");
+      }
+    }
+    try {
+      this.assertLifecycleGeneration(generation);
+      if (tokens.userId !== envelope.context.accountId || tokens.apiUrl !== envelope.context.apiUrl) {
+        throw new SessionError("not-authenticated", "Stored session binding is invalid");
+      }
+      this.tokens = tokens;
+      await this.setUnlocked(keys, tokens.userId, generation);
+    } catch (error) {
+      if (this.keys !== keys) this.wipeSessionKeys(keys);
+      throw error;
+    }
   }
 
   /** Convenience for the default master-password source. */
@@ -451,7 +581,7 @@ export class SessionManager {
 
   // ─── Lock / logout ──────────────────────────────────────────────────────────
 
-  /** Wipe key material and stop the idle timer; tokens + material survive. */
+  /** Wipe key material and stop the idle timer; the sealed durable session survives. */
   async lock(): Promise<void> {
     this.beginLifecycleTermination();
     try {
@@ -459,7 +589,7 @@ export class SessionManager {
       this.wipeKeys();
       this.autoLock.disarm();
       if (!wasUnlocked) return;
-      const tokens = await this.getBoundTokens();
+      const tokens = await this.getBoundMemoryTokens();
       if (tokens) this.hooks.emitLocked({ userId: tokens.userId });
     } finally {
       this.endLifecycleTermination();
@@ -472,7 +602,10 @@ export class SessionManager {
     try {
       this.wipeKeys();
       this.autoLock.disarm();
-      const tokens = await this.getBoundTokens();
+      const tokens = await this.getBoundMemoryTokens();
+      const durableUserId = tokens
+        ? tokens.userId
+        : (await this.getBoundEnvelope())?.context.accountId ?? null;
       if (tokens) {
         // Remote revocation is best-effort and pinned to the issuing host. Do
         // not let an unavailable old/self-hosted server block the authoritative
@@ -481,7 +614,8 @@ export class SessionManager {
         void this.push.unregister(tokens.userId);
       }
       await this.store.clearAll();
-      if (tokens) this.hooks.emitLocked({ userId: tokens.userId });
+      this.tokens = null;
+      if (durableUserId) this.hooks.emitLocked({ userId: durableUserId });
     } finally {
       this.endLifecycleTermination();
     }
@@ -498,12 +632,116 @@ export class SessionManager {
     wipe(keys.privateKey);
   }
 
-  private async getBoundTokens(): Promise<SessionTokens | null> {
-    const tokens = await this.store.getTokens();
+  private async getBoundMemoryTokens(): Promise<SessionTokens | null> {
+    const tokens = this.tokens;
     if (!tokens) return null;
-    if (tokens.apiUrl === this.authClient.currentApiUrl()) return tokens;
-    await this.store.clearAll();
+    const envelope = await this.getBoundEnvelope();
+    if (
+      envelope
+      && tokens.apiUrl === envelope.context.apiUrl
+      && tokens.userId === envelope.context.accountId
+    ) return tokens;
+    this.tokens = null;
     return null;
+  }
+
+  private async getBoundEnvelope(): Promise<BrowserSessionEnvelope | null> {
+    const envelope = await this.store.getSealedSession();
+    if (!envelope) return null;
+    const context = envelope.context;
+    if (
+      context.apiUrl !== this.authClient.currentApiUrl()
+      || context.clientId !== this.clientId
+      || context.identitySecurityVersion !== IDENTITY_SECURITY_VERSION
+      || context.kdfProfileId !== IDENTITY_KDF_PROFILE_ID
+      || context.expiresAt <= this.now()
+    ) {
+      this.tokens = null;
+      await this.store.clearAll();
+      return null;
+    }
+    return envelope;
+  }
+
+  private materialFromEnvelope(envelope: BrowserSessionEnvelope): AccountMaterial {
+    return {
+      accountId: envelope.context.accountId,
+      kdf: {
+        securityVersion: envelope.context.identitySecurityVersion,
+        minimumSecurityVersion: envelope.context.minimumIdentitySecurityVersion,
+        profileId: envelope.context.kdfProfileId,
+        kdfSalt: envelope.context.kdfSalt,
+      },
+      encryptedPrivateKey: envelope.context.encryptedPrivateKey,
+    };
+  }
+
+  private async sealDurablePayload(
+    payload: DurableSessionPayload,
+    masterKey: Uint8Array,
+    context: BrowserSessionEnvelopeContext,
+  ): Promise<BrowserSessionEnvelope> {
+    const bytes = new TextEncoder().encode(JSON.stringify(payload));
+    try {
+      return await sealBrowserSessionEnvelope(bytes, masterKey, context);
+    } finally {
+      wipe(bytes);
+    }
+  }
+
+  private async openDurablePayload(
+    envelope: BrowserSessionEnvelope,
+    masterKey: Uint8Array,
+  ): Promise<DurableSessionPayload> {
+    const bytes = await openBrowserSessionEnvelope(envelope, masterKey);
+    try {
+      const decoded = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      return this.parseDurablePayload(JSON.parse(decoded) as unknown, envelope.context);
+    } finally {
+      wipe(bytes);
+    }
+  }
+
+  private parseDurablePayload(
+    value: unknown,
+    context: BrowserSessionEnvelopeContext,
+  ): DurableSessionPayload {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      throw new TypeError("Durable session payload must be an object");
+    }
+    const input = value as Record<string, unknown>;
+    if (input["state"] === "refresh-pending") {
+      if (Object.keys(input).length !== 1) {
+        throw new TypeError("Refresh-pending payload has unexpected fields");
+      }
+      return { state: "refresh-pending" };
+    }
+    const expected = ["accessToken", "apiUrl", "refreshToken", "state", "userId"].sort();
+    const actual = Object.keys(input).sort();
+    if (
+      input["state"] !== "active"
+      || actual.length !== expected.length
+      || actual.some((key, index) => key !== expected[index])
+    ) {
+      throw new TypeError("Active durable session payload is invalid");
+    }
+    const accessToken = input["accessToken"];
+    const refreshToken = input["refreshToken"];
+    const userId = input["userId"];
+    const apiUrl = input["apiUrl"];
+    if (
+      typeof accessToken !== "string"
+      || accessToken.length === 0
+      || accessToken.length > MAX_ACCESS_TOKEN_CHARS
+      || typeof refreshToken !== "string"
+      || refreshToken.length === 0
+      || refreshToken.length > MAX_REFRESH_TOKEN_CHARS
+      || userId !== context.accountId
+      || apiUrl !== context.apiUrl
+    ) {
+      throw new TypeError("Durable session token binding is invalid");
+    }
+    return { state: "active", accessToken, refreshToken, userId, apiUrl };
   }
 
   private beginLifecycleTermination(): void {

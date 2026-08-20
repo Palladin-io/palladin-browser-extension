@@ -7,7 +7,9 @@ import {
   projectAgentDiscovery,
   sealCanonicalEntry,
   wipe,
+  type AgentFieldAccess,
   type MemberSecretV1,
+  type ScriptInterpreter,
 } from '@palladin/crypto'
 
 import { matchesTab, registrableDomain } from '@shared/security/domain'
@@ -23,13 +25,13 @@ import {
 } from '../entry-metadata'
 import { VaultDataError } from '../errors'
 import { VaultClientError } from '../transport'
-import type { MemberSyncCache } from './cache'
+import type { ActiveCacheState, MemberSyncCache } from './cache'
 import {
   Protocol2MutationConflictError,
   Protocol2ResetRequiredError,
   type Protocol2VaultClient,
 } from './client'
-import type { EncryptedVaultSummary } from './contracts'
+import type { EncryptedVaultListSummary, EncryptedVaultSummary } from './contracts'
 
 const CACHE_PAGE_SIZE = 200
 
@@ -60,30 +62,120 @@ export interface CreditCardSaveInput {
   readonly expiryYear: string
   readonly billingAddress?: string
   readonly notes?: string
+  readonly customFields?: readonly ManualCustomFieldInput[]
 }
 
-export type CreditCardSaveResult =
+export type ManualCustomFieldType = 'text' | 'multiline' | 'concealed'
+
+export interface ManualCustomFieldInput {
+  readonly id: string
+  readonly label: string
+  readonly type: ManualCustomFieldType
+  readonly value: string
+}
+
+export type ManualEntrySaveResult =
   | { readonly status: 'saved' }
   | { readonly status: 'blocked'; readonly reason: 'grant-refresh-required' }
+
+export type ManualEntrySaveInput =
+  | {
+      readonly entryType: 'credential'
+      readonly label: string
+      readonly username: string
+      readonly password: string
+      readonly url?: string
+      readonly notes?: string
+      readonly customFields?: readonly ManualCustomFieldInput[]
+    }
+  | {
+      readonly entryType: 'key'
+      readonly label: string
+      readonly value: string
+      readonly notes?: string
+      readonly customFields?: readonly ManualCustomFieldInput[]
+    }
+  | {
+      readonly entryType: 'script'
+      readonly label: string
+      readonly source: string
+      readonly interpreter: ScriptInterpreter
+      readonly notes?: string
+      readonly customFields?: readonly ManualCustomFieldInput[]
+    }
+  | ({ readonly entryType: 'creditCard' } & CreditCardSaveInput)
 
 export interface Protocol2VaultDataServiceDeps {
   readonly client: Protocol2VaultClient
   readonly cache: MemberSyncCache
   readonly session: Protocol2SessionAccessor
   readonly createNamespace?: () => string
+  readonly now?: () => number
 }
 
 /** Canonical Vault Protocol 2 sync/read/write service for the MV3 worker. */
 export class Protocol2VaultDataService implements VaultDataSource {
   private readonly currentVaults = new Map<string, EncryptedVaultSummary>()
   private readonly createNamespace: () => string
+  private readonly now: () => number
   private lastUserId: string | null = null
+  private refreshInFlight: Promise<EntryMetadata[]> | null = null
+  private lastSuccessfulRefreshAt: number | null = null
+  private syncTail: Promise<void> = Promise.resolve()
 
   constructor(private readonly deps: Protocol2VaultDataServiceDeps) {
     this.createNamespace = deps.createNamespace ?? (() => crypto.randomUUID())
+    this.now = deps.now ?? (() => Date.now())
   }
 
   async refresh(): Promise<EntryMetadata[]> {
+    // Unlock triggers a background refresh while an already-open popup can
+    // request its own sync at the same time. Both consumers must join one
+    // canonical refresh: parallel writers would race the IndexedDB snapshot /
+    // delta cursor and surface a misleading network failure.
+    if (this.refreshInFlight !== null) return this.refreshInFlight
+    const refresh = this.enqueueSync(() => this.refreshOnce())
+    this.refreshInFlight = refresh
+    try {
+      const metadata = await refresh
+      this.lastSuccessfulRefreshAt = this.now()
+      return metadata
+    } finally {
+      if (this.refreshInFlight === refresh) this.refreshInFlight = null
+    }
+  }
+
+  async refreshIfStale(maxAgeMs: number): Promise<EntryMetadata[]> {
+    if (!Number.isSafeInteger(maxAgeMs) || maxAgeMs < 0) {
+      throw new TypeError('Vault refresh max age must be a non-negative safe integer')
+    }
+    const refreshedAt = this.lastSuccessfulRefreshAt
+    if (refreshedAt !== null && this.now() - refreshedAt < maxAgeMs) {
+      return this.getMetadata()
+    }
+    return this.refresh()
+  }
+
+  async applyRealtimeInvalidation(vaultId: string, removed: boolean): Promise<void> {
+    await this.enqueueSync(async () => {
+      const userId = await this.deps.session.getUserId()
+      if (userId === null || await this.deps.session.getAccessToken() === null) {
+        throw new VaultDataError('not-authenticated', 'No session')
+      }
+      this.lastUserId = userId
+      if (removed) {
+        this.currentVaults.delete(vaultId)
+        await this.deps.cache.removeVault(userId, vaultId)
+        return
+      }
+      const vault = await this.withAuth((token) => this.deps.client.getVault(token, vaultId))
+      await this.syncVault(userId, vault)
+      const refreshed = await this.deps.cache.getActiveState(userId, vault.id)
+      this.currentVaults.set(vault.id, refreshed?.vault ?? vault)
+    })
+  }
+
+  private async refreshOnce(): Promise<EntryMetadata[]> {
     const userId = await this.deps.session.getUserId()
     if (userId === null || await this.deps.session.getAccessToken() === null) {
       await this.clearCache()
@@ -93,14 +185,38 @@ export class Protocol2VaultDataService implements VaultDataSource {
     const listedVaults = await this.withAuth((token) => this.deps.client.listVaults(token))
     this.lastUserId = userId
     this.currentVaults.clear()
+    const detailedVaults: EncryptedVaultSummary[] = []
     for (const listedVault of listedVaults) {
+      const active = await this.deps.cache.getActiveState(userId, listedVault.id)
+      if (active !== null && matchesVaultChangeManifest(listedVault, active)) {
+        detailedVaults.push(active.vault)
+        this.currentVaults.set(listedVault.id, active.vault)
+        continue
+      }
       const vault = await this.withAuth((token) => this.deps.client.getVault(token, listedVault.id))
+      detailedVaults.push(vault)
       await this.syncVault(userId, vault)
-      const active = await this.deps.cache.getActiveState(userId, vault.id)
-      this.currentVaults.set(vault.id, active?.vault ?? vault)
+      const refreshed = await this.deps.cache.getActiveState(userId, vault.id)
+      this.currentVaults.set(vault.id, refreshed?.vault ?? vault)
     }
     await this.deps.cache.removeMissingVaults(userId, new Set(listedVaults.map((vault) => vault.id)))
-    return this.getMetadata()
+    try {
+      return await this.getMetadata()
+    } catch (error) {
+      if (!(error instanceof VaultDataError) || error.code !== 'decrypt-failed') throw error
+
+      // IndexedDB stores disposable ciphertext only. A browser update can leave
+      // an old but structurally valid projection behind; an empty delta then
+      // cannot heal that cached envelope. Rebuild it exactly once from an
+      // authoritative snapshot. If the server ciphertext itself is invalid,
+      // the second decrypt still fails closed and is surfaced to the caller.
+      await this.deps.cache.removeMissingVaults(userId, new Set())
+      this.currentVaults.clear()
+      for (const vault of detailedVaults) {
+        await this.replaceFromSnapshot(userId, vault)
+      }
+      return this.getMetadata()
+    }
   }
 
   async getMetadata(): Promise<EntryMetadata[]> {
@@ -114,7 +230,14 @@ export class Protocol2VaultDataService implements VaultDataSource {
       if (active === null) continue
       let vaultKey: Uint8Array | null = null
       try {
-        vaultKey = await openProjectionVaultKey(active.vault, privateKey, userId)
+        let vaultName: string
+        try {
+          const opened = await openProjectionVault(active.vault, privateKey, userId)
+          vaultKey = opened.vaultKey
+          vaultName = opened.metadata.name
+        } catch {
+          throw new VaultDataError('decrypt-failed', 'vault-projection')
+        }
         let afterEntryId: string | null = null
         do {
           const page = await this.deps.cache.readActiveItemPage(
@@ -125,19 +248,26 @@ export class Protocol2VaultDataService implements VaultDataSource {
           )
           for (const item of page.items) {
             if (item.kind !== 'head' || item.state !== 'active') continue
-            const index = await openMemberIndex(item.entryKey, item.memberIndex, vaultKey, {
-              organizationId: active.vault.memberVaultKey.wrappedVaultKey.descriptor.scope.organizationId,
-              vaultId,
-              entryId: item.entryId,
-              revision: item.memberIndexRevision,
-            })
+            let index: Awaited<ReturnType<typeof openMemberIndex>>
+            try {
+              index = await openMemberIndex(item.entryKey, item.memberIndex, vaultKey, {
+                organizationId: active.vault.memberVaultKey.wrappedVaultKey.descriptor.scope.organizationId,
+                vaultId,
+                entryId: item.entryId,
+                revision: item.memberIndexRevision,
+              })
+            } catch {
+              throw new VaultDataError('decrypt-failed', 'member-index')
+            }
             const icon = index.icon ? presentationIconReference(index.icon) : undefined
             metadata.push({
               id: item.entryId,
               vaultId,
+              vaultName,
               name: index.memberLabel,
               type: entryTypeCode(index.entryType),
               updatedAt: item.updatedAt,
+              ...(index.username !== null ? { username: index.username } : {}),
               ...(index.urlDomain ? { urlDomain: index.urlDomain } : {}),
               ...(icon ? { icon } : {}),
               ...(index.color ? { color: index.color } : {}),
@@ -145,8 +275,9 @@ export class Protocol2VaultDataService implements VaultDataSource {
           }
           afterEntryId = page.nextEntryId
         } while (afterEntryId !== null)
-      } catch {
-        throw new VaultDataError('decrypt-failed', 'Failed to decrypt Vault index')
+      } catch (error) {
+        if (error instanceof VaultDataError) throw error
+        throw new VaultDataError('decrypt-failed', 'vault-index')
       } finally {
         if (vaultKey !== null) wipe(vaultKey)
       }
@@ -183,11 +314,13 @@ export class Protocol2VaultDataService implements VaultDataSource {
     this.currentVaults.clear()
     if (userId !== null) await this.deps.cache.removeMissingVaults(userId, new Set())
     this.lastUserId = null
+    this.lastSuccessfulRefreshAt = null
   }
 
   async clearAllCache(): Promise<void> {
     this.currentVaults.clear()
     this.lastUserId = null
+    this.lastSuccessfulRefreshAt = null
     await this.deps.cache.clearAll()
   }
 
@@ -210,16 +343,29 @@ export class Protocol2VaultDataService implements VaultDataSource {
     return this.createCredential(input.site, parsed.origin, parsed.host, input.password)
   }
 
-  async saveCreditCard(input: CreditCardSaveInput): Promise<CreditCardSaveResult> {
+  async saveEntry(input: ManualEntrySaveInput): Promise<ManualEntrySaveResult> {
     if (this.currentVaults.size === 0) await this.refresh()
-    const cardNumber = input.cardNumber.replace(/[ -]/g, '')
-    if (!/^[0-9]{8,19}$/.test(cardNumber)) {
-      throw new VaultDataError('network', 'Card number is invalid')
+    let secret: MemberSecretV1
+    switch (input.entryType) {
+      case 'credential':
+        secret = manualCredentialSecret(input)
+        break
+      case 'key':
+        secret = keySecret(input)
+        break
+      case 'script':
+        secret = scriptSecret(input)
+        break
+      case 'creditCard': {
+        const cardNumber = input.cardNumber.replace(/[ -]/g, '')
+        if (!/^[0-9]{8,19}$/.test(cardNumber)) {
+          throw new VaultDataError('network', 'Card number is invalid')
+        }
+        secret = creditCardSecret({ ...input, cardNumber })
+        break
+      }
     }
-    const result = await this.createCanonicalEntry(creditCardSecret({
-      ...input,
-      cardNumber,
-    }))
+    const result = await this.createCanonicalEntry(secret)
     return result.status === 'created'
       ? { status: 'saved' }
       : { status: 'blocked', reason: 'grant-refresh-required' }
@@ -450,6 +596,46 @@ export class Protocol2VaultDataService implements VaultDataSource {
       throw mapTransportError(error)
     }
   }
+
+  private enqueueSync<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.syncTail.then(operation, operation)
+    this.syncTail = result.then(() => undefined, () => undefined)
+    return result
+  }
+}
+
+function matchesVaultChangeManifest(
+  listed: EncryptedVaultListSummary,
+  active: ActiveCacheState,
+): boolean {
+  if (active.appliedThroughSequence !== listed.memberSequence) return false
+  if (active.vault.metadataRevision
+    !== listed.memberVaultMetadata.descriptor.resourceRevision) return false
+  if (active.vault.organizationId
+    !== listed.memberVaultMetadata.descriptor.scope.organizationId) return false
+  return JSON.stringify(vaultChangeManifest(active.vault))
+    === JSON.stringify(vaultChangeManifest(listed))
+}
+
+function vaultChangeManifest(vault: EncryptedVaultListSummary | EncryptedVaultSummary) {
+  return [
+    vault.id,
+    vault.isDefault,
+    vault.protocolVersion,
+    vault.memberSequence,
+    vault.discoverySequence,
+    vault.memberKeyGeneration,
+    vault.currentKeyEpoch,
+    vault.memberVaultMetadata,
+    vault.memberVaultKey,
+    vault.discoveryKey,
+    vault.vaultPrivateKeys,
+    vault.createdAt,
+    vault.updatedAt,
+    vault.memberCount,
+    vault.entryCount,
+    vault.activeGrantCount,
+  ]
 }
 
 async function openProjectionVaultKey(
@@ -457,7 +643,15 @@ async function openProjectionVaultKey(
   privateKey: Uint8Array,
   memberId: string,
 ): Promise<Uint8Array> {
-  const opened = await openVaultProjection({
+  return (await openProjectionVault(vault, privateKey, memberId)).vaultKey
+}
+
+async function openProjectionVault(
+  vault: EncryptedVaultSummary,
+  privateKey: Uint8Array,
+  memberId: string,
+) {
+  return openVaultProjection({
     id: vault.id,
     organizationId: vault.organizationId,
     metadataRevision: vault.metadataRevision,
@@ -466,7 +660,6 @@ async function openProjectionVaultKey(
     memberVaultMetadata: vault.memberVaultMetadata,
     memberVaultKey: vault.memberVaultKey,
   }, privateKey, memberId)
-  return opened.vaultKey
 }
 
 function credentialSecret(site: string, origin: string, host: string, password: string): MemberSecretV1 {
@@ -505,7 +698,91 @@ function credentialSecret(site: string, origin: string, host: string, password: 
   }
 }
 
+function commonSecret(label: string): Pick<MemberSecretV1,
+  'schema' | 'memberLabel' | 'agentLabel' | 'discoverable' | 'description' | 'icon' | 'color'> {
+  return {
+    schema: 'palladin.member-secret.v1',
+    memberLabel: label.trim(),
+    agentLabel: null,
+    discoverable: false,
+    description: null,
+    icon: null,
+    color: null,
+  }
+}
+
+function manualCredentialSecret(
+  input: Extract<ManualEntrySaveInput, { entryType: 'credential' }>,
+): MemberSecretV1 {
+  const url = input.url?.trim() || null
+  let urlDomain: string | null = null
+  if (url !== null) {
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && isLocalHostname(parsed.hostname))) {
+        throw new Error('unsupported credential URL')
+      }
+      urlDomain = parsed.hostname.toLowerCase().replace(/\.$/, '')
+    } catch {
+      throw new VaultDataError('network', 'Credential URL is invalid')
+    }
+  }
+  const customFields = manualCustomFields(input.customFields)
+  return {
+    ...commonSecret(input.label),
+    entryType: 'credential',
+    agentFieldAccess: customFieldAccess({
+      memberLabel: 'never', agentLabel: 'never', description: 'never', icon: 'never', color: 'never',
+      entryType: 'never', 'credential.username': 'never', 'credential.password': 'never',
+      'credential.url': 'never', 'credential.urlDomain': 'never', 'credential.totp': 'never', notes: 'never',
+    }, customFields),
+    content: {
+      username: input.username.trim(),
+      password: input.password,
+      url,
+      urlDomain,
+      totp: null,
+      notes: input.notes?.trim() || null,
+      customFields,
+    },
+  }
+}
+
+function keySecret(input: Extract<ManualEntrySaveInput, { entryType: 'key' }>): MemberSecretV1 {
+  const customFields = manualCustomFields(input.customFields)
+  return {
+    ...commonSecret(input.label),
+    entryType: 'key',
+    agentFieldAccess: customFieldAccess({
+      memberLabel: 'never', agentLabel: 'never', description: 'never', icon: 'never', color: 'never',
+      entryType: 'never', 'key.value': 'never', notes: 'never',
+    }, customFields),
+    content: { value: input.value, notes: input.notes?.trim() || null, customFields },
+  }
+}
+
+function scriptSecret(input: Extract<ManualEntrySaveInput, { entryType: 'script' }>): MemberSecretV1 {
+  const customFields = manualCustomFields(input.customFields)
+  return {
+    ...commonSecret(input.label),
+    entryType: 'script',
+    agentFieldAccess: customFieldAccess({
+      memberLabel: 'never', agentLabel: 'never', description: 'never', icon: 'never', color: 'never',
+      entryType: 'never', 'script.source': 'never', 'script.interpreter': 'never',
+      'script.refs': 'never', notes: 'never',
+    }, customFields),
+    content: {
+      source: input.source,
+      interpreter: input.interpreter,
+      refs: [],
+      notes: input.notes?.trim() || null,
+      customFields,
+    },
+  }
+}
+
 function creditCardSecret(input: CreditCardSaveInput): MemberSecretV1 {
+  const customFields = manualCustomFields(input.customFields)
   return {
     schema: 'palladin.member-secret.v1',
     entryType: 'creditCard',
@@ -515,7 +792,7 @@ function creditCardSecret(input: CreditCardSaveInput): MemberSecretV1 {
     description: null,
     icon: null,
     color: null,
-    agentFieldAccess: {
+    agentFieldAccess: customFieldAccess({
       memberLabel: 'never',
       agentLabel: 'never',
       description: 'never',
@@ -528,7 +805,7 @@ function creditCardSecret(input: CreditCardSaveInput): MemberSecretV1 {
       'creditCard.expiryYear': 'never',
       'creditCard.billingAddress': 'never',
       notes: 'never',
-    },
+    }, customFields),
     content: {
       cardholderName: input.cardholderName.trim(),
       cardNumber: input.cardNumber,
@@ -536,9 +813,27 @@ function creditCardSecret(input: CreditCardSaveInput): MemberSecretV1 {
       expiryYear: input.expiryYear,
       billingAddress: input.billingAddress?.trim() || null,
       notes: input.notes?.trim() || null,
-      customFields: [],
+      customFields,
     },
   }
+}
+
+function manualCustomFields(fields: readonly ManualCustomFieldInput[] | undefined) {
+  return (fields ?? []).map((field) => ({
+    id: field.id,
+    label: field.label.trim().normalize('NFC'),
+    type: field.type,
+    value: field.value,
+  }))
+}
+
+function customFieldAccess(
+  builtIn: Record<string, AgentFieldAccess>,
+  fields: readonly { readonly id: string }[],
+): Record<string, AgentFieldAccess> {
+  const access = { ...builtIn }
+  for (const field of fields) access[field.id] = 'never'
+  return access
 }
 
 function entryTypeCode(entryType: MemberSecretV1['entryType']): EntryTypeCode {
@@ -557,6 +852,11 @@ function parseSecureSite(url: string): { origin: string; site: string; host: str
   } catch {
     return null
   }
+}
+
+function isLocalHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase().replace(/\.$/, '')
+  return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1'
 }
 
 function mapTransportError(error: unknown): VaultDataError {

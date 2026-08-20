@@ -15,6 +15,7 @@ import { useI18n } from "../i18n";
  */
 export interface UnlockScreenProps {
   onUnlock(password: string): Promise<void>;
+  onSignOut(): Promise<void>;
   /** From the worker's capability probe; gates the biometric button. */
   biometricAvailable: boolean;
   /** Wired in E2; unused while `biometricAvailable` is false. */
@@ -23,26 +24,40 @@ export interface UnlockScreenProps {
 
 export function UnlockScreen({
   onUnlock,
+  onSignOut,
   biometricAvailable,
   onBiometricUnlock,
 }: UnlockScreenProps): React.JSX.Element {
   const { t } = useI18n();
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [busy, setBusy] = useState<"unlock" | "sign-out" | null>(null);
 
-  const canSubmit = password.length > 0 && !submitting;
+  const canSubmit = password.length > 0 && busy === null;
 
   async function handleSubmit(event: FormEvent): Promise<void> {
     event.preventDefault();
     if (!canSubmit) return;
     setError("");
-    setSubmitting(true);
+    setBusy("unlock");
     try {
       await onUnlock(password);
     } catch (err) {
       setError(messageForError(err, "unlock", t));
-      setSubmitting(false);
+      setBusy(null);
+    }
+  }
+
+  async function handleSignOut(): Promise<void> {
+    setPassword("");
+    setError("");
+    setBusy("sign-out");
+    try {
+      await onSignOut();
+    } catch {
+      // Logout is locally authoritative in the worker. If the command channel
+      // itself failed, keep the screen retryable without restoring plaintext.
+      setBusy(null);
     }
   }
 
@@ -59,9 +74,9 @@ export function UnlockScreen({
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           error={error}
-          disabled={submitting}
+          disabled={busy !== null}
         />
-        <Button type="submit" variant="accent" block disabled={!canSubmit} loading={submitting}>
+        <Button type="submit" variant="accent" block disabled={!canSubmit} loading={busy === "unlock"}>
           {t("auth.unlock.action")}
         </Button>
         {biometricAvailable ? (
@@ -70,11 +85,21 @@ export function UnlockScreen({
             variant="subtle"
             block
             onClick={onBiometricUnlock}
-            disabled={submitting}
+            disabled={busy !== null}
           >
             {t("auth.unlock.biometric")}
           </Button>
         ) : null}
+        <Button
+          type="button"
+          variant="ghost"
+          block
+          onClick={() => void handleSignOut()}
+          disabled={busy !== null}
+          loading={busy === "sign-out"}
+        >
+          {t("vault.signOut")}
+        </Button>
       </form>
     </section>
   );

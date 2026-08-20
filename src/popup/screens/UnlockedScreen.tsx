@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
+import brandLogoUrl from "../../../icons/logo-source.png";
 
 import { CapturePrompt } from "../capture/CapturePrompt";
-import { CardForm } from "../cards/CardForm";
+import { AddEntryForm } from "../entries/AddEntryForm";
 import { createCaptureClient, type CaptureClient } from "../capture/client";
 import { useCapturePrompt } from "../capture/useCapturePrompt";
 import { Button } from "../components/Button";
@@ -25,6 +26,8 @@ import { useI18n } from "../i18n";
 export interface UnlockedScreenProps {
   onLock(): Promise<void>;
   onSignOut(): Promise<void>;
+  /** Present only in the compact popup on targets with a browser-owned panel. */
+  onOpenSidePanel?: (() => Promise<boolean>) | undefined;
   /** Injected in tests; defaults to the real `chrome.runtime` vault channel. */
   vaultClient?: VaultClient;
   /** Injected in tests; defaults to the worker-owned capture prompt channel. */
@@ -34,6 +37,7 @@ export interface UnlockedScreenProps {
 export function UnlockedScreen({
   onLock,
   onSignOut,
+  onOpenSidePanel,
   vaultClient,
   captureClient,
 }: UnlockedScreenProps): React.JSX.Element {
@@ -46,7 +50,7 @@ export function UnlockedScreen({
   const capture = useCapturePrompt(promptClient);
   const list = useVaultList(client);
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<"vault" | "generator" | "card">("vault");
+  const [view, setView] = useState<"vault" | "generator" | "add-entry">("vault");
   const [capturePrompt, setCapturePrompt] = useState(capture.prompt);
 
   const searching = query.trim().length > 0;
@@ -71,10 +75,10 @@ export function UnlockedScreen({
       <div className="vault-tabs" role="tablist" aria-label={t("vault.popupView")}>
         <button type="button" role="tab" aria-selected={view === "vault"} onClick={() => setView("vault")}>{t("vault.tab")}</button>
         <button type="button" role="tab" aria-selected={view === "generator"} onClick={() => setView("generator")}>{t("vault.generatorTab")}</button>
-        <button type="button" role="tab" aria-selected={view === "card"} onClick={() => setView("card")}>{t("vault.addCardTab")}</button>
+        <button type="button" role="tab" aria-selected={view === "add-entry"} onClick={() => setView("add-entry")}>{t("vault.addEntryTab")}</button>
       </div>
 
-      {view === "card" ? <CardForm client={client} /> : view === "generator" ? (
+      {view === "add-entry" ? <AddEntryForm client={client} /> : view === "generator" ? (
         capturePrompt === null ? <GeneratorPanel client={client} /> : (
           <GeneratorPanel
             client={client}
@@ -91,9 +95,14 @@ export function UnlockedScreen({
       {list.status === "loading" ? (
         <ListSkeleton />
       ) : list.status === "error" ? (
-        <p className="vault-error" role="alert">
-          {t("vault.loadError")}
-        </p>
+        <div className="vault-error-panel" role="alert">
+          <p className="vault-error">
+            {t(loadErrorKey(list.errorCode, list.decryptStage))}
+          </p>
+          <Button variant="subtle" onClick={list.retry}>
+            {t("vault.retry")}
+          </Button>
+        </div>
       ) : (
         <div className="vault-scroll">
           {!searching && list.forSite.length > 0 ? (
@@ -115,9 +124,25 @@ export function UnlockedScreen({
       )}
       </>}
 
-      <UnlockedFooter onLock={onLock} onSignOut={onSignOut} />
+      <UnlockedFooter
+        onLock={onLock}
+        onSignOut={onSignOut}
+        onOpenSidePanel={onOpenSidePanel}
+      />
     </section>
   );
+}
+
+function loadErrorKey(
+  code: ReturnType<typeof useVaultList>["errorCode"],
+  stage: ReturnType<typeof useVaultList>["decryptStage"],
+): "vault.loadError" | "vault.loadErrorNetwork" | "vault.loadErrorDecrypt" | "vault.loadErrorVaultProjection" | "vault.loadErrorMemberIndex" | "vault.loadErrorSession" {
+  if (code === "network") return "vault.loadErrorNetwork";
+  if (stage === "vault-projection") return "vault.loadErrorVaultProjection";
+  if (stage === "member-index") return "vault.loadErrorMemberIndex";
+  if (code === "decrypt-failed") return "vault.loadErrorDecrypt";
+  if (code === "locked" || code === "not-authenticated") return "vault.loadErrorSession";
+  return "vault.loadError";
 }
 
 function ListSection({
@@ -138,7 +163,8 @@ function ListSection({
 function UnlockedFooter({
   onLock,
   onSignOut,
-}: Pick<UnlockedScreenProps, "onLock" | "onSignOut">): React.JSX.Element {
+  onOpenSidePanel,
+}: Pick<UnlockedScreenProps, "onLock" | "onSignOut" | "onOpenSidePanel">): React.JSX.Element {
   const { t } = useI18n();
   const [busy, setBusy] = useState<"lock" | "signout" | null>(null);
 
@@ -155,13 +181,25 @@ function UnlockedFooter({
 
   return (
     <div className="vault-footer">
-      <button
-        type="button"
-        className="link-btn"
-        onClick={() => chrome.tabs.create({ url: webAppUrl })}
-      >
-        {t("vault.openPalladin")}
-      </button>
+      {onOpenSidePanel ? (
+        <button
+          type="button"
+          className="link-btn link-btn--side-panel"
+          onClick={() => void onOpenSidePanel().catch(() => false)}
+        >
+          <SidePanelIcon />
+          {t("vault.openSidePanel")}
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="link-btn link-btn--palladin"
+          onClick={() => chrome.tabs.create({ url: webAppUrl })}
+        >
+          <img className="footer-brand-logo" src={brandLogoUrl} alt="" aria-hidden="true" />
+          {t("vault.openPalladin")}
+        </button>
+      )}
       <div className="vault-footer-actions">
         <Button
           variant="subtle"
@@ -181,5 +219,14 @@ function UnlockedFooter({
         </Button>
       </div>
     </div>
+  );
+}
+
+function SidePanelIcon(): React.JSX.Element {
+  return (
+    <svg className="side-panel-icon" viewBox="0 0 18 18" aria-hidden="true">
+      <rect x="2.25" y="2.75" width="13.5" height="12.5" rx="2" />
+      <path d="M11.25 3v12" />
+    </svg>
   );
 }

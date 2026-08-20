@@ -11,10 +11,9 @@
  *   4. relays validated main-world messages to the worker, and worker messages
  *      back to the main world.
  *
- * Field detection and inline-menu fill are deliberately left as a TODO — they
- * arrive with the fill engine. No crypto and no secret handling live here; the
- * isolated world only ever receives a ready-to-use value after the worker has
- * cleared every gate.
+ * Field detection and the closed-Shadow-DOM inline menu remain value-free. No
+ * crypto lives here; the isolated world receives a ready-to-use value only
+ * after an explicit selection and after the worker has cleared every gate.
  */
 
 import {
@@ -25,6 +24,8 @@ import {
   isAgentInjectTransitionMessage,
   isBridgeMessage,
   isFillRequestMessage,
+  isSessionLivenessControl,
+  isSurfaceStateEvent,
   isTabUrlRequestMessage,
   validateInboundEnvelope,
   type AgentInjectStepMessage,
@@ -36,14 +37,29 @@ import { startPasswordCaptureDetection } from "./capture";
 import { inspectAgentInjectTransition, performAgentInjectStep } from "./agent-inject";
 import { performBoundFill } from "./fill";
 import { createReconnectingWorkerPort } from "./worker-port";
+import { createSessionKeepalive } from "./session-keepalive";
+import { startInlineAutofill } from "./inline-autofill";
 
 const sessionNonce = generateNonce();
 const documentId = generateNonce();
 const selfOrigin = window.location.origin;
 
-const port = createReconnectingWorkerPort(
+let port: ReturnType<typeof createReconnectingWorkerPort>;
+const sessionKeepalive = createSessionKeepalive(
+  (message) => port.postMessage(message),
+  {
+    setInterval: (callback, intervalMs) => globalThis.setInterval(callback, intervalMs),
+    clearInterval: (handle) => globalThis.clearInterval(handle as ReturnType<typeof setInterval>),
+  },
+);
+
+port = createReconnectingWorkerPort(
   () => chrome.runtime.connect({ name: CONTENT_PORT }),
   (raw) => {
+    if (isSessionLivenessControl(raw)) {
+      sessionKeepalive.setEnabled(raw.enabled);
+      return;
+    }
     if (!isBridgeMessage(raw)) return;
     window.postMessage(
       createEnvelope("isolated->main", sessionNonce, raw),
@@ -51,7 +67,14 @@ const port = createReconnectingWorkerPort(
     );
   },
   () => {
-    const message = chrome.runtime.lastError?.message ?? "";
+    let message = "";
+    try {
+      message = chrome.runtime.lastError?.message ?? "";
+      if (!chrome.runtime.id) return "context-invalidated";
+    } catch {
+      return "context-invalidated";
+    }
+    if (/extension context invalidated/i.test(message)) return "context-invalidated";
     return /back\/forward cache/i.test(message) ? "bfcache" : "worker";
   },
 );
@@ -65,6 +88,9 @@ const passwordCapture = startPasswordCaptureDetection(
   },
   window.top === window,
 );
+const inlineAutofill = window.top === window
+  ? startInlineAutofill(document, documentId)
+  : null;
 
 // Fill requests arrive as a direct, tab-addressed runtime message from the
 // worker (never the page). We perform the DOM write here in the isolated world
@@ -72,6 +98,14 @@ const passwordCapture = startPasswordCaptureDetection(
 // written into the page's inputs but is NEVER forwarded to the main-world script
 // (see the Port relay below, which explicitly excludes fill traffic).
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (isSurfaceStateEvent(message)) {
+    inlineAutofill?.invalidateSuggestions();
+    if (message.type === "surface/vault-changed"
+      || (message.type === "surface/session-changed" && message.status === "unlocked")) {
+      inlineAutofill?.retryAutomaticFill();
+    }
+    return undefined;
+  }
   if (isTabUrlRequestMessage(message)) {
     sendResponse({ url: window.location.href, documentId });
     return undefined;
@@ -133,6 +167,9 @@ window.addEventListener("message", (event: MessageEvent) => {
 window.addEventListener("pageshow", (event: PageTransitionEvent) => {
   if (event.persisted) port.reconnect();
 });
+
+window.addEventListener("pagehide", () => sessionKeepalive.stop());
+window.addEventListener("unload", () => inlineAutofill?.stop(), { once: true });
 
 // Handshake: hand the session nonce to the main-world slot so it can talk back.
 window.postMessage(

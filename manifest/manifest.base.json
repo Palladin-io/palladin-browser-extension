@@ -39,7 +39,7 @@
       "all_frames": true
     }
   ],
-  "permissions": ["storage", "activeTab", "alarms", "nativeMessaging"],
+  "permissions": ["storage", "activeTab", "alarms", "nativeMessaging", "scripting"],
   "host_permissions": [
     "http://localhost:5000/*",
     "https://api.stage.palladin.io/*",
@@ -51,6 +51,6 @@
     "https://*/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; base-uri 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; base-uri 'self'; img-src 'self' data: https://assets.palladin.io http://localhost:4566"
   }
 }

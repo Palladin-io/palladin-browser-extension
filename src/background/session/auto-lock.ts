@@ -7,9 +7,9 @@
  * does not. Each user activity re-arms the alarm to `lastActivity + idle`, so the
  * alarm only ever fires once the window has genuinely elapsed with no activity.
  *
- * `on-close` schedules no alarm: keys live in `chrome.storage.session`, which the
- * browser already clears on shutdown, so "lock when the browser closes" needs no
- * timer of our own. The idle policies are the ones that require scheduling.
+ * `on-close` schedules no alarm: keys live only in the current service-worker
+ * JavaScript memory and disappear when that worker or browser process ends. The
+ * idle policies are the ones that require an additional explicit deadline.
  *
  * SECURITY: locking wipes key material (see {@link ./session-manager}); this
  * module only decides *when*, and carries no secret in the alarm payload.
@@ -62,7 +62,7 @@ export class AutoLock {
   arm(policy: AutoLockPolicy, lastActivityAt: number): void {
     const idle = policyIdleMs(policy);
     if (idle === null) {
-      // `on-close`: nothing to schedule; storage.session dies with the browser.
+      // `on-close`: nothing to schedule; worker/browser shutdown drops keys.
       void this.alarms.clear(AUTO_LOCK_ALARM);
       return;
     }

@@ -140,7 +140,30 @@ export function performBoundFill(
   if (message.expectedDomain !== null && !matchesTab(currentUrl, message.expectedDomain)) {
     return { ok: false, reason: "target-changed" };
   }
-  return performFill(doc, message.fields);
+  const outcome = performFill(doc, message.fields);
+  if (!outcome.ok || !message.submit) return outcome;
+
+  const password = firstFillablePassword(doc);
+  if (password === null || !submitLoginForm(password)) {
+    return { ok: false, reason: "no-form" };
+  }
+  return { ok: true };
+}
+
+/** Submit only the exact form that owns the filled login field. */
+export function submitLoginForm(input: HTMLInputElement): boolean {
+  const form = input.isConnected ? input.form : null;
+  if (form === null) return false;
+  const submitter = form.querySelector<HTMLButtonElement | HTMLInputElement>(
+    'button[type="submit"]:not([disabled]), input[type="submit"]:not([disabled])',
+  );
+  try {
+    if (submitter !== null) form.requestSubmit(submitter);
+    else form.requestSubmit();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function performCardFill(doc: Document, fields: readonly FillField[]): FillOutcome {

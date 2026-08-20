@@ -1,4 +1,4 @@
-import type { BridgeMessage } from "@shared/messaging";
+import type { BridgeMessage, SessionLivenessPing } from "@shared/messaging";
 
 export interface ContentWorkerPort {
   readonly onMessage: {
@@ -7,16 +7,23 @@ export interface ContentWorkerPort {
   readonly onDisconnect: {
     addListener(listener: () => void): void;
   };
-  postMessage(message: BridgeMessage): void;
+  postMessage(message: BridgeMessage | SessionLivenessPing): void;
   disconnect(): void;
 }
 
 export interface ReconnectingWorkerPort {
-  postMessage(message: BridgeMessage): void;
+  postMessage(message: BridgeMessage | SessionLivenessPing): void;
   reconnect(): void;
 }
 
-export type ContentPortDisconnectReason = "bfcache" | "worker";
+export type ContentPortDisconnectReason = "bfcache" | "worker" | "context-invalidated";
+
+export function isExtensionContextInvalidated(error: unknown): boolean {
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === "string" ? error : "";
+  return /extension context invalidated/i.test(message);
+}
 
 /**
  * Keeps the isolated-world Port valid across service-worker restarts and BFCache
@@ -30,8 +37,15 @@ export function createReconnectingWorkerPort(
 ): ReconnectingWorkerPort {
   let current: ContentWorkerPort | null = null;
   let immediateWorkerReconnectUsed = false;
+  let contextInvalidated = false;
+
+  function invalidateContext(): void {
+    contextInvalidated = true;
+    current = null;
+  }
 
   function open(): ContentWorkerPort {
+    if (contextInvalidated) throw new Error("Extension context invalidated");
     const next = connect();
     current = next;
     next.onMessage.addListener((message) => {
@@ -42,6 +56,10 @@ export function createReconnectingWorkerPort(
       const reason = consumeDisconnectReason();
       if (current !== next) return;
       current = null;
+      if (reason === "context-invalidated") {
+        invalidateContext();
+        return;
+      }
       // A worker restart erases its live document registry, so reconnect now
       // and wake the new worker. A BFCache document cannot keep a Port alive;
       // pageshow restores it explicitly instead.
@@ -49,8 +67,8 @@ export function createReconnectingWorkerPort(
         immediateWorkerReconnectUsed = true;
         try {
           open();
-        } catch {
-          // Extension reload/uninstall invalidates this content-script context.
+        } catch (error) {
+          if (isExtensionContextInvalidated(error)) invalidateContext();
         }
       }
     });
@@ -67,22 +85,35 @@ export function createReconnectingWorkerPort(
 
   return {
     postMessage(message) {
-      const target = active();
+      if (contextInvalidated) return;
+      let target: ContentWorkerPort;
+      try {
+        target = active();
+      } catch (error) {
+        if (isExtensionContextInvalidated(error)) invalidateContext();
+        return;
+      }
       try {
         target.postMessage(message);
         immediateWorkerReconnectUsed = false;
-      } catch {
+      } catch (error) {
+        if (isExtensionContextInvalidated(error)) {
+          invalidateContext();
+          return;
+        }
         if (current === target) current = null;
         // The Port can close between active() and postMessage(). Re-register
         // and retry this one typed message once; never recurse indefinitely.
         try {
           active().postMessage(message);
-        } catch {
+        } catch (retryError) {
+          if (isExtensionContextInvalidated(retryError)) invalidateContext();
           current = null;
         }
       }
     },
     reconnect() {
+      if (contextInvalidated) return;
       immediateWorkerReconnectUsed = false;
       const previous = current;
       current = null;
@@ -91,7 +122,11 @@ export function createReconnectingWorkerPort(
       } catch {
         // Already disconnected by BFCache or a worker restart.
       }
-      open();
+      try {
+        open();
+      } catch (error) {
+        if (isExtensionContextInvalidated(error)) invalidateContext();
+      }
     },
   };
 }

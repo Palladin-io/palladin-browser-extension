@@ -36,12 +36,16 @@ import {
 } from "./entry-metadata";
 import type {
   CreditCardSaveInput,
-  CreditCardSaveResult,
+  ManualEntrySaveInput,
+  ManualEntrySaveResult,
 } from "./protocol2/service";
 import {
   VaultDataError,
   type VaultDataErrorCode,
 } from "./errors";
+
+/** UI remounts (including side-panel tab changes) reuse a recent sync. */
+export const UI_VAULT_REFRESH_MAX_AGE_MS = 15 * 60_000;
 
 // ─── Command + result vocabulary ──────────────────────────────────────────────
 
@@ -57,10 +61,12 @@ export type VaultCommand =
       readonly entryId: string;
       readonly field: VaultRevealField;
     }
+  | { readonly type: "vault/credential-username"; readonly vaultId: string; readonly entryId: string }
   | { readonly type: "vault/totp"; readonly vaultId: string; readonly entryId: string }
   | { readonly type: "vault/fill"; readonly vaultId: string; readonly entryId: string }
+  | { readonly type: "vault/login"; readonly vaultId: string; readonly entryId: string }
   | { readonly type: "vault/fill-generated"; readonly value: string }
-  | { readonly type: "vault/card-save"; readonly card: CreditCardSaveInput }
+  | { readonly type: "vault/entry-save"; readonly entry: ManualEntrySaveInput }
   | { readonly type: "vault/clipboard-arm" };
 
 export type VaultCommandType = VaultCommand["type"];
@@ -95,6 +101,7 @@ export type FillBlockReason =
   | "domain-mismatch"
   | "not-found"
   | "not-fillable"
+  | "navigation-failed"
   | "target-changed"
   | "decrypt-failed"
   | "network";
@@ -109,9 +116,10 @@ export type VaultCommandErrorCode = VaultDataErrorCode | "bad-request";
 export type VaultCommandResult =
   | { readonly ok: true; readonly list: VaultListView }
   | { readonly ok: true; readonly reveal: { readonly value: string } }
+  | { readonly ok: true; readonly credentialUsername: { readonly value: string } }
   | { readonly ok: true; readonly totp: TotpView | null }
   | { readonly ok: true; readonly fill: FillResult }
-  | { readonly ok: true; readonly cardSave: CreditCardSaveResult }
+  | { readonly ok: true; readonly entrySave: ManualEntrySaveResult }
   | { readonly ok: true; readonly clipboardArmed: true }
   | { readonly ok: false; readonly code: VaultCommandErrorCode; readonly message: string };
 
@@ -128,14 +136,17 @@ export interface ActiveTab {
 
 export interface VaultCommandDeps {
   data: VaultDataSource;
-  cardWriter?: { saveCreditCard(input: CreditCardSaveInput): Promise<CreditCardSaveResult> };
+  entryWriter?: { saveEntry(input: ManualEntrySaveInput): Promise<ManualEntrySaveResult> };
   /** Resolve the active tab (activeTab permission grants URL access on invocation). */
   getActiveTab(): Promise<ActiveTab | null>;
+  /** Open the reviewed HTTPS target and resolve its exact live top-frame document. */
+  openLoginTab(url: string): Promise<ActiveTab | null>;
   /** Deliver values only to the exact top-frame document prepared pre-decrypt. */
   sendFill(
     target: ActiveTab,
     expectedDomain: string | null,
     fields: readonly FillField[],
+    submit: boolean,
   ): Promise<FillOutcome>;
   /** Schedule the clipboard wipe after a value was copied. */
   clipboard: { readonly available: boolean; arm(): void };
@@ -154,24 +165,28 @@ export async function dispatchVaultCommand(
       case "vault/list":
         return { ok: true, list: await buildListView(deps) };
       case "vault/sync":
-        await deps.data.refresh();
+        await deps.data.refreshIfStale(UI_VAULT_REFRESH_MAX_AGE_MS);
         return { ok: true, list: await buildListView(deps) };
       case "vault/reveal":
         if (!deps.clipboard.available) {
           return { ok: false, code: "bad-request", message: "Copy is unavailable on this browser" };
         }
         return await revealField(deps, command.vaultId, command.entryId, command.field);
+      case "vault/credential-username":
+        return await revealCredentialUsername(deps, command.vaultId, command.entryId);
       case "vault/totp":
         return await totpView(deps, command.vaultId, command.entryId);
       case "vault/fill":
         return { ok: true, fill: await fillActiveTab(deps, command.vaultId, command.entryId) };
+      case "vault/login":
+        return { ok: true, fill: await openAndFillLogin(deps, command.vaultId, command.entryId) };
       case "vault/fill-generated":
         return { ok: true, fill: await fillGeneratedValue(deps, command.value) };
-      case "vault/card-save":
-        if (!deps.cardWriter) {
-          return { ok: false, code: "network", message: "Card saving is unavailable" };
+      case "vault/entry-save":
+        if (!deps.entryWriter) {
+          return { ok: false, code: "network", message: "Entry saving is unavailable" };
         }
-        return { ok: true, cardSave: await deps.cardWriter.saveCreditCard(command.card) };
+        return { ok: true, entrySave: await deps.entryWriter.saveEntry(command.entry) };
       case "vault/clipboard-arm":
         if (!deps.clipboard.available) {
           return { ok: false, code: "bad-request", message: "Clipboard wipe is unavailable" };
@@ -192,7 +207,7 @@ async function fillGeneratedValue(deps: VaultCommandDeps, value: string): Promis
   const tab = await deps.getActiveTab();
   if (!tab) return { status: "blocked", reason: "no-active-tab" };
   if (!isSecurePage(tab.url)) return { status: "blocked", reason: "insecure-page" };
-  const outcome = await deps.sendFill(tab, null, [{ kind: "generated", value }]);
+  const outcome = await deps.sendFill(tab, null, [{ kind: "generated", value }], false);
   return fillResult(outcome);
 }
 
@@ -226,6 +241,18 @@ async function revealField(
   return { ok: true, reveal: { value } };
 }
 
+async function revealCredentialUsername(
+  deps: VaultCommandDeps,
+  vaultId: string,
+  entryId: string,
+): Promise<VaultCommandResult> {
+  const plaintext = await deps.data.revealEntry(vaultId, entryId);
+  const value = extractField(plaintext, "username");
+  return value === null
+    ? { ok: false, code: "bad-request", message: "Entry has no username" }
+    : { ok: true, credentialUsername: { value } };
+}
+
 async function totpView(
   deps: VaultCommandDeps,
   vaultId: string,
@@ -251,8 +278,86 @@ async function fillActiveTab(
     (entry) => entry.id === entryId && entry.vaultId === vaultId,
   );
   if (!meta) return { status: "blocked", reason: "not-found" };
+  return fillPreparedEntry(deps, meta, tab);
+}
+
+/**
+ * Inline-only fill bound to the content script's authenticated tab/document.
+ * A related-host scope is a one-shot opt-in from the closed Shadow DOM menu;
+ * it never changes the entry and is never eligible for automatic fill.
+ */
+export async function fillInlineSelectedEntry(
+  deps: VaultCommandDeps,
+  tab: ActiveTab,
+  vaultId: string,
+  entryId: string,
+  scope: "exact" | "related",
+): Promise<FillResult> {
+  if (!isSecurePage(tab.url)) return { status: "blocked", reason: "insecure-page" };
+  const meta = (await deps.data.getMetadata()).find(
+    (entry) => entry.id === entryId && entry.vaultId === vaultId,
+  );
+  if (!meta) return { status: "blocked", reason: "not-found" };
+  if (meta.type !== ENTRY_TYPE_CREDENTIAL || !meta.urlDomain) {
+    return { status: "blocked", reason: "not-fillable" };
+  }
+  const related = scope === "related";
+  if (!matchesTab(tab.url, meta.urlDomain, related ? { exactSubdomain: false } : undefined)) {
+    return { status: "blocked", reason: "domain-mismatch" };
+  }
+  return fillPreparedEntry(deps, meta, tab, related);
+}
+
+async function openAndFillLogin(
+  deps: VaultCommandDeps,
+  vaultId: string,
+  entryId: string,
+): Promise<FillResult> {
+  const meta = (await deps.data.getMetadata()).find(
+    (entry) => entry.id === entryId && entry.vaultId === vaultId,
+  );
+  if (!meta) return { status: "blocked", reason: "not-found" };
+  if (meta.type !== ENTRY_TYPE_CREDENTIAL || !meta.urlDomain) {
+    return { status: "blocked", reason: "not-fillable" };
+  }
+
+  // "Log in" is the resilient primary action: use the current exact HTTPS
+  // document when it already owns a login form, otherwise open the stored host
+  // and fill its new, browser-authenticated top-frame document. A security
+  // failure never silently falls through to navigation.
+  const active = await deps.getActiveTab();
+  if (active !== null && isSecurePage(active.url) && matchesTab(active.url, meta.urlDomain)) {
+    const current = await fillPreparedEntry(deps, meta, active, false, true);
+    if (current.status !== "no-form") return current;
+  }
+
+  const url = loginUrlForDomain(meta.urlDomain);
+  if (url === null) return { status: "blocked", reason: "domain-mismatch" };
+
+  // Navigation carries only the already-decrypted discovery host. The password
+  // is not opened until the new tab has a live, exact top-frame document on the
+  // same HTTPS host.
+  const tab = await deps.openLoginTab(url);
+  if (tab === null) return { status: "blocked", reason: "navigation-failed" };
+  if (!isSecurePage(tab.url) || !matchesTab(tab.url, meta.urlDomain)) {
+    return { status: "blocked", reason: "domain-mismatch" };
+  }
+  return fillPreparedEntry(deps, meta, tab, false, true);
+}
+
+async function fillPreparedEntry(
+  deps: VaultCommandDeps,
+  meta: EntryMetadata,
+  tab: ActiveTab,
+  allowRelatedDomain = false,
+  submit = false,
+): Promise<FillResult> {
   // Re-check the origin gate at click time, not just when the list was drawn.
-  if (meta.type === ENTRY_TYPE_CREDENTIAL && !matchesTab(tab.url, meta.urlDomain)) {
+  if (meta.type === ENTRY_TYPE_CREDENTIAL && !matchesTab(
+    tab.url,
+    meta.urlDomain,
+    allowRelatedDomain ? { exactSubdomain: false } : undefined,
+  )) {
     return { status: "blocked", reason: "domain-mismatch" };
   }
   if (meta.type !== ENTRY_TYPE_CREDENTIAL && meta.type !== ENTRY_TYPE_CREDIT_CARD) {
@@ -261,7 +366,7 @@ async function fillActiveTab(
 
   let plaintext: MemberSecretV1;
   try {
-    plaintext = await deps.data.revealEntry(vaultId, entryId);
+    plaintext = await deps.data.revealEntry(meta.vaultId, meta.id);
   } catch (error) {
     return { status: "blocked", reason: fillReasonFor(error) };
   }
@@ -277,12 +382,16 @@ async function fillActiveTab(
         ? [{ kind: "billing-address", value: card.billingAddress } as const]
         : []),
     ];
-    const outcome = await deps.sendFill(tab, null, fields);
+    const outcome = await deps.sendFill(tab, null, fields, false);
     return fillResult(outcome);
   }
   if (!isCredential(plaintext)) return { status: "blocked", reason: "not-fillable" };
   const currentDomain = plaintext.content.urlDomain;
-  if (!matchesTab(tab.url, currentDomain)) {
+  if (!matchesTab(
+    tab.url,
+    currentDomain,
+    allowRelatedDomain ? { exactSubdomain: false } : undefined,
+  )) {
     return { status: "blocked", reason: "domain-mismatch" };
   }
 
@@ -291,8 +400,39 @@ async function fillActiveTab(
   if (username) fields.push({ kind: "username", value: username });
   fields.push({ kind: "password", value: credentialPassword(plaintext) });
 
-  const outcome = await deps.sendFill(tab, currentDomain, fields);
+  // The isolated-world check stays exact even after a one-shot related-host
+  // consent: bind the final DOM write to the live target host, never to the
+  // broader registrable domain.
+  const expectedDomain = allowRelatedDomain ? exactHttpsHost(tab.url) : currentDomain;
+  if (expectedDomain === null) return { status: "blocked", reason: "domain-mismatch" };
+  const outcome = await deps.sendFill(tab, expectedDomain, fields, submit);
   return fillResult(outcome);
+}
+
+function exactHttpsHost(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase().replace(/\.$/, "");
+    return parsed.protocol === "https:" && registrableDomain(host) !== null ? host : null;
+  } catch {
+    return null;
+  }
+}
+
+function loginUrlForDomain(domain: string): string | null {
+  const normalized = domain.trim().toLowerCase().replace(/\.$/, "");
+  if (normalized.length === 0 || registrableDomain(normalized) === null) return null;
+  try {
+    const url = new URL(`https://${normalized}/`);
+    return url.username === ""
+      && url.password === ""
+      && url.port === ""
+      && url.hostname === normalized
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 // ─── Plaintext extraction ─────────────────────────────────────────────────────
@@ -406,9 +546,9 @@ export function isVaultCommand(value: unknown): value is VaultCommand {
       const c = value as { value?: unknown };
       return isString(c.value) && c.value.length > 0 && c.value.length <= 4096;
     }
-    case "vault/card-save": {
-      const c = value as { card?: unknown };
-      return isCreditCardSaveInput(c.card);
+    case "vault/entry-save": {
+      const c = value as { entry?: unknown };
+      return isManualEntrySaveInput(c.entry);
     }
     case "vault/reveal": {
       const c = value as { vaultId?: unknown; entryId?: unknown; field?: unknown };
@@ -422,7 +562,9 @@ export function isVaultCommand(value: unknown): value is VaultCommand {
       );
     }
     case "vault/totp":
-    case "vault/fill": {
+    case "vault/fill":
+    case "vault/login":
+    case "vault/credential-username": {
       const c = value as { vaultId?: unknown; entryId?: unknown };
       return isString(c.vaultId) && isString(c.entryId);
     }
@@ -431,10 +573,68 @@ export function isVaultCommand(value: unknown): value is VaultCommand {
   }
 }
 
+function isManualEntrySaveInput(value: unknown): value is ManualEntrySaveInput {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const entry = value as Record<string, unknown>;
+  if (!validLabel(entry.label) || typeof entry.entryType !== "string") return false;
+  const optionalNotes = entry.notes === undefined
+    || (typeof entry.notes === "string" && entry.notes.length <= 4096);
+  const optionalCustomFields = entry.customFields === undefined || isManualCustomFields(entry.customFields);
+  if (!optionalNotes || !optionalCustomFields) return false;
+  switch (entry.entryType) {
+    case "credential":
+      return hasOnlyKeys(entry, ["entryType", "label", "username", "password", "url", "notes", "customFields"])
+        && typeof entry.username === "string" && entry.username.length <= 512
+        && typeof entry.password === "string" && entry.password.length > 0 && entry.password.length <= 4096
+        && (entry.url === undefined || (typeof entry.url === "string" && entry.url.length <= 2048));
+    case "key":
+      return hasOnlyKeys(entry, ["entryType", "label", "value", "notes", "customFields"])
+        && typeof entry.value === "string" && entry.value.length > 0 && entry.value.length <= 16_384;
+    case "script":
+      return hasOnlyKeys(entry, ["entryType", "label", "source", "interpreter", "notes", "customFields"])
+        && typeof entry.source === "string" && entry.source.length > 0 && entry.source.length <= 65_536
+        && (entry.interpreter === "bash" || entry.interpreter === "sh"
+          || entry.interpreter === "node" || entry.interpreter === "python");
+    case "creditCard":
+      return hasOnlyKeys(entry, [
+        "entryType", "label", "cardholderName", "cardNumber", "expiryMonth",
+        "expiryYear", "billingAddress", "notes", "customFields",
+      ]) && isCreditCardSaveInput(Object.fromEntries(
+        Object.entries(entry).filter(([key]) => key !== "entryType"),
+      ));
+    default:
+      return false;
+  }
+}
+
+function isManualCustomFields(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length > 20) return false;
+  const ids = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) return false;
+    const field = item as Record<string, unknown>;
+    if (!hasOnlyKeys(field, ["id", "label", "type", "value"])) return false;
+    if (typeof field.id !== "string" || !/^custom:[a-zA-Z0-9_-]{8,128}$/.test(field.id) || ids.has(field.id)) return false;
+    if (typeof field.label !== "string" || field.label.trim().length === 0 || field.label.length > 80) return false;
+    if (field.type !== "text" && field.type !== "multiline" && field.type !== "concealed") return false;
+    if (typeof field.value !== "string" || field.value.length > 16_384) return false;
+    ids.add(field.id);
+  }
+  return true;
+}
+
+function validLabel(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0 && value.length <= 256;
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
+  return Object.keys(value).every((key) => allowed.includes(key));
+}
+
 function isCreditCardSaveInput(value: unknown): value is CreditCardSaveInput {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const card = value as Record<string, unknown>;
-  const keys = ["label", "cardholderName", "cardNumber", "expiryMonth", "expiryYear", "billingAddress", "notes"];
+  const keys = ["label", "cardholderName", "cardNumber", "expiryMonth", "expiryYear", "billingAddress", "notes", "customFields"];
   if (!Object.keys(card).every((key) => keys.includes(key))) return false;
   return typeof card.label === "string" && card.label.trim().length > 0 && card.label.length <= 256
     && typeof card.cardholderName === "string" && card.cardholderName.length <= 256
@@ -443,7 +643,8 @@ function isCreditCardSaveInput(value: unknown): value is CreditCardSaveInput {
     && typeof card.expiryYear === "string" && /^[0-9]{4}$/.test(card.expiryYear)
     && (card.billingAddress === undefined
       || (typeof card.billingAddress === "string" && card.billingAddress.length <= 2048))
-    && (card.notes === undefined || (typeof card.notes === "string" && card.notes.length <= 4096));
+    && (card.notes === undefined || (typeof card.notes === "string" && card.notes.length <= 4096))
+    && (card.customFields === undefined || isManualCustomFields(card.customFields));
 }
 
 /**

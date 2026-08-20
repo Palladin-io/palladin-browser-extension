@@ -7,7 +7,8 @@
  *
  * SECURITY: a revealed value crosses this channel (popup and worker share the
  * extension origin, isolated from any page) only in response to an explicit user
- * action — a copy click. It is used transiently by the popup and never persisted.
+ * action - a copy click or expanding an account row/group. It is used
+ * transiently by the popup and never persisted.
  */
 
 import type {
@@ -20,25 +21,38 @@ import type {
   VaultRevealField,
 } from "../../background/vault/commands";
 import type {
-  CreditCardSaveInput,
-  CreditCardSaveResult,
+  ManualEntrySaveInput,
+  ManualEntrySaveResult,
 } from "../../background/vault/protocol2/service";
 
 export class VaultClientError extends Error {
-  constructor(readonly code: VaultCommandErrorCode) {
+  constructor(
+    readonly code: VaultCommandErrorCode,
+    readonly decryptStage: VaultDecryptFailureStage | null = null,
+  ) {
     super(`Vault command failed: ${code}`);
     this.name = "VaultClientError";
   }
+}
+
+export type VaultDecryptFailureStage = "vault-projection" | "member-index" | "vault-index";
+
+function decryptFailureStage(message: string): VaultDecryptFailureStage | null {
+  return message === "vault-projection" || message === "member-index" || message === "vault-index"
+    ? message
+    : null;
 }
 
 export interface VaultClient {
   list(): Promise<VaultListView>;
   sync(): Promise<VaultListView>;
   reveal(vaultId: string, entryId: string, field: VaultRevealField): Promise<string>;
+  credentialUsername(vaultId: string, entryId: string): Promise<string>;
   totp(vaultId: string, entryId: string): Promise<TotpView | null>;
   fill(vaultId: string, entryId: string): Promise<FillResult>;
+  login(vaultId: string, entryId: string): Promise<FillResult>;
   fillGenerated(value: string): Promise<FillResult>;
-  saveCreditCard(card: CreditCardSaveInput): Promise<CreditCardSaveResult>;
+  saveEntry(entry: ManualEntrySaveInput): Promise<ManualEntrySaveResult>;
   armClipboardClear(): Promise<void>;
 }
 
@@ -56,7 +70,12 @@ async function dispatch(send: VaultSend, command: VaultCommand): Promise<VaultCo
   if (!result || typeof result !== "object" || !("ok" in result)) {
     throw new VaultClientError("network");
   }
-  if (!result.ok) throw new VaultClientError(result.code);
+  if (!result.ok) {
+    throw new VaultClientError(
+      result.code,
+      result.code === "decrypt-failed" ? decryptFailureStage(result.message) : null,
+    );
+  }
   return result;
 }
 
@@ -77,6 +96,11 @@ export function createVaultClient(send: VaultSend = chromeSend): VaultClient {
       if (!("reveal" in result)) throw new VaultClientError("network");
       return result.reveal.value;
     },
+    async credentialUsername(vaultId, entryId) {
+      const result = await dispatch(send, { type: "vault/credential-username", vaultId, entryId });
+      if (!("credentialUsername" in result)) throw new VaultClientError("network");
+      return result.credentialUsername.value;
+    },
     async totp(vaultId, entryId) {
       const result = await dispatch(send, { type: "vault/totp", vaultId, entryId });
       if (!("totp" in result)) throw new VaultClientError("network");
@@ -87,15 +111,20 @@ export function createVaultClient(send: VaultSend = chromeSend): VaultClient {
       if (!("fill" in result)) throw new VaultClientError("network");
       return result.fill;
     },
+    async login(vaultId, entryId) {
+      const result = await dispatch(send, { type: "vault/login", vaultId, entryId });
+      if (!("fill" in result)) throw new VaultClientError("network");
+      return result.fill;
+    },
     async fillGenerated(value) {
       const result = await dispatch(send, { type: "vault/fill-generated", value });
       if (!("fill" in result)) throw new VaultClientError("network");
       return result.fill;
     },
-    async saveCreditCard(card) {
-      const result = await dispatch(send, { type: "vault/card-save", card });
-      if (!("cardSave" in result)) throw new VaultClientError("network");
-      return result.cardSave;
+    async saveEntry(entry) {
+      const result = await dispatch(send, { type: "vault/entry-save", entry });
+      if (!("entrySave" in result)) throw new VaultClientError("network");
+      return result.entrySave;
     },
     async armClipboardClear() {
       const result = await dispatch(send, { type: "vault/clipboard-arm" });

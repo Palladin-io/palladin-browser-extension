@@ -44,6 +44,51 @@ function cache(): IndexedDbProtocol2Cache {
 }
 
 describe('encrypted Protocol 2 sync cache', () => {
+  it('discards the disposable pre-v4 cache with the retired zero-based EntryState mapping', async () => {
+    const databaseName = `palladin-vault-ciphertext-cache-test-${++databaseSequence}`
+    const legacy = await new Promise<IDBDatabase>((resolve, reject) => {
+      const operation = indexedDB.open(databaseName, 3)
+      operation.onupgradeneeded = () => {
+        const vaults = operation.result.createObjectStore('member-vaults', { keyPath: 'scopeId' })
+        vaults.createIndex('userId', 'userId')
+        const items = operation.result.createObjectStore('member-items', { keyPath: ['scopeNamespace', 'entryId'] })
+        items.createIndex('scopeNamespace', 'scopeNamespace')
+      }
+      operation.onsuccess = () => resolve(operation.result)
+      operation.onerror = () => reject(operation.error)
+    })
+    const transaction = legacy.transaction(['member-vaults', 'member-items'], 'readwrite')
+    transaction.objectStore('member-vaults').put({
+      scopeId: `${userId}:${vaultId}`,
+      userId,
+      vaultId,
+      activeNamespace: 'legacy',
+      activeAppliedThroughSequence: '1',
+      activeVault: vault('1'),
+      pendingNamespace: null,
+      pendingSnapshotBaseSequence: null,
+      pendingAppliedThroughSequence: null,
+      pendingCursor: null,
+      pendingVault: null,
+    })
+    transaction.objectStore('member-items').put({
+      scopeNamespace: `${userId}:${vaultId}:legacy`,
+      entryId: '33333333-3333-4333-8333-333333333333',
+      item: { ...head('33333333-3333-4333-8333-333333333333', '1'), state: 'archived' },
+    })
+    await new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve()
+      transaction.onerror = () => reject(transaction.error)
+      transaction.onabort = () => reject(transaction.error)
+    })
+    legacy.close()
+
+    const subject = new IndexedDbProtocol2Cache(databaseName)
+
+    expect(await subject.getActiveState(userId, vaultId)).toBeNull()
+    expect((await subject.readActiveItemPage(userId, vaultId, null, 100)).items).toEqual([])
+  })
+
   it('keeps the prior namespace visible until the replacement snapshot and closing delta commit', async () => {
     const subject = cache()
     const oldEntry = '33333333-3333-4333-8333-333333333333'

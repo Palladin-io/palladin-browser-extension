@@ -43,6 +43,8 @@ export interface UseSession {
   signOut(): Promise<void>;
   /** Re-read status after an initial load failure (worker asleep). */
   retryInit(): void;
+  /** Apply a value-free worker lifecycle event to every open extension surface. */
+  synchronize(status: SessionStatus): void;
 }
 
 function phaseFor(status: SessionStatus): SessionPhase {
@@ -133,6 +135,11 @@ export function useSession(client: SessionClient): UseSession {
     setInitNonce((n) => n + 1);
   }, []);
 
+  const synchronize = useCallback((status: SessionStatus) => {
+    pendingTotp.current = null;
+    setPhase(phaseFor(status));
+  }, []);
+
   return {
     phase,
     capabilities,
@@ -143,5 +150,6 @@ export function useSession(client: SessionClient): UseSession {
     lock,
     signOut,
     retryInit,
+    synchronize,
   };
 }

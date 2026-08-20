@@ -26,7 +26,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@palladin/crypto": "github:Palladin-io/palladin-crypto#2e4ce4729080282578d622abb4d217eef821526d",
+    "@microsoft/signalr": "10.0.0",
+    "@palladin/crypto": "github:Palladin-io/palladin-crypto#fd3cfa4bf8be01d25b53801bd0707429470546bb",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tldts": "^7.4.8",

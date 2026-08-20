@@ -16,8 +16,11 @@ release candidates.
 
 - One buildable source tree with a locked dependency graph.
 - CI and local tests cover messaging, session lock/wipe, ciphertext-only cache,
-  canonical writes, domain matching, credential/card fill, payment-field
-  exclusions, Agent fill, replay rejection, BFCache port restoration, manifest
+  canonical writes for credentials, keys, scripts and cards, domain matching,
+  credential/card fill, payment-field
+  exclusions, exact-document Login navigation, public catalog icon rendering,
+  Vault-name list context, isolated closed-Shadow-DOM login suggestions, Agent fill,
+  replay rejection, BFCache port restoration, manifest
   CSP validation for the bundled crypto WebAssembly, and logging redaction.
 - One Chromium artifact targets Chrome, Edge, Brave, and Opera; Firefox and
   Safari use manifest overlays over the same core.
@@ -31,6 +34,12 @@ release candidates.
   defaults to the browser UI language (English fallback) with an explicit
   override. Theme defaults to the system color scheme and supports persistent
   Light/Dark overrides using the web panel's reviewed `--cv-*` tokens.
+- First use shows one EN/PL guidance screen explaining that overlapping
+  password managers can duplicate icons and prompts. It offers explicit links
+  to browser-owned password and extension settings, persists only a versioned
+  `completed` marker, and does not repeat after continuation. No target requests
+  `management`, enumerates installed extensions, or claims that a competing
+  manager was detected.
 - Copy is available only in the Chromium artifact, where the reviewed offscreen
   TTL wipe exists. Firefox and Safari hide Copy and reject copy commands before
   decrypting a value.
@@ -52,6 +61,51 @@ release candidates.
   storage failure. Plaintext and TOFU fallbacks do not exist.
 - Development compatibility targets current Chrome, Chromium, Brave, Edge, and
   Opera MV3 builds. Store certification and version support are not yet claimed.
+- Inline login suggestions are implemented beside standard username/email
+  controls. The menu receives only exact-host and same-registrable-domain
+  Credential presentation data (label, username, domain, Vault and match scope),
+  never a password/TOTP/custom value. Related-host accounts are labelled and
+  require a one-shot explicit entry choice; they are never auto-selected. An
+  explicit selection is document-bound and remains fill-only. The first exact
+  match fills on a real browser user activation; a successfully selected exact
+  account is preferred for that host until lock, using memory only. Scripted
+  focus cannot fill. A separate
+  explicit enter-arrow action fills and submits the owning form. The final
+  pre-write gate remains bound to the exact live host and document.
+- Repeated website entries are grouped by host. Expanding a group decrypts only
+  its usernames for transient extension-owned display and shows each account's
+  Vault; the collapsed group shows only its login count and the persistent
+  metadata cache remains username-free. Long lists append 100 grouped rows at a
+  time as the user reaches the end.
+- Vault synchronization uses strict value-free SignalR invalidations for
+  targeted authenticated REST delta fetches. Duplicate/out-of-order hints are
+  coalesced, equal-version removal tombstones dominate updates, and reconnect
+  or unlock performs a full all-Vault repair. The 15-minute unlocked alarm is a
+  repair fallback for MV3 suspension or transport loss, not routine polling.
+- Add entry writes neutral text, multiline, and concealed custom fields through
+  the same canonical Protocol 2 path, with Agent access defaulting to `never`;
+  users can reorder those fields without changing canonical IDs or values.
+- A Credential exposes one primary **Log in** action: it fills and submits the
+  current exact HTTPS form when available, otherwise opens the stored host and
+  fills and submits the new browser-authenticated document. Ordinary **Fill**
+  paths never inherit this submit intent. Entry management is a separate extensible row
+  beginning with **Open in Palladin**; the duplicate Credential **Fill** action
+  is not shown.
+- The complete Vault can run in a persistent Chromium side panel or Firefox
+  sidebar through target-specific manifest/API adapters over the shared App.
+  The popup remains the compact launcher and exposes a localized user-gesture
+  control to open the panel. Safari intentionally retains the popup. Installed
+  store/browser certification remains a release gate.
+- An open side panel participates in the same value-free 20-second liveness
+  channel as content scripts, preventing routine MV3 retirement from discarding
+  memory-only keys while the user is actively using the panel. It does not reset
+  the configured auto-lock deadline.
+- Session and keys remain fail-closed. Compatible worker retirement, Reload,
+  update, disable/enable, and browser restart preserve account sign-in only as
+  one authenticated, password-sealed `storage.local` envelope. Tokens are
+  ciphertext and keys remain memory-only, so reopening returns to **Locked**,
+  never **Unlocked**. Wrong passwords preserve a valid envelope; unsupported,
+  expired, foreign-runtime/server, or verifiably tampered envelopes fail closed.
 
 ## Additional gates for any release
 

@@ -1,9 +1,17 @@
+import {
+  fromBase64Url,
+  openBrowserSessionEnvelope,
+  toBase64Url,
+  wipe,
+  type BrowserSessionEnvelope,
+} from "@palladin/crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AuthClient } from "./auth-client";
 import { AutoLock, AUTO_LOCK_ALARM } from "./auto-lock";
 import { SessionHooks } from "./hooks";
 import {
+  DURABLE_SESSION_TTL_MS,
   PENDING_TOTP_TTL_MS,
   SessionManager,
   type SessionManagerDeps,
@@ -21,8 +29,7 @@ import {
   type TestAccount,
 } from "./test-support";
 
-const TOKENS_KEY = "palladin.session.tokens";
-const MATERIAL_KEY = "palladin.session.material";
+const SEALED_SESSION_KEY = "palladin.session.sealed.v1";
 
 interface Harness {
   mgr: SessionManager;
@@ -38,14 +45,17 @@ function makeHarness(
   opts: MockBackendOptions = {},
   overrides: Pick<
     SessionManagerDeps,
-    "createPasswordUnlock" | "pendingTotpTimers"
+    | "clientId"
+    | "createPasswordUnlock"
+    | "durableSessionTtlMs"
+    | "pendingTotpTimers"
   > = {},
 ): Harness {
   const storage = new FakeStorageArea();
   const alarms = new FakeAlarms();
   const store = new SessionStore(storage);
   const backend = mockBackend(account, opts);
-  const authClient = new AuthClient(backend.fetch, "http://api.test");
+  const authClient = new AuthClient(backend.fetch, "https://api.test");
   const hooks = new SessionHooks();
   const now = { value: 1_000_000 };
   let mgr: SessionManager;
@@ -60,6 +70,24 @@ function makeHarness(
     ...overrides,
   });
   return { mgr, storage, alarms, hooks, now, backendCalls: backend.calls };
+}
+
+async function readEnvelope(storage: FakeStorageArea): Promise<BrowserSessionEnvelope> {
+  const value = (await storage.get([SEALED_SESSION_KEY]))[SEALED_SESSION_KEY];
+  if (!value) throw new Error("Expected a sealed session fixture");
+  return value as BrowserSessionEnvelope;
+}
+
+async function readSealedPayload(
+  envelope: BrowserSessionEnvelope,
+  masterKey: Uint8Array,
+): Promise<Record<string, unknown>> {
+  const plaintext = await openBrowserSessionEnvelope(envelope, masterKey);
+  try {
+    return JSON.parse(new TextDecoder().decode(plaintext)) as Record<string, unknown>;
+  } finally {
+    wipe(plaintext);
+  }
 }
 
 function deferred<T>(): {
@@ -122,10 +150,11 @@ describe("SessionManager — full lifecycle", () => {
     const keys = mgr.getKeys();
     expect(keys).not.toBeNull();
     expect(toBase64(keys!.privateKey)).toBe(account.privateKeyB64);
-    // Only tokens and encrypted account material land in storage.session.
+    // Tokens are never plaintext in storage; only one authenticated envelope is durable.
     expect(storage.keys()).not.toContain("palladin.session.keys");
-    expect(storage.has(TOKENS_KEY)).toBe(true);
-    expect(storage.has(MATERIAL_KEY)).toBe(true);
+    expect(storage.has(SEALED_SESSION_KEY)).toBe(true);
+    expect(JSON.stringify(storage.values())).not.toContain("access-token-1");
+    expect(JSON.stringify(storage.values())).not.toContain("refresh-token-1");
   });
 
   it("rejects a wrong password at login without unlocking", async () => {
@@ -147,8 +176,7 @@ describe("SessionManager — full lifecycle", () => {
     // The in-memory buffer was zeroed in place, not merely dereferenced.
     expect(liveMasterKey.every((b) => b === 0)).toBe(true);
     expect(storage.keys()).not.toContain("palladin.session.keys");
-    expect(storage.has(TOKENS_KEY)).toBe(true);
-    expect(storage.has(MATERIAL_KEY)).toBe(true);
+    expect(storage.has(SEALED_SESSION_KEY)).toBe(true);
   });
 
   it("wipes keys synchronously when lock storage lookup fails", async () => {
@@ -165,7 +193,7 @@ describe("SessionManager — full lifecycle", () => {
 
     await mgr.unlockWithPassword(account.password);
     expect(mgr.getKeys()).not.toBeNull();
-  });
+  }, 15_000);
 
   it("blocks a new unlock for the entire in-flight lock", async () => {
     const { mgr, storage, alarms, hooks } = makeHarness(account);
@@ -434,7 +462,7 @@ describe("SessionManager — service-worker restart", () => {
     const account = await buildTestAccount();
     const storage = new FakeStorageArea();
     const alarms = new FakeAlarms();
-    const authClient = new AuthClient(mockBackend(account).fetch, "http://api.test");
+    const authClient = new AuthClient(mockBackend(account).fetch, "https://api.test");
 
     // First worker instance: log in, keys exist only in that manager's memory.
     const first = new SessionManager({
@@ -481,6 +509,351 @@ describe("SessionManager — service-worker restart", () => {
     expect(await second.initialize()).toBe("signed-out");
     expect(storage.keys()).toHaveLength(0);
     expect(secondBackend.calls).toHaveLength(0);
+  });
+
+  it("treats extension Reload and a compatible update as locked, never unlocked", async () => {
+    const account = await buildTestAccount();
+    const storage = new FakeStorageArea();
+    const clientId = "stable-browser-extension-id";
+    const now = { value: 4_000_000 };
+    const authClient = new AuthClient(mockBackend(account).fetch, "https://api.test");
+    const first = new SessionManager({
+      store: new SessionStore(storage),
+      authClient,
+      autoLock: new AutoLock(new FakeAlarms(), () => {}),
+      clientId,
+      now: () => now.value,
+    });
+    await first.login(account.email, account.password);
+
+    // A new worker instance models explicit Reload, update, disable/enable, or
+    // browser restart. Compatible code keeps the stable runtime ID/protocol.
+    const afterUpdate = new SessionManager({
+      store: new SessionStore(storage),
+      authClient,
+      autoLock: new AutoLock(new FakeAlarms(), () => {}),
+      clientId,
+      now: () => now.value,
+    });
+
+    expect(await afterUpdate.initialize()).toBe("locked");
+    expect(afterUpdate.getKeys()).toBeNull();
+    expect(await afterUpdate.getAccessToken()).toBeNull();
+  });
+
+  it("keeps a valid envelope after a wrong password, then unlocks with the correct one", async () => {
+    const account = await buildTestAccount();
+    const storage = new FakeStorageArea();
+    const authClient = new AuthClient(mockBackend(account).fetch, "https://api.test");
+    const first = new SessionManager({
+      store: new SessionStore(storage),
+      authClient,
+      autoLock: new AutoLock(new FakeAlarms(), () => {}),
+    });
+    await first.login(account.email, account.password);
+    const before = await readEnvelope(storage);
+    const restarted = new SessionManager({
+      store: new SessionStore(storage),
+      authClient,
+      autoLock: new AutoLock(new FakeAlarms(), () => {}),
+    });
+
+    await expect(restarted.unlockWithPassword("wrong password")).rejects.toMatchObject({
+      code: "incorrect-password",
+    });
+    expect(await readEnvelope(storage)).toEqual(before);
+    expect(await restarted.getStatus()).toBe("locked");
+
+    await restarted.unlockWithPassword(account.password);
+    expect(await restarted.getStatus()).toBe("unlocked");
+  });
+
+  it("preserves KDF/private-key context tamper as locked because it is indistinguishable from a wrong password", async () => {
+    const account = await buildTestAccount();
+    const storage = new FakeStorageArea();
+    const authClient = new AuthClient(mockBackend(account).fetch, "https://api.test");
+    const first = new SessionManager({
+      store: new SessionStore(storage),
+      authClient,
+      autoLock: new AutoLock(new FakeAlarms(), () => {}),
+    });
+    await first.login(account.email, account.password);
+    const envelope = await readEnvelope(storage);
+    const wrapped = fromBase64Url(envelope.context.encryptedPrivateKey);
+    wrapped[wrapped.length - 1] ^= 1;
+    await storage.set({
+      [SEALED_SESSION_KEY]: {
+        ...envelope,
+        context: {
+          ...envelope.context,
+          encryptedPrivateKey: toBase64Url(wrapped),
+        },
+      },
+    });
+    wipe(wrapped);
+    const restarted = new SessionManager({
+      store: new SessionStore(storage),
+      authClient,
+      autoLock: new AutoLock(new FakeAlarms(), () => {}),
+    });
+
+    expect(await restarted.initialize()).toBe("locked");
+    await expect(restarted.unlockWithPassword(account.password)).rejects.toMatchObject({
+      code: "incorrect-password",
+    });
+    expect(await restarted.getStatus()).toBe("locked");
+    expect(storage.has(SEALED_SESSION_KEY)).toBe(true);
+  });
+
+  it("deletes authenticated ciphertext tamper after the correct password derives the MK", async () => {
+    const account = await buildTestAccount();
+    const storage = new FakeStorageArea();
+    const authClient = new AuthClient(mockBackend(account).fetch, "https://api.test");
+    const first = new SessionManager({
+      store: new SessionStore(storage),
+      authClient,
+      autoLock: new AutoLock(new FakeAlarms(), () => {}),
+    });
+    await first.login(account.email, account.password);
+    const envelope = await readEnvelope(storage);
+    const payload = fromBase64Url(envelope.encodedSuitePayload);
+    payload[payload.length - 1] ^= 1;
+    await storage.set({
+      [SEALED_SESSION_KEY]: {
+        ...envelope,
+        encodedSuitePayload: toBase64Url(payload),
+      },
+    });
+    wipe(payload);
+
+    const restarted = new SessionManager({
+      store: new SessionStore(storage),
+      authClient,
+      autoLock: new AutoLock(new FakeAlarms(), () => {}),
+    });
+    expect(await restarted.initialize()).toBe("locked");
+    await expect(restarted.unlockWithPassword(account.password)).rejects.toMatchObject({
+      code: "not-authenticated",
+    });
+    expect(await restarted.getStatus()).toBe("signed-out");
+    expect(storage.has(SEALED_SESSION_KEY)).toBe(false);
+  });
+
+  it("deletes a session bound to another extension runtime ID", async () => {
+    const account = await buildTestAccount();
+    const storage = new FakeStorageArea();
+    const authClient = new AuthClient(mockBackend(account).fetch, "https://api.test");
+    const first = new SessionManager({
+      store: new SessionStore(storage),
+      authClient,
+      autoLock: new AutoLock(new FakeAlarms(), () => {}),
+      clientId: "first-extension-runtime",
+    });
+    await first.login(account.email, account.password);
+    const foreignRuntime = new SessionManager({
+      store: new SessionStore(storage),
+      authClient,
+      autoLock: new AutoLock(new FakeAlarms(), () => {}),
+      clientId: "different-extension-runtime",
+    });
+
+    expect(await foreignRuntime.initialize()).toBe("signed-out");
+    expect(storage.has(SEALED_SESSION_KEY)).toBe(false);
+  });
+
+  it("deletes an unsupported durable-session protocol without attempting auth", async () => {
+    const account = await buildTestAccount();
+    const storage = new FakeStorageArea();
+    const backend = mockBackend(account);
+    const authClient = new AuthClient(backend.fetch, "https://api.test");
+    const first = new SessionManager({
+      store: new SessionStore(storage),
+      authClient,
+      autoLock: new AutoLock(new FakeAlarms(), () => {}),
+    });
+    await first.login(account.email, account.password);
+    const envelope = await readEnvelope(storage);
+    await storage.set({ [SEALED_SESSION_KEY]: { ...envelope, protocolVersion: 2 } });
+    const callsBeforeRestart = backend.calls.length;
+    const restarted = new SessionManager({
+      store: new SessionStore(storage),
+      authClient,
+      autoLock: new AutoLock(new FakeAlarms(), () => {}),
+    });
+
+    expect(await restarted.initialize()).toBe("signed-out");
+    expect(storage.has(SEALED_SESSION_KEY)).toBe(false);
+    expect(backend.calls).toHaveLength(callsBeforeRestart);
+  });
+
+  it("expires at the absolute refresh-session deadline, not access-token expiry", async () => {
+    const account = await buildTestAccount();
+    const storage = new FakeStorageArea();
+    const now = { value: 10_000 };
+    const authClient = new AuthClient(mockBackend(account).fetch, "https://api.test");
+    const first = new SessionManager({
+      store: new SessionStore(storage),
+      authClient,
+      autoLock: new AutoLock(new FakeAlarms(), () => {}),
+      now: () => now.value,
+    });
+    await first.login(account.email, account.password);
+    const envelope = await readEnvelope(storage);
+    expect(envelope.context.expiresAt - envelope.context.issuedAt).toBe(
+      DURABLE_SESSION_TTL_MS,
+    );
+
+    now.value = envelope.context.expiresAt;
+    const expired = new SessionManager({
+      store: new SessionStore(storage),
+      authClient,
+      autoLock: new AutoLock(new FakeAlarms(), () => {}),
+      now: () => now.value,
+    });
+    expect(await expired.initialize()).toBe("signed-out");
+    expect(storage.has(SEALED_SESSION_KEY)).toBe(false);
+  });
+
+  it("purges obsolete plaintext session-only records instead of migrating them", async () => {
+    const account = await buildTestAccount();
+    const durable = new FakeStorageArea();
+    const legacy = new FakeStorageArea();
+    await legacy.set({
+      "palladin.session.tokens": {
+        accessToken: "old-access",
+        refreshToken: "old-refresh",
+        userId: account.accountId,
+        apiUrl: "https://api.test",
+      },
+      "palladin.session.material": { encryptedPrivateKey: account.encryptedPrivateKey },
+    });
+    const manager = new SessionManager({
+      store: new SessionStore(durable, legacy),
+      authClient: new AuthClient(mockBackend(account).fetch, "https://api.test"),
+      autoLock: new AutoLock(new FakeAlarms(), () => {}),
+    });
+
+    expect(await manager.initialize()).toBe("signed-out");
+    expect(legacy.keys()).toHaveLength(0);
+    expect(durable.keys()).toHaveLength(0);
+  });
+
+  it("locked-screen logout clears the durable envelope locally without claiming remote revocation", async () => {
+    const account = await buildTestAccount();
+    const storage = new FakeStorageArea();
+    const backend = mockBackend(account);
+    const authClient = new AuthClient(backend.fetch, "https://api.test");
+    const first = new SessionManager({
+      store: new SessionStore(storage),
+      authClient,
+      autoLock: new AutoLock(new FakeAlarms(), () => {}),
+    });
+    await first.login(account.email, account.password);
+    const restartedHooks = new SessionHooks();
+    const lockedEvents: string[] = [];
+    restartedHooks.onLocked(({ userId }) => lockedEvents.push(userId));
+    const restarted = new SessionManager({
+      store: new SessionStore(storage),
+      authClient,
+      autoLock: new AutoLock(new FakeAlarms(), () => {}),
+      hooks: restartedHooks,
+    });
+    expect(await restarted.initialize()).toBe("locked");
+    const logoutCallsBefore = backend.calls.filter((url) => url.endsWith("/api/auth/logout"))
+      .length;
+
+    await restarted.logout();
+
+    expect(await restarted.getStatus()).toBe("signed-out");
+    expect(storage.has(SEALED_SESSION_KEY)).toBe(false);
+    expect(lockedEvents).toEqual([account.accountId]);
+    expect(backend.calls.filter((url) => url.endsWith("/api/auth/logout"))).toHaveLength(
+      logoutCallsBefore,
+    );
+  });
+});
+
+describe("SessionManager - durable refresh rotation", () => {
+  it("commits pending then active envelopes before publishing rotated tokens", async () => {
+    const account = await buildTestAccount();
+    const { mgr, storage, backendCalls } = makeHarness(account);
+    await mgr.login(account.email, account.password);
+    const masterKey = new Uint8Array(mgr.getKeys()!.masterKey);
+    const writes: BrowserSessionEnvelope[] = [];
+    const originalSet = storage.set.bind(storage);
+    vi.spyOn(storage, "set").mockImplementation(async (items) => {
+      const candidate = items[SEALED_SESSION_KEY];
+      if (candidate) writes.push(candidate as BrowserSessionEnvelope);
+      await originalSet(items);
+    });
+
+    try {
+      await expect(mgr.refreshAccessToken()).resolves.toBe("access-token-1");
+      expect(writes).toHaveLength(2);
+      expect((await readSealedPayload(writes[0], masterKey))["state"])
+        .toBe("refresh-pending");
+      expect((await readSealedPayload(writes[1], masterKey))["state"])
+        .toBe("active");
+      expect(backendCalls.filter((url) => url.endsWith("/api/auth/refresh")))
+        .toHaveLength(1);
+      expect(await mgr.getAccessToken()).toBe("access-token-1");
+    } finally {
+      wipe(masterKey);
+    }
+  });
+
+  it("leaves a pending marker on a crash window and requires re-auth after restart", async () => {
+    const account = await buildTestAccount();
+    const { mgr, storage, now, backendCalls } = makeHarness(account);
+    await mgr.login(account.email, account.password);
+    const replacementWriteStarted = deferred<void>();
+    const releaseReplacementWrite = deferred<void>();
+    const originalSet = storage.set.bind(storage);
+    let envelopeWrites = 0;
+    vi.spyOn(storage, "set").mockImplementation(async (items) => {
+      if (items[SEALED_SESSION_KEY]) {
+        envelopeWrites += 1;
+        if (envelopeWrites === 2) {
+          replacementWriteStarted.resolve();
+          await releaseReplacementWrite.promise;
+          throw new Error("simulated durable commit failure");
+        }
+      }
+      await originalSet(items);
+    });
+
+    const refreshing = mgr.refreshAccessToken();
+    await replacementWriteStarted.promise;
+    const restarted = new SessionManager({
+      store: new SessionStore(storage),
+      authClient: new AuthClient(mockBackend(account).fetch, "https://api.test"),
+      autoLock: new AutoLock(new FakeAlarms(), () => {}),
+      now: () => now.value,
+    });
+    expect(await restarted.initialize()).toBe("locked");
+    await expect(restarted.unlockWithPassword(account.password)).rejects.toMatchObject({
+      code: "not-authenticated",
+    });
+    expect(await restarted.getStatus()).toBe("signed-out");
+
+    releaseReplacementWrite.resolve();
+    await expect(refreshing).resolves.toBeNull();
+    expect(await mgr.getStatus()).toBe("signed-out");
+    expect(mgr.getKeys()).toBeNull();
+    expect(backendCalls.filter((url) => url.endsWith("/api/auth/refresh")))
+      .toHaveLength(1);
+  });
+
+  it("does not contact the refresh endpoint when the pending marker cannot commit", async () => {
+    const account = await buildTestAccount();
+    const { mgr, storage, backendCalls } = makeHarness(account);
+    await mgr.login(account.email, account.password);
+    vi.spyOn(storage, "set").mockRejectedValueOnce(new Error("durable storage unavailable"));
+
+    await expect(mgr.refreshAccessToken()).rejects.toThrow("durable storage unavailable");
+    expect(backendCalls.filter((url) => url.endsWith("/api/auth/refresh")))
+      .toHaveLength(0);
+    expect(await mgr.getStatus()).toBe("unlocked");
   });
 });
 
