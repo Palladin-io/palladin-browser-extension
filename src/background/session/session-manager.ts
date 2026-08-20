@@ -133,6 +133,7 @@ export class SessionManager {
   private readonly inFlightKeyMaterial = new Set<Uint8Array>();
   private durableMutationTail: Promise<void> = Promise.resolve();
   private refreshInFlight: Promise<string | null> | null = null;
+  private loginInFlight = false;
 
   constructor(deps: SessionManagerDeps) {
     this.store = deps.store;
@@ -296,6 +297,18 @@ export class SessionManager {
    * password stays on the client; only `authCredential` is sent.
    */
   async login(email: string, password: string): Promise<LoginResult> {
+    if (this.loginInFlight) {
+      throw new SessionError("network", "Another sign-in attempt is already in progress");
+    }
+    this.loginInFlight = true;
+    try {
+      return await this.performLogin(email, password);
+    } finally {
+      this.loginInFlight = false;
+    }
+  }
+
+  private async performLogin(email: string, password: string): Promise<LoginResult> {
     this.clearPendingTotp();
     const generation = this.captureLifecycleGeneration();
     const apiUrl = this.authClient.currentApiUrl();

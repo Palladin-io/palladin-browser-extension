@@ -363,6 +363,12 @@ async function fillPreparedEntry(
   if (meta.type !== ENTRY_TYPE_CREDENTIAL && meta.type !== ENTRY_TYPE_CREDIT_CARD) {
     return { status: "blocked", reason: "not-fillable" };
   }
+  const cardTargetHost = meta.type === ENTRY_TYPE_CREDIT_CARD
+    ? exactHttpsHost(tab.url)
+    : null;
+  if (meta.type === ENTRY_TYPE_CREDIT_CARD && cardTargetHost === null) {
+    return { status: "blocked", reason: "domain-mismatch" };
+  }
 
   let plaintext: MemberSecretV1;
   try {
@@ -382,7 +388,9 @@ async function fillPreparedEntry(
         ? [{ kind: "billing-address", value: card.billingAddress } as const]
         : []),
     ];
-    const outcome = await deps.sendFill(tab, null, fields, false);
+    // Cards do not carry a persistent website association. The explicit popup
+    // action is therefore bound to this one exact, live HTTPS host and document.
+    const outcome = await deps.sendFill(tab, cardTargetHost, fields, false);
     return fillResult(outcome);
   }
   if (!isCredential(plaintext)) return { status: "blocked", reason: "not-fillable" };

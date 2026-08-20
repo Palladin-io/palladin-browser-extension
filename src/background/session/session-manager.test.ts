@@ -7,7 +7,11 @@ import {
 } from "@palladin/crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AuthClient, type AuthResponse } from "./auth-client";
+import {
+  AuthClient,
+  type AuthResponse,
+  type LoginKdfBootstrap,
+} from "./auth-client";
 import { AutoLock, AUTO_LOCK_ALARM } from "./auto-lock";
 import { SessionHooks } from "./hooks";
 import {
@@ -166,6 +170,27 @@ describe("SessionManager — full lifecycle", () => {
     expect(await mgr.getStatus()).toBe("signed-out");
     expect(mgr.getKeys()).toBeNull();
   });
+
+  it("rejects a competing login before it can mix another account into the active session", async () => {
+    const { mgr, authClient } = makeHarness(account);
+    const originalFetchLoginKdf = authClient.fetchLoginKdf.bind(authClient);
+    const firstBootstrap = deferred<LoginKdfBootstrap>();
+    const fetchLoginKdf = vi.spyOn(authClient, "fetchLoginKdf")
+      .mockImplementationOnce(() => firstBootstrap.promise);
+
+    const firstLogin = mgr.login(account.email, account.password);
+    await vi.waitFor(() => expect(fetchLoginKdf).toHaveBeenCalledTimes(1));
+
+    await expect(mgr.login("other@example.test", "another password")).rejects.toMatchObject({
+      code: "network",
+    });
+    expect(fetchLoginKdf).toHaveBeenCalledTimes(1);
+
+    const [firstEmail, firstProfile, firstApiUrl] = fetchLoginKdf.mock.calls[0]!;
+    firstBootstrap.resolve(await originalFetchLoginKdf(firstEmail, firstProfile, firstApiUrl));
+    await expect(firstLogin).resolves.toEqual({ status: "unlocked" });
+    expect(await mgr.getStatus()).toBe("unlocked");
+  }, 15_000);
 
   it("lock wipes the key buffers and drops the stored keys, keeping tokens", async () => {
     const { mgr, storage } = makeHarness(account);

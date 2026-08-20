@@ -438,7 +438,7 @@ describe("vault/fill gates", () => {
 });
 
 describe("credit card commands", () => {
-  it("fills canonical card fields on an explicitly selected secure page without a site binding", async () => {
+  it("binds an explicitly selected card fill to the exact live HTTPS host", async () => {
     const sendFill = vi.fn(async (): Promise<FillOutcome> => ({ ok: true }));
     const deps: VaultCommandDeps = {
       data: {
@@ -495,7 +495,7 @@ describe("credit card commands", () => {
       url: "https://checkout.shop.test/pay",
       documentId: "checkout-document",
       browserDocumentId: "browser-checkout-document",
-    }, null, [
+    }, "checkout.shop.test", [
       { kind: "cardholder", value: "Ada Lovelace" },
       { kind: "card-number", value: "4111111111111111" },
       { kind: "card-expiry-month", value: "08" },
