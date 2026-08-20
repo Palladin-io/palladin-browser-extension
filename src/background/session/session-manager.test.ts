@@ -7,7 +7,7 @@ import {
 } from "@palladin/crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AuthClient } from "./auth-client";
+import { AuthClient, type AuthResponse } from "./auth-client";
 import { AutoLock, AUTO_LOCK_ALARM } from "./auto-lock";
 import { SessionHooks } from "./hooks";
 import {
@@ -36,6 +36,7 @@ interface Harness {
   storage: FakeStorageArea;
   alarms: FakeAlarms;
   hooks: SessionHooks;
+  authClient: AuthClient;
   now: { value: number };
   backendCalls: string[];
 }
@@ -69,7 +70,7 @@ function makeHarness(
     now: () => now.value,
     ...overrides,
   });
-  return { mgr, storage, alarms, hooks, now, backendCalls: backend.calls };
+  return { mgr, storage, alarms, hooks, authClient, now, backendCalls: backend.calls };
 }
 
 async function readEnvelope(storage: FakeStorageArea): Promise<BrowserSessionEnvelope> {
@@ -82,7 +83,9 @@ async function readSealedPayload(
   envelope: BrowserSessionEnvelope,
   masterKey: Uint8Array,
 ): Promise<Record<string, unknown>> {
-  const plaintext = await openBrowserSessionEnvelope(envelope, masterKey);
+  const plaintext = await openBrowserSessionEnvelope(envelope, masterKey, {
+    now: () => envelope.context.issuedAt + 1,
+  });
   try {
     return JSON.parse(new TextDecoder().decode(plaintext)) as Record<string, unknown>;
   } finally {
@@ -441,6 +444,34 @@ describe("SessionManager — full lifecycle", () => {
     expect(storage.keys()).toHaveLength(0);
   });
 
+  it("wipes derived keys before lock returns while unlock storage is stalled", async () => {
+    const { mgr, storage } = makeHarness(account);
+    await mgr.login(account.email, account.password);
+    await mgr.lock();
+    const candidate = deferredUnlock();
+    const saveStarted = deferred<void>();
+    const releaseSave = deferred<void>();
+    const originalSet = storage.set.bind(storage);
+    vi.spyOn(storage, "set").mockImplementationOnce(async (items) => {
+      saveStarted.resolve();
+      await releaseSave.promise;
+      await originalSet(items);
+    });
+
+    const unlocking = mgr.unlock(candidate.source);
+    await candidate.started;
+    candidate.release();
+    await saveStarted.promise;
+
+    await mgr.lock();
+
+    expect(candidate.keys.masterKey.every((byte) => byte === 0)).toBe(true);
+    expect(candidate.keys.privateKey.every((byte) => byte === 0)).toBe(true);
+    releaseSave.resolve();
+    await expect(unlocking).rejects.toThrow("Session lifecycle changed");
+    expect(mgr.getKeys()).toBeNull();
+  });
+
   it("emits unlocked then locked lifecycle hooks", async () => {
     const { mgr, hooks } = makeHarness(account);
     const events: string[] = [];
@@ -774,6 +805,31 @@ describe("SessionManager — service-worker restart", () => {
 });
 
 describe("SessionManager - durable refresh rotation", () => {
+  it("shares one refresh-token rotation between concurrent callers", async () => {
+    const account = await buildTestAccount();
+    const { mgr, authClient, backendCalls } = makeHarness(account);
+    await mgr.login(account.email, account.password);
+    const response = deferred<AuthResponse>();
+    const refresh = vi.spyOn(authClient, "refresh").mockImplementation(() => response.promise);
+
+    const first = mgr.refreshAccessToken();
+    const second = mgr.refreshAccessToken();
+
+    expect(second).toBe(first);
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    response.resolve({
+      accessToken: "rotated-access",
+      refreshToken: "rotated-refresh",
+      userId: account.accountId,
+      isOnboarded: true,
+    });
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      "rotated-access",
+      "rotated-access",
+    ]);
+    expect(backendCalls.filter((url) => url.endsWith("/api/auth/refresh"))).toHaveLength(0);
+  });
+
   it("commits pending then active envelopes before publishing rotated tokens", async () => {
     const account = await buildTestAccount();
     const { mgr, storage, backendCalls } = makeHarness(account);
@@ -854,6 +910,57 @@ describe("SessionManager - durable refresh rotation", () => {
     expect(backendCalls.filter((url) => url.endsWith("/api/auth/refresh")))
       .toHaveLength(0);
     expect(await mgr.getStatus()).toBe("unlocked");
+  });
+
+  it("does not recreate a pending session after concurrent logout", async () => {
+    const account = await buildTestAccount();
+    const { mgr, storage } = makeHarness(account);
+    await mgr.login(account.email, account.password);
+    const writeStarted = deferred<void>();
+    const releaseWrite = deferred<void>();
+    const originalSet = storage.set.bind(storage);
+    vi.spyOn(storage, "set").mockImplementationOnce(async (items) => {
+      writeStarted.resolve();
+      await releaseWrite.promise;
+      await originalSet(items);
+    });
+
+    const refreshing = mgr.refreshAccessToken();
+    await writeStarted.promise;
+    let logoutFinished = false;
+    const loggingOut = mgr.logout().then(() => { logoutFinished = true; });
+    await Promise.resolve();
+    expect(logoutFinished).toBe(false);
+
+    releaseWrite.resolve();
+    await loggingOut;
+    await expect(refreshing).resolves.toBeNull();
+    expect(storage.has(SEALED_SESSION_KEY)).toBe(false);
+    expect(await mgr.getStatus()).toBe("signed-out");
+  });
+
+  it("keeps a newer login when a stale refresh settles", async () => {
+    const account = await buildTestAccount();
+    const { mgr, authClient, storage } = makeHarness(account);
+    await mgr.login(account.email, account.password);
+    const response = deferred<AuthResponse>();
+    const refresh = vi.spyOn(authClient, "refresh").mockImplementation(() => response.promise);
+    const staleRefresh = mgr.refreshAccessToken();
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+
+    await mgr.logout();
+    await mgr.login(account.email, account.password);
+    response.resolve({
+      accessToken: "stale-access",
+      refreshToken: "stale-refresh",
+      userId: account.accountId,
+      isOnboarded: true,
+    });
+
+    await expect(staleRefresh).resolves.toBeNull();
+    expect(await mgr.getStatus()).toBe("unlocked");
+    expect(mgr.getKeys()).not.toBeNull();
+    expect(storage.has(SEALED_SESSION_KEY)).toBe(true);
   });
 });
 

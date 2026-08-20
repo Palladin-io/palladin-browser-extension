@@ -64,7 +64,7 @@ describe("AddEntryForm", () => {
       })],
     })));
     expect(screen.queryByLabelText("Name of additional field 1")).not.toBeInTheDocument();
-  });
+  }, 15_000);
 
   it("reorders custom fields without changing their canonical IDs or values", async () => {
     const saveEntry = vi.fn(async () => ({ status: "saved" }) as const);

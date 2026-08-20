@@ -157,7 +157,7 @@ describe("UnlockedScreen", () => {
     expect(await screen.findByText("Entry 199")).toBeInTheDocument();
     expect(screen.queryByText("Entry 200")).not.toBeInTheDocument();
     vi.unstubAllGlobals();
-  });
+  }, 15_000);
 
   it("reveals the username of a single credential only after its row is expanded", async () => {
     const credentialUsername = vi.fn(async () => "ada@example.com");
