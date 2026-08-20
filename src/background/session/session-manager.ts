@@ -652,7 +652,10 @@ export class SessionManager {
       this.autoLock.disarm();
       if (!wasUnlocked) return;
       const tokens = await this.getBoundMemoryTokens();
-      if (tokens) this.hooks.emitLocked({ userId: tokens.userId });
+      const userId = tokens?.userId ?? (await this.getBoundEnvelope())?.context.accountId ?? null;
+      // A refresh-pending envelope intentionally has no published tokens, but
+      // surfaces must still observe the authoritative transition to locked.
+      if (userId) this.hooks.emitLocked({ userId });
     } finally {
       this.endLifecycleTermination();
     }
@@ -718,11 +721,28 @@ export class SessionManager {
       || context.kdfProfileId !== IDENTITY_KDF_PROFILE_ID
       || context.expiresAt <= this.now()
     ) {
-      this.tokens = null;
-      await this.store.clearAll();
+      await this.invalidateBoundSession(context.accountId);
       return null;
     }
     return envelope;
+  }
+
+  private async invalidateBoundSession(userId: string): Promise<void> {
+    this.beginLifecycleTermination();
+    try {
+      this.wipeKeys();
+      this.autoLock.disarm();
+      this.tokens = null;
+      try {
+        await this.runDurableMutation(() => this.store.clearAll());
+      } finally {
+        // A failed storage cleanup cannot leave another extension surface
+        // displaying decrypted state after the session became invalid.
+        this.hooks.emitLocked({ userId });
+      }
+    } finally {
+      this.endLifecycleTermination();
+    }
   }
 
   private materialFromEnvelope(envelope: BrowserSessionEnvelope): AccountMaterial {

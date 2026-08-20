@@ -719,10 +719,11 @@ function manualCredentialSecret(
   if (url !== null) {
     try {
       const parsed = new URL(url)
-      if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && isLocalHostname(parsed.hostname))) {
+      const host = parsed.hostname.toLowerCase().replace(/\.$/, '')
+      if (parsed.protocol !== 'https:' || registrableDomain(host) === null) {
         throw new Error('unsupported credential URL')
       }
-      urlDomain = parsed.hostname.toLowerCase().replace(/\.$/, '')
+      urlDomain = host
     } catch {
       throw new VaultDataError('network', 'Credential URL is invalid')
     }
@@ -852,11 +853,6 @@ function parseSecureSite(url: string): { origin: string; site: string; host: str
   } catch {
     return null
   }
-}
-
-function isLocalHostname(hostname: string): boolean {
-  const normalized = hostname.toLowerCase().replace(/\.$/, '')
-  return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1'
 }
 
 function mapTransportError(error: unknown): VaultDataError {

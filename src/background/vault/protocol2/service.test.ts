@@ -595,4 +595,24 @@ describe('Protocol2VaultDataService canonical password capture', () => {
       content: { source: 'echo ok', interpreter: 'bash', refs: [] },
     })
   })
+
+  it('rejects credential URLs that can never pass the HTTPS PSL fill gate', async () => {
+    const { service } = harness()
+    await service.refresh()
+
+    for (const url of [
+      'http://accounts.example.com/login',
+      'http://localhost:3000/login',
+      'https://localhost/login',
+      'https://127.0.0.1/login',
+    ]) {
+      await expect(service.saveEntry({
+        entryType: 'credential',
+        label: 'Unfillable login',
+        username: 'ada@example.com',
+        password: 'secret',
+        url,
+      })).rejects.toMatchObject({ code: 'network' })
+    }
+  })
 })

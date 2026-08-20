@@ -770,6 +770,26 @@ describe("SessionManager — service-worker restart", () => {
     expect(storage.has(SEALED_SESSION_KEY)).toBe(false);
   });
 
+  it("wipes a live session and notifies surfaces when its durable envelope expires", async () => {
+    const account = await buildTestAccount();
+    const { mgr, storage, alarms, hooks, now } = makeHarness(account);
+    const lockedEvents: string[] = [];
+    hooks.onLocked(({ userId }) => lockedEvents.push(userId));
+    await mgr.login(account.email, account.password);
+    const liveMasterKey = mgr.getKeys()!.masterKey;
+    const envelope = await readEnvelope(storage);
+
+    now.value = envelope.context.expiresAt;
+
+    await expect(mgr.getAccessToken()).resolves.toBeNull();
+    expect(mgr.getKeys()).toBeNull();
+    expect(liveMasterKey.every((byte) => byte === 0)).toBe(true);
+    expect(alarms.created.has(AUTO_LOCK_ALARM)).toBe(false);
+    expect(storage.has(SEALED_SESSION_KEY)).toBe(false);
+    expect(lockedEvents).toEqual([account.accountId]);
+    expect(await mgr.getStatus()).toBe("signed-out");
+  });
+
   it("purges obsolete plaintext session-only records instead of migrating them", async () => {
     const account = await buildTestAccount();
     const durable = new FakeStorageArea();
@@ -881,6 +901,30 @@ describe("SessionManager - durable refresh rotation", () => {
     } finally {
       wipe(masterKey);
     }
+  });
+
+  it("notifies every surface when lock interrupts a refresh-pending session", async () => {
+    const account = await buildTestAccount();
+    const { mgr, authClient, hooks } = makeHarness(account);
+    await mgr.login(account.email, account.password);
+    const response = deferred<AuthResponse>();
+    const refresh = vi.spyOn(authClient, "refresh").mockImplementation(() => response.promise);
+    const lockedEvents: string[] = [];
+    hooks.onLocked(({ userId }) => lockedEvents.push(userId));
+
+    const refreshing = mgr.refreshAccessToken();
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    await mgr.lock();
+
+    expect(mgr.getKeys()).toBeNull();
+    expect(lockedEvents).toEqual([account.accountId]);
+    response.resolve({
+      accessToken: "stale-access",
+      refreshToken: "stale-refresh",
+      userId: account.accountId,
+      isOnboarded: true,
+    });
+    await expect(refreshing).resolves.toBeNull();
   });
 
   it("leaves a pending marker on a crash window and requires re-auth after restart", async () => {
