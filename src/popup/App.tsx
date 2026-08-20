@@ -88,7 +88,7 @@ export function App({
     PasswordManagerOnboardingStatus | "loading"
   >("loading");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [vaultRevision, setVaultRevision] = useState(0);
+  const [vaultViewRevision, setVaultViewRevision] = useState(0);
   const panelAvailable = surface === "popup" && supportsSidePanel(extensionBuildTarget);
 
   useEffect(() => {
@@ -109,7 +109,7 @@ export function App({
     const onMessage = (raw: unknown): void => {
       if (!isSurfaceStateEvent(raw)) return;
       if (raw.type === "surface/session-changed") session.synchronize(raw.status);
-      setVaultRevision((revision) => revision + 1);
+      setVaultViewRevision((revision) => revision + 1);
     };
     chrome.runtime.onMessage.addListener(onMessage);
     return () => {
@@ -126,10 +126,14 @@ export function App({
     let timer: ReturnType<typeof setTimeout> | null = null;
     const refresh = (): void => {
       if (timer !== null) clearTimeout(timer);
-      timer = setTimeout(() => setVaultRevision((revision) => revision + 1), 120);
+      timer = setTimeout(() => setVaultViewRevision((revision) => revision + 1), 120);
     };
-    const onUpdated = (_tabId: number, changeInfo: chrome.tabs.TabChangeInfo): void => {
-      if (changeInfo.status === "complete") refresh();
+    const onUpdated = (
+      _tabId: number,
+      changeInfo: chrome.tabs.TabChangeInfo,
+      tab: chrome.tabs.Tab,
+    ): void => {
+      if (changeInfo.status === "complete" && tab.active) refresh();
     };
     chrome.tabs.onActivated.addListener(refresh);
     chrome.tabs.onUpdated.addListener(onUpdated);
@@ -230,7 +234,7 @@ export function App({
       case "unlocked":
         return (
           <UnlockedScreen
-            key={vaultRevision}
+            viewRevision={vaultViewRevision}
             onLock={session.lock}
             onSignOut={session.signOut}
             onOpenSidePanel={panelAvailable ? () => openSidePanel() : undefined}

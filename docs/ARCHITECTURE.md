@@ -265,8 +265,10 @@ the popup. Autofill does not depend on any of these surfaces.
 The side panel is full height: header, navigation and footer remain stable while
 the Vault list or form owns the single scroll region. A value-free lifecycle
 event refreshes session/Vault presentation after lock, unlock, logout and
-mutations; active-tab navigation refreshes exact-host matches without moving
-keys or plaintext into the UI shell.
+mutations. Active-tab navigation refreshes exact-host matches from the local
+encrypted cache without remounting the surface, losing its search/expanded-row
+state, or starting a REST synchronization. Background-tab completion is ignored.
+No keys or plaintext move into the UI shell.
 
 Vault refreshes are coalesced and freshness-gated. SignalR
 `ReceiveVaultSyncInvalidation` is the primary live path while the worker is
@@ -280,6 +282,13 @@ without forcing backend requests. The existing 15-minute alarm runs only while
 unlocked as a repair mechanism for missed events after MV3 suspension or
 transport loss; it is not the primary synchronization channel. Local writes
 still reconcile immediately.
+
+The web panel and browser extension deliberately keep separate client sessions,
+memory-only keys and ciphertext-cache stores. Their common source of truth is
+the backend's encrypted Vault state, coordinated by value-free SignalR
+invalidations and authenticated REST repair. Neither client transfers an MK,
+private key, bearer/refresh token or unlock capability to the other, so unlocking
+one surface never implicitly unlocks the other.
 
 An expired freshness window does not imply a full Vault download. The first
 request is the encrypted Vault list, used as a change manifest. For a cached

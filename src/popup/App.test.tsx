@@ -326,4 +326,79 @@ describe("popup state machine", () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it("refreshes the side-panel projection only for the active tab", async () => {
+    let tabUpdated: ((
+      tabId: number,
+      changeInfo: chrome.tabs.TabChangeInfo,
+      tab: chrome.tabs.Tab,
+    ) => void) | undefined;
+    const sendMessage = vi.fn(async (raw: unknown) => {
+      if (raw !== null && typeof raw === "object" && "type" in raw) {
+        const type = (raw as { readonly type?: unknown }).type;
+        if (type === "vault/list" || type === "vault/sync") {
+          return {
+            ok: true as const,
+            list: { site: null, forSite: [], all: [] },
+          };
+        }
+      }
+      return undefined;
+    });
+    vi.stubGlobal("chrome", {
+      runtime: {
+        sendMessage,
+        onMessage: { addListener: vi.fn(), removeListener: vi.fn() },
+      },
+      tabs: {
+        onActivated: { addListener: vi.fn(), removeListener: vi.fn() },
+        onUpdated: {
+          addListener: vi.fn((listener: typeof tabUpdated) => { tabUpdated = listener; }),
+          removeListener: vi.fn(),
+        },
+      },
+    });
+
+    try {
+      render(
+        <App
+          surface="side-panel"
+          client={makeClient({ getStatus: vi.fn(async () => "unlocked" as const) })}
+          onboardingClient={makeOnboardingClient()}
+        />,
+      );
+      expect(await screen.findByText("No entries yet.")).toBeInTheDocument();
+      const vaultCalls = (): unknown[] => sendMessage.mock.calls
+        .map(([message]) => message)
+        .filter((message) => message !== null
+          && typeof message === "object"
+          && "type" in message
+          && ((message as { readonly type?: unknown }).type === "vault/list"
+            || (message as { readonly type?: unknown }).type === "vault/sync"));
+      expect(vaultCalls()).toHaveLength(2);
+
+      const tab = (id: number, active: boolean): chrome.tabs.Tab => ({
+        id,
+        active,
+        index: 0,
+        pinned: false,
+        highlighted: active,
+        windowId: 1,
+        incognito: false,
+        selected: active,
+        discarded: false,
+        autoDiscardable: true,
+        groupId: -1,
+      });
+      act(() => tabUpdated?.(2, { status: "complete" }, tab(2, false)));
+      await new Promise((resolve) => setTimeout(resolve, 160));
+      expect(vaultCalls()).toHaveLength(2);
+
+      act(() => tabUpdated?.(1, { status: "complete" }, tab(1, true)));
+      await waitFor(() => expect(vaultCalls()).toHaveLength(3));
+      expect(vaultCalls()[2]).toEqual({ type: "vault/list" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

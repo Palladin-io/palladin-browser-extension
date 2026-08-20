@@ -99,6 +99,36 @@ describe("UnlockedScreen", () => {
     expect(screen.queryByText("Example login")).not.toBeInTheDocument();
   });
 
+  it("preserves the selected view and search while the active-tab projection changes", async () => {
+    const client = makeClient();
+    const { rerender } = render(
+      <UnlockedScreen
+        viewRevision={0}
+        onLock={noop}
+        onSignOut={noop}
+        vaultClient={client}
+      />,
+    );
+    const user = userEvent.setup();
+
+    await screen.findByText("All items");
+    await user.type(screen.getByLabelText("Search entries"), "token");
+    rerender(
+      <UnlockedScreen
+        viewRevision={1}
+        onLock={noop}
+        onSignOut={noop}
+        vaultClient={client}
+      />,
+    );
+
+    expect(screen.getByLabelText("Search entries")).toHaveValue("token");
+    expect(screen.getByText("Results")).toBeInTheDocument();
+    expect(screen.getByText("API token")).toBeInTheDocument();
+    await waitFor(() => expect(client.list).toHaveBeenCalledTimes(2));
+    expect(client.sync).toHaveBeenCalledOnce();
+  });
+
   it("groups repeated website entries and reveals usernames only after expansion", async () => {
     const first = entry({ id: "work", name: "WP work", urlDomain: "1login.wp.pl", vaultName: "Work" });
     const second = entry({ id: "personal", vaultId: "v2", name: "WP personal", urlDomain: "1login.wp.pl", vaultName: "Personal" });

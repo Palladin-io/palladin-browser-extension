@@ -26,6 +26,11 @@ import { useI18n } from "../i18n";
 export interface UnlockedScreenProps {
   onLock(): Promise<void>;
   onSignOut(): Promise<void>;
+  /**
+   * Value-free worker/tab invalidation. It refreshes only the local list view;
+   * the screen itself stays mounted so search, expansion and scroll survive.
+   */
+  viewRevision?: number;
   /** Present only in the compact popup on targets with a browser-owned panel. */
   onOpenSidePanel?: (() => Promise<boolean>) | undefined;
   /** Injected in tests; defaults to the real `chrome.runtime` vault channel. */
@@ -37,6 +42,7 @@ export interface UnlockedScreenProps {
 export function UnlockedScreen({
   onLock,
   onSignOut,
+  viewRevision = 0,
   onOpenSidePanel,
   vaultClient,
   captureClient,
@@ -48,7 +54,7 @@ export function UnlockedScreen({
     [captureClient],
   );
   const capture = useCapturePrompt(promptClient);
-  const list = useVaultList(client);
+  const list = useVaultList(client, viewRevision);
   const [query, setQuery] = useState("");
   const [view, setView] = useState<"vault" | "generator" | "add-entry">("vault");
   const [capturePrompt, setCapturePrompt] = useState(capture.prompt);

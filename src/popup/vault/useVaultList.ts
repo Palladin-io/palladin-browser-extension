@@ -4,13 +4,14 @@
  * Two reads on open (plan §6 sync-on-popup-open): first `list()` returns the
  * cached metadata instantly so a non-empty list paints without waiting on the
  * network, then `sync()` asks the worker to ensure freshness. The worker reuses
- * a recent authoritative refresh, so popup/side-panel remounts and page reloads
- * do not automatically hit the backend. An empty cache keeps the skeleton
- * visible until sync confirms the authoritative empty state. The search bar and
- * header stay visible throughout.
+ * a recent authoritative refresh. Active-tab changes update only the local
+ * projection and keep this hook mounted, so navigation neither resets the UI nor
+ * triggers another sync. An empty cache keeps the skeleton visible until sync
+ * confirms the authoritative empty state. The search bar and header stay visible
+ * throughout.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { EntryMetadata } from "../../background/vault/entry-metadata";
 import type { SiteInfo, VaultCommandErrorCode } from "../../background/vault/commands";
@@ -43,9 +44,10 @@ const EMPTY: StoredVaultListState = {
   all: [],
 };
 
-export function useVaultList(client: VaultClient): VaultListState {
+export function useVaultList(client: VaultClient, viewRevision = 0): VaultListState {
   const [state, setState] = useState<StoredVaultListState>(EMPTY);
   const [attempt, setAttempt] = useState(0);
+  const observedViewRevision = useRef(viewRevision);
 
   useEffect(() => {
     let active = true;
@@ -89,6 +91,30 @@ export function useVaultList(client: VaultClient): VaultListState {
       active = false;
     };
   }, [attempt, client]);
+
+  useEffect(() => {
+    if (viewRevision === observedViewRevision.current) return;
+    observedViewRevision.current = viewRevision;
+    let active = true;
+
+    // A tab/navigation or value-free worker invalidation only changes the
+    // projection of the already-synchronised encrypted cache. Never reset the
+    // screen or call sync here: preserving the mounted surface also preserves
+    // search, expanded rows and scroll position.
+    void client.list()
+      .then((list) => {
+        if (!active) return;
+        setState({ status: "ready", errorCode: null, decryptStage: null, ...list });
+      })
+      .catch(() => {
+        // Keep the last useful projection. The explicit retry path remains the
+        // only UI action that promotes a transient local-read failure to error.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [client, viewRevision]);
 
   return { ...state, retry: () => setAttempt((current) => current + 1) };
 }

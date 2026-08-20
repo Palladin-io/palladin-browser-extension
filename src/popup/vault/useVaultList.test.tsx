@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { EntryMetadata } from "../../background/vault/entry-metadata";
+import type { VaultListView } from "../../background/vault/commands";
 import type { VaultClient } from "./client";
 import { VaultClientError } from "./client";
 import { useVaultList } from "./useVaultList";
@@ -25,10 +26,16 @@ const ENTRY: EntryMetadata = {
   urlDomain: "example.com",
 };
 
-function Harness({ client }: { readonly client: VaultClient }): React.JSX.Element {
-  const state = useVaultList(client);
+function Harness({
+  client,
+  viewRevision = 0,
+}: {
+  readonly client: VaultClient;
+  readonly viewRevision?: number;
+}): React.JSX.Element {
+  const state = useVaultList(client, viewRevision);
   return <>
-    <div data-testid="state">{state.status}:{state.errorCode ?? "none"}:{state.decryptStage ?? "none"}:{state.all.length}</div>
+    <div data-testid="state">{state.status}:{state.errorCode ?? "none"}:{state.decryptStage ?? "none"}:{state.all.length}:{state.site?.domain ?? "none"}</div>
     <button type="button" onClick={state.retry}>retry</button>
   </>;
 }
@@ -95,5 +102,30 @@ describe("useVaultList", () => {
 
     await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("ready:none:none:1"));
     expect(sync).toHaveBeenCalledTimes(2);
+  });
+
+  it("updates only the active-site projection without loading or syncing again", async () => {
+    let resolveProjection: ((value: VaultListView) => void) | undefined;
+    const first: VaultListView = { ...EMPTY_VIEW, site: { domain: "first.example", secure: true }, all: [ENTRY] };
+    const second: VaultListView = { ...EMPTY_VIEW, site: { domain: "second.example", secure: true }, all: [ENTRY] };
+    const list = vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockImplementationOnce(() => new Promise<VaultListView>((resolve) => {
+        resolveProjection = resolve;
+      }));
+    const sync = vi.fn(async () => first);
+    const vaultClient = client({ list, sync });
+    const { rerender } = render(<Harness client={vaultClient} viewRevision={0} />);
+
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("ready:none:none:1:first.example"));
+    rerender(<Harness client={vaultClient} viewRevision={1} />);
+
+    expect(screen.getByTestId("state")).toHaveTextContent("ready:none:none:1:first.example");
+    expect(sync).toHaveBeenCalledOnce();
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+
+    resolveProjection?.(second);
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("ready:none:none:1:second.example"));
+    expect(sync).toHaveBeenCalledOnce();
   });
 });

@@ -82,6 +82,8 @@ release candidates.
   coalesced, equal-version removal tombstones dominate updates, and reconnect
   or unlock performs a full all-Vault repair. The 15-minute unlocked alarm is a
   repair fallback for MV3 suspension or transport loss, not routine polling.
+  Active-tab navigation only rebuilds the local site projection: it preserves
+  list UI state and does not start another backend sync.
 - Add entry writes neutral text, multiline, and concealed custom fields through
   the same canonical Protocol 2 path, with Agent access defaulting to `never`;
   users can reorder those fields without changing canonical IDs or values.
