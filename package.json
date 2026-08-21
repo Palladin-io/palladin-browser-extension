@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@microsoft/signalr": "10.0.0",
-    "@palladin/crypto": "github:Palladin-io/palladin-crypto#82ec0f505fc825fe92147bb85a2b76c5e58b8b5c",
+    "@palladin/crypto": "0.4.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tldts": "^7.4.8",
