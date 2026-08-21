@@ -15,6 +15,9 @@ release candidates.
 ## Development baseline
 
 - One buildable source tree with a locked dependency graph.
+- The shared cryptographic dependency is the exact public registry release
+  `@palladin/crypto@0.4.0`, published from signed tag `v0.4.0` with npm/Sigstore
+  provenance. No temporary Git SHA or extension-local crypto wire remains.
 - CI and local tests cover messaging, session lock/wipe, ciphertext-only cache,
   canonical writes for credentials, keys, scripts and cards, domain matching,
   credential/card fill, payment-field
@@ -119,8 +122,6 @@ release candidates.
 - end-to-end tests against a compatible public Palladin API contract;
 - trusted-runtime pairing with an independent user-verification channel and
   installed-browser Native Messaging tests;
-- replace the temporary Git SHA crypto dependency with the reviewed published
-  `@palladin/crypto` semver release before merge/release;
 - release notes that distinguish implemented behavior from future work.
 
 Until every release gate is complete, documentation and UI must continue to use
