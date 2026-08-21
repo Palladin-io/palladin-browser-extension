@@ -1,14 +1,18 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { I18nProvider, type Locale } from "./i18n";
+import {
+  DEFAULT_UI_PREFERENCES,
+  UI_PREFERENCES_STORAGE_KEY,
+  parseUiPreferences,
+  resolveUiLocale,
+  type LanguagePreference,
+  type ThemePreference,
+  type UiPreferences,
+} from "@shared/config/ui-preferences";
 
-export type LanguagePreference = "system" | Locale;
-export type ThemePreference = "system" | "light" | "dark";
-
-export interface PopupPreferences {
-  readonly language: LanguagePreference;
-  readonly theme: ThemePreference;
-}
+export type PopupPreferences = UiPreferences;
+export type { LanguagePreference, ThemePreference };
 
 interface PreferencesContextValue extends PopupPreferences {
   readonly setLanguage: (language: LanguagePreference) => Promise<void>;
@@ -20,8 +24,7 @@ interface StorageArea {
   set(items: Record<string, unknown>): Promise<void>;
 }
 
-const STORAGE_KEY = "palladin.ui.preferences";
-export const DEFAULT_PREFERENCES: PopupPreferences = { language: "system", theme: "system" };
+export const DEFAULT_PREFERENCES: PopupPreferences = DEFAULT_UI_PREFERENCES;
 
 const PreferencesContext = createContext<PreferencesContextValue>({
   ...DEFAULT_PREFERENCES,
@@ -34,23 +37,11 @@ function browserStorage(): StorageArea | null {
 }
 
 export function parsePreferences(value: unknown): PopupPreferences {
-  if (typeof value !== "object" || value === null) return DEFAULT_PREFERENCES;
-  const record = value as Record<string, unknown>;
-  const language = record["language"];
-  const theme = record["theme"];
-  return {
-    language: language === "en" || language === "pl" || language === "system"
-      ? language
-      : "system",
-    theme: theme === "light" || theme === "dark" || theme === "system"
-      ? theme
-      : "system",
-  };
+  return parseUiPreferences(value);
 }
 
 export function resolveLocale(preference: LanguagePreference, systemLanguage: string): Locale {
-  if (preference !== "system") return preference;
-  return systemLanguage.toLowerCase().startsWith("pl") ? "pl" : "en";
+  return resolveUiLocale(preference, systemLanguage);
 }
 
 export function PopupPreferencesProvider({ children }: { children: ReactNode }): React.JSX.Element {
@@ -63,8 +54,8 @@ export function PopupPreferencesProvider({ children }: { children: ReactNode }):
     const storage = browserStorage();
     if (storage === null) return;
     let active = true;
-    void storage.get(STORAGE_KEY).then((items) => {
-      if (active) setPreferences(parsePreferences(items[STORAGE_KEY]));
+    void storage.get(UI_PREFERENCES_STORAGE_KEY).then((items) => {
+      if (active) setPreferences(parsePreferences(items[UI_PREFERENCES_STORAGE_KEY]));
     }).catch(() => undefined);
     return () => { active = false; };
   }, []);
@@ -79,7 +70,7 @@ export function PopupPreferencesProvider({ children }: { children: ReactNode }):
 
   const persist = useCallback(async (next: PopupPreferences): Promise<void> => {
     setPreferences(next);
-    await browserStorage()?.set({ [STORAGE_KEY]: next });
+    await browserStorage()?.set({ [UI_PREFERENCES_STORAGE_KEY]: next });
   }, []);
 
   const value = useMemo<PreferencesContextValue>(() => ({

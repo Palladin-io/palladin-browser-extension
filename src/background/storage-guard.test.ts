@@ -16,6 +16,7 @@ const BACKGROUND_DIR = resolve(process.cwd(), "src/background");
 const CIPHERTEXT_CACHE = join('vault', 'protocol2', 'cache.ts');
 const PUBLIC_HOST_PAIRING_STORE = join('agent', 'pairing-store.ts');
 const PUBLIC_SERVER_CONFIG_STORE = join('config', 'server-runtime.ts');
+const SEALED_SESSION_STORE = join('session', 'runtime.ts');
 
 const FORBIDDEN: readonly {
   readonly label: string;
@@ -28,7 +29,11 @@ const FORBIDDEN: readonly {
   {
     label: "storage.local",
     pattern: /\bstorage\.local\b/,
-    allowInSuffixes: [PUBLIC_HOST_PAIRING_STORE, PUBLIC_SERVER_CONFIG_STORE],
+    allowInSuffixes: [
+      PUBLIC_HOST_PAIRING_STORE,
+      PUBLIC_SERVER_CONFIG_STORE,
+      SEALED_SESSION_STORE,
+    ],
   },
   { label: "storage.sync", pattern: /\bstorage\.sync\b/ },
 ];
@@ -69,13 +74,24 @@ describe("key-storage guard", () => {
     expect(violations).toEqual([]);
   });
 
-  it("uses storage.session only through the non-key SessionStore binding", () => {
+  it("uses storage.session only to purge the obsolete plaintext session records", () => {
     const runtime = readFileSync(join(BACKGROUND_DIR, "session/runtime.ts"), "utf8");
     expect(runtime).toContain("chrome.storage.session");
+    expect(runtime).toContain("chrome.storage.local");
     const store = readFileSync(join(BACKGROUND_DIR, "session/session-store.ts"), "utf8");
     expect(store).not.toContain("setKeys(");
     expect(store).not.toContain("getKeys(");
-    expect(store).not.toContain("palladin.session.keys");
+    expect(store.match(/palladin\.session\.keys/g)).toHaveLength(1);
+  });
+
+  it("keeps the durable session exception limited to a sealed envelope", () => {
+    const runtime = stripComments(
+      readFileSync(join(BACKGROUND_DIR, SEALED_SESSION_STORE), "utf8"),
+    );
+    expect(runtime).toContain("chrome.storage.local.get");
+    expect(runtime).toContain("chrome.storage.local.set");
+    expect(runtime).toContain("chrome.storage.local.remove");
+    expect(runtime).not.toMatch(/\b(masterKey|privateKey|vaultKey|password|accessToken|refreshToken)\b/);
   });
 
   it("keeps the IndexedDB exception ciphertext-only", () => {

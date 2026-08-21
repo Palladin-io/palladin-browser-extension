@@ -21,7 +21,7 @@ export interface SessionClient {
   getStatus(): Promise<SessionStatus>;
   getCapabilities(): Promise<SessionCapabilities>;
   login(email: string, password: string): Promise<LoginResult>;
-  completeTotp(challengeToken: string, code: string, password: string): Promise<SessionStatus>;
+  completeTotp(challengeToken: string, code: string): Promise<SessionStatus>;
   cancelTotp(): Promise<void>;
   unlock(password: string): Promise<SessionStatus>;
   lock(): Promise<void>;
@@ -65,12 +65,11 @@ export function createSessionClient(send: SendCommand = chromeSend): SessionClie
       if (!("login" in result)) throw new PopupSessionError("network");
       return result.login;
     },
-    async completeTotp(challengeToken, code, password) {
+    async completeTotp(challengeToken, code) {
       const result = await dispatch(send, {
         type: "session/completeTotp",
         challengeToken,
         code,
-        password,
       });
       if (!("status" in result)) throw new PopupSessionError("network");
       return result.status;

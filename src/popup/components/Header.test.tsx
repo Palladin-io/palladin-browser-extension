@@ -13,4 +13,11 @@ describe("Header", () => {
       .toContain("logo-source.png");
     expect(container.querySelector(".wordmark-tld")).toHaveTextContent(".io");
   });
+
+  it("renders a non-interactive context label in the header", () => {
+    render(<Header contextLabel="onboarding.managers.eyebrow" />);
+
+    expect(screen.getByText("Before you start")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Before you start" })).not.toBeInTheDocument();
+  });
 });

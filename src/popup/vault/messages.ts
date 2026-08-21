@@ -36,6 +36,8 @@ function blockedMessage(reason: FillBlockReason, t: Translate): string {
       return t("fill.locked");
     case "not-fillable":
       return t("fill.notFillable");
+    case "navigation-failed":
+      return t("fill.navigationFailed");
     case "not-found":
     case "decrypt-failed":
     case "network":

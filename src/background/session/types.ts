@@ -6,12 +6,11 @@
 
 /**
  * Session lifecycle, orthogonal to whether the browser tab is open:
- *   - `signed-out` — no tokens; a full {@link login} is required.
- *   - `locked`     — authenticated (tokens present) but no in-memory keys; an
+ *   - `signed-out` — no sealed session; a full {@link login} is required.
+ *   - `locked`     — a sealed authenticated session exists but no in-memory keys; an
  *                    {@link unlock} re-derives them from the password. Reached by
  *                    auto-lock, by an explicit lock, or by a service-worker
- *                    restart that cleared JS memory but not `storage.session`
- *                    when auto-lock had already wiped the keys.
+ *                    restart, compatible extension update, or explicit lock.
  *   - `unlocked`   — keys are in memory and ready to decrypt.
  */
 export type SessionStatus = "signed-out" | "locked" | "unlocked";
@@ -31,7 +30,13 @@ export interface SessionTokens {
  * is ciphertext wrapped by the master key — neither is a secret at rest.
  */
 export interface AccountMaterial {
-  readonly salt: string;
+  readonly accountId: string;
+  readonly kdf: {
+    readonly securityVersion: number;
+    readonly minimumSecurityVersion: number;
+    readonly profileId: string;
+    readonly kdfSalt: string;
+  };
   readonly encryptedPrivateKey: string;
 }
 
@@ -53,6 +58,7 @@ export type SessionErrorCode =
   | "invalid-credentials"
   | "incorrect-password"
   | "no-account-material"
+  | "unsupported-security"
   | "not-authenticated"
   | "network";
 

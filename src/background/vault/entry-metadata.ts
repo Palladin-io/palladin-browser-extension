@@ -1,15 +1,12 @@
 /**
- * Entry metadata: the non-secret, discovery-level facts the service worker
- * caches for every entry so the popup can list and match without touching a
- * secret. This is exactly the shape the backend already exposes org-wide for
- * agent discovery (label, description, urlDomain — CVT-204); it is NOT the
- * encrypted blob and never carries a username, password, or TOTP seed.
+ * In-memory presentation projection opened from the encrypted MemberIndex
+ * cache while the worker is unlocked. The persistent IndexedDB cache contains
+ * only ciphertext; this plaintext projection must never be stored or logged.
  *
- * SECURITY: a username hint and "has TOTP" live inside the encrypted blob, not
- * in list metadata. Surfacing them would mean bulk-decrypting every entry the
- * moment the popup opens — exactly what the zero-knowledge cache rule forbids
- * (cache holds ciphertext/metadata only). So the list search matches on name +
- * domain, and TOTP is discovered on demand when a row is opened.
+ * MemberIndex intentionally includes the credential username so list/search
+ * and autofill suggestions do not need to download and open MemberSecret for
+ * every row. Passwords, TOTP seeds and other secret payload fields remain in
+ * MemberSecret and are opened only for an explicit fill/reveal operation.
  */
 
 import { matchesTab } from "./domain";
@@ -24,15 +21,16 @@ export type EntryTypeCode =
   | typeof ENTRY_TYPE_SCRIPT
   | typeof ENTRY_TYPE_CREDIT_CARD;
 
-/**
- * One cached entry. Every field is non-secret: `name` is the label, `urlDomain`
- * is the stored host, `type` picks the fill/copy affordances. No key material.
- */
+/** One unlocked, memory-only projection. It never contains key material. */
 export interface EntryMetadata {
   readonly id: string;
   readonly vaultId: string;
+  /** Decrypted Vault label, shown only while the member session is unlocked. */
+  readonly vaultName: string;
   readonly name: string;
   readonly type: EntryTypeCode;
+  /** Credential username from MemberIndex; absent for other entry types. */
+  readonly username?: string;
   readonly urlDomain?: string;
   readonly icon?: string;
   readonly color?: string;
@@ -49,9 +47,23 @@ export function entriesForTab(
 }
 
 /**
- * Local free-text search across the cached metadata: case-insensitive substring
- * over name and domain (username is not in metadata — see the module note). An
- * empty query returns everything, sorted by name for a stable list.
+ * Entries on a sibling host of the same registrable domain. These are discovery
+ * candidates only: callers must keep them behind an explicit, per-entry user
+ * choice and the fill path must repeat the related-domain gate before decrypt.
+ */
+export function relatedEntriesForTab(
+  entries: readonly EntryMetadata[],
+  tabUrl: string | undefined | null,
+): EntryMetadata[] {
+  if (!tabUrl) return [];
+  return entries.filter((entry) =>
+    !matchesTab(tabUrl, entry.urlDomain)
+    && matchesTab(tabUrl, entry.urlDomain, { exactSubdomain: false }));
+}
+
+/**
+ * Local free-text search across the unlocked MemberIndex projection. An empty
+ * query returns everything, sorted by name for a stable list.
  */
 export function searchEntries(
   entries: readonly EntryMetadata[],
@@ -62,7 +74,8 @@ export function searchEntries(
     ? entries.filter(
         (entry) =>
           entry.name.toLowerCase().includes(q) ||
-          (entry.urlDomain?.toLowerCase().includes(q) ?? false),
+          (entry.urlDomain?.toLowerCase().includes(q) ?? false) ||
+          (entry.username?.toLowerCase().includes(q) ?? false),
       )
     : [...entries];
   return matched.sort((a, b) => a.name.localeCompare(b.name));

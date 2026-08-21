@@ -12,7 +12,7 @@ const cryptoMocks = vi.hoisted(() => ({
   openMemberIndex: vi.fn(),
   openMemberSecret: vi.fn(),
   openVaultProjection: vi.fn(async () => ({
-    metadata: {},
+    metadata: { name: 'Personal' },
     vaultKey: new Uint8Array(32).fill(1),
   })),
   openVaultDerivedEnvelope: vi.fn(async () => new Uint8Array(32).fill(2)),
@@ -37,6 +37,13 @@ const vault = {
   memberSequence: '1',
   memberKeyGeneration: 1,
   currentKeyEpoch: { vaultKeyVersion: 1, vdkVersion: 1 },
+  memberVaultMetadata: {
+    descriptor: {
+      resourceRevision: '1',
+      scope: { organizationId: USER_ID },
+    },
+    encodedSuitePayload: 'metadata',
+  },
   memberVaultKey: {
     wrappedVaultKey: {
       descriptor: { scope: { organizationId: USER_ID } },
@@ -66,7 +73,7 @@ function material() {
   }
 }
 
-function harness(items: MemberSyncItem[] = []) {
+function harness(items: MemberSyncItem[] = [], now: () => number = () => 0) {
   const client = {
     listVaults: vi.fn(async () => [vault]),
     delta: vi.fn(async () => ({
@@ -74,6 +81,11 @@ function harness(items: MemberSyncItem[] = []) {
       appliedThroughSequence: '1',
       items: [],
       continuationCursor: null,
+    })),
+    snapshot: vi.fn(async () => ({
+      snapshotBaseSequence: '1',
+      items,
+      nextCursor: null,
     })),
     getVault: vi.fn(async () => vault),
     getEntry: vi.fn(async () => ({
@@ -99,6 +111,10 @@ function harness(items: MemberSyncItem[] = []) {
     })),
     readActiveItemPage: vi.fn(async () => ({ items, nextEntryId: null })),
     applyActiveDeltaPage: vi.fn(async () => undefined),
+    beginSnapshot: vi.fn(async () => undefined),
+    applySnapshotPage: vi.fn(async () => undefined),
+    applyPendingDeltaPage: vi.fn(async () => undefined),
+    completeSnapshot: vi.fn(async () => undefined),
     removeMissingVaults: vi.fn(async () => undefined),
   }
   const session: Protocol2SessionAccessor = {
@@ -111,6 +127,7 @@ function harness(items: MemberSyncItem[] = []) {
     client: client as unknown as Protocol2VaultClient,
     cache: cache as unknown as MemberSyncCache,
     session,
+    now,
   })
   return { service, client, cache }
 }
@@ -164,13 +181,143 @@ beforeEach(() => {
 })
 
 describe('Protocol2VaultDataService canonical password capture', () => {
-  it('opens cached Vaults with the authoritative metadata revision from strict GET detail', async () => {
+  it('coalesces the unlock refresh and popup sync into one cache transition', async () => {
+    const { service, client } = harness([head])
+    let resolveVaults: ((value: EncryptedVaultSummary[]) => void) | undefined
+    client.listVaults.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveVaults = resolve
+    }))
+
+    const unlockRefresh = service.refresh()
+    const popupSync = service.refresh()
+
+    await vi.waitFor(() => expect(client.listVaults).toHaveBeenCalledTimes(1))
+    resolveVaults?.([vault])
+    await expect(Promise.all([unlockRefresh, popupSync])).resolves.toEqual([
+      [expect.objectContaining({ id: ENTRY_ID })],
+      [expect.objectContaining({ id: ENTRY_ID })],
+    ])
+    expect(client.listVaults).toHaveBeenCalledTimes(1)
+    expect(client.delta).not.toHaveBeenCalled()
+  })
+
+  it('serves a recent UI refresh from the encrypted cache without backend calls', async () => {
+    let now = 1_000
+    const { service, client } = harness([head], () => now)
+
+    await service.refresh()
+    expect(client.listVaults).toHaveBeenCalledTimes(1)
+
+    now += 14 * 60_000
+    await service.refreshIfStale(15 * 60_000)
+    expect(client.listVaults).toHaveBeenCalledTimes(1)
+
+    now += 60_000
+    await service.refreshIfStale(15 * 60_000)
+    expect(client.listVaults).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses the Vault list as a change manifest and skips unchanged detail and delta requests', async () => {
+    const { service, client } = harness([head])
+
+    await service.refresh()
+
+    expect(client.listVaults).toHaveBeenCalledTimes(1)
+    expect(client.getVault).not.toHaveBeenCalled()
+    expect(client.delta).not.toHaveBeenCalled()
+    expect(client.snapshot).not.toHaveBeenCalled()
+  })
+
+  it('fetches detail and delta when the authoritative Member sequence advances', async () => {
+    const { service, client } = harness([head])
+    const advancedVault = { ...vault, memberSequence: '2' }
+    client.listVaults.mockResolvedValueOnce([advancedVault])
+    client.getVault.mockResolvedValueOnce(advancedVault)
+    client.delta.mockResolvedValueOnce({
+      deltaUpperBound: '2',
+      appliedThroughSequence: '2',
+      items: [],
+      continuationCursor: null,
+    })
+
+    await service.refresh()
+
+    expect(client.getVault).toHaveBeenCalledWith('token', VAULT_ID)
+    expect(client.delta).toHaveBeenCalledWith('token', VAULT_ID, '1', null)
+  })
+
+  it('fetches detail when encrypted Vault metadata changes without an Entry sequence change', async () => {
+    const { service, client } = harness([head])
+    const metadataChanged = {
+      ...vault,
+      memberVaultMetadata: {
+        descriptor: {
+          resourceRevision: '2',
+          scope: { organizationId: USER_ID },
+        },
+        encodedSuitePayload: 'next-metadata',
+      },
+    } as unknown as EncryptedVaultSummary
+    client.listVaults.mockResolvedValueOnce([metadataChanged])
+    client.getVault.mockResolvedValueOnce(metadataChanged)
+
+    await service.refresh()
+
+    expect(client.getVault).toHaveBeenCalledWith('token', VAULT_ID)
+    expect(client.delta).toHaveBeenCalledWith('token', VAULT_ID, '1', null)
+  })
+
+  it('fetches detail when the cached authoritative metadata revision does not match the list envelope', async () => {
+    const { service, client, cache } = harness([head])
+    cache.getActiveState
+      .mockResolvedValueOnce({
+        namespace: 'active',
+        appliedThroughSequence: '1',
+        vault: { ...vault, metadataRevision: '0' },
+      })
+      .mockResolvedValue({
+        namespace: 'active',
+        appliedThroughSequence: '1',
+        vault,
+      })
+
+    await service.refresh()
+
+    expect(client.getVault).toHaveBeenCalledWith('token', VAULT_ID)
+    expect(client.delta).toHaveBeenCalledWith('token', VAULT_ID, '1', null)
+  })
+
+  it('rebuilds disposable ciphertext cache once when a cached projection cannot decrypt', async () => {
+    const { service, client, cache } = harness([head])
+    cryptoMocks.openMemberIndex
+      .mockRejectedValueOnce(new Error('stale cached envelope'))
+      .mockResolvedValueOnce({
+        entryType: 'credential',
+        memberLabel: 'Example',
+        description: null,
+        icon: null,
+        color: null,
+        username: null,
+        urlDomain: 'accounts.example.com',
+        customIndex: [],
+      })
+
+    await expect(service.refresh()).resolves.toEqual([
+      expect.objectContaining({ id: ENTRY_ID, name: 'Example', vaultName: 'Personal' }),
+    ])
+
+    expect(cache.removeMissingVaults).toHaveBeenCalledWith(USER_ID, new Set())
+    expect(client.snapshot).toHaveBeenCalledWith('token', VAULT_ID, null)
+    expect(cache.completeSnapshot).toHaveBeenCalled()
+  })
+
+  it('reuses a cached Vault only when its authoritative metadata revision matches the list envelope', async () => {
     const { service, client } = harness([head])
 
     await service.refresh()
     await service.getMetadata()
 
-    expect(client.getVault).toHaveBeenCalledWith('token', VAULT_ID)
+    expect(client.getVault).not.toHaveBeenCalled()
     expect(cryptoMocks.openVaultProjection).toHaveBeenCalledWith(
       expect.objectContaining({
         id: VAULT_ID,
@@ -180,6 +327,29 @@ describe('Protocol2VaultDataService canonical password capture', () => {
       expect.any(Uint8Array),
       USER_ID,
     )
+  })
+
+  it('opens the credential username from cached MemberIndex without fetching MemberSecret', async () => {
+    const { service, client } = harness([head])
+    cryptoMocks.openMemberIndex.mockResolvedValueOnce({
+      entryType: 'credential',
+      memberLabel: 'Example',
+      description: null,
+      icon: null,
+      color: null,
+      username: 'person@example.com',
+      urlDomain: 'accounts.example.com',
+      customIndex: [],
+    })
+
+    await expect(service.refresh()).resolves.toEqual([
+      expect.objectContaining({
+        id: ENTRY_ID,
+        username: 'person@example.com',
+      }),
+    ])
+    expect(client.getEntry).not.toHaveBeenCalled()
+    expect(cryptoMocks.openMemberSecret).not.toHaveBeenCalled()
   })
 
   it('creates with a server-issued Entry id and empty grant envelopes after explicit save', async () => {
@@ -332,7 +502,8 @@ describe('Protocol2VaultDataService canonical password capture', () => {
     const { service, client } = harness()
     await service.refresh()
 
-    await expect(service.saveCreditCard({
+    await expect(service.saveEntry({
+      entryType: 'creditCard',
       label: 'Personal card',
       cardholderName: 'Ada Lovelace',
       cardNumber: '4111 1111 1111 1111',
@@ -366,5 +537,82 @@ describe('Protocol2VaultDataService canonical password capture', () => {
       'notes',
     ])
     expect(client.createEntry).toHaveBeenCalled()
+  })
+
+  it('creates canonical manual credential, key, and script entries with no implicit Agent disclosure', async () => {
+    const { service } = harness()
+    await service.refresh()
+
+    await service.saveEntry({
+      entryType: 'credential',
+      label: 'Example login',
+      username: 'ada@example.com',
+      password: 'generated-password',
+      url: 'https://accounts.example.com/login',
+      customFields: [{
+        id: 'custom:recovery_hint',
+        label: 'Recovery hint',
+        type: 'concealed',
+        value: 'private note',
+      }],
+    })
+    await service.saveEntry({
+      entryType: 'key',
+      label: 'API key',
+      value: 'secret-key-value',
+    })
+    await service.saveEntry({
+      entryType: 'script',
+      label: 'Deploy',
+      source: 'echo ok',
+      interpreter: 'bash',
+    })
+
+    const [credential, key, script] = cryptoMocks.sealCanonicalEntry.mock.calls.map((call) => call[1])
+    expect(credential).toMatchObject({
+      entryType: 'credential',
+      agentFieldAccess: { 'credential.password': 'never', 'custom:recovery_hint': 'never' },
+      content: {
+        username: 'ada@example.com',
+        password: 'generated-password',
+        urlDomain: 'accounts.example.com',
+        customFields: [{
+          id: 'custom:recovery_hint',
+          label: 'Recovery hint',
+          type: 'concealed',
+          value: 'private note',
+        }],
+      },
+    })
+    expect(key).toMatchObject({
+      entryType: 'key',
+      agentFieldAccess: { 'key.value': 'never' },
+      content: { value: 'secret-key-value' },
+    })
+    expect(script).toMatchObject({
+      entryType: 'script',
+      agentFieldAccess: { 'script.source': 'never' },
+      content: { source: 'echo ok', interpreter: 'bash', refs: [] },
+    })
+  })
+
+  it('rejects credential URLs that can never pass the HTTPS PSL fill gate', async () => {
+    const { service } = harness()
+    await service.refresh()
+
+    for (const url of [
+      'http://accounts.example.com/login',
+      'http://localhost:3000/login',
+      'https://localhost/login',
+      'https://127.0.0.1/login',
+    ]) {
+      await expect(service.saveEntry({
+        entryType: 'credential',
+        label: 'Unfillable login',
+        username: 'ada@example.com',
+        password: 'secret',
+        url,
+      })).rejects.toMatchObject({ code: 'network' })
+    }
   })
 })

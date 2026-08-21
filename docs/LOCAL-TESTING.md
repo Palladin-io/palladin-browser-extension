@@ -12,7 +12,8 @@ payment card, CVV/CVC, or PIN.
 | Sign-in, unlock, lock, and sign-out | Chromium development build |
 | User-selected credential autofill | Chromium development build on a controlled HTTPS page |
 | Generated-password Fill then explicit Save | Chromium development build on a controlled HTTPS page |
-| Card save and user-selected autofill | Chromium development build with dummy card data |
+| Manual Login, API key, Script, and Card creation | Chromium development build with dummy data |
+| Card user-selected autofill | Chromium development build with dummy card data |
 | Agent Inject through Native Messaging | macOS, Google Chrome, and the source-built Rust CLI only |
 | Firefox and Safari packaging | Build validation only; installed-browser parity is not claimed |
 
@@ -28,8 +29,8 @@ Safari, Windows, or Linux yet. Those combinations must fail closed.
 - A controlled HTTPS login form. Autofill and password capture intentionally
   reject insecure pages.
 
-If the selected/default Vault has an active `FULL` grant, new credential and
-card saves currently return `grant-refresh-required`. Updating an existing
+If the selected/default Vault has an active `FULL` grant, new entry saves
+currently return `grant-refresh-required`. Updating an existing
 credential is likewise blocked by an active covering grant. Use a disposable
 Vault without active grants for the successful write-path test; do not weaken
 the grant policy to make the test pass.
@@ -94,10 +95,21 @@ the server unchanged or unreachable; the extension never widens access silently.
 3. Confirm the Vault list loads and no secret is printed in the extension
    service-worker console or the page console.
 4. Click **Lock**. Reopen the popup and confirm an unlock is required.
-5. Unlock, then click **Sign out**. Confirm the popup returns to **Sign in**.
+5. Unlock, then use Chrome's extension **Reload** action. Reopen Palladin and
+   confirm the same account returns as **Locked**, never **Unlocked**.
+6. Unlock again with the master password, click **Sign out**, reload once more,
+   and confirm Palladin remains on **Sign in**.
 
-Reloading or restarting the service worker must fail closed to a locked state;
-keys are not restored from browser storage.
+A compatible MV3 worker restart, explicit **Reload**, disable/enable, browser
+restart, or update restores only the password-sealed authentication envelope.
+Bearer tokens must remain ciphertext and keys must never appear in browser
+storage, so the only valid restored state is **Locked**. A wrong password keeps
+the valid envelope for another attempt. Foreign server/runtime bindings,
+expiry, and verifiable ciphertext/AAD tamper purge it. Some tampering of the
+KDF or wrapped-key context is intentionally indistinguishable from a wrong
+password and remains fail-closed locked until local **Sign out** clears it.
+Signing out while already locked is authoritative locally; it cannot claim to
+revoke the encrypted remote refresh token without first unlocking it.
 
 ## 5. Test user credential autofill
 
@@ -114,16 +126,79 @@ standard controls, for example:
 Then:
 
 1. Open the controlled HTTPS page in the active tab.
-2. Open Palladin, expand the matching Credential, and click **Fill**.
-3. Confirm only the expected username and password controls receive the dummy
+2. Focus the username/email field. Confirm exactly one Palladin shield appears
+   beside that field (not beside the password) and opens a suggestion menu containing only the matching
+   entry name, username, hostname, and Vault name. Confirm it uses the packaged
+   Palladin icon rather than a separately drawn lookalike.
+3. Confirm a real click/focus fills the first exact-host username and password
+   without submitting. Programmatic page `focus()` must not fill. With multiple
+   matches, explicitly select another username, refocus the field, and confirm
+   that account is now preferred until Palladin locks. After lock/unlock the
+   non-persistent preference must be gone. Confirm the account body fills
+   without submitting, while the separate
+   enter-arrow action fills and submits the exact owning form.
+4. Open Palladin, expand the same Credential, and click **Log in**. On the exact
+   login page it must fill and submit the current form without opening a
+   duplicate tab.
+5. Confirm only the expected username and password controls receive the dummy
    values.
-4. Navigate the same tab to a different hostname and retry. The fill must be
-   rejected.
-5. Test a subdomain only if the entry explicitly opts into subdomain matching;
-   the default is exact-host matching.
+6. Navigate the same tab to a different hostname and retry. The suggestion must
+   not appear and a stale selection/fill must be rejected.
+7. Reload the extension, then refresh the login page before testing the new
+   content script. Unlock the restored account; it must never restore directly
+   to the unlocked state.
+8. On a sibling host of the same registrable domain (for example `konto.wp.pl`
+   with an Entry stored for `1login.wp.pl`), confirm the Entry is labelled as a
+   related site and is never auto-selected. Click that exact account to grant a
+   one-operation fill and confirm the final write targets only the current live
+   host. A different registrable domain must never appear or fill.
+
+When Palladin is locked or signed out, use the inline **Open Palladin** action
+and confirm the browser-owned side panel opens on the unlock/sign-in surface.
+
+The inline menu is extension-owned closed Shadow DOM. It may show the username
+needed to distinguish accounts, but must not copy a password, TOTP seed, notes,
+or custom value into its markup, page events, logs, or accessibility labels. The
+visited site cannot request or auto-select a credential.
+
+Alternatively, expand the Credential in the full Vault list and click
+**Log in** from another page. The extension opens `https://{urlDomain}/`, waits
+for the final live top-frame document, fills that exact document, and submits
+the form that owns the password field. If the active exact-host page already
+contains a login form, it fills and submits in place instead. It does not decrypt
+before the HTTPS host is bound. The explicit **Log in** click is the submit
+authorization; ordinary Fill and automatic exact-host fill remain fill-only. If
+the site redirects to another host, delivery is rejected. Confirm **Open in
+Palladin** opens the exact Vault/Entry detail deep link.
 
 The extension must not choose a Credential or submit a form merely because page
 content asks it to.
+
+### Test the persistent Vault surface
+
+1. While unlocked in Chromium, choose **Open side panel** in the popup footer.
+   Confirm Chrome opens Palladin in its browser-owned right-hand side panel.
+2. Confirm the panel shows the same entries, language, theme, lock state and
+   Settings as the popup. The header/navigation/footer must remain stable and
+   the active list or form must own the only scroll region.
+3. Confirm repeated hosts appear once with a login count and no aggregate Vault
+   count. Expand a host and verify each account is identified by username and
+   Vault; collapsing it removes those usernames from the rendered tree.
+4. Change the active tab. Confirm exact-host entries refresh without closing the
+   panel and without unlocking or filling automatically.
+5. Leave the unlocked side panel open for longer than Chrome's normal worker
+   idle window and confirm it remains unlocked. This heartbeat must not extend
+   the configured auto-lock policy.
+6. Lock or sign out from either surface. Confirm the other surface updates to
+   the same coarse state without displaying or transporting a secret.
+7. Scroll a large Vault to the end of the current batch. Confirm the next 100
+   grouped rows append automatically; the accessible Show more fallback remains
+   usable with a keyboard.
+8. In Firefox, repeat with the native sidebar. Safari intentionally has no
+   side-panel control in this development foundation and retains the popup.
+
+Inline suggestions and Fill must continue to work when the side panel is
+closed; opening the panel is never a prerequisite for autofill.
 
 ## 6. Test generated-password capture and save
 
@@ -144,25 +219,48 @@ password fields are intentionally ignored.
 
 Fill and Save are deliberately separate actions. Closing the popup after Fill
 but before Save must not persist the generated value.
+The current capture path does not silently read or auto-save a password typed by
+the page/user. It saves only the generated value after the user accepts both
+Fill and Save; a future standard post-submit save prompt needs a separately
+reviewed capture flow.
 
-## 7. Test card save and autofill
+## 7. Test manual Add entry and card autofill
 
 Use dummy values only. A suitable non-production test number is Visa's common
 test value `4111111111111111`; it is not a real payment card.
 
-1. In the popup choose **Add card**.
-2. Save a dummy label, cardholder, card number, future expiry, and optional
-   billing address.
-3. Open a controlled HTTPS checkout form containing `cc-name`, `cc-number`,
+1. In the popup choose **Add entry**. Confirm the type selector offers Login,
+   API key, Script, and Payment card.
+2. Add text, multiline, and concealed custom fields to a disposable entry,
+   reorder them with the up/down controls, then save one disposable entry of
+   each type. Confirm the saved field order and values are preserved, every entry appears in the
+   Vault list and no plaintext is logged or persisted by the popup.
+3. For Payment card, use a dummy label, cardholder, card number, future expiry,
+   and optional billing address.
+4. Open a controlled HTTPS checkout form containing `cc-name`, `cc-number`,
    `cc-exp-month`, `cc-exp-year`, and a separate `cc-csc` input.
-4. Expand the card entry and click **Fill**.
-5. Confirm cardholder, PAN, expiry, and supported billing controls are filled.
-6. Confirm the `cc-csc`/CVV/CVC and PIN controls remain empty.
+5. Expand the card entry and click **Fill**.
+6. Confirm cardholder, PAN, expiry, and supported billing controls are filled.
+7. Confirm the `cc-csc`/CVV/CVC and PIN controls remain empty.
 
 There is no dedicated CVV/CVC or PIN field, capture rule, or autofill heuristic.
 A neutral custom field is not interpreted as payment authentication data.
 
-## 8. Pair and test Agent Inject on macOS Chrome
+## 8. Test first-run password-manager guidance
+
+Use a disposable browser profile or clear Palladin's extension storage.
+
+1. Open Palladin and confirm the guidance appears before Sign in/Unlock.
+2. Confirm it explains that Palladin works best as the only active password
+   manager and does not claim that any manager was detected.
+3. Verify **Open password settings** and **Manage extensions** open
+   browser-owned pages or the official public help fallback.
+4. Choose **Continue to Palladin**, close and reopen the popup and side panel,
+   and confirm the guidance does not repeat.
+5. Inspect the manifest and extension details. No target may declare or request
+   `management`, enumerate installed extensions, or store extension names/IDs.
+
+## 9. Pair and test Agent Inject on macOS Chrome
 
 This path is development-only and requires the matching `palladin-agent`
 repository. From that repository, build the source CLI:
@@ -224,7 +322,7 @@ Negative checks:
 - after unpair reports success, an in-flight or later Inject cannot deliver a
   value.
 
-## 9. Cleanup
+## 10. Cleanup
 
 Remove the native pairing before deleting the unpacked extension:
 
@@ -238,7 +336,7 @@ or not paired and to return a non-zero status. Then remove the unpacked extensio
 from Chrome and delete the disposable Palladin entries/account through the
 normal application flow.
 
-## 10. Automated regression gate
+## 11. Automated regression gate
 
 Before reporting the manual result, run:
 

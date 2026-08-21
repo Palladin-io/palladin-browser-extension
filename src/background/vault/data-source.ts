@@ -8,6 +8,8 @@ import type { EntryMetadata } from "./entry-metadata";
  */
 export interface VaultDataSource {
   refresh(): Promise<EntryMetadata[]>;
+  /** Return cached metadata when the last authoritative refresh is still fresh. */
+  refreshIfStale(maxAgeMs: number): Promise<EntryMetadata[]>;
   getMetadata(): Promise<EntryMetadata[]>;
   revealEntry(vaultId: string, entryId: string): Promise<MemberSecretV1>;
   clearCache(): Promise<void>;

@@ -76,7 +76,7 @@ describe("AutoLock integration with the manager", () => {
     const storage = new FakeStorageArea();
     const alarms = new FakeAlarms();
     const now = { value: 0 };
-    const authClient = new AuthClient(mockBackend(account).fetch, "http://api.test");
+    const authClient = new AuthClient(mockBackend(account).fetch, "https://api.test");
     const pending: Promise<void>[] = [];
     let mgr: SessionManager;
     const autoLock = new AutoLock(alarms, () => pending.push(mgr.lock()));

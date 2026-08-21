@@ -104,8 +104,10 @@ export const encryptedVaultSummarySchema = z.object({
 
 const entryStateSchema = z.union([
   z.enum(['active', 'archived', 'deleted']),
-  z.literal(0), z.literal(1), z.literal(2),
-]).transform((state) => typeof state === 'number' ? (['active', 'archived', 'deleted'] as const)[state] : state)
+  z.literal(1), z.literal(2), z.literal(3),
+]).transform((state) => typeof state === 'number'
+  ? ({ 1: 'active', 2: 'archived', 3: 'deleted' } as const)[state]
+  : state)
 
 const headSchema = z.object({
   entryId: canonicalUuid,

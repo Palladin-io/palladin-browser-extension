@@ -21,11 +21,18 @@ interface Manifest {
     type?: string;
   };
   permissions?: string[];
+  optional_permissions?: string[];
   host_permissions?: string[];
   optional_host_permissions?: string[];
   content_security_policy?: { extension_pages?: string };
   content_scripts?: Array<{ matches: string[]; js: string[]; world?: string }>;
   minimum_chrome_version?: string;
+  side_panel?: { default_path?: string };
+  sidebar_action?: {
+    default_title?: string;
+    default_panel?: string;
+    default_icon?: Record<string, string>;
+  };
   browser_specific_settings?: {
     gecko?: {
       id?: string;
@@ -59,7 +66,7 @@ describe("buildManifest (shared)", () => {
       "https://*/*",
     ]);
     expect(manifest.content_security_policy?.extension_pages).toBe(
-      "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; base-uri 'self'",
+      "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; base-uri 'self'; img-src 'self' data: https://assets.palladin.io http://localhost:4566",
     );
     expect(manifest.content_security_policy?.extension_pages).not.toMatch(
       /(?:^|\s)'unsafe-eval'(?:\s|;|$)/,
@@ -108,8 +115,25 @@ describe("buildManifest (chromium)", () => {
     // The service worker has no clipboard, so Chromium's timed wipe runs in a
     // short-lived offscreen document. It grants no host or data access.
     expect(new Set(manifest.permissions)).toEqual(
-      new Set(["storage", "activeTab", "alarms", "offscreen", "nativeMessaging"]),
+      new Set([
+        "storage",
+        "activeTab",
+        "alarms",
+        "offscreen",
+        "nativeMessaging",
+        "scripting",
+        "sidePanel",
+      ]),
     );
+  });
+
+  it("does not request installed-extension discovery access", () => {
+    expect(manifest.optional_permissions).toBeUndefined();
+  });
+
+  it("declares the browser-owned side panel without replacing the quick popup", () => {
+    expect(manifest.side_panel).toEqual({ default_path: "src/side-panel/index.html" });
+    expect(manifest.sidebar_action).toBeUndefined();
   });
 });
 
@@ -130,8 +154,26 @@ describe("buildManifest (firefox)", () => {
 
   it("does not request Chromium's unsupported offscreen permission", () => {
     expect(new Set(manifest.permissions)).toEqual(
-      new Set(["storage", "activeTab", "alarms", "nativeMessaging"]),
+      new Set(["storage", "activeTab", "alarms", "nativeMessaging", "scripting"]),
     );
+  });
+
+  it("does not request installed-extension discovery access", () => {
+    expect(manifest.optional_permissions).toBeUndefined();
+  });
+
+  it("declares Firefox's native sidebar over the shared panel entrypoint", () => {
+    expect(manifest.side_panel).toBeUndefined();
+    expect(manifest.sidebar_action).toMatchObject({
+      default_title: "__MSG_extensionActionTitle__",
+      default_panel: "src/side-panel/index.html",
+      default_icon: {
+        "16": "icons/icon-16.png",
+        "32": "icons/icon-32.png",
+        "48": "icons/icon-48.png",
+        "128": "icons/icon-128.png",
+      },
+    });
   });
 });
 
@@ -143,9 +185,18 @@ describe("buildManifest (safari)", () => {
     expect(manifest.browser_specific_settings?.safari?.strict_min_version).toBe("16.4");
   });
 
+  it("keeps the popup because Safari has no equivalent side-panel adapter", () => {
+    expect(manifest.side_panel).toBeUndefined();
+    expect(manifest.sidebar_action).toBeUndefined();
+  });
+
   it("does not request Chromium's unsupported offscreen permission", () => {
     expect(new Set(manifest.permissions)).toEqual(
-      new Set(["storage", "activeTab", "alarms", "nativeMessaging"]),
+      new Set(["storage", "activeTab", "alarms", "nativeMessaging", "scripting"]),
     );
+  });
+
+  it("does not expose installed-extension discovery on Safari", () => {
+    expect(manifest.optional_permissions).toBeUndefined();
   });
 });

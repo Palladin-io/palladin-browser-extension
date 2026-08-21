@@ -1,13 +1,17 @@
 import { useI18n } from "../i18n";
 import { usePopupPreferences, type LanguagePreference, type ThemePreference } from "../preferences";
 
-export function AppearanceSettings(): React.JSX.Element {
+export interface AppearanceSettingsProps {
+  embedded?: boolean;
+}
+
+export function AppearanceSettings({ embedded = false }: AppearanceSettingsProps): React.JSX.Element {
   const { t } = useI18n();
   const { language, theme, setLanguage, setTheme } = usePopupPreferences();
 
   return (
     <section className="appearance-settings">
-      <h2 className="screen-title">{t("settings.appearance.title")}</h2>
+      {embedded ? null : <h2 className="screen-title">{t("settings.appearance.title")}</h2>}
       <p className="screen-subtitle">{t("settings.appearance.subtitle")}</p>
       <div className="appearance-grid">
         <label>

@@ -4,13 +4,14 @@ import { useI18n, type TranslationKey } from "../i18n";
 
 /**
  * Popup header: the Palladin brand lockup plus a small status chip mirroring the
- * lock state, so the coarse session state is visible on every screen (matching
- * the toolbar badge). Hidden on the initial `loading` phase where the state
+ * lock state, so the coarse session state is visible on every screen. Hidden
+ * on the initial `loading` phase where the state
  * isn't known yet.
  */
 export interface HeaderProps {
   status?: SessionStatus | undefined;
   settingsOpen?: boolean;
+  contextLabel?: TranslationKey | undefined;
   onToggleSettings?(): void;
 }
 
@@ -23,6 +24,7 @@ const CHIP: Record<SessionStatus, { label: TranslationKey; dot: string }> = {
 export function Header({
   status,
   settingsOpen = false,
+  contextLabel,
   onToggleSettings,
 }: HeaderProps): React.JSX.Element {
   const { t } = useI18n();
@@ -36,6 +38,9 @@ export function Header({
         </h1>
       </div>
       <div className="popup-header-actions">
+        {contextLabel ? (
+          <span className="header-context-label">{t(contextLabel)}</span>
+        ) : null}
         {chip ? (
           <span className="status-chip" role="status">
             <span className={`status-dot ${chip.dot}`.trim()} aria-hidden="true" />

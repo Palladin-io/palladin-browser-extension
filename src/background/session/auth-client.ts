@@ -2,12 +2,12 @@
  * Thin REST client for the backend auth + account endpoints the service worker
  * needs. It is the same email+password contract the web panel speaks (CVT-251/
  * 252) — the extension keeps a SEPARATE session, but the wire protocol and the
- * double-Argon2id derivation are identical, so a credential proven here is proven
+ * Identity password KDF is identical, so a credential proven here is proven
  * the same way it is in the panel.
  *
  * `fetch` is injected so tests exercise the full handshake against a mock without
  * a network. Nothing here derives keys or sees a password: the caller passes an
- * already-derived `authHash` and reads back only ciphertext + salt.
+ * already-derived `authCredential` and reads back only public KDF metadata plus ciphertext.
  */
 
 import { env } from "../config/env";
@@ -28,6 +28,16 @@ export interface TotpRequiredResponse {
 
 export type PasswordLoginResponse = AuthResponse | TotpRequiredResponse;
 
+export interface LoginKdfBootstrap {
+  readonly accountId: string | null;
+  readonly profileId: string;
+  readonly securityVersion: number;
+  readonly kdfSalt: string;
+  readonly memoryKiB: number;
+  readonly iterations: number;
+  readonly parallelism: number;
+}
+
 export function isTotpRequired(
   response: PasswordLoginResponse,
 ): response is TotpRequiredResponse {
@@ -38,9 +48,16 @@ export function isTotpRequired(
 export interface AccountResponse {
   readonly userId: string;
   readonly email: string;
-  /** base64 16-byte Argon2id salt for master-key derivation. */
-  readonly salt?: string;
-  /** base64 private key wrapped by the master key (`nonce || ciphertext`). */
+  readonly kdf?: {
+    readonly securityVersion: number;
+    readonly minimumSecurityVersion: number;
+    readonly profileId: string;
+    readonly kdfSalt: string;
+    readonly credentialRevision: number;
+    readonly privateKeyWrapRevision: number;
+    readonly deviceWrapperMetadata: string | null;
+  } | null;
+  /** Canonical base64url private key wrapped by the master key. */
   readonly encryptedPrivateKey?: string;
 }
 
@@ -102,12 +119,29 @@ export class AuthClient {
   }
 
   /** Pre-login salt fetch (anti-enumeration: unknown emails still get a salt). */
-  fetchLoginSalt(email: string, expectedApiUrl?: string): Promise<{ authSalt: string }> {
-    return this.postJson("/api/auth/login/salt", { email }, undefined, expectedApiUrl);
+  fetchLoginKdf(
+    email: string,
+    profileId: string,
+    expectedApiUrl?: string,
+  ): Promise<LoginKdfBootstrap> {
+    return this.postJson(
+      "/api/auth/login/salt",
+      { email, profileId },
+      undefined,
+      expectedApiUrl,
+    );
   }
 
-  login(email: string, authHash: string, expectedApiUrl?: string): Promise<PasswordLoginResponse> {
-    return this.postJson("/api/auth/login", { email, authHash }, undefined, expectedApiUrl);
+  login(
+    input: {
+      readonly email: string;
+      readonly securityVersion: number;
+      readonly kdfProfileId: string;
+      readonly authCredential: string;
+    },
+    expectedApiUrl?: string,
+  ): Promise<PasswordLoginResponse> {
+    return this.postJson("/api/auth/login", input, undefined, expectedApiUrl);
   }
 
   totpLogin(challengeToken: string, code: string, expectedApiUrl?: string): Promise<AuthResponse> {

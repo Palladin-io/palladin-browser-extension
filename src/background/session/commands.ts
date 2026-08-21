@@ -31,7 +31,6 @@ export type SessionCommand =
       readonly type: "session/completeTotp";
       readonly challengeToken: string;
       readonly code: string;
-      readonly password: string;
     }
   | { readonly type: "session/cancelTotp" }
   | { readonly type: "session/unlock"; readonly password: string }
@@ -77,7 +76,7 @@ export async function dispatchSessionCommand(
       case "session/login":
         return { ok: true, login: await manager.login(command.email, command.password) };
       case "session/completeTotp":
-        await manager.completeTotp(command.challengeToken, command.code, command.password);
+        await manager.completeTotp(command.challengeToken, command.code);
         return { ok: true, status: await manager.getStatus() };
       case "session/cancelTotp":
         manager.cancelTotp();

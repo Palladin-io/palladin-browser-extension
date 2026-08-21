@@ -43,6 +43,8 @@ export interface FillRequestMessage {
   readonly expectedOrigin: string;
   /** Credential domain gate; null for explicit card/generated fills. */
   readonly expectedDomain: string | null;
+  /** Explicit user intent: submit the owning login form after a successful credential fill. */
+  readonly submit: boolean;
   readonly fields: readonly FillField[];
 }
 
@@ -75,7 +77,14 @@ function isFillField(value: unknown): value is FillField {
 export function isFillRequestMessage(value: unknown): value is FillRequestMessage {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
-  if (!hasOnlyKeys(record, ["channel", "documentId", "expectedOrigin", "expectedDomain", "fields"])) {
+  if (!hasOnlyKeys(record, [
+    "channel",
+    "documentId",
+    "expectedOrigin",
+    "expectedDomain",
+    "submit",
+    "fields",
+  ])) {
     return false;
   }
   const message = value as {
@@ -83,6 +92,7 @@ export function isFillRequestMessage(value: unknown): value is FillRequestMessag
     documentId?: unknown;
     expectedOrigin?: unknown;
     expectedDomain?: unknown;
+    submit?: unknown;
     fields?: unknown;
   };
   return (
@@ -96,10 +106,15 @@ export function isFillRequestMessage(value: unknown): value is FillRequestMessag
       message.expectedDomain.length >= 1 &&
       message.expectedDomain.length <= 253
     )) &&
+    typeof message.submit === "boolean" &&
     Array.isArray(message.fields) &&
     message.fields.length >= 1 &&
     message.fields.length <= 8 &&
-    message.fields.every(isFillField)
+    message.fields.every(isFillField) &&
+    (!message.submit || (
+      message.fields.some((field) => field.kind === "password") &&
+      message.fields.every((field) => field.kind === "username" || field.kind === "password")
+    ))
   );
 }
 

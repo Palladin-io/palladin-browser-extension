@@ -74,6 +74,42 @@ describe("reconnecting isolated-world worker Port", () => {
     expect(onMessage).toHaveBeenCalledWith({ type: "bridge/pong" });
   });
 
+  it("permanently stops reconnecting after the extension context is invalidated", () => {
+    const first = fakePort();
+    const connect = vi.fn(() => first);
+    const bridge = createReconnectingWorkerPort(
+      connect,
+      vi.fn(),
+      vi.fn(() => "context-invalidated" as const),
+    );
+
+    first.emitDisconnect();
+    bridge.postMessage({ type: "bridge/ping", at: 123 });
+    bridge.reconnect();
+
+    expect(connect).toHaveBeenCalledOnce();
+    expect(first.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("does not retry a message that throws an invalidated-context error", () => {
+    const first = fakePort();
+    vi.mocked(first.postMessage).mockImplementation(() => {
+      throw new Error("Extension context invalidated.");
+    });
+    const connect = vi.fn(() => first);
+    const bridge = createReconnectingWorkerPort(
+      connect,
+      vi.fn(),
+      vi.fn(() => "worker" as const),
+    );
+
+    bridge.postMessage({ type: "bridge/ping", at: 123 });
+    bridge.postMessage({ type: "bridge/ping", at: 456 });
+
+    expect(connect).toHaveBeenCalledOnce();
+    expect(first.postMessage).toHaveBeenCalledOnce();
+  });
+
   it("reopens and retries once when postMessage observes a dead Port", () => {
     const first = fakePort();
     const second = fakePort();

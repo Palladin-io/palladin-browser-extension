@@ -39,12 +39,13 @@ export interface MemberSyncCache {
   applyPendingDeltaPage(userId: string, vaultId: string, namespace: string, expectedSequence: string, page: MemberDeltaPage): Promise<void>
   completeSnapshot(userId: string, vault: EncryptedVaultSummary, namespace: string, appliedThroughSequence: string): Promise<void>
   applyActiveDeltaPage(userId: string, vault: EncryptedVaultSummary, expectedSequence: string, page: MemberDeltaPage): Promise<void>
+  removeVault(userId: string, vaultId: string): Promise<void>
   removeMissingVaults(userId: string, retainedVaultIds: ReadonlySet<string>): Promise<void>
   clearAll(): Promise<void>
 }
 
 const DATABASE_NAME = 'palladin-vault-ciphertext-cache'
-const DATABASE_VERSION = 3
+const DATABASE_VERSION = 4
 const VAULT_STORE = 'member-vaults'
 const ITEM_STORE = 'member-items'
 const USER_INDEX = 'userId'
@@ -100,9 +101,11 @@ function openDatabase(databaseName: string): Promise<IDBDatabase> {
         const items = database.createObjectStore(ITEM_STORE, { keyPath: ['scopeNamespace', 'entryId'] })
         items.createIndex(SCOPE_NAMESPACE_INDEX, 'scopeNamespace')
       } else if (event.oldVersion < DATABASE_VERSION) {
-        // Older caches either conflate active/pending state or omit the
-        // structural UpdatedAt required for deterministic local recents. The
-        // cache is disposable ciphertext, so rebuild rather than guessing.
+        // Older caches either conflate active/pending state, omit the
+        // structural UpdatedAt required for deterministic local recents, or
+        // contain EntryState values produced by the retired zero-based wire
+        // mapping. The cache is disposable ciphertext, so rebuild rather than
+        // guessing whether an "archived" item was actually Active=1.
         operation.transaction!.objectStore(VAULT_STORE).clear()
         operation.transaction!.objectStore(ITEM_STORE).clear()
       }
@@ -332,6 +335,28 @@ export class IndexedDbProtocol2Cache implements MemberSyncCache {
       await done
       if (state.activeNamespace) await deleteNamespace(database, scopeNamespace(userId, state.vaultId, state.activeNamespace))
       if (state.pendingNamespace) await deleteNamespace(database, scopeNamespace(userId, state.vaultId, state.pendingNamespace))
+    }
+  }
+
+  async removeVault(userId: string, vaultId: string): Promise<void> {
+    const database = await this.getDatabase()
+    const readTransaction = database.transaction(VAULT_STORE, 'readonly')
+    const readDone = transactionDone(readTransaction)
+    const state = await request(
+      readTransaction.objectStore(VAULT_STORE).get(scopeId(userId, vaultId)),
+    ) as CachedVaultState | undefined
+    await readDone
+    if (!state) return
+
+    const transaction = database.transaction(VAULT_STORE, 'readwrite')
+    const done = transactionDone(transaction)
+    await request(transaction.objectStore(VAULT_STORE).delete(state.scopeId))
+    await done
+    if (state.activeNamespace) {
+      await deleteNamespace(database, scopeNamespace(userId, vaultId, state.activeNamespace))
+    }
+    if (state.pendingNamespace) {
+      await deleteNamespace(database, scopeNamespace(userId, vaultId, state.pendingNamespace))
     }
   }
 }

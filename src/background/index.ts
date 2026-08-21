@@ -7,11 +7,20 @@
  */
 
 import { injectHostKeyFingerprint } from "@palladin/crypto";
-import { CONTENT_PORT, isBridgeMessage } from "@shared/messaging";
+import {
+  CONTENT_PORT,
+  SESSION_LIVENESS_PORT,
+  isBridgeMessage,
+  isInlineAutofillCommand,
+  isSessionLivenessPing,
+  sessionChanged,
+  vaultChanged,
+} from "@shared/messaging";
 import {
   isRequiredServerOrigin,
   serverPermissionOrigin,
 } from "@shared/config/server";
+import { openSidePanel } from "@shared/browser/side-panel";
 
 import { createAgentPairingRuntimeHandler } from "./agent/pairing-commands";
 import {
@@ -40,15 +49,44 @@ import {
 } from "./capture/runtime";
 import { routePortMessage } from "./router";
 import { handleRuntimeMessage } from "./session/commands";
+import { SessionLivenessPublisher } from "./session/liveness";
+import { ensureActiveTabSessionLiveness } from "./session/active-tab-liveness";
 import { sessionAutoLock, sessionManager } from "./session/runtime";
 import { registerTopFrameDocument } from "./tab-documents";
 import { logger } from "./telemetry/logger";
 import { isTrustedExtensionPage } from "./trusted-sender";
-import { handleVaultRuntimeMessage } from "./vault/commands";
+import { fillInlineSelectedEntry, handleVaultRuntimeMessage } from "./vault/commands";
+import {
+  InMemoryInlineAutofillRecency,
+  handleInlineAutofillContentMessage,
+  inlineAutofillSource,
+} from "./vault/inline-runtime";
 import { clipboardGuard, vaultCommandDeps, vaultData } from "./vault/runtime";
+import {
+  VaultInvalidationCoordinator,
+  VaultRealtimeConnection,
+} from "./vault/realtime-sync";
 
 const SYNC_ALARM = "palladin.sync";
+const SYNC_PERIOD_MINUTES = 15;
 const serverOperations = new ServerOperationBarrier();
+const sessionLiveness = new SessionLivenessPublisher();
+const inlineAutofillRecency = new InMemoryInlineAutofillRecency();
+const vaultInvalidations = new VaultInvalidationCoordinator({
+  apply: (vaultId, removed) => withServerOperation(
+    () => vaultData.applyRealtimeInvalidation(vaultId, removed),
+  ),
+  changed: () => publishSurfaceState(vaultChanged()),
+});
+const vaultRealtime = new VaultRealtimeConnection({
+  apiUrl: () => serverConfig.apiUrl,
+  accessToken: () => sessionManager.getAccessToken(),
+  invalidation: (raw) => vaultInvalidations.accept(raw),
+  repair: () => runServerOperation(
+    () => vaultData.refresh().then(() => publishSurfaceState(vaultChanged())),
+    "vault repair after realtime reconnect failed",
+  ),
+});
 const handleAgentPairingRuntimeMessage = createAgentPairingRuntimeHandler({
   readVerifiedPairing,
   deriveFingerprint: injectHostKeyFingerprint,
@@ -61,12 +99,27 @@ const handleAgentPairingRuntimeMessage = createAgentPairingRuntimeHandler({
   disconnect: disconnectNativeAgentProvider,
 });
 
-/** Re-read the session state and repaint the toolbar padlock badge. */
+/** Re-read the session state and clear any stale Chromium text badge. */
 function refreshBadge(): void {
   void sessionManager
     .getStatus()
     .then((status) => applyBadge(chrome.action, status))
     .catch(() => logger.warn("badge refresh failed"));
+}
+
+/**
+ * Invalidate extension-owned UI and top-frame content surfaces. Lifecycle
+ * events are value-free. `runtime.sendMessage` updates popup/side-panel pages;
+ * the explicit tab delivery wakes already-mounted inline autofill controllers.
+ */
+function publishSurfaceState(event: ReturnType<typeof sessionChanged> | ReturnType<typeof vaultChanged>): void {
+  void chrome.runtime.sendMessage(event).catch(() => undefined);
+  void chrome.tabs.query({}).then(async (tabs) => {
+    await Promise.all(tabs.map(async (tab) => {
+      if (typeof tab.id !== "number") return;
+      await chrome.tabs.sendMessage(tab.id, event, { frameId: 0 }).catch(() => undefined);
+    }));
+  }).catch(() => undefined);
 }
 
 function runServerOperation(operation: () => Promise<void>, warning: string): void {
@@ -75,6 +128,16 @@ function runServerOperation(operation: () => Promise<void>, warning: string): vo
   void operation()
     .catch(() => logger.warn(warning))
     .finally(() => lease.release());
+}
+
+async function withServerOperation<T>(operation: () => Promise<T>): Promise<T> {
+  const lease = serverOperations.tryAcquire();
+  if (lease === null) throw new Error("Server change in progress");
+  try {
+    return await operation();
+  } finally {
+    lease.release();
+  }
 }
 
 function unavailableDuringServerChange(raw: unknown): unknown {
@@ -94,17 +157,30 @@ function unavailableDuringServerChange(raw: unknown): unknown {
   return null;
 }
 
-// Keep the badge in lockstep with the session: unlock clears the padlock,
-// lock/logout restores it. (`onLocked` fires for both an explicit lock and a
-// logout — refreshBadge re-reads the actual status either way.)
+// Clear legacy badge text after each committed session transition.
 sessionManager.hooks.onUnlocked(() => refreshBadge());
 sessionManager.hooks.onLocked(() => refreshBadge());
+sessionManager.hooks.onUnlocked(() => publishSurfaceState(sessionChanged("unlocked")));
+sessionManager.hooks.onLocked(() => {
+  void sessionManager.getStatus()
+    .then((status) => publishSurfaceState(sessionChanged(status)))
+    .catch(() => undefined);
+});
+sessionManager.hooks.onUnlocked(() => sessionLiveness.setEnabled(true));
+sessionManager.hooks.onUnlocked(() => vaultRealtime.start());
+sessionManager.hooks.onUnlocked(() => void ensureActiveTabSessionLiveness());
+sessionManager.hooks.onLocked(() => sessionLiveness.setEnabled(false));
+sessionManager.hooks.onLocked(() => {
+  vaultRealtime.stop();
+  vaultInvalidations.clear();
+});
+sessionManager.hooks.onLocked(() => inlineAutofillRecency.clear());
 
 // Sync the vault metadata cache on unlock (plan §6 trigger). Metadata + wrapped
 // keys are non-secret; this refetch never decrypts.
 sessionManager.hooks.onUnlocked(() => {
   runServerOperation(
-    () => vaultData.refresh().then(() => undefined),
+    () => vaultData.refresh().then(() => publishSurfaceState(vaultChanged())),
     "vault refresh on unlock failed",
   );
 });
@@ -115,8 +191,8 @@ sessionManager.hooks.onLocked(() => {
   }, "vault cache clear on logout failed");
 });
 
-// Rehydrate any session that survived a worker restart in chrome.storage.session
-// (an already-unlocked session comes back unlocked, no re-derive).
+// Restore durable token/material state. Keys never survive a worker restart;
+// an authenticated session therefore comes back locked, never unlocked.
 void initializeServerConfig().then(() => {
   runServerOperation(async () => {
     const status = await sessionManager.initialize();
@@ -130,12 +206,26 @@ void initializeServerConfig().then(() => {
 connectNativeAgentProvider();
 
 chrome.runtime.onConnect.addListener((port) => {
-  if (port.name !== CONTENT_PORT) return;
+  if (port.name !== CONTENT_PORT && port.name !== SESSION_LIVENESS_PORT) return;
 
+  sessionLiveness.register(
+    port,
+    async () => await sessionManager.getStatus() === "unlocked",
+  );
+  if (port.name === SESSION_LIVENESS_PORT) {
+    port.onMessage.addListener((raw) => {
+      if (isSessionLivenessPing(raw)) return;
+    });
+    return;
+  }
   const unregisterDocument = registerTopFrameDocument(port, chrome.runtime.id);
   if (unregisterDocument !== null) port.onDisconnect.addListener(unregisterDocument);
 
   port.onMessage.addListener((raw) => {
+    // This private, value-free ping exists only to prevent Chrome's normal
+    // ~30-second MV3 idle shutdown while keys are intentionally unlocked. It
+    // never calls touchActivity and never crosses into the page-facing bridge.
+    if (isSessionLivenessPing(raw)) return;
     // The Port is isolated from the page, but the content script forwards
     // page-adjacent traffic — validate the shape before acting.
     if (!isBridgeMessage(raw)) return;
@@ -151,6 +241,49 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (result === null) return false;
   sendResponse(result);
   return false;
+});
+
+// Top-frame isolated content scripts request value-free matching suggestions,
+// then may fill one explicitly selected Entry. The browser-authenticated sender
+// supplies the exact tab/document binding; page scripts cannot call this API.
+chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
+  if (!isInlineAutofillCommand(raw)) return false;
+  if (raw.type === "inline/open-palladin") {
+    const source = inlineAutofillSource(raw, sender, chrome.runtime.id);
+    if (source === null || sender.tab?.windowId === undefined) {
+      sendResponse({ ok: true, kind: "surface", status: "unavailable" });
+      return false;
+    }
+    // Invoke directly from the content-script click message so Chrome retains
+    // the user activation required by sidePanel.open(). No secret is involved.
+    void openSidePanel(undefined, undefined, sender.tab.windowId)
+      .then((opened) => sendResponse({ ok: true, kind: "surface", status: opened ? "opened" : "unavailable" }))
+      .catch(() => sendResponse({ ok: true, kind: "surface", status: "unavailable" }));
+    return true;
+  }
+  void (async () => {
+    await initializeServerConfig();
+    const lease = serverOperations.tryAcquire();
+    if (lease === null) {
+      sendResponse({ ok: false, code: "unavailable" });
+      return;
+    }
+    try {
+      const result = await handleInlineAutofillContentMessage({
+        getStatus: () => sessionManager.getStatus(),
+        getMetadata: () => vaultData.getMetadata(),
+        recency: inlineAutofillRecency,
+        fill: async (source, vaultId, entryId, scope) => {
+          await sessionManager.touchActivity();
+          return fillInlineSelectedEntry(vaultCommandDeps, source, vaultId, entryId, scope);
+        },
+      }, raw, sender, chrome.runtime.id);
+      sendResponse(result ?? { ok: false, code: "unavailable" });
+    } finally {
+      lease.release();
+    }
+  })();
+  return true;
 });
 
 // Popup ↔ worker command channel. Session commands (login / unlock / lock /
@@ -213,7 +346,17 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
         return;
       }
       const vaultResult = await handleVaultRuntimeMessage(vaultCommandDeps, raw);
-      if (vaultResult !== null) sendResponse(vaultResult);
+      if (vaultResult !== null) {
+        sendResponse(vaultResult);
+        if (
+          raw !== null
+          && typeof raw === "object"
+          && (raw as { readonly type?: unknown }).type === "vault/entry-save"
+          && vaultResult.ok
+          && "entrySave" in vaultResult
+          && vaultResult.entrySave.status === "saved"
+        ) publishSurfaceState(vaultChanged());
+      }
     } finally {
       lease.release();
     }
@@ -239,8 +382,7 @@ async function removeUnusedServerPermission(
 void chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
 
 chrome.runtime.onInstalled.addListener(() => {
-  // ~5 min cadence for the future delta-sync trigger (see the sync plan).
-  chrome.alarms.create(SYNC_ALARM, { periodInMinutes: 5 });
+  chrome.alarms.create(SYNC_ALARM, { periodInMinutes: SYNC_PERIOD_MINUTES });
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -253,7 +395,12 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   // Periodic delta-sync trigger (plan §6): refresh the metadata cache.
   void initializeServerConfig().then(() => {
     runServerOperation(
-      () => vaultData.refresh().then(() => undefined),
+      async () => {
+        // A locked worker cannot open MemberIndex and does not need background
+        // network traffic. Unlock performs an authoritative refresh itself.
+        if (await sessionManager.getStatus() !== "unlocked") return;
+        await vaultData.refresh();
+      },
       "vault refresh on alarm failed",
     );
   });

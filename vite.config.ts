@@ -41,7 +41,16 @@ export default defineConfig({
               offscreen: fileURLToPath(new URL("./src/offscreen/index.html", import.meta.url)),
             },
           }
-        : {}),
+        : target === "firefox"
+          ? {
+              // CRXJS recognises Chromium's `side_panel` entry automatically,
+              // while Firefox's `sidebar_action.default_panel` needs an
+              // explicit HTML build input. Both still compile the same app.
+              input: {
+                sidePanel: fileURLToPath(new URL("./src/side-panel/index.html", import.meta.url)),
+              },
+            }
+          : {}),
       output: {
         // Deterministic asset names keep the least-privilege review diff-able.
         chunkFileNames: "assets/[name]-[hash].js",

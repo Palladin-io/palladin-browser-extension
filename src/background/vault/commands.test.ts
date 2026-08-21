@@ -5,6 +5,7 @@ import type { FillField, FillOutcome } from "@shared/messaging";
 
 import {
   dispatchVaultCommand,
+  fillInlineSelectedEntry,
   isVaultCommand,
   type ActiveTab,
   type VaultCommandDeps,
@@ -16,6 +17,7 @@ const HTTPS_MATCH = "https://example.com/login";
 interface Harness {
   deps: VaultCommandDeps;
   sendFill: ReturnType<typeof vi.fn>;
+  openLoginTab: ReturnType<typeof vi.fn>;
   arm: ReturnType<typeof vi.fn>;
   revealEntry: ReturnType<typeof vi.fn>;
 }
@@ -73,6 +75,7 @@ function buildVaultWorld(): CommandWorld {
       {
         id: "entry-cred",
         vaultId: "vault-1",
+        vaultName: "Personal",
         name: "Example login",
         type: 1,
         urlDomain: "example.com",
@@ -81,6 +84,7 @@ function buildVaultWorld(): CommandWorld {
       {
         id: "entry-key",
         vaultId: "vault-1",
+        vaultName: "Personal",
         name: "API key",
         type: 0,
         updatedAt: "2026-07-15T00:00:00Z",
@@ -103,6 +107,14 @@ async function makeHarness(
       Promise.resolve(fillOutcome),
   );
   const arm = vi.fn();
+  const resolvedTab = tab === null
+    ? null
+    : {
+        ...tab,
+        documentId: tab.documentId ?? "document-1",
+        browserDocumentId: tab.browserDocumentId ?? "browser-document-1",
+      };
+  const openLoginTab = vi.fn(async () => resolvedTab);
   const revealEntry = vi.fn(async (_vaultId: string, entryId: string) => {
     const secret = world.secrets.get(entryId);
     if (secret === undefined) throw new Error("missing fixture");
@@ -111,22 +123,18 @@ async function makeHarness(
   const deps: VaultCommandDeps = {
     data: {
       refresh: async () => world.metadata,
+      refreshIfStale: async () => world.metadata,
       clearCache: async () => undefined,
       getMetadata: async () => world.metadata,
       revealEntry,
     },
-    getActiveTab: () => Promise.resolve(tab === null
-      ? null
-      : {
-          ...tab,
-          documentId: tab.documentId ?? "document-1",
-          browserDocumentId: tab.browserDocumentId ?? "browser-document-1",
-        }),
+    getActiveTab: () => Promise.resolve(resolvedTab),
+    openLoginTab,
     sendFill,
     clipboard: { available: true, arm },
     now: () => 0,
   };
-  return { deps, sendFill, arm, revealEntry };
+  return { deps, sendFill, openLoginTab, arm, revealEntry };
 }
 
 describe("vault/list", () => {
@@ -140,6 +148,19 @@ describe("vault/list", () => {
     expect(result.list.site).toEqual({ domain: "example.com", secure: true });
     expect(result.list.forSite.map((e) => e.id)).toEqual(["entry-cred"]);
     expect(result.list.all.map((e) => e.id).sort()).toEqual(["entry-cred", "entry-key"]);
+  });
+
+  it("uses the freshness-aware refresh path for a UI sync", async () => {
+    const world = await buildVaultWorld();
+    const { deps } = await makeHarness(world, { id: 1, url: HTTPS_MATCH });
+    const refresh = vi.spyOn(deps.data, "refresh");
+    const refreshIfStale = vi.spyOn(deps.data, "refreshIfStale");
+
+    const result = await dispatchVaultCommand(deps, { type: "vault/sync" });
+
+    expect(result.ok).toBe(true);
+    expect(refreshIfStale).toHaveBeenCalledWith(15 * 60_000);
+    expect(refresh).not.toHaveBeenCalled();
   });
 });
 
@@ -179,6 +200,56 @@ describe("vault/fill gates", () => {
       entryId: "entry-cred",
     });
     expect(result).toEqual({ ok: true, fill: { status: "blocked", reason: "domain-mismatch" } });
+    expect(sendFill).not.toHaveBeenCalled();
+  });
+
+  it("allows a one-shot related-host inline choice and keeps the final DOM gate exact", async () => {
+    const world = await buildVaultWorld();
+    const { deps, sendFill } = await makeHarness(world, {
+      id: 7,
+      url: "https://accounts.example.com/login",
+    });
+
+    expect(await fillInlineSelectedEntry(
+      deps,
+      {
+        id: 7,
+        url: "https://accounts.example.com/login",
+        documentId: "document-1",
+        browserDocumentId: "browser-document-1",
+      },
+      "vault-1",
+      "entry-cred",
+      "related",
+    )).toEqual({ status: "filled" });
+    expect(sendFill).toHaveBeenCalledWith(
+      expect.objectContaining({ url: "https://accounts.example.com/login" }),
+      "accounts.example.com",
+      expect.any(Array),
+      false,
+    );
+  });
+
+  it("never lets related-host consent cross a registrable-domain boundary", async () => {
+    const world = await buildVaultWorld();
+    const { deps, sendFill, revealEntry } = await makeHarness(world, {
+      id: 7,
+      url: "https://evil.test/login",
+    });
+
+    expect(await fillInlineSelectedEntry(
+      deps,
+      {
+        id: 7,
+        url: "https://evil.test/login",
+        documentId: "document-1",
+        browserDocumentId: "browser-document-1",
+      },
+      "vault-1",
+      "entry-cred",
+      "related",
+    )).toEqual({ status: "blocked", reason: "domain-mismatch" });
+    expect(revealEntry).not.toHaveBeenCalled();
     expect(sendFill).not.toHaveBeenCalled();
   });
 
@@ -271,18 +342,113 @@ describe("vault/fill gates", () => {
     });
     expect(result).toEqual({ ok: true, fill: { status: "blocked", reason: "no-active-tab" } });
   });
+
+  it("fills the current exact login form without opening a duplicate tab", async () => {
+    const world = buildVaultWorld();
+    const { deps, openLoginTab, sendFill } = await makeHarness(world, {
+      id: 12,
+      url: "https://example.com/sign-in",
+      documentId: "login-document",
+      browserDocumentId: "browser-login-document",
+    });
+
+    expect(await dispatchVaultCommand(deps, {
+      type: "vault/login",
+      vaultId: "vault-1",
+      entryId: "entry-cred",
+    })).toEqual({ ok: true, fill: { status: "filled" } });
+    expect(openLoginTab).not.toHaveBeenCalled();
+    expect(sendFill).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 12, documentId: "login-document" }),
+      "example.com",
+      [
+        { kind: "username", value: "ada@example.com" },
+        { kind: "password", value: "s3cr3t-p@ss" },
+      ],
+      true,
+    );
+  });
+
+  it("opens the credential host when the current page does not match", async () => {
+    const world = buildVaultWorld();
+    const { deps, sendFill } = await makeHarness(world, {
+      id: 7,
+      url: "https://unrelated.test/",
+    });
+    const opened = {
+      id: 12,
+      url: "https://example.com/sign-in",
+      documentId: "login-document",
+      browserDocumentId: "browser-login-document",
+    };
+    const openLoginTab = vi.fn(async () => opened);
+    deps.openLoginTab = openLoginTab;
+
+    expect(await dispatchVaultCommand(deps, {
+      type: "vault/login",
+      vaultId: "vault-1",
+      entryId: "entry-cred",
+    })).toEqual({ ok: true, fill: { status: "filled" } });
+    expect(openLoginTab).toHaveBeenCalledWith("https://example.com/");
+    expect(sendFill).toHaveBeenCalledWith(
+      opened,
+      "example.com",
+      expect.any(Array),
+      true,
+    );
+  });
+
+  it("opens the credential host when the current exact page has no login form", async () => {
+    const world = buildVaultWorld();
+    const { deps, sendFill, openLoginTab } = await makeHarness(world, {
+      id: 12,
+      url: "https://example.com/account",
+    });
+    sendFill
+      .mockResolvedValueOnce({ ok: false, reason: "no-form" })
+      .mockResolvedValueOnce({ ok: true });
+
+    expect(await dispatchVaultCommand(deps, {
+      type: "vault/login",
+      vaultId: "vault-1",
+      entryId: "entry-cred",
+    })).toEqual({ ok: true, fill: { status: "filled" } });
+    expect(openLoginTab).toHaveBeenCalledWith("https://example.com/");
+    expect(sendFill).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not decrypt when login navigation lands on another host", async () => {
+    const world = buildVaultWorld();
+    const { deps, revealEntry, sendFill } = await makeHarness(world, null);
+    deps.openLoginTab = vi.fn(async () => ({
+      id: 12,
+      url: "https://evil.example.net/",
+      documentId: "evil-document",
+      browserDocumentId: "browser-evil-document",
+    }));
+
+    expect(await dispatchVaultCommand(deps, {
+      type: "vault/login",
+      vaultId: "vault-1",
+      entryId: "entry-cred",
+    })).toEqual({ ok: true, fill: { status: "blocked", reason: "domain-mismatch" } });
+    expect(revealEntry).not.toHaveBeenCalled();
+    expect(sendFill).not.toHaveBeenCalled();
+  });
 });
 
 describe("credit card commands", () => {
-  it("fills canonical card fields on an explicitly selected secure page without a site binding", async () => {
+  it("binds an explicitly selected card fill to the exact live HTTPS host", async () => {
     const sendFill = vi.fn(async (): Promise<FillOutcome> => ({ ok: true }));
     const deps: VaultCommandDeps = {
       data: {
         refresh: async () => [],
+        refreshIfStale: async () => [],
         clearCache: async () => undefined,
         getMetadata: async () => [{
           id: "card-1",
           vaultId: "vault-1",
+          vaultName: "Personal",
           name: "Personal card",
           type: 3,
           updatedAt: "2026-08-16T12:00:00Z",
@@ -314,6 +480,7 @@ describe("credit card commands", () => {
         documentId: "checkout-document",
         browserDocumentId: "browser-checkout-document",
       }),
+      openLoginTab: async () => null,
       sendFill,
       clipboard: { available: true, arm: vi.fn() },
     };
@@ -328,14 +495,14 @@ describe("credit card commands", () => {
       url: "https://checkout.shop.test/pay",
       documentId: "checkout-document",
       browserDocumentId: "browser-checkout-document",
-    }, null, [
+    }, "checkout.shop.test", [
       { kind: "cardholder", value: "Ada Lovelace" },
       { kind: "card-number", value: "4111111111111111" },
       { kind: "card-expiry-month", value: "08" },
       { kind: "card-expiry-year", value: "2030" },
       { kind: "card-expiry", value: "08/30" },
       { kind: "billing-address", value: "12 Computing Lane" },
-    ]);
+    ], false);
   });
 
   it("fails closed when the prepared card document changes before the DOM write", async () => {
@@ -343,6 +510,7 @@ describe("credit card commands", () => {
     world.metadata.push({
       id: "card-1",
       vaultId: "vault-1",
+      vaultName: "Personal",
       name: "Card",
       type: 3,
       updatedAt: "2026-08-16T12:00:00Z",
@@ -384,14 +552,22 @@ describe("credit card commands", () => {
       billingAddress: "12 Computing Lane",
       notes: "Primary",
     };
-    expect(isVaultCommand({ type: "vault/card-save", card })).toBe(true);
+    expect(isVaultCommand({ type: "vault/entry-save", entry: { entryType: "creditCard", ...card } })).toBe(true);
     expect(isVaultCommand({
-      type: "vault/card-save",
-      card: { ...card, verificationCode: "123" },
+      type: "vault/entry-save",
+      entry: {
+        entryType: "creditCard",
+        ...card,
+        customFields: [{ id: "custom:neutral_code", label: "CVV", type: "concealed", value: "123" }],
+      },
+    })).toBe(true);
+    expect(isVaultCommand({
+      type: "vault/entry-save",
+      entry: { entryType: "creditCard", ...card, verificationCode: "123" },
     })).toBe(false);
     expect(isVaultCommand({
-      type: "vault/card-save",
-      card: { ...card, pin: "1234" },
+      type: "vault/entry-save",
+      entry: { entryType: "creditCard", ...card, pin: "1234" },
     })).toBe(false);
   });
 });
@@ -411,6 +587,7 @@ describe("generated secret actions", () => {
       },
       null,
       [{ kind: "generated", value: "new-secret" }],
+      false,
     );
   });
 
@@ -481,6 +658,19 @@ describe("vault/reveal + vault/totp", () => {
     expect(arm).toHaveBeenCalledOnce();
   });
 
+  it("reveals a username for an explicitly expanded extension group without touching clipboard", async () => {
+    const world = await buildVaultWorld();
+    const { deps, arm } = await makeHarness(world, { id: 1, url: HTTPS_MATCH });
+    deps.clipboard = { available: false, arm };
+
+    expect(await dispatchVaultCommand(deps, {
+      type: "vault/credential-username",
+      vaultId: "vault-1",
+      entryId: "entry-cred",
+    })).toEqual({ ok: true, credentialUsername: { value: "ada@example.com" } });
+    expect(arm).not.toHaveBeenCalled();
+  });
+
   it("computes a TOTP code on demand without arming the clipboard", async () => {
     const world = await buildVaultWorld();
     const { deps, arm } = await makeHarness(world, { id: 1, url: HTTPS_MATCH });
@@ -514,11 +704,25 @@ describe("isVaultCommand", () => {
   it("accepts well-formed commands and rejects malformed ones", () => {
     expect(isVaultCommand({ type: "vault/list" })).toBe(true);
     expect(isVaultCommand({ type: "vault/fill", vaultId: "v", entryId: "e" })).toBe(true);
+    expect(isVaultCommand({ type: "vault/login", vaultId: "v", entryId: "e" })).toBe(true);
     expect(isVaultCommand({ type: "vault/reveal", vaultId: "v", entryId: "e", field: "password" })).toBe(true);
+    expect(isVaultCommand({ type: "vault/credential-username", vaultId: "v", entryId: "e" })).toBe(true);
     expect(isVaultCommand({ type: "vault/reveal", vaultId: "v", entryId: "e", field: "bogus" })).toBe(false);
     expect(isVaultCommand({ type: "vault/fill", vaultId: "v" })).toBe(false);
     expect(isVaultCommand({ type: "vault/fill-generated", value: "secret" })).toBe(true);
     expect(isVaultCommand({ type: "vault/fill-generated", value: "" })).toBe(false);
+    expect(isVaultCommand({
+      type: "vault/entry-save",
+      entry: { entryType: "key", label: "API key", value: "secret" },
+    })).toBe(true);
+    expect(isVaultCommand({
+      type: "vault/entry-save",
+      entry: { entryType: "key", label: "API key", value: "secret", extra: true },
+    })).toBe(false);
+    expect(isVaultCommand({
+      type: "vault/entry-save",
+      entry: { entryType: "script", label: "Script", source: "echo ok", interpreter: "powershell" },
+    })).toBe(false);
     expect(isVaultCommand({ type: "vault/clipboard-arm" })).toBe(true);
     expect(isVaultCommand({ type: "session/status" })).toBe(false);
     expect(isVaultCommand(null)).toBe(false);

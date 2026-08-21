@@ -16,9 +16,10 @@ import { useI18n, type Translate } from "../i18n";
 
 export interface PairingScreenProps {
   client: AgentPairingClient;
+  embedded?: boolean;
 }
 
-export function PairingScreen({ client }: PairingScreenProps): React.JSX.Element {
+export function PairingScreen({ client, embedded = false }: PairingScreenProps): React.JSX.Element {
   const { t } = useI18n();
   const [status, setStatus] = useState<AgentPairingStatus | null>(null);
   const [bundleInput, setBundleInput] = useState("");
@@ -42,7 +43,7 @@ export function PairingScreen({ client }: PairingScreenProps): React.JSX.Element
   if (status === null && error === null) {
     return (
       <section className="pairing-screen">
-        <h2 className="screen-title">{t("pairing.runtime")}</h2>
+        {embedded ? null : <h2 className="screen-title">{t("pairing.runtime")}</h2>}
         <div className="centered pairing-loading">
           <Spinner />
           <span className="muted">{t("pairing.checking")}</span>
@@ -54,7 +55,7 @@ export function PairingScreen({ client }: PairingScreenProps): React.JSX.Element
   if (status?.paired) {
     return (
       <section className="pairing-screen">
-        <h2 className="screen-title">{t("pairing.runtime")}</h2>
+        {embedded ? null : <h2 className="screen-title">{t("pairing.runtime")}</h2>}
         <p className="screen-subtitle">{t("pairing.pairedSubtitle")}</p>
         <div className="pairing-status-card">
           <span className="pairing-status-label">{t("pairing.pairedFingerprint")}</span>
@@ -73,7 +74,7 @@ export function PairingScreen({ client }: PairingScreenProps): React.JSX.Element
   const malformed = bundleInput.length > 0 && bundle === null;
   return (
     <section className="pairing-screen">
-      <h2 className="screen-title">{t("pairing.title")}</h2>
+      {embedded ? null : <h2 className="screen-title">{t("pairing.title")}</h2>}
       <p className="screen-subtitle">
         {t("pairing.instructionsBefore")} <code>palladin browser install</code>{" "}
         {t("pairing.instructionsAfter")}

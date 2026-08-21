@@ -31,8 +31,10 @@ treat any violation below as a Critical (blocking) finding.
   overlay, or read (anti-clickjacking).
 - **Strict eTLD+1 origin gate before every fill.** The frame's eTLD+1 (Public
   Suffix List) must equal the entry's registered domain; HTTPS-only; re-checked
-  after navigation. Subdomains do NOT match by default (per-entry opt-in). An
-  entry with no domain is fail-closed.
+  after navigation. Automatic and exact-match fill never crosses stored hosts.
+  A sibling host may be shown only as a related-site candidate and filled only
+  after a closed-surface, per-entry choice for that one operation; the final DOM
+  write is rebound to the exact live host. An entry with no domain is fail-closed.
 - **Fill is driven by explicit user choice or an authenticated native runtime,
   never by page content.** User autofill does not use grants. Agent grants are
   enforced by the Rust runtime before it sends prepared values over Native
@@ -133,11 +135,16 @@ src/
 
 ## Manifest & Permissions
 
-- **Least privilege.** Permissions are `storage`, `activeTab`, `alarms`, and
-  `offscreen`; host permissions are restricted to the Palladin API origins.
-  `content_scripts` match `<all_urls>`
-  pending a dedicated least-privilege review; narrowing this is tracked work, not
-  a default to widen.
+- **Least privilege.** Shared permissions are `storage`, `activeTab`, `alarms`,
+  `nativeMessaging`, and `scripting`; Chromium adds `offscreen` and `sidePanel`.
+  Host permissions are restricted to the Palladin API origins.
+  Palladin does not request `management` and does not inspect installed
+  extensions. First-run guidance may explain that overlapping password managers
+  can duplicate icons and prompts, but it must never claim detection or repeat
+  after dismissal. Browser-owned password and extension settings may be opened
+  only from explicit user gestures. `content_scripts` match `<all_urls>` pending
+  a dedicated least-privilege review; narrowing this is tracked work, not a
+  default to widen.
 - Adding a permission or host is a security decision - justify it in the PR and
   keep the base minimal.
 

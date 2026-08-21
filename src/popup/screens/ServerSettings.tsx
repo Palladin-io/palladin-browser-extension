@@ -13,9 +13,14 @@ import {
 export interface ServerSettingsProps {
   client: ServerConfigClient;
   onChanged(): void;
+  embedded?: boolean;
 }
 
-export function ServerSettings({ client, onChanged }: ServerSettingsProps): React.JSX.Element {
+export function ServerSettings({
+  client,
+  onChanged,
+  embedded = false,
+}: ServerSettingsProps): React.JSX.Element {
   const { t } = useI18n();
   const [current, setCurrent] = useState<string | null>(null);
   const [input, setInput] = useState("");
@@ -61,7 +66,7 @@ export function ServerSettings({ client, onChanged }: ServerSettingsProps): Reac
 
   return (
     <section className="server-settings">
-      <h2 className="screen-title">{t("settings.server.title")}</h2>
+      {embedded ? null : <h2 className="screen-title">{t("settings.server.title")}</h2>}
       <p className="screen-subtitle">{t("settings.server.subtitle")}</p>
       <form className="server-settings-form" onSubmit={handleSubmit} noValidate>
         <FormInput

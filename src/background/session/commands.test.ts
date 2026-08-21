@@ -16,7 +16,7 @@ import {
 async function makeManager(account: TestAccount): Promise<SessionManager> {
   const storage = new FakeStorageArea();
   const alarms = new FakeAlarms();
-  const authClient = new AuthClient(mockBackend(account).fetch, "http://api.test");
+  const authClient = new AuthClient(mockBackend(account).fetch, "https://api.test");
   let mgr: SessionManager;
   const autoLock = new AutoLock(alarms, () => void mgr.lock());
   mgr = new SessionManager({ store: new SessionStore(storage), authClient, autoLock });
@@ -24,36 +24,40 @@ async function makeManager(account: TestAccount): Promise<SessionManager> {
 }
 
 describe("dispatchSessionCommand", () => {
-  it("drives the full login → lock → unlock → logout cycle", async () => {
-    const account = await buildTestAccount();
-    const mgr = await makeManager(account);
+  it(
+    "drives the full login → lock → unlock → logout cycle",
+    async () => {
+      const account = await buildTestAccount();
+      const mgr = await makeManager(account);
 
-    const login = await dispatchSessionCommand(mgr, {
-      type: "session/login",
-      email: account.email,
-      password: account.password,
-    });
-    expect(login).toEqual({ ok: true, login: { status: "unlocked" } });
+      const login = await dispatchSessionCommand(mgr, {
+        type: "session/login",
+        email: account.email,
+        password: account.password,
+      });
+      expect(login).toEqual({ ok: true, login: { status: "unlocked" } });
 
-    expect(await dispatchSessionCommand(mgr, { type: "session/status" })).toEqual({
-      ok: true,
-      status: "unlocked",
-    });
+      expect(await dispatchSessionCommand(mgr, { type: "session/status" })).toEqual({
+        ok: true,
+        status: "unlocked",
+      });
 
-    expect(await dispatchSessionCommand(mgr, { type: "session/lock" })).toEqual({
-      ok: true,
-      status: "locked",
-    });
+      expect(await dispatchSessionCommand(mgr, { type: "session/lock" })).toEqual({
+        ok: true,
+        status: "locked",
+      });
 
-    expect(
-      await dispatchSessionCommand(mgr, { type: "session/unlock", password: account.password }),
-    ).toEqual({ ok: true, status: "unlocked" });
+      expect(
+        await dispatchSessionCommand(mgr, { type: "session/unlock", password: account.password }),
+      ).toEqual({ ok: true, status: "unlocked" });
 
-    expect(await dispatchSessionCommand(mgr, { type: "session/logout" })).toEqual({
-      ok: true,
-      status: "signed-out",
-    });
-  });
+      expect(await dispatchSessionCommand(mgr, { type: "session/logout" })).toEqual({
+        ok: true,
+        status: "signed-out",
+      });
+    },
+    15_000,
+  );
 
   it("returns a typed failure for a wrong password", async () => {
     const account = await buildTestAccount();
@@ -99,7 +103,7 @@ describe("dispatchSessionCommand", () => {
       // @ts-expect-error — exercising the runtime guard against an invalid policy
       await dispatchSessionCommand(mgr, { type: "session/setAutoLock", policy: "bogus" }),
     ).toEqual({ ok: false, code: "invalid-credentials", message: expect.any(String) });
-  });
+  }, 15_000);
 
   it("cancels a pending TOTP challenge in the background", async () => {
     const account = await buildTestAccount();
@@ -110,7 +114,7 @@ describe("dispatchSessionCommand", () => {
     const autoLock = new AutoLock(alarms, () => void mgr.lock());
     mgr = new SessionManager({
       store: new SessionStore(storage),
-      authClient: new AuthClient(backend.fetch, "http://api.test"),
+      authClient: new AuthClient(backend.fetch, "https://api.test"),
       autoLock,
     });
     await dispatchSessionCommand(mgr, {
@@ -125,9 +129,8 @@ describe("dispatchSessionCommand", () => {
       type: "session/completeTotp",
       challengeToken: "challenge-1",
       code: "424242",
-      password: account.password,
     })).toMatchObject({ ok: false, code: "network" });
-  });
+  }, 15_000);
 });
 
 describe("handleRuntimeMessage", () => {

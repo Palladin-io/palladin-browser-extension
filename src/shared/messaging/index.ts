@@ -5,3 +5,6 @@ export * from "./fill";
 export * from "./clipboard";
 export * from "./tab-url";
 export * from "./agent-inject";
+export * from "./session-liveness";
+export * from "./surface-state";
+export * from "./inline-autofill";

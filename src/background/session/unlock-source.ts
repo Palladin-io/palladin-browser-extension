@@ -14,9 +14,11 @@
  */
 
 import {
-  deriveKey,
+  assertIdentityKdfProfile,
   decryptWithKey,
-  fromBase64,
+  deriveIdentityV1,
+  fromBase64Url,
+  IDENTITY_KDF_PROFILE,
   NotImplementedError,
   wipe,
 } from "@palladin/crypto";
@@ -36,8 +38,8 @@ export interface UnlockSource {
 }
 
 /**
- * The default source: the login password re-derives the master key (same
- * double-Argon2id scheme as the web panel) and unwraps the private key. A failed
+ * The default source: the login password re-derives the master key through the
+ * canonical Identity KDF and unwraps the private key. A failed
  * MAC on the unwrap means the wrong password — surfaced as `incorrect-password`.
  */
 export class MasterPasswordUnlock implements UnlockSource {
@@ -46,18 +48,41 @@ export class MasterPasswordUnlock implements UnlockSource {
   constructor(private readonly password: string) {}
 
   async deriveKeys(material: AccountMaterial): Promise<SessionKeys> {
-    const masterKey = await deriveKey(this.password, fromBase64(material.salt));
     try {
+      assertIdentityKdfProfile({
+        profileId: material.kdf.profileId,
+        securityVersion: material.kdf.securityVersion,
+        kdfSalt: material.kdf.kdfSalt,
+        memoryKiB: IDENTITY_KDF_PROFILE.memoryKiB,
+        iterations: IDENTITY_KDF_PROFILE.iterations,
+        parallelism: IDENTITY_KDF_PROFILE.parallelism,
+      });
+    } catch {
+      throw new SessionError("unsupported-security", "Unsupported Identity KDF profile");
+    }
+    if (material.kdf.minimumSecurityVersion > IDENTITY_KDF_PROFILE.securityVersion) {
+      throw new SessionError("unsupported-security", "A newer security version is required");
+    }
+
+    const salt = fromBase64Url(material.kdf.kdfSalt, 16);
+    const identity = await deriveIdentityV1(this.password, material.accountId, salt);
+    let encryptedPrivateKey: Uint8Array | null = null;
+    try {
+      encryptedPrivateKey = fromBase64Url(material.encryptedPrivateKey, 4_096);
       const privateKey = await decryptWithKey(
-        fromBase64(material.encryptedPrivateKey),
-        masterKey,
+        encryptedPrivateKey,
+        identity.masterKey,
       );
-      return { masterKey, privateKey };
+      return { masterKey: identity.masterKey, privateKey };
     } catch {
       // Unwrap failed the MAC check: wrong password. Wipe the derived key so no
       // material lingers, and translate into a typed, value-free error.
-      wipe(masterKey);
+      wipe(identity.masterKey);
       throw new SessionError("incorrect-password", "Master password is incorrect");
+    } finally {
+      wipe(salt);
+      wipe(identity.authCredential);
+      if (encryptedPrivateKey) wipe(encryptedPrivateKey);
     }
   }
 }

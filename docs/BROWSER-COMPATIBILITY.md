@@ -55,6 +55,12 @@ clears the local encrypted cache.
   key is therefore a cross-component protocol and packaging change.
 - The artifact requests `offscreen` because Chromium's service worker delegates
   timed clipboard clearing to a short-lived offscreen document.
+- The shared `scripting` permission is used only with `activeTab`, after explicit
+  popup unlock, to install the fixed value-free liveness bootstrap into an
+  already-open top frame. It cannot widen host access and never injects secrets.
+- The artifact does not request `management` or inspect installed extensions.
+  First-run password-manager guidance opens Chrome-owned settings only after an
+  explicit click.
 - Chrome, Chromium, Brave, Edge, and Opera consume this same artifact.
 
 ### Firefox
@@ -69,12 +75,15 @@ clears the local encrypted cache.
   Palladin services. A future paired Agent Inject session will also send the
   active URL to the local runtime; zero-knowledge encryption and a local
   destination do not make that browser-consent declaration disappear.
+- Firefox does not request `management` or inspect installed add-ons. Its
+  first-run guidance links to Firefox-owned password and add-on settings.
 - The target does not request `offscreen`, which Firefox does not implement.
 
 ### Safari
 
-- `manifest.safari.json` sets a Safari 16.4 floor because the extension uses
-  `storage.session`, which Safari supports from 16.4.
+- `manifest.safari.json` sets a Safari 16.4 floor because the extension uses the
+  session-storage API for ephemeral security state, which Safari supports from
+  16.4. The password-sealed account envelope itself uses `storage.local`.
 - The build output is web-extension source, not a distributable Safari app.
   Production packaging must convert it into an Xcode Safari Web Extension and
   ship a containing app.
@@ -82,6 +91,8 @@ clears the local encrypted cache.
   Chrome-style native host name. The current Agent Inject Native Messaging host
   is therefore not Safari-compatible without a dedicated containing-app adapter.
 - The target does not request `offscreen`, which Safari does not implement.
+- First-run coexistence guidance opens Apple/browser extension help and never
+  claims installed-extension detection.
 
 ## Known runtime gaps
 
