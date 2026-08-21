@@ -62,6 +62,11 @@ targets have a reviewed TTL wipe. Cross-browser runtime validation and
 production store publication remain in development. Do not use development
 builds with production credentials.
 
+The extension pins the reviewed public registry release
+`@palladin/crypto@0.4.0`, published from signed tag `v0.4.0` with npm/Sigstore
+provenance. This source/build milestone is not a browser-store release: packaged
+artifacts, signing, installed-browser acceptance and store review remain open.
+
 See [`docs/STATUS.md`](docs/STATUS.md) for the release gates and
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for trust boundaries. The exact
 target matrix and known gaps are in
