@@ -205,7 +205,8 @@ export class SessionManager {
    * Rotate the access token via the refresh token and persist the new pair.
    * Returns the fresh access token, or null when there is no session or the
    * refresh is rejected (the caller then treats the request as unauthenticated).
-   * Transient transport failures preserve the bound session and are rethrown.
+   * Transient transport or throttling failures preserve the bound session and
+   * are rethrown.
    */
   refreshAccessToken(): Promise<string | null> {
     if (this.refreshInFlight) return this.refreshInFlight;
@@ -276,7 +277,7 @@ export class SessionManager {
       }
       if (
         error instanceof SessionError
-        && error.code === "network"
+        && (error.code === "network" || error.code === "rate-limited")
         && pendingEnvelope
       ) {
         let restored = false;

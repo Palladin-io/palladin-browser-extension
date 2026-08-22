@@ -1017,6 +1017,33 @@ describe("SessionManager - durable refresh rotation", () => {
     }
   });
 
+  it("restores the bound session when refresh is rate-limited", async () => {
+    const account = await buildTestAccount();
+    const { mgr, authClient, storage } = makeHarness(account);
+    await mgr.login(account.email, account.password);
+    const masterKey = new Uint8Array(mgr.getKeys()!.masterKey);
+    vi.spyOn(authClient, "refresh").mockRejectedValue(
+      new SessionError("rate-limited", "Refresh rate-limited", 45),
+    );
+
+    try {
+      await expect(mgr.refreshAccessToken()).rejects.toMatchObject({
+        code: "rate-limited",
+        retryAfterSeconds: 45,
+      });
+      expect(await mgr.getStatus()).toBe("unlocked");
+      expect(await mgr.getAccessToken()).toBe("access-token-1");
+      expect(await readSealedPayload(await readEnvelope(storage), masterKey)).toMatchObject({
+        state: "active",
+        userId: account.accountId,
+        accessToken: "access-token-1",
+        refreshToken: "refresh-token-1",
+      });
+    } finally {
+      wipe(masterKey);
+    }
+  });
+
   it("clears the session when the backend explicitly rejects the refresh token", async () => {
     const account = await buildTestAccount();
     const { mgr, authClient, storage } = makeHarness(account);
