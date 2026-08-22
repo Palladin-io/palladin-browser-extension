@@ -350,6 +350,29 @@ body {
   min-height: 120px;
 }
 
+.pairing-command {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--cv-border);
+  border-radius: 9px;
+  background: var(--cv-surface);
+}
+
+.pairing-command code {
+  min-width: 0;
+  color: var(--cv-t1);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.pairing-command .btn {
+  flex: 0 0 auto;
+}
+
 .pairing-status-card,
 .pairing-confirmation {
   display: flex;
@@ -386,6 +409,10 @@ body {
   color: var(--cv-primary);
   font-size: 11px;
   line-height: 1.4;
+}
+
+.pairing-feedback {
+  padding-block: 6px;
 }
 
 /* ── Field ───────────────────────────────────────────────────────────────── */

@@ -12,52 +12,33 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function fakePort() {
-  const messageListeners = new Set<(raw: unknown) => void>();
-  const disconnectListeners = new Set<() => void>();
-  const postMessage = vi.fn();
-  const disconnect = vi.fn();
-  const port = {
-    name: "io.palladin.browser_bridge",
-    sender: undefined,
-    error: undefined,
-    onMessage: {
-      addListener: vi.fn((listener: (raw: unknown) => void) => messageListeners.add(listener)),
-      removeListener: vi.fn((listener: (raw: unknown) => void) => messageListeners.delete(listener)),
-    },
-    onDisconnect: {
-      addListener: vi.fn((listener: () => void) => disconnectListeners.add(listener)),
-      removeListener: vi.fn((listener: () => void) => disconnectListeners.delete(listener)),
-    },
-    postMessage,
-    disconnect,
-  } as unknown as chrome.runtime.Port;
+function fakeNativeMessage() {
+  let resolveResponse: ((raw: unknown) => void) | undefined;
+  const sendNativeMessage = vi.fn((_hostName: string, _request: unknown) => new Promise<unknown>((resolve) => {
+    resolveResponse = resolve;
+  }));
   return {
-    port,
-    postMessage,
-    disconnect,
-    emitMessage: (raw: unknown) => messageListeners.forEach((listener) => listener(raw)),
-    emitDisconnect: () => disconnectListeners.forEach((listener) => listener()),
+    sendNativeMessage,
+    emitMessage: (raw: unknown) => resolveResponse?.(raw),
   };
 }
 
-function stubChrome(native: ReturnType<typeof fakePort>): void {
+function stubChrome(native: ReturnType<typeof fakeNativeMessage>): void {
   vi.stubGlobal("chrome", {
     runtime: {
       getURL: vi.fn(() => EXTENSION_ORIGIN),
-      connectNative: vi.fn(() => native.port),
-      lastError: undefined,
+      sendNativeMessage: native.sendNativeMessage,
     },
   });
 }
 
 describe("native Agent pairing discovery", () => {
-  it("accepts one exact challenge-bound public offer and closes the one-shot port", async () => {
-    const native = fakePort();
+  it("accepts one exact challenge-bound public offer from one native message", async () => {
+    const native = fakeNativeMessage();
     stubChrome(native);
     const discovered = discoverNativeAgentPairingOffer();
-    await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledOnce());
-    const request = native.postMessage.mock.calls[0]?.[0] as Record<string, string>;
+    await vi.waitFor(() => expect(native.sendNativeMessage).toHaveBeenCalledOnce());
+    const request = native.sendNativeMessage.mock.calls[0]?.[1] as Record<string, string>;
     const fingerprint = await injectHostKeyFingerprint(KEY);
 
     native.emitMessage({
@@ -79,14 +60,14 @@ describe("native Agent pairing discovery", () => {
       type: "pairing.discover",
       extensionOrigin: EXTENSION_ORIGIN,
     });
-    expect(native.disconnect).toHaveBeenCalledOnce();
+    expect(native.sendNativeMessage).toHaveBeenCalledWith("io.palladin.browser_bridge", request);
   });
 
   it("rejects a stale challenge and never returns its public key", async () => {
-    const native = fakePort();
+    const native = fakeNativeMessage();
     stubChrome(native);
     const discovered = discoverNativeAgentPairingOffer();
-    await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(native.sendNativeMessage).toHaveBeenCalledOnce());
     const fingerprint = await injectHostKeyFingerprint(KEY);
 
     native.emitMessage({
@@ -99,6 +80,5 @@ describe("native Agent pairing discovery", () => {
     });
 
     await expect(discovered).rejects.toThrow("Invalid native-host pairing offer");
-    expect(native.disconnect).toHaveBeenCalledOnce();
   });
 });

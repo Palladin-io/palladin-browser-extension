@@ -63,6 +63,18 @@ describe("Agent runtime pairing screen", () => {
     expect(discover).toHaveBeenCalledTimes(2);
   });
 
+  it("copies the install command from the pairing instructions", async () => {
+    const pairing = client({ discover: vi.fn(async () => { throw new Error("not installed"); }) });
+    render(<PairingScreen client={pairing} />);
+    const user = userEvent.setup();
+
+    await screen.findByRole("alert");
+    await user.click(screen.getByRole("button", { name: "Copy" }));
+
+    expect(await navigator.clipboard.readText()).toBe("palladin browser install");
+    expect(screen.getByRole("button", { name: "Copied" })).toBeInTheDocument();
+  });
+
   it("surfaces a fingerprint mismatch without echoing public-key values", async () => {
     const pairing = client({
       save: vi.fn(async () => { throw new AgentPairingClientError("fingerprint-mismatch"); }),

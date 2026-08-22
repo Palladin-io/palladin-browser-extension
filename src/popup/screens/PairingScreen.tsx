@@ -19,6 +19,8 @@ export interface PairingScreenProps {
   embedded?: boolean;
 }
 
+const INSTALL_COMMAND = "palladin browser install";
+
 export function PairingScreen({ client, embedded = false }: PairingScreenProps): React.JSX.Element {
   const { t } = useI18n();
   const [status, setStatus] = useState<AgentPairingStatus | null>(null);
@@ -26,6 +28,7 @@ export function PairingScreen({ client, embedded = false }: PairingScreenProps):
   const [detecting, setDetecting] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
 
   useEffect(() => {
     let active = true;
@@ -97,10 +100,18 @@ export function PairingScreen({ client, embedded = false }: PairingScreenProps):
   return (
     <section className="pairing-screen">
       {embedded ? null : <h2 className="screen-title">{t("pairing.title")}</h2>}
-      <p className="screen-subtitle">
-        {t("pairing.instructionsBefore")} <code>palladin browser install</code>{" "}
-        {t("pairing.instructionsAfter")}
-      </p>
+      <p className="screen-subtitle">{t("pairing.instructionsBefore")}</p>
+      <div className="pairing-command">
+        <code>{INSTALL_COMMAND}</code>
+        <Button variant="subtle" onClick={() => void copyInstallCommand()}>
+          {copyStatus === "copied"
+            ? t("common.copied")
+            : copyStatus === "failed"
+              ? t("common.failed")
+              : t("common.copy")}
+        </Button>
+      </div>
+      <p className="screen-subtitle">{t("pairing.instructionsAfter")}</p>
       {detecting ? (
         <div className="centered pairing-loading">
           <Spinner />
@@ -116,7 +127,11 @@ export function PairingScreen({ client, embedded = false }: PairingScreenProps):
           <p className="pairing-confirmation-copy">{t("pairing.confirm")}</p>
         </div>
       ) : null}
-      {error ? <p className="pairing-error" role="alert">{error}</p> : null}
+      {error ? (
+        <div className="pairing-feedback">
+          <p className="pairing-error" role="alert">{error}</p>
+        </div>
+      ) : null}
       {offer === null && !detecting ? (
         <Button block loading={busy} onClick={() => void retryDiscovery()}>
           {t("pairing.retryDiscovery")}
@@ -129,6 +144,15 @@ export function PairingScreen({ client, embedded = false }: PairingScreenProps):
       ) : null}
     </section>
   );
+
+  async function copyInstallCommand(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(INSTALL_COMMAND);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("failed");
+    }
+  }
 
   async function retryDiscovery(): Promise<void> {
     setBusy(true);
