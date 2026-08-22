@@ -204,6 +204,60 @@ describe("inline autofill field discovery", () => {
     subject.stop();
   });
 
+  it("tracks effective disabled state inherited from a fieldset", async () => {
+    document.body.innerHTML = `
+      <form><fieldset id="controls" disabled>
+        <input type="email"><input type="password">
+      </fieldset></form>
+    `;
+    const fieldset = document.querySelector("#controls") as HTMLFieldSetElement;
+    const subject = startInlineAutofill(document, "a".repeat(32), vi.fn(async () => ({
+      ok: true,
+      kind: "suggestions",
+      status: "ready",
+      entries: [],
+    })));
+
+    expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+    fieldset.disabled = false;
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(1);
+    });
+
+    fieldset.disabled = true;
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+    });
+    subject.stop();
+  });
+
+  it("tracks a login dialog opening and closing", async () => {
+    document.body.innerHTML = `
+      <dialog id="login"><form>
+        <input type="email"><input type="password">
+      </form></dialog>
+    `;
+    const dialog = document.querySelector("#login") as HTMLDialogElement;
+    const subject = startInlineAutofill(document, "a".repeat(32), vi.fn(async () => ({
+      ok: true,
+      kind: "suggestions",
+      status: "ready",
+      entries: [],
+    })));
+
+    expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+    dialog.setAttribute("open", "");
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(1);
+    });
+
+    dialog.removeAttribute("open");
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+    });
+    subject.stop();
+  });
+
   it("mounts isolated launchers and removes them on stop", async () => {
     document.body.innerHTML = `<form><input type="email"><input type="password"></form>`;
     const subject = startInlineAutofill(document, "a".repeat(32), vi.fn(async () => ({

@@ -3,7 +3,7 @@
  *
  * This is deliberately the simplest heuristic that works for a standard login
  * form: find the first fillable `input[type=password]`, and the nearest fillable
- * text/email field before it (same form when there is one). Full field detection
+ * text/email field associated with the same form. Full field detection
  * — richer heuristics, multi-step logins, an inline menu — is CVT-371/372; this
  * only has to cover the common case and fail cleanly ("No login form found")
  * otherwise.
@@ -31,7 +31,7 @@ const CARD_AUTOCOMPLETE_KIND: Readonly<Record<string, FillField["kind"]>> = {
 
 /** Fail closed for disabled, hidden, or page-CSS-hidden controls. */
 export function isFillable(input: FillControl): boolean {
-  if (input.disabled || input.readOnly) return false;
+  if (input.disabled || input.matches(":disabled") || input.readOnly) return false;
   if (input.hidden || (input instanceof HTMLInputElement && input.type === "hidden")) return false;
   if (input.getAttribute("aria-hidden") === "true") return false;
   const style = input.getAttribute("style") ?? "";
@@ -46,7 +46,8 @@ export function isFillable(input: FillControl): boolean {
   for (let element: HTMLElement | null = input; element !== null; element = element.parentElement) {
     if (element.hidden
       || element.hasAttribute("inert")
-      || element.getAttribute("aria-hidden") === "true") {
+      || element.getAttribute("aria-hidden") === "true"
+      || (element.tagName === "DIALOG" && !element.hasAttribute("open"))) {
       return false;
     }
     const computed = view.getComputedStyle(element);
@@ -70,10 +71,9 @@ function firstFillablePassword(doc: Document): HTMLInputElement | null {
 }
 
 /**
- * The fillable text/email/tel field immediately preceding the password in DOM
- * order - scoped to all controls associated with the password's form when it
- * has one, else the document.
- * "Immediately preceding" = the last such field that appears before the password.
+ * The nearest fillable text/email/tel field associated with the password's form.
+ * Prefer the last matching field before the password, then the first one after
+ * it so discovery and fill accept the same form-associated control topologies.
  */
 function usernameFieldFor(
   doc: Document,
@@ -85,12 +85,19 @@ function usernameFieldFor(
         (control): control is HTMLInputElement => control instanceof HTMLInputElement,
       );
   let previous: TextLikeInput | null = null;
+  let following: TextLikeInput | null = null;
+  let reachedPassword = false;
   for (const input of candidates) {
-    if (input === password) break;
+    if (input === password) {
+      reachedPassword = true;
+      continue;
+    }
     const type = input.getAttribute("type")?.toLowerCase() ?? "";
-    if (USERNAME_TYPES.has(type) && isFillable(input)) previous = input;
+    if (!USERNAME_TYPES.has(type) || !isFillable(input)) continue;
+    if (!reachedPassword) previous = input;
+    else if (following === null) following = input;
   }
-  return previous;
+  return previous ?? (password.form === null ? null : following);
 }
 
 /** Set a controlled input's value so React/Vue-style frameworks observe the change. */

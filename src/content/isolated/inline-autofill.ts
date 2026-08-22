@@ -78,7 +78,8 @@ function mutationAffectsLoginDiscovery(record: MutationRecord): boolean {
   const target = record.target;
   if (record.attributeName === "form") return target instanceof HTMLInputElement;
   if (record.attributeName === "id") return target instanceof HTMLFormElement;
-  if (["class", "style", "hidden", "aria-hidden", "inert"].includes(record.attributeName ?? "")) {
+  if (["class", "style", "hidden", "aria-hidden", "inert", "disabled", "open"]
+    .includes(record.attributeName ?? "")) {
     return target instanceof HTMLInputElement || target.querySelector("input") !== null;
   }
   return target instanceof HTMLInputElement;
@@ -122,6 +123,7 @@ class InlineAutofillController {
         "inert",
         "form",
         "id",
+        "open",
       ],
     });
     view.addEventListener("scroll", this.reposition, true);

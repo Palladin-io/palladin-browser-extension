@@ -69,6 +69,18 @@ describe("performFill", () => {
     expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("s3cr3t");
   });
 
+  it("fills an externally associated username that follows its password", () => {
+    const doc = mount(`
+      <form id="login"></form>
+      <input type="password" id="pass" form="login" />
+      <input type="email" id="user" form="login" />
+    `);
+
+    expect(performFill(doc, CREDS)).toEqual({ ok: true });
+    expect((doc.getElementById("user") as HTMLInputElement).value).toBe("ada@example.com");
+    expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("s3cr3t");
+  });
+
   it("fills a lone password when there is no username field", () => {
     const doc = mount(`<form><input type="password" id="pass" /></form>`);
     expect(performFill(doc, CREDS)).toEqual({ ok: true });
@@ -114,6 +126,21 @@ describe("performFill", () => {
   it("does not fill a hidden password field (fails closed to no-form)", () => {
     const doc = mount(`<form><input type="password" id="pass" hidden /></form>`);
     expect(performFill(doc, CREDS)).toEqual({ ok: false, reason: "no-form" });
+  });
+
+  it("does not fill controls effectively disabled by an ancestor fieldset", () => {
+    const doc = mount(`
+      <form>
+        <fieldset disabled>
+          <input type="email" id="user">
+          <input type="password" id="pass">
+        </fieldset>
+      </form>
+    `);
+
+    expect(performFill(doc, CREDS)).toEqual({ ok: false, reason: "no-form" });
+    expect((doc.getElementById("user") as HTMLInputElement).value).toBe("");
+    expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("");
   });
 
   it("does not fill controls hidden by page CSS on an ancestor", () => {
