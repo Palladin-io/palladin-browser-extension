@@ -23,6 +23,7 @@ import {
 import { openSidePanel } from "@shared/browser/side-panel";
 
 import { createAgentPairingRuntimeHandler } from "./agent/pairing-commands";
+import { startNativeAgentBridge } from "./agent/bootstrap";
 import {
   clearHostPairingRecord,
   saveHostPairingIntent,
@@ -30,7 +31,6 @@ import {
 } from "./agent/pairing-store";
 import {
   beginNativeAgentPairingMutation,
-  connectNativeAgentProvider,
   connectPairedNativeAgentProvider,
   disconnectNativeAgentProvider,
   handleNativeAgentAlarm,
@@ -203,7 +203,7 @@ void initializeServerConfig().then(() => {
 
 // Agent Inject is independent of the popup lock state. The connection opens only
 // after the user explicitly confirms an out-of-band host signing-key bundle.
-connectNativeAgentProvider();
+startNativeAgentBridge();
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== CONTENT_PORT && port.name !== SESSION_LIVENESS_PORT) return;
