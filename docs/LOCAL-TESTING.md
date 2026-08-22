@@ -10,7 +10,7 @@ payment card, CVV/CVC, or PIN.
 | Flow | Local status |
 |---|---|
 | Sign-in, unlock, lock, and sign-out | Chromium development build |
-| User-selected credential autofill | Chromium development build on a controlled HTTPS page |
+| Automatic exact-host and user-selected credential autofill | Chromium development build on a controlled HTTPS page |
 | Generated-password Fill then explicit Save | Chromium development build on a controlled HTTPS page |
 | Manual Login, API key, Script, and Card creation | Chromium development build with dummy data |
 | Card user-selected autofill | Chromium development build with dummy card data |
@@ -126,15 +126,19 @@ standard controls, for example:
 Then:
 
 1. Open the controlled HTTPS page in the active tab.
-2. Focus the username/email field. Confirm exactly one Palladin shield appears
-   beside that field (not beside the password) and opens a suggestion menu containing only the matching
-   entry name, username, hostname, and Vault name. Confirm it uses the packaged
-   Palladin icon rather than a separately drawn lookalike.
-3. Confirm a real click/focus fills the first exact-host username and password
-   without submitting. Programmatic page `focus()` must not fill. With multiple
-   matches, explicitly select another username, refocus the field, and confirm
-   that account is now preferred until Palladin locks. After lock/unlock the
-   non-persistent preference must be gone. Confirm the account body fills
+2. Before focusing or clicking anything, confirm the first exact-host username
+   and password fill once without submitting. Existing username/password values
+   must not be overwritten. Confirm exactly one Palladin shield appears beside
+   the username/email field (not beside the password) and opens a suggestion menu
+   containing only the matching entry name, username, hostname, and Vault name.
+   Confirm it uses the packaged Palladin icon rather than a separately drawn
+   lookalike.
+3. With multiple exact-host matches and no in-session preference, confirm the
+   alphabetically first Entry name fills. Explicitly select another username,
+   reload the same exact host, and confirm that account is now preferred until
+   Palladin locks. After lock/unlock the non-persistent preference must be gone.
+   Programmatic focus or a passive retry must not cause a second fill. Confirm
+   the account body fills
    without submitting, while the separate
    enter-arrow action fills and submits the exact owning form.
 4. Open Palladin, expand the same Credential, and click **Log in**. On the exact
@@ -171,8 +175,9 @@ authorization; ordinary Fill and automatic exact-host fill remain fill-only. If
 the site redirects to another host, delivery is rejected. Confirm **Open in
 Palladin** opens the exact Vault/Entry detail deep link.
 
-The extension must not choose a Credential or submit a form merely because page
-content asks it to.
+The extension may choose only the canonical first exact-host Credential when an
+empty standard form appears; page content cannot name an Entry, widen the host,
+force a repeat, or authorize submit.
 
 ### Test the persistent Vault surface
 

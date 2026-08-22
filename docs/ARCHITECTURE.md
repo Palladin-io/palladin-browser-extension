@@ -48,12 +48,16 @@ worker's session, key, or authorization state.
   closed-surface click on that specific Entry for that one operation. The
   username is decrypted only while unlocked and only after the worker has
   established a browser-authored top-frame sender; its temporary MemberSecret object is scrubbed immediately
-  after the display value is copied. On a real browser user activation the
-  first exact-host match may be selected immediately; a successful exact-host
-  selection becomes preferred for that host until the session locks. This
-  preference exists only in service-worker memory and is never persisted as a
-  cleartext browsing/Entry history. Scripted `focus()` can only open the menu
-  and can never trigger a secret write.
+  after the display value is copied. While Palladin is unlocked, detection of a
+  standard empty login form intentionally performs one fill-only operation for
+  the first exact-host match without requiring focus, a click, or browser user
+  activation. A successful exact-host selection becomes preferred for that
+  exact host until the session locks; otherwise the deterministic name-sorted
+  first match wins. This preference exists only in service-worker memory and is
+  never persisted as a cleartext browsing/Entry history. Existing field values
+  are never overwritten, related hosts never enter the automatic path, and
+  passive autofill never submits the form. This deliberate product boundary is
+  specified in [`AUTOFILL-POLICY.md`](AUTOFILL-POLICY.md).
   Selecting an item sends a
   typed request back to the worker; the worker revalidates the browser-authored
   top-frame sender, HTTPS origin, registrable-domain relationship, tab and

@@ -68,11 +68,14 @@ release candidates.
   controls. The menu receives only exact-host and same-registrable-domain
   Credential presentation data (label, username, domain, Vault and match scope),
   never a password/TOTP/custom value. Related-host accounts are labelled and
-  require a one-shot explicit entry choice; they are never auto-selected. An
-  explicit selection is document-bound and remains fill-only. The first exact
-  match fills on a real browser user activation; a successfully selected exact
-  account is preferred for that host until lock, using memory only. Scripted
-  focus cannot fill. A separate
+  require a one-shot explicit entry choice; they are never auto-selected. While
+  unlocked, an empty standard form is intentionally filled once with the first
+  exact-host account without requiring focus or a user gesture. A successfully
+  selected exact account is preferred for that exact host until lock, using
+  memory only; otherwise name ordering determines the first account. Automatic
+  fill never submits or overwrites an existing value. See
+  [`AUTOFILL-POLICY.md`](AUTOFILL-POLICY.md). Scripted focus alone cannot
+  repeat or submit a fill. A separate
   explicit enter-arrow action fills and submits the owning form. The final
   pre-write gate remains bound to the exact live host and document.
 - Repeated website entries are grouped by host. Expanding a group decrypts only
