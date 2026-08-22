@@ -38,3 +38,30 @@ describe("AuthClient refresh contract", () => {
     });
   });
 });
+
+describe("AuthClient login rate limiting", () => {
+  it.each([
+    ["KDF bootstrap", (client: AuthClient) => client.fetchLoginKdf("member@example.com", "profile")],
+    ["password login", (client: AuthClient) => client.login({
+      email: "member@example.com",
+      securityVersion: 1,
+      kdfProfileId: "profile",
+      authCredential: "credential",
+    })],
+    ["TOTP login", (client: AuthClient) => client.totpLogin("challenge", "123456")],
+  ])("maps 429 with Retry-After for %s", async (_name, operation) => {
+    const client = new AuthClient(
+      vi.fn(async () => new Response(null, {
+        status: 429,
+        headers: { "retry-after": "45" },
+      })),
+      "https://api.test",
+    );
+
+    await expect(operation(client)).rejects.toMatchObject({
+      name: "SessionError",
+      code: "rate-limited",
+      retryAfterSeconds: 45,
+    });
+  });
+});

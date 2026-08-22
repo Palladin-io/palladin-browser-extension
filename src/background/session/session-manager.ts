@@ -203,7 +203,8 @@ export class SessionManager {
    * Rotate the access token via the refresh token and persist the new pair.
    * Returns the fresh access token, or null when there is no session or the
    * refresh is rejected (the caller then treats the request as unauthenticated).
-   * Transient transport failures preserve the bound session and are rethrown.
+   * Transient transport or throttling failures preserve the bound session and
+   * are rethrown.
    */
   refreshAccessToken(): Promise<string | null> {
     if (this.refreshInFlight) return this.refreshInFlight;
@@ -274,7 +275,7 @@ export class SessionManager {
       }
       if (
         error instanceof SessionError
-        && error.code === "network"
+        && (error.code === "network" || error.code === "rate-limited")
         && pendingEnvelope
       ) {
         let restored = false;
@@ -341,11 +342,6 @@ export class SessionManager {
     this.assertLifecycleGeneration(generation);
     this.assertApiUrl(apiUrl);
     this.assertLoginBootstrap(bootstrap);
-    if (!bootstrap.accountId) {
-      throw new SessionError("invalid-credentials", "Invalid email or master password");
-    }
-
-    const completeBootstrap = { ...bootstrap, accountId: bootstrap.accountId };
     const salt = fromBase64Url(bootstrap.kdfSalt, 16);
     const identity = await deriveIdentityV1(password, bootstrap.accountId, salt);
     this.trackInFlightKeyMaterial(identity.masterKey);
@@ -367,7 +363,7 @@ export class SessionManager {
           challengeToken: response.challengeToken,
           apiUrl,
           lifecycleGeneration: generation,
-          bootstrap: completeBootstrap,
+          bootstrap,
           masterKey: identity.masterKey,
         };
         this.pendingTotp = pending;
@@ -389,7 +385,7 @@ export class SessionManager {
       await this.establishSession(
         response,
         identity.masterKey,
-        completeBootstrap,
+        bootstrap,
         generation,
         apiUrl,
       );

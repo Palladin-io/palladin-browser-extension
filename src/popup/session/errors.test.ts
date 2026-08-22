@@ -17,6 +17,13 @@ describe("messageForError", () => {
     );
   });
 
+  it("localises rate limiting without exposing worker details", () => {
+    expect(messageForError(new PopupSessionError("rate-limited"), "sign-in"))
+      .toBe("Too many attempts. Try again later.");
+    expect(messageForError(new PopupSessionError("rate-limited"), "totp"))
+      .toBe("Too many attempts. Try again later.");
+  });
+
   it("never leaks a raw non-session error", () => {
     expect(messageForError(new Error("secret=hunter2"), "sign-in")).not.toMatch(/hunter2/);
   });

@@ -60,12 +60,14 @@ export type SessionErrorCode =
   | "no-account-material"
   | "unsupported-security"
   | "not-authenticated"
+  | "rate-limited"
   | "network";
 
 export class SessionError extends Error {
   constructor(
     readonly code: SessionErrorCode,
     message: string,
+    readonly retryAfterSeconds: number | null = null,
   ) {
     super(message);
     this.name = "SessionError";
