@@ -86,6 +86,52 @@ describe("inline autofill field discovery", () => {
     expect(isLoginField(document.querySelector("#search") as HTMLInputElement)).toBe(false);
   });
 
+  it("ignores a standalone email form even when autocomplete identifies the field", async () => {
+    document.body.innerHTML = `
+      <form><input id="email" type="email" autocomplete="email"></form>
+    `;
+    const send = vi.fn(async () => ({
+      ok: true,
+      kind: "suggestions",
+      status: "ready",
+      entries: [],
+    }));
+
+    expect(isLoginField(document.querySelector("#email") as HTMLInputElement)).toBe(false);
+    const subject = startInlineAutofill(document, "a".repeat(32), send);
+    await Promise.resolve();
+
+    expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+    expect(send).not.toHaveBeenCalled();
+    subject.stop();
+  });
+
+  it("does not pair an email field with a password owned by another form", () => {
+    document.body.innerHTML = `
+      <form id="email-form"><input id="email" type="email" autocomplete="username"></form>
+      <form id="password-form"><input type="password"></form>
+    `;
+
+    expect(isLoginField(document.querySelector("#email") as HTMLInputElement)).toBe(false);
+  });
+
+  it("ignores a login pair while either control is not usable", () => {
+    document.body.innerHTML = `
+      <form>
+        <input id="hidden-username" type="email" hidden>
+        <input id="hidden-password" type="password" hidden>
+      </form>
+    `;
+    const username = document.querySelector("#hidden-username") as HTMLInputElement;
+    const password = document.querySelector("#hidden-password") as HTMLInputElement;
+
+    expect(isLoginField(username)).toBe(false);
+    username.hidden = false;
+    expect(isLoginField(username)).toBe(false);
+    password.hidden = false;
+    expect(isLoginField(username)).toBe(true);
+  });
+
   it("mounts isolated launchers and removes them on stop", async () => {
     document.body.innerHTML = `<form><input type="email"><input type="password"></form>`;
     const subject = startInlineAutofill(document, "a".repeat(32), vi.fn(async () => ({

@@ -146,12 +146,15 @@ Then:
    duplicate tab.
 5. Confirm only the expected username and password controls receive the dummy
    values.
-6. Navigate the same tab to a different hostname and retry. The suggestion must
+6. Navigate to a form containing only an email or username field, including one
+   marked `autocomplete="email"` or `autocomplete="username"`. Confirm that no
+   Palladin launcher or suggestion appears.
+7. Navigate the same tab to a different hostname and retry. The suggestion must
    not appear and a stale selection/fill must be rejected.
-7. Reload the extension, then refresh the login page before testing the new
+8. Reload the extension, then refresh the login page before testing the new
    content script. Unlock the restored account; it must never restore directly
    to the unlocked state.
-8. On a sibling host of the same registrable domain (for example `konto.wp.pl`
+9. On a sibling host of the same registrable domain (for example `konto.wp.pl`
    with an Entry stored for `1login.wp.pl`), confirm the Entry is labelled as a
    related site and is never auto-selected. Click that exact account to grant a
    one-operation fill and confirm the final write targets only the current live

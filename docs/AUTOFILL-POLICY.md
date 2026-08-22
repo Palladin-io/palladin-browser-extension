@@ -11,6 +11,11 @@ Credential without requiring focus, a click, or browser user activation. This is
 the chosen password-manager UX, not a missing authorization check. Automatic
 fill is always fill-only and never submits the form.
 
+A standard login form must expose both a usable username/email control and a
+usable password control associated with the same `form`. A standalone email or
+username form never receives the inline launcher, suggestions, or automatic
+fill.
+
 Requiring a blanket user gesture before every automatic exact-host fill changes
 the product behavior and must not be introduced as a security fix without a new
 explicit product decision.
@@ -38,6 +43,7 @@ history outside the encrypted Vault.
 - active tab and page-load/browser document binding, rechecked before decrypt
   and DOM write;
 - Credential type, username, and stored domain present;
+- usable username/email and password controls associated with the same form;
 - username and password controls are still empty when the suggestion response
   returns;
 - one automatic fill per current URL/form lifecycle;

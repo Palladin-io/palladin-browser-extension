@@ -65,7 +65,9 @@ release candidates.
 - Development compatibility targets current Chrome, Chromium, Brave, Edge, and
   Opera MV3 builds. Store certification and version support are not yet claimed.
 - Inline login suggestions are implemented beside standard username/email
-  controls. The menu receives only exact-host and same-registrable-domain
+  controls whose owning form also contains a usable password field. Standalone
+  email or username forms do not receive a launcher. The menu receives only
+  exact-host and same-registrable-domain
   Credential presentation data (label, username, domain, Vault and match scope),
   never a password/TOTP/custom value. Related-host accounts are labelled and
   require a one-shot explicit entry choice; they are never auto-selected. While
