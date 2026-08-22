@@ -63,6 +63,18 @@ describe("Agent runtime pairing screen", () => {
     expect(discover).toHaveBeenCalledTimes(2);
   });
 
+  it("shows the exact value-free Chrome discovery failure", async () => {
+    const pairing = client({
+      discover: vi.fn(async () => {
+        throw new AgentPairingClientError("native-host-not-found");
+      }),
+    });
+    render(<PairingScreen client={pairing} />);
+
+    expect(await screen.findByRole("alert"))
+      .toHaveTextContent("Chrome couldn't find the Palladin Runtime host registration");
+  });
+
   it("copies the install command from the pairing instructions", async () => {
     const pairing = client({ discover: vi.fn(async () => { throw new Error("not installed"); }) });
     render(<PairingScreen client={pairing} />);

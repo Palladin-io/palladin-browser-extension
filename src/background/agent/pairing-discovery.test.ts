@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AGENT_PAIRING_PROTOCOL } from "@shared/agent/pairing";
 
 import { discoverNativeAgentPairingOffer } from "./pairing-discovery";
+import { NativePairingDiscoveryError } from "./pairing-errors";
 
 const EXTENSION_ORIGIN = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/";
 const KEY = `${"a".repeat(42)}A`;
@@ -14,12 +15,15 @@ afterEach(() => {
 
 function fakeNativeMessage() {
   let resolveResponse: ((raw: unknown) => void) | undefined;
-  const sendNativeMessage = vi.fn((_hostName: string, _request: unknown) => new Promise<unknown>((resolve) => {
+  let rejectResponse: ((cause: unknown) => void) | undefined;
+  const sendNativeMessage = vi.fn((_hostName: string, _request: unknown) => new Promise<unknown>((resolve, reject) => {
     resolveResponse = resolve;
+    rejectResponse = reject;
   }));
   return {
     sendNativeMessage,
     emitMessage: (raw: unknown) => resolveResponse?.(raw),
+    rejectMessage: (cause: unknown) => rejectResponse?.(cause),
   };
 }
 
@@ -79,6 +83,23 @@ describe("native Agent pairing discovery", () => {
       fingerprint,
     });
 
-    await expect(discovered).rejects.toThrow("Invalid native-host pairing offer");
+    await expect(discovered)
+      .rejects.toEqual(new NativePairingDiscoveryError("host-protocol"));
+  });
+
+  it.each([
+    ["Specified native messaging host not found.", "host-not-found"],
+    ["Access to the specified native messaging host is forbidden.", "host-forbidden"],
+    ["Native host has exited.", "host-exited"],
+    ["Error when communicating with the native messaging host.", "host-protocol"],
+  ] as const)("classifies Chromium rejection %s without propagating it", async (message, code) => {
+    const native = fakeNativeMessage();
+    stubChrome(native);
+    const discovered = discoverNativeAgentPairingOffer();
+    await vi.waitFor(() => expect(native.sendNativeMessage).toHaveBeenCalledOnce());
+
+    native.rejectMessage(new Error(message));
+
+    await expect(discovered).rejects.toEqual(new NativePairingDiscoveryError(code));
   });
 });

@@ -8,6 +8,10 @@ import {
 } from "@shared/agent/pairing";
 
 import { NATIVE_HOST_NAME } from "./native-provider";
+import {
+  classifyNativePairingDiscoveryError,
+  NativePairingDiscoveryError,
+} from "./pairing-errors";
 
 const DISCOVERY_TIMEOUT_MS = 10_000;
 
@@ -28,10 +32,10 @@ export async function discoverNativeAgentPairingOffer(): Promise<AgentPairingBun
     challenge,
   });
   const offer = parseAgentPairingOffer(raw, extensionOrigin, challenge);
-  if (offer === null) throw new Error("Invalid native-host pairing offer");
+  if (offer === null) throw new NativePairingDiscoveryError("host-protocol");
   const derivedFingerprint = await injectHostKeyFingerprint(offer.hostSigningPublicKey);
   if (derivedFingerprint !== offer.fingerprint) {
-    throw new Error("Native-host pairing fingerprint mismatch");
+    throw new NativePairingDiscoveryError("host-protocol");
   }
   return offer;
 }
@@ -41,12 +45,15 @@ function receivePairingOffer(
 ): Promise<unknown> {
   return new Promise((resolve, reject) => {
     let settled = false;
-    const timer = globalThis.setTimeout(() => finishReject(), DISCOVERY_TIMEOUT_MS);
-    const finishReject = () => {
+    const timer = globalThis.setTimeout(
+      () => finishReject(new NativePairingDiscoveryError("host-timeout")),
+      DISCOVERY_TIMEOUT_MS,
+    );
+    const finishReject = (cause: unknown) => {
       if (settled) return;
       settled = true;
       globalThis.clearTimeout(timer);
-      reject(new Error("Native-host pairing discovery unavailable"));
+      reject(classifyNativePairingDiscoveryError(cause));
     };
     const finishResolve = (raw: unknown) => {
       if (settled) return;
@@ -57,8 +64,8 @@ function receivePairingOffer(
     try {
       void chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, request)
         .then(finishResolve, finishReject);
-    } catch {
-      finishReject();
+    } catch (cause) {
+      finishReject(cause);
     }
   });
 }

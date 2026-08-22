@@ -12,6 +12,10 @@ import {
   type HostPairingRecord,
 } from "./pairing-store";
 import type { AgentPairingMutationLease } from "./mutation-barrier";
+import {
+  NativePairingDiscoveryError,
+  type NativePairingDiscoveryErrorCode,
+} from "./pairing-errors";
 
 export type AgentPairingCommand =
   | { readonly type: "agent-pairing/status" }
@@ -27,6 +31,11 @@ export type AgentPairingErrorCode =
   | "invalid-bundle"
   | "fingerprint-mismatch"
   | "mutation-not-committed"
+  | "native-host-not-found"
+  | "native-host-forbidden"
+  | "native-host-exited"
+  | "native-host-protocol"
+  | "native-host-timeout"
   | "superseded"
   | "unavailable";
 
@@ -218,7 +227,11 @@ async function dispatchAgentPairingCommand(
         return _exhaustive;
       }
     }
-  } catch {
+  } catch (cause) {
+    if (command.type === "agent-pairing/discover"
+      && cause instanceof NativePairingDiscoveryError) {
+      return failure(agentDiscoveryErrorCode(cause.code));
+    }
     return failure("unavailable");
   } finally {
     // A reconnect alarm already queued before the initial teardown can open an
@@ -277,10 +290,28 @@ function failure(code: AgentPairingErrorCode): AgentPairingCommandResult {
     "invalid-bundle": "Pairing bundle is invalid",
     "fingerprint-mismatch": "Pairing fingerprint does not match the host public key",
     "mutation-not-committed": "Pairing change was not committed; retry before restarting the extension",
+    "native-host-not-found": "The native messaging host is not registered",
+    "native-host-forbidden": "The extension is not allowed to use the native messaging host",
+    "native-host-exited": "The native messaging host exited before replying",
+    "native-host-protocol": "The native messaging host returned an invalid response",
+    "native-host-timeout": "The native messaging host did not reply in time",
     superseded: "Pairing command was superseded",
     unavailable: "Agent runtime pairing is unavailable",
   };
   return { ok: false, code, message: message[code] };
+}
+
+function agentDiscoveryErrorCode(
+  code: NativePairingDiscoveryErrorCode,
+): AgentPairingErrorCode {
+  switch (code) {
+    case "host-not-found": return "native-host-not-found";
+    case "host-forbidden": return "native-host-forbidden";
+    case "host-exited": return "native-host-exited";
+    case "host-protocol": return "native-host-protocol";
+    case "host-timeout": return "native-host-timeout";
+    case "unavailable": return "unavailable";
+  }
 }
 
 function isAgentPairingNamespace(value: unknown): value is Record<string, unknown> {

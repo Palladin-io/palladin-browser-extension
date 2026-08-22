@@ -49,8 +49,8 @@ export function PairingScreen({ client, embedded = false }: PairingScreenProps):
       try {
         const discovered = await client.discover();
         if (active) setOffer(discovered);
-      } catch {
-        if (active) setError(t("pairing.discoveryError"));
+      } catch (cause) {
+        if (active) setError(discoveryError(cause, t));
       } finally {
         if (active) setDetecting(false);
       }
@@ -100,16 +100,26 @@ export function PairingScreen({ client, embedded = false }: PairingScreenProps):
   return (
     <section className="pairing-screen">
       {embedded ? null : <h2 className="screen-title">{t("pairing.title")}</h2>}
-      <p className="screen-subtitle">{t("pairing.instructions")}</p>
-      <div className="pairing-command">
-        <code>{INSTALL_COMMAND}</code>
-        <Button variant="subtle" onClick={() => void copyInstallCommand()}>
-          {copyStatus === "copied"
-            ? t("common.copied")
-            : copyStatus === "failed"
-              ? t("common.failed")
-              : t("common.copy")}
-        </Button>
+      <div className="pairing-install-stack">
+        <p className="screen-subtitle">{t("pairing.instructions")}</p>
+        <div className="pairing-command">
+          <code>{INSTALL_COMMAND}</code>
+          <button
+            type="button"
+            className="pairing-copy-action"
+            onClick={() => void copyInstallCommand()}
+          >
+            <CopyIcon />
+            <span>
+              {copyStatus === "copied"
+                ? t("common.copied")
+                : copyStatus === "failed"
+                  ? t("common.failed")
+                  : t("common.copy")}
+            </span>
+          </button>
+        </div>
+        {error ? <p className="pairing-error" role="alert">{error}</p> : null}
       </div>
       {detecting ? (
         <div className="centered pairing-loading">
@@ -124,11 +134,6 @@ export function PairingScreen({ client, embedded = false }: PairingScreenProps):
             {shortenPublicIdentifier(offer.fingerprint)}
           </code>
           <p className="pairing-confirmation-copy">{t("pairing.confirm")}</p>
-        </div>
-      ) : null}
-      {error ? (
-        <div className="pairing-feedback">
-          <p className="pairing-error" role="alert">{error}</p>
         </div>
       ) : null}
       {offer === null && !detecting ? (
@@ -160,8 +165,8 @@ export function PairingScreen({ client, embedded = false }: PairingScreenProps):
     setOffer(null);
     try {
       setOffer(await client.discover());
-    } catch {
-      setError(t("pairing.discoveryError"));
+    } catch (cause) {
+      setError(discoveryError(cause, t));
     } finally {
       setDetecting(false);
       setBusy(false);
@@ -194,8 +199,8 @@ export function PairingScreen({ client, embedded = false }: PairingScreenProps):
         setDetecting(true);
         try {
           setOffer(await client.discover());
-        } catch {
-          setError(t("pairing.discoveryError"));
+        } catch (cause) {
+          setError(discoveryError(cause, t));
         } finally {
           setDetecting(false);
         }
@@ -209,6 +214,28 @@ export function PairingScreen({ client, embedded = false }: PairingScreenProps):
       setBusy(false);
     }
   }
+}
+
+function CopyIcon(): React.JSX.Element {
+  return (
+    <svg className="pairing-copy-icon" viewBox="0 0 16 16" aria-hidden="true">
+      <rect x="5.25" y="2.25" width="7.5" height="8.5" rx="1.25" />
+      <path d="M10.75 10.75v1A1.25 1.25 0 0 1 9.5 13H4.25A1.25 1.25 0 0 1 3 11.75V5.5a1.25 1.25 0 0 1 1.25-1.25h1" />
+    </svg>
+  );
+}
+
+function discoveryError(error: unknown, t: Translate): string {
+  if (error instanceof AgentPairingClientError) {
+    switch (error.code) {
+      case "native-host-not-found": return t("pairing.discoveryNotFound");
+      case "native-host-forbidden": return t("pairing.discoveryForbidden");
+      case "native-host-exited": return t("pairing.discoveryExited");
+      case "native-host-protocol": return t("pairing.discoveryProtocol");
+      case "native-host-timeout": return t("pairing.discoveryTimeout");
+    }
+  }
+  return t("pairing.discoveryError");
 }
 
 function pairingError(error: unknown, t: Translate): string {

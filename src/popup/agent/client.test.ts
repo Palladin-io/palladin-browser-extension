@@ -55,4 +55,15 @@ describe("Agent pairing popup client", () => {
     await expect(client.clear())
       .rejects.toEqual(new AgentPairingClientError("mutation-not-committed"));
   });
+
+  it("preserves a recognized native host discovery failure code", async () => {
+    const client = createAgentPairingClient(vi.fn(async () => ({
+      ok: false as const,
+      code: "native-host-not-found" as const,
+      message: "value-free",
+    })));
+
+    await expect(client.discover())
+      .rejects.toEqual(new AgentPairingClientError("native-host-not-found"));
+  });
 });

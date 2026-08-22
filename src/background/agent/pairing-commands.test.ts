@@ -8,6 +8,7 @@ import {
   type AgentPairingCommandDeps,
 } from "./pairing-commands";
 import { AgentFillMutationBarrier } from "./mutation-barrier";
+import { NativePairingDiscoveryError } from "./pairing-errors";
 import {
   handleNativeAgentMessage,
   type AgentProviderSession,
@@ -86,6 +87,21 @@ describe("Agent pairing popup commands", () => {
     expect(effects.savePairingIntent).not.toHaveBeenCalled();
     expect(effects.savePairing).not.toHaveBeenCalled();
     expect(effects.disconnect).not.toHaveBeenCalled();
+  });
+
+  it("preserves a value-free native discovery failure code", async () => {
+    const effects = deps({
+      discoverPairing: vi.fn(async () => {
+        throw new NativePairingDiscoveryError("host-not-found");
+      }),
+    });
+    const handle = createAgentPairingRuntimeHandler(effects);
+
+    await expect(handle({ type: "agent-pairing/discover" })).resolves.toEqual({
+      ok: false,
+      code: "native-host-not-found",
+      message: "The native messaging host is not registered",
+    });
   });
 
   it("persists the verified public pin bound to its durable intent, then connects", async () => {

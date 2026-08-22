@@ -346,6 +346,11 @@ body {
   margin-bottom: 0;
 }
 
+.pairing-install-stack {
+  display: grid;
+  gap: 8px;
+}
+
 .pairing-loading {
   min-height: 120px;
 }
@@ -354,9 +359,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
   min-height: 36px;
-  padding: 3px 5px 3px 9px;
+  padding-left: 9px;
+  overflow: hidden;
   border: 1px solid var(--cv-border);
   border-radius: 9px;
   background: var(--cv-surface);
@@ -370,11 +376,41 @@ body {
   overflow-wrap: anywhere;
 }
 
-.pairing-command .btn {
+.pairing-copy-action {
+  display: inline-flex;
+  align-items: center;
+  align-self: stretch;
+  gap: 5px;
   flex: 0 0 auto;
-  height: 28px;
-  padding: 0 9px;
+  min-width: 66px;
+  padding: 0 10px;
+  border: 0;
+  border-left: 1px solid var(--cv-border);
+  background: transparent;
+  color: var(--cv-primary);
+  font: inherit;
   font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pairing-copy-action:hover {
+  background: rgb(var(--cv-primary-rgb) / 0.07);
+}
+
+.pairing-copy-action:focus-visible {
+  outline: 2px solid rgb(var(--cv-primary-rgb) / 0.45);
+  outline-offset: -2px;
+}
+
+.pairing-copy-icon {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.4;
 }
 
 .pairing-status-card,
@@ -413,10 +449,6 @@ body {
   color: var(--cv-primary);
   font-size: 11px;
   line-height: 1.4;
-}
-
-.pairing-feedback {
-  padding-block: 4px;
 }
 
 .pairing-screen > .btn--block {
