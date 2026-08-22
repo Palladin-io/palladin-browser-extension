@@ -3,12 +3,16 @@
 Palladin's Manifest V3 browser extension is under active development. It has one
 product surface with two explicitly separated authorization paths:
 
-1. **User autofill** - a classic password-manager flow initiated by the user.
+1. **User autofill** - a classic password-manager flow with intentional,
+   fill-only automatic selection of the first exact-host Credential; related
+   hosts, submission, capture, and save remain explicit actions.
 2. **Agent fill** - an authenticated Palladin Runtime asks the same extension to
    fill an approved credential without returning its value to the AI model.
 
 Neither path trusts the visited page. Agent fill does not reuse or weaken the
 user-autofill authorization path, and user autofill never requires an Agent grant.
+The exact automatic-selection algorithm and accepted origin trust boundary are
+documented in [`docs/AUTOFILL-POLICY.md`](docs/AUTOFILL-POLICY.md).
 
 ## Status
 

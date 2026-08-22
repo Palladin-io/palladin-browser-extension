@@ -31,14 +31,22 @@ treat any violation below as a Critical (blocking) finding.
   overlay, or read (anti-clickjacking).
 - **Strict eTLD+1 origin gate before every fill.** The frame's eTLD+1 (Public
   Suffix List) must equal the entry's registered domain; HTTPS-only; re-checked
-  after navigation. Every exact-match fill remains bound to the stored host.
+  after navigation. Automatic and exact-match fill never crosses stored hosts.
   A sibling host may be shown only as a related-site candidate and filled only
   after a closed-surface, per-entry choice for that one operation; the final DOM
   write is rebound to the exact live host. An entry with no domain is fail-closed.
-- **Fill is driven by explicit user choice or an authenticated native runtime,
-  never by page content.** User autofill does not use grants. Agent grants are
-  enforced by the Rust runtime before it sends prepared values over Native
-  Messaging; the extension never evaluates grant policy.
+- **Automatic exact-host first-match autofill is intentional user UX.** While
+  unlocked, passive detection of an empty standard login form may perform one
+  fill-only operation (`submit: false`) without focus or a click. The canonical
+  order is the last successfully filled exact-host Credential for that host in
+  the current in-memory session, then the deterministic name-sorted first exact
+  match. The page never chooses the Entry or widens the host. Related/sibling
+  hosts, form submission, cards, and neutral custom fields always require an
+  explicit extension-owned action. Do not add a blanket user-intent requirement
+  to automatic exact-host fill without an explicit product decision. Full
+  rationale and invariants: `docs/AUTOFILL-POLICY.md`. User autofill does not use
+  grants. Agent grants are enforced by the Rust runtime before it sends prepared
+  values over Native Messaging; the extension never evaluates grant policy.
 - **Security over convenience.** If a shortcut weakens the model, it is not
   acceptable regardless of deadline pressure.
 

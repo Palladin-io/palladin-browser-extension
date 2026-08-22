@@ -273,17 +273,9 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
         getStatus: () => sessionManager.getStatus(),
         getMetadata: () => vaultData.getMetadata(),
         recency: inlineAutofillRecency,
-        fill: async (source, vaultId, entryId, scope, capabilityId, submit) => {
+        fill: async (source, vaultId, entryId, scope) => {
           await sessionManager.touchActivity();
-          return fillInlineSelectedEntry(
-            vaultCommandDeps,
-            source,
-            vaultId,
-            entryId,
-            scope,
-            capabilityId,
-            submit,
-          );
+          return fillInlineSelectedEntry(vaultCommandDeps, source, vaultId, entryId, scope);
         },
       }, raw, sender, chrome.runtime.id);
       sendResponse(result ?? { ok: false, code: "unavailable" });

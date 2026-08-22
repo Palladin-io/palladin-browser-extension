@@ -221,15 +221,12 @@ describe("vault/fill gates", () => {
       "vault-1",
       "entry-cred",
       "related",
-      "a".repeat(32),
-      false,
     )).toEqual({ status: "filled" });
     expect(sendFill).toHaveBeenCalledWith(
       expect.objectContaining({ url: "https://accounts.example.com/login" }),
       "accounts.example.com",
       expect.any(Array),
       false,
-      "a".repeat(32),
     );
   });
 
@@ -251,8 +248,6 @@ describe("vault/fill gates", () => {
       "vault-1",
       "entry-cred",
       "related",
-      "a".repeat(32),
-      false,
     )).toEqual({ status: "blocked", reason: "domain-mismatch" });
     expect(revealEntry).not.toHaveBeenCalled();
     expect(sendFill).not.toHaveBeenCalled();
@@ -371,7 +366,6 @@ describe("vault/fill gates", () => {
         { kind: "password", value: "s3cr3t-p@ss" },
       ],
       true,
-      null,
     );
   });
 
@@ -401,7 +395,6 @@ describe("vault/fill gates", () => {
       "example.com",
       expect.any(Array),
       true,
-      null,
     );
   });
 
@@ -509,7 +502,7 @@ describe("credit card commands", () => {
       { kind: "card-expiry-year", value: "2030" },
       { kind: "card-expiry", value: "08/30" },
       { kind: "billing-address", value: "12 Computing Lane" },
-    ], false, null);
+    ], false);
   });
 
   it("fails closed when the prepared card document changes before the DOM write", async () => {
@@ -595,7 +588,6 @@ describe("generated secret actions", () => {
       null,
       [{ kind: "generated", value: "new-secret" }],
       false,
-      null,
     );
   });
 

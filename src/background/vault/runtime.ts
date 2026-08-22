@@ -120,7 +120,6 @@ async function sendFill(
   expectedDomain: string | null,
   fields: readonly FillField[],
   submit: boolean,
-  capabilityId: string | null,
 ): Promise<FillOutcome> {
   const expectedOrigin = httpsOrigin(target.url);
   if (expectedOrigin === null) return { ok: false, reason: "target-changed" };
@@ -133,7 +132,6 @@ async function sendFill(
         expectedOrigin,
         expectedDomain,
         submit,
-        capabilityId,
         fields,
       },
       { documentId: target.browserDocumentId },

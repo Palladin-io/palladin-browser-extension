@@ -15,114 +15,9 @@ import {
   type InlineAutofillCommand,
   type InlineAutofillSuggestion,
 } from "@shared/messaging";
-import {
-  isExtensionSurfaceVisuallyClearAtPoint,
-  isExtensionAutofillHostAnchored,
-  isTargetVisuallyClearAtPoint,
-  OneShotInlineFillCapabilities,
-  registerExtensionAutofillHost,
-  unregisterExtensionAutofillHost,
-} from "./fill";
+import { submitLoginForm } from "./fill";
 
 type Send = (command: InlineAutofillCommand) => Promise<unknown>;
-export interface InlineUserIntentVerifier {
-  field(event: Event, input: HTMLInputElement): boolean;
-  closedSurface(event: Event, launcher?: ClosedSurfaceLauncher): boolean;
-}
-
-interface ClosedSurfaceLauncher {
-  readonly host: HTMLElement;
-  readonly button: HTMLButtonElement;
-  readonly shadow: ShadowRoot;
-  readonly input: HTMLInputElement;
-}
-
-const BROWSER_USER_INTENT: InlineUserIntentVerifier = {
-  field: isTransientFieldUserIntent,
-  closedSurface: (event, launcher) => isClosedSurfaceUserIntent(event)
-    && (launcher === undefined || isClosedSurfaceLauncherGesture(event, launcher)),
-};
-
-export function isTransientFieldUserIntent(event: Event, input: HTMLInputElement): boolean {
-  const view = input.ownerDocument.defaultView;
-  return event.isTrusted
-    && view?.navigator.userActivation?.isActive === true
-    && input.ownerDocument.activeElement === input;
-}
-
-export function isFieldClickOnTarget(event: Event, input: HTMLInputElement): boolean {
-  const doc = input.ownerDocument;
-  const view = doc.defaultView;
-  if (view === null
-    || !(event instanceof view.MouseEvent)
-    || event.target !== input
-    || typeof doc.elementFromPoint !== "function") return false;
-  const rect = input.getBoundingClientRect();
-  const { clientX, clientY } = event;
-  if (rect.width <= 0
-    || rect.height <= 0
-    || !Number.isFinite(clientX)
-    || !Number.isFinite(clientY)
-    || clientX < rect.left
-    || clientX > rect.right
-    || clientY < rect.top
-    || clientY > rect.bottom) return false;
-  return isTargetVisuallyClearAtPoint(input, clientX, clientY);
-}
-
-export function isClosedSurfaceUserIntent(event: Event): boolean {
-  const current = event.currentTarget;
-  const view = current instanceof Node
-    ? current.ownerDocument?.defaultView
-    : current !== null && "navigator" in current ? current as Window : null;
-  return event.isTrusted && view?.navigator.userActivation?.isActive === true;
-}
-
-export function isClosedSurfaceLauncherGesture(
-  event: Event,
-  launcher: ClosedSurfaceLauncher,
-): boolean {
-  const { host, button, shadow, input } = launcher;
-  const doc = host.ownerDocument;
-  const view = doc.defaultView;
-  if (view === null
-    || !(event instanceof view.MouseEvent)
-    || !(event.target === host
-      || (event.target instanceof Node
-        && (event.target === button || button.contains(event.target))))
-    || !host.isConnected
-    || !button.isConnected
-    || !input.isConnected
-    || typeof doc.elementFromPoint !== "function"
-    || typeof shadow.elementFromPoint !== "function") return false;
-
-  if (!isExtensionAutofillHostAnchored(host, input)) return false;
-
-  const rect = button.getBoundingClientRect();
-  let { clientX, clientY } = event;
-  // A trusted keyboard activation has no meaningful pointer coordinates. Bind
-  // it to exact shadow focus, then sample the control center for paint proof.
-  if (event.type === "click" && event.detail === 0) {
-    if (shadow.activeElement !== button || doc.activeElement !== host) return false;
-    clientX = rect.left + rect.width / 2;
-    clientY = rect.top + rect.height / 2;
-  }
-  if (!Number.isFinite(clientX)
-    || !Number.isFinite(clientY)
-    || rect.width <= 0
-    || rect.height <= 0
-    || clientX < rect.left
-    || clientX > rect.right
-    || clientY < rect.top
-    || clientY > rect.bottom) return false;
-  const pageHit = doc.elementFromPoint(clientX, clientY);
-  const shadowHit = shadow.elementFromPoint(clientX, clientY);
-  return pageHit === host
-    && (shadowHit === button || button.contains(shadowHit))
-    && isExtensionSurfaceVisuallyClearAtPoint(host, input, clientX, clientY);
-}
-
-
 type InlineKey =
   | "inline.open"
   | "inline.title"
@@ -147,13 +42,12 @@ export function startInlineAutofill(
   doc: Document,
   documentId: string,
   send: Send = (command) => chrome.runtime.sendMessage(command),
-  userIntent: InlineUserIntentVerifier = BROWSER_USER_INTENT,
-  capabilities: OneShotInlineFillCapabilities = new OneShotInlineFillCapabilities(),
-): { invalidateSuggestions(): void; stop(): void } {
-  const controller = new InlineAutofillController(doc, documentId, send, userIntent, capabilities);
+): { invalidateSuggestions(): void; retryAutomaticFill(): void; stop(): void } {
+  const controller = new InlineAutofillController(doc, documentId, send);
   controller.start();
   return {
     invalidateSuggestions: () => controller.invalidateSuggestions(),
+    retryAutomaticFill: () => controller.retryAutomaticFill(),
     stop: () => controller.stop(),
   };
 }
@@ -174,29 +68,24 @@ class InlineAutofillController {
   private locale: UiLocale = "en";
   private theme: ThemePreference = "system";
   private stopped = false;
+  private automaticFillUrl: string | null = null;
 
   constructor(
     private readonly doc: Document,
     private readonly documentId: string,
     private readonly send: Send,
-    private readonly userIntent: InlineUserIntentVerifier,
-    private readonly capabilities: OneShotInlineFillCapabilities,
   ) {}
 
   start(): void {
+    this.scan();
     const view = this.doc.defaultView;
     if (!view) return;
-    // Installed before discovery/UI work. In the document_start isolated world,
-    // this snapshots the exact click target during capture, before target/bubble
-    // handlers owned by the visited page can retarget it to another form.
-    view.addEventListener("pointerdown", this.captureSurfacePointerIntent, true);
-    view.addEventListener("click", this.captureFieldClick, true);
-    this.scan();
     this.observer = new view.MutationObserver(() => this.scheduleScan());
     this.observer.observe(this.doc.documentElement, {
       childList: true,
       subtree: true,
       attributes: true,
+      attributeFilter: ["type", "autocomplete", "disabled", "readonly"],
     });
     view.addEventListener("scroll", this.reposition, true);
     view.addEventListener("resize", this.reposition);
@@ -208,18 +97,20 @@ class InlineAutofillController {
     this.stopped = true;
     this.observer?.disconnect();
     const view = this.doc.defaultView;
-    view?.removeEventListener("pointerdown", this.captureSurfacePointerIntent, true);
-    view?.removeEventListener("click", this.captureFieldClick, true);
     view?.removeEventListener("scroll", this.reposition, true);
     view?.removeEventListener("resize", this.reposition);
     this.doc.removeEventListener("pointerdown", this.closeOutside, true);
     for (const widget of this.widgets.values()) widget.destroy();
     this.widgets.clear();
-    this.capabilities.clear();
+  }
+
+  retryAutomaticFill(): void {
+    if (this.stopped) return;
+    const first = this.widgets.values().next().value as InlineWidget | undefined;
+    if (first !== undefined) void first.autoFillPreferredExact();
   }
 
   invalidateSuggestions(): void {
-    this.capabilities.clear();
     for (const widget of this.widgets.values()) widget.invalidateSuggestions();
   }
 
@@ -232,28 +123,6 @@ class InlineAutofillController {
       if (!event.composedPath().includes(widget.host)) widget.close();
     }
   };
-
-  private readonly captureFieldClick = (event: Event): void => {
-    const view = this.doc.defaultView;
-    const target = event.target;
-    if (view === null) return;
-    if (target instanceof view.HTMLInputElement) {
-      this.ensureWidget(target)?.captureFieldClick(event);
-      return;
-    }
-    this.widgetForHost(target)?.captureClosedSurfaceIntent(event);
-  };
-
-  private readonly captureSurfacePointerIntent = (event: Event): void => {
-    this.widgetForHost(event.target)?.captureClosedSurfaceIntent(event);
-  };
-
-  private widgetForHost(target: EventTarget | null): InlineWidget | null {
-    for (const widget of this.widgets.values()) {
-      if (target === widget.host) return widget;
-    }
-    return null;
-  }
 
   private scheduleScan(): void {
     if (this.scheduled || this.stopped) return;
@@ -271,31 +140,29 @@ class InlineAutofillController {
         this.widgets.delete(input);
       }
     }
+    if (this.widgets.size === 0) this.automaticFillUrl = null;
     for (const input of this.doc.querySelectorAll<HTMLInputElement>("input")) {
-      this.ensureWidget(input);
+      if (!isLoginField(input) || this.widgets.has(input)) continue;
+      const widget = new InlineWidget({
+        doc: this.doc,
+        input,
+        documentId: this.documentId,
+        send: this.send,
+        locale: () => this.locale,
+        theme: () => resolvedTheme(this.theme, this.doc.defaultView),
+        closeOthers: () => {
+          for (const other of this.widgets.values()) if (other !== widget) other.close();
+        },
+      });
+      this.widgets.set(input, widget);
+      widget.mount();
     }
-  }
-
-  private ensureWidget(input: HTMLInputElement): InlineWidget | null {
-    const existing = this.widgets.get(input);
-    if (existing !== undefined) return existing;
-    if (!isLoginField(input)) return null;
-    const widget = new InlineWidget({
-      doc: this.doc,
-      input,
-      documentId: this.documentId,
-      send: this.send,
-      userIntent: this.userIntent,
-      capabilities: this.capabilities,
-      locale: () => this.locale,
-      theme: () => resolvedTheme(this.theme, this.doc.defaultView),
-      closeOthers: () => {
-        for (const other of this.widgets.values()) if (other !== widget) other.close();
-      },
-    });
-    this.widgets.set(input, widget);
-    widget.mount();
-    return widget;
+    const currentUrl = this.doc.location.href;
+    const first = this.widgets.values().next().value as InlineWidget | undefined;
+    if (first !== undefined && this.automaticFillUrl !== currentUrl) {
+      this.automaticFillUrl = currentUrl;
+      void first.autoFillPreferredExact();
+    }
   }
 
   private async loadPreferences(): Promise<void> {
@@ -319,8 +186,6 @@ interface InlineWidgetOptions {
   readonly input: HTMLInputElement;
   readonly documentId: string;
   readonly send: Send;
-  readonly userIntent: InlineUserIntentVerifier;
-  readonly capabilities: OneShotInlineFillCapabilities;
   readonly locale: () => UiLocale;
   readonly theme: () => "light" | "dark";
   readonly closeOthers: () => void;
@@ -332,15 +197,15 @@ class InlineWidget {
   private readonly button: HTMLButtonElement;
   private readonly panel: HTMLDivElement;
   private openGeneration = 0;
-  private fieldIntentFillInFlight = false;
+  private automaticFillInFlight = false;
+  private automaticFillRetryRequested = false;
+  private automaticFillCompleted = false;
   private suggestionGeneration = 0;
   private suggestionsInFlight: Promise<unknown> | null = null;
   private destroyed = false;
-  private closedSurfaceCapabilityId: string | null = null;
 
   constructor(private readonly options: InlineWidgetOptions) {
     this.host = options.doc.createElement("palladin-autofill");
-    registerExtensionAutofillHost(this.host, options.input);
     this.host.setAttribute("data-palladin-inline", "");
     this.host.style.setProperty("all", "initial", "important");
     // `all: initial !important` is the page-isolation boundary, but it also
@@ -377,9 +242,7 @@ class InlineWidget {
     this.options.doc.documentElement.append(this.host);
     this.options.input.addEventListener("focus", this.handleFocus);
     this.button.addEventListener("pointerdown", (event) => event.preventDefault());
-    this.button.addEventListener("click", (event) => {
-      if (this.options.userIntent.closedSurface(event)) void this.open();
-    });
+    this.button.addEventListener("click", () => void this.open());
     this.reposition();
     this.options.doc.defaultView?.requestAnimationFrame?.(() => this.reposition());
   }
@@ -389,12 +252,10 @@ class InlineWidget {
     this.invalidateSuggestions();
     this.options.input.removeEventListener("focus", this.handleFocus);
     this.host.remove();
-    unregisterExtensionAutofillHost(this.host);
     this.openGeneration += 1;
   }
 
   close(): void {
-    this.discardClosedSurfaceCapability();
     this.panel.hidden = true;
     this.panel.replaceChildren();
     this.openGeneration += 1;
@@ -407,8 +268,7 @@ class InlineWidget {
   }
 
   refreshPreferences(): void {
-    const theme = this.options.theme();
-    if (this.host.dataset["theme"] !== theme) this.host.dataset["theme"] = theme;
+    this.host.dataset["theme"] = this.options.theme();
     this.button.title = message(this.options.locale(), "inline.open");
     this.button.setAttribute("aria-label", this.button.title);
   }
@@ -417,7 +277,7 @@ class InlineWidget {
     const rect = this.options.input.getBoundingClientRect();
     const view = this.options.doc.defaultView;
     if (rect.width < 40 || rect.height < 20 || rect.bottom < 0 || rect.top > (view?.innerHeight ?? 0)) {
-      this.setHostStyle("display", "none");
+      this.host.style.setProperty("display", "none", "important");
       return;
     }
     // Match the visual inset of common password visibility controls: derive a
@@ -425,9 +285,9 @@ class InlineWidget {
     // padding, which often reserves space for unrelated validation widgets.
     const edgeGap = Math.min(18, Math.max(8, (rect.height - 26) / 2));
     const hostLeft = Math.max(4, rect.right - 26 - edgeGap);
-    this.setHostStyle("display", "block");
-    this.setHostStyle("left", `${hostLeft}px`);
-    this.setHostStyle("top", `${Math.max(4, rect.top + (rect.height - 26) / 2)}px`);
+    this.host.style.setProperty("display", "block", "important");
+    this.host.style.setProperty("left", `${hostLeft}px`, "important");
+    this.host.style.setProperty("top", `${Math.max(4, rect.top + (rect.height - 26) / 2)}px`, "important");
 
     // Keep the closed-shadow chooser inside the viewport even on narrow login
     // columns or high browser zoom. Coordinates are relative to the launcher.
@@ -442,56 +302,34 @@ class InlineWidget {
     }
   }
 
-  private setHostStyle(property: string, value: string): void {
-    if (this.host.style.getPropertyValue(property) === value
-      && this.host.style.getPropertyPriority(property) === "important") return;
-    this.host.style.setProperty(property, value, "important");
-  }
-
   private readonly handleFocus = (): void => {
     // document_start can run before the page's final styles/layout. Always bind
     // the launcher to the live field geometry immediately before showing it.
     this.reposition();
-    // Focus is page-controllable. It may move the extension affordance, but it
-    // never loads or writes a credential by itself.
+    // Page-authored autofocus must not open UI over the page. Automatic exact-
+    // host filling is a separate, one-shot path below; the chooser opens only
+    // for an actual browser user activation.
+    const activated = this.options.doc.defaultView?.navigator.userActivation?.isActive === true;
+    if (activated) void this.open();
   };
 
-  captureFieldClick(event: Event): void {
-    if (this.fieldIntentFillInFlight
-      || !this.options.userIntent.field(event, this.options.input)
-      || !isFieldClickOnTarget(event, this.options.input)) return;
-    const capabilityId = this.options.capabilities.issue(this.options.input);
-    if (capabilityId !== null) void this.fillPreferredExactFromFieldIntent(capabilityId);
-  }
-
-  captureClosedSurfaceIntent(event: Event): void {
-    if (this.destroyed
-      || !this.panel.hidden
-      || this.closedSurfaceCapabilityId !== null
-      || !this.options.userIntent.closedSurface(event, {
-        host: this.host,
-        button: this.button,
-        shadow: this.shadow,
-        input: this.options.input,
-      })) return;
-    this.closedSurfaceCapabilityId = this.options.capabilities.issue(this.options.input);
-  }
-
-  /** A trusted click on this active field authorizes one exact-host attempt. */
-  private async fillPreferredExactFromFieldIntent(capabilityId: string): Promise<void> {
-    if (this.fieldIntentFillInFlight || this.destroyed) return;
-    const initialValues = loginValueSnapshot(this.options.input);
-    if (initialValues !== "\u0000") {
-      this.options.capabilities.revoke(capabilityId);
-      await this.open();
+  /**
+   * Fill once when a standard login form appears. The worker orders exact-host
+   * results by session recency first and deterministic first match second.
+   * Related sibling hosts remain explicit-only and can never enter this path.
+   */
+  async autoFillPreferredExact(): Promise<void> {
+    if (this.automaticFillCompleted || this.destroyed) return;
+    if (this.automaticFillInFlight) {
+      this.automaticFillRetryRequested = true;
       return;
     }
-    this.fieldIntentFillInFlight = true;
+    const initialValues = loginValueSnapshot(this.options.input);
+    if (initialValues !== "\u0000") return;
+    this.automaticFillInFlight = true;
     try {
       const raw = await this.loadSuggestions();
-      if (this.destroyed
-        || this.options.doc.activeElement !== this.options.input
-        || loginValueSnapshot(this.options.input) !== initialValues) return;
+      if (this.destroyed || loginValueSnapshot(this.options.input) !== initialValues) return;
       if (!isInlineAutofillResult(raw) || !raw.ok || raw.kind !== "suggestions") return;
       if (raw.status === "locked" || raw.status === "signed-out") {
         this.showSessionRequired(raw.status);
@@ -500,18 +338,14 @@ class InlineWidget {
       if (raw.status !== "ready") return;
       const preferredExact = raw.entries.find((entry) => entry.match === "exact");
       if (preferredExact !== undefined) {
-        await this.fill(preferredExact, false, true, capabilityId);
-      } else if (raw.entries.length > 0) {
-        this.closedSurfaceCapabilityId = capabilityId;
-        this.options.closeOthers();
-        this.panel.hidden = false;
-        this.renderSuggestions(raw.entries);
+        this.automaticFillCompleted = await this.fill(preferredExact, false, true);
       }
     } finally {
-      if (this.closedSurfaceCapabilityId !== capabilityId) {
-        this.options.capabilities.revoke(capabilityId);
+      this.automaticFillInFlight = false;
+      if (this.automaticFillRetryRequested && !this.automaticFillCompleted && !this.destroyed) {
+        this.automaticFillRetryRequested = false;
+        void this.autoFillPreferredExact();
       }
-      this.fieldIntentFillInFlight = false;
     }
   }
 
@@ -547,22 +381,12 @@ class InlineWidget {
     const raw = await this.loadSuggestions();
     if (generation !== this.openGeneration) return;
     if (!isInlineAutofillResult(raw) || !raw.ok || raw.kind !== "suggestions") {
-      this.discardClosedSurfaceCapability();
       this.renderStatus("inline.unavailable");
       return;
     }
-    if (raw.status === "locked") {
-      this.discardClosedSurfaceCapability();
-      return this.renderSessionRequired("locked");
-    }
-    if (raw.status === "signed-out") {
-      this.discardClosedSurfaceCapability();
-      return this.renderSessionRequired("signed-out");
-    }
-    if (raw.entries.length === 0) {
-      this.discardClosedSurfaceCapability();
-      return this.renderStatus("inline.empty");
-    }
+    if (raw.status === "locked") return this.renderSessionRequired("locked");
+    if (raw.status === "signed-out") return this.renderSessionRequired("signed-out");
+    if (raw.entries.length === 0) return this.renderStatus("inline.empty");
     this.renderSuggestions(raw.entries);
   }
 
@@ -589,12 +413,7 @@ class InlineWidget {
       this.options.locale(),
       sessionStatus === "locked" ? "inline.unlockPalladin" : "inline.signInPalladin",
     );
-    open.addEventListener("click", (event) => {
-      if (this.options.userIntent.closedSurface(event)) {
-        this.discardClosedSurfaceCapability();
-        void this.openPalladin();
-      }
-    });
+    open.addEventListener("click", () => void this.openPalladin());
     wrapper.append(description, open);
     this.panel.replaceChildren(wrapper);
   }
@@ -644,19 +463,7 @@ class InlineWidget {
       detail.textContent = suggestionDetail(entry, this.options.locale());
       text.append(detail);
       option.append(text);
-      option.addEventListener("click", (event) => {
-        const capabilityId = this.takeClosedSurfaceCapability();
-        if (this.options.userIntent.closedSurface(event, {
-          host: this.host,
-          button: option,
-          shadow: this.shadow,
-          input: this.options.input,
-        }) && capabilityId !== null) {
-          void this.fill(entry, false, false, capabilityId);
-        } else if (capabilityId !== null) {
-          this.options.capabilities.revoke(capabilityId);
-        }
-      });
+      option.addEventListener("click", () => void this.fill(entry));
 
       const submit = this.options.doc.createElement("button");
       submit.type = "button";
@@ -666,19 +473,7 @@ class InlineWidget {
       const submitLabel = this.options.doc.createElement("span");
       submitLabel.textContent = message(this.options.locale(), "inline.logIn");
       submit.append(submitLabel);
-      submit.addEventListener("click", (event) => {
-        const capabilityId = this.takeClosedSurfaceCapability();
-        if (this.options.userIntent.closedSurface(event, {
-          host: this.host,
-          button: submit,
-          shadow: this.shadow,
-          input: this.options.input,
-        }) && capabilityId !== null) {
-          void this.fill(entry, true, false, capabilityId);
-        } else if (capabilityId !== null) {
-          this.options.capabilities.revoke(capabilityId);
-        }
-      });
+      submit.addEventListener("click", () => void this.fill(entry, true));
       row.append(option, submit);
       list.append(row);
     }
@@ -720,9 +515,8 @@ class InlineWidget {
 
   private async fill(
     entry: InlineAutofillSuggestion,
-    submitAfterFill: boolean,
-    silent: boolean,
-    capabilityId: string,
+    submitAfterFill = false,
+    silent = false,
   ): Promise<boolean> {
     if (!silent) this.renderStatus("inline.filling");
     let raw: unknown;
@@ -733,18 +527,17 @@ class InlineWidget {
         documentId: this.options.documentId,
         vaultId: entry.vaultId,
         entryId: entry.entryId,
-        capabilityId,
-        submit: submitAfterFill,
         scope: entry.match,
       });
     } catch {
       raw = null;
-    } finally {
-      this.options.capabilities.revoke(capabilityId);
     }
     if (!isInlineAutofillResult(raw) || !raw.ok || raw.kind !== "fill") {
       if (!silent) this.renderStatus("inline.unavailable");
       return false;
+    }
+    if (raw.status === "filled" && submitAfterFill) {
+      submitLoginForm(this.options.input);
     }
     if (!silent) {
       this.renderStatus(raw.status === "filled"
@@ -753,17 +546,6 @@ class InlineWidget {
       if (raw.status === "filled") setTimeout(() => this.close(), 700);
     }
     return raw.status === "filled";
-  }
-
-  private takeClosedSurfaceCapability(): string | null {
-    const capabilityId = this.closedSurfaceCapabilityId;
-    this.closedSurfaceCapabilityId = null;
-    return capabilityId;
-  }
-
-  private discardClosedSurfaceCapability(): void {
-    const capabilityId = this.takeClosedSurfaceCapability();
-    if (capabilityId !== null) this.options.capabilities.revoke(capabilityId);
   }
 
   private renderStatus(key: InlineKey): void {

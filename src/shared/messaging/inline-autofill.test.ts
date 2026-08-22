@@ -7,17 +7,15 @@ import {
 } from "./inline-autofill";
 
 const documentId = "a".repeat(32);
-const capabilityId = "b".repeat(32);
 
 describe("inline autofill messages", () => {
   it("accepts exact list, fill, and open commands only", () => {
     expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/list", documentId })).toBe(true);
-    expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", documentId, vaultId: "v", entryId: "e", capabilityId, submit: false, scope: "exact" })).toBe(true);
+    expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", documentId, vaultId: "v", entryId: "e", scope: "exact" })).toBe(true);
     expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/open-palladin", documentId })).toBe(true);
     expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/list", documentId, extra: true })).toBe(false);
-    expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", documentId: "bad", vaultId: "v", entryId: "e", capabilityId, submit: false, scope: "exact" })).toBe(false);
-    expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", documentId, vaultId: "v", entryId: "e", capabilityId, submit: false, scope: "site-wide" })).toBe(false);
-    expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", documentId, vaultId: "v", entryId: "e", capabilityId: "bad", submit: false, scope: "exact" })).toBe(false);
+    expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", documentId: "bad", vaultId: "v", entryId: "e", scope: "exact" })).toBe(false);
+    expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", documentId, vaultId: "v", entryId: "e", scope: "site-wide" })).toBe(false);
   });
 
   it("accepts value-free strict responses", () => {
