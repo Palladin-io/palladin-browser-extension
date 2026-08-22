@@ -29,7 +29,7 @@ const CARD_AUTOCOMPLETE_KIND: Readonly<Record<string, FillField["kind"]>> = {
   "cc-exp": "card-expiry",
 };
 
-/** Attribute-only visibility check (no layout needed, so it is testable in jsdom). */
+/** Fail closed for disabled, hidden, or page-CSS-hidden controls. */
 export function isFillable(input: FillControl): boolean {
   if (input.disabled || input.readOnly) return false;
   if (input.hidden || (input instanceof HTMLInputElement && input.type === "hidden")) return false;
@@ -40,6 +40,24 @@ export function isFillable(input: FillControl): boolean {
   }
   if (/opacity\s*:\s*0(?:\D|$)/i.test(style) || /pointer-events\s*:\s*none/i.test(style)) {
     return false;
+  }
+  const view = input.ownerDocument.defaultView;
+  if (view === null) return false;
+  for (let element: HTMLElement | null = input; element !== null; element = element.parentElement) {
+    if (element.hidden
+      || element.hasAttribute("inert")
+      || element.getAttribute("aria-hidden") === "true") {
+      return false;
+    }
+    const computed = view.getComputedStyle(element);
+    if (computed.display === "none"
+      || computed.visibility === "hidden"
+      || computed.visibility === "collapse"
+      || Number.parseFloat(computed.opacity) === 0
+      || computed.pointerEvents === "none"
+      || computed.getPropertyValue("content-visibility") === "hidden") {
+      return false;
+    }
   }
   return true;
 }
@@ -53,15 +71,19 @@ function firstFillablePassword(doc: Document): HTMLInputElement | null {
 
 /**
  * The fillable text/email/tel field immediately preceding the password in DOM
- * order — scoped to the password's own form when it has one, else the document.
+ * order - scoped to all controls associated with the password's form when it
+ * has one, else the document.
  * "Immediately preceding" = the last such field that appears before the password.
  */
 function usernameFieldFor(
   doc: Document,
   password: HTMLInputElement,
 ): TextLikeInput | null {
-  const scope: ParentNode = password.form ?? doc;
-  const candidates = scope.querySelectorAll<HTMLInputElement>("input");
+  const candidates = password.form === null
+    ? Array.from(doc.querySelectorAll<HTMLInputElement>("input"))
+    : Array.from(password.form.elements).filter(
+        (control): control is HTMLInputElement => control instanceof HTMLInputElement,
+      );
   let previous: TextLikeInput | null = null;
   for (const input of candidates) {
     if (input === password) break;

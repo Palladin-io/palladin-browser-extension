@@ -72,6 +72,18 @@ function passwordFieldFor(input: HTMLInputElement): HTMLInputElement | null {
   return null;
 }
 
+function mutationAffectsLoginDiscovery(record: MutationRecord): boolean {
+  if (record.type === "childList") return true;
+  if (!(record.target instanceof Element)) return false;
+  const target = record.target;
+  if (record.attributeName === "form") return target instanceof HTMLInputElement;
+  if (record.attributeName === "id") return target instanceof HTMLFormElement;
+  if (["class", "style", "hidden", "aria-hidden", "inert"].includes(record.attributeName ?? "")) {
+    return target instanceof HTMLInputElement || target.querySelector("input") !== null;
+  }
+  return target instanceof HTMLInputElement;
+}
+
 class InlineAutofillController {
   private readonly widgets = new Map<HTMLInputElement, InlineWidget>();
   private observer: MutationObserver | null = null;
@@ -91,7 +103,9 @@ class InlineAutofillController {
     this.scan();
     const view = this.doc.defaultView;
     if (!view) return;
-    this.observer = new view.MutationObserver(() => this.scheduleScan());
+    this.observer = new view.MutationObserver((records) => {
+      if (records.some(mutationAffectsLoginDiscovery)) this.scheduleScan();
+    });
     this.observer.observe(this.doc.documentElement, {
       childList: true,
       subtree: true,
@@ -104,6 +118,10 @@ class InlineAutofillController {
         "hidden",
         "aria-hidden",
         "style",
+        "class",
+        "inert",
+        "form",
+        "id",
       ],
     });
     view.addEventListener("scroll", this.reposition, true);
@@ -348,7 +366,11 @@ class InlineWidget {
     this.automaticFillInFlight = true;
     try {
       const raw = await this.loadSuggestions();
-      if (this.destroyed || loginValueSnapshot(this.options.input) !== initialValues) return;
+      if (this.destroyed
+        || !isLoginField(this.options.input)
+        || loginValueSnapshot(this.options.input) !== initialValues) {
+        return;
+      }
       if (!isInlineAutofillResult(raw) || !raw.ok || raw.kind !== "suggestions") return;
       if (raw.status === "locked" || raw.status === "signed-out") {
         this.showSessionRequired(raw.status);
@@ -537,6 +559,10 @@ class InlineWidget {
     submitAfterFill = false,
     silent = false,
   ): Promise<boolean> {
+    if (!isLoginField(this.options.input)) {
+      if (!silent) this.renderStatus("inline.noForm");
+      return false;
+    }
     if (!silent) this.renderStatus("inline.filling");
     let raw: unknown;
     try {

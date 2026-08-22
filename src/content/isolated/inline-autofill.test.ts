@@ -132,6 +132,78 @@ describe("inline autofill field discovery", () => {
     expect(isLoginField(username)).toBe(true);
   });
 
+  it("rejects a login pair hidden by page CSS and tracks ancestor visibility changes", async () => {
+    const style = document.createElement("style");
+    style.textContent = ".page-hidden { display: none; }";
+    document.head.append(style);
+    document.body.innerHTML = `
+      <section id="container" class="page-hidden">
+        <form><input id="username" type="email"><input type="password"></form>
+      </section>
+    `;
+    const send = vi.fn(async () => ({
+      ok: true,
+      kind: "suggestions",
+      status: "ready",
+      entries: [],
+    }));
+    const username = document.querySelector("#username") as HTMLInputElement;
+    const container = document.querySelector("#container") as HTMLElement;
+    const subject = startInlineAutofill(document, "a".repeat(32), send);
+
+    try {
+      expect(isLoginField(username)).toBe(false);
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+      expect(send).not.toHaveBeenCalled();
+
+      container.classList.remove("page-hidden");
+      await vi.waitFor(() => {
+        expect(document.querySelectorAll("palladin-autofill")).toHaveLength(1);
+      });
+
+      container.classList.add("page-hidden");
+      await vi.waitFor(() => {
+        expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+      });
+    } finally {
+      subject.stop();
+      style.remove();
+    }
+  });
+
+  it("tracks dynamic input form association and owning form id changes", async () => {
+    document.body.innerHTML = `
+      <form id="login"><input type="password"></form>
+      <input id="username" type="email">
+    `;
+    const send = vi.fn(async () => ({
+      ok: true,
+      kind: "suggestions",
+      status: "ready",
+      entries: [],
+    }));
+    const username = document.querySelector("#username") as HTMLInputElement;
+    const form = document.querySelector("#login") as HTMLFormElement;
+    const subject = startInlineAutofill(document, "a".repeat(32), send);
+
+    expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+    username.setAttribute("form", "login");
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(1);
+    });
+
+    form.id = "renamed";
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+    });
+
+    username.setAttribute("form", "renamed");
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(1);
+    });
+    subject.stop();
+  });
+
   it("mounts isolated launchers and removes them on stop", async () => {
     document.body.innerHTML = `<form><input type="email"><input type="password"></form>`;
     const subject = startInlineAutofill(document, "a".repeat(32), vi.fn(async () => ({
