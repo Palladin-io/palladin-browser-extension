@@ -9,8 +9,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   AuthClient,
-  type AuthResponse,
   type LoginKdfBootstrap,
+  type RefreshResponse,
 } from "./auth-client";
 import { AutoLock, AUTO_LOCK_ALARM } from "./auto-lock";
 import { SessionHooks } from "./hooks";
@@ -854,7 +854,7 @@ describe("SessionManager - durable refresh rotation", () => {
     const account = await buildTestAccount();
     const { mgr, authClient, backendCalls } = makeHarness(account);
     await mgr.login(account.email, account.password);
-    const response = deferred<AuthResponse>();
+    const response = deferred<RefreshResponse>();
     const refresh = vi.spyOn(authClient, "refresh").mockImplementation(() => response.promise);
 
     const first = mgr.refreshAccessToken();
@@ -865,8 +865,6 @@ describe("SessionManager - durable refresh rotation", () => {
     response.resolve({
       accessToken: "rotated-access",
       refreshToken: "rotated-refresh",
-      userId: account.accountId,
-      isOnboarded: true,
     });
     await expect(Promise.all([first, second])).resolves.toEqual([
       "rotated-access",
@@ -895,6 +893,11 @@ describe("SessionManager - durable refresh rotation", () => {
         .toBe("refresh-pending");
       expect((await readSealedPayload(writes[1], masterKey))["state"])
         .toBe("active");
+      expect(await readSealedPayload(writes[1], masterKey)).toMatchObject({
+        accessToken: "access-token-1",
+        refreshToken: "refresh-token-1",
+        userId: account.accountId,
+      });
       expect(backendCalls.filter((url) => url.endsWith("/api/auth/refresh")))
         .toHaveLength(1);
       expect(await mgr.getAccessToken()).toBe("access-token-1");
@@ -907,7 +910,7 @@ describe("SessionManager - durable refresh rotation", () => {
     const account = await buildTestAccount();
     const { mgr, authClient, hooks } = makeHarness(account);
     await mgr.login(account.email, account.password);
-    const response = deferred<AuthResponse>();
+    const response = deferred<RefreshResponse>();
     const refresh = vi.spyOn(authClient, "refresh").mockImplementation(() => response.promise);
     const lockedEvents: string[] = [];
     hooks.onLocked(({ userId }) => lockedEvents.push(userId));
@@ -921,8 +924,6 @@ describe("SessionManager - durable refresh rotation", () => {
     response.resolve({
       accessToken: "stale-access",
       refreshToken: "stale-refresh",
-      userId: account.accountId,
-      isOnboarded: true,
     });
     await expect(refreshing).resolves.toBeNull();
   });
@@ -981,6 +982,44 @@ describe("SessionManager - durable refresh rotation", () => {
     expect(await mgr.getStatus()).toBe("unlocked");
   });
 
+  it("restores the bound session after a transient refresh transport failure", async () => {
+    const account = await buildTestAccount();
+    const { mgr, authClient, storage } = makeHarness(account);
+    await mgr.login(account.email, account.password);
+    const masterKey = new Uint8Array(mgr.getKeys()!.masterKey);
+    vi.spyOn(authClient, "refresh").mockRejectedValue(
+      new SessionError("network", "Refresh request failed"),
+    );
+
+    try {
+      await expect(mgr.refreshAccessToken()).rejects.toMatchObject({ code: "network" });
+      expect(await mgr.getStatus()).toBe("unlocked");
+      expect(await mgr.getAccessToken()).toBe("access-token-1");
+      expect(await readSealedPayload(await readEnvelope(storage), masterKey)).toMatchObject({
+        state: "active",
+        userId: account.accountId,
+        accessToken: "access-token-1",
+        refreshToken: "refresh-token-1",
+      });
+    } finally {
+      wipe(masterKey);
+    }
+  });
+
+  it("clears the session when the backend explicitly rejects the refresh token", async () => {
+    const account = await buildTestAccount();
+    const { mgr, authClient, storage } = makeHarness(account);
+    await mgr.login(account.email, account.password);
+    vi.spyOn(authClient, "refresh").mockRejectedValue(
+      new SessionError("invalid-credentials", "Refresh rejected"),
+    );
+
+    await expect(mgr.refreshAccessToken()).resolves.toBeNull();
+    expect(await mgr.getStatus()).toBe("signed-out");
+    expect(mgr.getKeys()).toBeNull();
+    expect(storage.has(SEALED_SESSION_KEY)).toBe(false);
+  });
+
   it("does not recreate a pending session after concurrent logout", async () => {
     const account = await buildTestAccount();
     const { mgr, storage } = makeHarness(account);
@@ -1012,7 +1051,7 @@ describe("SessionManager - durable refresh rotation", () => {
     const account = await buildTestAccount();
     const { mgr, authClient, storage } = makeHarness(account);
     await mgr.login(account.email, account.password);
-    const response = deferred<AuthResponse>();
+    const response = deferred<RefreshResponse>();
     const refresh = vi.spyOn(authClient, "refresh").mockImplementation(() => response.promise);
     const staleRefresh = mgr.refreshAccessToken();
     await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
@@ -1022,8 +1061,6 @@ describe("SessionManager - durable refresh rotation", () => {
     response.resolve({
       accessToken: "stale-access",
       refreshToken: "stale-refresh",
-      userId: account.accountId,
-      isOnboarded: true,
     });
 
     await expect(staleRefresh).resolves.toBeNull();
