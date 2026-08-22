@@ -45,6 +45,8 @@ export interface FillRequestMessage {
   readonly expectedDomain: string | null;
   /** Explicit user intent: submit the owning login form after a successful credential fill. */
   readonly submit: boolean;
+  /** Exact isolated-world login target for inline fills; null for popup and generated fills. */
+  readonly loginTargetId: string | null;
   readonly fields: readonly FillField[];
 }
 
@@ -83,6 +85,7 @@ export function isFillRequestMessage(value: unknown): value is FillRequestMessag
     "expectedOrigin",
     "expectedDomain",
     "submit",
+    "loginTargetId",
     "fields",
   ])) {
     return false;
@@ -93,6 +96,7 @@ export function isFillRequestMessage(value: unknown): value is FillRequestMessag
     expectedOrigin?: unknown;
     expectedDomain?: unknown;
     submit?: unknown;
+    loginTargetId?: unknown;
     fields?: unknown;
   };
   return (
@@ -107,10 +111,20 @@ export function isFillRequestMessage(value: unknown): value is FillRequestMessag
       message.expectedDomain.length <= 253
     )) &&
     typeof message.submit === "boolean" &&
+    (message.loginTargetId === null || (
+      typeof message.loginTargetId === "string" &&
+      message.loginTargetId.length >= 1 &&
+      message.loginTargetId.length <= 256
+    )) &&
     Array.isArray(message.fields) &&
     message.fields.length >= 1 &&
     message.fields.length <= 8 &&
     message.fields.every(isFillField) &&
+    (message.loginTargetId === null || (
+      message.submit === false &&
+      message.fields.some((field) => field.kind === "password") &&
+      message.fields.every((field) => field.kind === "username" || field.kind === "password")
+    )) &&
     (!message.submit || (
       message.fields.some((field) => field.kind === "password") &&
       message.fields.every((field) => field.kind === "username" || field.kind === "password")

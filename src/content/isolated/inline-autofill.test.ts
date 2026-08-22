@@ -86,6 +86,218 @@ describe("inline autofill field discovery", () => {
     expect(isLoginField(document.querySelector("#search") as HTMLInputElement)).toBe(false);
   });
 
+  it("ignores a standalone email form even when autocomplete identifies the field", async () => {
+    document.body.innerHTML = `
+      <form><input id="email" type="email" autocomplete="email"></form>
+    `;
+    const send = vi.fn(async () => ({
+      ok: true,
+      kind: "suggestions",
+      status: "ready",
+      entries: [],
+    }));
+
+    expect(isLoginField(document.querySelector("#email") as HTMLInputElement)).toBe(false);
+    const subject = startInlineAutofill(document, "a".repeat(32), send);
+    await Promise.resolve();
+
+    expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+    expect(send).not.toHaveBeenCalled();
+    subject.stop();
+  });
+
+  it("does not pair an email field with a password owned by another form", () => {
+    document.body.innerHTML = `
+      <form id="email-form"><input id="email" type="email" autocomplete="username"></form>
+      <form id="password-form"><input type="password"></form>
+    `;
+
+    expect(isLoginField(document.querySelector("#email") as HTMLInputElement)).toBe(false);
+  });
+
+  it("ignores a login pair while either control is not usable", () => {
+    document.body.innerHTML = `
+      <form>
+        <input id="hidden-username" type="email" hidden>
+        <input id="hidden-password" type="password" hidden>
+      </form>
+    `;
+    const username = document.querySelector("#hidden-username") as HTMLInputElement;
+    const password = document.querySelector("#hidden-password") as HTMLInputElement;
+
+    expect(isLoginField(username)).toBe(false);
+    username.hidden = false;
+    expect(isLoginField(username)).toBe(false);
+    password.hidden = false;
+    expect(isLoginField(username)).toBe(true);
+  });
+
+  it("rejects a login pair hidden by page CSS and tracks ancestor visibility changes", async () => {
+    const style = document.createElement("style");
+    style.textContent = ".page-hidden { display: none; }";
+    document.head.append(style);
+    document.body.innerHTML = `
+      <section id="container" class="page-hidden">
+        <form><input id="username" type="email"><input type="password"></form>
+      </section>
+    `;
+    const send = vi.fn(async () => ({
+      ok: true,
+      kind: "suggestions",
+      status: "ready",
+      entries: [],
+    }));
+    const username = document.querySelector("#username") as HTMLInputElement;
+    const container = document.querySelector("#container") as HTMLElement;
+    const subject = startInlineAutofill(document, "a".repeat(32), send);
+
+    try {
+      expect(isLoginField(username)).toBe(false);
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+      expect(send).not.toHaveBeenCalled();
+
+      container.classList.remove("page-hidden");
+      await vi.waitFor(() => {
+        expect(document.querySelectorAll("palladin-autofill")).toHaveLength(1);
+      });
+
+      container.classList.add("page-hidden");
+      await vi.waitFor(() => {
+        expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+      });
+    } finally {
+      subject.stop();
+      style.remove();
+    }
+  });
+
+  it("rescans rendered control geometry after a viewport resize", async () => {
+    document.body.innerHTML = `
+      <form><input id="username" type="email"><input type="password"></form>
+    `;
+    const username = document.querySelector("#username") as HTMLInputElement;
+    let collapsed = true;
+    vi.spyOn(username, "getClientRects").mockReturnValue({ length: 1 } as DOMRectList);
+    vi.spyOn(username, "getBoundingClientRect").mockImplementation(() => ({
+      x: 20,
+      y: 40,
+      left: 20,
+      top: 40,
+      right: collapsed ? 20 : 320,
+      bottom: collapsed ? 40 : 80,
+      width: collapsed ? 0 : 300,
+      height: collapsed ? 0 : 40,
+      toJSON: () => ({}),
+    }));
+    const subject = startInlineAutofill(document, "a".repeat(32), vi.fn(async () => ({
+      ok: true,
+      kind: "suggestions",
+      status: "ready",
+      entries: [],
+    })));
+
+    expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+    collapsed = false;
+    window.dispatchEvent(new Event("resize"));
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(1);
+    });
+
+    collapsed = true;
+    window.dispatchEvent(new Event("resize"));
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+    });
+    subject.stop();
+  });
+
+  it("tracks dynamic input form association and owning form id changes", async () => {
+    document.body.innerHTML = `
+      <form id="login"><input type="password"></form>
+      <input id="username" type="email">
+    `;
+    const send = vi.fn(async () => ({
+      ok: true,
+      kind: "suggestions",
+      status: "ready",
+      entries: [],
+    }));
+    const username = document.querySelector("#username") as HTMLInputElement;
+    const form = document.querySelector("#login") as HTMLFormElement;
+    const subject = startInlineAutofill(document, "a".repeat(32), send);
+
+    expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+    username.setAttribute("form", "login");
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(1);
+    });
+
+    form.id = "renamed";
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+    });
+
+    username.setAttribute("form", "renamed");
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(1);
+    });
+    subject.stop();
+  });
+
+  it("tracks effective disabled state inherited from a fieldset", async () => {
+    document.body.innerHTML = `
+      <form><fieldset id="controls" disabled>
+        <input type="email"><input type="password">
+      </fieldset></form>
+    `;
+    const fieldset = document.querySelector("#controls") as HTMLFieldSetElement;
+    const subject = startInlineAutofill(document, "a".repeat(32), vi.fn(async () => ({
+      ok: true,
+      kind: "suggestions",
+      status: "ready",
+      entries: [],
+    })));
+
+    expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+    fieldset.disabled = false;
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(1);
+    });
+
+    fieldset.disabled = true;
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+    });
+    subject.stop();
+  });
+
+  it("tracks a login dialog opening and closing", async () => {
+    document.body.innerHTML = `
+      <dialog id="login"><form>
+        <input type="email"><input type="password">
+      </form></dialog>
+    `;
+    const dialog = document.querySelector("#login") as HTMLDialogElement;
+    const subject = startInlineAutofill(document, "a".repeat(32), vi.fn(async () => ({
+      ok: true,
+      kind: "suggestions",
+      status: "ready",
+      entries: [],
+    })));
+
+    expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+    dialog.setAttribute("open", "");
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(1);
+    });
+
+    dialog.removeAttribute("open");
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+    });
+    subject.stop();
+  });
+
   it("mounts isolated launchers and removes them on stop", async () => {
     document.body.innerHTML = `<form><input type="email"><input type="password"></form>`;
     const subject = startInlineAutofill(document, "a".repeat(32), vi.fn(async () => ({
@@ -121,6 +333,7 @@ describe("inline autofill field discovery", () => {
       type: "inline/fill",
       vaultId: "v1",
       entryId: "e1",
+      loginTargetId: expect.stringMatching(/^login-\d+$/),
     })));
     subject.stop();
   });

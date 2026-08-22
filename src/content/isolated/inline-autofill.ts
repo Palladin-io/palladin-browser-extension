@@ -15,7 +15,12 @@ import {
   type InlineAutofillCommand,
   type InlineAutofillSuggestion,
 } from "@shared/messaging";
-import { submitLoginForm } from "./fill";
+import {
+  isCurrentLoginTarget,
+  loginTargetFor,
+  submitLoginForm,
+  type LoginTarget,
+} from "./fill";
 
 type Send = (command: InlineAutofillCommand) => Promise<unknown>;
 type InlineKey =
@@ -42,23 +47,37 @@ export function startInlineAutofill(
   doc: Document,
   documentId: string,
   send: Send = (command) => chrome.runtime.sendMessage(command),
-): { invalidateSuggestions(): void; retryAutomaticFill(): void; stop(): void } {
+): {
+  invalidateSuggestions(): void;
+  retryAutomaticFill(): void;
+  resolveLoginTarget(loginTargetId: string): LoginTarget | null;
+  stop(): void;
+} {
   const controller = new InlineAutofillController(doc, documentId, send);
   controller.start();
   return {
     invalidateSuggestions: () => controller.invalidateSuggestions(),
     retryAutomaticFill: () => controller.retryAutomaticFill(),
+    resolveLoginTarget: (loginTargetId: string) => controller.resolveLoginTarget(loginTargetId),
     stop: () => controller.stop(),
   };
 }
 
 export function isLoginField(input: HTMLInputElement): boolean {
-  if (input.disabled || input.readOnly) return false;
-  const type = input.type.toLowerCase();
-  if (type !== "email" && type !== "text" && type !== "tel") return false;
-  const autocomplete = input.autocomplete.toLowerCase();
-  if (autocomplete === "username" || autocomplete === "email") return true;
-  return input.form !== null && input.form.querySelector('input[type="password"]') !== null;
+  return loginTargetFor(input) !== null;
+}
+
+function mutationAffectsLoginDiscovery(record: MutationRecord): boolean {
+  if (record.type === "childList") return true;
+  if (!(record.target instanceof Element)) return false;
+  const target = record.target;
+  if (record.attributeName === "form") return target instanceof HTMLInputElement;
+  if (record.attributeName === "id") return target instanceof HTMLFormElement;
+  if (["class", "style", "hidden", "aria-hidden", "inert", "disabled", "open"]
+    .includes(record.attributeName ?? "")) {
+    return target instanceof HTMLInputElement || target.querySelector("input") !== null;
+  }
+  return target instanceof HTMLInputElement;
 }
 
 class InlineAutofillController {
@@ -69,6 +88,7 @@ class InlineAutofillController {
   private theme: ThemePreference = "system";
   private stopped = false;
   private automaticFillUrl: string | null = null;
+  private nextLoginTargetId = 1;
 
   constructor(
     private readonly doc: Document,
@@ -80,15 +100,30 @@ class InlineAutofillController {
     this.scan();
     const view = this.doc.defaultView;
     if (!view) return;
-    this.observer = new view.MutationObserver(() => this.scheduleScan());
+    this.observer = new view.MutationObserver((records) => {
+      if (records.some(mutationAffectsLoginDiscovery)) this.scheduleScan();
+    });
     this.observer.observe(this.doc.documentElement, {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["type", "autocomplete", "disabled", "readonly"],
+      attributeFilter: [
+        "type",
+        "autocomplete",
+        "disabled",
+        "readonly",
+        "hidden",
+        "aria-hidden",
+        "style",
+        "class",
+        "inert",
+        "form",
+        "id",
+        "open",
+      ],
     });
     view.addEventListener("scroll", this.reposition, true);
-    view.addEventListener("resize", this.reposition);
+    view.addEventListener("resize", this.handleResize);
     this.doc.addEventListener("pointerdown", this.closeOutside, true);
     void this.loadPreferences();
   }
@@ -98,7 +133,7 @@ class InlineAutofillController {
     this.observer?.disconnect();
     const view = this.doc.defaultView;
     view?.removeEventListener("scroll", this.reposition, true);
-    view?.removeEventListener("resize", this.reposition);
+    view?.removeEventListener("resize", this.handleResize);
     this.doc.removeEventListener("pointerdown", this.closeOutside, true);
     for (const widget of this.widgets.values()) widget.destroy();
     this.widgets.clear();
@@ -114,8 +149,20 @@ class InlineAutofillController {
     for (const widget of this.widgets.values()) widget.invalidateSuggestions();
   }
 
+  resolveLoginTarget(loginTargetId: string): LoginTarget | null {
+    for (const widget of this.widgets.values()) {
+      if (widget.loginTargetId === loginTargetId) return widget.loginTarget;
+    }
+    return null;
+  }
+
   private readonly reposition = (): void => {
     for (const widget of this.widgets.values()) widget.reposition();
+  };
+
+  private readonly handleResize = (): void => {
+    this.scheduleScan();
+    this.reposition();
   };
 
   private readonly closeOutside = (event: Event): void => {
@@ -135,17 +182,21 @@ class InlineAutofillController {
 
   private scan(): void {
     for (const [input, widget] of this.widgets) {
-      if (!input.isConnected || !isLoginField(input)) {
+      const currentTarget = input.isConnected ? loginTargetFor(input) : null;
+      if (currentTarget === null || !widget.matchesLoginTarget(currentTarget)) {
         widget.destroy();
         this.widgets.delete(input);
       }
     }
     if (this.widgets.size === 0) this.automaticFillUrl = null;
     for (const input of this.doc.querySelectorAll<HTMLInputElement>("input")) {
-      if (!isLoginField(input) || this.widgets.has(input)) continue;
+      const loginTarget = loginTargetFor(input);
+      if (loginTarget === null || this.widgets.has(input)) continue;
       const widget = new InlineWidget({
         doc: this.doc,
         input,
+        loginTarget,
+        loginTargetId: `login-${this.nextLoginTargetId++}`,
         documentId: this.documentId,
         send: this.send,
         locale: () => this.locale,
@@ -184,6 +235,8 @@ class InlineAutofillController {
 interface InlineWidgetOptions {
   readonly doc: Document;
   readonly input: HTMLInputElement;
+  readonly loginTarget: LoginTarget;
+  readonly loginTargetId: string;
   readonly documentId: string;
   readonly send: Send;
   readonly locale: () => UiLocale;
@@ -235,6 +288,20 @@ class InlineWidget {
     this.panel.className = "panel";
     this.panel.hidden = true;
     this.shadow.append(this.button, this.panel);
+  }
+
+  get loginTarget(): LoginTarget {
+    return this.options.loginTarget;
+  }
+
+  get loginTargetId(): string {
+    return this.options.loginTargetId;
+  }
+
+  matchesLoginTarget(target: LoginTarget): boolean {
+    return target.username === this.options.loginTarget.username
+      && target.password === this.options.loginTarget.password
+      && target.form === this.options.loginTarget.form;
   }
 
   mount(): void {
@@ -324,12 +391,16 @@ class InlineWidget {
       this.automaticFillRetryRequested = true;
       return;
     }
-    const initialValues = loginValueSnapshot(this.options.input);
+    const initialValues = loginValueSnapshot(this.options.loginTarget);
     if (initialValues !== "\u0000") return;
     this.automaticFillInFlight = true;
     try {
       const raw = await this.loadSuggestions();
-      if (this.destroyed || loginValueSnapshot(this.options.input) !== initialValues) return;
+      if (this.destroyed
+        || !isCurrentLoginTarget(this.options.loginTarget)
+        || loginValueSnapshot(this.options.loginTarget) !== initialValues) {
+        return;
+      }
       if (!isInlineAutofillResult(raw) || !raw.ok || raw.kind !== "suggestions") return;
       if (raw.status === "locked" || raw.status === "signed-out") {
         this.showSessionRequired(raw.status);
@@ -518,6 +589,10 @@ class InlineWidget {
     submitAfterFill = false,
     silent = false,
   ): Promise<boolean> {
+    if (!isCurrentLoginTarget(this.options.loginTarget)) {
+      if (!silent) this.renderStatus("inline.noForm");
+      return false;
+    }
     if (!silent) this.renderStatus("inline.filling");
     let raw: unknown;
     try {
@@ -528,6 +603,7 @@ class InlineWidget {
         vaultId: entry.vaultId,
         entryId: entry.entryId,
         scope: entry.match,
+        loginTargetId: this.options.loginTargetId,
       });
     } catch {
       raw = null;
@@ -537,7 +613,7 @@ class InlineWidget {
       return false;
     }
     if (raw.status === "filled" && submitAfterFill) {
-      submitLoginForm(this.options.input);
+      submitLoginForm(this.options.loginTarget.password);
     }
     if (!silent) {
       this.renderStatus(raw.status === "filled"
@@ -556,9 +632,8 @@ class InlineWidget {
   }
 }
 
-function loginValueSnapshot(input: HTMLInputElement): string {
-  const password = input.form?.querySelector<HTMLInputElement>('input[type="password"]');
-  return `${input.value}\u0000${password?.value ?? ""}`;
+function loginValueSnapshot(target: LoginTarget): string {
+  return `${target.username.value}\u0000${target.password.value}`;
 }
 
 function message(locale: UiLocale, key: InlineKey): string {

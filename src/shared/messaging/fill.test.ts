@@ -12,6 +12,7 @@ const request = {
   expectedOrigin: "https://accounts.example.com",
   expectedDomain: "example.com",
   submit: false,
+  loginTargetId: null,
   fields: [{ kind: "password", value: "secret" }],
 } as const;
 
@@ -24,6 +25,7 @@ describe("fill message guards", () => {
     expect(isFillRequestMessage({ ...request, documentId: "" })).toBe(false);
     expect(isFillRequestMessage({ ...request, expectedOrigin: "http://accounts.example.com" })).toBe(false);
     expect(isFillRequestMessage({ ...request, expectedOrigin: "https://accounts.example.com/login" })).toBe(false);
+    expect(isFillRequestMessage({ ...request, loginTargetId: "" })).toBe(false);
     const { submit: _submit, ...withoutSubmit } = request;
     expect(isFillRequestMessage(withoutSubmit)).toBe(false);
     expect(isFillRequestMessage({ ...request, unexpected: true })).toBe(false);
@@ -40,6 +42,23 @@ describe("fill message guards", () => {
       ...request,
       submit: true,
       fields: [{ kind: "password", value: "secret" }, { kind: "card-number", value: "4111" }],
+    })).toBe(false);
+  });
+
+  it("accepts an inline target only for a non-submitting credential fill", () => {
+    expect(isFillRequestMessage({
+      ...request,
+      loginTargetId: "login-1",
+    })).toBe(true);
+    expect(isFillRequestMessage({
+      ...request,
+      loginTargetId: "login-1",
+      fields: [{ kind: "card-number", value: "4111" }],
+    })).toBe(false);
+    expect(isFillRequestMessage({
+      ...request,
+      loginTargetId: "login-1",
+      submit: true,
     })).toBe(false);
   });
 
