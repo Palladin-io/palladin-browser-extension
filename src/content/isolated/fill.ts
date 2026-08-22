@@ -30,7 +30,7 @@ const CARD_AUTOCOMPLETE_KIND: Readonly<Record<string, FillField["kind"]>> = {
 };
 
 /** Attribute-only visibility check (no layout needed, so it is testable in jsdom). */
-function isFillable(input: FillControl): boolean {
+export function isFillable(input: FillControl): boolean {
   if (input.disabled || input.readOnly) return false;
   if (input.hidden || (input instanceof HTMLInputElement && input.type === "hidden")) return false;
   if (input.getAttribute("aria-hidden") === "true") return false;

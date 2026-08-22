@@ -37,7 +37,10 @@ worker's session, key, or authorization state.
   message alone can never authorize secret access.
 - Security-relevant confirmation belongs to extension-owned UI. A visited page
   must not be able to read, restyle, or overlay it.
-- Login-field suggestions are rendered beside the username/email control by the isolated content script inside a
+- Login-field suggestions are rendered beside a username/email control only when
+  its owning form also contains a usable password field. A standalone email or
+  username form never receives a Palladin launcher. The isolated content script
+  renders the launcher inside a
   closed Shadow DOM. Page CSS/DOM cannot traverse or restyle its internal
   controls; a hostile page can remove or cover the host, which only makes the
   affordance unavailable. Before selection it contains the entry label,

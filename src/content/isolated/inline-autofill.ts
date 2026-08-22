@@ -15,7 +15,7 @@ import {
   type InlineAutofillCommand,
   type InlineAutofillSuggestion,
 } from "@shared/messaging";
-import { submitLoginForm } from "./fill";
+import { isFillable, submitLoginForm } from "./fill";
 
 type Send = (command: InlineAutofillCommand) => Promise<unknown>;
 type InlineKey =
@@ -53,12 +53,23 @@ export function startInlineAutofill(
 }
 
 export function isLoginField(input: HTMLInputElement): boolean {
-  if (input.disabled || input.readOnly) return false;
+  if (!isFillable(input)) return false;
   const type = input.type.toLowerCase();
   if (type !== "email" && type !== "text" && type !== "tel") return false;
-  const autocomplete = input.autocomplete.toLowerCase();
-  if (autocomplete === "username" || autocomplete === "email") return true;
-  return input.form !== null && input.form.querySelector('input[type="password"]') !== null;
+  return passwordFieldFor(input) !== null;
+}
+
+function passwordFieldFor(input: HTMLInputElement): HTMLInputElement | null {
+  const form = input.form;
+  if (form === null) return null;
+  for (const control of form.elements) {
+    if (control instanceof HTMLInputElement
+      && control.type.toLowerCase() === "password"
+      && isFillable(control)) {
+      return control;
+    }
+  }
+  return null;
 }
 
 class InlineAutofillController {
@@ -85,7 +96,15 @@ class InlineAutofillController {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["type", "autocomplete", "disabled", "readonly"],
+      attributeFilter: [
+        "type",
+        "autocomplete",
+        "disabled",
+        "readonly",
+        "hidden",
+        "aria-hidden",
+        "style",
+      ],
     });
     view.addEventListener("scroll", this.reposition, true);
     view.addEventListener("resize", this.reposition);
@@ -557,7 +576,7 @@ class InlineWidget {
 }
 
 function loginValueSnapshot(input: HTMLInputElement): string {
-  const password = input.form?.querySelector<HTMLInputElement>('input[type="password"]');
+  const password = passwordFieldFor(input);
   return `${input.value}\u0000${password?.value ?? ""}`;
 }
 
