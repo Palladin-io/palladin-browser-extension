@@ -21,6 +21,12 @@ export interface AuthResponse {
   readonly emailVerified?: boolean;
 }
 
+/** Token rotation returns no account profile; identity stays bound to the active session. */
+export interface RefreshResponse {
+  readonly accessToken: string;
+  readonly refreshToken: string;
+}
+
 export interface TotpRequiredResponse {
   readonly totpRequired: true;
   readonly challengeToken: string;
@@ -153,8 +159,28 @@ export class AuthClient {
     );
   }
 
-  refresh(refreshToken: string, expectedApiUrl?: string): Promise<AuthResponse> {
-    return this.postJson("/api/auth/refresh", { refreshToken }, undefined, expectedApiUrl);
+  async refresh(refreshToken: string, expectedApiUrl?: string): Promise<RefreshResponse> {
+    const response = await this.postJson<unknown>(
+      "/api/auth/refresh",
+      { refreshToken },
+      undefined,
+      expectedApiUrl,
+    );
+    if (typeof response !== "object" || response === null) {
+      throw new SessionError("network", "Refresh response failed validation");
+    }
+    const record = response as Record<string, unknown>;
+    const accessToken = record["accessToken"];
+    const replacementRefreshToken = record["refreshToken"];
+    if (
+      typeof accessToken !== "string"
+      || typeof replacementRefreshToken !== "string"
+      || accessToken.length === 0
+      || replacementRefreshToken.length === 0
+    ) {
+      throw new SessionError("network", "Refresh response failed validation");
+    }
+    return { accessToken, refreshToken: replacementRefreshToken };
   }
 
   async logout(refreshToken: string, expectedApiUrl?: string): Promise<void> {

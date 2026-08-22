@@ -216,7 +216,12 @@ export function mockBackend(
       if (body["code"] !== totpCode) return Promise.resolve(json(null, 401));
       return Promise.resolve(json(authResponse));
     }
-    if (url.endsWith("/api/auth/refresh")) return Promise.resolve(json(authResponse));
+    if (url.endsWith("/api/auth/refresh")) {
+      return Promise.resolve(json({
+        accessToken: authResponse.accessToken,
+        refreshToken: authResponse.refreshToken,
+      }));
+    }
     if (url.endsWith("/api/auth/logout")) {
       return options.logoutResponse ?? Promise.resolve(json(null, 204));
     }
