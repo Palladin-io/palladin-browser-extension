@@ -75,7 +75,7 @@
   "pairing.pairedFingerprint": "Odcisk sparowanego runtime",
   "pairing.unpair": "Rozłącz runtime",
   "pairing.title": "Sparuj runtime agenta",
-  "pairing.instructions": "Uruchom tę komendę w zaufanym terminalu. Wykrywanie jest automatyczne; przed udzieleniem zaufania porównaj odciski.",
+  "pairing.instructions": "Uruchom tę komendę w zaufanym terminalu. Przed sparowaniem sprawdź odcisk.",
   "pairing.detecting": "Wykrywanie lokalnego runtime agenta...",
   "pairing.discoveryError": "Nie wykryto lokalnego runtime agenta. Zainstaluj go i spróbuj ponownie.",
   "pairing.discoveryNotFound": "Chrome nie znalazł rejestracji Palladin Runtime. Uruchom komendę instalacyjną i spróbuj ponownie.",

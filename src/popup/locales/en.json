@@ -75,7 +75,7 @@
   "pairing.pairedFingerprint": "Paired fingerprint",
   "pairing.unpair": "Unpair runtime",
   "pairing.title": "Pair Agent runtime",
-  "pairing.instructions": "Run this in a trusted terminal. Detection is automatic; compare fingerprints before trusting it.",
+  "pairing.instructions": "Run this in a trusted terminal. Verify the fingerprint before pairing.",
   "pairing.detecting": "Detecting the local Agent runtime...",
   "pairing.discoveryError": "The local Agent runtime wasn't detected. Install it, then try again.",
   "pairing.discoveryNotFound": "Chrome couldn't find the Palladin Runtime host registration. Run the install command, then try again.",
