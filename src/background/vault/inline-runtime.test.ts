@@ -79,13 +79,14 @@ describe("inline autofill content runtime", () => {
       vaultId: "vault-1",
       entryId: "entry-1",
       scope: "exact",
+      loginTargetId: "login-1",
     }, sender, "extension-id")).toEqual({ ok: true, kind: "fill", status: "filled" });
     expect(fill).toHaveBeenCalledWith({
       id: 7,
       url: "https://accounts.example.com/login",
       documentId,
       browserDocumentId,
-    }, "vault-1", "entry-1", "exact");
+    }, "vault-1", "entry-1", "exact", "login-1");
   });
 
   it("returns same-registrable-domain entries as explicit related choices", async () => {
@@ -131,6 +132,7 @@ describe("inline autofill content runtime", () => {
       vaultId: "vault-1",
       entryId: "entry-2",
       scope: "exact",
+      loginTargetId: "login-2",
     }, sender, "extension-id");
 
     const preferred = await handleInlineAutofillContentMessage(subject, {

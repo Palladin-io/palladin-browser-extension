@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { FillField, FillRequestMessage } from "@shared/messaging";
-import { performBoundFill, performFill } from "./fill";
+import { loginTargetFor, performBoundFill, performFill } from "./fill";
 
 const CREDS: FillField[] = [
   { kind: "username", value: "ada@example.com" },
@@ -30,6 +30,7 @@ function bound(fields: readonly FillField[], over: Partial<FillRequestMessage> =
     expectedOrigin: "https://example.com",
     expectedDomain: null,
     submit: false,
+    loginTargetId: null,
     fields,
     ...over,
   };
@@ -55,6 +56,30 @@ describe("performFill", () => {
     expect(user.value).toBe("ada@example.com");
     expect(pass.value).toBe("s3cr3t");
     expect(events).toEqual(["user:input", "user:change", "pass:input", "pass:change"]);
+  });
+
+  it("fills username and password controls associated from outside their form", () => {
+    const doc = mount(`
+      <form id="login"></form>
+      <input type="email" id="user" form="login" />
+      <input type="password" id="pass" form="login" />
+    `);
+
+    expect(performFill(doc, CREDS)).toEqual({ ok: true });
+    expect((doc.getElementById("user") as HTMLInputElement).value).toBe("ada@example.com");
+    expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("s3cr3t");
+  });
+
+  it("fills an externally associated username that follows its password", () => {
+    const doc = mount(`
+      <form id="login"></form>
+      <input type="password" id="pass" form="login" />
+      <input type="email" id="user" form="login" />
+    `);
+
+    expect(performFill(doc, CREDS)).toEqual({ ok: true });
+    expect((doc.getElementById("user") as HTMLInputElement).value).toBe("ada@example.com");
+    expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("s3cr3t");
   });
 
   it("fills a lone password when there is no username field", () => {
@@ -104,6 +129,40 @@ describe("performFill", () => {
     expect(performFill(doc, CREDS)).toEqual({ ok: false, reason: "no-form" });
   });
 
+  it("does not fill controls effectively disabled by an ancestor fieldset", () => {
+    const doc = mount(`
+      <form>
+        <fieldset disabled>
+          <input type="email" id="user">
+          <input type="password" id="pass">
+        </fieldset>
+      </form>
+    `);
+
+    expect(performFill(doc, CREDS)).toEqual({ ok: false, reason: "no-form" });
+    expect((doc.getElementById("user") as HTMLInputElement).value).toBe("");
+    expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("");
+  });
+
+  it("does not fill controls hidden by page CSS on an ancestor", () => {
+    const style = document.createElement("style");
+    style.textContent = ".page-hidden { display: none; }";
+    document.head.append(style);
+    const doc = mount(`
+      <section class="page-hidden">
+        <form><input type="email" id="user"><input type="password" id="pass"></form>
+      </section>
+    `);
+
+    try {
+      expect(performFill(doc, CREDS)).toEqual({ ok: false, reason: "no-form" });
+      expect((doc.getElementById("user") as HTMLInputElement).value).toBe("");
+      expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("");
+    } finally {
+      style.remove();
+    }
+  });
+
   it("does not fill transparent password-manager decoys", () => {
     const doc = mount(`
       <form>
@@ -114,6 +173,26 @@ describe("performFill", () => {
     expect(performFill(doc, CREDS)).toEqual({ ok: true });
     expect((doc.getElementById("decoy") as HTMLInputElement).value).toBe("");
     expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("s3cr3t");
+  });
+
+  it("does not fill a zero-area password control", () => {
+    const doc = mount(`<form><input id="user"><input type="password" id="pass"></form>`);
+    const password = doc.getElementById("pass") as HTMLInputElement;
+    vi.spyOn(password, "getClientRects").mockReturnValue({ length: 1 } as DOMRectList);
+    vi.spyOn(password, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 0,
+      bottom: 20,
+      width: 0,
+      height: 20,
+      toJSON: () => ({}),
+    });
+
+    expect(performFill(doc, CREDS)).toEqual({ ok: false, reason: "no-form" });
+    expect(password.value).toBe("");
   });
 
   it("uses the field just before the password, not one after it", () => {
@@ -201,6 +280,51 @@ describe("performFill", () => {
 });
 
 describe("performBoundFill", () => {
+  it("refuses an inline target whose username was reassociated before the DOM write", () => {
+    const doc = mount(`
+      <form id="first"><input id="user"><input id="first-pass" type="password"></form>
+      <form id="second"><input id="second-pass" type="password"></form>
+    `);
+    const username = doc.getElementById("user") as HTMLInputElement;
+    const target = loginTargetFor(username);
+    if (target === null) throw new Error("expected login target");
+    username.setAttribute("form", "second");
+
+    expect(performBoundFill(
+      doc,
+      bound(CREDS, { expectedDomain: "example.com", loginTargetId: "login-1" }),
+      "https://example.com/login",
+      "document-1",
+      target,
+    )).toEqual({ ok: false, reason: "no-form" });
+    expect(username.value).toBe("");
+    expect((doc.getElementById("first-pass") as HTMLInputElement).value).toBe("");
+    expect((doc.getElementById("second-pass") as HTMLInputElement).value).toBe("");
+  });
+
+  it("does not write the password when the page invalidates the pair after username input", () => {
+    const doc = mount(`
+      <form><input id="user"><input id="pass" type="password"></form>
+    `);
+    const username = doc.getElementById("user") as HTMLInputElement;
+    const password = doc.getElementById("pass") as HTMLInputElement;
+    const target = loginTargetFor(username);
+    if (target === null) throw new Error("expected login target");
+    username.addEventListener("input", () => {
+      password.disabled = true;
+    });
+
+    expect(performBoundFill(
+      doc,
+      bound(CREDS, { expectedDomain: "example.com", loginTargetId: "login-1" }),
+      "https://example.com/login",
+      "document-1",
+      target,
+    )).toEqual({ ok: false, reason: "no-form" });
+    expect(username.value).toBe("ada@example.com");
+    expect(password.value).toBe("");
+  });
+
   it("submits the exact owning form after an explicitly requested credential fill", () => {
     const doc = mount(`
       <form id="login">

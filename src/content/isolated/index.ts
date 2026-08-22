@@ -134,11 +134,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return undefined;
   }
   if (!isFillRequestMessage(message)) return undefined;
+  const loginTarget = message.loginTargetId === null
+    ? null
+    : inlineAutofill?.resolveLoginTarget(message.loginTargetId) ?? null;
   const outcome: FillOutcome = performBoundFill(
     document,
     message,
     window.location.href,
     documentId,
+    loginTarget,
   );
   sendResponse(outcome);
   return undefined;

@@ -147,6 +147,7 @@ export interface VaultCommandDeps {
     expectedDomain: string | null,
     fields: readonly FillField[],
     submit: boolean,
+    loginTargetId?: string,
   ): Promise<FillOutcome>;
   /** Schedule the clipboard wipe after a value was copied. */
   clipboard: { readonly available: boolean; arm(): void };
@@ -292,6 +293,7 @@ export async function fillInlineSelectedEntry(
   vaultId: string,
   entryId: string,
   scope: "exact" | "related",
+  loginTargetId: string,
 ): Promise<FillResult> {
   if (!isSecurePage(tab.url)) return { status: "blocked", reason: "insecure-page" };
   const meta = (await deps.data.getMetadata()).find(
@@ -305,7 +307,7 @@ export async function fillInlineSelectedEntry(
   if (!matchesTab(tab.url, meta.urlDomain, related ? { exactSubdomain: false } : undefined)) {
     return { status: "blocked", reason: "domain-mismatch" };
   }
-  return fillPreparedEntry(deps, meta, tab, related);
+  return fillPreparedEntry(deps, meta, tab, related, false, loginTargetId);
 }
 
 async function openAndFillLogin(
@@ -351,6 +353,7 @@ async function fillPreparedEntry(
   tab: ActiveTab,
   allowRelatedDomain = false,
   submit = false,
+  loginTargetId?: string,
 ): Promise<FillResult> {
   // Re-check the origin gate at click time, not just when the list was drawn.
   if (meta.type === ENTRY_TYPE_CREDENTIAL && !matchesTab(
@@ -413,7 +416,9 @@ async function fillPreparedEntry(
   // broader registrable domain.
   const expectedDomain = allowRelatedDomain ? exactHttpsHost(tab.url) : currentDomain;
   if (expectedDomain === null) return { status: "blocked", reason: "domain-mismatch" };
-  const outcome = await deps.sendFill(tab, expectedDomain, fields, submit);
+  const outcome = loginTargetId === undefined
+    ? await deps.sendFill(tab, expectedDomain, fields, submit)
+    : await deps.sendFill(tab, expectedDomain, fields, submit, loginTargetId);
   return fillResult(outcome);
 }
 

@@ -221,12 +221,14 @@ describe("vault/fill gates", () => {
       "vault-1",
       "entry-cred",
       "related",
+      "login-1",
     )).toEqual({ status: "filled" });
     expect(sendFill).toHaveBeenCalledWith(
       expect.objectContaining({ url: "https://accounts.example.com/login" }),
       "accounts.example.com",
       expect.any(Array),
       false,
+      "login-1",
     );
   });
 
@@ -248,6 +250,7 @@ describe("vault/fill gates", () => {
       "vault-1",
       "entry-cred",
       "related",
+      "login-1",
     )).toEqual({ status: "blocked", reason: "domain-mismatch" });
     expect(revealEntry).not.toHaveBeenCalled();
     expect(sendFill).not.toHaveBeenCalled();

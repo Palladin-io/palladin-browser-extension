@@ -65,7 +65,9 @@ release candidates.
 - Development compatibility targets current Chrome, Chromium, Brave, Edge, and
   Opera MV3 builds. Store certification and version support are not yet claimed.
 - Inline login suggestions are implemented beside standard username/email
-  controls. The menu receives only exact-host and same-registrable-domain
+  controls whose owning form also contains a usable password field. Standalone
+  email or username forms do not receive a launcher. The menu receives only
+  exact-host and same-registrable-domain
   Credential presentation data (label, username, domain, Vault and match scope),
   never a password/TOTP/custom value. Related-host accounts are labelled and
   require a one-shot explicit entry choice; they are never auto-selected. While
@@ -77,7 +79,8 @@ release candidates.
   [`AUTOFILL-POLICY.md`](AUTOFILL-POLICY.md). Scripted focus alone cannot
   repeat or submit a fill. A separate
   explicit enter-arrow action fills and submits the owning form. The final
-  pre-write gate remains bound to the exact live host and document.
+  pre-write gate remains bound to the exact live host, document, and isolated-
+  world identity of the discovered username/password/form tuple.
 - Repeated website entries are grouped by host. Expanding a group decrypts only
   its usernames for transient extension-owned display and shows each account's
   Vault; the collapsed group shows only its login count and the persistent

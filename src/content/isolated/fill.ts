@@ -3,7 +3,7 @@
  *
  * This is deliberately the simplest heuristic that works for a standard login
  * form: find the first fillable `input[type=password]`, and the nearest fillable
- * text/email field before it (same form when there is one). Full field detection
+ * text/email field associated with the same form. Full field detection
  * — richer heuristics, multi-step logins, an inline menu — is CVT-371/372; this
  * only has to cover the common case and fail cleanly ("No login form found")
  * otherwise.
@@ -20,6 +20,12 @@ import { matchesTab } from "@shared/security/domain";
 type TextLikeInput = HTMLInputElement;
 type FillControl = HTMLInputElement | HTMLTextAreaElement;
 
+export interface LoginTarget {
+  readonly username: HTMLInputElement;
+  readonly password: HTMLInputElement;
+  readonly form: HTMLFormElement;
+}
+
 const USERNAME_TYPES = new Set(["text", "email", "tel", ""]);
 const CARD_AUTOCOMPLETE_KIND: Readonly<Record<string, FillField["kind"]>> = {
   "cc-name": "cardholder",
@@ -29,9 +35,9 @@ const CARD_AUTOCOMPLETE_KIND: Readonly<Record<string, FillField["kind"]>> = {
   "cc-exp": "card-expiry",
 };
 
-/** Attribute-only visibility check (no layout needed, so it is testable in jsdom). */
-function isFillable(input: FillControl): boolean {
-  if (input.disabled || input.readOnly) return false;
+/** Fail closed for disabled, hidden, or page-CSS-hidden controls. */
+export function isFillable(input: FillControl): boolean {
+  if (input.disabled || input.matches(":disabled") || input.readOnly) return false;
   if (input.hidden || (input instanceof HTMLInputElement && input.type === "hidden")) return false;
   if (input.getAttribute("aria-hidden") === "true") return false;
   const style = input.getAttribute("style") ?? "";
@@ -41,7 +47,59 @@ function isFillable(input: FillControl): boolean {
   if (/opacity\s*:\s*0(?:\D|$)/i.test(style) || /pointer-events\s*:\s*none/i.test(style)) {
     return false;
   }
+  const view = input.ownerDocument.defaultView;
+  if (view === null) return false;
+  for (let element: HTMLElement | null = input; element !== null; element = element.parentElement) {
+    if (element.hidden
+      || element.hasAttribute("inert")
+      || element.getAttribute("aria-hidden") === "true"
+      || (element.tagName === "DIALOG" && !element.hasAttribute("open"))) {
+      return false;
+    }
+    const computed = view.getComputedStyle(element);
+    if (computed.display === "none"
+      || computed.visibility === "hidden"
+      || computed.visibility === "collapse"
+      || Number.parseFloat(computed.opacity) === 0
+      || computed.pointerEvents === "none"
+      || computed.getPropertyValue("content-visibility") === "hidden") {
+      return false;
+    }
+  }
+  const clientRects = input.getClientRects();
+  if (clientRects.length > 0) {
+    const bounds = input.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) return false;
+  }
   return true;
+}
+
+/** Resolve the exact standard-login pair owned by a username control. */
+export function loginTargetFor(input: HTMLInputElement): LoginTarget | null {
+  if (!isFillable(input)) return null;
+  const type = input.type.toLowerCase();
+  if (type !== "email" && type !== "text" && type !== "tel") return null;
+  const form = input.form;
+  if (form === null) return null;
+  for (const control of form.elements) {
+    if (control instanceof HTMLInputElement
+      && control.type.toLowerCase() === "password"
+      && isFillable(control)) {
+      return { username: input, password: control, form };
+    }
+  }
+  return null;
+}
+
+/** Revalidate the same controls and form identity immediately before a DOM write. */
+export function isCurrentLoginTarget(target: LoginTarget): boolean {
+  if (!target.username.isConnected || !target.password.isConnected || !target.form.isConnected) {
+    return false;
+  }
+  const current = loginTargetFor(target.username);
+  return current !== null
+    && current.form === target.form
+    && current.password === target.password;
 }
 
 function firstFillablePassword(doc: Document): HTMLInputElement | null {
@@ -52,23 +110,33 @@ function firstFillablePassword(doc: Document): HTMLInputElement | null {
 }
 
 /**
- * The fillable text/email/tel field immediately preceding the password in DOM
- * order — scoped to the password's own form when it has one, else the document.
- * "Immediately preceding" = the last such field that appears before the password.
+ * The nearest fillable text/email/tel field associated with the password's form.
+ * Prefer the last matching field before the password, then the first one after
+ * it so discovery and fill accept the same form-associated control topologies.
  */
 function usernameFieldFor(
   doc: Document,
   password: HTMLInputElement,
 ): TextLikeInput | null {
-  const scope: ParentNode = password.form ?? doc;
-  const candidates = scope.querySelectorAll<HTMLInputElement>("input");
+  const candidates = password.form === null
+    ? Array.from(doc.querySelectorAll<HTMLInputElement>("input"))
+    : Array.from(password.form.elements).filter(
+        (control): control is HTMLInputElement => control instanceof HTMLInputElement,
+      );
   let previous: TextLikeInput | null = null;
+  let following: TextLikeInput | null = null;
+  let reachedPassword = false;
   for (const input of candidates) {
-    if (input === password) break;
+    if (input === password) {
+      reachedPassword = true;
+      continue;
+    }
     const type = input.getAttribute("type")?.toLowerCase() ?? "";
-    if (USERNAME_TYPES.has(type) && isFillable(input)) previous = input;
+    if (!USERNAME_TYPES.has(type) || !isFillable(input)) continue;
+    if (!reachedPassword) previous = input;
+    else if (following === null) following = input;
   }
-  return previous;
+  return previous ?? (password.form === null ? null : following);
 }
 
 /** Set a controlled input's value so React/Vue-style frameworks observe the change. */
@@ -119,12 +187,35 @@ export function performFill(doc: Document, fields: readonly FillField[]): FillOu
   return { ok: true };
 }
 
+/** Fill only the exact login pair captured by inline discovery. */
+export function performLoginTargetFill(
+  target: LoginTarget,
+  fields: readonly FillField[],
+): FillOutcome {
+  if (!isCurrentLoginTarget(target)
+    || target.username.value !== ""
+    || target.password.value !== "") {
+    return { ok: false, reason: "no-form" };
+  }
+  for (const field of fields) {
+    if (field.kind === "username") setFieldValue(target.username, field.value);
+    else if (field.kind === "password") {
+      if (!isCurrentLoginTarget(target) || target.password.value !== "") {
+        return { ok: false, reason: "no-form" };
+      }
+      setFieldValue(target.password, field.value);
+    }
+  }
+  return { ok: true };
+}
+
 /** Final isolated-world binding check immediately before any DOM write. */
 export function performBoundFill(
   doc: Document,
   message: FillRequestMessage,
   currentUrl: string,
   currentDocumentId: string,
+  loginTarget: LoginTarget | null = null,
 ): FillOutcome {
   if (currentDocumentId !== message.documentId) {
     return { ok: false, reason: "target-changed" };
@@ -140,10 +231,16 @@ export function performBoundFill(
   if (message.expectedDomain !== null && !matchesTab(currentUrl, message.expectedDomain)) {
     return { ok: false, reason: "target-changed" };
   }
-  const outcome = performFill(doc, message.fields);
+  const outcome = message.loginTargetId === null
+    ? performFill(doc, message.fields)
+    : loginTarget === null
+      ? { ok: false as const, reason: "no-form" as const }
+      : performLoginTargetFill(loginTarget, message.fields);
   if (!outcome.ok || !message.submit) return outcome;
 
-  const password = firstFillablePassword(doc);
+  const password = message.loginTargetId === null
+    ? firstFillablePassword(doc)
+    : loginTarget?.password ?? null;
   if (password === null || !submitLoginForm(password)) {
     return { ok: false, reason: "no-form" };
   }
