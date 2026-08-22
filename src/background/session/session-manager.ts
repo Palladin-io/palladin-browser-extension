@@ -57,6 +57,8 @@ import {
   type SessionTokens,
 } from "./types";
 
+const ANTI_ENUMERATION_ACCOUNT_ID = "00000000-0000-4000-8000-000000000000";
+
 export interface SessionManagerDeps {
   store: SessionStore;
   authClient: AuthClient;
@@ -341,13 +343,9 @@ export class SessionManager {
     this.assertLifecycleGeneration(generation);
     this.assertApiUrl(apiUrl);
     this.assertLoginBootstrap(bootstrap);
-    if (!bootstrap.accountId) {
-      throw new SessionError("invalid-credentials", "Invalid email or master password");
-    }
-
-    const completeBootstrap = { ...bootstrap, accountId: bootstrap.accountId };
+    const derivationAccountId = bootstrap.accountId ?? ANTI_ENUMERATION_ACCOUNT_ID;
     const salt = fromBase64Url(bootstrap.kdfSalt, 16);
-    const identity = await deriveIdentityV1(password, bootstrap.accountId, salt);
+    const identity = await deriveIdentityV1(password, derivationAccountId, salt);
     this.trackInFlightKeyMaterial(identity.masterKey);
     this.trackInFlightKeyMaterial(identity.authCredential);
     let transferredMasterKey = false;
@@ -362,6 +360,10 @@ export class SessionManager {
       }, apiUrl);
       this.assertLifecycleGeneration(generation);
       this.assertApiUrl(apiUrl);
+      if (!bootstrap.accountId) {
+        throw new SessionError("invalid-credentials", "Invalid email or master password");
+      }
+      const completeBootstrap = { ...bootstrap, accountId: bootstrap.accountId };
       if (isTotpRequired(response)) {
         const pending: PendingTotpContext = {
           challengeToken: response.challengeToken,

@@ -28,6 +28,7 @@
   "auth.unlock.biometric": "Unlock with Touch ID",
   "error.generic": "Something went wrong. Try again.",
   "error.network": "Can't reach Palladin. Check your connection and try again.",
+  "error.rateLimited": "Too many attempts. Try again later.",
   "error.noAccountMaterial": "This account isn't set up for unlock yet. Finish setup in the web panel.",
   "error.unsupportedSecurity": "This account requires a newer Palladin security version. Update the extension and try again.",
   "error.sessionExpired": "Your session has expired. Sign in again.",

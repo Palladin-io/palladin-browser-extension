@@ -23,6 +23,7 @@ export class PopupSessionError extends Error {
 
 const SHARED: Partial<Record<SessionErrorCode, TranslationKey>> = {
   network: "error.network",
+  "rate-limited": "error.rateLimited",
   "no-account-material": "error.noAccountMaterial",
   "unsupported-security": "error.unsupportedSecurity",
   "not-authenticated": "error.sessionExpired",
