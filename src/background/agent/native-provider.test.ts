@@ -229,6 +229,63 @@ describe("authenticated native Agent provider", () => {
     expect(fill.sendStep).not.toHaveBeenCalled();
   });
 
+  it("reports only structural form failures as a stale Form Discovery Map", async () => {
+    const cases = [
+      { outcome: "no-password-field" as const, expected: "stale-form-map" },
+      { outcome: "no-submit-control" as const, expected: "stale-form-map" },
+      { outcome: "ambiguous-form" as const, expected: "stale-form-map" },
+      { outcome: "origin-mismatch" as const, expected: "origin-mismatch" },
+      { outcome: "insecure-origin" as const, expected: "insecure-origin" },
+      { outcome: "provider-unavailable" as const, expected: "provider-unavailable" },
+    ];
+
+    for (const item of cases) {
+      const fill = deps();
+      fill.sendStep.mockResolvedValue({ ok: false, outcome: item.outcome });
+
+      const response = await preparedInject(fill, replay(), request({
+        transactionId: `tx-${item.outcome}`,
+      }));
+
+      expect(response).toMatchObject({
+        transactionId: `tx-${item.outcome}`,
+        outcome: item.expected,
+      });
+    }
+  });
+
+  it("separates a stale transition selector from origin and transport failures", async () => {
+    const cases = [
+      { status: "missing" as const, expected: "stale-form-map" },
+      { status: "ambiguous" as const, expected: "stale-form-map" },
+      { status: "origin-mismatch" as const, expected: "origin-mismatch" },
+      { status: "insecure-origin" as const, expected: "insecure-origin" },
+      { status: null, expected: "provider-unavailable" },
+    ];
+
+    for (const item of cases) {
+      const fill = deps();
+      fill.probeTransition.mockResolvedValue(
+        item.status === null ? null : { status: item.status },
+      );
+
+      const response = await preparedInject(fill, replay(), request({
+        transactionId: `tx-transition-${item.expected}`,
+        form: {
+          version: 1,
+          steps: [{
+            fields: [{ entryFieldId: "credential.username", selector: "#user", control: "username" }],
+            submit: { action: "click", selector: "#next" },
+            waitFor: { selector: "#pass", timeoutMs: 100 },
+          }],
+        },
+        values: [{ entryFieldId: "credential.username", value: "fixture-user" }],
+      }));
+
+      expect(response).toMatchObject({ outcome: item.expected });
+    }
+  });
+
   it("maps replay and malformed frames to Rust-supported value-free outcomes", async () => {
     const replayed = await preparedInject(deps(), replay(false), request());
     expect(replayed).toMatchObject({ transactionId: "tx-1", outcome: "rejected" });

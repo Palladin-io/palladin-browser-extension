@@ -24,7 +24,9 @@ credentials, keys, scripts and cards, and card autofill for cardholder, PAN,
 expiry, and billing fields. Agent Inject has a typed
 `form+values` provider, authenticated channel, and explicit out-of-band runtime
 pairing. It stays fail-closed until the user verifies and confirms the runtime's
-public-key fingerprint; production native-runtime packaging remains a release gate.
+public-key fingerprint. Once paired, the Agent Inject bridge starts independently
+of the popup and Vault lock state; the native runtime remains the grant, key and
+credential boundary. Production native-runtime packaging remains a release gate.
 The popup defaults to `https://api.palladin.io` and exposes an extension-owned
 server setting for staging, localhost, or an HTTPS self-hosted deployment.
 Changing the server signs out the current session and clears the local encrypted

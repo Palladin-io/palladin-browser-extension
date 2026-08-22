@@ -10,6 +10,7 @@ import {
 } from "./native-provider";
 import {
   beginNativeAgentPairingMutation,
+  connectNativeAgentProvider,
   connectPairedNativeAgentProvider,
   disconnectNativeAgentProvider,
   gateAgentFillDeps,
@@ -92,6 +93,19 @@ function stubChrome(
 }
 
 describe("secure Native Messaging frame boundary", () => {
+  it("starts the paired bridge without consulting Vault lock or popup state", async () => {
+    const fingerprint = await injectHostKeyFingerprint(PUBLIC_KEY);
+    const { connectNative } = stubChrome({
+      hostSigningPublicKey: PUBLIC_KEY,
+      fingerprint,
+      intentToken: INTENT_TOKEN,
+    });
+
+    connectNativeAgentProvider();
+
+    await vi.waitFor(() => expect(connectNative).toHaveBeenCalledOnce());
+  });
+
   it("does not open Native Messaging without a pre-existing verified host pin", async () => {
     const { connectNative } = stubChrome(undefined);
     await connectPairedNativeAgentProvider();

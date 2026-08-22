@@ -149,7 +149,9 @@ export async function handleAgentInjection(
         wipeValues(stepValues);
       }
       if (outcome === null) return result(request.transactionId, "provider-unavailable");
-      if (!outcome.ok) return result(request.transactionId, outcome.outcome);
+      if (!outcome.ok) {
+        return result(request.transactionId, normalizeFormFailure(outcome.outcome));
+      }
 
       if (step.waitFor !== undefined) {
         const transition = await waitForTransition(
@@ -177,6 +179,7 @@ async function waitForTransition(
     new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
   const timeout = transition.timeoutMs ?? DEFAULT_TRANSITION_TIMEOUT_MS;
   const attempts = Math.max(1, Math.ceil(timeout / TRANSITION_POLL_MS));
+  let sawStructuralMiss = false;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     await wait(TRANSITION_POLL_MS);
     const current = await deps.getActivePage();
@@ -185,12 +188,24 @@ async function waitForTransition(
     const origin = originFailure(current.page.url, expectedDomain);
     if (origin !== null) return origin;
     const outcome = await deps.probeTransition(tabId, expectedDomain, transition.selector);
-    if (outcome === null || outcome.status === "missing") continue;
+    if (outcome === null) continue;
+    if (outcome.status === "missing") {
+      sawStructuralMiss = true;
+      continue;
+    }
     if (outcome.status === "ready") return null;
-    if (outcome.status === "ambiguous") return "ambiguous-form";
+    if (outcome.status === "ambiguous") return "stale-form-map";
     return outcome.status;
   }
-  return "provider-unavailable";
+  return sawStructuralMiss ? "stale-form-map" : "provider-unavailable";
+}
+
+function normalizeFormFailure(outcome: AgentInjectFailure): AgentInjectFailure {
+  return outcome === "no-password-field"
+    || outcome === "no-submit-control"
+    || outcome === "ambiguous-form"
+    ? "stale-form-map"
+    : outcome;
 }
 
 function originFailure(url: string, expectedDomain: string): AgentInjectFailure | null {

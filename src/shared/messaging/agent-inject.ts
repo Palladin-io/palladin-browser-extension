@@ -93,6 +93,7 @@ export type AgentInjectFailure =
   | "origin-mismatch"
   | "insecure-origin"
   | "ambiguous-form"
+  | "stale-form-map"
   | "provider-unavailable";
 
 export type AgentInjectStepOutcome =
@@ -170,7 +171,7 @@ export function parseAgentInjectValues(
     if (!isRecord(item) || !onlyKeys(item, ["entryFieldId", "value"])
       || typeof item.entryFieldId !== "string" || !required.has(item.entryFieldId)
       || seen.has(item.entryFieldId) || typeof item.value !== "string"
-      || item.value.length > MAX_FIELD_LENGTH) return null;
+      || item.value.length < 1 || item.value.length > MAX_FIELD_LENGTH) return null;
     seen.add(item.entryFieldId);
     values.push(item as unknown as AgentInjectFieldValue);
   }
@@ -305,6 +306,7 @@ function isAgentInjectFailure(value: unknown): value is AgentInjectFailure {
     || value === "origin-mismatch"
     || value === "insecure-origin"
     || value === "ambiguous-form"
+    || value === "stale-form-map"
     || value === "provider-unavailable";
 }
 
