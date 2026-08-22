@@ -71,6 +71,13 @@ describe("Agent Inject contract", () => {
       ...injection(),
       values: [{ entryFieldId: "credential.username", value: "fixture-user" }],
     })).toBeNull();
+    const emptyValue = injection();
+    emptyValue.values = [
+      { entryFieldId: "credential.username", value: "" },
+      { entryFieldId: "credential.password", value: "fixture-password" },
+      { entryFieldId: "credential.totp", value: "123456" },
+    ];
+    expect(parseAgentInjectionRequest(emptyValue)).toBeNull();
     const duplicate = form();
     const steps = duplicate.steps as Array<Record<string, unknown>>;
     const first = steps[0];
@@ -121,6 +128,7 @@ describe("Agent Inject contract", () => {
       selector: "#password",
     })).toBe(true);
     expect(isAgentInjectStepOutcome({ ok: true })).toBe(true);
+    expect(isAgentInjectStepOutcome({ ok: false, outcome: "stale-form-map" })).toBe(true);
     expect(isAgentInjectStepOutcome({ ok: false, outcome: "replayed" })).toBe(false);
     expect(isAgentInjectTransitionOutcome({ status: "ambiguous" })).toBe(true);
     expect(isAgentInjectTransitionOutcome({ status: "unknown" })).toBe(false);
