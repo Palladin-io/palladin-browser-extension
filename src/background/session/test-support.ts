@@ -156,6 +156,8 @@ export interface MockBackendOptions {
   logoutResponse?: Promise<Response>;
 }
 
+const PSEUDO_ACCOUNT_ID = "ffeeddcc-bbaa-4a99-8877-665544332211";
+
 export interface MockBackend {
   fetch: FetchLike;
   calls: string[];
@@ -194,7 +196,7 @@ export function mockBackend(
     if (url.endsWith("/api/auth/login/salt")) {
       if (body["profileId"] !== IDENTITY_KDF_PROFILE_ID) return Promise.resolve(json(null, 400));
       return Promise.resolve(json({
-        accountId: body["email"] === options.unknownEmail ? null : account.accountId,
+        accountId: body["email"] === options.unknownEmail ? PSEUDO_ACCOUNT_ID : account.accountId,
         profileId: IDENTITY_KDF_PROFILE_ID,
         securityVersion: IDENTITY_SECURITY_VERSION,
         kdfSalt: account.kdfSalt,

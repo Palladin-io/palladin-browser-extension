@@ -107,8 +107,10 @@ worker's session, key, or authorization state.
    unlocked session retryable; an explicit refresh rejection still clears the
    session fail-closed.
    Password authentication uses the shared `identity-argon2id-password-v1`
-   profile and strict bootstrap/account-state binding. A pending TOTP challenge
-   owns only its derived master key in worker memory, is bound to the exact API
+   profile and strict bootstrap/account-state binding. Unknown emails receive a
+   same-shaped deterministic pseudo AccountId and salt, so the worker runs the
+   identical KDF and backend login path without a local sentinel. A pending TOTP
+   challenge owns only its derived master key in worker memory, is bound to the exact API
    URL and lifecycle generation, and is wiped on cancel, logout, server change,
    failed completion, or a five-minute worker-owned expiry; the popup never
    retains the master password.

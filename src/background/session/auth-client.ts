@@ -35,7 +35,7 @@ export interface TotpRequiredResponse {
 export type PasswordLoginResponse = AuthResponse | TotpRequiredResponse;
 
 export interface LoginKdfBootstrap {
-  readonly accountId: string | null;
+  readonly accountId: string;
   readonly profileId: string;
   readonly securityVersion: number;
   readonly kdfSalt: string;
