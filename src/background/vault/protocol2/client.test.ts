@@ -164,6 +164,18 @@ describe('Protocol2VaultClient transport boundary', () => {
     expect(String(doFetch.mock.calls[0]?.[0])).toBe(`${API}/api/vaults?limit=200&offset=0`)
   })
 
+  it('requests a token refresh only for HTTP 401', async () => {
+    const client = new Protocol2VaultClient(async () => json({}, 401), API)
+
+    await expect(client.listVaults(TOKEN)).rejects.toMatchObject({ code: 'unauthorized' })
+  })
+
+  it('does not treat an authorization HTTP 403 as an expired session', async () => {
+    const client = new Protocol2VaultClient(async () => json({}, 403), API)
+
+    await expect(client.listVaults(TOKEN)).rejects.toMatchObject({ code: 'network' })
+  })
+
   it('rejects a declared body above the hard byte budget before parsing', async () => {
     const doFetch = vi.fn(async () => new Response(new ReadableStream(), {
       status: 200,

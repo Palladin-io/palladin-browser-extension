@@ -140,7 +140,7 @@ export class Protocol2VaultClient {
     } catch {
       throw new VaultClientError('network', `Request to ${path} failed`)
     }
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
       throw new VaultClientError('unauthorized', `Auth rejected at ${path}`)
     }
     return response

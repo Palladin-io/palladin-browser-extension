@@ -203,6 +203,7 @@ export class SessionManager {
    * Rotate the access token via the refresh token and persist the new pair.
    * Returns the fresh access token, or null when there is no session or the
    * refresh is rejected (the caller then treats the request as unauthenticated).
+   * Transient transport failures preserve the bound session and are rethrown.
    */
   refreshAccessToken(): Promise<string | null> {
     if (this.refreshInFlight) return this.refreshInFlight;
@@ -245,12 +246,11 @@ export class SessionManager {
       const replacementTokens: SessionTokens = {
         accessToken: auth.accessToken,
         refreshToken: auth.refreshToken,
-        userId: auth.userId,
+        // Refresh rotates credentials for the already-bound session. The
+        // backend intentionally returns no duplicate account identity.
+        userId: tokens.userId,
         apiUrl: tokens.apiUrl,
       };
-      if (replacementTokens.userId !== envelope.context.accountId) {
-        throw new SessionError("not-authenticated", "Refreshed session account changed");
-      }
       const replacement = await this.sealDurablePayload(
         { state: "active", ...replacementTokens },
         keys.masterKey,
@@ -271,6 +271,27 @@ export class SessionManager {
           );
         }
         throw error;
+      }
+      if (
+        error instanceof SessionError
+        && error.code === "network"
+        && pendingEnvelope
+      ) {
+        let restored = false;
+        try {
+          restored = await this.restoreSealedSessionIfMatches(
+            pendingEnvelope,
+            envelope,
+            generation,
+          );
+        } catch {
+          // Fall through to the fail-closed cleanup when durable recovery fails.
+        }
+        if (!this.isLifecycleCurrent(generation)) return null;
+        if (restored) {
+          this.tokens = tokens;
+          throw error;
+        }
       }
       // A pending marker means the durable session cannot be proven current.
       // Clear it before returning so neither old nor unpersisted rotated tokens
@@ -930,13 +951,15 @@ export class SessionManager {
     expected: BrowserSessionEnvelope,
     replacement: BrowserSessionEnvelope,
     generation: number,
-  ): Promise<void> {
+  ): Promise<boolean> {
     return this.runDurableMutation(async () => {
       this.assertLifecycleGeneration(generation);
       const current = await this.store.getSealedSession();
       if (current?.encodedSuitePayload === expected.encodedSuitePayload) {
         await this.store.setSealedSession(replacement);
+        return true;
       }
+      return false;
     });
   }
 
