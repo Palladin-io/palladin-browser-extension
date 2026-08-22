@@ -100,7 +100,7 @@ export function PairingScreen({ client, embedded = false }: PairingScreenProps):
   return (
     <section className="pairing-screen">
       {embedded ? null : <h2 className="screen-title">{t("pairing.title")}</h2>}
-      <p className="screen-subtitle">{t("pairing.instructionsBefore")}</p>
+      <p className="screen-subtitle">{t("pairing.instructions")}</p>
       <div className="pairing-command">
         <code>{INSTALL_COMMAND}</code>
         <Button variant="subtle" onClick={() => void copyInstallCommand()}>
@@ -111,7 +111,6 @@ export function PairingScreen({ client, embedded = false }: PairingScreenProps):
               : t("common.copy")}
         </Button>
       </div>
-      <p className="screen-subtitle">{t("pairing.instructionsAfter")}</p>
       {detecting ? (
         <div className="centered pairing-loading">
           <Spinner />
