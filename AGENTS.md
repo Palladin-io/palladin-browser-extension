@@ -31,7 +31,7 @@ treat any violation below as a Critical (blocking) finding.
   overlay, or read (anti-clickjacking).
 - **Strict eTLD+1 origin gate before every fill.** The frame's eTLD+1 (Public
   Suffix List) must equal the entry's registered domain; HTTPS-only; re-checked
-  after navigation. Automatic and exact-match fill never crosses stored hosts.
+  after navigation. Every exact-match fill remains bound to the stored host.
   A sibling host may be shown only as a related-site candidate and filled only
   after a closed-surface, per-entry choice for that one operation; the final DOM
   write is rebound to the exact live host. An entry with no domain is fail-closed.

@@ -22,6 +22,8 @@ export interface InlineAutofillDeps {
     vaultId: string,
     entryId: string,
     scope: "exact" | "related",
+    capabilityId: string,
+    submit: boolean,
   ): Promise<FillResult>;
   readonly recency?: InlineAutofillRecency;
 }
@@ -101,7 +103,14 @@ export async function handleInlineAutofillContentMessage(
       return { ok: true, kind: "suggestions", status: "ready", entries };
     }
     if (status !== "unlocked") return { ok: true, kind: "fill", status: "blocked" };
-    const fill = await deps.fill(source, raw.vaultId, raw.entryId, raw.scope);
+    const fill = await deps.fill(
+      source,
+      raw.vaultId,
+      raw.entryId,
+      raw.scope,
+      raw.capabilityId,
+      raw.submit,
+    );
     if (fill.status === "filled" && raw.scope === "exact") {
       deps.recency?.remember(source.url, raw.vaultId, raw.entryId);
     }

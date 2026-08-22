@@ -70,11 +70,43 @@ release candidates.
   never a password/TOTP/custom value. Related-host accounts are labelled and
   require a one-shot explicit entry choice; they are never auto-selected. An
   explicit selection is document-bound and remains fill-only. The first exact
-  match fills on a real browser user activation; a successfully selected exact
+  match fills only after a trusted click on that active field with transient
+  browser user activation; a successfully selected exact
   account is preferred for that host until lock, using memory only. Scripted
-  focus cannot fill. A separate
+  focus, synthetic clicks, passive scans and session/sync retries cannot fill. A separate
   explicit enter-arrow action fills and submits the owning form. The final
-  pre-write gate remains bound to the exact live host and document.
+  pre-write gate remains bound to the exact live host and document. Inline fills
+  carry a single-use capability for the clicked input, its one-password owning
+  form, initial state and observed DOM generation. A delegated capture listener
+  is installed before discovery/UI work at `document_start`, so direct-field
+  state and the browser-retargeted closed-surface host are bound before later
+  page capture/target/bubble handlers. The closed-surface capability remains
+  pending from launcher/menu open to the exact option action and cannot be
+  freshly minted by that option. Launcher issuance and the exact option action
+  check pinned host styles, transparent/generated paint, exact host-to-input
+  geometry, document/shadow hit tests and the bounded outbound-paint
+  light/open-shadow scan (plus exact shadow focus for keyboard activation). The
+  final input gate repeats registered-host anchor and pseudo-paint validation.
+  Outbound outline/shadow/filter/text paint, including paint on the exact bound
+  control, is rejected independently of pointer-event mode and layout rectangle;
+  only a tightly bounded active native focus ring is allowed. Non-text generated
+  pseudo content such as URL/images and counters is paint even with transparent
+  text color. Host pinning uses explicit important
+  longhands plus computed state, not Chromium's unstable serialized `all`
+  shorthand value. Only an authentic host proven `display:none` in both inline
+  and computed state is ignored as non-painting, allowing responsive hidden
+  duplicate forms without weakening visible-host validation.
+  The isolated world
+  consumes the capability before use and keeps its mutation observer live while
+  re-checking exact references, paint-affecting ancestor styles, opaque control
+  paint, geometry, sampled hit tests, overlapping geometry, generated
+  `::before`/`::after` paint, recursively inspected open shadow roots,
+  disabled/inert state and form ownership before writes. Optional submit calls
+  the exact form with no submitter and requires unchanged form state plus a
+  browser-effective HTTPS same-origin action; it does not fall through to
+  another form or button override. These are conservative sampled DOM/CSS checks
+  rather than complete paint-tree or pixel-level image analysis; closed page
+  shadow internals are not enumerable, so overlapping hosts fail closed.
 - Repeated website entries are grouped by host. Expanding a group decrypts only
   its usernames for transient extension-owned display and shows each account's
   Vault; the collapsed group shows only its login count and the persistent

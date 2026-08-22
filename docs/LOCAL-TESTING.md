@@ -127,12 +127,14 @@ Then:
 
 1. Open the controlled HTTPS page in the active tab.
 2. Focus the username/email field. Confirm exactly one Palladin shield appears
-   beside that field (not beside the password) and opens a suggestion menu containing only the matching
-   entry name, username, hostname, and Vault name. Confirm it uses the packaged
-   Palladin icon rather than a separately drawn lookalike.
-3. Confirm a real click/focus fills the first exact-host username and password
-   without submitting. Programmatic page `focus()` must not fill. With multiple
-   matches, explicitly select another username, refocus the field, and confirm
+   beside that field (not beside the password). Click the shield and confirm it
+   opens a suggestion menu containing only the matching entry name, username,
+   hostname, and Vault name. Confirm it uses the packaged Palladin icon rather
+   than a separately drawn lookalike.
+3. Confirm a real click on the active username field fills the first exact-host
+   username and password without submitting. Passive form discovery, session
+   retries, programmatic page `focus()` and synthetic clicks must not fill. With multiple
+   matches, explicitly select another username, click the active field, and confirm
    that account is now preferred until Palladin locks. After lock/unlock the
    non-persistent preference must be gone. Confirm the account body fills
    without submitting, while the separate
@@ -152,6 +154,65 @@ Then:
    related site and is never auto-selected. Click that exact account to grant a
    one-operation fill and confirm the final write targets only the current live
    host. A different registrable domain must never appear or fill.
+9. Add two visible login forms. Click the username in the second form and confirm
+   the first form remains untouched; the enter-arrow action must submit only the
+   second form. Register a page bubble handler first that changes the clicked
+   input's `form` attribute from the second form to the first; Palladin must fail
+   closed rather than fill the first form. Also register a page window-capture
+   handler after the extension has initialized; while clicking the retargeted
+   closed-surface host, make it change form B to form A before the internal
+   option handler. The capability bound before that handler must be invalidated,
+   and neither form may be filled. Stretch, translate, make transparent, or
+   cover the launcher host before a click and confirm that document/shadow hit
+   tests reject it; an option click without the launcher-bound capability must
+   never mint a replacement. Move the authentic host for form A over form B by
+   rewriting its `left`/`top`; clicking that launcher must neither bind nor fill
+   A or B because its live rectangle is no longer anchored to input A.
+10. Repeat with the clicked field or password hidden by a CSS class/ancestor,
+    transparent, under an `inert` ancestor, disabled by a `<fieldset>`, zero-size,
+    offscreen, made transparent by `filter:opacity(0)` or a mask/clip, stripped of
+    visible paint, covered normally, or covered by a painted
+    `pointer-events:none` overlay. Repeat with opaque full-screen `body::before`
+    and `body::after` overlays for which Chrome's `elementFromPoint` still
+    returns the input, and with a pointer-transparent overlay in an open shadow
+    root. Repeat at the launcher and at an already-open menu option, including a
+    pre-existing fixed `z-index:2147483647; pointer-events:none` overlay for
+    which document and shadow hit tests still return the authentic host/button.
+    Give that overlay a non-overlapping 1px layout rectangle plus a 1000px
+    outline; repeat with outbound box-shadow, text-shadow and filter
+    `drop-shadow`, including from an open shadow descendant and pseudo-element.
+    Repeat outline and box-shadow with `pointer-events:auto` at the field,
+    launcher and already-open option: Chromium still excludes paint outside the
+    border box from hit testing. The paint must be rejected independently of
+    pointer-event mode and `getBoundingClientRect()`.
+    Apply huge outline, box-shadow, text-shadow and filter/drop-shadow directly
+    to the exact clicked/bound input and repeat at the launcher; only an active
+    native `auto` focus outline bounded to 5px width and 2px offset may pass.
+    Set `::before`/`::after { content:url(...); color:transparent }` and repeat
+    with counter content over the exact field and closed surface; non-text
+    generated content must still be classified as paint.
+    Add the same fullscreen painted pseudo-element to the authentic extension
+    host itself, and add inline important outline/shadow/filter properties to
+    that host; direct-field intent, launcher intent, option intent and final
+    write must all fail closed. No credential value may be written. An
+    overlapping host for a closed page shadow root must also fail closed; this
+    is a sampled DOM/CSS gate, not a complete browser paint-tree proof.
+11. Mutate or replace the clicked input/password/form after selection starts but
+    before delivery. The one-use selection must fail closed and must not move to
+    a replacement or another visible form.
+12. Add a responsive duplicate login whose username has zero geometry, so its
+    authentic extension host is exactly `display:none!important`, beside a
+    visible login. The non-painting hidden host must not disable capability
+    issuance or fill for the visible form. Showing, moving, painting, or adding
+    pseudo-content to that host returns it to the full fail-closed validation.
+13. Put a hidden submit button first in the form and give it cross-site
+    `formaction`, `formmethod`, `formenctype`, and `formtarget` overrides. The
+    **Log in** action must call the exact form with no submitter and must not
+    activate those button overrides. The browser-effective `form.action` must be
+    HTTPS and same-origin with the current document. Verify that an HTTP target,
+    an explicit cross-origin HTTPS action, and relative `action="collect"` under
+    both HTTP and cross-origin HTTPS `<base href>` values block before credential
+    values are written.
 
 When Palladin is locked or signed out, use the inline **Open Palladin** action
 and confirm the browser-owned side panel opens on the unlock/sign-in surface.
@@ -167,7 +228,7 @@ for the final live top-frame document, fills that exact document, and submits
 the form that owns the password field. If the active exact-host page already
 contains a login form, it fills and submits in place instead. It does not decrypt
 before the HTTPS host is bound. The explicit **Log in** click is the submit
-authorization; ordinary Fill and automatic exact-host fill remain fill-only. If
+authorization; ordinary Fill and active-field exact-host fill remain fill-only. If
 the site redirects to another host, delivery is rejected. Confirm **Open in
 Palladin** opens the exact Vault/Entry detail deep link.
 

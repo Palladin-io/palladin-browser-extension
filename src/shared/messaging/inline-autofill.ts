@@ -12,6 +12,10 @@ export type InlineAutofillCommand =
       readonly documentId: string;
       readonly vaultId: string;
       readonly entryId: string;
+      /** One-use isolated-world capability bound to the clicked form controls. */
+      readonly capabilityId: string;
+      /** True only for the separate closed-surface Log in action. */
+      readonly submit: boolean;
       /** Related-host fill always requires an explicit closed-surface click. */
       readonly scope: "exact" | "related";
     }
@@ -61,9 +65,20 @@ export function isInlineAutofillCommand(value: unknown): value is InlineAutofill
     return hasOnlyKeys(value, ["channel", "type", "documentId"]);
   }
   if (value.type === "inline/fill") {
-    return hasOnlyKeys(value, ["channel", "type", "documentId", "vaultId", "entryId", "scope"])
+    return hasOnlyKeys(value, [
+      "channel",
+      "type",
+      "documentId",
+      "vaultId",
+      "entryId",
+      "capabilityId",
+      "submit",
+      "scope",
+    ])
       && validOpaqueId(value.vaultId)
       && validOpaqueId(value.entryId)
+      && validCapabilityId(value.capabilityId)
+      && typeof value.submit === "boolean"
       && (value.scope === "exact" || value.scope === "related");
   }
   return false;
@@ -107,6 +122,10 @@ function validDocumentId(value: unknown): value is string {
 
 function validOpaqueId(value: unknown): value is string {
   return typeof value === "string" && value.length >= 1 && value.length <= 256;
+}
+
+function validCapabilityId(value: unknown): value is string {
+  return typeof value === "string" && /^[a-f0-9]{32}$/.test(value);
 }
 
 function validText(value: unknown, limit: number): value is string {

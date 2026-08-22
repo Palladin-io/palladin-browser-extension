@@ -78,6 +78,8 @@ describe("inline autofill content runtime", () => {
       documentId,
       vaultId: "vault-1",
       entryId: "entry-1",
+      capabilityId: "b".repeat(32),
+      submit: false,
       scope: "exact",
     }, sender, "extension-id")).toEqual({ ok: true, kind: "fill", status: "filled" });
     expect(fill).toHaveBeenCalledWith({
@@ -85,7 +87,7 @@ describe("inline autofill content runtime", () => {
       url: "https://accounts.example.com/login",
       documentId,
       browserDocumentId,
-    }, "vault-1", "entry-1", "exact");
+    }, "vault-1", "entry-1", "exact", "b".repeat(32), false);
   });
 
   it("returns same-registrable-domain entries as explicit related choices", async () => {
@@ -130,6 +132,8 @@ describe("inline autofill content runtime", () => {
       documentId,
       vaultId: "vault-1",
       entryId: "entry-2",
+      capabilityId: "b".repeat(32),
+      submit: false,
       scope: "exact",
     }, sender, "extension-id");
 

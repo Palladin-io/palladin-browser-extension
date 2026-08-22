@@ -9,10 +9,11 @@
  * on the direct request channel (which a web page cannot originate or observe)
  * makes that guarantee structural.
  *
- * SECURITY: the worker only ever sends this AFTER clearing every gate (session
- * unlocked, eTLD+1 match re-checked, HTTPS). The content script does not decide
- * whether to fill — it only performs the DOM write for a request it can attribute
- * to our own extension.
+ * SECURITY: the worker only ever sends this AFTER clearing its gates (session
+ * unlocked, host relationship re-checked, HTTPS, tab/document binding). The
+ * isolated content script independently re-checks the live origin/document and
+ * DOM target. Inline fills additionally require its own unconsumed capability;
+ * popup/side-panel fills use null because those surfaces authorize the request.
  */
 
 export type FillFieldKind =
@@ -45,6 +46,11 @@ export interface FillRequestMessage {
   readonly expectedDomain: string | null;
   /** Explicit user intent: submit the owning login form after a successful credential fill. */
   readonly submit: boolean;
+  /**
+   * One-use isolated-world capability for inline autofill. Null for explicit
+   * extension popup/side-panel fills that own their authorization separately.
+   */
+  readonly capabilityId: string | null;
   readonly fields: readonly FillField[];
 }
 
@@ -83,6 +89,7 @@ export function isFillRequestMessage(value: unknown): value is FillRequestMessag
     "expectedOrigin",
     "expectedDomain",
     "submit",
+    "capabilityId",
     "fields",
   ])) {
     return false;
@@ -93,6 +100,7 @@ export function isFillRequestMessage(value: unknown): value is FillRequestMessag
     expectedOrigin?: unknown;
     expectedDomain?: unknown;
     submit?: unknown;
+    capabilityId?: unknown;
     fields?: unknown;
   };
   return (
@@ -107,6 +115,9 @@ export function isFillRequestMessage(value: unknown): value is FillRequestMessag
       message.expectedDomain.length <= 253
     )) &&
     typeof message.submit === "boolean" &&
+    (message.capabilityId === null || (
+      typeof message.capabilityId === "string" && /^[a-f0-9]{32}$/.test(message.capabilityId)
+    )) &&
     Array.isArray(message.fields) &&
     message.fields.length >= 1 &&
     message.fields.length <= 8 &&

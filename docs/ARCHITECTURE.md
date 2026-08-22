@@ -35,12 +35,21 @@ worker's session, key, or authorization state.
   immediate fill.
 - The background service worker owns session and authorization gates. A page
   message alone can never authorize secret access.
-- Security-relevant confirmation belongs to extension-owned UI. A visited page
-  must not be able to read, restyle, or overlay it.
+- Security-relevant confirmation belongs to extension-owned UI. Closed shadow
+  internals are isolated from the visited page, but that isolation alone is not
+  an authorization signal; the page still owns the surrounding document and
+  can manipulate or paint around the host. Capability issuance therefore also
+  requires the sampled host/input geometry and visual-integrity checks below.
 - Login-field suggestions are rendered beside the username/email control by the isolated content script inside a
   closed Shadow DOM. Page CSS/DOM cannot traverse or restyle its internal
-  controls; a hostile page can remove or cover the host, which only makes the
-  affordance unavailable. Before selection it contains the entry label,
+  controls, but page script can remove, move, cover, or attach generated paint
+  to the light-DOM host. The host is therefore bound to the exact input's live
+  rectangle; its explicitly pinned important longhands, computed paint-safe
+  profile, transparent box, `::before`/`::after` paint, and surrounding
+  light/open-shadow paint are checked fail-closed. The verifier does not use the
+  CSS `all` shorthand value as proof because Chromium serializes that value as
+  empty after later longhands. Before
+  selection it contains the entry label,
   username display value, normalized domain, and Vault name, but never the
   password, TOTP seed, notes, or arbitrary fields. Exact-host entries are listed
   first. Sibling hosts under the same registrable domain may be presented as
@@ -48,19 +57,43 @@ worker's session, key, or authorization state.
   closed-surface click on that specific Entry for that one operation. The
   username is decrypted only while unlocked and only after the worker has
   established a browser-authored top-frame sender; its temporary MemberSecret object is scrubbed immediately
-  after the display value is copied. On a real browser user activation the
-  first exact-host match may be selected immediately; a successful exact-host
+  after the display value is copied. A trusted direct click on the active login
+  field, while the browser reports transient user activation, may select the
+  first exact-host match immediately; a successful exact-host
   selection becomes preferred for that host until the session locks. This
   preference exists only in service-worker memory and is never persisted as a
-  cleartext browsing/Entry history. Scripted `focus()` can only open the menu
-  and can never trigger a secret write.
-  Selecting an item sends a
+  cleartext browsing/Entry history. Passive DOM scans and session/sync retries
+  never request a credential or write to the DOM. Scripted `focus()` and
+  synthetic clicks cannot open the menu or trigger a secret write.
+  At its earliest usable `document_start` point, the isolated world installs
+  delegated window-capture pointer/click listeners before discovery and inline
+  UI work. Direct field intent is captured on the exact input. Closed-surface
+  events are retargeted by the browser to the extension host, so the same early
+  listener binds the host's exact input/form state before a later page capture
+  handler can run and retains that pending capability from launcher/menu open to
+  the exact extension-owned option action; an option click cannot mint a fresh
+  capability. Before launcher issuance it verifies the extension host's pinned
+  inline styles, transparent/generated paint, exact host-to-input anchor and
+  launcher geometry, both document and shadow-root hit tests, and the bounded
+  outbound-paint light/open-shadow scan. The same checks run on the exact
+  menu action and again through the final input write gate. Keyboard activation
+  additionally requires exact shadow focus and samples the focused control's
+  center. It issues one pending, random
+  capability only after checking the exact capture target, click coordinates
+  and sampled visual-integrity result. The snapshot therefore precedes later
+  page capture, target, and bubble click handlers. It
+  records the exact username, password and form references, selected attributes
+  and values, plus the local DOM-mutation generation. Selecting an item sends a
   typed request back to the worker; the worker revalidates the browser-authored
   top-frame sender, HTTPS origin, registrable-domain relationship, tab and
-  document before it decrypts and dispatches one immediate fill. A related-site
+  document before it decrypts and dispatches one immediate fill with that opaque
+  capability. The isolated world consumes it before validation, so retries and
+  replay fail. Its dedicated mutation observer remains live through the final
+  write; pending records and the recorded references/state are synchronously
+  revalidated instead of selecting a new form. A related-site
   operation is rebound to the exact live host for the isolated-world pre-write
   check. The page cannot request an entry by itself or
-  cause automatic form submission.
+  cause form submission.
 - The same extension has two separate callers: user autofill and Agent Inject.
   User autofill never authorizes Agent access. Agent Inject requires a pinned
   host signing key plus a signed ephemeral session and AEAD-protected frames;
@@ -189,7 +222,7 @@ orchestration: fill and submit the current exact HTTPS form first, fall back to
 opening the stored host only on `no-form`, then fill and submit its bound form,
 and never turn a target/security failure into navigation. Submit is an explicit
 boolean on the strict worker-to-isolated fill message; only `Log in` sets it,
-while ordinary fills, generator fills, card fills, and automatic fills set it to
+while ordinary fills, generator fills, card fills, and active-field fills set it to
 false. Heavy entry management uses an exact Vault/Entry deep link in a
 separate action row that can later accept actions such as Share. User card
 fill is a separate explicit popup action. It maps canonical card data
@@ -309,8 +342,50 @@ Vault.
 
 The inline account row has two explicit targets. Selecting the account fills
 the bound login form without submitting it. The separate enter-arrow action
-fills and calls `requestSubmit()` on the exact form that owns the username
-launcher field. Scripted page focus cannot invoke either secret-bearing action.
+fills and calls `requestSubmit()` with no submitter on the exact form that owns
+the username launcher field. Consequently, an unbound button's `formaction`,
+`formmethod`, `formenctype`, or `formtarget` cannot become the submit operation;
+the captured form state must still match and the browser-effective `form.action`
+(including `document.baseURI`) must be HTTPS and same-origin with the current
+document.
+Scripted page focus cannot invoke either secret-bearing action.
+
+Before each write, the isolated world requires opacity `1` and no non-default
+filter, backdrop-filter, clip, mask, or blend effect through every ancestor. It
+also requires an opaque control background/border, non-zero on-screen geometry,
+normal `elementFromPoint` ownership at the click/control-center samples, and no
+additional element geometry overlapping those samples among the bounded light
+DOM and recursively inspected open shadow roots. The scan also checks generated
+`::before`/`::after` paint, including generated paint on authentic registered
+extension hosts, failing closed when a painted pseudo-element's box cannot be
+proven not to cover the sample. Registered hosts
+are exempt only for their exact transparent 26px box after their live position
+has been recomputed from the bound input; moving host A to input/form B fails.
+For every inspected page element or pseudo-element capable of occluding the
+exact control/surface, including the exact bound controls themselves, outbound outline,
+box-shadow, text-shadow, filter/drop-shadow, border-image, text-stroke,
+decoration, and reflection paint fails closed independently of pointer-event
+mode and layout rectangle; hit-test boxes do not include that paint. The only
+outline exception is the active browser-native `auto` focus ring when its width
+and offset remain tightly bounded. Generated URL/image, counter, quote-token,
+attribute and mixed `content` values are treated as paint independently of text
+color; only a single literal string can be classified as transparent text. A registered host whose
+inline and computed display are both exactly `none` is non-painting and may be
+ignored, so a responsive hidden duplicate does not disable a separate visible
+login. Visible registered hosts still require the full anchor and paint-safe
+profile. This is
+deliberately conservative because browser hit testing omits outbound paint even
+when its element accepts pointer events; more than 10,000 inspected elements
+fails closed. Closed page-shadow
+internals are not exposed by browser DOM APIs, so an overlapping host fails
+closed, but paint overflowing beyond a non-overlapping closed host is not
+independently enumerable. Inline fill requires exactly one visible password
+after the clicked username in that form. The exact references and initial
+control/form state are checked again after page `input`/`change` handlers and
+immediately before an optional submit. Hidden, paintless, inert, disabled,
+filtered/masked/clipped, zero-size, offscreen, sampled-point-occluded, mutated,
+and cross-form targets fail closed. These are sampled CSS/DOM checks, not a
+claim of complete browser paint-tree or pixel-level screenshot analysis.
 The overlay sets its own important-priority system font stack and does not
 inherit typography from the visited site. Its surface reuses the web panel's
 light/dark notification gradients.

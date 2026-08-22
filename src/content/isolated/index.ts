@@ -35,7 +35,7 @@ import { isCaptureFillRequestMessage } from "@shared/messaging/capture";
 
 import { startPasswordCaptureDetection } from "./capture";
 import { inspectAgentInjectTransition, performAgentInjectStep } from "./agent-inject";
-import { performBoundFill } from "./fill";
+import { OneShotInlineFillCapabilities, performBoundFill } from "./fill";
 import { createReconnectingWorkerPort } from "./worker-port";
 import { createSessionKeepalive } from "./session-keepalive";
 import { startInlineAutofill } from "./inline-autofill";
@@ -43,6 +43,18 @@ import { startInlineAutofill } from "./inline-autofill";
 const sessionNonce = generateNonce();
 const documentId = generateNonce();
 const selfOrigin = window.location.origin;
+// Install the delegated capture listener at the first usable document_start
+// point, before connection/session setup or any page-targeted bridge work.
+const inlineFillCapabilities = new OneShotInlineFillCapabilities();
+const inlineAutofill = window.top === window
+  ? startInlineAutofill(
+      document,
+      documentId,
+      (command) => chrome.runtime.sendMessage(command),
+      undefined,
+      inlineFillCapabilities,
+    )
+  : null;
 
 let port: ReturnType<typeof createReconnectingWorkerPort>;
 const sessionKeepalive = createSessionKeepalive(
@@ -88,10 +100,6 @@ const passwordCapture = startPasswordCaptureDetection(
   },
   window.top === window,
 );
-const inlineAutofill = window.top === window
-  ? startInlineAutofill(document, documentId)
-  : null;
-
 // Fill requests arrive as a direct, tab-addressed runtime message from the
 // worker (never the page). We perform the DOM write here in the isolated world
 // and reply with the outcome. The secret value stays in this world — it is
@@ -100,10 +108,6 @@ const inlineAutofill = window.top === window
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (isSurfaceStateEvent(message)) {
     inlineAutofill?.invalidateSuggestions();
-    if (message.type === "surface/vault-changed"
-      || (message.type === "surface/session-changed" && message.status === "unlocked")) {
-      inlineAutofill?.retryAutomaticFill();
-    }
     return undefined;
   }
   if (isTabUrlRequestMessage(message)) {
@@ -139,6 +143,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     message,
     window.location.href,
     documentId,
+    inlineFillCapabilities,
   );
   sendResponse(outcome);
   return undefined;

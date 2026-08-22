@@ -12,6 +12,7 @@ const request = {
   expectedOrigin: "https://accounts.example.com",
   expectedDomain: "example.com",
   submit: false,
+  capabilityId: null,
   fields: [{ kind: "password", value: "secret" }],
 } as const;
 
@@ -24,6 +25,7 @@ describe("fill message guards", () => {
     expect(isFillRequestMessage({ ...request, documentId: "" })).toBe(false);
     expect(isFillRequestMessage({ ...request, expectedOrigin: "http://accounts.example.com" })).toBe(false);
     expect(isFillRequestMessage({ ...request, expectedOrigin: "https://accounts.example.com/login" })).toBe(false);
+    expect(isFillRequestMessage({ ...request, capabilityId: "bad" })).toBe(false);
     const { submit: _submit, ...withoutSubmit } = request;
     expect(isFillRequestMessage(withoutSubmit)).toBe(false);
     expect(isFillRequestMessage({ ...request, unexpected: true })).toBe(false);

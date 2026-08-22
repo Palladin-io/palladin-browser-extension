@@ -147,6 +147,7 @@ export interface VaultCommandDeps {
     expectedDomain: string | null,
     fields: readonly FillField[],
     submit: boolean,
+    capabilityId: string | null,
   ): Promise<FillOutcome>;
   /** Schedule the clipboard wipe after a value was copied. */
   clipboard: { readonly available: boolean; arm(): void };
@@ -207,7 +208,7 @@ async function fillGeneratedValue(deps: VaultCommandDeps, value: string): Promis
   const tab = await deps.getActiveTab();
   if (!tab) return { status: "blocked", reason: "no-active-tab" };
   if (!isSecurePage(tab.url)) return { status: "blocked", reason: "insecure-page" };
-  const outcome = await deps.sendFill(tab, null, [{ kind: "generated", value }], false);
+  const outcome = await deps.sendFill(tab, null, [{ kind: "generated", value }], false, null);
   return fillResult(outcome);
 }
 
@@ -284,7 +285,7 @@ async function fillActiveTab(
 /**
  * Inline-only fill bound to the content script's authenticated tab/document.
  * A related-host scope is a one-shot opt-in from the closed Shadow DOM menu;
- * it never changes the entry and is never eligible for automatic fill.
+ * it never changes the entry and is never eligible for active-field quick fill.
  */
 export async function fillInlineSelectedEntry(
   deps: VaultCommandDeps,
@@ -292,6 +293,8 @@ export async function fillInlineSelectedEntry(
   vaultId: string,
   entryId: string,
   scope: "exact" | "related",
+  capabilityId: string,
+  submit: boolean,
 ): Promise<FillResult> {
   if (!isSecurePage(tab.url)) return { status: "blocked", reason: "insecure-page" };
   const meta = (await deps.data.getMetadata()).find(
@@ -305,7 +308,7 @@ export async function fillInlineSelectedEntry(
   if (!matchesTab(tab.url, meta.urlDomain, related ? { exactSubdomain: false } : undefined)) {
     return { status: "blocked", reason: "domain-mismatch" };
   }
-  return fillPreparedEntry(deps, meta, tab, related);
+  return fillPreparedEntry(deps, meta, tab, related, submit, capabilityId);
 }
 
 async function openAndFillLogin(
@@ -351,6 +354,7 @@ async function fillPreparedEntry(
   tab: ActiveTab,
   allowRelatedDomain = false,
   submit = false,
+  capabilityId: string | null = null,
 ): Promise<FillResult> {
   // Re-check the origin gate at click time, not just when the list was drawn.
   if (meta.type === ENTRY_TYPE_CREDENTIAL && !matchesTab(
@@ -390,7 +394,7 @@ async function fillPreparedEntry(
     ];
     // Cards do not carry a persistent website association. The explicit popup
     // action is therefore bound to this one exact, live HTTPS host and document.
-    const outcome = await deps.sendFill(tab, cardTargetHost, fields, false);
+    const outcome = await deps.sendFill(tab, cardTargetHost, fields, false, null);
     return fillResult(outcome);
   }
   if (!isCredential(plaintext)) return { status: "blocked", reason: "not-fillable" };
@@ -413,7 +417,7 @@ async function fillPreparedEntry(
   // broader registrable domain.
   const expectedDomain = allowRelatedDomain ? exactHttpsHost(tab.url) : currentDomain;
   if (expectedDomain === null) return { status: "blocked", reason: "domain-mismatch" };
-  const outcome = await deps.sendFill(tab, expectedDomain, fields, submit);
+  const outcome = await deps.sendFill(tab, expectedDomain, fields, submit, capabilityId);
   return fillResult(outcome);
 }
 
