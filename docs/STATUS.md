@@ -79,7 +79,8 @@ release candidates.
   [`AUTOFILL-POLICY.md`](AUTOFILL-POLICY.md). Scripted focus alone cannot
   repeat or submit a fill. A separate
   explicit enter-arrow action fills and submits the owning form. The final
-  pre-write gate remains bound to the exact live host and document.
+  pre-write gate remains bound to the exact live host, document, and isolated-
+  world identity of the discovered username/password/form tuple.
 - Repeated website entries are grouped by host. Expanding a group decrypts only
   its usernames for transient extension-owned display and shows each account's
   Vault; the collapsed group shows only its login count and the persistent

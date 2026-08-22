@@ -14,6 +14,8 @@ export type InlineAutofillCommand =
       readonly entryId: string;
       /** Related-host fill always requires an explicit closed-surface click. */
       readonly scope: "exact" | "related";
+      /** Isolated-world identity of the exact login pair discovered before decryption. */
+      readonly loginTargetId: string;
     }
   | {
       readonly channel: typeof INLINE_AUTOFILL_CHANNEL;
@@ -61,9 +63,18 @@ export function isInlineAutofillCommand(value: unknown): value is InlineAutofill
     return hasOnlyKeys(value, ["channel", "type", "documentId"]);
   }
   if (value.type === "inline/fill") {
-    return hasOnlyKeys(value, ["channel", "type", "documentId", "vaultId", "entryId", "scope"])
+    return hasOnlyKeys(value, [
+      "channel",
+      "type",
+      "documentId",
+      "vaultId",
+      "entryId",
+      "scope",
+      "loginTargetId",
+    ])
       && validOpaqueId(value.vaultId)
       && validOpaqueId(value.entryId)
+      && validOpaqueId(value.loginTargetId)
       && (value.scope === "exact" || value.scope === "related");
   }
   return false;

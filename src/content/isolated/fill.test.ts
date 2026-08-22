@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { FillField, FillRequestMessage } from "@shared/messaging";
-import { performBoundFill, performFill } from "./fill";
+import { loginTargetFor, performBoundFill, performFill } from "./fill";
 
 const CREDS: FillField[] = [
   { kind: "username", value: "ada@example.com" },
@@ -30,6 +30,7 @@ function bound(fields: readonly FillField[], over: Partial<FillRequestMessage> =
     expectedOrigin: "https://example.com",
     expectedDomain: null,
     submit: false,
+    loginTargetId: null,
     fields,
     ...over,
   };
@@ -174,6 +175,26 @@ describe("performFill", () => {
     expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("s3cr3t");
   });
 
+  it("does not fill a zero-area password control", () => {
+    const doc = mount(`<form><input id="user"><input type="password" id="pass"></form>`);
+    const password = doc.getElementById("pass") as HTMLInputElement;
+    vi.spyOn(password, "getClientRects").mockReturnValue({ length: 1 } as DOMRectList);
+    vi.spyOn(password, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 0,
+      bottom: 20,
+      width: 0,
+      height: 20,
+      toJSON: () => ({}),
+    });
+
+    expect(performFill(doc, CREDS)).toEqual({ ok: false, reason: "no-form" });
+    expect(password.value).toBe("");
+  });
+
   it("uses the field just before the password, not one after it", () => {
     const doc = mount(`
       <form>
@@ -259,6 +280,51 @@ describe("performFill", () => {
 });
 
 describe("performBoundFill", () => {
+  it("refuses an inline target whose username was reassociated before the DOM write", () => {
+    const doc = mount(`
+      <form id="first"><input id="user"><input id="first-pass" type="password"></form>
+      <form id="second"><input id="second-pass" type="password"></form>
+    `);
+    const username = doc.getElementById("user") as HTMLInputElement;
+    const target = loginTargetFor(username);
+    if (target === null) throw new Error("expected login target");
+    username.setAttribute("form", "second");
+
+    expect(performBoundFill(
+      doc,
+      bound(CREDS, { expectedDomain: "example.com", loginTargetId: "login-1" }),
+      "https://example.com/login",
+      "document-1",
+      target,
+    )).toEqual({ ok: false, reason: "no-form" });
+    expect(username.value).toBe("");
+    expect((doc.getElementById("first-pass") as HTMLInputElement).value).toBe("");
+    expect((doc.getElementById("second-pass") as HTMLInputElement).value).toBe("");
+  });
+
+  it("does not write the password when the page invalidates the pair after username input", () => {
+    const doc = mount(`
+      <form><input id="user"><input id="pass" type="password"></form>
+    `);
+    const username = doc.getElementById("user") as HTMLInputElement;
+    const password = doc.getElementById("pass") as HTMLInputElement;
+    const target = loginTargetFor(username);
+    if (target === null) throw new Error("expected login target");
+    username.addEventListener("input", () => {
+      password.disabled = true;
+    });
+
+    expect(performBoundFill(
+      doc,
+      bound(CREDS, { expectedDomain: "example.com", loginTargetId: "login-1" }),
+      "https://example.com/login",
+      "document-1",
+      target,
+    )).toEqual({ ok: false, reason: "no-form" });
+    expect(username.value).toBe("ada@example.com");
+    expect(password.value).toBe("");
+  });
+
   it("submits the exact owning form after an explicitly requested credential fill", () => {
     const doc = mount(`
       <form id="login">

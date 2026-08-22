@@ -159,6 +159,11 @@ Then:
    related site and is never auto-selected. Click that exact account to grant a
    one-operation fill and confirm the final write targets only the current live
    host. A different registrable domain must never appear or fill.
+10. Hide the login pair with page CSS, zero-area geometry, a disabled fieldset,
+    and a closed dialog. Confirm no launcher or automatic fill occurs. Restore
+    each state, including through a responsive viewport breakpoint, and confirm
+    discovery resumes. While a fill is pending, hide or reassociate the username
+    control and confirm the password is not written to that or another form.
 
 When Palladin is locked or signed out, use the inline **Open Palladin** action
 and confirm the browser-owned side panel opens on the unlock/sign-in surface.

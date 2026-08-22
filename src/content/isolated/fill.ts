@@ -20,6 +20,12 @@ import { matchesTab } from "@shared/security/domain";
 type TextLikeInput = HTMLInputElement;
 type FillControl = HTMLInputElement | HTMLTextAreaElement;
 
+export interface LoginTarget {
+  readonly username: HTMLInputElement;
+  readonly password: HTMLInputElement;
+  readonly form: HTMLFormElement;
+}
+
 const USERNAME_TYPES = new Set(["text", "email", "tel", ""]);
 const CARD_AUTOCOMPLETE_KIND: Readonly<Record<string, FillField["kind"]>> = {
   "cc-name": "cardholder",
@@ -60,7 +66,40 @@ export function isFillable(input: FillControl): boolean {
       return false;
     }
   }
+  const clientRects = input.getClientRects();
+  if (clientRects.length > 0) {
+    const bounds = input.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) return false;
+  }
   return true;
+}
+
+/** Resolve the exact standard-login pair owned by a username control. */
+export function loginTargetFor(input: HTMLInputElement): LoginTarget | null {
+  if (!isFillable(input)) return null;
+  const type = input.type.toLowerCase();
+  if (type !== "email" && type !== "text" && type !== "tel") return null;
+  const form = input.form;
+  if (form === null) return null;
+  for (const control of form.elements) {
+    if (control instanceof HTMLInputElement
+      && control.type.toLowerCase() === "password"
+      && isFillable(control)) {
+      return { username: input, password: control, form };
+    }
+  }
+  return null;
+}
+
+/** Revalidate the same controls and form identity immediately before a DOM write. */
+export function isCurrentLoginTarget(target: LoginTarget): boolean {
+  if (!target.username.isConnected || !target.password.isConnected || !target.form.isConnected) {
+    return false;
+  }
+  const current = loginTargetFor(target.username);
+  return current !== null
+    && current.form === target.form
+    && current.password === target.password;
 }
 
 function firstFillablePassword(doc: Document): HTMLInputElement | null {
@@ -148,12 +187,35 @@ export function performFill(doc: Document, fields: readonly FillField[]): FillOu
   return { ok: true };
 }
 
+/** Fill only the exact login pair captured by inline discovery. */
+export function performLoginTargetFill(
+  target: LoginTarget,
+  fields: readonly FillField[],
+): FillOutcome {
+  if (!isCurrentLoginTarget(target)
+    || target.username.value !== ""
+    || target.password.value !== "") {
+    return { ok: false, reason: "no-form" };
+  }
+  for (const field of fields) {
+    if (field.kind === "username") setFieldValue(target.username, field.value);
+    else if (field.kind === "password") {
+      if (!isCurrentLoginTarget(target) || target.password.value !== "") {
+        return { ok: false, reason: "no-form" };
+      }
+      setFieldValue(target.password, field.value);
+    }
+  }
+  return { ok: true };
+}
+
 /** Final isolated-world binding check immediately before any DOM write. */
 export function performBoundFill(
   doc: Document,
   message: FillRequestMessage,
   currentUrl: string,
   currentDocumentId: string,
+  loginTarget: LoginTarget | null = null,
 ): FillOutcome {
   if (currentDocumentId !== message.documentId) {
     return { ok: false, reason: "target-changed" };
@@ -169,10 +231,16 @@ export function performBoundFill(
   if (message.expectedDomain !== null && !matchesTab(currentUrl, message.expectedDomain)) {
     return { ok: false, reason: "target-changed" };
   }
-  const outcome = performFill(doc, message.fields);
+  const outcome = message.loginTargetId === null
+    ? performFill(doc, message.fields)
+    : loginTarget === null
+      ? { ok: false as const, reason: "no-form" as const }
+      : performLoginTargetFill(loginTarget, message.fields);
   if (!outcome.ok || !message.submit) return outcome;
 
-  const password = firstFillablePassword(doc);
+  const password = message.loginTargetId === null
+    ? firstFillablePassword(doc)
+    : loginTarget?.password ?? null;
   if (password === null || !submitLoginForm(password)) {
     return { ok: false, reason: "no-form" };
   }

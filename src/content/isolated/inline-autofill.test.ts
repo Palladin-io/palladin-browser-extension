@@ -171,6 +171,46 @@ describe("inline autofill field discovery", () => {
     }
   });
 
+  it("rescans rendered control geometry after a viewport resize", async () => {
+    document.body.innerHTML = `
+      <form><input id="username" type="email"><input type="password"></form>
+    `;
+    const username = document.querySelector("#username") as HTMLInputElement;
+    let collapsed = true;
+    vi.spyOn(username, "getClientRects").mockReturnValue({ length: 1 } as DOMRectList);
+    vi.spyOn(username, "getBoundingClientRect").mockImplementation(() => ({
+      x: 20,
+      y: 40,
+      left: 20,
+      top: 40,
+      right: collapsed ? 20 : 320,
+      bottom: collapsed ? 40 : 80,
+      width: collapsed ? 0 : 300,
+      height: collapsed ? 0 : 40,
+      toJSON: () => ({}),
+    }));
+    const subject = startInlineAutofill(document, "a".repeat(32), vi.fn(async () => ({
+      ok: true,
+      kind: "suggestions",
+      status: "ready",
+      entries: [],
+    })));
+
+    expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+    collapsed = false;
+    window.dispatchEvent(new Event("resize"));
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(1);
+    });
+
+    collapsed = true;
+    window.dispatchEvent(new Event("resize"));
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll("palladin-autofill")).toHaveLength(0);
+    });
+    subject.stop();
+  });
+
   it("tracks dynamic input form association and owning form id changes", async () => {
     document.body.innerHTML = `
       <form id="login"><input type="password"></form>
@@ -293,6 +333,7 @@ describe("inline autofill field discovery", () => {
       type: "inline/fill",
       vaultId: "v1",
       entryId: "e1",
+      loginTargetId: expect.stringMatching(/^login-\d+$/),
     })));
     subject.stop();
   });
