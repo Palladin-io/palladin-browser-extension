@@ -6,7 +6,8 @@ export interface NativeAgentStartupEvent {
 
 /**
  * Start Agent Inject independently of the Vault session and register a browser-startup wake-up.
- * Pairing verification remains inside the native Agent runtime and fails closed when absent.
+ * Public discovery cannot create trust. Pairing verification remains inside the native Agent
+ * runtime and fails closed when the extension-owned pin is absent.
  */
 export function startNativeAgentBridge(
   startup: NativeAgentStartupEvent = chrome.runtime.onStartup,

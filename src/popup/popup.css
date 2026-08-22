@@ -350,30 +350,6 @@ body {
   min-height: 120px;
 }
 
-.pairing-input {
-  width: 100%;
-  min-height: 84px;
-  padding: 10px 12px;
-  resize: vertical;
-  border-radius: 8px;
-  border: 1px solid var(--cv-input-border);
-  background: var(--cv-input-bg);
-  color: var(--cv-input-text);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-.pairing-input:focus {
-  outline: none;
-  border-color: var(--cv-t2);
-}
-
-.pairing-input.field-input--error,
-.pairing-input.field-input--error:focus {
-  border-color: var(--cv-primary);
-}
-
 .pairing-status-card,
 .pairing-confirmation {
   display: flex;
@@ -398,19 +374,11 @@ body {
   font-weight: 600;
 }
 
-.pairing-check {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
+.pairing-confirmation-copy {
+  margin: 0;
   color: var(--cv-t2);
   font-size: 11px;
   line-height: 1.4;
-  cursor: pointer;
-}
-
-.pairing-check input {
-  margin: 2px 0 0;
-  accent-color: var(--cv-primary);
 }
 
 .pairing-error {

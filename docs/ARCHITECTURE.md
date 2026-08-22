@@ -90,11 +90,12 @@ worker's session, key, or authorization state.
   Clear cannot commit the active record or return success until it finishes and
   its values are wiped. Therefore no old fill can write after mutation success.
   No Native Messaging host private key or channel session secret is persisted.
-  The popup
-  accepts the strict `palladin.inject-pairing.v1` JSON bundle printed by the
-  trusted runtime CLI, recomputes the fingerprint, and writes the pin only after
-  explicit user confirmation. There is no TOFU path and Native Messaging cannot
-  create or replace the pin.
+  The popup uses the strict `palladin.inject-pairing.v1` discovery exchange to
+  obtain a challenge-bound public identity from the allowlisted host, recomputes
+  the fingerprint, and writes the pin only after the user compares it with the
+  independent trusted-runtime CLI display and explicitly chooses **Trust and
+  pair**. There is no TOFU path and Native Messaging discovery cannot create or
+  replace the pin.
 - Playwright and AgentBrowser use their own provider adapters and do not connect
   to this extension.
 

@@ -2,6 +2,8 @@
 
 import {
   isCanonicalBase64Url32,
+  parseAgentPairingBundleValue,
+  type AgentPairingBundle,
   type AgentPairingStatus,
 } from "@shared/agent/pairing";
 
@@ -13,6 +15,7 @@ import type {
 
 export interface AgentPairingClient {
   getStatus(): Promise<AgentPairingStatus>;
+  discover(): Promise<AgentPairingBundle>;
   save(pairingBundle: string): Promise<AgentPairingStatus>;
   clear(): Promise<AgentPairingStatus>;
 }
@@ -35,20 +38,21 @@ export function createAgentPairingClient(
   send: AgentPairingSend = chromeSend,
 ): AgentPairingClient {
   return {
-    getStatus: () => dispatch(send, { type: "agent-pairing/status" }),
-    save: (pairingBundle) => dispatch(send, {
+    getStatus: () => dispatchStatus(send, { type: "agent-pairing/status" }),
+    discover: () => dispatchOffer(send, { type: "agent-pairing/discover" }),
+    save: (pairingBundle) => dispatchStatus(send, {
       type: "agent-pairing/save",
       pairingBundle,
       confirmed: true,
     }),
-    clear: () => dispatch(send, { type: "agent-pairing/clear" }),
+    clear: () => dispatchStatus(send, { type: "agent-pairing/clear" }),
   };
 }
 
-async function dispatch(
+async function sendCommand(
   send: AgentPairingSend,
   command: AgentPairingCommand,
-): Promise<AgentPairingStatus> {
+): Promise<AgentPairingCommandResult> {
   let raw: AgentPairingCommandResult | undefined;
   try {
     raw = await send(command);
@@ -57,14 +61,34 @@ async function dispatch(
   }
   if (!isAgentPairingResult(raw)) throw new AgentPairingClientError("unavailable");
   if (!raw.ok) throw new AgentPairingClientError(raw.code);
+  return raw;
+}
+
+async function dispatchStatus(
+  send: AgentPairingSend,
+  command: AgentPairingCommand,
+): Promise<AgentPairingStatus> {
+  const raw = await sendCommand(send, command);
+  if (!("status" in raw)) throw new AgentPairingClientError("unavailable");
   return raw.status;
+}
+
+async function dispatchOffer(
+  send: AgentPairingSend,
+  command: AgentPairingCommand,
+): Promise<AgentPairingBundle> {
+  const raw = await sendCommand(send, command);
+  if (!("offer" in raw)) throw new AgentPairingClientError("unavailable");
+  return raw.offer;
 }
 
 function isAgentPairingResult(value: unknown): value is AgentPairingCommandResult {
   if (!isRecord(value) || typeof value.ok !== "boolean") return false;
   if (value.ok) {
-    return exactKeys(value, ["ok", "status"])
-      && isAgentPairingStatus(value.status);
+    return (exactKeys(value, ["ok", "status"])
+      && isAgentPairingStatus(value.status))
+      || (exactKeys(value, ["ok", "offer"])
+        && parseAgentPairingBundleValue(value.offer) !== null);
   }
   return exactKeys(value, ["ok", "code", "message"])
     && isAgentPairingErrorCode(value.code)

@@ -1,10 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createAgentPairingClient, AgentPairingClientError } from "./client";
+import { AGENT_PAIRING_PROTOCOL } from "@shared/agent/pairing";
 
 const FINGERPRINT = `${"b".repeat(42)}Q`;
+const OFFER = {
+  protocol: AGENT_PAIRING_PROTOCOL,
+  hostSigningPublicKey: `${"a".repeat(42)}A`,
+  fingerprint: FINGERPRINT,
+} as const;
 
 describe("Agent pairing popup client", () => {
+  it("requests and validates automatic native-host discovery", async () => {
+    const send = vi.fn(async () => ({ ok: true as const, offer: OFFER }));
+    const client = createAgentPairingClient(send);
+
+    await expect(client.discover()).resolves.toEqual(OFFER);
+    expect(send).toHaveBeenCalledWith({ type: "agent-pairing/discover" });
+  });
+
   it("sends the explicit-confirmation save command", async () => {
     const send = vi.fn(async () => ({
       ok: true as const,

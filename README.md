@@ -22,8 +22,9 @@ Vault Protocol 2 sync/read/write, popup unlock and domain-matched credential
 selection, explicit generated-password save/update, TOTP, manual creation of
 credentials, keys, scripts and cards, and card autofill for cardholder, PAN,
 expiry, and billing fields. Agent Inject has a typed
-`form+values` provider, authenticated channel, and explicit out-of-band runtime
-pairing. It stays fail-closed until the user verifies and confirms the runtime's
+`form+values` provider, authenticated channel, automatic public-host discovery,
+and explicit out-of-band fingerprint confirmation. It stays fail-closed until
+the user verifies and confirms the runtime's
 public-key fingerprint. Once paired, the Agent Inject bridge starts independently
 of the popup and Vault lock state; the native runtime remains the grant, key and
 credential boundary. Production native-runtime packaging remains a release gate.

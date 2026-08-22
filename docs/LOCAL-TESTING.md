@@ -286,14 +286,12 @@ cargo build -p palladin-cli --features local-development
 ```
 
 `browser install` writes the exact Google Chrome Native Messaging manifest and
-prints one JSON pairing bundle to standard output. It prints a shortened
-fingerprint separately. The JSON contains only a public signing key and its
-fingerprint; it contains no secret.
+prints the shortened host fingerprint. It does not print or accept any secret.
 
 1. In the Palladin popup open **Agent runtime**.
-2. Paste the one-line JSON pairing bundle.
+2. Wait for the extension to discover the local runtime automatically.
 3. Compare the prefix and suffix of the fingerprint shown by the CLI and popup.
-4. Check the explicit confirmation box and choose **Pair runtime**.
+4. Choose **Trust and pair**. No bundle copy/paste is required.
 5. Verify the CLI state:
 
    ```bash
@@ -326,7 +324,7 @@ argv or an environment variable.
 
 Negative checks:
 
-- a malformed bundle or mismatched fingerprint is rejected;
+- an unknown-field/stale-challenge discovery offer or mismatched fingerprint is rejected;
 - no pairing means no `session.open` and Inject is unavailable;
 - changing the active tab, document, origin, or hostname after preparation
   rejects the operation;

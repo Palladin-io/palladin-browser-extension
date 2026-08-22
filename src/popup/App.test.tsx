@@ -10,6 +10,7 @@ import type { PasswordManagerOnboardingClient } from "./onboarding/client";
 import { PopupSessionError } from "./session/errors";
 import type { SessionClient } from "./session/client";
 import { sessionChanged } from "@shared/messaging";
+import { AGENT_PAIRING_PROTOCOL } from "@shared/agent/pairing";
 
 type Fake = { [K in keyof SessionClient]: ReturnType<typeof vi.fn> } & SessionClient;
 
@@ -31,6 +32,11 @@ function makeClient(overrides: Partial<SessionClient> = {}): Fake {
 function makePairingClient(): AgentPairingClient {
   return {
     getStatus: vi.fn(async () => ({ paired: false as const })),
+    discover: vi.fn(async () => ({
+      protocol: AGENT_PAIRING_PROTOCOL,
+      hostSigningPublicKey: `${"a".repeat(42)}A`,
+      fingerprint: `${"b".repeat(42)}Q`,
+    })),
     save: vi.fn(async () => ({ paired: false as const })),
     clear: vi.fn(async () => ({ paired: false as const })),
   };
@@ -91,7 +97,7 @@ describe("popup state machine", () => {
     expect(server).toHaveAttribute("aria-expanded", "true");
 
     await user.click(pairing);
-    expect(await screen.findByLabelText("Pairing bundle")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Trust and pair" })).toBeInTheDocument();
     expect(server).toHaveAttribute("aria-expanded", "false");
     expect(pairing).toHaveAttribute("aria-expanded", "true");
     await user.click(screen.getByRole("button", { name: "Back" }));

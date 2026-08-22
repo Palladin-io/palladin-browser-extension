@@ -107,8 +107,9 @@ clears the local encrypted cache.
   not enabled by producing `dist/safari/` alone.
 - Automated checks currently cover generated manifests, TypeScript, and bundle
   creation. They do not replace installed-browser or store-review testing.
-- The shared popup implements explicit out-of-band public-key pairing without
-  TOFU. Chromium uses the fixed manifest-key-derived extension origin. Firefox
+- The shared popup implements automatic challenge-bound public-host discovery
+  followed by explicit out-of-band fingerprint confirmation without TOFU.
+  Chromium uses the fixed manifest-key-derived extension origin. Firefox
   still needs a reviewed host installer/origin adapter, while Safari needs its
   containing-app adapter; storing a pin alone does not claim runtime support on
   those targets.

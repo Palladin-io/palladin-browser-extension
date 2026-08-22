@@ -22,11 +22,17 @@ const BUNDLE = JSON.stringify({
   hostSigningPublicKey: KEY,
   fingerprint: FINGERPRINT,
 });
+const OFFER = {
+  protocol: AGENT_PAIRING_PROTOCOL,
+  hostSigningPublicKey: KEY,
+  fingerprint: FINGERPRINT,
+} as const;
 
 function deps(overrides: Partial<AgentPairingCommandDeps> = {}): AgentPairingCommandDeps {
   let intent = 0;
   return {
     readVerifiedPairing: vi.fn(async () => null),
+    discoverPairing: vi.fn(async () => OFFER),
     deriveFingerprint: vi.fn(async () => FINGERPRINT),
     createIntentToken: vi.fn(() => [INTENT_1, INTENT_2][intent++] ?? crypto.randomUUID()),
     beginMutation: vi.fn(() => ({ drain: Promise.resolve(), release: vi.fn() })),
@@ -69,6 +75,19 @@ function reconnectGate() {
 }
 
 describe("Agent pairing popup commands", () => {
+  it("discovers a public offer without mutating or disconnecting pairing state", async () => {
+    const effects = deps();
+    const handle = createAgentPairingRuntimeHandler(effects);
+
+    await expect(handle({ type: "agent-pairing/discover" }))
+      .resolves.toEqual({ ok: true, offer: OFFER });
+    expect(effects.discoverPairing).toHaveBeenCalledOnce();
+    expect(effects.beginMutation).not.toHaveBeenCalled();
+    expect(effects.savePairingIntent).not.toHaveBeenCalled();
+    expect(effects.savePairing).not.toHaveBeenCalled();
+    expect(effects.disconnect).not.toHaveBeenCalled();
+  });
+
   it("persists the verified public pin bound to its durable intent, then connects", async () => {
     const effects = deps();
     const handle = createAgentPairingRuntimeHandler(effects);

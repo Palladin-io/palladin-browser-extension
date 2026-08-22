@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   AGENT_PAIRING_PROTOCOL,
   parseAgentPairingBundle,
+  parseAgentPairingOffer,
   shortenPublicIdentifier,
 } from "./pairing";
 
@@ -32,5 +33,25 @@ describe("Agent runtime pairing bundle", () => {
   it("shows a public fingerprint with both its prefix and suffix", () => {
     expect(shortenPublicIdentifier("abcdefgh0123456789uvwxyz"))
       .toBe("abcdefgh…uvwxyz");
+  });
+
+  it("accepts only an exact offer bound to the current origin and challenge", () => {
+    const origin = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/";
+    const challenge = "00000000-0000-4000-8000-000000000001";
+    const offer = {
+      protocol: AGENT_PAIRING_PROTOCOL,
+      type: "pairing.offer",
+      extensionOrigin: origin,
+      challenge,
+      hostSigningPublicKey: KEY,
+      fingerprint: FINGERPRINT,
+    };
+    expect(parseAgentPairingOffer(offer, origin, challenge)).toEqual({
+      protocol: AGENT_PAIRING_PROTOCOL,
+      hostSigningPublicKey: KEY,
+      fingerprint: FINGERPRINT,
+    });
+    expect(parseAgentPairingOffer({ ...offer, challenge: "stale" }, origin, challenge)).toBeNull();
+    expect(parseAgentPairingOffer({ ...offer, extra: true }, origin, challenge)).toBeNull();
   });
 });

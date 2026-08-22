@@ -2,6 +2,7 @@
 
 import {
   parseAgentPairingBundle,
+  type AgentPairingBundle,
   type AgentPairingStatus,
 } from "@shared/agent/pairing";
 
@@ -14,6 +15,7 @@ import type { AgentPairingMutationLease } from "./mutation-barrier";
 
 export type AgentPairingCommand =
   | { readonly type: "agent-pairing/status" }
+  | { readonly type: "agent-pairing/discover" }
   | {
       readonly type: "agent-pairing/save";
       readonly pairingBundle: string;
@@ -30,10 +32,12 @@ export type AgentPairingErrorCode =
 
 export type AgentPairingCommandResult =
   | { readonly ok: true; readonly status: AgentPairingStatus }
+  | { readonly ok: true; readonly offer: AgentPairingBundle }
   | { readonly ok: false; readonly code: AgentPairingErrorCode; readonly message: string };
 
 export interface AgentPairingCommandDeps {
   readVerifiedPairing(): Promise<HostPairingRecord | null>;
+  discoverPairing(): Promise<AgentPairingBundle>;
   deriveFingerprint(hostSigningPublicKey: string): Promise<string>;
   createIntentToken(): HostPairingIntentToken;
   beginMutation(): AgentPairingMutationLease;
@@ -69,7 +73,8 @@ export function createAgentPairingRuntimeHandler(
     const command = parseAgentPairingCommand(raw);
     if (command === null) return Promise.resolve(failure("invalid-bundle"));
 
-    const mutatesPairing = command.type !== "agent-pairing/status";
+    const mutatesPairing = command.type === "agent-pairing/save"
+      || command.type === "agent-pairing/clear";
     let intentToken: HostPairingIntentToken | null = null;
     if (mutatesPairing) {
       try {
@@ -168,6 +173,8 @@ async function dispatchAgentPairingCommand(
     switch (command.type) {
       case "agent-pairing/status":
         return { ok: true, status: statusFrom(await deps.readVerifiedPairing()) };
+      case "agent-pairing/discover":
+        return { ok: true, offer: await deps.discoverPairing() };
       case "agent-pairing/save": {
         if (intentToken === null) return failure("unavailable");
         const bundle = parseAgentPairingBundle(command.pairingBundle);
@@ -218,7 +225,8 @@ async function dispatchAgentPairingCommand(
     // old pin during any awaited intent/derive/storage operation. Only a fully
     // verified Pair happy path may retain its new connection; clear, error, and
     // superseded outcomes all tear down again before resolving.
-    if (command.type !== "agent-pairing/status" && !keepVerifiedConnection) {
+    if ((command.type === "agent-pairing/save" || command.type === "agent-pairing/clear")
+      && !keepVerifiedConnection) {
       disconnectIgnoringErrors(deps);
       releaseMutation();
     }
@@ -236,6 +244,10 @@ function disconnectIgnoringErrors(deps: AgentPairingCommandDeps): void {
 function parseAgentPairingCommand(value: Record<string, unknown>): AgentPairingCommand | null {
   switch (value.type) {
     case "agent-pairing/status":
+      return hasExactKeys(value, ["type"])
+        ? value as unknown as AgentPairingCommand
+        : null;
+    case "agent-pairing/discover":
       return hasExactKeys(value, ["type"])
         ? value as unknown as AgentPairingCommand
         : null;

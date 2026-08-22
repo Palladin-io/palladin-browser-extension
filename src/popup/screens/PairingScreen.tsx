@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
-  parseAgentPairingBundle,
   shortenPublicIdentifier,
+  type AgentPairingBundle,
   type AgentPairingStatus,
 } from "@shared/agent/pairing";
 
@@ -22,25 +22,39 @@ export interface PairingScreenProps {
 export function PairingScreen({ client, embedded = false }: PairingScreenProps): React.JSX.Element {
   const { t } = useI18n();
   const [status, setStatus] = useState<AgentPairingStatus | null>(null);
-  const [bundleInput, setBundleInput] = useState("");
-  const [confirmed, setConfirmed] = useState(false);
+  const [offer, setOffer] = useState<AgentPairingBundle | null>(null);
+  const [detecting, setDetecting] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const bundle = useMemo(() => parseAgentPairingBundle(bundleInput), [bundleInput]);
 
   useEffect(() => {
     let active = true;
     void client.getStatus()
-      .then((next) => {
-        if (active) setStatus(next);
+      .then(async (next) => {
+        if (!active) return;
+        setStatus(next);
+        if (!next.paired) await detect();
       })
       .catch(() => {
-        if (active) setError(t("pairing.readError"));
+        if (!active) return;
+        setDetecting(false);
+        setError(t("pairing.readError"));
       });
     return () => { active = false; };
+
+    async function detect(): Promise<void> {
+      try {
+        const discovered = await client.discover();
+        if (active) setOffer(discovered);
+      } catch {
+        if (active) setError(t("pairing.discoveryError"));
+      } finally {
+        if (active) setDetecting(false);
+      }
+    }
   }, [client, t]);
 
-  if (status === null && error === null) {
+  if (status === null && detecting) {
     return (
       <section className="pairing-screen">
         {embedded ? null : <h2 className="screen-title">{t("pairing.runtime")}</h2>}
@@ -48,6 +62,15 @@ export function PairingScreen({ client, embedded = false }: PairingScreenProps):
           <Spinner />
           <span className="muted">{t("pairing.checking")}</span>
         </div>
+      </section>
+    );
+  }
+
+  if (status === null) {
+    return (
+      <section className="pairing-screen">
+        {embedded ? null : <h2 className="screen-title">{t("pairing.runtime")}</h2>}
+        <p className="pairing-error" role="alert">{error ?? t("pairing.readError")}</p>
       </section>
     );
   }
@@ -71,7 +94,6 @@ export function PairingScreen({ client, embedded = false }: PairingScreenProps):
     );
   }
 
-  const malformed = bundleInput.length > 0 && bundle === null;
   return (
     <section className="pairing-screen">
       {embedded ? null : <h2 className="screen-title">{t("pairing.title")}</h2>}
@@ -79,61 +101,58 @@ export function PairingScreen({ client, embedded = false }: PairingScreenProps):
         {t("pairing.instructionsBefore")} <code>palladin browser install</code>{" "}
         {t("pairing.instructionsAfter")}
       </p>
-      <label className="field-label" htmlFor="agent-pairing-bundle">{t("pairing.bundle")}</label>
-      <textarea
-        id="agent-pairing-bundle"
-        className={`pairing-input${malformed ? " field-input--error" : ""}`}
-        value={bundleInput}
-        rows={4}
-        spellCheck={false}
-        autoComplete="off"
-        placeholder='{"protocol":"palladin.inject-pairing.v1",...}'
-        onChange={(event) => {
-          setBundleInput(event.target.value);
-          setConfirmed(false);
-          setError(null);
-        }}
-      />
-      {malformed ? (
-        <p className="pairing-error" role="alert">{t("pairing.malformed")}</p>
+      {detecting ? (
+        <div className="centered pairing-loading">
+          <Spinner />
+          <span className="muted">{t("pairing.detecting")}</span>
+        </div>
       ) : null}
-      {bundle !== null ? (
+      {offer !== null ? (
         <div className="pairing-confirmation">
           <span className="pairing-status-label">{t("pairing.verifyFingerprint")}</span>
           <code className="pairing-fingerprint">
-            {shortenPublicIdentifier(bundle.fingerprint)}
+            {shortenPublicIdentifier(offer.fingerprint)}
           </code>
-          <label className="pairing-check">
-            <input
-              type="checkbox"
-              checked={confirmed}
-              onChange={(event) => setConfirmed(event.target.checked)}
-            />
-            <span>{t("pairing.confirm")}</span>
-          </label>
+          <p className="pairing-confirmation-copy">{t("pairing.confirm")}</p>
         </div>
       ) : null}
       {error ? <p className="pairing-error" role="alert">{error}</p> : null}
-      <Button
-        block
-        loading={busy}
-        disabled={bundle === null || !confirmed}
-        onClick={() => void pair()}
-      >
-        {t("pairing.action")}
-      </Button>
+      {offer === null && !detecting ? (
+        <Button block loading={busy} onClick={() => void retryDiscovery()}>
+          {t("pairing.retryDiscovery")}
+        </Button>
+      ) : null}
+      {offer !== null ? (
+        <Button block loading={busy} onClick={() => void pair()}>
+          {t("pairing.action")}
+        </Button>
+      ) : null}
     </section>
   );
 
+  async function retryDiscovery(): Promise<void> {
+    setBusy(true);
+    setDetecting(true);
+    setError(null);
+    setOffer(null);
+    try {
+      setOffer(await client.discover());
+    } catch {
+      setError(t("pairing.discoveryError"));
+    } finally {
+      setDetecting(false);
+      setBusy(false);
+    }
+  }
+
   async function pair(): Promise<void> {
-    if (bundle === null || !confirmed) return;
+    if (offer === null) return;
     setBusy(true);
     setError(null);
     try {
-      const next = await client.save(bundleInput);
+      const next = await client.save(JSON.stringify(offer));
       setStatus(next);
-      setBundleInput("");
-      setConfirmed(false);
+      setOffer(null);
     } catch (cause) {
       setError(pairingError(cause, t));
     } finally {
@@ -145,7 +164,19 @@ export function PairingScreen({ client, embedded = false }: PairingScreenProps):
     setBusy(true);
     setError(null);
     try {
-      setStatus(await client.clear());
+      const next = await client.clear();
+      setStatus(next);
+      setOffer(null);
+      if (!next.paired) {
+        setDetecting(true);
+        try {
+          setOffer(await client.discover());
+        } catch {
+          setError(t("pairing.discoveryError"));
+        } finally {
+          setDetecting(false);
+        }
+      }
     } catch (cause) {
       setError(cause instanceof AgentPairingClientError
         && cause.code === "mutation-not-committed"
@@ -162,7 +193,7 @@ function pairingError(error: unknown, t: Translate): string {
     if (error.code === "fingerprint-mismatch") {
       return t("pairing.fingerprintMismatch");
     }
-    if (error.code === "invalid-bundle") return t("pairing.malformed");
+    if (error.code === "invalid-bundle") return t("pairing.discoveryError");
     if (error.code === "mutation-not-committed") {
       return t("pairing.notCommitted");
     }

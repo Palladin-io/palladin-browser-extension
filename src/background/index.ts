@@ -23,6 +23,7 @@ import {
 import { openSidePanel } from "@shared/browser/side-panel";
 
 import { createAgentPairingRuntimeHandler } from "./agent/pairing-commands";
+import { discoverNativeAgentPairingOffer } from "./agent/pairing-discovery";
 import { startNativeAgentBridge } from "./agent/bootstrap";
 import {
   clearHostPairingRecord,
@@ -89,6 +90,7 @@ const vaultRealtime = new VaultRealtimeConnection({
 });
 const handleAgentPairingRuntimeMessage = createAgentPairingRuntimeHandler({
   readVerifiedPairing,
+  discoverPairing: discoverNativeAgentPairingOffer,
   deriveFingerprint: injectHostKeyFingerprint,
   createIntentToken: () => crypto.randomUUID(),
   beginMutation: beginNativeAgentPairingMutation,

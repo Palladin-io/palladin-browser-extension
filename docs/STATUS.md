@@ -51,10 +51,13 @@ release candidates.
   authentication data; there is no dedicated field or heuristic for it.
 - The Native Messaging host name and authenticated session framing are explicit
   and tested. No `session.open` is sent without a pinned signing key/fingerprint.
-- The extension-owned popup accepts only the strict out-of-band pairing bundle
-  printed by `palladin browser install`, derives and verifies the public-key
-  fingerprint, and requires explicit user confirmation before persisting the
-  public pin. Saving connects; unpairing disconnects and disposes immediately.
+- The extension-owned popup automatically requests one challenge-bound,
+  value-free public identity offer from the allowlisted native host, rejects
+  unknown fields, stale challenges and a non-derived fingerprint, and requires
+  the user to compare it with the independent `palladin browser install`
+  fingerprint before one-click confirmation persists the public pin. Discovery
+  cannot create or replace trust. Saving connects; unpairing disconnects and
+  disposes immediately.
   After a durable non-secret intent succeeds, interrupted clear/re-pair writes
   restart fail-closed. An in-memory mutation barrier suppresses new work and
   drains already-dispatched fills before pairing success. If both the intent
