@@ -177,6 +177,33 @@ describe("popup state machine", () => {
     expect(client.completeTotp).toHaveBeenCalledWith("chal", "123456");
   });
 
+  it("shows a rate-limit error and keeps the TOTP challenge retryable", async () => {
+    const completeTotp = vi.fn()
+      .mockRejectedValueOnce(new PopupSessionError("rate-limited"))
+      .mockResolvedValueOnce("unlocked" as const);
+    const client = makeClient({
+      login: vi.fn(async () => ({ status: "totp-required", challengeToken: "chal" }) as const),
+      completeTotp,
+    });
+    render(<App client={client} />);
+    const user = userEvent.setup();
+
+    await user.type(await screen.findByLabelText("Email"), "user@palladin.io");
+    await user.type(screen.getByLabelText("Master password"), "password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await user.type(await screen.findByLabelText("Authentication code"), "123456");
+    await user.click(screen.getByRole("button", { name: "Verify" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Too many attempts");
+    await user.clear(screen.getByLabelText("Authentication code"));
+    await user.type(screen.getByLabelText("Authentication code"), "654321");
+    await user.click(screen.getByRole("button", { name: "Verify" }));
+
+    expect(await screen.findByRole("heading", { name: "Your vault" })).toBeInTheDocument();
+    expect(completeTotp).toHaveBeenNthCalledWith(1, "chal", "123456");
+    expect(completeTotp).toHaveBeenNthCalledWith(2, "chal", "654321");
+  });
+
   it("drops a pending TOTP challenge when the server changes", async () => {
     const client = makeClient({
       login: vi.fn(async () => ({ status: "totp-required", challengeToken: "prod-chal" }) as const),

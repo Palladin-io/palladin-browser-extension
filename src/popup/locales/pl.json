@@ -28,6 +28,7 @@
   "auth.unlock.biometric": "Odblokuj przez Touch ID",
   "error.generic": "Coś poszło nie tak. Spróbuj ponownie.",
   "error.network": "Nie można połączyć się z Palladin. Sprawdź połączenie i spróbuj ponownie.",
+  "error.rateLimited": "Zbyt wiele prób. Spróbuj ponownie później.",
   "error.noAccountMaterial": "To konto nie jest jeszcze skonfigurowane do odblokowania. Dokończ konfigurację w panelu webowym.",
   "error.unsupportedSecurity": "To konto wymaga nowszej wersji zabezpieczeń Palladin. Zaktualizuj rozszerzenie i spróbuj ponownie.",
   "error.sessionExpired": "Sesja wygasła. Zaloguj się ponownie.",

@@ -151,8 +151,12 @@ export async function buildTestAccount(
 export interface MockBackendOptions {
   totpRequired?: boolean;
   totpCode?: string;
+  totpRateLimited?: boolean;
+  unknownEmail?: string;
   logoutResponse?: Promise<Response>;
 }
+
+const PSEUDO_ACCOUNT_ID = "ffeeddcc-bbaa-4a99-8877-665544332211";
 
 export interface MockBackend {
   fetch: FetchLike;
@@ -192,7 +196,7 @@ export function mockBackend(
     if (url.endsWith("/api/auth/login/salt")) {
       if (body["profileId"] !== IDENTITY_KDF_PROFILE_ID) return Promise.resolve(json(null, 400));
       return Promise.resolve(json({
-        accountId: account.accountId,
+        accountId: body["email"] === options.unknownEmail ? PSEUDO_ACCOUNT_ID : account.accountId,
         profileId: IDENTITY_KDF_PROFILE_ID,
         securityVersion: IDENTITY_SECURITY_VERSION,
         kdfSalt: account.kdfSalt,
@@ -203,7 +207,8 @@ export function mockBackend(
     }
     if (url.endsWith("/api/auth/login")) {
       if (
-        body["authCredential"] !== account.expectedAuthCredential
+        body["email"] === options.unknownEmail
+        || body["authCredential"] !== account.expectedAuthCredential
         || body["securityVersion"] !== IDENTITY_SECURITY_VERSION
         || body["kdfProfileId"] !== IDENTITY_KDF_PROFILE_ID
       ) return Promise.resolve(json(null, 401));
@@ -213,6 +218,12 @@ export function mockBackend(
       return Promise.resolve(json(authResponse));
     }
     if (url.endsWith("/api/auth/login/totp")) {
+      if (options.totpRateLimited) {
+        return Promise.resolve(new Response(null, {
+          status: 429,
+          headers: { "retry-after": "60" },
+        }));
+      }
       if (body["code"] !== totpCode) return Promise.resolve(json(null, 401));
       return Promise.resolve(json(authResponse));
     }

@@ -35,7 +35,7 @@ export interface TotpRequiredResponse {
 export type PasswordLoginResponse = AuthResponse | TotpRequiredResponse;
 
 export interface LoginKdfBootstrap {
-  readonly accountId: string | null;
+  readonly accountId: string;
   readonly profileId: string;
   readonly securityVersion: number;
   readonly kdfSalt: string;
@@ -115,6 +115,13 @@ export class AuthClient {
   }
 
   private async parse<T>(response: Response, path: string): Promise<T> {
+    if (response.status === 429) {
+      throw new SessionError(
+        "rate-limited",
+        `Auth rate-limited at ${path}`,
+        retryAfterSeconds(response.headers.get("retry-after")),
+      );
+    }
     if (response.status === 401 || response.status === 403) {
       throw new SessionError("invalid-credentials", `Auth rejected at ${path}`);
     }
@@ -209,4 +216,14 @@ export class AuthClient {
     }
     return this.parse<AccountResponse>(response, "/api/account");
   }
+}
+
+function retryAfterSeconds(value: string | null): number | null {
+  if (value === null) return null;
+  const seconds = Number(value);
+  if (Number.isInteger(seconds) && seconds > 0) return seconds;
+
+  const retryAt = Date.parse(value);
+  if (Number.isNaN(retryAt)) return null;
+  return Math.max(1, Math.ceil((retryAt - Date.now()) / 1_000));
 }

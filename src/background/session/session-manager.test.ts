@@ -171,6 +171,17 @@ describe("SessionManager — full lifecycle", () => {
     expect(mgr.getKeys()).toBeNull();
   });
 
+  it("performs the full KDF and login request for an unknown account", async () => {
+    const unknownEmail = "unknown@example.test";
+    const { mgr, backendCalls } = makeHarness(account, { unknownEmail });
+
+    await expect(mgr.login(unknownEmail, "wrong password")).rejects.toMatchObject({
+      code: "invalid-credentials",
+    });
+    expect(backendCalls.filter((url) => url.endsWith("/api/auth/login"))).toHaveLength(1);
+    expect(await mgr.getStatus()).toBe("signed-out");
+  });
+
   it("rejects a competing login before it can mix another account into the active session", async () => {
     const { mgr, authClient } = makeHarness(account);
     const originalFetchLoginKdf = authClient.fetchLoginKdf.bind(authClient);
@@ -1006,6 +1017,33 @@ describe("SessionManager - durable refresh rotation", () => {
     }
   });
 
+  it("restores the bound session when refresh is rate-limited", async () => {
+    const account = await buildTestAccount();
+    const { mgr, authClient, storage } = makeHarness(account);
+    await mgr.login(account.email, account.password);
+    const masterKey = new Uint8Array(mgr.getKeys()!.masterKey);
+    vi.spyOn(authClient, "refresh").mockRejectedValue(
+      new SessionError("rate-limited", "Refresh rate-limited", 45),
+    );
+
+    try {
+      await expect(mgr.refreshAccessToken()).rejects.toMatchObject({
+        code: "rate-limited",
+        retryAfterSeconds: 45,
+      });
+      expect(await mgr.getStatus()).toBe("unlocked");
+      expect(await mgr.getAccessToken()).toBe("access-token-1");
+      expect(await readSealedPayload(await readEnvelope(storage), masterKey)).toMatchObject({
+        state: "active",
+        userId: account.accountId,
+        accessToken: "access-token-1",
+        refreshToken: "refresh-token-1",
+      });
+    } finally {
+      wipe(masterKey);
+    }
+  });
+
   it("clears the session when the backend explicitly rejects the refresh token", async () => {
     const account = await buildTestAccount();
     const { mgr, authClient, storage } = makeHarness(account);
@@ -1082,6 +1120,26 @@ describe("SessionManager — TOTP second factor", () => {
     await mgr.completeTotp("challenge-1", "424242");
     expect(await mgr.getStatus()).toBe("unlocked");
     expect(toBase64(mgr.getKeys()!.privateKey)).toBe(account.privateKeyB64);
+  });
+
+  it("keeps the pending TOTP context after a rate-limited verification", async () => {
+    const options: MockBackendOptions = {
+      totpRequired: true,
+      totpCode: "424242",
+      totpRateLimited: true,
+    };
+    const account = await buildTestAccount();
+    const { mgr } = makeHarness(account, options);
+    await mgr.login(account.email, account.password);
+
+    await expect(mgr.completeTotp("challenge-1", "424242")).rejects.toMatchObject({
+      code: "rate-limited",
+      retryAfterSeconds: 60,
+    });
+
+    options.totpRateLimited = false;
+    await expect(mgr.completeTotp("challenge-1", "424242")).resolves.toBeUndefined();
+    expect(await mgr.getStatus()).toBe("unlocked");
   });
 
   it("expires a pending TOTP key even when the popup never cancels", async () => {
