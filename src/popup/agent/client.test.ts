@@ -59,11 +59,11 @@ describe("Agent pairing popup client", () => {
   it("preserves a recognized native host discovery failure code", async () => {
     const client = createAgentPairingClient(vi.fn(async () => ({
       ok: false as const,
-      code: "native-host-not-found" as const,
+      code: "native-host-launch-failed" as const,
       message: "value-free",
     })));
 
     await expect(client.discover())
-      .rejects.toEqual(new AgentPairingClientError("native-host-not-found"));
+      .rejects.toEqual(new AgentPairingClientError("native-host-launch-failed"));
   });
 });

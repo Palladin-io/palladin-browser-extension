@@ -342,8 +342,8 @@ body {
   gap: 8px;
 }
 
-.pairing-screen .screen-subtitle {
-  margin-bottom: 0;
+.pairing-screen .pairing-install-stack .screen-subtitle {
+  margin: 0;
 }
 
 .pairing-install-stack {

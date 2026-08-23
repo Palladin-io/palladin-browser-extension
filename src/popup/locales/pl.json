@@ -80,6 +80,7 @@
   "pairing.discoveryError": "Nie wykryto lokalnego runtime agenta. Zainstaluj go i spróbuj ponownie.",
   "pairing.discoveryNotFound": "Chrome nie znalazł rejestracji Palladin Runtime. Uruchom komendę instalacyjną i spróbuj ponownie.",
   "pairing.discoveryForbidden": "Chrome zablokował temu rozszerzeniu dostęp do Palladin Runtime. Zainstaluj runtime ponownie dla tego rozszerzenia i spróbuj ponownie.",
+  "pairing.discoveryLaunchFailed": "Chrome znalazł Palladin Runtime, ale nie mógł go uruchomić. Zainstaluj runtime ponownie i spróbuj jeszcze raz.",
   "pairing.discoveryExited": "Palladin Runtime uruchomił się, ale zakończył przed wysłaniem odpowiedzi. Ponownie uruchom komendę instalacyjną i spróbuj jeszcze raz.",
   "pairing.discoveryProtocol": "Palladin Runtime zwrócił nieprawidłową odpowiedź parowania. Zaktualizuj lub zainstaluj runtime ponownie i spróbuj jeszcze raz.",
   "pairing.discoveryTimeout": "Palladin Runtime nie odpowiedział na czas. Sprawdź instalację CLI i spróbuj ponownie.",

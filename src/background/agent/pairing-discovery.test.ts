@@ -14,16 +14,27 @@ afterEach(() => {
 });
 
 function fakeNativeMessage() {
-  let resolveResponse: ((raw: unknown) => void) | undefined;
-  let rejectResponse: ((cause: unknown) => void) | undefined;
-  const sendNativeMessage = vi.fn((_hostName: string, _request: unknown) => new Promise<unknown>((resolve, reject) => {
-    resolveResponse = resolve;
-    rejectResponse = reject;
-  }));
+  let responseCallback: ((raw: unknown) => void) | undefined;
+  let lastError: { readonly message: string } | undefined;
+  const sendNativeMessage = vi.fn((
+    _hostName: string,
+    _request: unknown,
+    callback: (raw: unknown) => void,
+  ) => {
+    responseCallback = callback;
+  });
   return {
     sendNativeMessage,
-    emitMessage: (raw: unknown) => resolveResponse?.(raw),
-    rejectMessage: (cause: unknown) => rejectResponse?.(cause),
+    emitMessage: (raw: unknown) => {
+      lastError = undefined;
+      responseCallback?.(raw);
+    },
+    rejectMessage: (message: string) => {
+      lastError = { message };
+      responseCallback?.(undefined);
+      lastError = undefined;
+    },
+    lastError: () => lastError,
   };
 }
 
@@ -32,6 +43,7 @@ function stubChrome(native: ReturnType<typeof fakeNativeMessage>): void {
     runtime: {
       getURL: vi.fn(() => EXTENSION_ORIGIN),
       sendNativeMessage: native.sendNativeMessage,
+      get lastError() { return native.lastError(); },
     },
   });
 }
@@ -64,7 +76,11 @@ describe("native Agent pairing discovery", () => {
       type: "pairing.discover",
       extensionOrigin: EXTENSION_ORIGIN,
     });
-    expect(native.sendNativeMessage).toHaveBeenCalledWith("io.palladin.browser_bridge", request);
+    expect(native.sendNativeMessage).toHaveBeenCalledWith(
+      "io.palladin.browser_bridge",
+      request,
+      expect.any(Function),
+    );
   });
 
   it("rejects a stale challenge and never returns its public key", async () => {
@@ -90,6 +106,7 @@ describe("native Agent pairing discovery", () => {
   it.each([
     ["Specified native messaging host not found.", "host-not-found"],
     ["Access to the specified native messaging host is forbidden.", "host-forbidden"],
+    ["Failed to start native messaging host.", "host-launch-failed"],
     ["Native host has exited.", "host-exited"],
     ["Error when communicating with the native messaging host.", "host-protocol"],
   ] as const)("classifies Chromium rejection %s without propagating it", async (message, code) => {
@@ -98,7 +115,7 @@ describe("native Agent pairing discovery", () => {
     const discovered = discoverNativeAgentPairingOffer();
     await vi.waitFor(() => expect(native.sendNativeMessage).toHaveBeenCalledOnce());
 
-    native.rejectMessage(new Error(message));
+    native.rejectMessage(message);
 
     await expect(discovered).rejects.toEqual(new NativePairingDiscoveryError(code));
   });

@@ -80,6 +80,7 @@
   "pairing.discoveryError": "The local Agent runtime wasn't detected. Install it, then try again.",
   "pairing.discoveryNotFound": "Chrome couldn't find the Palladin Runtime host registration. Run the install command, then try again.",
   "pairing.discoveryForbidden": "Chrome blocked this extension from using Palladin Runtime. Reinstall the runtime for this extension, then try again.",
+  "pairing.discoveryLaunchFailed": "Chrome found Palladin Runtime but couldn't start it. Reinstall the runtime, then try again.",
   "pairing.discoveryExited": "Palladin Runtime started but exited before replying. Run the install command again, then retry.",
   "pairing.discoveryProtocol": "Palladin Runtime returned an invalid pairing response. Update or reinstall the runtime, then retry.",
   "pairing.discoveryTimeout": "Palladin Runtime didn't reply in time. Check the CLI installation, then retry.",

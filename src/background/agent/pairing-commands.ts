@@ -33,6 +33,7 @@ export type AgentPairingErrorCode =
   | "mutation-not-committed"
   | "native-host-not-found"
   | "native-host-forbidden"
+  | "native-host-launch-failed"
   | "native-host-exited"
   | "native-host-protocol"
   | "native-host-timeout"
@@ -292,6 +293,7 @@ function failure(code: AgentPairingErrorCode): AgentPairingCommandResult {
     "mutation-not-committed": "Pairing change was not committed; retry before restarting the extension",
     "native-host-not-found": "The native messaging host is not registered",
     "native-host-forbidden": "The extension is not allowed to use the native messaging host",
+    "native-host-launch-failed": "The native messaging host could not be started",
     "native-host-exited": "The native messaging host exited before replying",
     "native-host-protocol": "The native messaging host returned an invalid response",
     "native-host-timeout": "The native messaging host did not reply in time",
@@ -307,6 +309,7 @@ function agentDiscoveryErrorCode(
   switch (code) {
     case "host-not-found": return "native-host-not-found";
     case "host-forbidden": return "native-host-forbidden";
+    case "host-launch-failed": return "native-host-launch-failed";
     case "host-exited": return "native-host-exited";
     case "host-protocol": return "native-host-protocol";
     case "host-timeout": return "native-host-timeout";

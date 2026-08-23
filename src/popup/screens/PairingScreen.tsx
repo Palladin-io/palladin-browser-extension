@@ -230,6 +230,7 @@ function discoveryError(error: unknown, t: Translate): string {
     switch (error.code) {
       case "native-host-not-found": return t("pairing.discoveryNotFound");
       case "native-host-forbidden": return t("pairing.discoveryForbidden");
+      case "native-host-launch-failed": return t("pairing.discoveryLaunchFailed");
       case "native-host-exited": return t("pairing.discoveryExited");
       case "native-host-protocol": return t("pairing.discoveryProtocol");
       case "native-host-timeout": return t("pairing.discoveryTimeout");

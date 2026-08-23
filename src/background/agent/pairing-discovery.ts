@@ -62,8 +62,14 @@ function receivePairingOffer(
       resolve(raw);
     };
     try {
-      void chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, request)
-        .then(finishResolve, finishReject);
+      chrome.runtime.sendNativeMessage(NATIVE_HOST_NAME, request, (raw) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError !== undefined) {
+          finishReject(lastError);
+          return;
+        }
+        finishResolve(raw);
+      });
     } catch (cause) {
       finishReject(cause);
     }

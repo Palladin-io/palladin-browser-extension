@@ -92,15 +92,15 @@ describe("Agent pairing popup commands", () => {
   it("preserves a value-free native discovery failure code", async () => {
     const effects = deps({
       discoverPairing: vi.fn(async () => {
-        throw new NativePairingDiscoveryError("host-not-found");
+        throw new NativePairingDiscoveryError("host-launch-failed");
       }),
     });
     const handle = createAgentPairingRuntimeHandler(effects);
 
     await expect(handle({ type: "agent-pairing/discover" })).resolves.toEqual({
       ok: false,
-      code: "native-host-not-found",
-      message: "The native messaging host is not registered",
+      code: "native-host-launch-failed",
+      message: "The native messaging host could not be started",
     });
   });
 

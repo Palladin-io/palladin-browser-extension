@@ -108,6 +108,7 @@ function isAgentPairingErrorCode(value: unknown): value is AgentPairingErrorCode
     || value === "mutation-not-committed"
     || value === "native-host-not-found"
     || value === "native-host-forbidden"
+    || value === "native-host-launch-failed"
     || value === "native-host-exited"
     || value === "native-host-protocol"
     || value === "native-host-timeout"
