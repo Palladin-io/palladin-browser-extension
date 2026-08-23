@@ -82,7 +82,7 @@ describe("popup state machine", () => {
     await user.click(await screen.findByRole("button", { name: "Settings" }));
     const appearance = screen.getByRole("button", { name: "Appearance" });
     const server = screen.getByRole("button", { name: "Server URL" });
-    const pairing = screen.getByRole("button", { name: "Pair Agent runtime" });
+    const pairing = screen.getByRole("button", { name: "Pair Agent" });
     expect(appearance).toHaveAttribute("aria-expanded", "false");
     expect(server).toHaveAttribute("aria-expanded", "false");
     expect(pairing).toHaveAttribute("aria-expanded", "false");
