@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -38,10 +39,28 @@ export function validateBuiltManifest(root, target) {
     ]),
     `${target}: unexpected optional host permissions`,
   );
+  validateContentLoaders(manifest, outputDirectory, target);
 
   if (target === "chromium") validateChromium(manifest, outputDirectory);
   if (target === "firefox") validateFirefox(manifest, outputDirectory);
   if (target === "safari") validateSafari(manifest, outputDirectory);
+}
+
+function validateContentLoaders(manifest, outputDirectory, target) {
+  const scripts = (manifest.content_scripts ?? []).flatMap((entry) => entry.js ?? []);
+  const loaders = scripts.filter((path) => typeof path === "string" && path.includes("-loader-"));
+  invariant(loaders.length > 0, `${target}: content loaders are missing`);
+  for (const path of loaders) {
+    const match = path.match(/-content-([0-9a-f]{12})\.js$/);
+    invariant(match !== null, `${target}: content loader filename is not byte-bound`);
+    const absolute = resolve(outputDirectory, path);
+    invariant(existsSync(absolute), `${target}: content loader was not built`);
+    const digest = createHash("sha256")
+      .update(readFileSync(absolute))
+      .digest("hex")
+      .slice(0, 12);
+    invariant(digest === match?.[1], `${target}: content loader hash does not match its bytes`);
+  }
 }
 
 function validateChromium(manifest, outputDirectory) {

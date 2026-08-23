@@ -414,6 +414,7 @@ describe("Agent pairing popup commands", () => {
     const fill = barrier.admit(() => handleNativeAgentMessage(
       {
         getActivePage: vi.fn(async () => page),
+        getPageById: vi.fn(async () => page),
         sendStep,
         probeTransition: vi.fn(async () => ({ status: "ready" } as const)),
       },

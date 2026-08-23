@@ -14,6 +14,7 @@ import {
   connectPairedNativeAgentProvider,
   disconnectNativeAgentProvider,
   gateAgentFillDeps,
+  getPageById,
   handleNativeAgentAlarm,
   parseSecureFrame,
   parseSessionReady,
@@ -26,6 +27,7 @@ const SIGNATURE = toBase64Url(new Uint8Array(64));
 const INTENT_TOKEN = "00000000-0000-4000-8000-000000000001";
 
 afterEach(() => {
+  vi.useRealTimers();
   disconnectNativeAgentProvider();
   vi.unstubAllGlobals();
 });
@@ -110,6 +112,19 @@ describe("secure Native Messaging frame boundary", () => {
     const { connectNative } = stubChrome(undefined);
     await connectPairedNativeAgentProvider();
     expect(connectNative).not.toHaveBeenCalled();
+  });
+
+  it("fails a hung public tab probe closed within a bounded time", async () => {
+    vi.useFakeTimers();
+    stubChrome(undefined);
+    chrome.tabs = {
+      sendMessage: vi.fn(() => new Promise(() => undefined)),
+    } as unknown as typeof chrome.tabs;
+
+    const pending = getPageById(7);
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    await expect(pending).resolves.toEqual({ id: 7, page: null });
   });
 
   it("accepts only a public host key whose stored fingerprint verifies", async () => {
@@ -231,7 +246,8 @@ describe("secure Native Messaging frame boundary", () => {
       page: { url: "https://login.example.com", documentId: "d".repeat(32) },
     };
     const base: AgentFillDeps = {
-      getActivePage: vi.fn(async () => {
+      getActivePage: vi.fn(async () => page),
+      getPageById: vi.fn(async () => {
         pageReads += 1;
         if (pageReads === 2) active = false;
         return page;
@@ -279,7 +295,13 @@ describe("secure Native Messaging frame boundary", () => {
     expect(base.sendStep).not.toHaveBeenCalled();
     expect(base.probeTransition).not.toHaveBeenCalled();
     expect(request.values[0]?.value).toBe("");
-    await expect(gated.sendStep(7, "login.example.com", request.form.steps[0]!, []))
+    await expect(gated.sendStep(
+      7,
+      "login.example.com",
+      "d".repeat(32),
+      request.form.steps[0]!,
+      [],
+    ))
       .resolves.toBeNull();
     await expect(gated.probeTransition(7, "login.example.com", "#password"))
       .resolves.toBeNull();

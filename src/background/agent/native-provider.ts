@@ -31,9 +31,11 @@ export interface AgentTabState {
 
 export interface AgentFillDeps {
   getActivePage(): Promise<AgentTabState | null>;
+  getPageById(tabId: number): Promise<AgentTabState | null>;
   sendStep(
     tabId: number,
     expectedDomain: string,
+    documentId: string,
     step: AgentInjectFormStep,
     values: readonly AgentInjectFieldValue[],
   ): Promise<AgentInjectStepOutcome | null>;
@@ -75,7 +77,11 @@ export interface AgentPrepareResult {
   readonly type: "prepare.result";
   readonly nonce: string | null;
   readonly currentUrl: string | null;
-  readonly outcome: "ready" | "provider-unavailable" | "invalid-request";
+  readonly outcome: "ready"
+    | "provider-unavailable"
+    | "target-tab-unavailable"
+    | "target-url-mismatch"
+    | "invalid-request";
 }
 
 /**
@@ -90,10 +96,20 @@ export async function handleNativeAgentMessage(
 ): Promise<AgentInjectionResult | AgentPrepareResult> {
   const prepare = parseAgentPrepareRequest(raw);
   if (prepare !== null) {
-    const tab = await deps.getActivePage();
+    const tab = prepare.targetTabId === undefined
+      ? await deps.getActivePage()
+      : await deps.getPageById(prepare.targetTabId);
     if (tab?.page === null || tab === null) {
       session.prepared = null;
-      return prepareResult(prepare.nonce, null, "provider-unavailable");
+      return prepareResult(
+        prepare.nonce,
+        null,
+        prepare.targetTabId === undefined ? "provider-unavailable" : "target-tab-unavailable",
+      );
+    }
+    if (prepare.targetUrl !== undefined && tab.page.url !== prepare.targetUrl) {
+      session.prepared = null;
+      return prepareResult(prepare.nonce, null, "target-url-mismatch");
     }
     session.prepared = { tabId: tab.id, documentId: tab.page.documentId };
     return prepareResult(prepare.nonce, tab.page.url, "ready");
@@ -124,7 +140,7 @@ export async function handleAgentInjection(
     if (!(await replay.consume(request.transactionId))) {
       return result(request.transactionId, "rejected");
     }
-    let current = await deps.getActivePage();
+    let current = await deps.getPageById(prepared.tabId);
     if (current?.page === null || current === null || current.id !== prepared.tabId) {
       return result(request.transactionId, "provider-unavailable");
     }
@@ -134,7 +150,7 @@ export async function handleAgentInjection(
     }
 
     for (const step of request.form.steps) {
-      current = await deps.getActivePage();
+      current = await deps.getPageById(prepared.tabId);
       if (current?.page === null || current === null || current.id !== prepared.tabId) {
         return result(request.transactionId, "provider-unavailable");
       }
@@ -144,7 +160,13 @@ export async function handleAgentInjection(
       const stepValues = valuesForAgentInjectStep(request.values, step);
       let outcome: AgentInjectStepOutcome | null;
       try {
-        outcome = await deps.sendStep(prepared.tabId, request.expectedDomain, step, stepValues);
+        outcome = await deps.sendStep(
+          prepared.tabId,
+          request.expectedDomain,
+          current.page.documentId,
+          step,
+          stepValues,
+        );
       } finally {
         wipeValues(stepValues);
       }
@@ -182,7 +204,7 @@ async function waitForTransition(
   let sawStructuralMiss = false;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     await wait(TRANSITION_POLL_MS);
-    const current = await deps.getActivePage();
+    const current = await deps.getPageById(tabId);
     if (current === null || current.id !== tabId) return "provider-unavailable";
     if (current.page === null) continue;
     const origin = originFailure(current.page.url, expectedDomain);

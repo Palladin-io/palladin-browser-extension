@@ -61,6 +61,8 @@ export interface AgentPrepareRequest {
   readonly protocol: typeof AGENT_INJECT_PROTOCOL;
   readonly type: "prepare";
   readonly nonce: string;
+  readonly targetTabId?: number;
+  readonly targetUrl?: string;
 }
 
 export interface AgentInjectionRequest {
@@ -77,6 +79,7 @@ export interface AgentInjectionRequest {
 export interface AgentInjectStepMessage {
   readonly channel: typeof AGENT_INJECT_STEP_CHANNEL;
   readonly expectedDomain: string;
+  readonly documentId: string;
   readonly step: AgentInjectFormStep;
   readonly values: readonly AgentInjectFieldValue[];
 }
@@ -108,11 +111,18 @@ export type AgentInjectTransitionOutcome =
   | { readonly status: "insecure-origin" };
 
 export function parseAgentPrepareRequest(value: unknown): AgentPrepareRequest | null {
-  if (!isRecord(value) || !onlyKeys(value, ["protocol", "type", "nonce"])) return null;
+  if (!isRecord(value)
+    || !onlyKeys(value, ["protocol", "type", "nonce", "targetTabId", "targetUrl"])) return null;
   if (value.protocol !== AGENT_INJECT_PROTOCOL
     || value.type !== "prepare"
     || typeof value.nonce !== "string"
     || !/^[A-Za-z0-9]{32,128}$/.test(value.nonce)) return null;
+  const hasTabId = value.targetTabId !== undefined;
+  const hasUrl = value.targetUrl !== undefined;
+  if (hasTabId !== hasUrl) return null;
+  if (hasTabId && (!validBrowserTabId(value.targetTabId) || !validTargetUrl(value.targetUrl))) {
+    return null;
+  }
   return value as unknown as AgentPrepareRequest;
 }
 
@@ -179,9 +189,12 @@ export function parseAgentInjectValues(
 }
 
 export function isAgentInjectStepMessage(value: unknown): value is AgentInjectStepMessage {
-  if (!isRecord(value) || !onlyKeys(value, ["channel", "expectedDomain", "step", "values"])
+  if (!isRecord(value)
+    || !onlyKeys(value, ["channel", "expectedDomain", "documentId", "step", "values"])
     || value.channel !== AGENT_INJECT_STEP_CHANNEL
-    || !validExpectedDomain(value.expectedDomain)) return false;
+    || !validExpectedDomain(value.expectedDomain)
+    || typeof value.documentId !== "string"
+    || !/^[a-f0-9]{32}$/.test(value.documentId)) return false;
   const step = parseStep(value.step);
   if (step === null) return false;
   return parseAgentInjectValues(value.values, { version: 1, steps: [step] }) !== null;
@@ -285,6 +298,24 @@ function validSelector(value: unknown): value is string {
     && value.length <= MAX_SELECTOR_LENGTH
     && value === value.trim()
     && !value.includes("\0");
+}
+
+function validBrowserTabId(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+function validTargetUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.length < 1 || value.length > 4_096
+    || value !== value.trim()) return false;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:"
+      && parsed.hostname.length > 0
+      && parsed.username.length === 0
+      && parsed.password.length === 0;
+  } catch {
+    return false;
+  }
 }
 
 function validExpectedDomain(value: unknown): value is string {

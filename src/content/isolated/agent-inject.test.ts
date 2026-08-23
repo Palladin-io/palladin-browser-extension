@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AgentInjectStepMessage } from "@shared/messaging";
 
 import {
+  createAgentInjectDomAccess,
   inspectAgentInjectTransition,
   performAgentInjectStep,
   type AgentInjectDomAccess,
@@ -13,6 +14,7 @@ import {
 const visible: AgentInjectDomAccess = {
   isVisible: (element) => !element.hidden && !element.classList.contains("hidden"),
 };
+const DOCUMENT_ID = "d".repeat(32);
 
 function mount(html: string): Document {
   document.body.innerHTML = html;
@@ -23,6 +25,7 @@ function combined(overrides: Partial<AgentInjectStepMessage> = {}): AgentInjectS
   return {
     channel: "palladin.agent-inject/step",
     expectedDomain: "login.example.com",
+    documentId: DOCUMENT_ID,
     step: {
       fields: [
         { entryFieldId: "credential.username", selector: "#user", control: "username" },
@@ -39,6 +42,47 @@ function combined(overrides: Partial<AgentInjectStepMessage> = {}): AgentInjectS
 }
 
 describe("declarative Agent Inject step", () => {
+  it("ignores only the registered Palladin overlay during visibility checks", () => {
+    const doc = mount('<input id="user" type="text" />');
+    const input = doc.getElementById("user") as HTMLInputElement;
+    const ownedOverlay = doc.createElement("palladin-autofill");
+    const foreignOverlay = doc.createElement("div");
+    doc.body.append(ownedOverlay, foreignOverlay);
+    vi.spyOn(input, "getBoundingClientRect").mockReturnValue({
+      bottom: 30,
+      height: 20,
+      left: 10,
+      right: 110,
+      top: 10,
+      width: 100,
+      x: 10,
+      y: 10,
+      toJSON: () => ({}),
+    });
+    Object.defineProperties(doc.documentElement, {
+      clientHeight: { configurable: true, value: 800 },
+      clientWidth: { configurable: true, value: 1200 },
+    });
+    Object.defineProperty(doc, "elementsFromPoint", {
+      configurable: true,
+      value: vi.fn(() => [ownedOverlay, input]),
+    });
+    Object.defineProperty(doc, "elementFromPoint", {
+      configurable: true,
+      value: vi.fn(() => ownedOverlay),
+    });
+
+    expect(createAgentInjectDomAccess(doc, (element) => element === ownedOverlay)
+      .isVisible(input)).toBe(true);
+
+    Object.defineProperty(doc, "elementsFromPoint", {
+      configurable: true,
+      value: vi.fn(() => [ownedOverlay, foreignOverlay, input]),
+    });
+    expect(createAgentInjectDomAccess(doc, (element) => element === ownedOverlay)
+      .isVisible(input)).toBe(false);
+  });
+
   it("fills and submits only the exact declared controls", () => {
     const doc = mount(`
       <input id="decoy" type="password" />
@@ -54,6 +98,7 @@ describe("declarative Agent Inject step", () => {
     expect(performAgentInjectStep(
       doc,
       combined(),
+      DOCUMENT_ID,
       () => "https://login.example.com/start",
       visible,
     )).toEqual({ ok: true });
@@ -61,6 +106,27 @@ describe("declarative Agent Inject step", () => {
     expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("fixture-password");
     expect((doc.getElementById("decoy") as HTMLInputElement).value).toBe("");
     expect(click).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a replaced document before the first DOM write", () => {
+    const doc = mount(`
+      <input id="user" type="email" />
+      <input id="pass" type="password" />
+      <button id="submit" type="button"></button>
+    `);
+    const click = vi.fn();
+    doc.getElementById("submit")?.addEventListener("click", click);
+
+    expect(performAgentInjectStep(
+      doc,
+      combined(),
+      "e".repeat(32),
+      () => "https://login.example.com/start",
+      visible,
+    )).toEqual({ ok: false, outcome: "stale-form-map" });
+    expect((doc.getElementById("user") as HTMLInputElement).value).toBe("");
+    expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("");
+    expect(click).not.toHaveBeenCalled();
   });
 
   it("supports arbitrary approved text and OTP fields", () => {
@@ -74,6 +140,7 @@ describe("declarative Agent Inject step", () => {
     const message: AgentInjectStepMessage = {
       channel: "palladin.agent-inject/step",
       expectedDomain: "example.com",
+      documentId: DOCUMENT_ID,
       step: {
         fields: [
           { entryFieldId: "custom:note", selector: "#note", control: "text" },
@@ -89,6 +156,7 @@ describe("declarative Agent Inject step", () => {
     expect(performAgentInjectStep(
       doc,
       message,
+      DOCUMENT_ID,
       () => "https://login.example.com",
       visible,
     )).toEqual({ ok: true });
@@ -108,7 +176,7 @@ describe("declarative Agent Inject step", () => {
         submit: { action: "click", selector: "#submit" },
       },
       values: [{ entryFieldId: "credential.password", value: "fixture-password" }],
-    }), () => "https://login.example.com", visible)).toEqual({
+    }), DOCUMENT_ID, () => "https://login.example.com", visible)).toEqual({
       ok: false,
       outcome: "ambiguous-form",
     });
@@ -123,7 +191,7 @@ describe("declarative Agent Inject step", () => {
         submit: { action: "click", selector: "#submit" },
       },
       values: [{ entryFieldId: "credential.password", value: "fixture-password" }],
-    }), () => "https://login.example.com", visible)).toEqual({
+    }), DOCUMENT_ID, () => "https://login.example.com", visible)).toEqual({
       ok: false,
       outcome: "ambiguous-form",
     });
@@ -137,7 +205,7 @@ describe("declarative Agent Inject step", () => {
         submit: { action: "click", selector: "#submit" },
       },
       values: [{ entryFieldId: "credential.password", value: "fixture-password" }],
-    }), () => "https://login.example.com", visible)).toEqual({
+    }), DOCUMENT_ID, () => "https://login.example.com", visible)).toEqual({
       ok: false,
       outcome: "no-password-field",
     });
@@ -149,7 +217,7 @@ describe("declarative Agent Inject step", () => {
         submit: { action: "click", selector: "#missing" },
       },
       values: [{ entryFieldId: "credential.password", value: "fixture-password" }],
-    }), () => "https://login.example.com", visible)).toEqual({
+    }), DOCUMENT_ID, () => "https://login.example.com", visible)).toEqual({
       ok: false,
       outcome: "no-submit-control",
     });
@@ -171,7 +239,7 @@ describe("declarative Agent Inject step", () => {
         submit: { action: "click", selector: "#submit" },
       },
       values: [{ entryFieldId: "credential.password", value: "fixture-password" }],
-    }), () => url, visible)).toEqual({ ok: false, outcome: "origin-mismatch" });
+    }), DOCUMENT_ID, () => url, visible)).toEqual({ ok: false, outcome: "origin-mismatch" });
     expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("");
   });
 
@@ -189,7 +257,7 @@ describe("declarative Agent Inject step", () => {
         submit: { action: "press-enter", selector: "#pass" },
       },
       values: [{ entryFieldId: "credential.password", value: "fixture-password" }],
-    }), () => "https://login.example.com", visible)).toEqual({ ok: true });
+    }), DOCUMENT_ID, () => "https://login.example.com", visible)).toEqual({ ok: true });
     expect(submit).toHaveBeenCalledOnce();
   });
 });

@@ -72,8 +72,9 @@ clears the local encrypted cache.
   `background.service_worker`; current Chromium uses the service worker.
 - Firefox's installation-time data declaration lists `authenticationInfo` and
   `browsingActivity`. Palladin transmits encrypted account and credential data to
-  Palladin services. A future paired Agent Inject session will also send the
-  active URL to the local runtime; zero-knowledge encryption and a local
+  Palladin services. A paired Agent Inject session also returns the independently
+  observed URL of the exact framework-selected tab to the local runtime;
+  zero-knowledge encryption and a local
   destination do not make that browser-consent declaration disappear.
 - Firefox does not request `management` or inspect installed add-ons. Its
   first-run guidance links to Firefox-owned password and add-on settings.

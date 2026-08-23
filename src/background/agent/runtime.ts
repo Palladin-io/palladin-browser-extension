@@ -46,6 +46,7 @@ const REPLAY_KEY = "agentInjectTransactionIds";
 const MAX_REPLAY_IDS = 1_024;
 const RECONNECT_ALARM = "palladin.native-agent.reconnect";
 const MAX_SECURE_FRAME_LENGTH = 2 * 1024 * 1024;
+const TAB_PROBE_TIMEOUT_MS = 2_000;
 
 class SessionReplayGuard implements TransactionReplayGuard {
   private queue: Promise<boolean> = Promise.resolve(true);
@@ -76,6 +77,7 @@ const pairingMutationBarrier = new AgentFillMutationBarrier();
 
 const agentFillDeps: AgentFillDeps = {
   getActivePage,
+  getPageById,
   sendStep,
   probeTransition,
 };
@@ -91,9 +93,14 @@ export function gateAgentFillDeps(
       const page = await deps.getActivePage();
       return isActive() ? page : null;
     },
-    async sendStep(tabId, expectedDomain, step, values) {
+    async getPageById(tabId) {
       if (!isActive()) return null;
-      const outcome = await deps.sendStep(tabId, expectedDomain, step, values);
+      const page = await deps.getPageById(tabId);
+      return isActive() ? page : null;
+    },
+    async sendStep(tabId, expectedDomain, documentId, step, values) {
+      if (!isActive()) return null;
+      const outcome = await deps.sendStep(tabId, expectedDomain, documentId, step, values);
       return isActive() ? outcome : null;
     },
     async probeTransition(tabId, expectedDomain, selector) {
@@ -351,33 +358,61 @@ function disposeSecureSession(port?: chrome.runtime.Port): void {
 async function getActivePage(): Promise<AgentTabState | null> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (tab?.id === undefined) return null;
+  return getPageById(tab.id);
+}
+
+export async function getPageById(tabId: number): Promise<AgentTabState | null> {
+  if (!Number.isSafeInteger(tabId) || tabId <= 0) return null;
   try {
-    const response = await chrome.tabs.sendMessage(
-      tab.id,
-      { channel: TAB_URL_REQUEST_CHANNEL },
-      { frameId: 0 },
+    const response = await settleWithin(
+      chrome.tabs.sendMessage(
+        tabId,
+        { channel: TAB_URL_REQUEST_CHANNEL },
+        { frameId: 0 },
+      ),
+      TAB_PROBE_TIMEOUT_MS,
     );
     return {
-      id: tab.id,
+      id: tabId,
       page: isTabUrlResponse(response)
         ? { url: response.url, documentId: response.documentId }
         : null,
     };
   } catch {
-    return { id: tab.id, page: null };
+    return { id: tabId, page: null };
   }
+}
+
+function settleWithin<T>(operation: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = globalThis.setTimeout(
+      () => reject(new Error("Agent tab probe timed out")),
+      timeoutMs,
+    );
+    operation.then(
+      (value) => {
+        globalThis.clearTimeout(timeout);
+        resolve(value);
+      },
+      (error: unknown) => {
+        globalThis.clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
 }
 
 async function sendStep(
   tabId: number,
   expectedDomain: string,
+  documentId: string,
   step: AgentInjectFormStep,
   values: readonly AgentInjectFieldValue[],
 ): Promise<AgentInjectStepOutcome | null> {
   try {
     const response = await chrome.tabs.sendMessage(
       tabId,
-      { channel: AGENT_INJECT_STEP_CHANNEL, expectedDomain, step, values },
+      { channel: AGENT_INJECT_STEP_CHANNEL, expectedDomain, documentId, step, values },
       { frameId: 0 },
     );
     return isAgentInjectStepOutcome(response) ? response : null;

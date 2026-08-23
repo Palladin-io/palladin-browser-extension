@@ -55,6 +55,8 @@ describe("Agent Inject contract", () => {
       protocol: "palladin.inject-provider.v1",
       type: "prepare",
       nonce: "a".repeat(64),
+      targetTabId: 1_240_594_015,
+      targetUrl: "https://login.example.com/start?flow=agent",
     })).not.toBeNull();
     const parsed = parseAgentInjectionRequest(injection());
     expect(parsed?.form.steps).toHaveLength(2);
@@ -63,6 +65,31 @@ describe("Agent Inject contract", () => {
       "credential.password",
       "credential.totp",
     ]);
+  });
+
+  it("requires a paired safe tab ID and exact credential-free HTTPS URL", () => {
+    const prepare = {
+      protocol: "palladin.inject-provider.v1",
+      type: "prepare",
+      nonce: "a".repeat(64),
+    };
+    expect(parseAgentPrepareRequest({ ...prepare, targetTabId: 7 })).toBeNull();
+    expect(parseAgentPrepareRequest({ ...prepare, targetUrl: "https://example.com" })).toBeNull();
+    expect(parseAgentPrepareRequest({
+      ...prepare,
+      targetTabId: 0,
+      targetUrl: "https://example.com",
+    })).toBeNull();
+    expect(parseAgentPrepareRequest({
+      ...prepare,
+      targetTabId: 7,
+      targetUrl: "http://example.com",
+    })).toBeNull();
+    expect(parseAgentPrepareRequest({
+      ...prepare,
+      targetTabId: 7,
+      targetUrl: "https://user:password@example.com",
+    })).toBeNull();
   });
 
   it("rejects unknown fields, incomplete values, duplicate fields, and invalid transitions", () => {
@@ -112,12 +139,14 @@ describe("Agent Inject contract", () => {
     expect(isAgentInjectStepMessage({
       channel: AGENT_INJECT_STEP_CHANNEL,
       expectedDomain: parsed.expectedDomain,
+      documentId: "d".repeat(32),
       step,
       values,
     })).toBe(true);
     expect(isAgentInjectStepMessage({
       channel: AGENT_INJECT_STEP_CHANNEL,
       expectedDomain: parsed.expectedDomain,
+      documentId: "d".repeat(32),
       step,
       values,
       extra: true,
