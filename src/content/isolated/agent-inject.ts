@@ -18,13 +18,53 @@ export interface AgentInjectDomAccess {
   isVisible(element: HTMLElement): boolean;
 }
 
+export function createAgentInjectDomAccess(
+  doc: Document,
+  isTrustedOverlay: (element: Element) => boolean = () => false,
+): AgentInjectDomAccess {
+  return {
+    isVisible(element): boolean {
+      const view = doc.defaultView;
+      if (view === null || typeof doc.elementFromPoint !== "function") return false;
+      if (typeof element.checkVisibility === "function" && !element.checkVisibility({
+        checkOpacity: true,
+        checkVisibilityCSS: true,
+      })) return false;
+      const style = view.getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const hits = typeof doc.elementsFromPoint === "function"
+        ? doc.elementsFromPoint(centerX, centerY)
+        : [doc.elementFromPoint(centerX, centerY)].filter((hit): hit is Element => hit !== null);
+      const hit = hits.find((candidate) => !isTrustedOverlay(candidate)) ?? null;
+      return style.display !== "none"
+        && style.visibility !== "hidden"
+        && Number.parseFloat(style.opacity || "1") > 0.01
+        && style.pointerEvents !== "none"
+        && rect.width > 0
+        && rect.height > 0
+        && centerX >= 0
+        && centerY >= 0
+        && centerX <= doc.documentElement.clientWidth
+        && centerY <= doc.documentElement.clientHeight
+        && hit !== null
+        && (hit === element || element.contains(hit) || hit.contains(element));
+    },
+  };
+}
+
 /** Execute one already-validated declarative step without guessing any control. */
 export function performAgentInjectStep(
   doc: Document,
   message: AgentInjectStepMessage,
+  currentDocumentId: string,
   currentUrl: () => string,
-  dom: AgentInjectDomAccess = browserDomAccess(doc),
+  dom: AgentInjectDomAccess = createAgentInjectDomAccess(doc),
 ): AgentInjectStepOutcome {
+  if (message.documentId !== currentDocumentId) {
+    return { ok: false, outcome: "stale-form-map" };
+  }
   const initialOrigin = checkOrigin(currentUrl(), message.expectedDomain);
   if (initialOrigin !== null) return { ok: false, outcome: initialOrigin };
 
@@ -68,7 +108,7 @@ export function inspectAgentInjectTransition(
   selector: string,
   expectedDomain: string,
   currentUrl: () => string,
-  dom: AgentInjectDomAccess = browserDomAccess(doc),
+  dom: AgentInjectDomAccess = createAgentInjectDomAccess(doc),
 ): AgentInjectTransitionOutcome {
   const origin = checkOrigin(currentUrl(), expectedDomain);
   if (origin !== null) return { status: origin };
@@ -212,34 +252,4 @@ function writeControlValue(control: WritableControl, value: string, emitEvents: 
   if (!emitEvents) return;
   control.dispatchEvent(new Event("input", { bubbles: true }));
   control.dispatchEvent(new Event("change", { bubbles: true }));
-}
-
-function browserDomAccess(doc: Document): AgentInjectDomAccess {
-  return {
-    isVisible(element): boolean {
-      const view = doc.defaultView;
-      if (view === null || typeof doc.elementFromPoint !== "function") return false;
-      if (typeof element.checkVisibility === "function" && !element.checkVisibility({
-        checkOpacity: true,
-        checkVisibilityCSS: true,
-      })) return false;
-      const style = view.getComputedStyle(element);
-      const rect = element.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-      const hit = doc.elementFromPoint(centerX, centerY);
-      return style.display !== "none"
-        && style.visibility !== "hidden"
-        && Number.parseFloat(style.opacity || "1") > 0.01
-        && style.pointerEvents !== "none"
-        && rect.width > 0
-        && rect.height > 0
-        && centerX >= 0
-        && centerY >= 0
-        && centerX <= doc.documentElement.clientWidth
-        && centerY <= doc.documentElement.clientHeight
-        && hit !== null
-        && (hit === element || element.contains(hit) || hit.contains(element));
-    },
-  };
 }

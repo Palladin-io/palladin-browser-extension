@@ -90,11 +90,12 @@ worker's session, key, or authorization state.
   Clear cannot commit the active record or return success until it finishes and
   its values are wiped. Therefore no old fill can write after mutation success.
   No Native Messaging host private key or channel session secret is persisted.
-  The popup
-  accepts the strict `palladin.inject-pairing.v1` JSON bundle printed by the
-  trusted runtime CLI, recomputes the fingerprint, and writes the pin only after
-  explicit user confirmation. There is no TOFU path and Native Messaging cannot
-  create or replace the pin.
+  The popup uses the strict `palladin.inject-pairing.v1` discovery exchange to
+  obtain a challenge-bound public identity from the allowlisted host, recomputes
+  the fingerprint, and writes the pin only after the user compares it with the
+  independent trusted-runtime CLI display and explicitly chooses **Trust and
+  pair**. There is no TOFU path and Native Messaging discovery cannot create or
+  replace the pin.
 - Playwright and AgentBrowser use their own provider adapters and do not connect
   to this extension.
 
@@ -187,10 +188,19 @@ approved Inject grant and transfers one credential over private pipes to the
 Native Messaging host. A paired session begins with `session.open` /
 `session.ready`; the signed transcript binds the extension origin, both nonces,
 and both ephemeral keys. All prepare/inject traffic then travels only in
-sequence-checked AEAD `secure` frames. The extension validates replay state,
-active tab/document, HTTPS origin, and the authenticated runtime-provided target
-domain before fill and before submit. It returns only a value-free outcome. The
-declarative payload remains `form+values`; there is no CDP transport. Removing
+sequence-checked AEAD `secure` frames. A browser framework supplies the paired
+`targetTabId` and exact `targetUrl` snapshot during secretless preparation. The
+extension independently resolves only that WebExtensions tab ID, requires the
+observed top-frame URL to match, and pins its document ID. It re-resolves that
+same tab and validates replay state, document, HTTPS origin, and the authenticated
+runtime-provided target domain before fill and before submit. Every fill message
+also carries the expected isolated-world page-load document ID, which the content
+script checks before its first DOM write. The routing pair is never authorization.
+The isolated-world visibility gate ignores only the exact extension-owned inline
+surface objects registered in the current controller. It still rejects any page-owned
+or otherwise foreign overlay; a page cannot bypass the gate by copying an element name
+or marker. It returns only a value-free outcome. The declarative payload remains
+`form+values`; there is no CDP transport. Removing
 the pin immediately disconnects and disposes the channel. Production host
 packaging and installed-browser validation remain release gates, so this path is
 not enabled in release builds today.

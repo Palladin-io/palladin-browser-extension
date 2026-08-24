@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -13,15 +13,17 @@ import { PairingScreen } from "./PairingScreen";
 
 const KEY = `${"a".repeat(42)}A`;
 const FINGERPRINT = "12345678" + "b".repeat(29) + "uvwxyw";
-const BUNDLE = JSON.stringify({
+const OFFER = {
   protocol: AGENT_PAIRING_PROTOCOL,
   hostSigningPublicKey: KEY,
   fingerprint: FINGERPRINT,
-});
+} as const;
+const BUNDLE = JSON.stringify(OFFER);
 
 function client(overrides: Partial<AgentPairingClient> = {}): AgentPairingClient {
   return {
     getStatus: vi.fn(async () => ({ paired: false as const })),
+    discover: vi.fn(async () => OFFER),
     save: vi.fn(async () => ({ paired: true as const, fingerprint: FINGERPRINT })),
     clear: vi.fn(async () => ({ paired: false as const })),
     ...overrides,
@@ -29,42 +31,70 @@ function client(overrides: Partial<AgentPairingClient> = {}): AgentPairingClient
 }
 
 describe("Agent runtime pairing screen", () => {
-  it("requires a valid out-of-band bundle and explicit fingerprint confirmation", async () => {
+  it("detects the local runtime and pairs with one explicit trust click", async () => {
     const pairing = client();
     render(<PairingScreen client={pairing} />);
     const user = userEvent.setup();
 
-    const input = await screen.findByLabelText("Pairing bundle");
-    await user.type(input, "not-json");
-    expect(screen.getByRole("alert")).toHaveTextContent("malformed");
-    expect(screen.getByRole("button", { name: "Pair runtime" })).toBeDisabled();
+    expect(await screen.findByText("12345678…uvwxyw")).toBeInTheDocument();
+    expect(pairing.discover).toHaveBeenCalledOnce();
+    expect(document.body.textContent).not.toContain(FINGERPRINT);
+    expect(document.body.textContent).not.toContain(KEY);
 
-    await user.clear(input);
-    fireEvent.change(input, { target: { value: BUNDLE } });
-    expect(screen.getByText("12345678…uvwxyw")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Pair runtime" })).toBeDisabled();
-    await user.click(screen.getByRole("checkbox", { name: /verified this fingerprint/i }));
-    await user.click(screen.getByRole("button", { name: "Pair runtime" }));
+    await user.click(screen.getByRole("button", { name: "Trust and pair" }));
 
     await waitFor(() => expect(pairing.save).toHaveBeenCalledWith(BUNDLE));
     expect(await screen.findByText("Paired fingerprint")).toBeInTheDocument();
     expect(screen.getByText("12345678…uvwxyw")).toBeInTheDocument();
-    expect(document.body.textContent).not.toContain(FINGERPRINT);
-    expect(document.body.textContent).not.toContain(KEY);
   });
 
-  it("surfaces a fingerprint mismatch without echoing bundle values", async () => {
+  it("retries automatic discovery when the host was initially unavailable", async () => {
+    const discover = vi.fn()
+      .mockRejectedValueOnce(new Error("not installed"))
+      .mockResolvedValueOnce(OFFER);
+    const pairing = client({ discover });
+    render(<PairingScreen client={pairing} />);
+    const user = userEvent.setup();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("wasn't detected");
+    await user.click(screen.getByRole("button", { name: "Detect runtime again" }));
+
+    expect(await screen.findByText("12345678…uvwxyw")).toBeInTheDocument();
+    expect(discover).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows the exact value-free Chrome discovery failure", async () => {
+    const pairing = client({
+      discover: vi.fn(async () => {
+        throw new AgentPairingClientError("native-host-not-found");
+      }),
+    });
+    render(<PairingScreen client={pairing} />);
+
+    expect(await screen.findByRole("alert"))
+      .toHaveTextContent("Chrome couldn't find the Palladin Runtime host registration");
+  });
+
+  it("copies the install command from the pairing instructions", async () => {
+    const pairing = client({ discover: vi.fn(async () => { throw new Error("not installed"); }) });
+    render(<PairingScreen client={pairing} />);
+    const user = userEvent.setup();
+
+    await screen.findByRole("alert");
+    await user.click(screen.getByRole("button", { name: "Copy" }));
+
+    expect(await navigator.clipboard.readText()).toBe("palladin browser install");
+    expect(screen.getByRole("button", { name: "Copied" })).toBeInTheDocument();
+  });
+
+  it("surfaces a fingerprint mismatch without echoing public-key values", async () => {
     const pairing = client({
       save: vi.fn(async () => { throw new AgentPairingClientError("fingerprint-mismatch"); }),
     });
     render(<PairingScreen client={pairing} />);
     const user = userEvent.setup();
 
-    fireEvent.change(await screen.findByLabelText("Pairing bundle"), {
-      target: { value: BUNDLE },
-    });
-    await user.click(screen.getByRole("checkbox", { name: /verified this fingerprint/i }));
-    await user.click(screen.getByRole("button", { name: "Pair runtime" }));
+    await user.click(await screen.findByRole("button", { name: "Trust and pair" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Fingerprint mismatch");
     expect(screen.getByRole("alert").textContent).not.toContain(KEY);
@@ -80,15 +110,10 @@ describe("Agent runtime pairing screen", () => {
     render(<PairingScreen client={pairing} />);
     const user = userEvent.setup();
 
-    fireEvent.change(await screen.findByLabelText("Pairing bundle"), {
-      target: { value: BUNDLE },
-    });
-    await user.click(screen.getByRole("checkbox", { name: /verified this fingerprint/i }));
-    await user.click(screen.getByRole("button", { name: "Pair runtime" }));
+    await user.click(await screen.findByRole("button", { name: "Trust and pair" }));
 
     expect(await screen.findByRole("alert"))
       .toHaveTextContent("Retry before restarting the extension");
-    expect(screen.getByRole("alert").textContent).not.toContain(KEY);
   });
 
   it("loads a persisted pin and unpairs it explicitly", async () => {
@@ -99,9 +124,10 @@ describe("Agent runtime pairing screen", () => {
     const user = userEvent.setup();
 
     expect(await screen.findByText("12345678…uvwxyw")).toBeInTheDocument();
+    expect(pairing.discover).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Unpair runtime" }));
     await waitFor(() => expect(pairing.clear).toHaveBeenCalledOnce());
-    expect(await screen.findByLabelText("Pairing bundle")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Trust and pair" })).toBeInTheDocument();
   });
 
   it("warns when unpairing was not durably committed", async () => {

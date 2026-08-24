@@ -1,4 +1,4 @@
-/** Strict out-of-band pairing bundle shared by the popup and service worker. */
+/** Strict public pairing and discovery shapes shared by the popup and service worker. */
 
 export const AGENT_PAIRING_PROTOCOL = "palladin.inject-pairing.v1" as const;
 
@@ -13,6 +13,12 @@ export interface AgentPairingBundle {
   readonly hostSigningPublicKey: string;
   /** SHA-256 fingerprint produced by the shared Palladin crypto package. */
   readonly fingerprint: string;
+}
+
+export interface AgentPairingOffer extends AgentPairingBundle {
+  readonly type: "pairing.offer";
+  readonly extensionOrigin: string;
+  readonly challenge: string;
 }
 
 export type AgentPairingStatus =
@@ -32,15 +38,46 @@ export function parseAgentPairingBundle(value: string): AgentPairingBundle | nul
   } catch {
     return null;
   }
-  if (!isRecord(parsed) || !onlyKeys(parsed, [
+  return parseAgentPairingBundleValue(parsed);
+}
+
+export function parseAgentPairingBundleValue(value: unknown): AgentPairingBundle | null {
+  if (!isRecord(value) || !onlyKeys(value, [
     "protocol",
     "hostSigningPublicKey",
     "fingerprint",
   ])) return null;
-  if (parsed.protocol !== AGENT_PAIRING_PROTOCOL
-    || !isCanonicalBase64Url32(parsed.hostSigningPublicKey)
-    || !isCanonicalBase64Url32(parsed.fingerprint)) return null;
-  return parsed as unknown as AgentPairingBundle;
+  if (value.protocol !== AGENT_PAIRING_PROTOCOL
+    || !isCanonicalBase64Url32(value.hostSigningPublicKey)
+    || !isCanonicalBase64Url32(value.fingerprint)) return null;
+  return value as unknown as AgentPairingBundle;
+}
+
+/** Parse one challenge-bound, public offer returned by the allowlisted native host. */
+export function parseAgentPairingOffer(
+  value: unknown,
+  expectedExtensionOrigin: string,
+  expectedChallenge: string,
+): AgentPairingBundle | null {
+  if (!isRecord(value) || !onlyKeys(value, [
+    "protocol",
+    "type",
+    "extensionOrigin",
+    "challenge",
+    "hostSigningPublicKey",
+    "fingerprint",
+  ])) return null;
+  if (value.protocol !== AGENT_PAIRING_PROTOCOL
+    || value.type !== "pairing.offer"
+    || value.extensionOrigin !== expectedExtensionOrigin
+    || value.challenge !== expectedChallenge
+    || !isCanonicalBase64Url32(value.hostSigningPublicKey)
+    || !isCanonicalBase64Url32(value.fingerprint)) return null;
+  return {
+    protocol: AGENT_PAIRING_PROTOCOL,
+    hostSigningPublicKey: value.hostSigningPublicKey,
+    fingerprint: value.fingerprint,
+  };
 }
 
 /** Public identifiers are always displayed with both a prefix and suffix. */

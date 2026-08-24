@@ -34,7 +34,11 @@ import {
 import { isCaptureFillRequestMessage } from "@shared/messaging/capture";
 
 import { startPasswordCaptureDetection } from "./capture";
-import { inspectAgentInjectTransition, performAgentInjectStep } from "./agent-inject";
+import {
+  createAgentInjectDomAccess,
+  inspectAgentInjectTransition,
+  performAgentInjectStep,
+} from "./agent-inject";
 import { performBoundFill } from "./fill";
 import { createReconnectingWorkerPort } from "./worker-port";
 import { createSessionKeepalive } from "./session-keepalive";
@@ -91,6 +95,10 @@ const passwordCapture = startPasswordCaptureDetection(
 const inlineAutofill = window.top === window
   ? startInlineAutofill(document, documentId)
   : null;
+const agentInjectDom = createAgentInjectDomAccess(
+  document,
+  (element) => inlineAutofill?.isOwnedSurface(element) ?? false,
+);
 
 // Fill requests arrive as a direct, tab-addressed runtime message from the
 // worker (never the page). We perform the DOM write here in the isolated world
@@ -120,12 +128,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       message.selector,
       message.expectedDomain,
       () => window.location.href,
+      agentInjectDom,
     ));
     return undefined;
   }
   if (isAgentInjectStepMessage(message)) {
     try {
-      sendResponse(performAgentInjectStep(document, message, () => window.location.href));
+      sendResponse(performAgentInjectStep(
+        document,
+        message,
+        documentId,
+        () => window.location.href,
+        agentInjectDom,
+      ));
     } catch {
       sendResponse({ ok: false, outcome: "provider-unavailable" });
     } finally {

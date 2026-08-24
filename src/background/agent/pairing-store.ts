@@ -1,9 +1,10 @@
 /**
  * Durable storage boundary for the non-secret native-host identity pin.
  *
- * The explicit popup ceremony verifies an out-of-band CLI bundle before calling
- * the writer. Session keys, ephemeral keys, nonces, and channel material must
- * never enter this module.
+ * The explicit popup ceremony compares an automatically discovered public
+ * identity with the independent CLI fingerprint before calling the writer.
+ * Session keys, ephemeral keys, nonces, and channel material must never enter
+ * this module.
  */
 
 const PAIRING_KEY = "agentInjectHostPairing";

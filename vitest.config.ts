@@ -17,7 +17,11 @@ export default defineConfig({
     // Node by default (pure worker/units); popup component tests opt into jsdom
     // per-file via a `// @vitest-environment jsdom` docblock.
     environment: "node",
-    include: ["src/**/*.test.{ts,tsx}", "manifest/**/*.test.ts"],
+    include: [
+      "src/**/*.test.{ts,tsx}",
+      "manifest/**/*.test.ts",
+      "scripts/**/*.test.ts",
+    ],
     setupFiles: ["./src/test/setup.ts"],
     globals: true,
   },

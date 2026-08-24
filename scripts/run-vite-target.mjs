@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import { cacheBustContentLoaders } from "./cache-bust-content-loaders.mjs";
 import { validateBuiltManifest } from "./validate-built-manifest.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -28,7 +29,10 @@ for (const target of selected) {
   });
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status ?? 1);
-  if (mode === "build") validateBuiltManifest(root, target);
+  if (mode === "build") {
+    cacheBustContentLoaders(root, target);
+    validateBuiltManifest(root, target);
+  }
 }
 
 function fail(message) {

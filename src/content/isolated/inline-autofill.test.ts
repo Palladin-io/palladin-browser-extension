@@ -586,6 +586,8 @@ describe("inline autofill field discovery", () => {
     const host = document.querySelector("palladin-autofill") as HTMLElement;
     expect(host.style.getPropertyValue("font-family")).toContain("system-ui");
     expect(host.style.getPropertyPriority("font-family")).toBe("important");
+    expect(host.style.getPropertyValue("pointer-events")).toBe("none");
+    expect(host.style.getPropertyPriority("pointer-events")).toBe("important");
     expect(host.style.left).toBe("383px");
     subject.stop();
   });

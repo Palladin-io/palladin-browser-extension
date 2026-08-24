@@ -55,6 +55,8 @@ describe("Agent Inject contract", () => {
       protocol: "palladin.inject-provider.v1",
       type: "prepare",
       nonce: "a".repeat(64),
+      targetTabId: 1_240_594_015,
+      targetUrl: "https://login.example.com/start?flow=agent",
     })).not.toBeNull();
     const parsed = parseAgentInjectionRequest(injection());
     expect(parsed?.form.steps).toHaveLength(2);
@@ -65,12 +67,44 @@ describe("Agent Inject contract", () => {
     ]);
   });
 
+  it("requires a paired safe tab ID and exact credential-free HTTPS URL", () => {
+    const prepare = {
+      protocol: "palladin.inject-provider.v1",
+      type: "prepare",
+      nonce: "a".repeat(64),
+    };
+    expect(parseAgentPrepareRequest({ ...prepare, targetTabId: 7 })).toBeNull();
+    expect(parseAgentPrepareRequest({ ...prepare, targetUrl: "https://example.com" })).toBeNull();
+    expect(parseAgentPrepareRequest({
+      ...prepare,
+      targetTabId: 0,
+      targetUrl: "https://example.com",
+    })).toBeNull();
+    expect(parseAgentPrepareRequest({
+      ...prepare,
+      targetTabId: 7,
+      targetUrl: "http://example.com",
+    })).toBeNull();
+    expect(parseAgentPrepareRequest({
+      ...prepare,
+      targetTabId: 7,
+      targetUrl: "https://user:password@example.com",
+    })).toBeNull();
+  });
+
   it("rejects unknown fields, incomplete values, duplicate fields, and invalid transitions", () => {
     expect(parseAgentInjectionRequest({ ...injection(), extra: true })).toBeNull();
     expect(parseAgentInjectionRequest({
       ...injection(),
       values: [{ entryFieldId: "credential.username", value: "fixture-user" }],
     })).toBeNull();
+    const emptyValue = injection();
+    emptyValue.values = [
+      { entryFieldId: "credential.username", value: "" },
+      { entryFieldId: "credential.password", value: "fixture-password" },
+      { entryFieldId: "credential.totp", value: "123456" },
+    ];
+    expect(parseAgentInjectionRequest(emptyValue)).toBeNull();
     const duplicate = form();
     const steps = duplicate.steps as Array<Record<string, unknown>>;
     const first = steps[0];
@@ -105,12 +139,14 @@ describe("Agent Inject contract", () => {
     expect(isAgentInjectStepMessage({
       channel: AGENT_INJECT_STEP_CHANNEL,
       expectedDomain: parsed.expectedDomain,
+      documentId: "d".repeat(32),
       step,
       values,
     })).toBe(true);
     expect(isAgentInjectStepMessage({
       channel: AGENT_INJECT_STEP_CHANNEL,
       expectedDomain: parsed.expectedDomain,
+      documentId: "d".repeat(32),
       step,
       values,
       extra: true,
@@ -121,6 +157,7 @@ describe("Agent Inject contract", () => {
       selector: "#password",
     })).toBe(true);
     expect(isAgentInjectStepOutcome({ ok: true })).toBe(true);
+    expect(isAgentInjectStepOutcome({ ok: false, outcome: "stale-form-map" })).toBe(true);
     expect(isAgentInjectStepOutcome({ ok: false, outcome: "replayed" })).toBe(false);
     expect(isAgentInjectTransitionOutcome({ status: "ambiguous" })).toBe(true);
     expect(isAgentInjectTransitionOutcome({ status: "unknown" })).toBe(false);

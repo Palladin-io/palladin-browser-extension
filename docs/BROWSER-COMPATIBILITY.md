@@ -72,8 +72,9 @@ clears the local encrypted cache.
   `background.service_worker`; current Chromium uses the service worker.
 - Firefox's installation-time data declaration lists `authenticationInfo` and
   `browsingActivity`. Palladin transmits encrypted account and credential data to
-  Palladin services. A future paired Agent Inject session will also send the
-  active URL to the local runtime; zero-knowledge encryption and a local
+  Palladin services. A paired Agent Inject session also returns the independently
+  observed URL of the exact framework-selected tab to the local runtime;
+  zero-knowledge encryption and a local
   destination do not make that browser-consent declaration disappear.
 - Firefox does not request `management` or inspect installed add-ons. Its
   first-run guidance links to Firefox-owned password and add-on settings.
@@ -107,8 +108,9 @@ clears the local encrypted cache.
   not enabled by producing `dist/safari/` alone.
 - Automated checks currently cover generated manifests, TypeScript, and bundle
   creation. They do not replace installed-browser or store-review testing.
-- The shared popup implements explicit out-of-band public-key pairing without
-  TOFU. Chromium uses the fixed manifest-key-derived extension origin. Firefox
+- The shared popup implements automatic challenge-bound public-host discovery
+  followed by explicit out-of-band fingerprint confirmation without TOFU.
+  Chromium uses the fixed manifest-key-derived extension origin. Firefox
   still needs a reviewed host installer/origin adapter, while Safari needs its
   containing-app adapter; storing a pin alone does not claim runtime support on
   those targets.

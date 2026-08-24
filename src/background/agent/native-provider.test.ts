@@ -48,11 +48,14 @@ function replay(accepted = true): TransactionReplayGuard {
 }
 
 function deps(page: AgentTabState | null = PAGE_A): AgentFillDeps & {
+  getActivePage: ReturnType<typeof vi.fn>;
+  getPageById: ReturnType<typeof vi.fn>;
   sendStep: ReturnType<typeof vi.fn>;
   probeTransition: ReturnType<typeof vi.fn>;
 } {
   return {
-    getActivePage: () => Promise.resolve(page),
+    getActivePage: vi.fn(() => Promise.resolve(page)),
+    getPageById: vi.fn(() => Promise.resolve(page)),
     sendStep: vi.fn(() => Promise.resolve({ ok: true } as const)),
     probeTransition: vi.fn(() => Promise.resolve({ status: "ready" } as const)),
     wait: () => Promise.resolve(),
@@ -93,10 +96,49 @@ describe("authenticated native Agent provider", () => {
     expect(JSON.stringify(response)).not.toContain(DOC_A);
   });
 
+  it("selects the framework tab exactly and rejects a stale URL snapshot", async () => {
+    const fill = deps();
+    const session: AgentProviderSession = { prepared: null };
+    const targeted = await handleNativeAgentMessage(fill, replay(), session, {
+      protocol: "palladin.inject-provider.v1",
+      type: "prepare",
+      nonce: "a".repeat(64),
+      targetTabId: 7,
+      targetUrl: "https://login.example.com/start",
+    });
+    expect(targeted).toMatchObject({ outcome: "ready" });
+    expect(fill.getPageById).toHaveBeenCalledWith(7);
+    expect(fill.getActivePage).not.toHaveBeenCalled();
+
+    const stale = await handleNativeAgentMessage(fill, replay(), session, {
+      protocol: "palladin.inject-provider.v1",
+      type: "prepare",
+      nonce: "b".repeat(64),
+      targetTabId: 7,
+      targetUrl: "https://login.example.com/other",
+    });
+    expect(stale).toMatchObject({ outcome: "target-url-mismatch", currentUrl: null });
+    expect(session.prepared).toBeNull();
+  });
+
+  it("reports a bounded target-tab diagnostic without exposing browsing data", async () => {
+    const fill = deps(null);
+    const session: AgentProviderSession = { prepared: null };
+    const response = await handleNativeAgentMessage(fill, replay(), session, {
+      protocol: "palladin.inject-provider.v1",
+      type: "prepare",
+      nonce: "a".repeat(64),
+      targetTabId: 7,
+      targetUrl: "https://login.example.com/start",
+    });
+    expect(response).toMatchObject({ outcome: "target-tab-unavailable", currentUrl: null });
+    expect(session.prepared).toBeNull();
+  });
+
   it("executes the exact Rust form+values contract without returning a secret", async () => {
     const fill = deps();
     const captured: unknown[] = [];
-    fill.sendStep.mockImplementation((_tabId, _domain, step, values) => {
+    fill.sendStep.mockImplementation((_tabId, _domain, _documentId, step, values) => {
       captured.push(structuredClone({ step, values }));
       return Promise.resolve({ ok: true });
     });
@@ -129,9 +171,11 @@ describe("authenticated native Agent provider", () => {
       secondPage, // second step
     ];
     const seen: unknown[] = [];
+    const readPage = vi.fn(() => Promise.resolve(pages.shift() ?? secondPage));
     const fill: AgentFillDeps = {
-      getActivePage: vi.fn(() => Promise.resolve(pages.shift() ?? secondPage)),
-      sendStep: vi.fn((_tab, _domain, step, values) => {
+      getActivePage: readPage,
+      getPageById: readPage,
+      sendStep: vi.fn((_tab, _domain, _documentId, step, values) => {
         seen.push(structuredClone({ step, values }));
         return Promise.resolve({ ok: true } as const);
       }),
@@ -185,7 +229,9 @@ describe("authenticated native Agent provider", () => {
     ]) {
       const pages = [PAGE_A, changed];
       const fill = deps();
-      fill.getActivePage = vi.fn(() => Promise.resolve(pages.shift() ?? changed));
+      const readPage = vi.fn(() => Promise.resolve(pages.shift() ?? changed));
+      fill.getActivePage = readPage;
+      fill.getPageById = readPage;
       const response = await preparedInject(fill, replay(), request({ transactionId: `tx-${changed.id}-${changed.page?.documentId}` }));
       expect(response).toMatchObject({
         outcome: changed.id === 8 ? "provider-unavailable" : "rejected",
@@ -227,6 +273,63 @@ describe("authenticated native Agent provider", () => {
     }));
     expect(suffix).toMatchObject({ outcome: "rejected" });
     expect(fill.sendStep).not.toHaveBeenCalled();
+  });
+
+  it("reports only structural form failures as a stale Form Discovery Map", async () => {
+    const cases = [
+      { outcome: "no-password-field" as const, expected: "stale-form-map" },
+      { outcome: "no-submit-control" as const, expected: "stale-form-map" },
+      { outcome: "ambiguous-form" as const, expected: "stale-form-map" },
+      { outcome: "origin-mismatch" as const, expected: "origin-mismatch" },
+      { outcome: "insecure-origin" as const, expected: "insecure-origin" },
+      { outcome: "provider-unavailable" as const, expected: "provider-unavailable" },
+    ];
+
+    for (const item of cases) {
+      const fill = deps();
+      fill.sendStep.mockResolvedValue({ ok: false, outcome: item.outcome });
+
+      const response = await preparedInject(fill, replay(), request({
+        transactionId: `tx-${item.outcome}`,
+      }));
+
+      expect(response).toMatchObject({
+        transactionId: `tx-${item.outcome}`,
+        outcome: item.expected,
+      });
+    }
+  });
+
+  it("separates a stale transition selector from origin and transport failures", async () => {
+    const cases = [
+      { status: "missing" as const, expected: "stale-form-map" },
+      { status: "ambiguous" as const, expected: "stale-form-map" },
+      { status: "origin-mismatch" as const, expected: "origin-mismatch" },
+      { status: "insecure-origin" as const, expected: "insecure-origin" },
+      { status: null, expected: "provider-unavailable" },
+    ];
+
+    for (const item of cases) {
+      const fill = deps();
+      fill.probeTransition.mockResolvedValue(
+        item.status === null ? null : { status: item.status },
+      );
+
+      const response = await preparedInject(fill, replay(), request({
+        transactionId: `tx-transition-${item.expected}`,
+        form: {
+          version: 1,
+          steps: [{
+            fields: [{ entryFieldId: "credential.username", selector: "#user", control: "username" }],
+            submit: { action: "click", selector: "#next" },
+            waitFor: { selector: "#pass", timeoutMs: 100 },
+          }],
+        },
+        values: [{ entryFieldId: "credential.username", value: "fixture-user" }],
+      }));
+
+      expect(response).toMatchObject({ outcome: item.expected });
+    }
   });
 
   it("maps replay and malformed frames to Rust-supported value-free outcomes", async () => {

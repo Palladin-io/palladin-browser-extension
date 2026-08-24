@@ -286,22 +286,21 @@ cargo build -p palladin-cli --features local-development
 ```
 
 `browser install` writes the exact Google Chrome Native Messaging manifest and
-prints one JSON pairing bundle to standard output. It prints a shortened
-fingerprint separately. The JSON contains only a public signing key and its
-fingerprint; it contains no secret.
+prints the shortened host fingerprint. It does not print or accept any secret.
 
 1. In the Palladin popup open **Agent runtime**.
-2. Paste the one-line JSON pairing bundle.
+2. Wait for the extension to discover the local runtime automatically.
 3. Compare the prefix and suffix of the fingerprint shown by the CLI and popup.
-4. Check the explicit confirmation box and choose **Pair runtime**.
+4. Choose **Trust and pair**. No bundle copy/paste is required.
 5. Verify the CLI state:
 
    ```bash
    ./target/debug/palladin browser status
    ```
 
-6. Keep the controlled HTTPS login page active and fully prepared. Dismiss
-   public cookie overlays and complete any human CAPTCHA before Inject.
+6. Have the browser framework open and fully prepare the controlled HTTPS login
+   page. Preserve its WebExtensions tab ID and exact URL snapshot. Dismiss public
+   cookie overlays and complete any human CAPTCHA before Inject.
 7. Use an active disposable Agent profile with an approved `Inject` grant, then
    run a value-free form plan such as:
 
@@ -310,6 +309,8 @@ fingerprint; it contains no secret.
 
    ./target/debug/palladin inject <vault-id> <entry-id> \
      --provider extension \
+     --target-tab-id <framework-tab-id> \
+     --page-url 'https://controlled.example/login' \
      --form-json "$FORM_JSON" \
      --reason "Local extension smoke test"
    ```
@@ -326,10 +327,14 @@ argv or an environment variable.
 
 Negative checks:
 
-- a malformed bundle or mismatched fingerprint is rejected;
+- an unknown-field/stale-challenge discovery offer or mismatched fingerprint is rejected;
 - no pairing means no `session.open` and Inject is unavailable;
-- changing the active tab, document, origin, or hostname after preparation
-  rejects the operation;
+- a missing tab, stale URL snapshot, changed document, origin, or hostname after
+  preparation rejects the operation; changing which tab is active does not move
+  the operation away from the exact framework-provided tab ID;
+- the extension-owned closed-Shadow-DOM inline launcher does not make its bound
+  login form stale, while a foreign element covering a declared control still
+  rejects the operation before a secret-bearing write;
 - `--provider playwright`, `--provider agent-browser`, CDP, and plaintext pipe
   routes fail closed;
 - after unpair reports success, an in-flight or later Inject cannot deliver a

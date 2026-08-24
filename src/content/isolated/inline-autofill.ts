@@ -49,6 +49,7 @@ export function startInlineAutofill(
   send: Send = (command) => chrome.runtime.sendMessage(command),
 ): {
   invalidateSuggestions(): void;
+  isOwnedSurface(element: Element): boolean;
   retryAutomaticFill(): void;
   resolveLoginTarget(loginTargetId: string): LoginTarget | null;
   stop(): void;
@@ -57,6 +58,7 @@ export function startInlineAutofill(
   controller.start();
   return {
     invalidateSuggestions: () => controller.invalidateSuggestions(),
+    isOwnedSurface: (element: Element) => controller.isOwnedSurface(element),
     retryAutomaticFill: () => controller.retryAutomaticFill(),
     resolveLoginTarget: (loginTargetId: string) => controller.resolveLoginTarget(loginTargetId),
     stop: () => controller.stop(),
@@ -147,6 +149,13 @@ class InlineAutofillController {
 
   invalidateSuggestions(): void {
     for (const widget of this.widgets.values()) widget.invalidateSuggestions();
+  }
+
+  isOwnedSurface(element: Element): boolean {
+    for (const widget of this.widgets.values()) {
+      if (widget.host === element) return true;
+    }
+    return false;
   }
 
   resolveLoginTarget(loginTargetId: string): LoginTarget | null {
@@ -276,6 +285,7 @@ class InlineWidget {
     this.host.style.setProperty("z-index", "2147483647", "important");
     this.host.style.setProperty("width", "26px", "important");
     this.host.style.setProperty("height", "26px", "important");
+    this.host.style.setProperty("pointer-events", "none", "important");
     this.shadow = this.host.attachShadow({ mode: "closed" });
     const style = options.doc.createElement("style");
     style.textContent = INLINE_STYLES;
@@ -674,10 +684,10 @@ const INLINE_STYLES = `
   :host([data-theme="dark"]) { color-scheme: dark; }
   * { box-sizing: border-box; }
   button { font: inherit; letter-spacing: normal; text-transform:none; }
-  .launcher { width:26px; height:26px; padding:2px; border:0; border-radius:8px; background:transparent; box-shadow:none; cursor:pointer; }
+  .launcher { width:26px; height:26px; padding:2px; border:0; border-radius:8px; background:transparent; box-shadow:none; cursor:pointer; pointer-events:auto; }
   .launcher:hover, .launcher:focus-visible { background:rgba(235,71,71,.1); outline:2px solid rgba(235,71,71,.3); outline-offset:1px; }
   .launcher img { display:block; width:22px; height:22px; object-fit:contain; }
-  .panel { position:absolute; top:34px; left:0; width:min(344px, calc(100vw - 24px)); overflow:hidden; border:1px solid rgba(12,14,18,.1); border-radius:15px; background:linear-gradient(160deg,#f7f9fb 0%,#e8ecf1 100%); color:#0c0e12; box-shadow:0 14px 34px rgba(30,42,58,.16); }
+  .panel { position:absolute; top:34px; left:0; width:min(344px, calc(100vw - 24px)); overflow:hidden; border:1px solid rgba(12,14,18,.1); border-radius:15px; background:linear-gradient(160deg,#f7f9fb 0%,#e8ecf1 100%); color:#0c0e12; box-shadow:0 14px 34px rgba(30,42,58,.16); pointer-events:auto; }
   .title { display:flex; align-items:center; gap:9px; padding:12px 14px; color:#3d4e66; font-size:13px; line-height:1.35; font-weight:750; background:transparent; border-bottom:1px solid rgba(12,14,18,.08); }
   .title-icon { display:block; width:20px; height:20px; object-fit:contain; }
   .list { display:flex; flex-direction:column; gap:7px; max-height:264px; overflow:auto; padding:10px; scrollbar-width:thin; scrollbar-color:rgba(61,78,102,.22) transparent; }
