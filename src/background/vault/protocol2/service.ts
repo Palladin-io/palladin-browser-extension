@@ -411,7 +411,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
           vaultId: vault.id,
           entryId,
           ...material,
-          grantEnvelopes: [],
+          deliveryPolicy: 'standard',
         }))
       } catch (error) {
         if (error instanceof Protocol2MutationConflictError) {
@@ -488,6 +488,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
           memberIndex: material.memberIndex,
           agentDiscoveryChanged: discoveryChanged,
           agentDiscovery: discoveryChanged ? material.agentDiscovery : null,
+          deliveryPolicy: 'standard',
           grantEnvelopes: [],
         }))
       } catch (error) {

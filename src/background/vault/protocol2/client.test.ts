@@ -284,7 +284,7 @@ describe('Protocol2VaultClient transport boundary', () => {
       expect(JSON.parse(String(init?.body))).toMatchObject({
         vaultId: VAULT_ID,
         entryId: '33333333-3333-4333-8333-333333333333',
-        grantEnvelopes: [],
+        deliveryPolicy: 'standard',
       })
       return json({ id: '33333333-3333-4333-8333-333333333333', currentRevision: '1' }, 201)
     })
@@ -297,7 +297,7 @@ describe('Protocol2VaultClient transport boundary', () => {
       memberIndex: {} as never,
       memberSecret: {} as never,
       agentDiscovery: null,
-      grantEnvelopes: [],
+      deliveryPolicy: 'standard',
     })).resolves.toMatchObject({ currentRevision: '1' })
   })
 
@@ -312,6 +312,7 @@ describe('Protocol2VaultClient transport boundary', () => {
       memberIndex: {} as never,
       agentDiscoveryChanged: false,
       agentDiscovery: null,
+      deliveryPolicy: 'standard',
       grantEnvelopes: [],
     })).rejects.toBeInstanceOf(Protocol2MutationConflictError)
   })
