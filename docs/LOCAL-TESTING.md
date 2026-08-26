@@ -62,9 +62,11 @@ VITE_GOOGLE_PLAY_URL=https://play.google.com/store/apps/details?id=... \
 npm run build:chromium
 ```
 
-The onboarding footer enables the App Store and Google Play links only when
-their public HTTPS URLs are provided. Production packaging must set and verify
-all four public product URLs; missing mobile-store URLs remain visibly disabled.
+The onboarding footer enables the web panel, App Store, and Google Play links
+only when their public HTTPS URLs are provided. Production packaging must set
+and verify all four public product URLs; missing or invalid release URLs remain
+visibly disabled. The landing link alone has the public `https://palladin.io`
+fallback.
 
 Do not place a password, API key, access token, or private key in a `VITE_*`
 variable. Vite values are bundled into the extension and are public.

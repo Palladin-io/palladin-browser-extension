@@ -4,7 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ServerConfigClient } from "../popup/config/client";
-import { OnboardingApp } from "./OnboardingApp";
+import {
+  OnboardingApp,
+  openExtensionSurface,
+  validatedPublicHttpsUrl,
+  type ExtensionSurfaceBrowserApi,
+} from "./OnboardingApp";
 
 function serverClient(apiUrl = "https://api.palladin.io"): ServerConfigClient {
   return {
@@ -30,6 +35,42 @@ function dependencies(status: "signed-out" | "locked" | "unlocked" = "signed-out
 }
 
 describe("full-page extension onboarding", () => {
+  it("accepts only credential-free public HTTPS footer URLs", () => {
+    expect(validatedPublicHttpsUrl("https://palladin.io/panel")).toBe("https://palladin.io/panel");
+    expect(validatedPublicHttpsUrl("http://localhost:5173")).toBeNull();
+    expect(validatedPublicHttpsUrl("https://user:secret@example.com")).toBeNull();
+    expect(validatedPublicHttpsUrl("not a url")).toBeNull();
+  });
+
+  it("falls back to an extension-owned tab when the browser cannot open the action popup", async () => {
+    const api: ExtensionSurfaceBrowserApi = {
+      openPopup: vi.fn(async () => { throw new Error("not available"); }),
+      getUrl: (path) => `chrome-extension://palladin/${path}`,
+      openTab: vi.fn(async () => undefined),
+    };
+
+    await openExtensionSurface(api);
+
+    expect(api.openPopup).toHaveBeenCalledOnce();
+    expect(api.openTab).toHaveBeenCalledWith({
+      url: "chrome-extension://palladin/src/popup/index.html",
+      active: true,
+    });
+  });
+
+  it("keeps the browser action popup as the preferred handoff", async () => {
+    const api: ExtensionSurfaceBrowserApi = {
+      openPopup: vi.fn(async () => undefined),
+      getUrl: vi.fn(),
+      openTab: vi.fn(async () => undefined),
+    };
+
+    await openExtensionSurface(api);
+
+    expect(api.openPopup).toHaveBeenCalledOnce();
+    expect(api.openTab).not.toHaveBeenCalled();
+  });
+
   it("starts with branded pinning guidance for the current browser", async () => {
     const deps = dependencies();
     render(<OnboardingApp {...deps} target="chromium" />);
@@ -131,8 +172,7 @@ describe("full-page extension onboarding", () => {
     expect(document.querySelector(".completion-logo")).toBeInTheDocument();
     expect(screen.getByText(/It's ready\. Open the extension/)).toBeInTheDocument();
     expect(screen.queryByText("Setup complete")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Web panel" }))
-      .toHaveAttribute("href", "http://localhost:5173");
+    expect(screen.getByText("Web panel")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText("App Store")).toHaveAttribute("aria-disabled", "true");
     expect(deps.onboardingClient.complete).toHaveBeenCalledTimes(2);
   });

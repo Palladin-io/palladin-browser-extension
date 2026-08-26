@@ -27,15 +27,23 @@ type FooterLink = Readonly<{
 }>;
 
 const publicBuildEnv = import.meta.env as unknown as Record<string, string | undefined>;
-const landingPageUrl = optionalHttpsUrl(publicBuildEnv["VITE_LANDING_PAGE_URL"]) ?? "https://palladin.io";
-const appStoreUrl = optionalHttpsUrl(publicBuildEnv["VITE_APP_STORE_URL"]);
-const googlePlayUrl = optionalHttpsUrl(publicBuildEnv["VITE_GOOGLE_PLAY_URL"]);
+const footerWebAppUrl = validatedPublicHttpsUrl(publicBuildEnv["VITE_WEB_APP_URL"]);
+const landingPageUrl = validatedPublicHttpsUrl(publicBuildEnv["VITE_LANDING_PAGE_URL"]) ?? "https://palladin.io";
+const appStoreUrl = validatedPublicHttpsUrl(publicBuildEnv["VITE_APP_STORE_URL"]);
+const googlePlayUrl = validatedPublicHttpsUrl(publicBuildEnv["VITE_GOOGLE_PLAY_URL"]);
+const POPUP_PAGE_PATH = "src/popup/index.html";
 type GlyphName = "pin" | "account" | "import" | "shield" | "check" | "arrow" | "server" | "theme";
 
 interface BrowserActions {
   openExtension(): Promise<void>;
   openExternal(url: string): Promise<void>;
   openWebPanel(path: string): Promise<void>;
+}
+
+export interface ExtensionSurfaceBrowserApi {
+  openPopup?: () => Promise<void>;
+  getUrl(path: string): string;
+  openTab(options: chrome.tabs.CreateProperties): Promise<unknown>;
 }
 
 export interface OnboardingAppProps {
@@ -251,13 +259,13 @@ export function OnboardingApp({
   );
 }
 
-function optionalHttpsUrl(value: string | undefined): string | null {
+export function validatedPublicHttpsUrl(value: string | undefined): string | null {
   const candidate = value?.trim();
   if (!candidate) return null;
 
   try {
     const url = new URL(candidate);
-    return url.protocol === "https:" ? url.toString() : null;
+    return url.protocol === "https:" && !url.username && !url.password ? url.toString() : null;
   } catch {
     return null;
   }
@@ -265,7 +273,7 @@ function optionalHttpsUrl(value: string | undefined): string | null {
 
 function OnboardingFooter({ t }: { t: Translate }): React.JSX.Element {
   const links: ReadonlyArray<FooterLink> = [
-    { label: "onboarding.page.footer.webPanel", url: webAppUrl },
+    { label: "onboarding.page.footer.webPanel", url: footerWebAppUrl },
     { label: "onboarding.page.footer.landing", url: landingPageUrl },
     { label: "onboarding.page.footer.appStore", url: appStoreUrl },
     { label: "onboarding.page.footer.googlePlay", url: googlePlayUrl },
@@ -707,10 +715,7 @@ function serverError(error: unknown, t: Translate): string {
 function createBrowserActions(): BrowserActions {
   return {
     async openExtension() {
-      if (typeof chrome === "undefined" || !chrome.action?.openPopup) {
-        throw new Error("extension action unavailable");
-      }
-      await chrome.action.openPopup();
+      await openExtensionSurface();
     },
     async openExternal(url) {
       if (typeof chrome !== "undefined" && chrome.tabs?.create) {
@@ -727,6 +732,36 @@ function createBrowserActions(): BrowserActions {
       }
       window.open(url, "_blank", "noopener,noreferrer");
     },
+  };
+}
+
+export async function openExtensionSurface(
+  api: ExtensionSurfaceBrowserApi | null = extensionSurfaceBrowserApi(),
+): Promise<void> {
+  if (api === null) throw new Error("extension action unavailable");
+
+  if (api.openPopup) {
+    try {
+      await api.openPopup();
+      return;
+    } catch {
+      // Chrome 116-126 exposes openPopup only to policy-installed extensions.
+      // Fall through to the extension-owned tab for ordinary installations.
+    }
+  }
+
+  await api.openTab({ url: api.getUrl(POPUP_PAGE_PATH), active: true });
+}
+
+function extensionSurfaceBrowserApi(): ExtensionSurfaceBrowserApi | null {
+  if (typeof chrome === "undefined" || !chrome.runtime?.getURL || !chrome.tabs?.create) {
+    return null;
+  }
+
+  return {
+    ...(chrome.action?.openPopup ? { openPopup: () => chrome.action.openPopup() } : {}),
+    getUrl: (path) => chrome.runtime.getURL(path),
+    openTab: (options) => chrome.tabs.create(options),
   };
 }
 

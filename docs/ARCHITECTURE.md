@@ -283,7 +283,10 @@ Entering the full-page account step completes the replaced popup-guidance
 marker before the user presses Open sign-in. That handler then calls the
 browser-owned action popup as its first awaited operation, preserving the
 transient user activation required by browser popup APIs; storage work never
-precedes that call. Account creation lives on the signed-out popup surface next
+precedes that call. Chromium versions where ordinary extensions cannot use
+`action.openPopup()` fall back to the same extension-owned popup document in a
+new tab; the handoff never redirects sign-in through a remote page. Account
+creation lives on the signed-out popup surface next
 to the actual sign-in form and opens web registration in a new browser tab; it
 is not a competing action in the full-page wizard.
 
