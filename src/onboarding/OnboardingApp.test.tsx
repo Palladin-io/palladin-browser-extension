@@ -37,7 +37,11 @@ function dependencies(status: "signed-out" | "locked" | "unlocked" = "signed-out
 describe("full-page extension onboarding", () => {
   it("accepts only credential-free public HTTPS footer URLs", () => {
     expect(validatedPublicHttpsUrl("https://palladin.io/panel")).toBe("https://palladin.io/panel");
+    expect(validatedPublicHttpsUrl("https://team.github.io/palladin")).toBe("https://team.github.io/palladin");
     expect(validatedPublicHttpsUrl("http://localhost:5173")).toBeNull();
+    expect(validatedPublicHttpsUrl("https://localhost:5173")).toBeNull();
+    expect(validatedPublicHttpsUrl("https://127.0.0.1")).toBeNull();
+    expect(validatedPublicHttpsUrl("https://intranet")).toBeNull();
     expect(validatedPublicHttpsUrl("https://user:secret@example.com")).toBeNull();
     expect(validatedPublicHttpsUrl("not a url")).toBeNull();
   });

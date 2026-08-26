@@ -5,6 +5,7 @@ import type { SessionStatus } from "../background/session/types";
 import { extensionBuildTarget, type ExtensionBuildTarget } from "@shared/config/build-target";
 import { PRODUCTION_API_URL, normalizeServerUrl } from "@shared/config/server";
 import { webAppUrl } from "@shared/config/web-app";
+import { registrableDomain } from "@shared/security/domain";
 import { createServerConfigClient, ServerConfigClientError, type ServerConfigClient } from "../popup/config/client";
 import { useI18n, type Translate, type TranslationKey } from "../popup/i18n";
 import {
@@ -265,7 +266,12 @@ export function validatedPublicHttpsUrl(value: string | undefined): string | nul
 
   try {
     const url = new URL(candidate);
-    return url.protocol === "https:" && !url.username && !url.password ? url.toString() : null;
+    return url.protocol === "https:"
+      && !url.username
+      && !url.password
+      && registrableDomain(url.hostname) !== null
+      ? url.toString()
+      : null;
   } catch {
     return null;
   }
