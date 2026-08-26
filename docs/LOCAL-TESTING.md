@@ -56,8 +56,15 @@ You can still set a public build-time default for staging packaging:
 ```bash
 VITE_API_URL=https://api.stage.palladin.io \
 VITE_WEB_APP_URL=https://stage.palladin.io \
+VITE_LANDING_PAGE_URL=https://palladin.io \
+VITE_APP_STORE_URL=https://apps.apple.com/app/... \
+VITE_GOOGLE_PLAY_URL=https://play.google.com/store/apps/details?id=... \
 npm run build:chromium
 ```
+
+The onboarding footer enables the App Store and Google Play links only when
+their public HTTPS URLs are provided. Production packaging must set and verify
+all four public product URLs; missing mobile-store URLs remain visibly disabled.
 
 Do not place a password, API key, access token, or private key in a `VITE_*`
 variable. Vite values are bundled into the extension and are public.

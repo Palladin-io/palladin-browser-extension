@@ -14,9 +14,10 @@ import { useI18n } from "../i18n";
  */
 export interface SignInScreenProps {
   onSignIn(email: string, password: string): Promise<void>;
+  onCreateAccount(): Promise<void>;
 }
 
-export function SignInScreen({ onSignIn }: SignInScreenProps): React.JSX.Element {
+export function SignInScreen({ onSignIn, onCreateAccount }: SignInScreenProps): React.JSX.Element {
   const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -65,6 +66,12 @@ export function SignInScreen({ onSignIn }: SignInScreenProps): React.JSX.Element
           {t("auth.signIn.action")}
         </Button>
       </form>
+      <div className="auth-registration">
+        <span>{t("auth.signIn.noAccount")}</span>
+        <button className="link-btn" type="button" onClick={() => void onCreateAccount()}>
+          {t("auth.signIn.createAccount")}
+        </button>
+      </div>
     </section>
   );
 }

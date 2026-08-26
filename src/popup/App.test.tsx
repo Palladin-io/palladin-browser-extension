@@ -68,6 +68,17 @@ describe("popup state machine", () => {
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
   });
 
+  it("keeps account creation on the sign-in surface", async () => {
+    const onCreateAccount = vi.fn(async () => undefined);
+    const user = userEvent.setup();
+    render(<App client={makeClient()} onCreateAccount={onCreateAccount} />);
+
+    expect(await screen.findByText("New to Palladin?")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(onCreateAccount).toHaveBeenCalledOnce();
+  });
+
   it("opens compact settings sections and expands one section at a time", async () => {
     render(
       <App

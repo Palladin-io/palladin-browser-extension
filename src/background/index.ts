@@ -49,6 +49,7 @@ import {
   handleCapturePopupRuntimeMessage,
 } from "./capture/runtime";
 import { routePortMessage } from "./router";
+import { openOnboardingAfterInstall } from "./onboarding";
 import { handleRuntimeMessage } from "./session/commands";
 import { SessionLivenessPublisher } from "./session/liveness";
 import { ensureActiveTabSessionLiveness } from "./session/active-tab-liveness";
@@ -390,8 +391,9 @@ async function removeUnusedServerPermission(
 
 void chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   chrome.alarms.create(SYNC_ALARM, { periodInMinutes: SYNC_PERIOD_MINUTES });
+  void openOnboardingAfterInstall(details).catch(() => undefined);
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
