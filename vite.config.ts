@@ -32,12 +32,13 @@ export default defineConfig({
     // MV3 forbids remote code; everything must be bundled locally.
     target: "esnext",
     rollupOptions: {
-      // Chromium's offscreen clipboard document is created at runtime (not
-      // declared in the manifest), so it must be an explicit build input. The
-      // other targets omit both this input and the unsupported permission.
+      // The install-time onboarding page is opened at runtime and must be an
+      // explicit input on every target. Chromium also creates its offscreen
+      // clipboard document at runtime; Firefox needs the sidebar input.
       ...(target === "chromium"
         ? {
             input: {
+              onboarding: fileURLToPath(new URL("./src/onboarding/index.html", import.meta.url)),
               offscreen: fileURLToPath(new URL("./src/offscreen/index.html", import.meta.url)),
             },
           }
@@ -47,10 +48,15 @@ export default defineConfig({
               // while Firefox's `sidebar_action.default_panel` needs an
               // explicit HTML build input. Both still compile the same app.
               input: {
+                onboarding: fileURLToPath(new URL("./src/onboarding/index.html", import.meta.url)),
                 sidePanel: fileURLToPath(new URL("./src/side-panel/index.html", import.meta.url)),
               },
             }
-          : {}),
+          : {
+              input: {
+                onboarding: fileURLToPath(new URL("./src/onboarding/index.html", import.meta.url)),
+              },
+            }),
       output: {
         // Deterministic asset names keep the least-privilege review diff-able.
         chunkFileNames: "assets/[name]-[hash].js",

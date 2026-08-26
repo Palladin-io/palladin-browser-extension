@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   createPasswordManagerOnboardingClient,
+  extensionManagerHelpUrl,
   type PasswordManagerOnboardingBrowserApi,
 } from "./client";
 
@@ -65,5 +66,10 @@ describe("password-manager onboarding client", () => {
       2,
       "https://support.mozilla.org/kb/disable-or-remove-add-ons",
     );
+  });
+
+  it("exposes the public extension-manager help link for standalone onboarding", () => {
+    expect(extensionManagerHelpUrl("chromium"))
+      .toBe("https://support.google.com/chrome_webstore/answer/2664769");
   });
 });

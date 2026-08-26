@@ -97,6 +97,10 @@ function platformLinks(target: ExtensionBuildTarget): PlatformLinks {
   }
 }
 
+export function extensionManagerHelpUrl(target: ExtensionBuildTarget): string {
+  return platformLinks(target).extensions[1];
+}
+
 function browserApi(): PasswordManagerOnboardingBrowserApi | null {
   if (typeof chrome === "undefined" || !chrome.storage?.local || !chrome.tabs?.create) {
     return null;
