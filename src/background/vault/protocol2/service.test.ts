@@ -375,7 +375,7 @@ describe('Protocol2VaultDataService canonical password capture', () => {
     expect(client.createEntry).toHaveBeenCalledWith('token', expect.objectContaining({
       vaultId: VAULT_ID,
       entryId: ENTRY_ID,
-      grantEnvelopes: [],
+      deliveryPolicy: 'standard',
     }))
   })
 
@@ -399,6 +399,7 @@ describe('Protocol2VaultDataService canonical password capture', () => {
     })
     expect(client.updateEntry).toHaveBeenCalledWith('token', expect.objectContaining({
       baseRevision: '1',
+      deliveryPolicy: 'standard',
       grantEnvelopes: [],
     }))
   })

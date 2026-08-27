@@ -59,7 +59,7 @@ const updateEntryResponseSchema = z.object({
 export interface CreateCanonicalEntryRequest extends CanonicalEntryEnvelopes {
   readonly vaultId: string
   readonly entryId: string
-  readonly grantEnvelopes: readonly never[]
+  readonly deliveryPolicy: 'standard' | 'execOnly' | 'injectOnly'
 }
 
 export interface UpdateCanonicalEntryRequest {
@@ -71,6 +71,7 @@ export interface UpdateCanonicalEntryRequest {
   readonly memberIndex: CanonicalEntryEnvelopes['memberIndex']
   readonly agentDiscoveryChanged: boolean
   readonly agentDiscovery: CanonicalEntryEnvelopes['agentDiscovery']
+  readonly deliveryPolicy: 'standard' | 'execOnly' | 'injectOnly'
   readonly grantEnvelopes: readonly never[]
 }
 
