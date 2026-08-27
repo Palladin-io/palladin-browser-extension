@@ -31,6 +31,7 @@ import type { SessionStatus } from "../background/session/types";
 import { extensionBuildTarget } from "@shared/config/build-target";
 import { openSidePanel, supportsSidePanel } from "@shared/browser/side-panel";
 import { isSurfaceStateEvent } from "@shared/messaging";
+import { webAppUrl } from "@shared/config/web-app";
 
 export type ExtensionSurface = "popup" | "side-panel";
 
@@ -45,6 +46,8 @@ export interface AppProps {
   onboardingClient?: PasswordManagerOnboardingClient;
   /** Popup stays compact; the side panel reuses the same state machine at full height. */
   surface?: ExtensionSurface;
+  /** Injected in tests; defaults to opening web registration in a browser tab. */
+  onCreateAccount?: () => Promise<void>;
 }
 
 /** The header chip mirrors the lock state; hidden while the phase is unknown. */
@@ -68,6 +71,7 @@ export function App({
   serverConfigClient,
   onboardingClient,
   surface = "popup",
+  onCreateAccount = openRegistration,
 }: AppProps): React.JSX.Element {
   const { t } = useI18n();
   const sessionClient = useMemo(() => client ?? createSessionClient(), [client]);
@@ -220,7 +224,7 @@ export function App({
           </div>
         );
       case "signed-out":
-        return <SignInScreen onSignIn={session.signIn} />;
+        return <SignInScreen onSignIn={session.signIn} onCreateAccount={onCreateAccount} />;
       case "totp":
         return <TotpScreen onSubmitTotp={session.submitTotp} onBack={session.cancelTotp} />;
       case "locked":
@@ -242,4 +246,13 @@ export function App({
         );
     }
   }
+}
+
+async function openRegistration(): Promise<void> {
+  const url = `${webAppUrl}/register`;
+  if (typeof chrome !== "undefined" && chrome.tabs?.create) {
+    await chrome.tabs.create({ url, active: true });
+    return;
+  }
+  window.open(url, "_blank", "noopener,noreferrer");
 }

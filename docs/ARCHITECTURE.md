@@ -272,6 +272,24 @@ user continues, the guidance does not recur unless extension data is cleared or
 a future onboarding version deliberately uses a new key. No installed software
 metadata is stored, logged, analysed, or sent to Palladin.
 
+Fresh installation also opens the branded full-page onboarding surface. Its
+import action uses the value-free web-panel intent `/vaults?intent=import`;
+after login, unlock, and authoritative Member sync, the panel resolves the
+server-owned default Vault marker and opens that Vault's existing client-side
+Import Wizard. The extension never receives or guesses a Vault ID for this
+handoff.
+
+Entering the full-page account step completes the replaced popup-guidance
+marker before the user presses Open sign-in. That handler then calls the
+browser-owned action popup as its first awaited operation, preserving the
+transient user activation required by browser popup APIs; storage work never
+precedes that call. Chromium versions where ordinary extensions cannot use
+`action.openPopup()` fall back to the same extension-owned popup document in a
+new tab; the handoff never redirects sign-in through a remote page. Account
+creation lives on the signed-out popup surface next
+to the actual sign-in form and opens web registration in a new browser tab; it
+is not a competing action in the full-page wizard.
+
 ## Build and release boundary
 
 A resumed implementation should produce auditable, reproducible Chromium
