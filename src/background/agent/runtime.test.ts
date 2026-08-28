@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentInjectionRequest } from "@shared/messaging";
 
+import secureSessionContract from "./fixtures/inject-provider/v1/secure-session.json";
+
 import {
   handleNativeAgentMessage,
   type AgentFillDeps,
@@ -95,6 +97,16 @@ function stubChrome(
 }
 
 describe("secure Native Messaging frame boundary", () => {
+  it("consumes the exact shared CLI host session and secure-frame contract", () => {
+    expect(secureSessionContract.protocol).toBe("palladin.inject-provider.v1");
+    expect(parseSessionReady(secureSessionContract.ready))
+      .toEqual(secureSessionContract.ready);
+    expect(parseSecureFrame(secureSessionContract.firstHostFrame))
+      .toEqual(secureSessionContract.firstHostFrame);
+    expect(parseSecureFrame(secureSessionContract.firstExtensionFrame))
+      .toEqual(secureSessionContract.firstExtensionFrame);
+  });
+
   it("starts the paired bridge without consulting Vault lock or popup state", async () => {
     const fingerprint = await injectHostKeyFingerprint(PUBLIC_KEY);
     const { connectNative } = stubChrome({
