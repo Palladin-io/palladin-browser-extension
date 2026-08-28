@@ -90,6 +90,24 @@ describe("inline autofill content runtime", () => {
     }, "vault-1", "entry-1", "exact", "login-1");
   });
 
+  it("reports a network failure as temporary unavailability, not a security block", async () => {
+    expect(await handleInlineAutofillContentMessage(deps({
+      fill: async (): Promise<FillResult> => ({ status: "blocked", reason: "network" }),
+    }), {
+      channel: INLINE_AUTOFILL_CHANNEL,
+      type: "inline/fill",
+      documentId,
+      vaultId: "vault-1",
+      entryId: "entry-1",
+      scope: "exact",
+      loginTargetId: "login-1",
+    }, sender, "extension-id")).toEqual({
+      ok: true,
+      kind: "fill",
+      status: "unavailable",
+    });
+  });
+
   it("returns same-registrable-domain entries as explicit related choices", async () => {
     const sibling: EntryMetadata = {
       ...entries[0]!,

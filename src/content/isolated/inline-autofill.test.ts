@@ -699,6 +699,47 @@ describe("inline autofill field discovery", () => {
     subject.stop();
   });
 
+  it("shows temporary unavailability instead of a security block after a network failure", async () => {
+    const nativeAttachShadow = Element.prototype.attachShadow;
+    const attachShadow = vi.spyOn(Element.prototype, "attachShadow").mockImplementation(function (
+      this: Element,
+      init: ShadowRootInit,
+    ) {
+      return nativeAttachShadow.call(this, { ...init, mode: "open" });
+    });
+    document.body.innerHTML = `<form><input autocomplete="username"><input type="password"></form>`;
+    const send = vi.fn(async (command: { type: string }) => command.type === "inline/list" ? ({
+      ok: true,
+      kind: "suggestions",
+      status: "ready",
+      entries: [{
+        vaultId: "v1",
+        entryId: "e1",
+        name: "Allegro",
+        username: "ada@example.com",
+        vaultName: "Personal",
+        urlDomain: "allegro.pl",
+        match: "related",
+      }],
+    }) : ({ ok: true, kind: "fill", status: "unavailable" }));
+    const subject = startInlineAutofill(document, "a".repeat(32), send);
+
+    try {
+      const root = document.querySelector("palladin-autofill")?.shadowRoot;
+      (root?.querySelector(".launcher") as HTMLButtonElement).click();
+      await vi.waitFor(() => expect(root?.querySelector(".submit-login")).not.toBeNull());
+      (root?.querySelector(".submit-login") as HTMLButtonElement).click();
+
+      await vi.waitFor(() => {
+        expect(root?.textContent).toContain("Palladin suggestions are temporarily unavailable.");
+        expect(root?.textContent).not.toContain("Palladin blocked this fill for your safety.");
+      });
+    } finally {
+      subject.stop();
+      attachShadow.mockRestore();
+    }
+  });
+
   it("pins Palladin typography and aligns the launcher to the control height", () => {
     document.body.innerHTML = `<form><input id="username" autocomplete="username" style="padding-right:30px"><input type="password"></form>`;
     const input = document.querySelector("#username") as HTMLInputElement;
