@@ -1,4 +1,13 @@
-import { injectHostKeyFingerprint, toBase64Url } from "@palladin/crypto";
+import {
+  INJECT_PROVIDER_PROTOCOL,
+  createInjectClientSession,
+  fromBase64Url,
+  injectHostKeyFingerprint,
+  toBase64Url,
+  type InjectClientSession,
+  type InjectSecureChannel,
+} from "@palladin/crypto";
+import sodium from "libsodium-wrappers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentInjectionRequest } from "@shared/messaging";
@@ -96,15 +105,72 @@ function stubChrome(
   return { connectNative, alarmsCreate, alarmsClear, native };
 }
 
+function rustFixtureJsonBytes(value: Record<string, unknown>): Uint8Array {
+  const sorted = Object.fromEntries(
+    Object.entries(value).sort(([left], [right]) => left.localeCompare(right)),
+  );
+  return new TextEncoder().encode(JSON.stringify(sorted));
+}
+
 describe("secure Native Messaging frame boundary", () => {
-  it("consumes the exact shared CLI host session and secure-frame contract", () => {
+  it("opens and seals the exact shared CLI host secure-session contract", async () => {
     expect(secureSessionContract.protocol).toBe("palladin.inject-provider.v1");
-    expect(parseSessionReady(secureSessionContract.ready))
-      .toEqual(secureSessionContract.ready);
-    expect(parseSecureFrame(secureSessionContract.firstHostFrame))
-      .toEqual(secureSessionContract.firstHostFrame);
-    expect(parseSecureFrame(secureSessionContract.firstExtensionFrame))
-      .toEqual(secureSessionContract.firstExtensionFrame);
+    const ready = parseSessionReady(secureSessionContract.ready);
+    const firstHostFrame = parseSecureFrame(secureSessionContract.firstHostFrame);
+    expect(ready).toEqual(secureSessionContract.ready);
+    expect(firstHostFrame).toEqual(secureSessionContract.firstHostFrame);
+
+    await sodium.ready;
+    const extensionPrivateKey = fromBase64Url(
+      secureSessionContract.syntheticInputs.extensionEphemeralSecretKey,
+      32,
+    );
+    const extensionNonce = fromBase64Url(
+      secureSessionContract.syntheticInputs.extensionNonce,
+      32,
+    );
+    const randomSource = sodium as unknown as {
+      randombytes_buf(length: number): Uint8Array;
+    };
+    const randomBytes = vi.spyOn(randomSource, "randombytes_buf")
+      .mockReturnValueOnce(new Uint8Array(extensionPrivateKey))
+      .mockReturnValueOnce(new Uint8Array(extensionNonce));
+    let session: InjectClientSession | null = null;
+    let channel: InjectSecureChannel | null = null;
+
+    try {
+      session = await createInjectClientSession({
+        protocol: INJECT_PROVIDER_PROTOCOL,
+        extensionOrigin: secureSessionContract.extensionOrigin,
+        pinnedHostSigningPublicKey: secureSessionContract.ready.hostSigningPublicKey,
+      });
+      expect(session.openFrame).toEqual(secureSessionContract.open);
+      channel = await session.acceptReady(ready!);
+
+      const hostPlaintext = await channel.open(firstHostFrame!);
+      try {
+        expect(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(hostPlaintext)))
+          .toEqual(secureSessionContract.firstHostPlaintext);
+      } finally {
+        hostPlaintext.fill(0);
+      }
+
+      const extensionPlaintext = rustFixtureJsonBytes(
+        secureSessionContract.firstExtensionPlaintext,
+      );
+      try {
+        await expect(channel.seal(extensionPlaintext))
+          .resolves.toEqual(secureSessionContract.firstExtensionFrame);
+      } finally {
+        extensionPlaintext.fill(0);
+      }
+    } finally {
+      channel?.dispose();
+      session?.dispose();
+      randomBytes.mockRestore();
+      extensionPrivateKey.fill(0);
+      extensionNonce.fill(0);
+    }
   });
 
   it("starts the paired bridge without consulting Vault lock or popup state", async () => {
