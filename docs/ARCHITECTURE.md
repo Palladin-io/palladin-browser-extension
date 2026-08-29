@@ -357,7 +357,9 @@ new Vault gets its strict detail projection and the combined
 generation, stages one bounded combined snapshot page at a time, catches it up
 with a closing delta, then swaps the namespace atomically. A tombstone is
 terminal within a generation, so a delayed or duplicated old head cannot
-resurrect a removed Entry. Profile ciphertext is capped at 512 MiB and the page
+resurrect a removed Entry. A replacement snapshot whose base sequence regresses
+below the prior or reset high-water mark is rejected before staging. Profile
+ciphertext is capped at 512 MiB and the page
 plus cursor transaction aborts without publication when the cap is exceeded.
 Unlock and reconnect deliberately force the closing delta even for an unchanged
 manifest; a routine freshness check can still stop at the list.

@@ -650,18 +650,21 @@ export class Protocol2VaultDataService implements VaultDataSource {
     const persistent = await this.deps.cache.getActiveState(userId, vault.id)
     const volatile = this.volatileDisabledVaults.get(vault.id)
     const active = persistent ?? volatile?.active ?? null
+    let replacementFloor = vault.memberSequence
     if (active !== null) {
       try {
         let expected = active.appliedThroughSequence
+        replacementFloor = maximumSequence(replacementFloor, expected)
         let upperBound: string | null = null
         let continuation: string | null = null
         do {
           const page = await this.withAuth((token) =>
             this.deps.client.delta(token, vault.id, continuation === null ? expected : null, continuation))
           validateDeltaPage(page, vault, userId, expected, upperBound)
+          replacementFloor = maximumSequence(replacementFloor, page.deltaUpperBound)
           if ((persistent !== null) !== (page.accessContext.offlinePolicy !== 'disabled')) {
             await this.purgeVault(userId, vault.id)
-            return this.replaceFromSnapshot(userId, vault)
+            return this.replaceFromSnapshot(userId, vault, replacementFloor)
           }
           upperBound ??= page.deltaUpperBound
           if (persistent !== null) {
@@ -687,22 +690,35 @@ export class Protocol2VaultDataService implements VaultDataSource {
             volatile.active = nextActive
           }
           expected = page.appliedThroughSequence
+          replacementFloor = maximumSequence(replacementFloor, expected)
           continuation = page.continuationCursor
         } while (continuation !== null)
         if (volatile !== undefined) this.currentVaults.set(vault.id, volatile.active.vault)
         return
       } catch (error) {
         if (!(error instanceof Protocol2ResetRequiredError)) throw error
+        replacementFloor = maximumSequence(
+          replacementFloor,
+          error.reset.currentSequence,
+          error.reset.minRetainedSequence,
+        )
         await this.purgeVault(userId, vault.id)
       }
     }
-    await this.replaceFromSnapshot(userId, vault)
+    await this.replaceFromSnapshot(userId, vault, replacementFloor)
   }
 
-  private async replaceFromSnapshot(userId: string, vault: EncryptedVaultSummary): Promise<void> {
+  private async replaceFromSnapshot(
+    userId: string,
+    vault: EncryptedVaultSummary,
+    minimumSequence = vault.memberSequence,
+  ): Promise<void> {
     const namespace = this.createNamespace()
     const firstPage = await this.withAuth((token) => this.deps.client.snapshot(token, vault.id, null))
     validateSnapshotPage(firstPage, vault, userId, null, null)
+    if (BigInt(firstPage.snapshotBaseSequence) < BigInt(minimumSequence)) {
+      throw new VaultDataError('decrypt-failed', 'Stale Vault snapshot generation')
+    }
     if (firstPage.accessContext.offlinePolicy === 'disabled') {
       await this.purgeVault(userId, vault.id)
       return this.replaceVolatileFromSnapshot(userId, vault, namespace, firstPage)
@@ -973,6 +989,11 @@ function matchesVaultChangeManifest(
     !== listed.memberVaultMetadata.descriptor.scope.organizationId) return false
   return JSON.stringify(vaultChangeManifest(active.vault))
     === JSON.stringify(vaultChangeManifest(listed))
+}
+
+function maximumSequence(...sequences: string[]): string {
+  return sequences.reduce((highest, candidate) =>
+    BigInt(candidate) > BigInt(highest) ? candidate : highest)
 }
 
 function vaultChangeManifest(vault: EncryptedVaultListSummary | EncryptedVaultSummary) {

@@ -408,6 +408,42 @@ describe("inline autofill field discovery", () => {
     subject.stop();
   });
 
+  it("retries only the first empty login form after a Vault change", async () => {
+    document.body.innerHTML = `
+      <form><input autocomplete="username"><input type="password"></form>
+      <form><input autocomplete="username"><input type="password"></form>
+    `;
+    const suggestion = {
+      vaultId: "v1",
+      entryId: "e1",
+      name: "Work",
+      username: "ada@example.com",
+      vaultName: "Personal",
+      urlDomain: "example.com",
+      updatedAt: "2026-08-29T08:00:00Z",
+      match: "exact" as const,
+    };
+    let ready = false;
+    const send = vi.fn(async (command: { type: string }) => command.type === "inline/list" ? ({
+      ok: true,
+      kind: "suggestions",
+      status: "ready",
+      entries: ready ? [suggestion] : [],
+    }) : ({ ok: true, kind: "fill", status: "filled" }));
+    const subject = startInlineAutofill(document, "a".repeat(32), send);
+
+    await vi.waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({
+      type: "inline/list",
+    })));
+    ready = true;
+    subject.handleVaultChanged();
+
+    await vi.waitFor(() => expect(
+      send.mock.calls.filter(([command]) => command.type === "inline/fill"),
+    ).toHaveLength(1));
+    subject.stop();
+  });
+
   it("does not retain a completed plaintext suggestion response", async () => {
     document.body.innerHTML = `<form><input autocomplete="username"><input type="password"></form>`;
     const send = vi.fn(async () => ({

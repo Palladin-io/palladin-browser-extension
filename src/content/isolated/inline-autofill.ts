@@ -155,7 +155,14 @@ class InlineAutofillController {
   handleVaultChanged(): void {
     if (this.stopped) return;
     this.invalidateSuggestions();
-    for (const widget of this.widgets.values()) widget.handleVaultChanged();
+    let filledEntryTracked = false;
+    for (const widget of this.widgets.values()) {
+      filledEntryTracked = widget.checkFilledEntryChange() || filledEntryTracked;
+    }
+    if (!filledEntryTracked) {
+      const first = this.widgets.values().next().value as InlineWidget | undefined;
+      if (first !== undefined) void first.autoFillPreferredExact();
+    }
   }
 
   clearSessionState(): void {
@@ -360,12 +367,10 @@ class InlineWidget {
     this.close();
   }
 
-  handleVaultChanged(): void {
-    if (this.lastFilled === null) {
-      void this.autoFillPreferredExact();
-      return;
-    }
+  checkFilledEntryChange(): boolean {
+    if (this.lastFilled === null) return false;
     void this.warnIfFilledEntryChanged();
+    return true;
   }
 
   clearSessionState(): void {

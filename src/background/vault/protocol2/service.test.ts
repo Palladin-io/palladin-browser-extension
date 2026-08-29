@@ -636,6 +636,13 @@ describe('Protocol2VaultDataService canonical password capture', () => {
     const { service, client, cache } = harness([head])
     client.listVaults.mockResolvedValueOnce([{ ...vault, memberSequence: '2' }])
     client.getVault.mockResolvedValueOnce({ ...vault, memberSequence: '2' })
+    client.snapshot.mockResolvedValueOnce({
+      snapshotBaseSequence: '2',
+      accessContext,
+      memberVaultKey,
+      items: [head],
+      nextCursor: null,
+    })
     client.delta
       .mockRejectedValueOnce(new Protocol2ResetRequiredError({
         outcome: 'resetRequired',
@@ -644,8 +651,8 @@ describe('Protocol2VaultDataService canonical password capture', () => {
         newSnapshotRequired: true,
       }))
       .mockResolvedValueOnce({
-        deltaUpperBound: '1',
-        appliedThroughSequence: '1',
+        deltaUpperBound: '2',
+        appliedThroughSequence: '2',
         accessContext,
         memberVaultKey,
         items: [],
@@ -657,6 +664,36 @@ describe('Protocol2VaultDataService canonical password capture', () => {
     expect(cache.removeVault).toHaveBeenCalledWith(USER_ID, VAULT_ID)
     expect(cache.removeVault.mock.invocationCallOrder[0])
       .toBeLessThan(cache.beginSnapshot.mock.invocationCallOrder[0]!)
+  })
+
+  it('rejects a snapshot boundary below the pre-reset high-water mark before staging', async () => {
+    const { service, client, cache, active } = harness([head])
+    const sequence = '12'
+    const currentVault = { ...vault, memberSequence: sequence }
+    cache.getActiveState.mockResolvedValue({
+      ...active,
+      appliedThroughSequence: sequence,
+      vault: currentVault,
+    })
+    client.listVaults.mockResolvedValueOnce([currentVault])
+    client.delta.mockRejectedValueOnce(new Protocol2ResetRequiredError({
+      outcome: 'resetRequired',
+      currentSequence: sequence,
+      minRetainedSequence: sequence,
+      newSnapshotRequired: true,
+    }))
+    client.snapshot.mockResolvedValueOnce({
+      snapshotBaseSequence: '11',
+      accessContext,
+      memberVaultKey,
+      items: [head],
+      nextCursor: null,
+    })
+
+    await expect(service.repair())
+      .rejects.toMatchObject({ code: 'decrypt-failed' })
+    expect(cache.removeVault).toHaveBeenCalledWith(USER_ID, VAULT_ID)
+    expect(cache.beginSnapshot).not.toHaveBeenCalled()
   })
 
   it('purges immediately when a targeted sync reports revoked access', async () => {
