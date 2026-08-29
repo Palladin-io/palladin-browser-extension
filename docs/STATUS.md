@@ -96,6 +96,22 @@ release candidates.
   repair fallback for MV3 suspension or transport loss, not routine polling.
   Active-tab navigation only rebuilds the local site projection: it preserves
   list UI state and does not start another backend sync.
+- The extension consumes frozen Vault Protocol 2 / Current Entry Sync Policy 2
+  fixtures from `palladin-protocol` commit
+  `f0d1563cf04eb790b5b8e3b28f974a6301338100`. Snapshot and delta carry one
+  atomic current-member item (`EntryKey`, `MemberIndex`, `MemberSecret`) plus an
+  independently bound finite access context and current Member Vault-key
+  wrapper. The ciphertext-only IndexedDB cache is profile-partitioned, capped at
+  512 MiB and safe across MV3 restarts; fill/reveal/copy/TOTP perform no Entry
+  HTTP request. Exact expiry, clock rollback beyond five minutes, access loss,
+  reset and cryptographic binding failures purge or replace the affected Vault
+  fail-closed. Lock wipes keys but retains unexpired ciphertext; logout removes
+  that profile and changing server clears all profiles. Policy `disabled`
+  permits only a connected, unlocked, memory-only generation and discards it on
+  disconnect, lock or worker retirement.
+- A completed inline fill retains only a session-memory head freshness marker.
+  If a later synchronized head changes, the page gets a localized “fill again”
+  notice; Palladin does not overwrite the already-filled values or auto-submit.
 - Add entry writes neutral text, multiline, and concealed custom fields through
   the same canonical Protocol 2 path, with Agent access defaulting to `never`;
   users can reorder those fields without changing canonical IDs or values.

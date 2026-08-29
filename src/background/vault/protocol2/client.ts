@@ -22,13 +22,20 @@ const PAGE_SIZE = 100
 const syncHeaders = {
   'content-type': 'application/json',
   'X-Palladin-Vault-Protocol': '2',
-  'X-Palladin-Sync-Policy': '1',
+  'X-Palladin-Sync-Policy': '2',
 }
 
 export class Protocol2ResetRequiredError extends Error {
   constructor(readonly reset: z.infer<typeof resetSchema>) {
     super('Vault member sync requires a fresh snapshot')
     this.name = 'Protocol2ResetRequiredError'
+  }
+}
+
+export class Protocol2AccessDeniedError extends Error {
+  constructor() {
+    super('Vault member access was denied')
+    this.name = 'Protocol2AccessDeniedError'
   }
 }
 
@@ -184,10 +191,13 @@ export class Protocol2VaultClient {
   }
 
   async getVault(accessToken: string, vaultId: string, signal?: AbortSignal): Promise<EncryptedVaultSummary> {
-    const vault = await this.parse(
-      await this.request(`/api/vaults/${encodeURIComponent(vaultId)}`, accessToken, { ...(signal ? { signal } : {}) }),
-      encryptedVaultSummarySchema,
+    const response = await this.request(
+      `/api/vaults/${encodeURIComponent(vaultId)}`,
+      accessToken,
+      { ...(signal ? { signal } : {}) },
     )
+    if (response.status === 403) throw new Protocol2AccessDeniedError()
+    const vault = await this.parse(response, encryptedVaultSummarySchema)
     if (vault.id !== vaultId) {
       throw new VaultClientError('network', 'Vault response id does not match the requested Vault')
     }
@@ -201,10 +211,11 @@ export class Protocol2VaultClient {
     signal?: AbortSignal,
   ): Promise<MemberSnapshotPage> {
     const response = await this.request(
-      `/api/vaults/${encodeURIComponent(vaultId)}/sync/snapshot`,
+      `/api/vaults/${encodeURIComponent(vaultId)}/current-entries/sync/snapshot`,
       accessToken,
       { method: 'POST', headers: syncHeaders, body: JSON.stringify({ vaultId, cursor, pageSize: PAGE_SIZE }), ...(signal ? { signal } : {}) },
     )
+    if (response.status === 403) throw new Protocol2AccessDeniedError()
     return this.parse(response, snapshotSchema)
   }
 
@@ -216,7 +227,7 @@ export class Protocol2VaultClient {
     signal?: AbortSignal,
   ): Promise<MemberDeltaPage> {
     const response = await this.request(
-      `/api/vaults/${encodeURIComponent(vaultId)}/sync/delta`,
+      `/api/vaults/${encodeURIComponent(vaultId)}/current-entries/sync/delta`,
       accessToken,
       {
         method: 'POST',
@@ -227,6 +238,7 @@ export class Protocol2VaultClient {
         ...(signal ? { signal } : {}),
       },
     )
+    if (response.status === 403) throw new Protocol2AccessDeniedError()
     if (response.status === 409) {
       try {
         throw new Protocol2ResetRequiredError(resetSchema.parse(await readBoundedJson(response)))

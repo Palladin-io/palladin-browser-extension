@@ -97,6 +97,7 @@ export async function handleInlineAutofillContentMessage(
           username: entry.username!,
           vaultName: entry.vaultName,
           urlDomain: entry.urlDomain!,
+          updatedAt: entry.updatedAt,
           match,
         }));
       return { ok: true, kind: "suggestions", status: "ready", entries };

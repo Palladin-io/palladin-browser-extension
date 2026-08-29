@@ -211,6 +211,7 @@
   "inline.unavailable": "Podpowiedzi Palladin są chwilowo niedostępne.",
   "inline.filling": "Wypełnianie logowania...",
   "inline.filled": "Dane logowania wypełnione",
+  "inline.passwordUpdated": "Hasło dla {name} zostało zaktualizowane - wypełnij ponownie",
   "inline.fillAndLogin": "Wypełnij i zaloguj",
   "inline.logIn": "Zaloguj",
   "inline.noForm": "Nie udało się wypełnić formularza logowania.",

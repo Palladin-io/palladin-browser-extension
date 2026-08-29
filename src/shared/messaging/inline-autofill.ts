@@ -30,6 +30,8 @@ export interface InlineAutofillSuggestion {
   readonly username: string;
   readonly vaultName: string;
   readonly urlDomain: string;
+  /** Opaque head freshness marker used only to warn after a completed fill changes. */
+  readonly updatedAt: string;
   readonly match: "exact" | "related";
 }
 
@@ -101,7 +103,7 @@ export function isInlineAutofillResult(value: unknown): value is InlineAutofillR
 
 function isSuggestion(value: unknown): value is InlineAutofillSuggestion {
   return isRecord(value)
-    && hasOnlyKeys(value, ["vaultId", "entryId", "name", "username", "vaultName", "urlDomain", "match"])
+    && hasOnlyKeys(value, ["vaultId", "entryId", "name", "username", "vaultName", "urlDomain", "updatedAt", "match"])
     && validOpaqueId(value.vaultId)
     && validOpaqueId(value.entryId)
     && validText(value.name, 256)
@@ -109,6 +111,7 @@ function isSuggestion(value: unknown): value is InlineAutofillSuggestion {
     && value.username.length <= 512
     && validText(value.vaultName, 256)
     && validText(value.urlDomain, 253)
+    && validText(value.updatedAt, 64)
     && (value.match === "exact" || value.match === "related");
 }
 

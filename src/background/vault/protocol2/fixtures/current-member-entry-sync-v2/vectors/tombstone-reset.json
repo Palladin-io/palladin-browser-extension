@@ -1,0 +1,113 @@
+{
+  "contract": "palladin-current-member-entry-sync-control-fixtures",
+  "fixtureSchemaVersion": 1,
+  "protocolVersion": 2,
+  "syncPolicyVersion": 2,
+  "tombstoneDelta": {
+    "requestAuthority": {
+      "authenticatedPrincipalId": "44444444-4444-4444-8444-444444444444",
+      "authenticatedOrganizationId": "11111111-1111-4111-8111-111111111111",
+      "currentOrganizationMembershipGeneration": "7",
+      "routeVaultId": "22222222-2222-4222-8222-222222222222",
+      "currentStructuralMemberId": "44444444-4444-4444-8444-444444444444",
+      "authoritativeMemberKeyGeneration": 4,
+      "authoritativeCurrentVaultKeyVersion": 3,
+      "authoritativeMemberRecipientKeyVersion": 2,
+      "authoritativeMemberRecipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
+      "authoritativeOfflinePolicy": "24h",
+      "authoritativeOfflinePolicyVersion": 1,
+      "clientCryptographicAuthority": {
+        "expectedCurrentVaultKeyHex": "7b87efdee655afc73575ef71dd7a8c8fcc7b11c8ca78503c968f97fe516a975d",
+        "source": "synthetic-client-current-vault-key-trust-anchor"
+      },
+      "validationTime": "2026-08-29T08:30:00Z",
+      "authoritativeCurrentMemberSequence": "14",
+      "authoritativeMinRetainedMemberSequence": "1",
+      "requestAfterSequence": "13",
+      "requestPageSize": 100,
+      "deltaRequestKind": "initial",
+      "authenticatedCursorDeltaUpperBound": null,
+      "authoritativeEntryHeads": [
+        {
+          "entryId": "33333333-3333-4333-8333-333333333333",
+          "kind": "tombstone",
+          "state": null,
+          "updatedAt": null,
+          "currentRevision": null,
+          "memberIndexRevision": null,
+          "currentKeyVersion": null
+        }
+      ]
+    },
+    "response": {
+      "deltaUpperBound": "14",
+      "appliedThroughSequence": "14",
+      "accessContext": {
+        "contextVersion": 1,
+        "principalId": "44444444-4444-4444-8444-444444444444",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "organizationMembershipGeneration": "7",
+        "vaultId": "22222222-2222-4222-8222-222222222222",
+        "memberId": "44444444-4444-4444-8444-444444444444",
+        "memberKeyGeneration": 4,
+        "vaultKeyVersion": 3,
+        "memberRecipientKeyVersion": 2,
+        "memberRecipientKeyFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
+        "offlinePolicy": "24h",
+        "offlinePolicyVersion": 1,
+        "issuedAt": "2026-08-29T08:00:00Z",
+        "notAfter": "2026-08-30T08:00:00Z"
+      },
+      "memberVaultKey": {
+        "wrappedVaultKey": {
+          "descriptor": {
+            "protocolVersion": 2,
+            "wrapperSuiteId": "palladin-x25519-sealed-box-v1",
+            "purpose": "memberVaultKey",
+            "scope": {
+              "organizationId": "11111111-1111-4111-8111-111111111111",
+              "vaultId": "22222222-2222-4222-8222-222222222222",
+              "entryId": null,
+              "grantOrRequestId": null,
+              "agentId": null,
+              "memberId": "44444444-4444-4444-8444-444444444444"
+            },
+            "resourceRevision": "3",
+            "wrappedKeyVersion": 3,
+            "memberKeyGeneration": 4,
+            "recipientKeyKind": "memberX25519",
+            "recipientKeyVersion": 2,
+            "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
+            "parentDescriptorHash": null
+          },
+          "encodedSealedKeyPackage": "8kgeXHbo4IgcFbsvIQcP6mWKYX2jwpTDzOllSh21ckXyLs06yxnlvZWexWkBUd3R1k5kv6D0VvXffzXD-zr2MScQXyXeuEkMkS0uokRA2WvlB-SO38FwFGuIk_QLZ8y_mR2Ay8LsdgyevvQvO4MoQiNGRghg8eYE"
+        }
+      },
+      "items": [
+        {
+          "entryId": "33333333-3333-4333-8333-333333333333",
+          "kind": "tombstone",
+          "state": null,
+          "updatedAt": null,
+          "currentRevision": null,
+          "memberIndexRevision": null,
+          "currentKeyVersion": null,
+          "entryKey": null,
+          "memberIndex": null,
+          "memberSecret": null
+        }
+      ],
+      "continuationCursor": null
+    }
+  },
+  "reset": {
+    "httpStatus": 409,
+    "response": {
+      "outcome": "resetRequired",
+      "currentSequence": "14",
+      "minRetainedSequence": "13",
+      "newSnapshotRequired": true
+    },
+    "expectedClientAction": "delete-active-generation-cancel-staging-start-fresh-snapshot"
+  }
+}

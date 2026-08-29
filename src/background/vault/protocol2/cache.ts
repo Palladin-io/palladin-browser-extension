@@ -1,4 +1,10 @@
-import type { EncryptedVaultSummary, MemberDeltaPage, MemberSyncItem } from './contracts'
+import type {
+  EncryptedVaultSummary,
+  MemberDeltaPage,
+  MemberSyncItem,
+  MemberVaultKeyEnvelope,
+  OfflineAccessContext,
+} from './contracts'
 
 interface CachedVaultState {
   scopeId: string
@@ -7,49 +13,118 @@ interface CachedVaultState {
   activeNamespace: string | null
   activeAppliedThroughSequence: string | null
   activeVault: EncryptedVaultSummary | null
+  activeAccessContext: OfflineAccessContext | null
+  activeMemberVaultKey: MemberVaultKeyEnvelope | null
+  activeMaxObservedWallTime: number | null
+  activeEncodedBytes: number
   pendingNamespace: string | null
   pendingSnapshotBaseSequence: string | null
   pendingAppliedThroughSequence: string | null
   pendingCursor: string | null
   pendingVault: EncryptedVaultSummary | null
+  pendingAccessContext: OfflineAccessContext | null
+  pendingMemberVaultKey: MemberVaultKeyEnvelope | null
+  pendingMaxObservedWallTime: number | null
+  pendingEncodedBytes: number
 }
 
 interface CachedMemberItem {
   scopeNamespace: string
   entryId: string
   item: MemberSyncItem
+  encodedBytes: number
 }
 
 export interface ActiveCacheState {
   namespace: string
   appliedThroughSequence: string
   vault: EncryptedVaultSummary
+  accessContext: OfflineAccessContext
+  memberVaultKey: MemberVaultKeyEnvelope
+  maxObservedWallTime: number
 }
 
 export interface CachedItemPage {
+  active: ActiveCacheState
   items: MemberSyncItem[]
   nextEntryId: string | null
 }
 
+export interface ActiveCachedEntry {
+  active: ActiveCacheState
+  item: MemberSyncItem
+}
+
 export interface MemberSyncCache {
   getActiveState(userId: string, vaultId: string): Promise<ActiveCacheState | null>
-  readActiveItemPage(userId: string, vaultId: string, afterEntryId: string | null, limit: number): Promise<CachedItemPage>
-  beginSnapshot(userId: string, vault: EncryptedVaultSummary, namespace: string, baseSequence: string): Promise<void>
-  applySnapshotPage(userId: string, vaultId: string, namespace: string, items: MemberSyncItem[], nextCursor: string | null): Promise<void>
-  applyPendingDeltaPage(userId: string, vaultId: string, namespace: string, expectedSequence: string, page: MemberDeltaPage): Promise<void>
-  completeSnapshot(userId: string, vault: EncryptedVaultSummary, namespace: string, appliedThroughSequence: string): Promise<void>
-  applyActiveDeltaPage(userId: string, vault: EncryptedVaultSummary, expectedSequence: string, page: MemberDeltaPage): Promise<void>
+  listActiveStates(userId: string): Promise<ActiveCacheState[]>
+  getProfileUsageBytes(userId: string): Promise<number>
+  readActiveItemPage(
+    userId: string,
+    vaultId: string,
+    afterEntryId: string | null,
+    limit: number,
+    observedWallTime: number,
+  ): Promise<CachedItemPage | null>
+  readActiveEntry(
+    userId: string,
+    vaultId: string,
+    entryId: string,
+    observedWallTime: number,
+  ): Promise<ActiveCachedEntry | null>
+  beginSnapshot(
+    userId: string,
+    vault: EncryptedVaultSummary,
+    namespace: string,
+    baseSequence: string,
+    accessContext: OfflineAccessContext,
+    memberVaultKey: MemberVaultKeyEnvelope,
+    observedWallTime: number,
+  ): Promise<void>
+  applySnapshotPage(
+    userId: string,
+    vaultId: string,
+    namespace: string,
+    items: MemberSyncItem[],
+    nextCursor: string | null,
+    accessContext: OfflineAccessContext,
+    memberVaultKey: MemberVaultKeyEnvelope,
+    observedWallTime: number,
+  ): Promise<void>
+  applyPendingDeltaPage(
+    userId: string,
+    vaultId: string,
+    namespace: string,
+    expectedSequence: string,
+    page: MemberDeltaPage,
+    observedWallTime: number,
+  ): Promise<void>
+  completeSnapshot(
+    userId: string,
+    vault: EncryptedVaultSummary,
+    namespace: string,
+    appliedThroughSequence: string,
+  ): Promise<void>
+  applyActiveDeltaPage(
+    userId: string,
+    vault: EncryptedVaultSummary,
+    expectedSequence: string,
+    page: MemberDeltaPage,
+    observedWallTime: number,
+  ): Promise<void>
   removeVault(userId: string, vaultId: string): Promise<void>
   removeMissingVaults(userId: string, retainedVaultIds: ReadonlySet<string>): Promise<void>
+  removeProfile(userId: string): Promise<void>
   clearAll(): Promise<void>
 }
 
 const DATABASE_NAME = 'palladin-vault-ciphertext-cache'
-const DATABASE_VERSION = 4
+const DATABASE_VERSION = 5
 const VAULT_STORE = 'member-vaults'
 const ITEM_STORE = 'member-items'
 const USER_INDEX = 'userId'
 const SCOPE_NAMESPACE_INDEX = 'scopeNamespace'
+export const MAXIMUM_PROFILE_CACHE_BYTES = 512 * 1024 * 1024
 
 function scopeId(userId: string, vaultId: string): string {
   return `${userId}:${vaultId}`
@@ -72,19 +147,19 @@ function transactionDone(transaction: IDBTransaction): Promise<void> {
     transaction.onabort = () => reject(transaction.error ?? new Error('IndexedDB transaction aborted'))
     transaction.onerror = () => reject(transaction.error ?? new Error('IndexedDB transaction failed'))
   })
-  // A request can fail before its caller reaches `await completion`. Attach an
-  // observer immediately so the browser never reports a second, unhandled
-  // rejection; awaiting the original promise still preserves the failure.
   void completion.catch(() => undefined)
   return completion
 }
 
-async function abortTransaction(transaction: IDBTransaction, done: Promise<void>, error: Error): Promise<never> {
+async function abortTransaction(
+  transaction: IDBTransaction,
+  done: Promise<void>,
+  error: Error,
+): Promise<never> {
   try {
     transaction.abort()
   } catch {
-    // The browser may already have aborted the transaction. Its completion
-    // promise below remains the authoritative settlement signal.
+    // The transaction may already be aborting after a failed request.
   }
   await done.catch(() => undefined)
   throw error
@@ -101,11 +176,6 @@ function openDatabase(databaseName: string): Promise<IDBDatabase> {
         const items = database.createObjectStore(ITEM_STORE, { keyPath: ['scopeNamespace', 'entryId'] })
         items.createIndex(SCOPE_NAMESPACE_INDEX, 'scopeNamespace')
       } else if (event.oldVersion < DATABASE_VERSION) {
-        // Older caches either conflate active/pending state, omit the
-        // structural UpdatedAt required for deterministic local recents, or
-        // contain EntryState values produced by the retired zero-based wire
-        // mapping. The cache is disposable ciphertext, so rebuild rather than
-        // guessing whether an "archived" item was actually Active=1.
         operation.transaction!.objectStore(VAULT_STORE).clear()
         operation.transaction!.objectStore(ITEM_STORE).clear()
       }
@@ -116,55 +186,110 @@ function openDatabase(databaseName: string): Promise<IDBDatabase> {
   })
 }
 
-function compareRevision(left: MemberSyncItem, right: MemberSyncItem): number {
-  if (left.kind === 'tombstone') return 1
-  if (right.kind === 'tombstone') return -1
-  const leftRevision = BigInt(left.memberIndexRevision)
-  const rightRevision = BigInt(right.memberIndexRevision)
-  return leftRevision < rightRevision ? -1 : leftRevision > rightRevision ? 1 : 0
-}
-
-async function applyItems(store: IDBObjectStore, namespace: string, items: MemberSyncItem[]): Promise<void> {
-  for (const item of items) {
-    const key: IDBValidKey = [namespace, item.entryId]
-    if (item.kind === 'tombstone') {
-      await request(store.delete(key))
-      continue
-    }
-    const existing = await request(store.get(key)) as CachedMemberItem | undefined
-    if (!existing || compareRevision(existing.item, item) <= 0) {
-      await request(store.put({ scopeNamespace: namespace, entryId: item.entryId, item } satisfies CachedMemberItem))
-    }
+function activeState(state: CachedVaultState): ActiveCacheState | null {
+  if (!state.activeNamespace
+    || state.activeAppliedThroughSequence === null
+    || !state.activeVault
+    || !state.activeAccessContext
+    || !state.activeMemberVaultKey
+    || state.activeMaxObservedWallTime === null) return null
+  return {
+    namespace: state.activeNamespace,
+    appliedThroughSequence: state.activeAppliedThroughSequence,
+    vault: state.activeVault,
+    accessContext: state.activeAccessContext,
+    memberVaultKey: state.activeMemberVaultKey,
+    maxObservedWallTime: state.activeMaxObservedWallTime,
   }
 }
 
-async function deleteNamespace(database: IDBDatabase, namespace: string): Promise<void> {
-  const transaction = database.transaction(ITEM_STORE, 'readwrite')
-  const done = transactionDone(transaction)
-  const index = transaction.objectStore(ITEM_STORE).index(SCOPE_NAMESPACE_INDEX)
+function encodedBytes(item: MemberSyncItem): number {
+  return new TextEncoder().encode(JSON.stringify(item)).byteLength
+}
+
+function encodedStateBytes(state: CachedVaultState): number {
+  return new TextEncoder().encode(JSON.stringify(state)).byteLength
+}
+
+function compareRevision(left: MemberSyncItem, right: MemberSyncItem): number {
+  if (left.kind === 'tombstone') return right.kind === 'tombstone' ? 0 : 1
+  if (right.kind === 'tombstone') return -1
+  const leftRevision = BigInt(left.currentRevision)
+  const rightRevision = BigInt(right.currentRevision)
+  return leftRevision < rightRevision ? -1 : leftRevision > rightRevision ? 1 : 0
+}
+
+async function applyItems(
+  store: IDBObjectStore,
+  namespace: string,
+  items: MemberSyncItem[],
+  currentBytes: number,
+): Promise<number> {
+  let nextBytes = currentBytes
+  for (const item of items) {
+    const key: IDBValidKey = [namespace, item.entryId]
+    const existing = await request(store.get(key)) as CachedMemberItem | undefined
+    if (existing && compareRevision(existing.item, item) > 0) continue
+    const itemBytes = encodedBytes(item)
+    await request(store.put({
+      scopeNamespace: namespace,
+      entryId: item.entryId,
+      item,
+      encodedBytes: itemBytes,
+    } satisfies CachedMemberItem))
+    nextBytes += itemBytes - (existing?.encodedBytes ?? 0)
+  }
+  return nextBytes
+}
+
+async function deleteNamespacePrefix(store: IDBObjectStore, prefix: string): Promise<void> {
+  const index = store.index(SCOPE_NAMESPACE_INDEX)
   await new Promise<void>((resolve, reject) => {
-    const cursorRequest = index.openKeyCursor(IDBKeyRange.only(namespace))
-    cursorRequest.onerror = () => reject(cursorRequest.error ?? new Error('Unable to clean old Vault cache namespace'))
+    const cursorRequest = index.openKeyCursor(IDBKeyRange.bound(prefix, `${prefix}\uffff`))
+    cursorRequest.onerror = () => reject(cursorRequest.error ?? new Error('Unable to clean Vault cache namespace'))
     cursorRequest.onsuccess = () => {
       const cursor = cursorRequest.result
       if (!cursor) {
         resolve()
         return
       }
-      transaction.objectStore(ITEM_STORE).delete(cursor.primaryKey)
+      store.delete(cursor.primaryKey)
       cursor.continue()
     }
   })
-  await done
+}
+
+async function assertProfileQuota(
+  vaultStore: IDBObjectStore,
+  userId: string,
+  nextState: CachedVaultState,
+  transaction: IDBTransaction,
+  done: Promise<void>,
+  maximumBytes: number,
+): Promise<void> {
+  const states = await request(vaultStore.index(USER_INDEX).getAll(userId)) as CachedVaultState[]
+  let found = false
+  let bytes = 0
+  for (const state of states) {
+    const candidate = state.scopeId === nextState.scopeId ? nextState : state
+    found ||= state.scopeId === nextState.scopeId
+    bytes += candidate.activeEncodedBytes + candidate.pendingEncodedBytes + encodedStateBytes(candidate)
+  }
+  if (!found) {
+    bytes += nextState.activeEncodedBytes + nextState.pendingEncodedBytes + encodedStateBytes(nextState)
+  }
+  if (bytes > maximumBytes) {
+    await abortTransaction(transaction, done, new Error('Vault ciphertext cache quota exceeded'))
+  }
 }
 
 export class IndexedDbProtocol2Cache implements MemberSyncCache {
   private database: Promise<IDBDatabase> | null = null
-  private readonly databaseName: string
 
-  constructor(databaseName = DATABASE_NAME) {
-    this.databaseName = databaseName
-  }
+  constructor(
+    private readonly databaseName = DATABASE_NAME,
+    private readonly maximumProfileCacheBytes = MAXIMUM_PROFILE_CACHE_BYTES,
+  ) {}
 
   private getDatabase(): Promise<IDBDatabase> {
     this.database ??= openDatabase(this.databaseName)
@@ -186,27 +311,71 @@ export class IndexedDbProtocol2Cache implements MemberSyncCache {
     const database = await this.getDatabase()
     const transaction = database.transaction(VAULT_STORE, 'readonly')
     const done = transactionDone(transaction)
-    const state = await request(transaction.objectStore(VAULT_STORE).get(scopeId(userId, vaultId))) as CachedVaultState | undefined
+    const state = await request(
+      transaction.objectStore(VAULT_STORE).get(scopeId(userId, vaultId)),
+    ) as CachedVaultState | undefined
     await done
-    if (!state?.activeNamespace || state.activeAppliedThroughSequence === null || !state.activeVault) return null
-    return { namespace: state.activeNamespace, appliedThroughSequence: state.activeAppliedThroughSequence, vault: state.activeVault }
+    return state ? activeState(state) : null
   }
 
-  async readActiveItemPage(userId: string, vaultId: string, afterEntryId: string | null, limit: number): Promise<CachedItemPage> {
-    if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw new Error('invalid Vault cache page size')
-    const active = await this.getActiveState(userId, vaultId)
-    if (!active) return { items: [], nextEntryId: null }
+  async listActiveStates(userId: string): Promise<ActiveCacheState[]> {
+    const database = await this.getDatabase()
+    const transaction = database.transaction(VAULT_STORE, 'readonly')
+    const done = transactionDone(transaction)
+    const states = await request(
+      transaction.objectStore(VAULT_STORE).index(USER_INDEX).getAll(userId),
+    ) as CachedVaultState[]
+    await done
+    return states.flatMap((state) => {
+      const active = activeState(state)
+      return active ? [active] : []
+    })
+  }
+
+  async getProfileUsageBytes(userId: string): Promise<number> {
+    const database = await this.getDatabase()
+    const transaction = database.transaction(VAULT_STORE, 'readonly')
+    const done = transactionDone(transaction)
+    const states = await request(
+      transaction.objectStore(VAULT_STORE).index(USER_INDEX).getAll(userId),
+    ) as CachedVaultState[]
+    await done
+    return states.reduce(
+      (total, state) => total + state.activeEncodedBytes + state.pendingEncodedBytes
+        + encodedStateBytes(state),
+      0,
+    )
+  }
+
+  async readActiveItemPage(
+    userId: string,
+    vaultId: string,
+    afterEntryId: string | null,
+    limit: number,
+    observedWallTime: number,
+  ): Promise<CachedItemPage | null> {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
+      throw new Error('invalid Vault cache page size')
+    }
+    const database = await this.getDatabase()
+    const transaction = database.transaction([VAULT_STORE, ITEM_STORE], 'readwrite')
+    const done = transactionDone(transaction)
+    const vaultStore = transaction.objectStore(VAULT_STORE)
+    const state = await request(vaultStore.get(scopeId(userId, vaultId))) as CachedVaultState | undefined
+    const active = state ? activeState(state) : null
+    if (!state || !active) {
+      await done
+      return null
+    }
+    const nextObserved = Math.max(active.maxObservedWallTime, observedWallTime)
+    await request(vaultStore.put({ ...state, activeMaxObservedWallTime: nextObserved }))
     const namespace = scopeNamespace(userId, vaultId, active.namespace)
     const lower: IDBValidKey = [namespace, afterEntryId ?? '']
     const upper: IDBValidKey = [namespace, '\uffff']
     const range = IDBKeyRange.bound(lower, upper, afterEntryId !== null, false)
-    const database = await this.getDatabase()
-    const transaction = database.transaction(ITEM_STORE, 'readonly')
-    const done = transactionDone(transaction)
-    const store = transaction.objectStore(ITEM_STORE)
     const items: MemberSyncItem[] = []
     await new Promise<void>((resolve, reject) => {
-      const cursorRequest = store.openCursor(range)
+      const cursorRequest = transaction.objectStore(ITEM_STORE).openCursor(range)
       cursorRequest.onerror = () => reject(cursorRequest.error ?? new Error('Unable to read Vault cache page'))
       cursorRequest.onsuccess = () => {
         const cursor = cursorRequest.result
@@ -219,144 +388,305 @@ export class IndexedDbProtocol2Cache implements MemberSyncCache {
       }
     })
     await done
-    return { items, nextEntryId: items.length === limit ? items.at(-1)!.entryId : null }
+    return {
+      active: { ...active, maxObservedWallTime: nextObserved },
+      items,
+      nextEntryId: items.length === limit ? items.at(-1)!.entryId : null,
+    }
   }
 
-  async beginSnapshot(userId: string, vault: EncryptedVaultSummary, namespace: string, baseSequence: string): Promise<void> {
+  async readActiveEntry(
+    userId: string,
+    vaultId: string,
+    entryId: string,
+    observedWallTime: number,
+  ): Promise<ActiveCachedEntry | null> {
     const database = await this.getDatabase()
-    const transaction = database.transaction(VAULT_STORE, 'readwrite')
+    const transaction = database.transaction([VAULT_STORE, ITEM_STORE], 'readwrite')
+    const done = transactionDone(transaction)
+    const vaultStore = transaction.objectStore(VAULT_STORE)
+    const state = await request(vaultStore.get(scopeId(userId, vaultId))) as CachedVaultState | undefined
+    const active = state ? activeState(state) : null
+    if (!state || !active) {
+      await done
+      return null
+    }
+    const nextObserved = Math.max(active.maxObservedWallTime, observedWallTime)
+    await request(vaultStore.put({ ...state, activeMaxObservedWallTime: nextObserved }))
+    const cached = await request(transaction.objectStore(ITEM_STORE).get([
+      scopeNamespace(userId, vaultId, active.namespace),
+      entryId,
+    ])) as CachedMemberItem | undefined
+    await done
+    return cached
+      ? { active: { ...active, maxObservedWallTime: nextObserved }, item: cached.item }
+      : null
+  }
+
+  async beginSnapshot(
+    userId: string,
+    vault: EncryptedVaultSummary,
+    namespace: string,
+    baseSequence: string,
+    accessContext: OfflineAccessContext,
+    memberVaultKey: MemberVaultKeyEnvelope,
+    observedWallTime: number,
+  ): Promise<void> {
+    const database = await this.getDatabase()
+    const transaction = database.transaction([VAULT_STORE, ITEM_STORE], 'readwrite')
     const done = transactionDone(transaction)
     const store = transaction.objectStore(VAULT_STORE)
     const id = scopeId(userId, vault.id)
     const previous = await request(store.get(id)) as CachedVaultState | undefined
-    await request(store.put({
+    if (previous?.pendingNamespace) {
+      await deleteNamespacePrefix(
+        transaction.objectStore(ITEM_STORE),
+        scopeNamespace(userId, vault.id, previous.pendingNamespace),
+      )
+    }
+    const next: CachedVaultState = {
       scopeId: id,
       userId,
       vaultId: vault.id,
       activeNamespace: previous?.activeNamespace ?? null,
       activeAppliedThroughSequence: previous?.activeAppliedThroughSequence ?? null,
       activeVault: previous?.activeVault ?? null,
+      activeAccessContext: previous?.activeAccessContext ?? null,
+      activeMemberVaultKey: previous?.activeMemberVaultKey ?? null,
+      activeMaxObservedWallTime: previous?.activeMaxObservedWallTime ?? null,
+      activeEncodedBytes: previous?.activeEncodedBytes ?? 0,
       pendingNamespace: namespace,
       pendingSnapshotBaseSequence: baseSequence,
       pendingAppliedThroughSequence: baseSequence,
       pendingCursor: null,
       pendingVault: vault,
-    } satisfies CachedVaultState))
-    await done
-    if (previous?.pendingNamespace && previous.pendingNamespace !== namespace) {
-      await deleteNamespace(database, scopeNamespace(userId, vault.id, previous.pendingNamespace))
+      pendingAccessContext: accessContext,
+      pendingMemberVaultKey: memberVaultKey,
+      pendingMaxObservedWallTime: observedWallTime,
+      pendingEncodedBytes: 0,
     }
+    await assertProfileQuota(
+      store,
+      userId,
+      next,
+      transaction,
+      done,
+      this.maximumProfileCacheBytes,
+    )
+    await request(store.put(next))
+    await done
   }
 
-  async applySnapshotPage(userId: string, vaultId: string, namespace: string, items: MemberSyncItem[], nextCursor: string | null): Promise<void> {
+  async applySnapshotPage(
+    userId: string,
+    vaultId: string,
+    namespace: string,
+    items: MemberSyncItem[],
+    nextCursor: string | null,
+    accessContext: OfflineAccessContext,
+    memberVaultKey: MemberVaultKeyEnvelope,
+    observedWallTime: number,
+  ): Promise<void> {
     const database = await this.getDatabase()
     const transaction = database.transaction([VAULT_STORE, ITEM_STORE], 'readwrite')
     const done = transactionDone(transaction)
     const vaultStore = transaction.objectStore(VAULT_STORE)
-    const id = scopeId(userId, vaultId)
-    const state = await request(vaultStore.get(id)) as CachedVaultState | undefined
-    if (!state || state.pendingNamespace !== namespace) {
+    const state = await request(vaultStore.get(scopeId(userId, vaultId))) as CachedVaultState | undefined
+    if (!state
+      || state.pendingNamespace !== namespace
+      || state.pendingSnapshotBaseSequence === null) {
       return abortTransaction(transaction, done, new Error('stale Vault snapshot namespace'))
     }
-    await applyItems(transaction.objectStore(ITEM_STORE), scopeNamespace(userId, vaultId, namespace), items)
-    await request(vaultStore.put({ ...state, pendingCursor: nextCursor }))
+    const bytes = await applyItems(
+      transaction.objectStore(ITEM_STORE),
+      scopeNamespace(userId, vaultId, namespace),
+      items,
+      state.pendingEncodedBytes,
+    )
+    const next = {
+      ...state,
+      pendingCursor: nextCursor,
+      pendingAccessContext: accessContext,
+      pendingMemberVaultKey: memberVaultKey,
+      pendingMaxObservedWallTime: Math.max(state.pendingMaxObservedWallTime ?? 0, observedWallTime),
+      pendingEncodedBytes: bytes,
+    }
+    await assertProfileQuota(
+      vaultStore,
+      userId,
+      next,
+      transaction,
+      done,
+      this.maximumProfileCacheBytes,
+    )
+    await request(vaultStore.put(next))
     await done
   }
 
-  async applyPendingDeltaPage(userId: string, vaultId: string, namespace: string, expectedSequence: string, page: MemberDeltaPage): Promise<void> {
+  async applyPendingDeltaPage(
+    userId: string,
+    vaultId: string,
+    namespace: string,
+    expectedSequence: string,
+    page: MemberDeltaPage,
+    observedWallTime: number,
+  ): Promise<void> {
     const database = await this.getDatabase()
     const transaction = database.transaction([VAULT_STORE, ITEM_STORE], 'readwrite')
     const done = transactionDone(transaction)
     const vaultStore = transaction.objectStore(VAULT_STORE)
-    const id = scopeId(userId, vaultId)
-    const state = await request(vaultStore.get(id)) as CachedVaultState | undefined
-    if (!state || state.pendingNamespace !== namespace || state.pendingAppliedThroughSequence !== expectedSequence) {
+    const state = await request(vaultStore.get(scopeId(userId, vaultId))) as CachedVaultState | undefined
+    if (!state
+      || state.pendingNamespace !== namespace
+      || state.pendingAppliedThroughSequence !== expectedSequence) {
       return abortTransaction(transaction, done, new Error('Vault pending delta cursor changed concurrently'))
     }
-    await applyItems(transaction.objectStore(ITEM_STORE), scopeNamespace(userId, vaultId, namespace), page.items)
-    await request(vaultStore.put({ ...state, pendingAppliedThroughSequence: page.appliedThroughSequence }))
+    const bytes = await applyItems(
+      transaction.objectStore(ITEM_STORE),
+      scopeNamespace(userId, vaultId, namespace),
+      page.items,
+      state.pendingEncodedBytes,
+    )
+    const next = {
+      ...state,
+      pendingAppliedThroughSequence: page.appliedThroughSequence,
+      pendingAccessContext: page.accessContext,
+      pendingMemberVaultKey: page.memberVaultKey,
+      pendingMaxObservedWallTime: Math.max(state.pendingMaxObservedWallTime ?? 0, observedWallTime),
+      pendingEncodedBytes: bytes,
+    }
+    await assertProfileQuota(
+      vaultStore,
+      userId,
+      next,
+      transaction,
+      done,
+      this.maximumProfileCacheBytes,
+    )
+    await request(vaultStore.put(next))
     await done
   }
 
-  async completeSnapshot(userId: string, vault: EncryptedVaultSummary, namespace: string, appliedThroughSequence: string): Promise<void> {
+  async completeSnapshot(
+    userId: string,
+    vault: EncryptedVaultSummary,
+    namespace: string,
+    appliedThroughSequence: string,
+  ): Promise<void> {
     const database = await this.getDatabase()
-    const transaction = database.transaction(VAULT_STORE, 'readwrite')
+    const transaction = database.transaction([VAULT_STORE, ITEM_STORE], 'readwrite')
     const done = transactionDone(transaction)
     const store = transaction.objectStore(VAULT_STORE)
-    const id = scopeId(userId, vault.id)
-    const state = await request(store.get(id)) as CachedVaultState | undefined
-    if (!state || state.pendingNamespace !== namespace || state.pendingAppliedThroughSequence !== appliedThroughSequence) {
+    const state = await request(store.get(scopeId(userId, vault.id))) as CachedVaultState | undefined
+    if (!state
+      || state.pendingNamespace !== namespace
+      || state.pendingAppliedThroughSequence !== appliedThroughSequence
+      || !state.pendingAccessContext
+      || !state.pendingMemberVaultKey
+      || state.pendingMaxObservedWallTime === null) {
       return abortTransaction(transaction, done, new Error('Vault snapshot completion cursor mismatch'))
     }
-    const previousNamespace = state.activeNamespace
+    if (state.activeNamespace && state.activeNamespace !== namespace) {
+      await deleteNamespacePrefix(
+        transaction.objectStore(ITEM_STORE),
+        scopeNamespace(userId, vault.id, state.activeNamespace),
+      )
+    }
     await request(store.put({
       ...state,
       activeNamespace: namespace,
       activeAppliedThroughSequence: appliedThroughSequence,
       activeVault: vault,
+      activeAccessContext: state.pendingAccessContext,
+      activeMemberVaultKey: state.pendingMemberVaultKey,
+      activeMaxObservedWallTime: state.pendingMaxObservedWallTime,
+      activeEncodedBytes: state.pendingEncodedBytes,
       pendingNamespace: null,
       pendingSnapshotBaseSequence: null,
       pendingAppliedThroughSequence: null,
       pendingCursor: null,
       pendingVault: null,
+      pendingAccessContext: null,
+      pendingMemberVaultKey: null,
+      pendingMaxObservedWallTime: null,
+      pendingEncodedBytes: 0,
     }))
     await done
-    if (previousNamespace && previousNamespace !== namespace) {
-      await deleteNamespace(database, scopeNamespace(userId, vault.id, previousNamespace))
-    }
   }
 
-  async applyActiveDeltaPage(userId: string, vault: EncryptedVaultSummary, expectedSequence: string, page: MemberDeltaPage): Promise<void> {
+  async applyActiveDeltaPage(
+    userId: string,
+    vault: EncryptedVaultSummary,
+    expectedSequence: string,
+    page: MemberDeltaPage,
+    observedWallTime: number,
+  ): Promise<void> {
     const database = await this.getDatabase()
     const transaction = database.transaction([VAULT_STORE, ITEM_STORE], 'readwrite')
     const done = transactionDone(transaction)
     const vaultStore = transaction.objectStore(VAULT_STORE)
-    const id = scopeId(userId, vault.id)
-    const state = await request(vaultStore.get(id)) as CachedVaultState | undefined
+    const state = await request(vaultStore.get(scopeId(userId, vault.id))) as CachedVaultState | undefined
     if (!state?.activeNamespace || state.activeAppliedThroughSequence !== expectedSequence) {
       return abortTransaction(transaction, done, new Error('Vault active delta cursor changed concurrently'))
     }
-    await applyItems(transaction.objectStore(ITEM_STORE), scopeNamespace(userId, vault.id, state.activeNamespace), page.items)
-    await request(vaultStore.put({ ...state, activeAppliedThroughSequence: page.appliedThroughSequence, activeVault: vault }))
+    const bytes = await applyItems(
+      transaction.objectStore(ITEM_STORE),
+      scopeNamespace(userId, vault.id, state.activeNamespace),
+      page.items,
+      state.activeEncodedBytes,
+    )
+    const next = {
+      ...state,
+      activeAppliedThroughSequence: page.appliedThroughSequence,
+      activeVault: vault,
+      activeAccessContext: page.accessContext,
+      activeMemberVaultKey: page.memberVaultKey,
+      activeMaxObservedWallTime: Math.max(state.activeMaxObservedWallTime ?? 0, observedWallTime),
+      activeEncodedBytes: bytes,
+    }
+    await assertProfileQuota(
+      vaultStore,
+      userId,
+      next,
+      transaction,
+      done,
+      this.maximumProfileCacheBytes,
+    )
+    await request(vaultStore.put(next))
     await done
   }
 
   async removeMissingVaults(userId: string, retainedVaultIds: ReadonlySet<string>): Promise<void> {
     const database = await this.getDatabase()
-    const readTransaction = database.transaction(VAULT_STORE, 'readonly')
-    const readDone = transactionDone(readTransaction)
-    const states = await request(readTransaction.objectStore(VAULT_STORE).index(USER_INDEX).getAll(userId)) as CachedVaultState[]
-    await readDone
+    const transaction = database.transaction([VAULT_STORE, ITEM_STORE], 'readwrite')
+    const done = transactionDone(transaction)
+    const vaultStore = transaction.objectStore(VAULT_STORE)
+    const states = await request(vaultStore.index(USER_INDEX).getAll(userId)) as CachedVaultState[]
     for (const state of states) {
       if (retainedVaultIds.has(state.vaultId)) continue
-      const transaction = database.transaction(VAULT_STORE, 'readwrite')
-      const done = transactionDone(transaction)
-      await request(transaction.objectStore(VAULT_STORE).delete(state.scopeId))
-      await done
-      if (state.activeNamespace) await deleteNamespace(database, scopeNamespace(userId, state.vaultId, state.activeNamespace))
-      if (state.pendingNamespace) await deleteNamespace(database, scopeNamespace(userId, state.vaultId, state.pendingNamespace))
+      await request(vaultStore.delete(state.scopeId))
+      await deleteNamespacePrefix(transaction.objectStore(ITEM_STORE), `${scopeId(userId, state.vaultId)}:`)
     }
+    await done
   }
 
   async removeVault(userId: string, vaultId: string): Promise<void> {
     const database = await this.getDatabase()
-    const readTransaction = database.transaction(VAULT_STORE, 'readonly')
-    const readDone = transactionDone(readTransaction)
-    const state = await request(
-      readTransaction.objectStore(VAULT_STORE).get(scopeId(userId, vaultId)),
-    ) as CachedVaultState | undefined
-    await readDone
-    if (!state) return
-
-    const transaction = database.transaction(VAULT_STORE, 'readwrite')
+    const transaction = database.transaction([VAULT_STORE, ITEM_STORE], 'readwrite')
     const done = transactionDone(transaction)
-    await request(transaction.objectStore(VAULT_STORE).delete(state.scopeId))
+    await request(transaction.objectStore(VAULT_STORE).delete(scopeId(userId, vaultId)))
+    await deleteNamespacePrefix(transaction.objectStore(ITEM_STORE), `${scopeId(userId, vaultId)}:`)
     await done
-    if (state.activeNamespace) {
-      await deleteNamespace(database, scopeNamespace(userId, vaultId, state.activeNamespace))
-    }
-    if (state.pendingNamespace) {
-      await deleteNamespace(database, scopeNamespace(userId, vaultId, state.pendingNamespace))
-    }
+  }
+
+  async removeProfile(userId: string): Promise<void> {
+    const database = await this.getDatabase()
+    const transaction = database.transaction([VAULT_STORE, ITEM_STORE], 'readwrite')
+    const done = transactionDone(transaction)
+    const vaultStore = transaction.objectStore(VAULT_STORE)
+    const states = await request(vaultStore.index(USER_INDEX).getAll(userId)) as CachedVaultState[]
+    await Promise.all(states.map((state) => request(vaultStore.delete(state.scopeId))))
+    await deleteNamespacePrefix(transaction.objectStore(ITEM_STORE), `${userId}:`)
+    await done
   }
 }
