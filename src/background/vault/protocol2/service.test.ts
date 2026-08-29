@@ -525,6 +525,51 @@ describe('Protocol2VaultDataService canonical password capture', () => {
     expect(cache.beginSnapshot).not.toHaveBeenCalled()
   })
 
+  it('does not publish an in-flight disabled-policy delta after disconnect', async () => {
+    const { service, client, cache } = harness([head])
+    service.setRealtimeConnected(true)
+    cache.getActiveState.mockResolvedValue(null)
+    cache.listActiveStates.mockResolvedValue([])
+    cache.readActiveEntry.mockResolvedValue(null)
+    client.snapshot.mockResolvedValue({
+      snapshotBaseSequence: '1',
+      accessContext: connectedOnlyAccessContext,
+      memberVaultKey,
+      items: [head],
+      nextCursor: null,
+    })
+    client.delta.mockResolvedValue({
+      deltaUpperBound: '1',
+      appliedThroughSequence: '1',
+      accessContext: connectedOnlyAccessContext,
+      memberVaultKey,
+      items: [],
+      continuationCursor: null,
+    })
+    await service.refresh()
+
+    let resolveDelta: ((value: Awaited<ReturnType<typeof client.delta>>) => void) | undefined
+    client.delta.mockClear()
+    client.delta.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveDelta = resolve
+    }))
+    const repair = service.repair()
+    await vi.waitFor(() => expect(client.delta).toHaveBeenCalledTimes(1))
+    service.setRealtimeConnected(false)
+    resolveDelta?.({
+      deltaUpperBound: '1',
+      appliedThroughSequence: '1',
+      accessContext: connectedOnlyAccessContext,
+      memberVaultKey,
+      items: [],
+      continuationCursor: null,
+    })
+
+    await expect(repair).rejects.toMatchObject({ code: 'network' })
+    await expect(service.revealEntry(VAULT_ID, ENTRY_ID))
+      .rejects.toMatchObject({ code: 'decrypt-failed' })
+  })
+
   it('fails closed at exact lease expiry and purges the Vault partition', async () => {
     const { service, cache } = harness([head], () => 24 * 60 * 60_000)
 

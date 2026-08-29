@@ -150,6 +150,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
   private readonly leaseDeadlines = new Map<string, { signature: string; deadline: number }>()
   private readonly volatileDisabledVaults = new Map<string, VolatileDisabledVault>()
   private connected = false
+  private realtimeGeneration = 0
 
   constructor(private readonly deps: Protocol2VaultDataServiceDeps) {
     this.createNamespace = deps.createNamespace ?? (() => crypto.randomUUID())
@@ -224,6 +225,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
   }
 
   setRealtimeConnected(connected: boolean): void {
+    if (this.connected !== connected) this.realtimeGeneration += 1
     this.connected = connected
     if (!connected) {
       for (const vaultId of this.volatileDisabledVaults.keys()) {
@@ -648,6 +650,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
   private async syncVault(userId: string, vault: EncryptedVaultSummary): Promise<void> {
     const persistent = await this.deps.cache.getActiveState(userId, vault.id)
     const volatile = this.volatileDisabledVaults.get(vault.id)
+    const volatileRealtimeGeneration = this.realtimeGeneration
     const active = persistent ?? volatile?.active ?? null
     let replacementFloor = vault.memberSequence
     if (active !== null) {
@@ -669,6 +672,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
           if (persistent !== null) {
             await this.deps.cache.applyActiveDeltaPage(userId, vault, expected, page, this.now())
           } else if (volatile !== undefined) {
+            this.assertCurrentVolatile(vault.id, volatile, volatileRealtimeGeneration)
             const nextItems = new Map(volatile.items)
             const nextItemBytes = applyVolatileItems(
               nextItems,
@@ -684,6 +688,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
               maxObservedWallTime: Math.max(volatile.active.maxObservedWallTime, this.now()),
             }
             await this.assertVolatileProfileQuota(userId, vault.id, nextActive, nextItemBytes)
+            this.assertCurrentVolatile(vault.id, volatile, volatileRealtimeGeneration)
             volatile.items = nextItems
             volatile.encodedItemBytes = nextItemBytes
             volatile.active = nextActive
@@ -692,7 +697,10 @@ export class Protocol2VaultDataService implements VaultDataSource {
           replacementFloor = maximumSequence(replacementFloor, expected)
           continuation = page.continuationCursor
         } while (continuation !== null)
-        if (volatile !== undefined) this.currentVaults.set(vault.id, volatile.active.vault)
+        if (volatile !== undefined) {
+          this.assertCurrentVolatile(vault.id, volatile, volatileRealtimeGeneration)
+          this.currentVaults.set(vault.id, volatile.active.vault)
+        }
         return
       } catch (error) {
         if (!(error instanceof Protocol2ResetRequiredError)) throw error
@@ -707,12 +715,30 @@ export class Protocol2VaultDataService implements VaultDataSource {
     await this.replaceFromSnapshot(userId, vault, replacementFloor)
   }
 
+  private assertCurrentVolatile(
+    vaultId: string,
+    volatile: VolatileDisabledVault,
+    realtimeGeneration: number,
+  ): void {
+    this.assertRealtimeGeneration(realtimeGeneration)
+    if (this.volatileDisabledVaults.get(vaultId) !== volatile) {
+      throw new VaultDataError('network', 'Connected access is unavailable')
+    }
+  }
+
+  private assertRealtimeGeneration(realtimeGeneration: number): void {
+    if (!this.connected || this.realtimeGeneration !== realtimeGeneration) {
+      throw new VaultDataError('network', 'Connected access is unavailable')
+    }
+  }
+
   private async replaceFromSnapshot(
     userId: string,
     vault: EncryptedVaultSummary,
     minimumSequence = vault.memberSequence,
   ): Promise<void> {
     const namespace = this.createNamespace()
+    const realtimeGeneration = this.realtimeGeneration
     const firstPage = await this.withAuth((token) => this.deps.client.snapshot(token, vault.id, null))
     validateSnapshotPage(firstPage, vault, userId, null, null)
     if (BigInt(firstPage.snapshotBaseSequence) < BigInt(minimumSequence)) {
@@ -720,7 +746,13 @@ export class Protocol2VaultDataService implements VaultDataSource {
     }
     if (firstPage.accessContext.offlinePolicy === 'disabled') {
       await this.purgeVault(userId, vault.id)
-      return this.replaceVolatileFromSnapshot(userId, vault, namespace, firstPage)
+      return this.replaceVolatileFromSnapshot(
+        userId,
+        vault,
+        namespace,
+        firstPage,
+        realtimeGeneration,
+      )
     }
 
     const baseSequence = firstPage.snapshotBaseSequence
@@ -792,6 +824,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
     vault: EncryptedVaultSummary,
     namespace: string,
     firstPage: MemberSnapshotPage,
+    realtimeGeneration: number,
   ): Promise<void> {
     const items = new Map<string, MemberSyncItem>()
     const baseSequence = firstPage.snapshotBaseSequence
@@ -802,6 +835,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
     let latestMemberVaultKey = authoritativeMemberVaultKey
     let encodedItemBytes = 0
     while (true) {
+      this.assertRealtimeGeneration(realtimeGeneration)
       validateSnapshotPage(page, vault, userId, authoritativeAccess, authoritativeMemberVaultKey)
       if (page.snapshotBaseSequence !== baseSequence
         || page.accessContext.offlinePolicy !== 'disabled') {
@@ -818,6 +852,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
         memberVaultKey: latestMemberVaultKey,
         maxObservedWallTime: this.now(),
       }, encodedItemBytes)
+      this.assertRealtimeGeneration(realtimeGeneration)
       if (page.nextCursor === null) break
       page = await this.withAuth((token) => this.deps.client.snapshot(token, vault.id, page.nextCursor))
     }
@@ -828,6 +863,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
     do {
       const delta = await this.withAuth((token) =>
         this.deps.client.delta(token, vault.id, continuation === null ? expected : null, continuation))
+      this.assertRealtimeGeneration(realtimeGeneration)
       validateDeltaPage(delta, vault, userId, expected, upperBound)
       if (delta.accessContext.offlinePolicy !== 'disabled') {
         throw new VaultDataError('decrypt-failed', 'Disabled policy changed during closing delta')
@@ -846,9 +882,10 @@ export class Protocol2VaultDataService implements VaultDataSource {
         memberVaultKey: latestMemberVaultKey,
         maxObservedWallTime: this.now(),
       }, encodedItemBytes)
+      this.assertRealtimeGeneration(realtimeGeneration)
     } while (continuation !== null)
 
-    if (!this.connected) throw new VaultDataError('network', 'Connected access is unavailable')
+    this.assertRealtimeGeneration(realtimeGeneration)
     const completedVault = { ...vault, memberSequence: expected }
     this.volatileDisabledVaults.set(vault.id, {
       active: {
