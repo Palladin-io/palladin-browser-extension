@@ -36,6 +36,7 @@ const MAX_REPLAY_IDS = 1_024;
 const RECONNECT_ALARM = "palladin.native-agent.reconnect";
 const INITIAL_RECONNECT_DELAY_MINUTES = 0.5;
 const MAX_RECONNECT_DELAY_MINUTES = 15;
+const HANDSHAKE_TIMEOUT_MS = 10_000;
 const MAX_SECURE_FRAME_LENGTH = 2 * 1024 * 1024;
 const TAB_PROBE_TIMEOUT_MS = 2_000;
 
@@ -69,6 +70,7 @@ let nativePort: chrome.runtime.Port | null = null;
 let clientSession: InjectClientSession | null = null;
 let secureChannel: InjectSecureChannel | null = null;
 let connectionAttempt: Promise<void> | null = null;
+let handshakeTimeout: ReturnType<typeof globalThis.setTimeout> | null = null;
 let lifecycleVersion = 0;
 let reconnectDelayMinutes = INITIAL_RECONNECT_DELAY_MINUTES;
 
@@ -170,6 +172,7 @@ async function openNativeAgentProvider(expectedLifecycle: number): Promise<void>
       disposeSecureSession(port);
       scheduleNativeAgentReconnect();
     });
+    armHandshakeTimeout(port, expectedLifecycle);
   } catch {
     if (lifecycleVersion !== expectedLifecycle) return;
     disposeSecureSession();
@@ -221,6 +224,7 @@ async function handleSecureNativeMessage(
     }
     clientSession = session;
     postIfConnected(port, session.openFrame);
+    armHandshakeTimeout(port, expectedLifecycle);
     return;
   }
   if (secureChannel === null) {
@@ -234,6 +238,7 @@ async function handleSecureNativeMessage(
     }
     secureChannel = channel;
     clientSession = null;
+    clearHandshakeTimeout();
     reconnectDelayMinutes = INITIAL_RECONNECT_DELAY_MINUTES;
     void chrome.alarms.clear(RECONNECT_ALARM);
     return;
@@ -269,6 +274,24 @@ function scheduleNativeAgentReconnect(): void {
     reconnectDelayMinutes * 2,
     MAX_RECONNECT_DELAY_MINUTES,
   );
+}
+
+function armHandshakeTimeout(port: chrome.runtime.Port, expectedLifecycle: number): void {
+  clearHandshakeTimeout();
+  handshakeTimeout = globalThis.setTimeout(() => {
+    handshakeTimeout = null;
+    if (nativePort === port
+      && lifecycleVersion === expectedLifecycle
+      && secureChannel === null) {
+      disconnectSecurePort(port);
+    }
+  }, HANDSHAKE_TIMEOUT_MS);
+}
+
+function clearHandshakeTimeout(): void {
+  if (handshakeTimeout === null) return;
+  globalThis.clearTimeout(handshakeTimeout);
+  handshakeTimeout = null;
 }
 
 export function parseSessionOffer(value: unknown): InjectSessionOffer | null {
@@ -330,6 +353,7 @@ function disconnectSecurePort(port: chrome.runtime.Port): void {
 
 function disposeSecureSession(port?: chrome.runtime.Port): void {
   if (port !== undefined && nativePort !== port) return;
+  clearHandshakeTimeout();
   secureChannel?.dispose();
   clientSession?.dispose();
   secureChannel = null;

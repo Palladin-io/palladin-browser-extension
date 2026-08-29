@@ -190,6 +190,40 @@ describe("secure Native Messaging frame boundary", () => {
     }));
   });
 
+  it("retries when the native host never sends a session offer", async () => {
+    vi.useFakeTimers();
+    const { native, alarmsCreate } = stubChrome();
+
+    await connectNativeAgentProviderNow();
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(native.disconnect).toHaveBeenCalledOnce();
+    expect(alarmsCreate).toHaveBeenCalledWith(
+      "palladin.native-agent.reconnect",
+      { delayInMinutes: 0.5 },
+    );
+  });
+
+  it("retries when an offered session never reaches signed readiness", async () => {
+    vi.useFakeTimers();
+    const { native, alarmsCreate } = stubChrome();
+    await connectNativeAgentProviderNow();
+    native.emitMessage({
+      protocol: INJECT_PROVIDER_PROTOCOL,
+      type: "session.offer",
+      hostSigningPublicKey: PUBLIC_KEY,
+    });
+    await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledOnce());
+
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(native.disconnect).toHaveBeenCalledOnce();
+    expect(alarmsCreate).toHaveBeenCalledWith(
+      "palladin.native-agent.reconnect",
+      { delayInMinutes: 0.5 },
+    );
+  });
+
   it("fails a hung public tab probe closed within a bounded time", async () => {
     vi.useFakeTimers();
     stubChrome();
