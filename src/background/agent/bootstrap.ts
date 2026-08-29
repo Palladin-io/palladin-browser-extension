@@ -1,6 +1,6 @@
 import { extensionBuildTarget } from "@shared/config/build-target";
 
-import { connectNativeAgentProvider } from "./runtime";
+import { connectNativeAgentProviderIfDue } from "./runtime";
 import { clearLegacyHostPairingState } from "./legacy-pairing";
 
 export interface NativeAgentStartupEvent {
@@ -14,7 +14,7 @@ export interface NativeAgentStartupEvent {
  */
 export function startNativeAgentBridge(
   startup: NativeAgentStartupEvent = chrome.runtime.onStartup,
-  connect: () => void = connectNativeAgentProvider,
+  connect: () => void = connectNativeAgentProviderIfDue,
   clearLegacyPairing: () => Promise<void> = clearLegacyHostPairingState,
   bridgeSupported: boolean = extensionBuildTarget === "chromium",
 ): void {

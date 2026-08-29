@@ -20,6 +20,7 @@ import {
 } from "./native-provider";
 import {
   connectNativeAgentProvider,
+  connectNativeAgentProviderIfDueNow,
   connectNativeAgentProviderNow,
   disconnectNativeAgentProvider,
   gateAgentFillDeps,
@@ -76,20 +77,41 @@ function stubChrome(
   readonly connectNative: ReturnType<typeof vi.fn>;
   readonly alarmsCreate: ReturnType<typeof vi.fn>;
   readonly alarmsClear: ReturnType<typeof vi.fn>;
+  readonly alarmsGet: ReturnType<typeof vi.fn>;
+  readonly storageGet: ReturnType<typeof vi.fn>;
+  readonly storageRemove: ReturnType<typeof vi.fn>;
+  readonly storageSet: ReturnType<typeof vi.fn>;
   readonly native: FakeNativePort;
 } {
   const connectNative = vi.fn(() => native.port);
   const alarmsCreate = vi.fn();
   const alarmsClear = vi.fn(async () => true);
+  const alarmsGet = vi.fn(async () => undefined);
+  const storage = new Map<string, unknown>();
+  const storageGet = vi.fn(async (key: string) => ({ [key]: storage.get(key) }));
+  const storageRemove = vi.fn(async (key: string) => { storage.delete(key); });
+  const storageSet = vi.fn(async (values: Record<string, unknown>) => {
+    Object.entries(values).forEach(([key, value]) => storage.set(key, value));
+  });
   vi.stubGlobal("chrome", {
     runtime: {
       getURL: vi.fn(() => "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"),
       connectNative,
       lastError: undefined,
     },
-    alarms: { create: alarmsCreate, clear: alarmsClear },
+    alarms: { create: alarmsCreate, clear: alarmsClear, get: alarmsGet },
+    storage: { session: { get: storageGet, remove: storageRemove, set: storageSet } },
   });
-  return { connectNative, alarmsCreate, alarmsClear, native };
+  return {
+    connectNative,
+    alarmsCreate,
+    alarmsClear,
+    alarmsGet,
+    storageGet,
+    storageRemove,
+    storageSet,
+    native,
+  };
 }
 
 function rustFixtureJsonBytes(value: Record<string, unknown>): Uint8Array {
@@ -245,6 +267,39 @@ describe("secure Native Messaging frame boundary", () => {
     await vi.waitFor(() => expect(connectNative).toHaveBeenCalledOnce());
   });
 
+  it("does not bypass a pending reconnect alarm after a service-worker wake", async () => {
+    const { connectNative, alarmsGet } = stubChrome();
+    alarmsGet.mockResolvedValue({
+      name: "palladin.native-agent.reconnect",
+      scheduledTime: Date.now() + 30_000,
+    });
+
+    await connectNativeAgentProviderIfDueNow();
+
+    expect(connectNative).not.toHaveBeenCalled();
+  });
+
+  it("restores the next reconnect delay after a service-worker restart", async () => {
+    const { connectNative, alarmsCreate, storageGet, storageSet } = stubChrome();
+    connectNative.mockImplementation(() => {
+      throw new Error("native host unavailable");
+    });
+    storageGet.mockResolvedValue({ nativeAgentReconnectDelayMinutes: 4 });
+    vi.resetModules();
+    const freshRuntime = await import("./runtime");
+
+    await freshRuntime.connectNativeAgentProviderNow();
+
+    expect(alarmsCreate).toHaveBeenCalledWith(
+      "palladin.native-agent.reconnect",
+      { delayInMinutes: 4 },
+    );
+    expect(storageSet).toHaveBeenCalledWith({
+      nativeAgentReconnectDelayMinutes: 8,
+    });
+    freshRuntime.disconnectNativeAgentProvider();
+  });
+
   it("ignores a stale reconnect alarm on unsupported browser targets", async () => {
     const { connectNative } = stubChrome();
 
@@ -254,7 +309,7 @@ describe("secure Native Messaging frame boundary", () => {
   });
 
   it("backs off repeated connection failures and resets after lifecycle teardown", async () => {
-    const { connectNative, alarmsCreate } = stubChrome();
+    const { connectNative, alarmsCreate, storageSet } = stubChrome();
     connectNative.mockImplementation(() => {
       throw new Error("native host unavailable");
     });
@@ -267,6 +322,12 @@ describe("secure Native Messaging frame boundary", () => {
       "palladin.native-agent.reconnect",
       { delayInMinutes: 0.5 },
     );
+    expect(storageSet).toHaveBeenNthCalledWith(1, {
+      nativeAgentReconnectDelayMinutes: 1,
+    });
+    expect(storageSet).toHaveBeenNthCalledWith(2, {
+      nativeAgentReconnectDelayMinutes: 2,
+    });
     expect(alarmsCreate).toHaveBeenNthCalledWith(
       2,
       "palladin.native-agent.reconnect",
