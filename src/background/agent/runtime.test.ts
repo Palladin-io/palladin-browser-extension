@@ -56,7 +56,7 @@ function fakeNativePort(): FakeNativePort {
   const disconnect = vi.fn();
   return {
     port: {
-      name: "io.palladin.browser_bridge",
+      name: "io.palladin",
       sender: undefined,
       error: undefined,
       onMessage: { addListener: vi.fn((listener) => { messageListener = listener; }) },
@@ -199,6 +199,7 @@ describe("secure Native Messaging frame boundary", () => {
     await connectNativeAgentProviderNow();
 
     expect(connectNative).toHaveBeenCalledOnce();
+    expect(connectNative).toHaveBeenCalledWith("io.palladin");
     expect(native.postMessage).not.toHaveBeenCalled();
     native.emitMessage({
       protocol: INJECT_PROVIDER_PROTOCOL,

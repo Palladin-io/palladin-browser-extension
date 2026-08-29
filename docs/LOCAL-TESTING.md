@@ -41,7 +41,7 @@ From this repository:
 
 ```bash
 npm ci
-npm run build:chromium
+npm run build:chromium:debug
 ```
 
 The default API is `https://api.palladin.io`; the default web-panel deep link is
@@ -59,7 +59,7 @@ VITE_WEB_APP_URL=https://stage.palladin.io \
 VITE_LANDING_PAGE_URL=https://palladin.io \
 VITE_APP_STORE_URL=https://apps.apple.com/app/... \
 VITE_GOOGLE_PLAY_URL=https://play.google.com/store/apps/details?id=... \
-npm run build:chromium
+npm run build:chromium:debug
 ```
 
 The onboarding footer enables the web panel, App Store, and Google Play links
@@ -75,7 +75,7 @@ variable. Vite values are bundled into the extension and are public.
 
 1. Open `chrome://extensions`.
 2. Enable **Developer mode**.
-3. Choose **Load unpacked** and select this repository's `dist/chromium/`
+3. Choose **Load unpacked** and select this repository's `dist/chromium-debug/`
    directory.
 4. Confirm that Chrome shows the Palladin logo in the extension card and popup.
 5. Confirm the extension ID is exactly
@@ -89,7 +89,7 @@ After rebuilding, use the extension card's **Reload** button and refresh the
 test page so its content scripts come from the current artifact.
 
 If Reload does not show the current popup, remove the unpacked extension and
-load the exact `dist/chromium/` directory produced by the build above. Reload
+load the exact `dist/chromium-debug/` directory produced by the build above. Reload
 never changes the source directory originally selected in Chrome.
 
 For an HTTPS self-hosted server, open **Settings**, enter the API base URL, and
@@ -285,25 +285,29 @@ Use a disposable browser profile or clear Palladin's extension storage.
 ## 9. Test automatic Agent Inject authorization on macOS Chrome
 
 This path is development-only and requires the matching `palladin-agent`
-repository. From that repository, build the source CLI:
+repository. From that repository, use the stable macOS development wrapper. Do
+not run the fresh debug executable directly because its ad-hoc code identity
+changes between builds:
 
 ```bash
-cd runtime
-cargo build -p palladin-cli --features local-development
-./target/debug/palladin doctor
-./target/debug/palladin browser install
+./packaging/macos/scripts/development-runtime.sh build
+./packaging/macos/scripts/development-runtime.sh run -- doctor
+./packaging/macos/scripts/development-runtime.sh run -- browser install
 ```
 
 `browser install` writes the exact Google Chrome Native Messaging manifest. Its
-`allowed_origins` contains only the compiled official Palladin Extension ID; it
-does not accept an Extension ID from CLI arguments or message payloads.
+`allowed_origins` contains only the compiled Palladin development Extension ID; it
+does not accept an Extension ID from CLI arguments or message payloads. The
+source-development manifest and extension both use `io.palladin.debug`; the
+packaged release channel uses `io.palladin` and remains fail-closed today. The
+installer removes the retired `io.palladin.browser_bridge` manifest.
 
 1. Do not open the Palladin popup and do not sign in to the extension. Agent
    Inject must be independent of its Vault/account state.
 2. Verify the CLI state:
 
    ```bash
-   ./target/debug/palladin browser status
+   ./packaging/macos/scripts/development-runtime.sh run -- browser status
    ```
 
 3. Have the browser framework open and fully prepare the controlled HTTPS login
@@ -315,7 +319,7 @@ does not accept an Extension ID from CLI arguments or message payloads.
    ```bash
    FORM_JSON='{"version":1,"steps":[{"fields":[{"entryFieldId":"credential.username","selector":"input[autocomplete=\"username\"]","control":"username"},{"entryFieldId":"credential.password","selector":"input[autocomplete=\"current-password\"]","control":"password"}],"submit":{"action":"click","selector":"button[type=\"submit\"]"}}]}'
 
-   ./target/debug/palladin inject <vault-id> <entry-id> \
+   ./packaging/macos/scripts/development-runtime.sh run -- inject <vault-id> <entry-id> \
      --provider extension \
      --target-tab-id <framework-tab-id> \
      --page-url 'https://controlled.example/login' \
@@ -355,8 +359,8 @@ Negative checks:
 Remove the native host before deleting the unpacked extension:
 
 ```bash
-./target/debug/palladin browser uninstall --confirm
-./target/debug/palladin browser status
+./packaging/macos/scripts/development-runtime.sh run -- browser uninstall --confirm
+./packaging/macos/scripts/development-runtime.sh run -- browser status
 ```
 
 The final status command is expected to report that the host authorization is
@@ -373,6 +377,7 @@ npm ci
 npm run typecheck
 npm test
 npm run build
+npm run build:chromium:debug
 npm audit
 git diff --check
 cmp -s AGENTS.md CLAUDE.md
