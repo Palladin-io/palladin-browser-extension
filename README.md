@@ -21,12 +21,12 @@ family, Firefox, and Safari, plus in-memory session and key lifecycle, encrypted
 Vault Protocol 2 sync/read/write, popup unlock and domain-matched credential
 selection, explicit generated-password save/update, TOTP, manual creation of
 credentials, keys, scripts and cards, and card autofill for cardholder, PAN,
-expiry, and billing fields. Agent Inject has a typed
-`form+values` provider, authenticated channel, automatic public-host discovery,
-and explicit out-of-band fingerprint confirmation. It stays fail-closed until
-the user verifies and confirms the runtime's
-public-key fingerprint. Once paired, the Agent Inject bridge starts independently
-of the popup and Vault lock state; the native runtime remains the grant, key and
+expiry, and billing fields. Agent Inject has a typed `form+values` provider and
+an authenticated encrypted channel. On macOS Google Chrome it connects
+automatically: the Runtime accepts only the compiled official extension origin
+from Chrome's Native Messaging boundary and additionally attests the signed
+Chrome parent process. The extension stores no Runtime pin or pairing state and
+may be signed out or locked; the native Runtime remains the grant, key and
 credential boundary. Production native-runtime packaging remains a release gate.
 The popup defaults to `https://api.palladin.io` and exposes an extension-owned
 server setting for staging, localhost, or an HTTPS self-hosted deployment.
@@ -34,8 +34,8 @@ Changing the server signs out the current session and clears the local encrypted
 cache; custom origins require an explicit browser permission prompt. A
 background-owned generation barrier drains API-backed work before the switch,
 invalidates pending TOTP, and serializes optional-permission cleanup.
-Appearance, Server URL, and Agent Runtime pairing are compact disclosure
-sections in Settings, so advanced controls do not crowd the everyday popup.
+Appearance and Server URL are compact disclosure sections in Settings, so
+advanced controls do not crowd the everyday popup.
 Before first use, one versioned, non-secret local onboarding marker gates a
 single guidance screen explaining that Palladin works best as the only active
 password manager. It links to browser-owned password and extension settings,

@@ -1,3 +1,4 @@
+import { nativeHostNameForChannel } from "@shared/config/build-channel";
 import {
   AGENT_INJECT_PROTOCOL,
   parseAgentInjectionRequest,
@@ -12,7 +13,7 @@ import {
 } from "@shared/messaging";
 import { isSecurePage, matchesAgentInjectionTarget } from "@shared/security/domain";
 
-export const NATIVE_HOST_NAME = "io.palladin.browser_bridge";
+export const NATIVE_HOST_NAME = nativeHostNameForChannel(__PALLADIN_CHANNEL__);
 
 const TRANSITION_POLL_MS = 100;
 const DEFAULT_TRANSITION_TIMEOUT_MS = 20_000;

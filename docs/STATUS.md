@@ -3,9 +3,9 @@
 The repository contains development artifacts for one shared extension core:
 Chromium-family MV3, Firefox, and a Safari conversion foundation. It includes
 canonical Vault Protocol 2 user autofill and explicit write paths. Agent Inject
-keeps its separate provider contract but its Native Messaging transport is
-fail-closed until the user explicitly verifies and pins the local runtime. It
-remains pre-production and has no supported production version until every
+keeps its separate provider contract and automatically authorizes the official
+extension through the browser/platform Native Messaging identity. It remains
+pre-production and has no supported production version until every
 release gate below is complete.
 
 `main` remains the authoritative product surface. Work starts from current
@@ -50,21 +50,25 @@ release candidates.
   Canonical custom fields stay neutral and are never inferred as payment
   authentication data; there is no dedicated field or heuristic for it.
 - The Native Messaging host name and authenticated session framing are explicit
-  and tested. No `session.open` is sent without a pinned signing key/fingerprint.
-- The extension-owned popup automatically requests one challenge-bound,
-  value-free public identity offer from the allowlisted native host, rejects
-  unknown fields, stale challenges and a non-derived fingerprint, and requires
-  the user to compare it with the independent `palladin browser install`
-  fingerprint before one-click confirmation persists the public pin. Discovery
-  cannot create or replace trust. Saving connects; unpairing disconnects and
-  disposes immediately.
-  After a durable non-secret intent succeeds, interrupted clear/re-pair writes
-  restart fail-closed. An in-memory mutation barrier suppresses new work and
-  drains already-dispatched fills before pairing success. If both the intent
-  write and fallback active-pin removal fail (a successful fallback restarts
-  unpaired), the current worker remains suppressed and the user must retry
-  before restarting; no durable revocation guarantee is claimed for total
-  storage failure. Plaintext and TOFU fallbacks do not exist.
+  and tested. On macOS Google Chrome, the host manifest allowlists exactly the
+  compiled Palladin extension origin. Before opening the host identity or local
+  socket, the Runtime requires Chrome's browser-authored exact origin argument
+  and validates the direct Google-signed Chrome parent process.
+- The extension connects independently of Vault, account, profile, popup, and
+  lock state. The host announces only its public signing key in a strict
+  `session.offer`; the extension keeps it in memory for that port, verifies the
+  signed ephemeral transcript, and then uses ordered AEAD frames. It persists no
+  Runtime key, fingerprint, intent token, or other pairing state. Startup removes
+  obsolete pre-CVT-562 pairing records without reading or migrating them.
+- One owner-only local socket admits at most one Native Messaging host process.
+  A missing provider or competing second host fails before any Agent credential
+  is requested. The Runtime sends a value-free `prepare` first and opens the
+  Agent profile/grant/credential only after exactly one admitted extension
+  reports `ready`. Plaintext and TOFU fallbacks do not exist.
+- Chromium Extension ID does not distinguish a Web Store install from an
+  unpacked build reusing the public manifest key. The current automatic path is
+  therefore development-only; production Runtime builds fail closed until an
+  independent signed-artifact provenance mechanism is reviewed.
 - Development compatibility targets current Chrome, Chromium, Brave, Edge, and
   Opera MV3 builds. Store certification and version support are not yet claimed.
 - Inline login suggestions are implemented beside standard username/email
@@ -145,8 +149,8 @@ release candidates.
 - dependency audit, SBOM, artifact hashes, and build provenance;
 - browser-store signing, update, rollback, and incident-response procedures;
 - end-to-end tests against a compatible public Palladin API contract;
-- trusted-runtime pairing with an independent user-verification channel and
-  installed-browser Native Messaging tests;
+- installed-browser tests covering official ID, wrong ID, direct host launch,
+  fake host, multiple browser profiles, and prepare-before-decrypt;
 - release notes that distinguish implemented behavior from future work.
 
 Until every release gate is complete, documentation and UI must continue to use

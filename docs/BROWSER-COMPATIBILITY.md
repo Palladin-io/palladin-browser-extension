@@ -53,6 +53,10 @@ clears the local encrypted cache.
   The native-host allowlist is locked to the resulting exact origin
   `chrome-extension://hmljnknogdeonphikmeofcbkikmpokba/`; changing the manifest
   key is therefore a cross-component protocol and packaging change.
+- Packaged Chromium builds connect to `io.palladin`; the explicit
+  `build:chromium:debug` artifact connects only to `io.palladin.debug`. The host
+  name is routing, while the exact browser-authored Extension ID remains the
+  authorization boundary.
 - The artifact requests `offscreen` because Chromium's service worker delegates
   timed clipboard clearing to a short-lived offscreen document.
 - The shared `scripting` permission is used only with `activeTab`, after explicit
@@ -61,7 +65,9 @@ clears the local encrypted cache.
 - The artifact does not request `management` or inspect installed extensions.
   First-run password-manager guidance opens Chrome-owned settings only after an
   explicit click.
-- Chrome, Chromium, Brave, Edge, and Opera consume this same artifact.
+- Chrome, Chromium, Brave, Edge, and Opera consume this same artifact. The
+  current Agent Inject Native Host is deliberately narrower: only Google Chrome
+  on macOS is implemented and all other browser/platform combinations fail closed.
 
 ### Firefox
 
@@ -72,10 +78,7 @@ clears the local encrypted cache.
   `background.service_worker`; current Chromium uses the service worker.
 - Firefox's installation-time data declaration lists `authenticationInfo` and
   `browsingActivity`. Palladin transmits encrypted account and credential data to
-  Palladin services. A paired Agent Inject session also returns the independently
-  observed URL of the exact framework-selected tab to the local runtime;
-  zero-knowledge encryption and a local
-  destination do not make that browser-consent declaration disappear.
+  Palladin services. Agent Inject is not enabled for Firefox yet.
 - Firefox does not request `management` or inspect installed add-ons. Its
   first-run guidance links to Firefox-owned password and add-on settings.
 - The target does not request `offscreen`, which Firefox does not implement.
@@ -102,18 +105,20 @@ clears the local encrypted cache.
   targets, and the worker rejects copy reveal/arm commands before decryption.
 - Firefox Native Messaging requires a separately installed host manifest whose
   `allowed_extensions` includes the Gecko ID. That installer and end-to-end
-  validation are pending. The extension sends no session frame without an
-  independently verified pinned host signing key.
+  validation are pending; Firefox Agent Inject therefore fails closed today.
 - Safari Agent Inject requires a containing-app/native-extension adapter. It is
   not enabled by producing `dist/safari/` alone.
 - Automated checks currently cover generated manifests, TypeScript, and bundle
   creation. They do not replace installed-browser or store-review testing.
-- The shared popup implements automatic challenge-bound public-host discovery
-  followed by explicit out-of-band fingerprint confirmation without TOFU.
-  Chromium uses the fixed manifest-key-derived extension origin. Firefox
-  still needs a reviewed host installer/origin adapter, while Safari needs its
-  containing-app adapter; storing a pin alone does not claim runtime support on
-  those targets.
+- Chromium Native Messaging supplies the extension ID but not reliable store
+  provenance. An unpacked build can reuse the public manifest key and ID, so the
+  current Runtime enables Agent Inject only in development builds. Production
+  remains fail-closed pending independent signed-artifact attestation.
+- Chromium has a fixed manifest-key-derived extension origin. The current
+  Runtime allowlists that exact origin and attests Google Chrome on macOS.
+  Firefox must use its stable Gecko ID through `allowed_extensions`; Safari must
+  use the signed containing-app/native-extension binding. Neither future adapter
+  may trust an extension ID supplied in a message payload.
 
 These gaps are why the Firefox and Safari rows describe a build foundation, not
 feature parity or production support.

@@ -2,7 +2,6 @@ import {
   INJECT_PROVIDER_PROTOCOL,
   createInjectClientSession,
   fromBase64Url,
-  injectHostKeyFingerprint,
   toBase64Url,
   type InjectClientSession,
   type InjectSecureChannel,
@@ -20,22 +19,21 @@ import {
   type AgentProviderSession,
 } from "./native-provider";
 import {
-  beginNativeAgentPairingMutation,
   connectNativeAgentProvider,
-  connectPairedNativeAgentProvider,
+  connectNativeAgentProviderIfDueNow,
+  connectNativeAgentProviderNow,
   disconnectNativeAgentProvider,
   gateAgentFillDeps,
   getPageById,
   handleNativeAgentAlarm,
   parseSecureFrame,
+  parseSessionOffer,
   parseSessionReady,
-  readVerifiedPairing,
 } from "./runtime";
 
 const PUBLIC_KEY = toBase64Url(new Uint8Array(32));
 const B32 = PUBLIC_KEY;
 const SIGNATURE = toBase64Url(new Uint8Array(64));
-const INTENT_TOKEN = "00000000-0000-4000-8000-000000000001";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -58,7 +56,7 @@ function fakeNativePort(): FakeNativePort {
   const disconnect = vi.fn();
   return {
     port: {
-      name: "io.palladin.browser_bridge",
+      name: "io.palladin",
       sender: undefined,
       error: undefined,
       onMessage: { addListener: vi.fn((listener) => { messageListener = listener; }) },
@@ -74,35 +72,46 @@ function fakeNativePort(): FakeNativePort {
 }
 
 function stubChrome(
-  stored: unknown,
   native = fakeNativePort(),
-  currentIntent: unknown = INTENT_TOKEN,
 ): {
   readonly connectNative: ReturnType<typeof vi.fn>;
   readonly alarmsCreate: ReturnType<typeof vi.fn>;
   readonly alarmsClear: ReturnType<typeof vi.fn>;
+  readonly alarmsGet: ReturnType<typeof vi.fn>;
+  readonly storageGet: ReturnType<typeof vi.fn>;
+  readonly storageRemove: ReturnType<typeof vi.fn>;
+  readonly storageSet: ReturnType<typeof vi.fn>;
   readonly native: FakeNativePort;
 } {
   const connectNative = vi.fn(() => native.port);
   const alarmsCreate = vi.fn();
   const alarmsClear = vi.fn(async () => true);
+  const alarmsGet = vi.fn(async () => undefined);
+  const storage = new Map<string, unknown>();
+  const storageGet = vi.fn(async (key: string) => ({ [key]: storage.get(key) }));
+  const storageRemove = vi.fn(async (key: string) => { storage.delete(key); });
+  const storageSet = vi.fn(async (values: Record<string, unknown>) => {
+    Object.entries(values).forEach(([key, value]) => storage.set(key, value));
+  });
   vi.stubGlobal("chrome", {
-    storage: {
-      local: {
-        get: vi.fn(async () => ({
-          agentInjectHostPairing: stored,
-          agentInjectHostPairingIntent: currentIntent,
-        })),
-      },
-    },
     runtime: {
       getURL: vi.fn(() => "chrome-extension://abcdefghijklmnopabcdefghijklmnop/"),
       connectNative,
       lastError: undefined,
     },
-    alarms: { create: alarmsCreate, clear: alarmsClear },
+    alarms: { create: alarmsCreate, clear: alarmsClear, get: alarmsGet },
+    storage: { session: { get: storageGet, remove: storageRemove, set: storageSet } },
   });
-  return { connectNative, alarmsCreate, alarmsClear, native };
+  return {
+    connectNative,
+    alarmsCreate,
+    alarmsClear,
+    alarmsGet,
+    storageGet,
+    storageRemove,
+    storageSet,
+    native,
+  };
 }
 
 function rustFixtureJsonBytes(value: Record<string, unknown>): Uint8Array {
@@ -115,9 +124,12 @@ function rustFixtureJsonBytes(value: Record<string, unknown>): Uint8Array {
 describe("secure Native Messaging frame boundary", () => {
   it("opens and seals the exact shared CLI host secure-session contract", async () => {
     expect(secureSessionContract.protocol).toBe("palladin.inject-provider.v1");
+    const offer = parseSessionOffer(secureSessionContract.offer);
     const ready = parseSessionReady(secureSessionContract.ready);
     const firstHostFrame = parseSecureFrame(secureSessionContract.firstHostFrame);
+    expect(offer).toEqual(secureSessionContract.offer);
     expect(ready).toEqual(secureSessionContract.ready);
+    expect(ready?.hostSigningPublicKey).toBe(offer?.hostSigningPublicKey);
     expect(firstHostFrame).toEqual(secureSessionContract.firstHostFrame);
 
     await sodium.ready;
@@ -142,7 +154,7 @@ describe("secure Native Messaging frame boundary", () => {
       session = await createInjectClientSession({
         protocol: INJECT_PROVIDER_PROTOCOL,
         extensionOrigin: secureSessionContract.extensionOrigin,
-        pinnedHostSigningPublicKey: secureSessionContract.ready.hostSigningPublicKey,
+        pinnedHostSigningPublicKey: secureSessionContract.offer.hostSigningPublicKey,
       });
       expect(session.openFrame).toEqual(secureSessionContract.open);
       channel = await session.acceptReady(ready!);
@@ -173,28 +185,71 @@ describe("secure Native Messaging frame boundary", () => {
     }
   });
 
-  it("starts the paired bridge without consulting Vault lock or popup state", async () => {
-    const fingerprint = await injectHostKeyFingerprint(PUBLIC_KEY);
-    const { connectNative } = stubChrome({
-      hostSigningPublicKey: PUBLIC_KEY,
-      fingerprint,
-      intentToken: INTENT_TOKEN,
-    });
+  it("starts the bridge without consulting a host pin, Vault lock, or popup state", async () => {
+    const { connectNative } = stubChrome();
 
     connectNativeAgentProvider();
 
     await vi.waitFor(() => expect(connectNative).toHaveBeenCalledOnce());
   });
 
-  it("does not open Native Messaging without a pre-existing verified host pin", async () => {
-    const { connectNative } = stubChrome(undefined);
-    await connectPairedNativeAgentProvider();
-    expect(connectNative).not.toHaveBeenCalled();
+  it("opens Native Messaging automatically on the first connection", async () => {
+    const { connectNative, native } = stubChrome();
+
+    await connectNativeAgentProviderNow();
+
+    expect(connectNative).toHaveBeenCalledOnce();
+    expect(connectNative).toHaveBeenCalledWith("io.palladin");
+    expect(native.postMessage).not.toHaveBeenCalled();
+    native.emitMessage({
+      protocol: INJECT_PROVIDER_PROTOCOL,
+      type: "session.offer",
+      hostSigningPublicKey: PUBLIC_KEY,
+    });
+    await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledOnce());
+    expect(native.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      protocol: INJECT_PROVIDER_PROTOCOL,
+      type: "session.open",
+    }));
+  });
+
+  it("retries when the native host never sends a session offer", async () => {
+    vi.useFakeTimers();
+    const { native, alarmsCreate } = stubChrome();
+
+    await connectNativeAgentProviderNow();
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(native.disconnect).toHaveBeenCalledOnce();
+    expect(alarmsCreate).toHaveBeenCalledWith(
+      "palladin.native-agent.reconnect",
+      { delayInMinutes: 0.5 },
+    );
+  });
+
+  it("retries when an offered session never reaches signed readiness", async () => {
+    vi.useFakeTimers();
+    const { native, alarmsCreate } = stubChrome();
+    await connectNativeAgentProviderNow();
+    native.emitMessage({
+      protocol: INJECT_PROVIDER_PROTOCOL,
+      type: "session.offer",
+      hostSigningPublicKey: PUBLIC_KEY,
+    });
+    await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledOnce());
+
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(native.disconnect).toHaveBeenCalledOnce();
+    expect(alarmsCreate).toHaveBeenCalledWith(
+      "palladin.native-agent.reconnect",
+      { delayInMinutes: 0.5 },
+    );
   });
 
   it("fails a hung public tab probe closed within a bounded time", async () => {
     vi.useFakeTimers();
-    stubChrome(undefined);
+    stubChrome();
     chrome.tabs = {
       sendMessage: vi.fn(() => new Promise(() => undefined)),
     } as unknown as typeof chrome.tabs;
@@ -205,83 +260,127 @@ describe("secure Native Messaging frame boundary", () => {
     await expect(pending).resolves.toEqual({ id: 7, page: null });
   });
 
-  it("accepts only a public host key whose stored fingerprint verifies", async () => {
-    const fingerprint = await injectHostKeyFingerprint(PUBLIC_KEY);
-    stubChrome({ hostSigningPublicKey: PUBLIC_KEY, fingerprint, intentToken: INTENT_TOKEN });
-    await expect(readVerifiedPairing()).resolves.toEqual({
-      hostSigningPublicKey: PUBLIC_KEY,
-      fingerprint,
-      intentToken: INTENT_TOKEN,
-    });
+  it("reconnects when the Native Messaging alarm fires", async () => {
+    const { connectNative } = stubChrome();
 
-    stubChrome({
-      hostSigningPublicKey: PUBLIC_KEY,
-      fingerprint: toBase64Url(new Uint8Array(32).fill(2)),
-      intentToken: INTENT_TOKEN,
-    });
-    await expect(readVerifiedPairing()).resolves.toBeNull();
+    handleNativeAgentAlarm("palladin.native-agent.reconnect");
 
-    for (const malformed of [
-      { hostSigningPublicKey: "not-base64url", fingerprint, intentToken: INTENT_TOKEN },
-      { hostSigningPublicKey: "a".repeat(43), fingerprint, intentToken: INTENT_TOKEN },
-      { hostSigningPublicKey: PUBLIC_KEY, fingerprint, intentToken: INTENT_TOKEN, extra: true },
-      {
-        hostSigningPublicKey: PUBLIC_KEY,
-        fingerprint,
-        intentToken: "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA",
-      },
-      { hostSigningPublicKey: PUBLIC_KEY },
-    ]) {
-      stubChrome(malformed);
-      await expect(readVerifiedPairing()).resolves.toBeNull();
-    }
+    await vi.waitFor(() => expect(connectNative).toHaveBeenCalledOnce());
   });
 
-  it("rejects a stale active pin after restart when a later durable intent won", async () => {
-    const fingerprint = await injectHostKeyFingerprint(PUBLIC_KEY);
-    const laterIntent = "00000000-0000-4000-8000-000000000002";
-    const { connectNative } = stubChrome(
-      { hostSigningPublicKey: PUBLIC_KEY, fingerprint, intentToken: INTENT_TOKEN },
-      fakeNativePort(),
-      laterIntent,
-    );
+  it("does not bypass a pending reconnect alarm after a service-worker wake", async () => {
+    const { connectNative, alarmsGet } = stubChrome();
+    alarmsGet.mockResolvedValue({
+      name: "palladin.native-agent.reconnect",
+      scheduledTime: Date.now() + 30_000,
+    });
 
-    await expect(readVerifiedPairing()).resolves.toBeNull();
-    await connectPairedNativeAgentProvider();
+    await connectNativeAgentProviderIfDueNow();
+
     expect(connectNative).not.toHaveBeenCalled();
   });
 
-  it("blocks reconnects until the newest pairing mutation releases its gate", async () => {
-    const fingerprint = await injectHostKeyFingerprint(PUBLIC_KEY);
-    const { connectNative } = stubChrome({
-      hostSigningPublicKey: PUBLIC_KEY,
-      fingerprint,
-      intentToken: INTENT_TOKEN,
+  it("restores the next reconnect delay after a service-worker restart", async () => {
+    const { connectNative, alarmsCreate, storageGet, storageSet } = stubChrome();
+    connectNative.mockImplementation(() => {
+      throw new Error("native host unavailable");
     });
-    const releaseOlderMutation = beginNativeAgentPairingMutation();
-    const releaseCurrentMutation = beginNativeAgentPairingMutation();
-    releaseOlderMutation.release();
+    storageGet.mockResolvedValue({ nativeAgentReconnectDelayMinutes: 4 });
+    vi.resetModules();
+    const freshRuntime = await import("./runtime");
 
-    try {
-      handleNativeAgentAlarm("palladin.native-agent.reconnect");
-      await connectPairedNativeAgentProvider();
-      expect(connectNative).not.toHaveBeenCalled();
-    } finally {
-      releaseCurrentMutation.release();
-    }
+    await freshRuntime.connectNativeAgentProviderNow();
 
-    await connectPairedNativeAgentProvider();
-    expect(connectNative).toHaveBeenCalledOnce();
+    expect(alarmsCreate).toHaveBeenCalledWith(
+      "palladin.native-agent.reconnect",
+      { delayInMinutes: 4 },
+    );
+    expect(storageSet).toHaveBeenCalledWith({
+      nativeAgentReconnectDelayMinutes: 8,
+    });
+    freshRuntime.disconnectNativeAgentProvider();
   });
 
-  it("disconnects and disposes a channel authenticated against the wrong pin", async () => {
-    const fingerprint = await injectHostKeyFingerprint(PUBLIC_KEY);
-    const { native } = stubChrome({
-      hostSigningPublicKey: PUBLIC_KEY,
-      fingerprint,
-      intentToken: INTENT_TOKEN,
+  it("does not reverse explicit teardown while startup state is loading", async () => {
+    const { connectNative, alarmsCreate, storageGet } = stubChrome();
+    let releaseStorageRead: ((value: Record<string, unknown>) => void) | undefined;
+    storageGet.mockImplementationOnce(() => new Promise<Record<string, unknown>>((resolve) => {
+      releaseStorageRead = resolve;
+    }));
+    vi.resetModules();
+    const freshRuntime = await import("./runtime");
+    const startup = freshRuntime.connectNativeAgentProviderIfDueNow();
+    await vi.waitFor(() => expect(storageGet).toHaveBeenCalledOnce());
+
+    freshRuntime.disconnectNativeAgentProvider();
+    releaseStorageRead?.({ nativeAgentReconnectDelayMinutes: 8 });
+    await startup;
+
+    expect(connectNative).not.toHaveBeenCalled();
+    connectNative.mockImplementation(() => {
+      throw new Error("native host unavailable");
     });
-    await connectPairedNativeAgentProvider();
+    await freshRuntime.connectNativeAgentProviderNow();
+    expect(alarmsCreate).toHaveBeenCalledWith(
+      "palladin.native-agent.reconnect",
+      { delayInMinutes: 0.5 },
+    );
+    freshRuntime.disconnectNativeAgentProvider();
+  });
+
+  it("ignores a stale reconnect alarm on unsupported browser targets", async () => {
+    const { connectNative } = stubChrome();
+
+    handleNativeAgentAlarm("palladin.native-agent.reconnect", false);
+
+    expect(connectNative).not.toHaveBeenCalled();
+  });
+
+  it("backs off repeated connection failures and resets after lifecycle teardown", async () => {
+    const { connectNative, alarmsCreate, storageSet } = stubChrome();
+    connectNative.mockImplementation(() => {
+      throw new Error("native host unavailable");
+    });
+
+    await connectNativeAgentProviderNow();
+    await connectNativeAgentProviderNow();
+
+    expect(alarmsCreate).toHaveBeenNthCalledWith(
+      1,
+      "palladin.native-agent.reconnect",
+      { delayInMinutes: 0.5 },
+    );
+    expect(storageSet).toHaveBeenNthCalledWith(1, {
+      nativeAgentReconnectDelayMinutes: 1,
+    });
+    expect(storageSet).toHaveBeenNthCalledWith(2, {
+      nativeAgentReconnectDelayMinutes: 2,
+    });
+    expect(alarmsCreate).toHaveBeenNthCalledWith(
+      2,
+      "palladin.native-agent.reconnect",
+      { delayInMinutes: 1 },
+    );
+
+    disconnectNativeAgentProvider();
+    await connectNativeAgentProviderNow();
+
+    expect(alarmsCreate).toHaveBeenNthCalledWith(
+      3,
+      "palladin.native-agent.reconnect",
+      { delayInMinutes: 0.5 },
+    );
+  });
+
+  it("disconnects and disposes a channel with an invalid signed transcript", async () => {
+    const { native, alarmsCreate } = stubChrome();
+    await connectNativeAgentProviderNow();
+    native.emitMessage({
+      protocol: INJECT_PROVIDER_PROTOCOL,
+      type: "session.offer",
+      hostSigningPublicKey: PUBLIC_KEY,
+    });
+    await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledOnce());
     const open = native.postMessage.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(open).toMatchObject({ type: "session.open" });
 
@@ -297,16 +396,15 @@ describe("secure Native Messaging frame boundary", () => {
     });
 
     await vi.waitFor(() => expect(native.disconnect).toHaveBeenCalledOnce());
+    expect(alarmsCreate).toHaveBeenCalledWith(
+      "palladin.native-agent.reconnect",
+      { delayInMinutes: 0.5 },
+    );
   });
 
-  it("explicit unpair teardown cannot schedule reconnection from the disconnect event", async () => {
-    const fingerprint = await injectHostKeyFingerprint(PUBLIC_KEY);
-    const { native, alarmsCreate, alarmsClear } = stubChrome({
-      hostSigningPublicKey: PUBLIC_KEY,
-      fingerprint,
-      intentToken: INTENT_TOKEN,
-    });
-    await connectPairedNativeAgentProvider();
+  it("explicit lifecycle teardown cannot schedule reconnection from the disconnect event", async () => {
+    const { native, alarmsCreate, alarmsClear } = stubChrome();
+    await connectNativeAgentProviderNow();
 
     disconnectNativeAgentProvider();
     native.emitDisconnect();
@@ -403,6 +501,17 @@ describe("secure Native Messaging frame boundary", () => {
     expect(parseSessionReady({ ...ready, signature: "not-base64url" })).toBeNull();
     expect(parseSessionReady({ ...ready, extensionNonce: "a".repeat(43) })).toBeNull();
     expect(parseSessionReady({ ...ready, signature: "a".repeat(86) })).toBeNull();
+  });
+
+  it("accepts only a value-free session.offer with one canonical public key", () => {
+    const offer = {
+      protocol: INJECT_PROVIDER_PROTOCOL,
+      type: "session.offer",
+      hostSigningPublicKey: B32,
+    };
+    expect(parseSessionOffer(offer)).toEqual(offer);
+    expect(parseSessionOffer({ ...offer, extensionId: "attacker-controlled" })).toBeNull();
+    expect(parseSessionOffer({ ...offer, hostSigningPublicKey: "not-base64url" })).toBeNull();
   });
 
   it("accepts canonical secure sequence text and rejects plaintext provider frames", () => {

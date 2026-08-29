@@ -144,8 +144,10 @@ src/
 ## Manifest & Permissions
 
 - **Least privilege.** Shared permissions are `storage`, `activeTab`, `alarms`,
-  `nativeMessaging`, and `scripting`; Chromium adds `offscreen` and `sidePanel`.
-  Host permissions are restricted to the Palladin API origins.
+  and `scripting`; Chromium adds `nativeMessaging`, `offscreen`, and `sidePanel`.
+  Firefox and Safari must not request `nativeMessaging` until their own reviewed
+  native bridge adapters exist. Host permissions are restricted to the Palladin
+  API origins.
   Palladin does not request `management` and does not inspect installed
   extensions. First-run guidance may explain that overlapping password managers
   can duplicate icons and prompts, but it must never claim detection or repeat

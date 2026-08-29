@@ -5,12 +5,16 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 import { buildManifest, resolveBuildTarget } from "./manifest/build-manifest";
+import { resolveExtensionBuildChannel } from "./src/shared/config/build-channel";
 
 const target = resolveBuildTarget(process.env.PALLADIN_TARGET);
+const channel = resolveExtensionBuildChannel(process.env.PALLADIN_CHANNEL);
+const outputName = channel === "debug" ? `${target}-debug` : target;
 
 export default defineConfig({
   define: {
     __PALLADIN_TARGET__: JSON.stringify(target),
+    __PALLADIN_CHANNEL__: JSON.stringify(channel),
   },
   resolve: {
     alias: {
@@ -27,7 +31,7 @@ export default defineConfig({
     }),
   ],
   build: {
-    outDir: `dist/${target}`,
+    outDir: `dist/${outputName}`,
     emptyOutDir: true,
     // MV3 forbids remote code; everything must be bundled locally.
     target: "esnext",

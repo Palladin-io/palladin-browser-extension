@@ -7,7 +7,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { createAgentPairingClient, type AgentPairingClient } from "./agent/client";
 import { Button } from "./components/Button";
 import { Header } from "./components/Header";
 import { Spinner } from "./components/Spinner";
@@ -38,8 +37,6 @@ export type ExtensionSurface = "popup" | "side-panel";
 export interface AppProps {
   /** Injected in tests; defaults to the real `chrome.runtime` channel. */
   client?: SessionClient;
-  /** Injected in tests; defaults to the pairing command channel. */
-  pairingClient?: AgentPairingClient;
   /** Injected in tests; defaults to the server configuration channel. */
   serverConfigClient?: ServerConfigClient;
   /** Injected in tests; defaults to the versioned local first-run marker. */
@@ -67,7 +64,6 @@ function headerStatus(phase: SessionPhase): SessionStatus | undefined {
 
 export function App({
   client,
-  pairingClient,
   serverConfigClient,
   onboardingClient,
   surface = "popup",
@@ -75,10 +71,6 @@ export function App({
 }: AppProps): React.JSX.Element {
   const { t } = useI18n();
   const sessionClient = useMemo(() => client ?? createSessionClient(), [client]);
-  const runtimeClient = useMemo(
-    () => pairingClient ?? createAgentPairingClient(),
-    [pairingClient],
-  );
   const serverClient = useMemo(
     () => serverConfigClient ?? createServerConfigClient(),
     [serverConfigClient],
@@ -189,7 +181,6 @@ export function App({
       ) : settingsOpen ? (
         <SettingsScreen
           serverClient={serverClient}
-          pairingClient={runtimeClient}
           onServerChanged={session.retryInit}
         />
       ) : renderPhase()}

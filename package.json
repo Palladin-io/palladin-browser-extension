@@ -16,6 +16,7 @@
     "build": "npm run build:all",
     "build:all": "npm run check:icons && npm run typecheck && node scripts/run-vite-target.mjs build all",
     "build:chromium": "npm run check:icons && npm run typecheck && node scripts/run-vite-target.mjs build chromium",
+    "build:chromium:debug": "npm run check:icons && npm run typecheck && node scripts/run-vite-target.mjs build chromium debug",
     "build:firefox": "npm run check:icons && npm run typecheck && node scripts/run-vite-target.mjs build firefox",
     "build:safari": "npm run check:icons && npm run typecheck && node scripts/run-vite-target.mjs build safari",
     "preview": "vite preview",

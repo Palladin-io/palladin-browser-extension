@@ -41,7 +41,7 @@ From this repository:
 
 ```bash
 npm ci
-npm run build:chromium
+npm run build:chromium:debug
 ```
 
 The default API is `https://api.palladin.io`; the default web-panel deep link is
@@ -59,7 +59,7 @@ VITE_WEB_APP_URL=https://stage.palladin.io \
 VITE_LANDING_PAGE_URL=https://palladin.io \
 VITE_APP_STORE_URL=https://apps.apple.com/app/... \
 VITE_GOOGLE_PLAY_URL=https://play.google.com/store/apps/details?id=... \
-npm run build:chromium
+npm run build:chromium:debug
 ```
 
 The onboarding footer enables the web panel, App Store, and Google Play links
@@ -75,7 +75,7 @@ variable. Vite values are bundled into the extension and are public.
 
 1. Open `chrome://extensions`.
 2. Enable **Developer mode**.
-3. Choose **Load unpacked** and select this repository's `dist/chromium/`
+3. Choose **Load unpacked** and select this repository's `dist/chromium-debug/`
    directory.
 4. Confirm that Chrome shows the Palladin logo in the extension card and popup.
 5. Confirm the extension ID is exactly
@@ -89,7 +89,7 @@ After rebuilding, use the extension card's **Reload** button and refresh the
 test page so its content scripts come from the current artifact.
 
 If Reload does not show the current popup, remove the unpacked extension and
-load the exact `dist/chromium/` directory produced by the build above. Reload
+load the exact `dist/chromium-debug/` directory produced by the build above. Reload
 never changes the source directory originally selected in Chrome.
 
 For an HTTPS self-hosted server, open **Settings**, enter the API base URL, and
@@ -282,41 +282,44 @@ Use a disposable browser profile or clear Palladin's extension storage.
 5. Inspect the manifest and extension details. No target may declare or request
    `management`, enumerate installed extensions, or store extension names/IDs.
 
-## 9. Pair and test Agent Inject on macOS Chrome
+## 9. Test automatic Agent Inject authorization on macOS Chrome
 
 This path is development-only and requires the matching `palladin-agent`
-repository. From that repository, build the source CLI:
+repository. From that repository, use the stable macOS development wrapper. Do
+not run the fresh debug executable directly because its ad-hoc code identity
+changes between builds:
 
 ```bash
-cd runtime
-cargo build -p palladin-cli --features local-development
-./target/debug/palladin doctor
-./target/debug/palladin browser install
+./packaging/macos/scripts/development-runtime.sh build
+./packaging/macos/scripts/development-runtime.sh run -- doctor
+./packaging/macos/scripts/development-runtime.sh run -- browser install
 ```
 
-`browser install` writes the exact Google Chrome Native Messaging manifest and
-prints the shortened host fingerprint. It does not print or accept any secret.
+`browser install` writes the exact Google Chrome Native Messaging manifest. Its
+`allowed_origins` contains only the compiled Palladin development Extension ID; it
+does not accept an Extension ID from CLI arguments or message payloads. The
+source-development manifest and extension both use `io.palladin.debug`; the
+packaged release channel uses `io.palladin` and remains fail-closed today. The
+installer removes the retired `io.palladin.browser_bridge` manifest.
 
-1. In the Palladin popup open **Agent runtime**.
-2. Wait for the extension to discover the local runtime automatically.
-3. Compare the prefix and suffix of the fingerprint shown by the CLI and popup.
-4. Choose **Trust and pair**. No bundle copy/paste is required.
-5. Verify the CLI state:
+1. Do not open the Palladin popup and do not sign in to the extension. Agent
+   Inject must be independent of its Vault/account state.
+2. Verify the CLI state:
 
    ```bash
-   ./target/debug/palladin browser status
+   ./packaging/macos/scripts/development-runtime.sh run -- browser status
    ```
 
-6. Have the browser framework open and fully prepare the controlled HTTPS login
+3. Have the browser framework open and fully prepare the controlled HTTPS login
    page. Preserve its WebExtensions tab ID and exact URL snapshot. Dismiss public
    cookie overlays and complete any human CAPTCHA before Inject.
-7. Use an active disposable Agent profile with an approved `Inject` grant, then
+4. Use an active disposable Agent profile with an approved `Inject` grant, then
    run a value-free form plan such as:
 
    ```bash
    FORM_JSON='{"version":1,"steps":[{"fields":[{"entryFieldId":"credential.username","selector":"input[autocomplete=\"username\"]","control":"username"},{"entryFieldId":"credential.password","selector":"input[autocomplete=\"current-password\"]","control":"password"}],"submit":{"action":"click","selector":"button[type=\"submit\"]"}}]}'
 
-   ./target/debug/palladin inject <vault-id> <entry-id> \
+   ./packaging/macos/scripts/development-runtime.sh run -- inject <vault-id> <entry-id> \
      --provider extension \
      --target-tab-id <framework-tab-id> \
      --page-url 'https://controlled.example/login' \
@@ -324,8 +327,8 @@ prints the shortened host fingerprint. It does not print or accept any secret.
      --reason "Local extension smoke test"
    ```
 
-8. Approve the Inject request through Palladin if the grant is pending.
-9. Confirm Chrome receives the values and the CLI returns only a value-free
+5. Approve the Inject request through Palladin if the grant is pending.
+6. Confirm Chrome receives the values and the CLI returns only a value-free
    outcome. The credential must not appear in terminal output, logs, the form
    JSON, or the Agent/model context.
 
@@ -336,8 +339,10 @@ argv or an environment variable.
 
 Negative checks:
 
-- an unknown-field/stale-challenge discovery offer or mismatched fingerprint is rejected;
-- no pairing means no `session.open` and Inject is unavailable;
+- a direct native-host launch, wrong browser parent, wrong Extension ID, or an
+  `extensionId` field injected into `session.offer` is rejected before credential access;
+- with no eligible host, or while a second browser profile competes for the
+  owner-only provider socket, no second recipient can receive a credential;
 - a missing tab, stale URL snapshot, changed document, origin, or hostname after
   preparation rejects the operation; changing which tab is active does not move
   the operation away from the exact framework-provided tab ID;
@@ -346,20 +351,20 @@ Negative checks:
   rejects the operation before a secret-bearing write;
 - `--provider playwright`, `--provider agent-browser`, CDP, and plaintext pipe
   routes fail closed;
-- after unpair reports success, an in-flight or later Inject cannot deliver a
+- after uninstall reports success, an in-flight or later Inject cannot deliver a
   value.
 
 ## 10. Cleanup
 
-Remove the native pairing before deleting the unpacked extension:
+Remove the native host before deleting the unpacked extension:
 
 ```bash
-./target/debug/palladin browser unpair --confirm
-./target/debug/palladin browser status
+./packaging/macos/scripts/development-runtime.sh run -- browser uninstall --confirm
+./packaging/macos/scripts/development-runtime.sh run -- browser status
 ```
 
-The final status command is expected to report that the host is not installed
-or not paired and to return a non-zero status. Then remove the unpacked extension
+The final status command is expected to report that the host authorization is
+not installed/provisioned and to return a non-zero status. Then remove the unpacked extension
 from Chrome and delete the disposable Palladin entries/account through the
 normal application flow.
 
@@ -372,6 +377,7 @@ npm ci
 npm run typecheck
 npm test
 npm run build
+npm run build:chromium:debug
 npm audit
 git diff --check
 cmp -s AGENTS.md CLAUDE.md

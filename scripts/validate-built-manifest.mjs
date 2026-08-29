@@ -1,11 +1,16 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
-const commonPermissions = ["storage", "activeTab", "alarms", "nativeMessaging", "scripting"];
+const commonPermissions = ["storage", "activeTab", "alarms", "scripting"];
 
-export function validateBuiltManifest(root, target) {
-  const outputDirectory = resolve(root, "dist", target);
+export function validateBuiltManifest(
+  root,
+  target,
+  outputName = target,
+  channel = "production",
+) {
+  const outputDirectory = resolve(root, "dist", outputName);
   const manifestPath = resolve(outputDirectory, "manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 
@@ -41,7 +46,7 @@ export function validateBuiltManifest(root, target) {
   );
   validateContentLoaders(manifest, outputDirectory, target);
 
-  if (target === "chromium") validateChromium(manifest, outputDirectory);
+  if (target === "chromium") validateChromium(manifest, outputDirectory, channel);
   if (target === "firefox") validateFirefox(manifest, outputDirectory);
   if (target === "safari") validateSafari(manifest, outputDirectory);
 }
@@ -63,11 +68,16 @@ function validateContentLoaders(manifest, outputDirectory, target) {
   }
 }
 
-function validateChromium(manifest, outputDirectory) {
+function validateChromium(manifest, outputDirectory, channel) {
   invariant(typeof manifest.key === "string", "chromium: missing stable extension key");
   invariant(manifest.minimum_chrome_version === "116", "chromium: wrong version floor");
   invariant(
-    sameSet(manifest.permissions, [...commonPermissions, "offscreen", "sidePanel"]),
+    sameSet(manifest.permissions, [
+      ...commonPermissions,
+      "offscreen",
+      "nativeMessaging",
+      "sidePanel",
+    ]),
     "chromium: unexpected permissions",
   );
   invariant(
@@ -84,11 +94,36 @@ function validateChromium(manifest, outputDirectory) {
     "chromium: side-panel page was not built",
   );
   validateBackgroundFile(manifest.background?.service_worker, outputDirectory, "chromium");
+  validateNativeHostName(outputDirectory, channel);
   invariant(manifest.background?.scripts === undefined, "chromium: unexpected background scripts");
   invariant(
     existsSync(resolve(outputDirectory, "src/offscreen/index.html")),
     "chromium: offscreen clipboard document is missing",
   );
+}
+
+function validateNativeHostName(outputDirectory, channel) {
+  const expected = channel === "debug" ? "io.palladin.debug" : "io.palladin";
+  const rejected = channel === "debug" ? "io.palladin" : "io.palladin.debug";
+  const javascript = javascriptFiles(outputDirectory)
+    .map((path) => readFileSync(path, "utf8"))
+    .join("\n");
+  invariant(
+    javascript.includes(JSON.stringify(expected)),
+    `chromium: missing ${channel} Native Host name`,
+  );
+  invariant(
+    !javascript.includes(JSON.stringify(rejected)),
+    `chromium: ${channel} artifact contains the other Native Host channel`,
+  );
+}
+
+function javascriptFiles(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = resolve(directory, entry.name);
+    if (entry.isDirectory()) return javascriptFiles(path);
+    return entry.isFile() && entry.name.endsWith(".js") ? [path] : [];
+  });
 }
 
 function validateFirefox(manifest, outputDirectory) {

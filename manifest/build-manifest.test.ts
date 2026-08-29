@@ -152,9 +152,9 @@ describe("buildManifest (firefox)", () => {
     });
   });
 
-  it("does not request Chromium's unsupported offscreen permission", () => {
+  it("does not request Chromium-only offscreen or native messaging permissions", () => {
     expect(new Set(manifest.permissions)).toEqual(
-      new Set(["storage", "activeTab", "alarms", "nativeMessaging", "scripting"]),
+      new Set(["storage", "activeTab", "alarms", "scripting"]),
     );
   });
 
@@ -190,9 +190,9 @@ describe("buildManifest (safari)", () => {
     expect(manifest.sidebar_action).toBeUndefined();
   });
 
-  it("does not request Chromium's unsupported offscreen permission", () => {
+  it("does not request Chromium-only offscreen or native messaging permissions", () => {
     expect(new Set(manifest.permissions)).toEqual(
-      new Set(["storage", "activeTab", "alarms", "nativeMessaging", "scripting"]),
+      new Set(["storage", "activeTab", "alarms", "scripting"]),
     );
   });
 

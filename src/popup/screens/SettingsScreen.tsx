@@ -1,22 +1,18 @@
 import { useState } from "react";
 
-import type { AgentPairingClient } from "../agent/client";
 import { SettingsSection } from "../components/SettingsSection";
 import type { ServerConfigClient } from "../config/client";
 import { useI18n } from "../i18n";
 import { AppearanceSettings } from "./AppearanceSettings";
-import { PairingScreen } from "./PairingScreen";
 import { ServerSettings } from "./ServerSettings";
 
 export interface SettingsScreenProps {
   serverClient: ServerConfigClient;
-  pairingClient: AgentPairingClient;
   onServerChanged(): void;
 }
 
 export function SettingsScreen({
   serverClient,
-  pairingClient,
   onServerChanged,
 }: SettingsScreenProps): React.JSX.Element {
   const { t } = useI18n();
@@ -39,14 +35,6 @@ export function SettingsScreen({
         onToggle={() => toggle("server")}
       >
         <ServerSettings client={serverClient} onChanged={onServerChanged} embedded />
-      </SettingsSection>
-      <SettingsSection
-        id="pairing-settings"
-        title={t("settings.pairing.title")}
-        open={openSection === "pairing"}
-        onToggle={() => toggle("pairing")}
-      >
-        <PairingScreen client={pairingClient} embedded />
       </SettingsSection>
     </div>
   );

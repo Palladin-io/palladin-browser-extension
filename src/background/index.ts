@@ -6,7 +6,6 @@
  * the strength of a page-originated message — fills stay gated downstream.
  */
 
-import { injectHostKeyFingerprint } from "@palladin/crypto";
 import {
   CONTENT_PORT,
   SESSION_LIVENESS_PORT,
@@ -22,21 +21,8 @@ import {
 } from "@shared/config/server";
 import { openSidePanel } from "@shared/browser/side-panel";
 
-import { createAgentPairingRuntimeHandler } from "./agent/pairing-commands";
-import { discoverNativeAgentPairingOffer } from "./agent/pairing-discovery";
 import { startNativeAgentBridge } from "./agent/bootstrap";
-import {
-  clearHostPairingRecord,
-  saveHostPairingIntent,
-  saveHostPairingRecord,
-} from "./agent/pairing-store";
-import {
-  beginNativeAgentPairingMutation,
-  connectPairedNativeAgentProvider,
-  disconnectNativeAgentProvider,
-  handleNativeAgentAlarm,
-  readVerifiedPairing,
-} from "./agent/runtime";
+import { handleNativeAgentAlarm } from "./agent/runtime";
 import { applyBadge } from "./badge";
 import {
   handleServerConfigRuntimeMessage,
@@ -90,19 +76,6 @@ const vaultRealtime = new VaultRealtimeConnection({
     "vault repair after realtime reconnect failed",
   ),
 });
-const handleAgentPairingRuntimeMessage = createAgentPairingRuntimeHandler({
-  readVerifiedPairing,
-  discoverPairing: discoverNativeAgentPairingOffer,
-  deriveFingerprint: injectHostKeyFingerprint,
-  createIntentToken: () => crypto.randomUUID(),
-  beginMutation: beginNativeAgentPairingMutation,
-  savePairingIntent: saveHostPairingIntent,
-  savePairing: saveHostPairingRecord,
-  clearPairing: clearHostPairingRecord,
-  connect: connectPairedNativeAgentProvider,
-  disconnect: disconnectNativeAgentProvider,
-});
-
 /** Re-read the session state and clear any stale Chromium text badge. */
 function refreshBadge(): void {
   void sessionManager
@@ -206,8 +179,8 @@ void initializeServerConfig().then(() => {
   }, "session init failed");
 });
 
-// Agent Inject is independent of the popup lock state. The connection opens only
-// after the user explicitly confirms an out-of-band host signing-key bundle.
+// Agent Inject is independent of popup lock, account, and profile state. Chrome
+// authorizes the official extension through the exact Native Messaging origin.
 startNativeAgentBridge();
 
 chrome.runtime.onConnect.addListener((port) => {
@@ -305,12 +278,6 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isTrustedExtensionPage(sender, chrome.runtime.id, chrome.runtime.getURL(""))) return false;
   void (async () => {
     await initializeServerConfig();
-    const pairingResult = await handleAgentPairingRuntimeMessage(raw);
-    if (pairingResult !== null) {
-      sendResponse(pairingResult);
-      return;
-    }
-
     if (isServerConfigCommand(raw)) {
       const execute = () => handleServerConfigRuntimeMessage({
         getApiUrl: () => serverConfig.apiUrl,
