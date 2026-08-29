@@ -300,6 +300,33 @@ describe("secure Native Messaging frame boundary", () => {
     freshRuntime.disconnectNativeAgentProvider();
   });
 
+  it("does not reverse explicit teardown while startup state is loading", async () => {
+    const { connectNative, alarmsCreate, storageGet } = stubChrome();
+    let releaseStorageRead: ((value: Record<string, unknown>) => void) | undefined;
+    storageGet.mockImplementationOnce(() => new Promise<Record<string, unknown>>((resolve) => {
+      releaseStorageRead = resolve;
+    }));
+    vi.resetModules();
+    const freshRuntime = await import("./runtime");
+    const startup = freshRuntime.connectNativeAgentProviderIfDueNow();
+    await vi.waitFor(() => expect(storageGet).toHaveBeenCalledOnce());
+
+    freshRuntime.disconnectNativeAgentProvider();
+    releaseStorageRead?.({ nativeAgentReconnectDelayMinutes: 8 });
+    await startup;
+
+    expect(connectNative).not.toHaveBeenCalled();
+    connectNative.mockImplementation(() => {
+      throw new Error("native host unavailable");
+    });
+    await freshRuntime.connectNativeAgentProviderNow();
+    expect(alarmsCreate).toHaveBeenCalledWith(
+      "palladin.native-agent.reconnect",
+      { delayInMinutes: 0.5 },
+    );
+    freshRuntime.disconnectNativeAgentProvider();
+  });
+
   it("ignores a stale reconnect alarm on unsupported browser targets", async () => {
     const { connectNative } = stubChrome();
 

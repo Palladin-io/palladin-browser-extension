@@ -130,15 +130,17 @@ export function connectNativeAgentProviderIfDue(): void {
 }
 
 export async function connectNativeAgentProviderIfDueNow(): Promise<void> {
+  const expectedLifecycle = lifecycleVersion;
   await loadReconnectDelay();
+  if (lifecycleVersion !== expectedLifecycle) return;
   let pending: chrome.alarms.Alarm | undefined;
   try {
     pending = await chrome.alarms.get(RECONNECT_ALARM);
   } catch {
     return;
   }
-  if (pending !== undefined) return;
-  await connectNativeAgentProviderNow();
+  if (lifecycleVersion !== expectedLifecycle || pending !== undefined) return;
+  await connectNativeAgentProviderForLifecycle(expectedLifecycle);
 }
 
 export function handleNativeAgentAlarm(
@@ -149,10 +151,17 @@ export function handleNativeAgentAlarm(
 }
 
 export async function connectNativeAgentProviderNow(): Promise<void> {
+  await connectNativeAgentProviderForLifecycle(lifecycleVersion);
+}
+
+async function connectNativeAgentProviderForLifecycle(
+  expectedLifecycle: number,
+): Promise<void> {
   await loadReconnectDelay();
+  if (lifecycleVersion !== expectedLifecycle) return;
   if (nativePort !== null) return;
   if (connectionAttempt !== null) return connectionAttempt;
-  const attempt = openNativeAgentProvider(lifecycleVersion);
+  const attempt = openNativeAgentProvider(expectedLifecycle);
   connectionAttempt = attempt;
   try {
     await attempt;
@@ -308,9 +317,11 @@ function scheduleNativeAgentReconnect(expectedLifecycle: number): void {
 
 function loadReconnectDelay(): Promise<void> {
   if (reconnectDelayLoad === null) {
+    const expectedLifecycle = lifecycleVersion;
     reconnectDelayLoad = (async () => {
       try {
         const stored = await chrome.storage.session.get(RECONNECT_DELAY_KEY);
+        if (lifecycleVersion !== expectedLifecycle) return;
         const delay = stored[RECONNECT_DELAY_KEY];
         if (typeof delay === "number"
           && Number.isFinite(delay)
@@ -319,7 +330,9 @@ function loadReconnectDelay(): Promise<void> {
           reconnectDelayMinutes = delay;
         }
       } catch {
-        reconnectDelayMinutes = INITIAL_RECONNECT_DELAY_MINUTES;
+        if (lifecycleVersion === expectedLifecycle) {
+          reconnectDelayMinutes = INITIAL_RECONNECT_DELAY_MINUTES;
+        }
       }
     })();
   }
