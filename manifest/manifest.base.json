@@ -39,7 +39,7 @@
       "all_frames": true
     }
   ],
-  "permissions": ["storage", "activeTab", "alarms", "nativeMessaging", "scripting"],
+  "permissions": ["storage", "activeTab", "alarms", "scripting"],
   "host_permissions": [
     "http://localhost:5000/*",
     "https://api.stage.palladin.io/*",

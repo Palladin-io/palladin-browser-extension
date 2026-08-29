@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const commonPermissions = ["storage", "activeTab", "alarms", "nativeMessaging", "scripting"];
+const commonPermissions = ["storage", "activeTab", "alarms", "scripting"];
 
 export function validateBuiltManifest(root, target) {
   const outputDirectory = resolve(root, "dist", target);
@@ -67,7 +67,12 @@ function validateChromium(manifest, outputDirectory) {
   invariant(typeof manifest.key === "string", "chromium: missing stable extension key");
   invariant(manifest.minimum_chrome_version === "116", "chromium: wrong version floor");
   invariant(
-    sameSet(manifest.permissions, [...commonPermissions, "offscreen", "sidePanel"]),
+    sameSet(manifest.permissions, [
+      ...commonPermissions,
+      "offscreen",
+      "nativeMessaging",
+      "sidePanel",
+    ]),
     "chromium: unexpected permissions",
   );
   invariant(
