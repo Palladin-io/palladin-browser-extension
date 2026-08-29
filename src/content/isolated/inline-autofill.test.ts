@@ -719,6 +719,7 @@ describe("inline autofill field discovery", () => {
         username: "ada@example.com",
         vaultName: "Personal",
         urlDomain: "allegro.pl",
+        updatedAt: "2026-08-29T08:00:00Z",
         match: "related",
       }],
     }) : ({ ok: true, kind: "fill", status: "unavailable" }));
