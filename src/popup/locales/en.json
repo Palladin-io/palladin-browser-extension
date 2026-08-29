@@ -211,6 +211,7 @@
   "inline.unavailable": "Palladin suggestions are temporarily unavailable.",
   "inline.filling": "Filling login...",
   "inline.filled": "Login filled",
+  "inline.passwordUpdated": "Password for {name} was updated - fill again",
   "inline.fillAndLogin": "Fill and log in",
   "inline.logIn": "Log in",
   "inline.noForm": "The login form could not be filled.",

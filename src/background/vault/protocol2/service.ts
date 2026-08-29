@@ -25,15 +25,37 @@ import {
 } from '../entry-metadata'
 import { VaultDataError } from '../errors'
 import { VaultClientError } from '../transport'
-import type { ActiveCacheState, MemberSyncCache } from './cache'
+import type {
+  ActiveCachedEntry,
+  ActiveCacheState,
+  CachedItemPage,
+  MemberSyncCache,
+} from './cache'
+import { MAXIMUM_PROFILE_CACHE_BYTES } from './cache'
 import {
+  Protocol2AccessDeniedError,
   Protocol2MutationConflictError,
   Protocol2ResetRequiredError,
   type Protocol2VaultClient,
 } from './client'
-import type { EncryptedVaultListSummary, EncryptedVaultSummary } from './contracts'
+import type {
+  EncryptedVaultListSummary,
+  EncryptedVaultSummary,
+  MemberDeltaPage,
+  MemberSnapshotPage,
+  MemberSyncItem,
+  MemberVaultKeyEnvelope,
+  OfflineAccessContext,
+} from './contracts'
 
 const CACHE_PAGE_SIZE = 200
+const MAXIMUM_CLOCK_ROLLBACK_MS = 5 * 60_000
+
+interface VolatileDisabledVault {
+  active: ActiveCacheState
+  items: Map<string, MemberSyncItem>
+  encodedItemBytes: number
+}
 
 export interface Protocol2SessionAccessor {
   getAccessToken(): Promise<string | null>
@@ -111,6 +133,7 @@ export interface Protocol2VaultDataServiceDeps {
   readonly session: Protocol2SessionAccessor
   readonly createNamespace?: () => string
   readonly now?: () => number
+  readonly monotonicNow?: () => number
 }
 
 /** Canonical Vault Protocol 2 sync/read/write service for the MV3 worker. */
@@ -118,30 +141,50 @@ export class Protocol2VaultDataService implements VaultDataSource {
   private readonly currentVaults = new Map<string, EncryptedVaultSummary>()
   private readonly createNamespace: () => string
   private readonly now: () => number
+  private readonly monotonicNow: () => number
   private lastUserId: string | null = null
   private refreshInFlight: Promise<EntryMetadata[]> | null = null
+  private refreshInFlightIsRepair = false
   private lastSuccessfulRefreshAt: number | null = null
   private syncTail: Promise<void> = Promise.resolve()
+  private readonly leaseDeadlines = new Map<string, { signature: string; deadline: number }>()
+  private readonly volatileDisabledVaults = new Map<string, VolatileDisabledVault>()
+  private connected = false
 
   constructor(private readonly deps: Protocol2VaultDataServiceDeps) {
     this.createNamespace = deps.createNamespace ?? (() => crypto.randomUUID())
     this.now = deps.now ?? (() => Date.now())
+    this.monotonicNow = deps.monotonicNow ?? (() => performance.now())
   }
 
   async refresh(): Promise<EntryMetadata[]> {
-    // Unlock triggers a background refresh while an already-open popup can
-    // request its own sync at the same time. Both consumers must join one
-    // canonical refresh: parallel writers would race the IndexedDB snapshot /
-    // delta cursor and surface a misleading network failure.
     if (this.refreshInFlight !== null) return this.refreshInFlight
-    const refresh = this.enqueueSync(() => this.refreshOnce())
+    return this.startRefresh(false)
+  }
+
+  async repair(): Promise<EntryMetadata[]> {
+    const current = this.refreshInFlight
+    if (current !== null) {
+      if (this.refreshInFlightIsRepair) return current
+      await current.catch(() => undefined)
+    }
+    if (this.refreshInFlight !== null) return this.repair()
+    return this.startRefresh(true)
+  }
+
+  private async startRefresh(forceRepair: boolean): Promise<EntryMetadata[]> {
+    const refresh = this.enqueueSync(() => this.refreshOnce(forceRepair))
     this.refreshInFlight = refresh
+    this.refreshInFlightIsRepair = forceRepair
     try {
       const metadata = await refresh
       this.lastSuccessfulRefreshAt = this.now()
       return metadata
     } finally {
-      if (this.refreshInFlight === refresh) this.refreshInFlight = null
+      if (this.refreshInFlight === refresh) {
+        this.refreshInFlight = null
+        this.refreshInFlightIsRepair = false
+      }
     }
   }
 
@@ -164,44 +207,78 @@ export class Protocol2VaultDataService implements VaultDataSource {
       }
       this.lastUserId = userId
       if (removed) {
-        this.currentVaults.delete(vaultId)
-        await this.deps.cache.removeVault(userId, vaultId)
+        await this.purgeVault(userId, vaultId)
         return
       }
-      const vault = await this.withAuth((token) => this.deps.client.getVault(token, vaultId))
-      await this.syncVault(userId, vault)
-      const refreshed = await this.deps.cache.getActiveState(userId, vault.id)
-      this.currentVaults.set(vault.id, refreshed?.vault ?? vault)
+      try {
+        const vault = await this.withAuth((token) => this.deps.client.getVault(token, vaultId))
+        await this.syncVault(userId, vault)
+        const refreshed = await this.deps.cache.getActiveState(userId, vault.id)
+          ?? this.volatileDisabledVaults.get(vault.id)?.active
+        this.currentVaults.set(vault.id, refreshed?.vault ?? vault)
+      } catch (error) {
+        if (!(error instanceof Protocol2AccessDeniedError)) throw error
+        await this.purgeVault(userId, vaultId)
+      }
     })
   }
 
-  private async refreshOnce(): Promise<EntryMetadata[]> {
+  setRealtimeConnected(connected: boolean): void {
+    this.connected = connected
+    if (!connected) {
+      for (const vaultId of this.volatileDisabledVaults.keys()) {
+        this.currentVaults.delete(vaultId)
+      }
+      this.volatileDisabledVaults.clear()
+    }
+  }
+
+  private async refreshOnce(forceRepair: boolean): Promise<EntryMetadata[]> {
     const userId = await this.deps.session.getUserId()
     if (userId === null || await this.deps.session.getAccessToken() === null) {
-      await this.clearCache()
+      this.currentVaults.clear()
+      this.volatileDisabledVaults.clear()
+      this.connected = false
       return []
     }
 
     const listedVaults = await this.withAuth((token) => this.deps.client.listVaults(token))
+    this.connected = true
     this.lastUserId = userId
     this.currentVaults.clear()
     const detailedVaults: EncryptedVaultSummary[] = []
     for (const listedVault of listedVaults) {
       const active = await this.deps.cache.getActiveState(userId, listedVault.id)
-      if (active !== null && matchesVaultChangeManifest(listedVault, active)) {
+        ?? this.volatileDisabledVaults.get(listedVault.id)?.active
+        ?? null
+      const unchanged = active !== null && matchesVaultChangeManifest(listedVault, active)
+      if (unchanged && !forceRepair && !leaseNeedsRenewal(active, this.now())) {
         detailedVaults.push(active.vault)
         this.currentVaults.set(listedVault.id, active.vault)
         continue
       }
-      const vault = await this.withAuth((token) => this.deps.client.getVault(token, listedVault.id))
-      detailedVaults.push(vault)
-      await this.syncVault(userId, vault)
-      const refreshed = await this.deps.cache.getActiveState(userId, vault.id)
-      this.currentVaults.set(vault.id, refreshed?.vault ?? vault)
+      try {
+        const vault = unchanged
+          ? active.vault
+          : await this.withAuth((token) => this.deps.client.getVault(token, listedVault.id))
+        await this.syncVault(userId, vault)
+        const refreshed = await this.deps.cache.getActiveState(userId, vault.id)
+          ?? this.volatileDisabledVaults.get(vault.id)?.active
+        const current = refreshed?.vault ?? vault
+        detailedVaults.push(current)
+        this.currentVaults.set(vault.id, current)
+      } catch (error) {
+        if (!(error instanceof Protocol2AccessDeniedError)) throw error
+        await this.purgeVault(userId, listedVault.id)
+      }
     }
     await this.deps.cache.removeMissingVaults(userId, new Set(listedVaults.map((vault) => vault.id)))
+    const retainedVaultIds = new Set(listedVaults.map((vault) => vault.id))
+    for (const vaultId of this.volatileDisabledVaults.keys()) {
+      if (!retainedVaultIds.has(vaultId)) this.volatileDisabledVaults.delete(vaultId)
+    }
     try {
-      return await this.getMetadata()
+      return await this.getMetadataNow()
     } catch (error) {
       if (!(error instanceof VaultDataError) || error.code !== 'decrypt-failed') throw error
 
@@ -215,24 +292,36 @@ export class Protocol2VaultDataService implements VaultDataSource {
       for (const vault of detailedVaults) {
         await this.replaceFromSnapshot(userId, vault)
       }
-      return this.getMetadata()
+      return this.getMetadataNow()
     }
   }
 
-  async getMetadata(): Promise<EntryMetadata[]> {
+  getMetadata(): Promise<EntryMetadata[]> {
+    return this.enqueueSync(() => this.getMetadataNow())
+  }
+
+  private async getMetadataNow(): Promise<EntryMetadata[]> {
     const userId = await this.deps.session.getUserId()
     const privateKey = this.deps.session.getPrivateKey()
     if (userId === null || privateKey === null) return []
 
     const metadata: EntryMetadata[] = []
-    for (const vaultId of this.currentVaults.keys()) {
-      const active = await this.deps.cache.getActiveState(userId, vaultId)
-      if (active === null) continue
+    const activeStates = await this.deps.cache.listActiveStates(userId)
+    if (this.connected) {
+      activeStates.push(...[...this.volatileDisabledVaults.values()].map((value) => value.active))
+    }
+    for (const initialActive of activeStates) {
+      const vaultId = initialActive.vault.id
       let vaultKey: Uint8Array | null = null
       try {
+        this.validateActiveState(initialActive, userId, this.now())
+        this.currentVaults.set(vaultId, initialActive.vault)
         let vaultName: string
         try {
-          const opened = await openProjectionVault(active.vault, privateKey, userId)
+          const opened = await openProjectionVault({
+            ...initialActive.vault,
+            memberVaultKey: initialActive.memberVaultKey,
+          }, privateKey, userId)
           vaultKey = opened.vaultKey
           vaultName = opened.metadata.name
         } catch {
@@ -240,18 +329,25 @@ export class Protocol2VaultDataService implements VaultDataSource {
         }
         let afterEntryId: string | null = null
         do {
-          const page = await this.deps.cache.readActiveItemPage(
-            userId,
-            vaultId,
-            afterEntryId,
-            CACHE_PAGE_SIZE,
-          )
+          const volatile = this.volatileDisabledVaults.get(vaultId)
+          const page: CachedItemPage | null = volatile?.active.namespace === initialActive.namespace
+            ? volatilePage(volatile, afterEntryId, CACHE_PAGE_SIZE, this.now())
+            : await this.deps.cache.readActiveItemPage(
+              userId,
+              vaultId,
+              afterEntryId,
+              CACHE_PAGE_SIZE,
+              this.now(),
+            )
+          if (page === null) throw new VaultDataError('decrypt-failed', 'Vault cache changed')
+          this.validateActiveState(page.active, userId, this.now())
           for (const item of page.items) {
             if (item.kind !== 'head' || item.state !== 'active') continue
+            validateCompleteItem(item, page.active)
             let index: Awaited<ReturnType<typeof openMemberIndex>>
             try {
               index = await openMemberIndex(item.entryKey, item.memberIndex, vaultKey, {
-                organizationId: active.vault.memberVaultKey.wrappedVaultKey.descriptor.scope.organizationId,
+                organizationId: page.active.accessContext.organizationId,
                 vaultId,
                 entryId: item.entryId,
                 revision: item.memberIndexRevision,
@@ -276,6 +372,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
           afterEntryId = page.nextEntryId
         } while (afterEntryId !== null)
       } catch (error) {
+        await this.purgeVault(userId, vaultId)
         if (error instanceof VaultDataError) throw error
         throw new VaultDataError('decrypt-failed', 'vault-index')
       } finally {
@@ -285,23 +382,39 @@ export class Protocol2VaultDataService implements VaultDataSource {
     return metadata
   }
 
-  async revealEntry(vaultId: string, entryId: string): Promise<MemberSecretV1> {
+  revealEntry(vaultId: string, entryId: string): Promise<MemberSecretV1> {
+    return this.enqueueSync(() => this.revealEntryNow(vaultId, entryId))
+  }
+
+  private async revealEntryNow(vaultId: string, entryId: string): Promise<MemberSecretV1> {
     const privateKey = this.deps.session.getPrivateKey()
     if (privateKey === null) throw new VaultDataError('locked', 'Session is locked')
     const userId = await this.deps.session.getUserId()
     if (userId === null) throw new VaultDataError('not-authenticated', 'No session')
-    const detail = await this.withAuth((token) => this.deps.client.getEntry(token, vaultId, entryId))
-    const vault = await this.requireVault(vaultId)
+    const persistent = await this.deps.cache.readActiveEntry(userId, vaultId, entryId, this.now())
+    const volatile = this.volatileDisabledVaults.get(vaultId)
+    const cached = persistent ?? (this.connected && volatile?.items.has(entryId)
+      ? volatileEntry(volatile, entryId, this.now())
+      : null)
+    if (cached === null || cached.item.kind !== 'head' || cached.item.state !== 'active') {
+      throw new VaultDataError('decrypt-failed', 'Current entry is unavailable')
+    }
     let vaultKey: Uint8Array | null = null
     try {
-      vaultKey = await openProjectionVaultKey(vault, privateKey, userId)
-      return await openMemberSecret(detail.entryKey, detail.memberSecret, vaultKey, {
-        organizationId: detail.organizationId,
+      this.validateActiveState(cached.active, userId, this.now())
+      validateCompleteItem(cached.item, cached.active)
+      vaultKey = await openProjectionVaultKey({
+        ...cached.active.vault,
+        memberVaultKey: cached.active.memberVaultKey,
+      }, privateKey, userId)
+      return await openMemberSecret(cached.item.entryKey, cached.item.memberSecret, vaultKey, {
+        organizationId: cached.active.accessContext.organizationId,
         vaultId,
         entryId,
-        revision: detail.currentRevision,
+        revision: cached.item.currentRevision,
       })
     } catch (error) {
+      await this.purgeVault(userId, vaultId)
       if (error instanceof VaultDataError) throw error
       throw new VaultDataError('decrypt-failed', 'Failed to decrypt entry')
     } finally {
@@ -312,15 +425,33 @@ export class Protocol2VaultDataService implements VaultDataSource {
   async clearCache(): Promise<void> {
     const userId = this.lastUserId ?? await this.deps.session.getUserId()
     this.currentVaults.clear()
-    if (userId !== null) await this.deps.cache.removeMissingVaults(userId, new Set())
+    this.volatileDisabledVaults.clear()
+    this.connected = false
+    if (userId !== null) await this.deps.cache.removeProfile(userId)
     this.lastUserId = null
     this.lastSuccessfulRefreshAt = null
+    this.leaseDeadlines.clear()
+  }
+
+  async clearProfile(userId: string): Promise<void> {
+    await this.enqueueSync(async () => {
+      await this.deps.cache.removeProfile(userId)
+      this.currentVaults.clear()
+      this.volatileDisabledVaults.clear()
+      this.connected = false
+      this.leaseDeadlines.clear()
+      if (this.lastUserId === userId) this.lastUserId = null
+      this.lastSuccessfulRefreshAt = null
+    })
   }
 
   async clearAllCache(): Promise<void> {
     this.currentVaults.clear()
+    this.volatileDisabledVaults.clear()
+    this.connected = false
     this.lastUserId = null
     this.lastSuccessfulRefreshAt = null
+    this.leaseDeadlines.clear()
     await this.deps.cache.clearAll()
   }
 
@@ -516,21 +647,53 @@ export class Protocol2VaultDataService implements VaultDataSource {
   }
 
   private async syncVault(userId: string, vault: EncryptedVaultSummary): Promise<void> {
-    const active = await this.deps.cache.getActiveState(userId, vault.id)
+    const persistent = await this.deps.cache.getActiveState(userId, vault.id)
+    const volatile = this.volatileDisabledVaults.get(vault.id)
+    const active = persistent ?? volatile?.active ?? null
     if (active !== null) {
       try {
         let expected = active.appliedThroughSequence
+        let upperBound: string | null = null
         let continuation: string | null = null
         do {
           const page = await this.withAuth((token) =>
             this.deps.client.delta(token, vault.id, continuation === null ? expected : null, continuation))
-          await this.deps.cache.applyActiveDeltaPage(userId, vault, expected, page)
+          validateDeltaPage(page, vault, userId, expected, upperBound)
+          if ((persistent !== null) !== (page.accessContext.offlinePolicy !== 'disabled')) {
+            await this.purgeVault(userId, vault.id)
+            return this.replaceFromSnapshot(userId, vault)
+          }
+          upperBound ??= page.deltaUpperBound
+          if (persistent !== null) {
+            await this.deps.cache.applyActiveDeltaPage(userId, vault, expected, page, this.now())
+          } else if (volatile !== undefined) {
+            const nextItems = new Map(volatile.items)
+            const nextItemBytes = applyVolatileItems(
+              nextItems,
+              page.items,
+              volatile.encodedItemBytes,
+            )
+            const nextActive: ActiveCacheState = {
+              ...volatile.active,
+              appliedThroughSequence: page.appliedThroughSequence,
+              vault: { ...vault, memberSequence: page.appliedThroughSequence },
+              accessContext: page.accessContext,
+              memberVaultKey: page.memberVaultKey,
+              maxObservedWallTime: Math.max(volatile.active.maxObservedWallTime, this.now()),
+            }
+            await this.assertVolatileProfileQuota(userId, vault.id, nextActive, nextItemBytes)
+            volatile.items = nextItems
+            volatile.encodedItemBytes = nextItemBytes
+            volatile.active = nextActive
+          }
           expected = page.appliedThroughSequence
           continuation = page.continuationCursor
         } while (continuation !== null)
+        if (volatile !== undefined) this.currentVaults.set(vault.id, volatile.active.vault)
         return
       } catch (error) {
         if (!(error instanceof Protocol2ResetRequiredError)) throw error
+        await this.purgeVault(userId, vault.id)
       }
     }
     await this.replaceFromSnapshot(userId, vault)
@@ -538,38 +701,168 @@ export class Protocol2VaultDataService implements VaultDataSource {
 
   private async replaceFromSnapshot(userId: string, vault: EncryptedVaultSummary): Promise<void> {
     const namespace = this.createNamespace()
-    let cursor: string | null = null
-    let baseSequence: string | null = null
-    do {
-      const page = await this.withAuth((token) => this.deps.client.snapshot(token, vault.id, cursor))
-      if (baseSequence === null) {
-        baseSequence = page.snapshotBaseSequence
-        await this.deps.cache.beginSnapshot(userId, vault, namespace, baseSequence)
-      } else if (page.snapshotBaseSequence !== baseSequence) {
+    const firstPage = await this.withAuth((token) => this.deps.client.snapshot(token, vault.id, null))
+    validateSnapshotPage(firstPage, vault, userId, null, null)
+    if (firstPage.accessContext.offlinePolicy === 'disabled') {
+      await this.purgeVault(userId, vault.id)
+      return this.replaceVolatileFromSnapshot(userId, vault, namespace, firstPage)
+    }
+
+    const baseSequence = firstPage.snapshotBaseSequence
+    const authoritativeAccess = firstPage.accessContext
+    const authoritativeMemberVaultKey = firstPage.memberVaultKey
+    await this.deps.cache.beginSnapshot(
+      userId,
+      vault,
+      namespace,
+      baseSequence,
+      authoritativeAccess,
+      authoritativeMemberVaultKey,
+      this.now(),
+    )
+    let page = firstPage
+    while (true) {
+      if (page.accessContext.offlinePolicy === 'disabled') {
+        await this.purgeVault(userId, vault.id)
+        throw new VaultDataError('decrypt-failed', 'Offline policy changed during snapshot')
+      }
+      validateSnapshotPage(page, vault, userId, authoritativeAccess, authoritativeMemberVaultKey)
+      if (page.snapshotBaseSequence !== baseSequence) {
         throw new VaultDataError('network', 'Vault snapshot base changed')
       }
-      await this.deps.cache.applySnapshotPage(userId, vault.id, namespace, page.items, page.nextCursor)
-      cursor = page.nextCursor
-    } while (cursor !== null)
+      await this.deps.cache.applySnapshotPage(
+        userId,
+        vault.id,
+        namespace,
+        page.items,
+        page.nextCursor,
+        page.accessContext,
+        page.memberVaultKey,
+        this.now(),
+      )
+      if (page.nextCursor === null) break
+      page = await this.withAuth((token) => this.deps.client.snapshot(token, vault.id, page.nextCursor))
+    }
 
-    if (baseSequence === null) throw new VaultDataError('network', 'Vault snapshot was empty')
     let expected = baseSequence
+    let upperBound: string | null = null
     let continuation: string | null = null
     do {
       const page = await this.withAuth((token) =>
         this.deps.client.delta(token, vault.id, continuation === null ? expected : null, continuation))
-      await this.deps.cache.applyPendingDeltaPage(userId, vault.id, namespace, expected, page)
+      validateDeltaPage(page, vault, userId, expected, upperBound)
+      if (page.accessContext.offlinePolicy === 'disabled') {
+        await this.purgeVault(userId, vault.id)
+        throw new VaultDataError('decrypt-failed', 'Offline policy changed during closing delta')
+      }
+      upperBound ??= page.deltaUpperBound
+      await this.deps.cache.applyPendingDeltaPage(
+        userId,
+        vault.id,
+        namespace,
+        expected,
+        page,
+        this.now(),
+      )
       expected = page.appliedThroughSequence
       continuation = page.continuationCursor
     } while (continuation !== null)
-    const latest = await this.withAuth((token) => this.deps.client.getVault(token, vault.id))
-    await this.deps.cache.completeSnapshot(userId, latest, namespace, expected)
-    this.currentVaults.set(vault.id, latest)
+    const completedVault = { ...vault, memberSequence: expected }
+    await this.deps.cache.completeSnapshot(userId, completedVault, namespace, expected)
+    this.currentVaults.set(vault.id, completedVault)
+  }
+
+  private async replaceVolatileFromSnapshot(
+    userId: string,
+    vault: EncryptedVaultSummary,
+    namespace: string,
+    firstPage: MemberSnapshotPage,
+  ): Promise<void> {
+    const items = new Map<string, MemberSyncItem>()
+    const baseSequence = firstPage.snapshotBaseSequence
+    const authoritativeAccess = firstPage.accessContext
+    const authoritativeMemberVaultKey = firstPage.memberVaultKey
+    let page = firstPage
+    let latestAccess = authoritativeAccess
+    let latestMemberVaultKey = authoritativeMemberVaultKey
+    let encodedItemBytes = 0
+    while (true) {
+      validateSnapshotPage(page, vault, userId, authoritativeAccess, authoritativeMemberVaultKey)
+      if (page.snapshotBaseSequence !== baseSequence
+        || page.accessContext.offlinePolicy !== 'disabled') {
+        throw new VaultDataError('decrypt-failed', 'Disabled-policy snapshot authority changed')
+      }
+      encodedItemBytes = applyVolatileItems(items, page.items, encodedItemBytes)
+      latestAccess = page.accessContext
+      latestMemberVaultKey = page.memberVaultKey
+      await this.assertVolatileProfileQuota(userId, vault.id, {
+        namespace: `volatile:${namespace}`,
+        appliedThroughSequence: baseSequence,
+        vault: { ...vault, memberSequence: baseSequence },
+        accessContext: latestAccess,
+        memberVaultKey: latestMemberVaultKey,
+        maxObservedWallTime: this.now(),
+      }, encodedItemBytes)
+      if (page.nextCursor === null) break
+      page = await this.withAuth((token) => this.deps.client.snapshot(token, vault.id, page.nextCursor))
+    }
+
+    let expected = baseSequence
+    let upperBound: string | null = null
+    let continuation: string | null = null
+    do {
+      const delta = await this.withAuth((token) =>
+        this.deps.client.delta(token, vault.id, continuation === null ? expected : null, continuation))
+      validateDeltaPage(delta, vault, userId, expected, upperBound)
+      if (delta.accessContext.offlinePolicy !== 'disabled') {
+        throw new VaultDataError('decrypt-failed', 'Disabled policy changed during closing delta')
+      }
+      upperBound ??= delta.deltaUpperBound
+      encodedItemBytes = applyVolatileItems(items, delta.items, encodedItemBytes)
+      latestAccess = delta.accessContext
+      latestMemberVaultKey = delta.memberVaultKey
+      expected = delta.appliedThroughSequence
+      continuation = delta.continuationCursor
+      await this.assertVolatileProfileQuota(userId, vault.id, {
+        namespace: `volatile:${namespace}`,
+        appliedThroughSequence: expected,
+        vault: { ...vault, memberSequence: expected },
+        accessContext: latestAccess,
+        memberVaultKey: latestMemberVaultKey,
+        maxObservedWallTime: this.now(),
+      }, encodedItemBytes)
+    } while (continuation !== null)
+
+    if (!this.connected) throw new VaultDataError('network', 'Connected access is unavailable')
+    const completedVault = { ...vault, memberSequence: expected }
+    this.volatileDisabledVaults.set(vault.id, {
+      active: {
+        namespace: `volatile:${namespace}`,
+        appliedThroughSequence: expected,
+        vault: completedVault,
+        accessContext: latestAccess,
+        memberVaultKey: latestMemberVaultKey,
+        maxObservedWallTime: this.now(),
+      },
+      items,
+      encodedItemBytes,
+    })
+    this.currentVaults.set(vault.id, completedVault)
   }
 
   private async requireVault(vaultId: string): Promise<EncryptedVaultSummary> {
     const cached = this.currentVaults.get(vaultId)
     if (cached !== undefined) return cached
+    const userId = await this.deps.session.getUserId()
+    if (userId !== null) {
+      const active = await this.deps.cache.getActiveState(userId, vaultId)
+        ?? this.volatileDisabledVaults.get(vaultId)?.active
+        ?? null
+      if (active !== null) {
+        this.currentVaults.set(vaultId, active.vault)
+        return active.vault
+      }
+    }
     const vault = await this.withAuth((token) => this.deps.client.getVault(token, vaultId))
     this.currentVaults.set(vaultId, vault)
     return vault
@@ -588,11 +881,13 @@ export class Protocol2VaultDataService implements VaultDataSource {
           return await operation(refreshed)
         } catch (retryError) {
           if (retryError instanceof Protocol2ResetRequiredError
+            || retryError instanceof Protocol2AccessDeniedError
             || retryError instanceof Protocol2MutationConflictError) throw retryError
           throw mapTransportError(retryError)
         }
       }
       if (error instanceof Protocol2ResetRequiredError
+        || error instanceof Protocol2AccessDeniedError
         || error instanceof Protocol2MutationConflictError) throw error
       throw mapTransportError(error)
     }
@@ -602,6 +897,68 @@ export class Protocol2VaultDataService implements VaultDataSource {
     const result = this.syncTail.then(operation, operation)
     this.syncTail = result.then(() => undefined, () => undefined)
     return result
+  }
+
+  private validateActiveState(active: ActiveCacheState, userId: string, now: number): void {
+    validateAccessAuthority(active.accessContext, active.memberVaultKey, active.vault, userId)
+    if (active.accessContext.offlinePolicy === 'disabled') {
+      const volatile = this.volatileDisabledVaults.get(active.vault.id)
+      if (!this.connected
+        || volatile?.active.namespace !== active.namespace
+        || accessSignature(volatile.active.accessContext) !== accessSignature(active.accessContext)) {
+        throw new VaultDataError('decrypt-failed', 'Connected access is unavailable')
+      }
+      volatile.active = {
+        ...volatile.active,
+        maxObservedWallTime: Math.max(volatile.active.maxObservedWallTime, now),
+      }
+      return
+    }
+    const lease = accessLeaseBounds(active.accessContext)
+    if (BigInt(Math.trunc(now)) * 1_000_000n >= lease.notAfterNanos) {
+      throw new VaultDataError('decrypt-failed', 'Offline access lease expired')
+    }
+    if (now + MAXIMUM_CLOCK_ROLLBACK_MS < active.maxObservedWallTime) {
+      throw new VaultDataError('decrypt-failed', 'Clock rollback exceeded tolerance')
+    }
+    const key = `${userId}:${active.vault.id}`
+    const signature = accessSignature(active.accessContext)
+    const previous = this.leaseDeadlines.get(key)
+    if (!previous || previous.signature !== signature) {
+      this.leaseDeadlines.set(key, {
+        signature,
+        deadline: this.monotonicNow() + Math.max(0, lease.notAfterMs - now),
+      })
+      return
+    }
+    if (this.monotonicNow() >= previous.deadline) {
+      throw new VaultDataError('decrypt-failed', 'Offline access lease expired')
+    }
+  }
+
+  private async assertVolatileProfileQuota(
+    userId: string,
+    vaultId: string,
+    candidateActive: ActiveCacheState,
+    candidateItemBytes: number,
+  ): Promise<void> {
+    let total = await this.deps.cache.getProfileUsageBytes(userId)
+      + candidateItemBytes
+      + volatileStateEncodedBytes(candidateActive)
+    for (const [otherVaultId, other] of this.volatileDisabledVaults) {
+      if (otherVaultId === vaultId) continue
+      total += other.encodedItemBytes + volatileStateEncodedBytes(other.active)
+    }
+    if (total > MAXIMUM_PROFILE_CACHE_BYTES) {
+      throw new VaultDataError('network', 'Vault ciphertext cache quota exceeded')
+    }
+  }
+
+  private async purgeVault(userId: string, vaultId: string): Promise<void> {
+    this.currentVaults.delete(vaultId)
+    this.volatileDisabledVaults.delete(vaultId)
+    this.leaseDeadlines.delete(`${userId}:${vaultId}`)
+    await this.deps.cache.removeVault(userId, vaultId)
   }
 }
 
@@ -637,6 +994,255 @@ function vaultChangeManifest(vault: EncryptedVaultListSummary | EncryptedVaultSu
     vault.entryCount,
     vault.activeGrantCount,
   ]
+}
+
+function applyVolatileItems(
+  target: Map<string, MemberSyncItem>,
+  items: readonly MemberSyncItem[],
+  currentBytes: number,
+): number {
+  let nextBytes = currentBytes
+  for (const item of items) {
+    const existing = target.get(item.entryId)
+    if (existing?.kind === 'tombstone') continue
+    if (item.kind === 'head' && existing?.kind === 'head'
+      && BigInt(existing.currentRevision) > BigInt(item.currentRevision)) continue
+    target.set(item.entryId, item)
+    nextBytes += syncItemEncodedBytes(item) - (existing ? syncItemEncodedBytes(existing) : 0)
+  }
+  return nextBytes
+}
+
+function syncItemEncodedBytes(item: MemberSyncItem): number {
+  return new TextEncoder().encode(JSON.stringify(item)).byteLength
+}
+
+function volatileStateEncodedBytes(active: ActiveCacheState): number {
+  return new TextEncoder().encode(JSON.stringify(active)).byteLength
+}
+
+function volatilePage(
+  volatile: VolatileDisabledVault,
+  afterEntryId: string | null,
+  limit: number,
+  observedWallTime: number,
+): CachedItemPage {
+  volatile.active = {
+    ...volatile.active,
+    maxObservedWallTime: Math.max(volatile.active.maxObservedWallTime, observedWallTime),
+  }
+  const items = [...volatile.items.values()]
+    .filter((item) => afterEntryId === null || item.entryId > afterEntryId)
+    .sort((left, right) => left.entryId < right.entryId ? -1 : left.entryId > right.entryId ? 1 : 0)
+    .slice(0, limit)
+  return {
+    active: volatile.active,
+    items,
+    nextEntryId: items.length === limit ? items.at(-1)!.entryId : null,
+  }
+}
+
+function volatileEntry(
+  volatile: VolatileDisabledVault,
+  entryId: string,
+  observedWallTime: number,
+): ActiveCachedEntry {
+  volatile.active = {
+    ...volatile.active,
+    maxObservedWallTime: Math.max(volatile.active.maxObservedWallTime, observedWallTime),
+  }
+  return { active: volatile.active, item: volatile.items.get(entryId)! }
+}
+
+function leaseNeedsRenewal(active: ActiveCacheState, now: number): boolean {
+  try {
+    const lease = accessLeaseBounds(active.accessContext)
+    const duration = lease.notAfterMs - lease.issuedAtMs
+    return duration <= 0 || lease.notAfterMs <= now || lease.notAfterMs - now <= duration / 4
+  } catch {
+    return true
+  }
+}
+
+function validateSnapshotPage(
+  page: MemberSnapshotPage,
+  vault: EncryptedVaultSummary,
+  userId: string,
+  previousAccess: OfflineAccessContext | null,
+  previousMemberVaultKey: MemberVaultKeyEnvelope | null,
+): void {
+  validateAccessAuthority(page.accessContext, page.memberVaultKey, vault, userId)
+  if (previousAccess !== null
+    && accessAuthoritySignature(previousAccess) !== accessAuthoritySignature(page.accessContext)) {
+    throw new VaultDataError('decrypt-failed', 'Snapshot access authority changed between pages')
+  }
+  if (previousMemberVaultKey !== null
+    && JSON.stringify(previousMemberVaultKey) !== JSON.stringify(page.memberVaultKey)) {
+    throw new VaultDataError('decrypt-failed', 'Snapshot Vault key changed between pages')
+  }
+  validatePageItems(page.items, vault, page.accessContext)
+}
+
+function validateDeltaPage(
+  page: MemberDeltaPage,
+  vault: EncryptedVaultSummary,
+  userId: string,
+  expectedSequence: string,
+  previousUpperBound: string | null,
+): void {
+  validateAccessAuthority(page.accessContext, page.memberVaultKey, vault, userId)
+  validatePageItems(page.items, vault, page.accessContext)
+  const expected = BigInt(expectedSequence)
+  const applied = BigInt(page.appliedThroughSequence)
+  const upper = BigInt(page.deltaUpperBound)
+  if (previousUpperBound !== null && page.deltaUpperBound !== previousUpperBound) {
+    throw new VaultDataError('decrypt-failed', 'Delta upper bound changed between pages')
+  }
+  if (applied < expected || applied > upper
+    || (page.continuationCursor === null && applied !== upper)
+    || (page.continuationCursor !== null && applied >= upper)) {
+    throw new VaultDataError('decrypt-failed', 'Delta safe-prefix boundary is invalid')
+  }
+}
+
+function validateAccessAuthority(
+  access: OfflineAccessContext,
+  memberVaultKey: MemberVaultKeyEnvelope,
+  vault: EncryptedVaultSummary,
+  userId: string,
+): void {
+  const descriptor = memberVaultKey.wrappedVaultKey.descriptor
+  let lease: ReturnType<typeof accessLeaseBounds>
+  try {
+    lease = accessLeaseBounds(access)
+  } catch {
+    throw new VaultDataError('decrypt-failed', 'Offline access lease is invalid')
+  }
+  const expectedDuration = access.offlinePolicy === 'disabled'
+    ? 0
+    : access.offlinePolicy === '1h'
+      ? 60 * 60_000
+      : access.offlinePolicy === '4h'
+        ? 4 * 60 * 60_000
+        : 24 * 60 * 60_000
+  if (access.principalId !== userId
+    || access.memberId !== userId
+    || access.organizationId !== vault.organizationId
+    || access.vaultId !== vault.id
+    || access.memberKeyGeneration !== vault.memberKeyGeneration
+    || access.vaultKeyVersion !== vault.currentKeyEpoch.vaultKeyVersion
+    || descriptor.scope.organizationId !== access.organizationId
+    || descriptor.scope.vaultId !== access.vaultId
+    || descriptor.scope.memberId !== access.memberId
+    || descriptor.memberKeyGeneration !== access.memberKeyGeneration
+    || descriptor.wrappedKeyVersion !== access.vaultKeyVersion
+    || descriptor.recipientKeyVersion !== access.memberRecipientKeyVersion
+    || descriptor.recipientFingerprint !== access.memberRecipientKeyFingerprint
+    || JSON.stringify(memberVaultKey) !== JSON.stringify(vault.memberVaultKey)
+    || lease.notAfterNanos - lease.issuedAtNanos !== BigInt(expectedDuration) * 1_000_000n) {
+    throw new VaultDataError('decrypt-failed', 'Offline access authority binding mismatch')
+  }
+}
+
+function validatePageItems(
+  items: readonly MemberSyncItem[],
+  vault: EncryptedVaultSummary,
+  access: OfflineAccessContext,
+): void {
+  const entryIds = new Set<string>()
+  for (const item of items) {
+    if (entryIds.has(item.entryId)) {
+      throw new VaultDataError('decrypt-failed', 'Duplicate Entry in sync page')
+    }
+    entryIds.add(item.entryId)
+    if (item.kind === 'head') validateCompleteItem(item, { vault, accessContext: access })
+  }
+}
+
+function validateCompleteItem(
+  item: Extract<MemberSyncItem, { kind: 'head' }>,
+  active: Pick<ActiveCacheState, 'vault' | 'accessContext'>,
+): void {
+  const entryKey = item.entryKey.descriptor
+  const index = item.memberIndex.descriptor
+  const secret = item.memberSecret.descriptor
+  const descriptors = [entryKey, index, secret]
+  if (descriptors.some((descriptor) => descriptor.scope.organizationId !== active.accessContext.organizationId
+    || descriptor.scope.vaultId !== active.vault.id
+    || descriptor.scope.entryId !== item.entryId
+    || descriptor.memberKeyGeneration !== active.accessContext.memberKeyGeneration)
+    || item.currentRevision !== item.memberIndexRevision
+    || item.currentRevision !== entryKey.resourceRevision
+    || item.currentRevision !== index.resourceRevision
+    || item.currentRevision !== secret.resourceRevision
+    || item.currentKeyVersion !== entryKey.keyVersion
+    || item.currentKeyVersion !== index.keyVersion
+    || item.currentKeyVersion !== secret.keyVersion
+    || entryKey.binding.wrappingVaultKeyVersion !== active.accessContext.vaultKeyVersion) {
+    throw new VaultDataError('decrypt-failed', 'Current Entry binding mismatch')
+  }
+}
+
+function accessSignature(access: OfflineAccessContext): string {
+  return JSON.stringify([
+    access.contextVersion,
+    access.principalId,
+    access.organizationId,
+    access.organizationMembershipGeneration,
+    access.vaultId,
+    access.memberId,
+    access.memberKeyGeneration,
+    access.vaultKeyVersion,
+    access.memberRecipientKeyVersion,
+    access.memberRecipientKeyFingerprint,
+    access.offlinePolicy,
+    access.offlinePolicyVersion,
+    access.issuedAt,
+    access.notAfter,
+  ])
+}
+
+function accessAuthoritySignature(access: OfflineAccessContext): string {
+  return JSON.stringify([
+    access.contextVersion,
+    access.principalId,
+    access.organizationId,
+    access.organizationMembershipGeneration,
+    access.vaultId,
+    access.memberId,
+    access.memberKeyGeneration,
+    access.vaultKeyVersion,
+    access.memberRecipientKeyVersion,
+    access.memberRecipientKeyFingerprint,
+    access.offlinePolicy,
+    access.offlinePolicyVersion,
+  ])
+}
+
+function accessLeaseBounds(access: OfflineAccessContext): {
+  issuedAtMs: number
+  notAfterMs: number
+  issuedAtNanos: bigint
+  notAfterNanos: bigint
+} {
+  const issuedAtMs = Date.parse(access.issuedAt)
+  const notAfterMs = Date.parse(access.notAfter)
+  if (!Number.isFinite(issuedAtMs) || !Number.isFinite(notAfterMs)) {
+    throw new VaultDataError('decrypt-failed', 'Offline access lease is invalid')
+  }
+  const nanos = (instant: string, milliseconds: number): bigint => {
+    const fraction = /\.(\d{1,9})(?:Z|[+-]\d{2}:\d{2})$/.exec(instant)?.[1] ?? ''
+    const padded = fraction.padEnd(9, '0')
+    const parsedMilliseconds = padded.slice(0, 3).padEnd(3, '0')
+    const remainder = BigInt(padded || '0') - BigInt(parsedMilliseconds || '0') * 1_000_000n
+    return BigInt(milliseconds) * 1_000_000n + remainder
+  }
+  return {
+    issuedAtMs,
+    notAfterMs,
+    issuedAtNanos: nanos(access.issuedAt, issuedAtMs),
+    notAfterNanos: nanos(access.notAfter, notAfterMs),
+  }
 }
 
 async function openProjectionVaultKey(

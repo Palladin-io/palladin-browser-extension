@@ -313,7 +313,21 @@ encrypted cache without remounting the surface, losing its search/expanded-row
 state, or starting a REST synchronization. Background-tab completion is ignored.
 No keys or plaintext move into the UI shell.
 
-Vault refreshes are coalesced and freshness-gated. SignalR
+Vault refreshes are coalesced and freshness-gated. The persistent IndexedDB
+cache contains only authenticated Protocol 2 ciphertext envelopes, structural
+heads/cursors and the finite Policy 2 access context; it never contains an
+opened Vault key, Entry key, MemberSecret, MemberIndex or presentation
+plaintext. A complete current-entry head is committed atomically as
+`EntryKey + MemberIndex + MemberSecret`, so fill/reveal/copy/TOTP need zero HTTP
+requests after unlock, including after an MV3 worker restart. Exact lease
+expiry, a wall-clock rollback beyond five minutes, a scope/revision/generation/
+key binding mismatch, revocation or decryption failure purges that Vault and
+fails closed. An organization policy of `disabled` is the one exception to
+durability: a freshly synchronized complete item may exist only in worker
+memory while SignalR/REST connectivity is live, and is discarded on transport
+loss, lock or worker retirement.
+
+SignalR
 `ReceiveVaultSyncInvalidation` is the primary live path while the worker is
 unlocked: its strict value-free payload identifies one Vault and monotonic
 structural version, and the worker fetches only that Vault's authenticated
@@ -338,10 +352,19 @@ request is the encrypted Vault list, used as a change manifest. For a cached
 Vault, the worker requires an exact match of its structural projection, applied
 Member sequence, organization scope and authoritative metadata revision. An
 unchanged Vault then needs no detail, delta or snapshot request. A changed or
-new Vault gets its strict detail projection and Member delta; `resetRequired`
-still replaces that one Vault from the paged snapshot before catching up with
-deltas. This preserves the Protocol 2 validation boundary while reducing the
-steady-state refresh from list + detail/delta per Vault to one list request.
+new Vault gets its strict detail projection and the combined
+`current-entries/sync/delta` stream. `resetRequired` first purges the active
+generation, stages one bounded combined snapshot page at a time, catches it up
+with a closing delta, then swaps the namespace atomically. A tombstone is
+terminal within a generation, so a delayed or duplicated old head cannot
+resurrect a removed Entry. Profile ciphertext is capped at 512 MiB and the page
+plus cursor transaction aborts without publication when the cap is exceeded.
+Unlock and reconnect deliberately force the closing delta even for an unchanged
+manifest; a routine freshness check can still stop at the list.
+When a synchronized head changes after it was filled, the isolated inline
+surface compares its local freshness marker and shows “fill again” without
+performing a second automatic fill or waiting for the network on the original
+fill path. That marker is memory-only and is cleared on lock.
 
 The Vault list groups repeated entries by normalized website host. Its collapsed
 summary shows only the login count; Vault identity belongs to each expanded

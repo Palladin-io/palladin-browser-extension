@@ -36,6 +36,7 @@ type InlineKey =
   | "inline.unavailable"
   | "inline.filling"
   | "inline.filled"
+  | "inline.passwordUpdated"
   | "inline.fillAndLogin"
   | "inline.logIn"
   | "inline.noForm"
@@ -51,6 +52,8 @@ export function startInlineAutofill(
   invalidateSuggestions(): void;
   isOwnedSurface(element: Element): boolean;
   retryAutomaticFill(): void;
+  handleVaultChanged(): void;
+  clearSessionState(): void;
   resolveLoginTarget(loginTargetId: string): LoginTarget | null;
   stop(): void;
 } {
@@ -60,6 +63,8 @@ export function startInlineAutofill(
     invalidateSuggestions: () => controller.invalidateSuggestions(),
     isOwnedSurface: (element: Element) => controller.isOwnedSurface(element),
     retryAutomaticFill: () => controller.retryAutomaticFill(),
+    handleVaultChanged: () => controller.handleVaultChanged(),
+    clearSessionState: () => controller.clearSessionState(),
     resolveLoginTarget: (loginTargetId: string) => controller.resolveLoginTarget(loginTargetId),
     stop: () => controller.stop(),
   };
@@ -145,6 +150,16 @@ class InlineAutofillController {
     if (this.stopped) return;
     const first = this.widgets.values().next().value as InlineWidget | undefined;
     if (first !== undefined) void first.autoFillPreferredExact();
+  }
+
+  handleVaultChanged(): void {
+    if (this.stopped) return;
+    this.invalidateSuggestions();
+    for (const widget of this.widgets.values()) widget.handleVaultChanged();
+  }
+
+  clearSessionState(): void {
+    for (const widget of this.widgets.values()) widget.clearSessionState();
   }
 
   invalidateSuggestions(): void {
@@ -264,6 +279,7 @@ class InlineWidget {
   private automaticFillCompleted = false;
   private suggestionGeneration = 0;
   private suggestionsInFlight: Promise<unknown> | null = null;
+  private lastFilled: Pick<InlineAutofillSuggestion, "vaultId" | "entryId" | "name" | "updatedAt"> | null = null;
   private destroyed = false;
 
   constructor(private readonly options: InlineWidgetOptions) {
@@ -342,6 +358,58 @@ class InlineWidget {
     this.suggestionGeneration += 1;
     this.suggestionsInFlight = null;
     this.close();
+  }
+
+  handleVaultChanged(): void {
+    if (this.lastFilled === null) {
+      void this.autoFillPreferredExact();
+      return;
+    }
+    void this.warnIfFilledEntryChanged();
+  }
+
+  clearSessionState(): void {
+    this.lastFilled = null;
+    this.automaticFillCompleted = false;
+    this.automaticFillRetryRequested = false;
+  }
+
+  private async warnIfFilledEntryChanged(): Promise<void> {
+    const filled = this.lastFilled;
+    if (filled === null || this.destroyed) return;
+    const raw = await this.loadSuggestions();
+    if (this.destroyed || this.lastFilled !== filled
+      || !isInlineAutofillResult(raw) || !raw.ok || raw.kind !== "suggestions"
+      || raw.status !== "ready") return;
+    const current = raw.entries.find((entry) =>
+      entry.vaultId === filled.vaultId && entry.entryId === filled.entryId);
+    if (current === undefined) {
+      this.lastFilled = null;
+      return;
+    }
+    if (current.updatedAt === filled.updatedAt) return;
+    this.lastFilled = {
+      vaultId: current.vaultId,
+      entryId: current.entryId,
+      name: current.name,
+      updatedAt: current.updatedAt,
+    };
+    this.showPasswordUpdated(current.name);
+  }
+
+  private showPasswordUpdated(name: string): void {
+    this.options.closeOthers();
+    this.panel.hidden = false;
+    const generation = ++this.openGeneration;
+    const status = this.options.doc.createElement("div");
+    status.className = "status update-notice";
+    status.setAttribute("role", "status");
+    status.textContent = message(this.options.locale(), "inline.passwordUpdated")
+      .replace("{name}", name);
+    this.panel.replaceChildren(status);
+    setTimeout(() => {
+      if (this.openGeneration === generation) this.close();
+    }, 5_000);
   }
 
   refreshPreferences(): void {
@@ -625,6 +693,14 @@ class InlineWidget {
     if (raw.status === "filled" && submitAfterFill) {
       submitLoginForm(this.options.loginTarget.password);
     }
+    if (raw.status === "filled") {
+      this.lastFilled = {
+        vaultId: entry.vaultId,
+        entryId: entry.entryId,
+        name: entry.name,
+        updatedAt: entry.updatedAt,
+      };
+    }
     if (!silent) {
       this.renderStatus(raw.status === "filled"
         ? "inline.filled"
@@ -713,6 +789,7 @@ const INLINE_STYLES = `
   @keyframes palladin-loading { from { opacity:.42; } to { opacity:.88; } }
   @media (prefers-reduced-motion:reduce) { .loading-lines i, .loading-action { animation:none; } }
   .status { padding:15px 13px; color:#5a6478; font-size:14px; line-height:1.45; }
+  .update-notice { border-left:3px solid #EB4747; }
   .session-required { display:grid; gap:8px; padding:12px; }
   .session-required .status { padding:0; }
   .open-palladin { min-height:36px; border:0; border-radius:8px; background:#EB4747; color:#fff; font:600 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif; cursor:pointer; }

@@ -5,6 +5,7 @@ import {
   Protocol2ResetRequiredError,
   Protocol2VaultClient,
 } from './client'
+import validSnapshotFixture from './fixtures/current-member-entry-sync-v2/vectors/valid-snapshot.json'
 
 const API = 'https://api.test'
 const TOKEN = 'opaque-access-token'
@@ -115,7 +116,36 @@ function vaultDetail(metadataRevision: unknown = '1') {
   }
 }
 
-function syncHead(state: number) {
+function accessContext() {
+  return {
+    contextVersion: 1,
+    principalId: MEMBER_ID,
+    organizationId: ORGANIZATION_ID,
+    organizationMembershipGeneration: '7',
+    vaultId: VAULT_ID,
+    memberId: MEMBER_ID,
+    memberKeyGeneration: 1,
+    vaultKeyVersion: 1,
+    memberRecipientKeyVersion: 1,
+    memberRecipientKeyFingerprint: 'recipient-fingerprint',
+    offlinePolicy: '24h',
+    offlinePolicyVersion: 1,
+    issuedAt: '2026-08-29T08:00:00Z',
+    notAfter: '2026-08-30T08:00:00Z',
+  }
+}
+
+function snapshot(items: unknown[], snapshotBaseSequence = '1') {
+  return {
+    snapshotBaseSequence,
+    accessContext: accessContext(),
+    memberVaultKey: vaultDetail().memberVaultKey,
+    items,
+    nextCursor: null,
+  }
+}
+
+function syncHead(state: 'active' | 'archived' | 'deleted' | number) {
   const entryScope = {
     organizationId: ORGANIZATION_ID,
     vaultId: VAULT_ID,
@@ -125,8 +155,8 @@ function syncHead(state: number) {
     memberId: null,
   }
   const envelope = (
-    purpose: 'memberIndex' | 'entryDekByVaultKey',
-    binding: Record<string, never> | { wrappingVaultKeyVersion: number },
+    purpose: 'memberIndex' | 'memberSecret' | 'entryDekByVaultKey',
+    binding: Record<string, never> | { wrappingVaultKeyVersion: number } | { operation: 'updated' },
   ) => ({
     descriptor: {
       protocolVersion: 2,
@@ -150,10 +180,21 @@ function syncHead(state: number) {
     currentKeyVersion: 1,
     entryKey: envelope('entryDekByVaultKey', { wrappingVaultKeyVersion: 1 }),
     memberIndex: envelope('memberIndex', {}),
+    memberSecret: envelope('memberSecret', { operation: 'updated' }),
   }
 }
 
 describe('Protocol2VaultClient transport boundary', () => {
+  it('accepts the frozen Policy 2 complete-head fixture without a per-Entry response', async () => {
+    const fixture = validSnapshotFixture as { response: unknown }
+    const client = new Protocol2VaultClient(async () => json(fixture.response), API)
+
+    await expect(client.snapshot(TOKEN, VAULT_ID, null)).resolves.toMatchObject({
+      snapshotBaseSequence: '12',
+      items: [{ kind: 'head', state: 'active', memberSecret: expect.any(Object) }],
+    })
+  })
+
   it('paginates the strict Vault list and authenticates without logging values', async () => {
     const doFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       expect(new Headers(init?.headers).get('authorization')).toBe(`Bearer ${TOKEN}`)
@@ -190,36 +231,34 @@ describe('Protocol2VaultClient transport boundary', () => {
     const doFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const headers = new Headers(init?.headers)
       expect(headers.get('X-Palladin-Vault-Protocol')).toBe('2')
-      expect(headers.get('X-Palladin-Sync-Policy')).toBe('1')
+      expect(headers.get('X-Palladin-Sync-Policy')).toBe('2')
       expect(JSON.parse(String(init?.body))).toEqual({ vaultId: VAULT_ID, cursor: null, pageSize: 100 })
-      return json({ snapshotBaseSequence: '0', items: [], nextCursor: null })
+      expect(String(_input)).toBe(`${API}/api/vaults/${VAULT_ID}/current-entries/sync/snapshot`)
+      return json(snapshot([], '0'))
     })
 
     await expect(new Protocol2VaultClient(doFetch, API).snapshot(TOKEN, VAULT_ID, null))
-      .resolves.toEqual({ snapshotBaseSequence: '0', items: [], nextCursor: null })
+      .resolves.toMatchObject({
+        snapshotBaseSequence: '0',
+        accessContext: accessContext(),
+        items: [],
+        nextCursor: null,
+      })
   })
 
   it.each([
-    [1, 'active'],
-    [2, 'archived'],
-    [3, 'deleted'],
-  ] as const)('maps canonical backend EntryState %i to %s', async (wireState, expectedState) => {
-    const client = new Protocol2VaultClient(async () => json({
-      snapshotBaseSequence: '1',
-      items: [syncHead(wireState)],
-      nextCursor: null,
-    }), API)
+    'active',
+    'archived',
+    'deleted',
+  ] as const)('accepts the frozen current-entry state %s', async (wireState) => {
+    const client = new Protocol2VaultClient(async () => json(snapshot([syncHead(wireState)])), API)
 
     const page = await client.snapshot(TOKEN, VAULT_ID, null)
-    expect(page.items[0]?.state).toBe(expectedState)
+    expect(page.items[0]?.state).toBe(wireState)
   })
 
-  it('rejects the legacy zero-based EntryState wire value', async () => {
-    const client = new Protocol2VaultClient(async () => json({
-      snapshotBaseSequence: '1',
-      items: [syncHead(0)],
-      nextCursor: null,
-    }), API)
+  it.each([0, 1, 2, 3])('rejects the retired numeric EntryState wire value %i', async (wireState) => {
+    const client = new Protocol2VaultClient(async () => json(snapshot([syncHead(wireState)])), API)
 
     await expect(client.snapshot(TOKEN, VAULT_ID, null))
       .rejects.toMatchObject({ code: 'network' })

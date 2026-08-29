@@ -129,6 +129,7 @@ export interface VaultRealtimeConnectionDeps {
   accessToken(): Promise<string | null>;
   invalidation(raw: unknown): void;
   repair(): void;
+  connectivity?(connected: boolean): void;
 }
 
 /** Owns the unlocked worker's one authenticated SignalR connection. */
@@ -168,8 +169,13 @@ export class VaultRealtimeConnection {
     connection.on("ReceiveVaultSyncInvalidation", (raw: unknown) => {
       this.deps.invalidation(raw);
     });
-    connection.onreconnected(() => this.deps.repair());
+    connection.onreconnecting(() => this.deps.connectivity?.(false));
+    connection.onreconnected(() => {
+      this.deps.connectivity?.(true);
+      this.deps.repair();
+    });
     connection.onclose(() => {
+      this.deps.connectivity?.(false);
       if (this.connection === connection) this.connection = null;
       if (this.desired && generation === this.generation) this.schedule(generation, 0);
     });
@@ -180,7 +186,9 @@ export class VaultRealtimeConnection {
         return;
       }
       this.connection = connection;
+      this.deps.connectivity?.(true);
     } catch {
+      this.deps.connectivity?.(false);
       await connection.stop().catch(() => undefined);
       if (this.desired && generation === this.generation) this.schedule(generation, attempt + 1);
     }
@@ -196,6 +204,7 @@ export class VaultRealtimeConnection {
   }
 
   private async disconnect(): Promise<void> {
+    this.deps.connectivity?.(false);
     const connection = this.connection;
     this.connection = null;
     if (connection && connection.state !== HubConnectionState.Disconnected) {

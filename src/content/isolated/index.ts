@@ -107,9 +107,13 @@ const agentInjectDom = createAgentInjectDomAccess(
 // (see the Port relay below, which explicitly excludes fill traffic).
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (isSurfaceStateEvent(message)) {
-    inlineAutofill?.invalidateSuggestions();
-    if (message.type === "surface/vault-changed"
-      || (message.type === "surface/session-changed" && message.status === "unlocked")) {
+    if (message.type === "surface/vault-changed") {
+      inlineAutofill?.handleVaultChanged();
+    } else {
+      inlineAutofill?.invalidateSuggestions();
+      if (message.status !== "unlocked") inlineAutofill?.clearSessionState();
+    }
+    if (message.type === "surface/session-changed" && message.status === "unlocked") {
       inlineAutofill?.retryAutomaticFill();
     }
     return undefined;

@@ -39,6 +39,7 @@ describe("inline autofill field discovery", () => {
       username: "rogal_s_days",
       vaultName: "TMo 10",
       urlDomain: "allegro.pl",
+      updatedAt: "2026-08-29T08:00:00Z",
       match: "exact" as const,
     };
 
@@ -55,6 +56,7 @@ describe("inline autofill field discovery", () => {
       username: "ada@wp.pl",
       vaultName: "Personal",
       urlDomain: "1login.wp.pl",
+      updatedAt: "2026-08-29T08:00:00Z",
       match: "related" as const,
     };
 
@@ -324,6 +326,7 @@ describe("inline autofill field discovery", () => {
         username: "ada@example.com",
         vaultName: "Personal",
         urlDomain: "example.com",
+        updatedAt: "2026-08-29T08:00:00Z",
         match: "exact",
       }],
     }) : ({ ok: true, kind: "fill", status: "filled" }));
@@ -347,6 +350,7 @@ describe("inline autofill field discovery", () => {
       username: "ada@example.com",
       vaultName: "Personal",
       urlDomain: "example.com",
+      updatedAt: "2026-08-29T08:00:00Z",
       match: "exact" as const,
     };
     const send = vi.fn(async (command: { type: string }) => command.type === "inline/list" ? ({
@@ -375,6 +379,7 @@ describe("inline autofill field discovery", () => {
       username: "ada@example.com",
       vaultName: "Personal",
       urlDomain: "example.com",
+      updatedAt: "2026-08-29T08:00:00Z",
       match: "exact" as const,
     };
     let ready = false;
@@ -428,6 +433,7 @@ describe("inline autofill field discovery", () => {
       username: "ada@example.com",
       vaultName: "Personal",
       urlDomain: "example.com",
+      updatedAt: "2026-08-29T08:00:00Z",
       match: "exact" as const,
     };
     const send = vi.fn(async (command: { type: string }) => command.type === "inline/list" ? ({
@@ -451,6 +457,51 @@ describe("inline autofill field discovery", () => {
     subject.stop();
   });
 
+  it("warns when a synchronized head changes after fill without refilling automatically", async () => {
+    const nativeAttachShadow = Element.prototype.attachShadow;
+    const attachShadow = vi.spyOn(Element.prototype, "attachShadow").mockImplementation(function (
+      this: Element,
+      init: ShadowRootInit,
+    ) {
+      return nativeAttachShadow.call(this, { ...init, mode: "open" });
+    });
+    document.body.innerHTML = `<form><input autocomplete="username"><input type="password"></form>`;
+    const suggestion = {
+      vaultId: "v1",
+      entryId: "e1",
+      name: "Work",
+      username: "ada@example.com",
+      vaultName: "Personal",
+      urlDomain: "example.com",
+      updatedAt: "2026-08-29T08:00:00Z",
+      match: "exact" as const,
+    };
+    const send = vi.fn(async (command: { type: string }) => command.type === "inline/list" ? ({
+      ok: true,
+      kind: "suggestions",
+      status: "ready",
+      entries: [suggestion],
+    }) : ({ ok: true, kind: "fill", status: "filled" }));
+    const subject = startInlineAutofill(document, "a".repeat(32), send);
+
+    try {
+      await vi.waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({
+        type: "inline/fill",
+        entryId: "e1",
+      })));
+      suggestion.updatedAt = "2026-08-29T08:01:00Z";
+      subject.handleVaultChanged();
+
+      await vi.waitFor(() => expect(
+        document.querySelector("palladin-autofill")?.shadowRoot?.textContent,
+      ).toContain("Password for Work was updated - fill again"));
+      expect(send.mock.calls.filter(([command]) => command.type === "inline/fill")).toHaveLength(1);
+    } finally {
+      subject.stop();
+      attachShadow.mockRestore();
+    }
+  });
+
   it("auto-fills an exact-host form without requiring focus or a user gesture", async () => {
     Object.defineProperty(window.navigator, "userActivation", {
       configurable: true,
@@ -468,6 +519,7 @@ describe("inline autofill field discovery", () => {
         username: "ada@example.com",
         vaultName: "Personal",
         urlDomain: "example.com",
+        updatedAt: "2026-08-29T08:00:00Z",
         match: "exact",
       }],
     }));
@@ -540,6 +592,7 @@ describe("inline autofill field discovery", () => {
         username: "ada@example.com",
         vaultName: "Personal",
         urlDomain: "example.com",
+        updatedAt: "2026-08-29T08:00:00Z",
         match: "exact",
       }],
     });
@@ -563,6 +616,7 @@ describe("inline autofill field discovery", () => {
         username: "ada@wp.pl",
         vaultName: "Personal",
         urlDomain: "1login.wp.pl",
+        updatedAt: "2026-08-29T08:00:00Z",
         match: "related",
       }],
     }));

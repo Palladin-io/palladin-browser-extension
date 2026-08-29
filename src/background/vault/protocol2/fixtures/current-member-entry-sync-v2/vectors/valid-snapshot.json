@@ -1,0 +1,255 @@
+{
+  "contract": "palladin-current-member-entry-sync-valid-snapshot-fixture",
+  "fixtureSchemaVersion": 1,
+  "protocolVersion": 2,
+  "syncPolicyVersion": 2,
+  "syntheticDataOnly": true,
+  "requestAuthority": {
+    "authenticatedPrincipalId": "44444444-4444-4444-8444-444444444444",
+    "authenticatedOrganizationId": "11111111-1111-4111-8111-111111111111",
+    "currentOrganizationMembershipGeneration": "7",
+    "routeVaultId": "22222222-2222-4222-8222-222222222222",
+    "currentStructuralMemberId": "44444444-4444-4444-8444-444444444444",
+    "authoritativeMemberKeyGeneration": 4,
+    "authoritativeCurrentVaultKeyVersion": 3,
+    "authoritativeMemberRecipientKeyVersion": 2,
+    "authoritativeMemberRecipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
+    "authoritativeOfflinePolicy": "24h",
+    "authoritativeOfflinePolicyVersion": 1,
+    "clientCryptographicAuthority": {
+      "expectedCurrentVaultKeyHex": "7b87efdee655afc73575ef71dd7a8c8fcc7b11c8ca78503c968f97fe516a975d",
+      "source": "synthetic-client-current-vault-key-trust-anchor"
+    },
+    "validationTime": "2026-08-29T08:30:00Z",
+    "authoritativeEntryHeads": [
+      {
+        "entryId": "33333333-3333-4333-8333-333333333333",
+        "kind": "head",
+        "state": "active",
+        "updatedAt": "2026-08-29T08:12:00Z",
+        "currentRevision": "12",
+        "memberIndexRevision": "12",
+        "currentKeyVersion": 5
+      }
+    ]
+  },
+  "response": {
+    "snapshotBaseSequence": "12",
+    "accessContext": {
+      "contextVersion": 1,
+      "principalId": "44444444-4444-4444-8444-444444444444",
+      "organizationId": "11111111-1111-4111-8111-111111111111",
+      "organizationMembershipGeneration": "7",
+      "vaultId": "22222222-2222-4222-8222-222222222222",
+      "memberId": "44444444-4444-4444-8444-444444444444",
+      "memberKeyGeneration": 4,
+      "vaultKeyVersion": 3,
+      "memberRecipientKeyVersion": 2,
+      "memberRecipientKeyFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
+      "offlinePolicy": "24h",
+      "offlinePolicyVersion": 1,
+      "issuedAt": "2026-08-29T08:00:00Z",
+      "notAfter": "2026-08-30T08:00:00Z"
+    },
+    "memberVaultKey": {
+      "wrappedVaultKey": {
+        "descriptor": {
+          "protocolVersion": 2,
+          "wrapperSuiteId": "palladin-x25519-sealed-box-v1",
+          "purpose": "memberVaultKey",
+          "scope": {
+            "organizationId": "11111111-1111-4111-8111-111111111111",
+            "vaultId": "22222222-2222-4222-8222-222222222222",
+            "entryId": null,
+            "grantOrRequestId": null,
+            "agentId": null,
+            "memberId": "44444444-4444-4444-8444-444444444444"
+          },
+          "resourceRevision": "3",
+          "wrappedKeyVersion": 3,
+          "memberKeyGeneration": 4,
+          "recipientKeyKind": "memberX25519",
+          "recipientKeyVersion": 2,
+          "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
+          "parentDescriptorHash": null
+        },
+        "encodedSealedKeyPackage": "8kgeXHbo4IgcFbsvIQcP6mWKYX2jwpTDzOllSh21ckXyLs06yxnlvZWexWkBUd3R1k5kv6D0VvXffzXD-zr2MScQXyXeuEkMkS0uokRA2WvlB-SO38FwFGuIk_QLZ8y_mR2Ay8LsdgyevvQvO4MoQiNGRghg8eYE"
+      }
+    },
+    "items": [
+      {
+        "entryId": "33333333-3333-4333-8333-333333333333",
+        "kind": "head",
+        "state": "active",
+        "updatedAt": "2026-08-29T08:12:00Z",
+        "currentRevision": "12",
+        "memberIndexRevision": "12",
+        "currentKeyVersion": 5,
+        "entryKey": {
+          "descriptor": {
+            "protocolVersion": 2,
+            "cryptoSuiteId": "palladin-vault-xchacha-v1",
+            "purpose": "entryDekByVaultKey",
+            "scope": {
+              "organizationId": "11111111-1111-4111-8111-111111111111",
+              "vaultId": "22222222-2222-4222-8222-222222222222",
+              "entryId": "33333333-3333-4333-8333-333333333333",
+              "grantOrRequestId": null,
+              "agentId": null,
+              "memberId": null
+            },
+            "resourceRevision": "12",
+            "keyVersion": 5,
+            "memberKeyGeneration": 4,
+            "binding": {
+              "wrappingVaultKeyVersion": 3
+            }
+          },
+          "encodedSuitePayload": "PRGY0MsnxCBFRlYhwSooMWHr36axPVnW08Q30632uGTnMKVmSYvP7xKgdzbMclGyBiEdl9PQVQRrSqng4C-Fb1rgepTKXJVI"
+        },
+        "memberIndex": {
+          "descriptor": {
+            "protocolVersion": 2,
+            "cryptoSuiteId": "palladin-vault-xchacha-v1",
+            "purpose": "memberIndex",
+            "scope": {
+              "organizationId": "11111111-1111-4111-8111-111111111111",
+              "vaultId": "22222222-2222-4222-8222-222222222222",
+              "entryId": "33333333-3333-4333-8333-333333333333",
+              "grantOrRequestId": null,
+              "agentId": null,
+              "memberId": null
+            },
+            "resourceRevision": "12",
+            "keyVersion": 5,
+            "memberKeyGeneration": 4,
+            "binding": {}
+          },
+          "encodedSuitePayload": "S0R1vFzrfqKsUakgl7nHQS3b2M01OJfyHhE1keFVVdYn0zxhknO-ytxOFbVc_DzgMGRgJhN-z9JWrHcMKv7005vP1DowIXICRcYq0B6EvpwO8T6PaS2kW0UtkjVOj854c7lpgF8xIXgAKz78i5e_3gUmzEMqcMxFo3eiYxSh-QvWIzwD7MrCBRPw1hSAEuVkpb_0qFw4HW_HBaZx0kNp"
+        },
+        "memberSecret": {
+          "descriptor": {
+            "protocolVersion": 2,
+            "cryptoSuiteId": "palladin-vault-xchacha-v1",
+            "purpose": "memberSecret",
+            "scope": {
+              "organizationId": "11111111-1111-4111-8111-111111111111",
+              "vaultId": "22222222-2222-4222-8222-222222222222",
+              "entryId": "33333333-3333-4333-8333-333333333333",
+              "grantOrRequestId": null,
+              "agentId": null,
+              "memberId": null
+            },
+            "resourceRevision": "12",
+            "keyVersion": 5,
+            "memberKeyGeneration": 4,
+            "binding": {
+              "operation": "updated"
+            }
+          },
+          "encodedSuitePayload": "ZfxYVXfrphulYRt9mnoJc7XqB7U8Vvwlee-8FDoMy5_nNvTHTKYO2ybck0lNz0W_rb1-4ZwTeIJ4XpyEWWDwdWqhKQDpma82PDLr8m1ynhHLJWYy3XlecHJuZE-KvaWqEkMFiGBK4EzW6NgshJwRSGDupz3ViFvKVJS8GxtAycj-lRWUEOOiyWv5wPaLbAWSGLT2CE2VKzg5xc4hTfJ21oruh3AwiNPLQRqFp1VgszrUL_P7_lyoirX2vzP1BHIy_DpTkP9ut8mflFASD0nqfDlj3CAtaVnfwHTRduVlRSIjTULGzEM5b6YBANPc3THmMLlwPgTdkwU9zP_LEHIoZ45DJAAHvDfGBwcNDc5GfqMC55UlZ8OAbWtXhZhSnCvB3AtPqZgcqP9_LLJTYjnuswNI4kDxyp4ljMtvYj1jjNlQ46u0Cu98uN4hJtmd0PbrdBQUAjXspleIyjawYH8hZNSwez3P59mvBgzrpXYBGkiKPwis4x4aE0NDeEdj4SAYbuvkxiMC0SvT0Iuskrku7AMFyheKtqpI1YbU6epta2pcljBgBVhfO02ffdvkEHIMEprYbLOpcIGUeM2S8WKaQsvux2N_i6gBvKJCZi6eYSC77sMTiwEi7k-RjqmccnNub6tNIMWt78gfoqXjhFt0D2NvIV9MMVJP19MOsXDAQLn0fGJN4r2cQ5WOcVELMClEdqteenpPh9bLG2jTOVR7Fd_R7pTorseb5Zmt7g4VVNngEUuVHdpiUBlVpOrUuT0XOkiSQ6xjo--xuzdkXgiWTxJAxvGm3KIg5HpSSl8yZA7zoQLLj6Aah7EwOFX8hHlOChI7sSGSLrkGVuLdgPT9Qv4VgFmvTobf0whb_zisZj4_7wBEShWAIz-T6RyKNE4n0SYzl4_gBfUVMIxgh0veO2hzaZIyYyRHP0IQmuURwxQxZF5LXz_k-PlwXEw7Vl8scK2V9KaPhIVq8pXABHREeKsIh_o9KCNY0nJZTaSTeb0H1ZGoF57IDaagTwPPnuaiXIKFRtHHfzYCCpfJbRSlKYXAidMz46g6Eqjl78xAaONwwE1pAUBCq5veDi_BhNBS65ekiz4cY4WI9H_Ts0ir8DMccd4jEag2duh-D5O_L4hsuq5Kdo8huShL3D9vCvV6c4VbWYKXxM5Nkn7t0p1XVrVurRFamR8VJ0ajd2r3ETCv17Dbshb4rpavp5lor8L39tL2cFb-CgtCYZwsQ2IuDvmHD0aXOlj67v1CnfLsDDGgyCCSzt7dVdjijRh8BuDJlonoZ3CP3w"
+        }
+      }
+    ],
+    "nextCursor": null
+  },
+  "cryptoEvidence": {
+    "baseFixture": "../v2/vectors/envelopes.json",
+    "sourceVectorIds": [
+      "member-vault-key",
+      "vault-entry-key",
+      "member-index",
+      "member-secret"
+    ],
+    "generatedVectorIds": [
+      "valid-current-head:entry-key",
+      "valid-current-head:member-index",
+      "valid-current-head:member-secret"
+    ],
+    "expectedMemberIndexPlaintext": {
+      "entryType": 1,
+      "iconReference": "asset:synthetic-db",
+      "memberLabel": "Stage Database",
+      "searchFields": [
+        "database",
+        "stage"
+      ]
+    },
+    "expectedMemberSecretPlaintext": {
+      "agentLabel": "Database credential",
+      "agentVisibilityPolicy": {
+        "discoveryEnabled": true,
+        "fields": [
+          {
+            "access": 1,
+            "fieldId": "common.agent-label"
+          },
+          {
+            "access": 1,
+            "fieldId": "common.capabilities"
+          },
+          {
+            "access": 0,
+            "fieldId": "common.description"
+          },
+          {
+            "access": 1,
+            "fieldId": "common.entry-type"
+          },
+          {
+            "access": 0,
+            "fieldId": "common.icon-reference"
+          },
+          {
+            "access": 0,
+            "fieldId": "common.member-label"
+          },
+          {
+            "access": 0,
+            "fieldId": "common.search-fields"
+          },
+          {
+            "access": 2,
+            "fieldId": "credential.notes"
+          },
+          {
+            "access": 2,
+            "fieldId": "credential.password"
+          },
+          {
+            "access": 3,
+            "fieldId": "credential.totp"
+          },
+          {
+            "access": 2,
+            "fieldId": "credential.url"
+          },
+          {
+            "access": 1,
+            "fieldId": "credential.url-domain"
+          },
+          {
+            "access": 1,
+            "fieldId": "credential.username"
+          }
+        ],
+        "schemaVersion": 1
+      },
+      "content": {
+        "fields": [],
+        "password": "not-a-real-password",
+        "url": "postgresql://fixture.invalid",
+        "username": "fixture-user",
+        "v": 2
+      },
+      "description": "Synthetic credential; never valid outside fixtures",
+      "entryType": 1,
+      "memberLabel": "Stage Database"
+    },
+    "expectedEntryDekHex": "f35be8c5dc2ec8008d7fe54de2a8af39d2bc95784446d7499c2ff341f92b759b",
+    "expectedVaultKeyHex": "7b87efdee655afc73575ef71dd7a8c8fcc7b11c8ca78503c968f97fe516a975d",
+    "expectedWrapperContextHex": "504c444e583257310002001d70616c6c6164696e2d7832353531392d7365616c65642d626f782d763100010023111111111111411181111111111111112222222222224222822222222222222244444444444444448444444444444444000000000000000300000003010000000400050000000290cb62c757f01e8b892589b775f0b24dedbc5c01bb953dda612d7caea3d9281300",
+    "expectedContextHashHex": "fc55391a1d550bf9ce0cf575adfe7edb330c9f56c27846cbc6e4ce5304381fe0",
+    "expectedPlaintextPackageHex": "504c444e58324b317b87efdee655afc73575ef71dd7a8c8fcc7b11c8ca78503c968f97fe516a975dfc55391a1d550bf9ce0cf575adfe7edb330c9f56c27846cbc6e4ce5304381fe0"
+  }
+}

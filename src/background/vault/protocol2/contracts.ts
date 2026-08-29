@@ -102,12 +102,24 @@ export const encryptedVaultSummarySchema = z.object({
   }
 })
 
-const entryStateSchema = z.union([
-  z.enum(['active', 'archived', 'deleted']),
-  z.literal(1), z.literal(2), z.literal(3),
-]).transform((state) => typeof state === 'number'
-  ? ({ 1: 'active', 2: 'archived', 3: 'deleted' } as const)[state]
-  : state)
+const entryStateSchema = z.enum(['active', 'archived', 'deleted'])
+
+export const offlineAccessContextSchema = z.object({
+  contextVersion: z.literal(1),
+  principalId: canonicalUuid,
+  organizationId: canonicalUuid,
+  organizationMembershipGeneration: canonicalU64,
+  vaultId: canonicalUuid,
+  memberId: canonicalUuid,
+  memberKeyGeneration: u32,
+  vaultKeyVersion: u32,
+  memberRecipientKeyVersion: u32,
+  memberRecipientKeyFingerprint: z.string().min(1),
+  offlinePolicy: z.enum(['disabled', '1h', '4h', '24h']),
+  offlinePolicyVersion: u32,
+  issuedAt: z.string().datetime({ offset: true }),
+  notAfter: z.string().datetime({ offset: true }),
+}).strict()
 
 const headSchema = z.object({
   entryId: canonicalUuid,
@@ -119,15 +131,27 @@ const headSchema = z.object({
   currentKeyVersion: u32,
   entryKey: vaultEntryKeyEnvelopeSchema,
   memberIndex: memberIndexEnvelopeSchema,
+  memberSecret: memberSecretEnvelopeSchema,
 }).strict().superRefine((item, context) => {
   const index = item.memberIndex.descriptor
+  const secret = item.memberSecret.descriptor
   const entryKey = item.entryKey.descriptor
   if (item.entryId !== index.scope.entryId
+    || item.entryId !== secret.scope.entryId
     || item.entryId !== entryKey.scope.entryId
+    || index.scope.organizationId !== secret.scope.organizationId
+    || index.scope.organizationId !== entryKey.scope.organizationId
+    || index.scope.vaultId !== secret.scope.vaultId
+    || index.scope.vaultId !== entryKey.scope.vaultId
+    || item.currentRevision !== item.memberIndexRevision
     || item.memberIndexRevision !== index.resourceRevision
+    || item.currentRevision !== secret.resourceRevision
+    || item.currentRevision !== entryKey.resourceRevision
     || item.currentKeyVersion !== entryKey.keyVersion
     || index.keyVersion !== item.currentKeyVersion
-    || index.memberKeyGeneration !== entryKey.memberKeyGeneration) {
+    || secret.keyVersion !== item.currentKeyVersion
+    || index.memberKeyGeneration !== entryKey.memberKeyGeneration
+    || secret.memberKeyGeneration !== entryKey.memberKeyGeneration) {
     context.addIssue({ code: 'custom', message: 'Member sync head binding mismatch' })
   }
 })
@@ -142,6 +166,7 @@ const tombstoneSchema = z.object({
   currentKeyVersion: z.null(),
   entryKey: z.null(),
   memberIndex: z.null(),
+  memberSecret: z.null(),
 }).strict()
 
 export const memberSyncItemSchema = z.discriminatedUnion('kind', [headSchema, tombstoneSchema])
@@ -153,6 +178,8 @@ export const listVaultsSchema = z.object({
 
 export const snapshotSchema = z.object({
   snapshotBaseSequence: canonicalU64,
+  accessContext: offlineAccessContextSchema,
+  memberVaultKey: memberVaultKeyEnvelopeSchema,
   items: z.array(memberSyncItemSchema).max(200),
   nextCursor: syncCursor.nullable(),
 }).strict()
@@ -160,6 +187,8 @@ export const snapshotSchema = z.object({
 export const deltaSchema = z.object({
   deltaUpperBound: canonicalU64,
   appliedThroughSequence: canonicalU64,
+  accessContext: offlineAccessContextSchema,
+  memberVaultKey: memberVaultKeyEnvelopeSchema,
   items: z.array(memberSyncItemSchema).max(200),
   continuationCursor: syncCursor.nullable(),
 }).strict()
@@ -176,6 +205,8 @@ export type EncryptedVaultListSummary = z.infer<typeof encryptedVaultListSummary
 export type MemberSyncItem = z.infer<typeof memberSyncItemSchema>
 export type MemberSnapshotPage = z.infer<typeof snapshotSchema>
 export type MemberDeltaPage = z.infer<typeof deltaSchema>
+export type OfflineAccessContext = z.infer<typeof offlineAccessContextSchema>
+export type MemberVaultKeyEnvelope = z.infer<typeof memberVaultKeyEnvelopeSchema>
 
 export const canonicalEntryDetailSchema = z.object({
   organizationId: canonicalUuid,

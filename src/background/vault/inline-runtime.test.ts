@@ -55,6 +55,7 @@ describe("inline autofill content runtime", () => {
         username: "ada@example.com",
         vaultName: "Personal",
         urlDomain: "accounts.example.com",
+        updatedAt: "2026-08-16T00:00:00Z",
         match: "exact",
       }],
     });

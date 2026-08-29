@@ -84,8 +84,9 @@ const vaultRealtime = new VaultRealtimeConnection({
   apiUrl: () => serverConfig.apiUrl,
   accessToken: () => sessionManager.getAccessToken(),
   invalidation: (raw) => vaultInvalidations.accept(raw),
+  connectivity: (connected) => vaultData.setRealtimeConnected(connected),
   repair: () => runServerOperation(
-    () => vaultData.refresh().then(() => publishSurfaceState(vaultChanged())),
+    () => vaultData.repair().then(() => publishSurfaceState(vaultChanged())),
     "vault repair after realtime reconnect failed",
   ),
 });
@@ -174,6 +175,7 @@ sessionManager.hooks.onUnlocked(() => vaultRealtime.start());
 sessionManager.hooks.onUnlocked(() => void ensureActiveTabSessionLiveness());
 sessionManager.hooks.onLocked(() => sessionLiveness.setEnabled(false));
 sessionManager.hooks.onLocked(() => {
+  vaultData.setRealtimeConnected(false);
   vaultRealtime.stop();
   vaultInvalidations.clear();
 });
@@ -183,15 +185,15 @@ sessionManager.hooks.onLocked(() => inlineAutofillRecency.clear());
 // keys are non-secret; this refetch never decrypts.
 sessionManager.hooks.onUnlocked(() => {
   runServerOperation(
-    () => vaultData.refresh().then(() => publishSurfaceState(vaultChanged())),
+    () => vaultData.repair().then(() => publishSurfaceState(vaultChanged())),
     "vault refresh on unlock failed",
   );
 });
 // On a full sign-out (not a plain lock), drop the cached metadata + wrapped keys.
-sessionManager.hooks.onLocked(() => {
-  runServerOperation(async () => {
-    if (await sessionManager.getStatus() === "signed-out") await vaultData.clearCache();
-  }, "vault cache clear on logout failed");
+sessionManager.hooks.onLocked(({ userId }) => {
+  void sessionManager.getStatus().then(async (status) => {
+    if (status === "signed-out") await vaultData.clearProfile(userId);
+  }).catch(() => logger.warn("vault cache clear on logout failed"));
 });
 
 // Restore durable token/material state. Keys never survive a worker restart;
