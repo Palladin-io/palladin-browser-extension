@@ -375,7 +375,6 @@ class InlineWidget {
 
   clearSessionState(): void {
     this.lastFilled = null;
-    this.automaticFillCompleted = false;
     this.automaticFillRetryRequested = false;
   }
 

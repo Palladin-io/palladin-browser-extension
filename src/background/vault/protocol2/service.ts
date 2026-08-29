@@ -243,7 +243,6 @@ export class Protocol2VaultDataService implements VaultDataSource {
     }
 
     const listedVaults = await this.withAuth((token) => this.deps.client.listVaults(token))
-    this.connected = true
     this.lastUserId = userId
     this.currentVaults.clear()
     const detailedVaults: EncryptedVaultSummary[] = []

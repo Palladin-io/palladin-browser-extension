@@ -448,6 +448,7 @@ describe('Protocol2VaultDataService canonical password capture', () => {
 
   it('keeps disabled-policy ciphertext in memory only while connected', async () => {
     const { service, client, cache } = harness([head])
+    service.setRealtimeConnected(true)
     cache.getActiveState.mockResolvedValue(null)
     cache.listActiveStates.mockResolvedValue([])
     cache.readActiveEntry.mockResolvedValue(null)
@@ -485,6 +486,43 @@ describe('Protocol2VaultDataService canonical password capture', () => {
     service.setRealtimeConnected(false)
     await expect(service.revealEntry(VAULT_ID, ENTRY_ID))
       .rejects.toMatchObject({ code: 'decrypt-failed' })
+  })
+
+  it('does not restore disabled-policy access when refresh completes after disconnect', async () => {
+    const { service, client, cache } = harness([head])
+    service.setRealtimeConnected(true)
+    cache.getActiveState.mockResolvedValue(null)
+    cache.listActiveStates.mockResolvedValue([])
+    cache.readActiveEntry.mockResolvedValue(null)
+    client.snapshot.mockResolvedValue({
+      snapshotBaseSequence: '1',
+      accessContext: connectedOnlyAccessContext,
+      memberVaultKey,
+      items: [head],
+      nextCursor: null,
+    })
+    client.delta.mockResolvedValue({
+      deltaUpperBound: '1',
+      appliedThroughSequence: '1',
+      accessContext: connectedOnlyAccessContext,
+      memberVaultKey,
+      items: [],
+      continuationCursor: null,
+    })
+    let resolveVaults: ((value: EncryptedVaultSummary[]) => void) | undefined
+    client.listVaults.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveVaults = resolve
+    }))
+
+    const refresh = service.refresh()
+    await vi.waitFor(() => expect(client.listVaults).toHaveBeenCalledTimes(1))
+    service.setRealtimeConnected(false)
+    resolveVaults?.([vault])
+
+    await expect(refresh).rejects.toMatchObject({ code: 'network' })
+    await expect(service.revealEntry(VAULT_ID, ENTRY_ID))
+      .rejects.toMatchObject({ code: 'decrypt-failed' })
+    expect(cache.beginSnapshot).not.toHaveBeenCalled()
   })
 
   it('fails closed at exact lease expiry and purges the Vault partition', async () => {

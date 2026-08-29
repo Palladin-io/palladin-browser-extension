@@ -493,6 +493,42 @@ describe("inline autofill field discovery", () => {
     subject.stop();
   });
 
+  it("preserves the current-URL one-shot fill limit across lock and unlock", async () => {
+    document.body.innerHTML = `<form><input id="username" autocomplete="username"><input id="password" type="password"></form>`;
+    const suggestion = {
+      vaultId: "v1",
+      entryId: "e1",
+      name: "Work",
+      username: "ada@example.com",
+      vaultName: "Personal",
+      urlDomain: "example.com",
+      updatedAt: "2026-08-29T08:00:00Z",
+      match: "exact" as const,
+    };
+    const send = vi.fn(async (command: { type: string }) => command.type === "inline/list" ? ({
+      ok: true,
+      kind: "suggestions",
+      status: "ready",
+      entries: [suggestion],
+    }) : ({ ok: true, kind: "fill", status: "filled" }));
+    const subject = startInlineAutofill(document, "a".repeat(32), send);
+
+    await vi.waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({
+      type: "inline/fill",
+      entryId: "e1",
+    })));
+    (document.querySelector("#username") as HTMLInputElement).value = "";
+    (document.querySelector("#password") as HTMLInputElement).value = "";
+
+    subject.clearSessionState();
+    subject.invalidateSuggestions();
+    subject.retryAutomaticFill();
+    await Promise.resolve();
+
+    expect(send.mock.calls.filter(([command]) => command.type === "inline/fill")).toHaveLength(1);
+    subject.stop();
+  });
+
   it("warns when a synchronized head changes after fill without refilling automatically", async () => {
     const nativeAttachShadow = Element.prototype.attachShadow;
     const attachShadow = vi.spyOn(Element.prototype, "attachShadow").mockImplementation(function (
