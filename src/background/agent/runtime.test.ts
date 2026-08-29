@@ -211,6 +211,14 @@ describe("secure Native Messaging frame boundary", () => {
     await vi.waitFor(() => expect(connectNative).toHaveBeenCalledOnce());
   });
 
+  it("ignores a stale reconnect alarm on unsupported browser targets", async () => {
+    const { connectNative } = stubChrome();
+
+    handleNativeAgentAlarm("palladin.native-agent.reconnect", false);
+
+    expect(connectNative).not.toHaveBeenCalled();
+  });
+
   it("backs off repeated connection failures and resets after lifecycle teardown", async () => {
     const { connectNative, alarmsCreate } = stubChrome();
     connectNative.mockImplementation(() => {
@@ -242,7 +250,7 @@ describe("secure Native Messaging frame boundary", () => {
   });
 
   it("disconnects and disposes a channel with an invalid signed transcript", async () => {
-    const { native } = stubChrome();
+    const { native, alarmsCreate } = stubChrome();
     await connectNativeAgentProviderNow();
     native.emitMessage({
       protocol: INJECT_PROVIDER_PROTOCOL,
@@ -265,6 +273,10 @@ describe("secure Native Messaging frame boundary", () => {
     });
 
     await vi.waitFor(() => expect(native.disconnect).toHaveBeenCalledOnce());
+    expect(alarmsCreate).toHaveBeenCalledWith(
+      "palladin.native-agent.reconnect",
+      { delayInMinutes: 0.5 },
+    );
   });
 
   it("explicit lifecycle teardown cannot schedule reconnection from the disconnect event", async () => {

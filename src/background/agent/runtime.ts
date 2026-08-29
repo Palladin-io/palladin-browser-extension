@@ -19,6 +19,7 @@ import {
   type AgentInjectStepOutcome,
   type AgentInjectTransitionOutcome,
 } from "@shared/messaging";
+import { extensionBuildTarget } from "@shared/config/build-target";
 
 import { logger } from "../telemetry/logger";
 import {
@@ -119,8 +120,11 @@ export function connectNativeAgentProvider(): void {
   void connectNativeAgentProviderNow();
 }
 
-export function handleNativeAgentAlarm(name: string): void {
-  if (name === RECONNECT_ALARM) connectNativeAgentProvider();
+export function handleNativeAgentAlarm(
+  name: string,
+  bridgeSupported: boolean = extensionBuildTarget === "chromium",
+): void {
+  if (bridgeSupported && name === RECONNECT_ALARM) connectNativeAgentProvider();
 }
 
 export async function connectNativeAgentProviderNow(): Promise<void> {
@@ -312,11 +316,16 @@ export function parseSecureFrame(value: unknown): InjectSecureFrame | null {
 }
 
 function disconnectSecurePort(port: chrome.runtime.Port): void {
+  if (nativePort !== port) return;
+  // Dispose first so the asynchronous onDisconnect callback cannot schedule a
+  // duplicate retry for the same failed session.
+  disposeSecureSession(port);
   try {
     port.disconnect();
-  } finally {
-    disposeSecureSession(port);
+  } catch {
+    // The channel is already disposed; retry remains owned by the alarm below.
   }
+  scheduleNativeAgentReconnect();
 }
 
 function disposeSecureSession(port?: chrome.runtime.Port): void {
