@@ -282,7 +282,7 @@ Use a disposable browser profile or clear Palladin's extension storage.
 5. Inspect the manifest and extension details. No target may declare or request
    `management`, enumerate installed extensions, or store extension names/IDs.
 
-## 9. Pair and test Agent Inject on macOS Chrome
+## 9. Test automatic Agent Inject authorization on macOS Chrome
 
 This path is development-only and requires the matching `palladin-agent`
 repository. From that repository, build the source CLI:
@@ -294,23 +294,22 @@ cargo build -p palladin-cli --features local-development
 ./target/debug/palladin browser install
 ```
 
-`browser install` writes the exact Google Chrome Native Messaging manifest and
-prints the shortened host fingerprint. It does not print or accept any secret.
+`browser install` writes the exact Google Chrome Native Messaging manifest. Its
+`allowed_origins` contains only the compiled official Palladin Extension ID; it
+does not accept an Extension ID from CLI arguments or message payloads.
 
-1. In the Palladin popup open **Agent runtime**.
-2. Wait for the extension to discover the local runtime automatically.
-3. Compare the prefix and suffix of the fingerprint shown by the CLI and popup.
-4. Choose **Trust and pair**. No bundle copy/paste is required.
-5. Verify the CLI state:
+1. Do not open the Palladin popup and do not sign in to the extension. Agent
+   Inject must be independent of its Vault/account state.
+2. Verify the CLI state:
 
    ```bash
    ./target/debug/palladin browser status
    ```
 
-6. Have the browser framework open and fully prepare the controlled HTTPS login
+3. Have the browser framework open and fully prepare the controlled HTTPS login
    page. Preserve its WebExtensions tab ID and exact URL snapshot. Dismiss public
    cookie overlays and complete any human CAPTCHA before Inject.
-7. Use an active disposable Agent profile with an approved `Inject` grant, then
+4. Use an active disposable Agent profile with an approved `Inject` grant, then
    run a value-free form plan such as:
 
    ```bash
@@ -324,8 +323,8 @@ prints the shortened host fingerprint. It does not print or accept any secret.
      --reason "Local extension smoke test"
    ```
 
-8. Approve the Inject request through Palladin if the grant is pending.
-9. Confirm Chrome receives the values and the CLI returns only a value-free
+5. Approve the Inject request through Palladin if the grant is pending.
+6. Confirm Chrome receives the values and the CLI returns only a value-free
    outcome. The credential must not appear in terminal output, logs, the form
    JSON, or the Agent/model context.
 
@@ -336,8 +335,10 @@ argv or an environment variable.
 
 Negative checks:
 
-- an unknown-field/stale-challenge discovery offer or mismatched fingerprint is rejected;
-- no pairing means no `session.open` and Inject is unavailable;
+- a direct native-host launch, wrong browser parent, wrong Extension ID, or an
+  `extensionId` field injected into `session.offer` is rejected before credential access;
+- with no eligible host, or while a second browser profile competes for the
+  owner-only provider socket, no second recipient can receive a credential;
 - a missing tab, stale URL snapshot, changed document, origin, or hostname after
   preparation rejects the operation; changing which tab is active does not move
   the operation away from the exact framework-provided tab ID;
@@ -346,20 +347,20 @@ Negative checks:
   rejects the operation before a secret-bearing write;
 - `--provider playwright`, `--provider agent-browser`, CDP, and plaintext pipe
   routes fail closed;
-- after unpair reports success, an in-flight or later Inject cannot deliver a
+- after uninstall reports success, an in-flight or later Inject cannot deliver a
   value.
 
 ## 10. Cleanup
 
-Remove the native pairing before deleting the unpacked extension:
+Remove the native host before deleting the unpacked extension:
 
 ```bash
-./target/debug/palladin browser unpair --confirm
+./target/debug/palladin browser uninstall --confirm
 ./target/debug/palladin browser status
 ```
 
-The final status command is expected to report that the host is not installed
-or not paired and to return a non-zero status. Then remove the unpacked extension
+The final status command is expected to report that the host authorization is
+not installed/provisioned and to return a non-zero status. Then remove the unpacked extension
 from Chrome and delete the disposable Palladin entries/account through the
 normal application flow.
 

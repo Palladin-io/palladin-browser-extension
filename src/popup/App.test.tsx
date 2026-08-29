@@ -4,13 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
-import type { AgentPairingClient } from "./agent/client";
 import type { ServerConfigClient } from "./config/client";
 import type { PasswordManagerOnboardingClient } from "./onboarding/client";
 import { PopupSessionError } from "./session/errors";
 import type { SessionClient } from "./session/client";
 import { sessionChanged } from "@shared/messaging";
-import { AGENT_PAIRING_PROTOCOL } from "@shared/agent/pairing";
 
 type Fake = { [K in keyof SessionClient]: ReturnType<typeof vi.fn> } & SessionClient;
 
@@ -27,19 +25,6 @@ function makeClient(overrides: Partial<SessionClient> = {}): Fake {
     ...overrides,
   };
   return base as Fake;
-}
-
-function makePairingClient(): AgentPairingClient {
-  return {
-    getStatus: vi.fn(async () => ({ paired: false as const })),
-    discover: vi.fn(async () => ({
-      protocol: AGENT_PAIRING_PROTOCOL,
-      hostSigningPublicKey: `${"a".repeat(42)}A`,
-      fingerprint: `${"b".repeat(42)}Q`,
-    })),
-    save: vi.fn(async () => ({ paired: false as const })),
-    clear: vi.fn(async () => ({ paired: false as const })),
-  };
 }
 
 function makeServerConfigClient(): ServerConfigClient {
@@ -83,7 +68,6 @@ describe("popup state machine", () => {
     render(
       <App
         client={makeClient()}
-        pairingClient={makePairingClient()}
         serverConfigClient={makeServerConfigClient()}
         onboardingClient={makeOnboardingClient()}
       />,
@@ -93,10 +77,9 @@ describe("popup state machine", () => {
     await user.click(await screen.findByRole("button", { name: "Settings" }));
     const appearance = screen.getByRole("button", { name: "Appearance" });
     const server = screen.getByRole("button", { name: "Server URL" });
-    const pairing = screen.getByRole("button", { name: "Pair Agent" });
     expect(appearance).toHaveAttribute("aria-expanded", "false");
     expect(server).toHaveAttribute("aria-expanded", "false");
-    expect(pairing).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "Pair Agent" })).not.toBeInTheDocument();
 
     await user.click(appearance);
     expect(await screen.findByLabelText("Language")).toBeInTheDocument();
@@ -107,10 +90,6 @@ describe("popup state machine", () => {
     expect(appearance).toHaveAttribute("aria-expanded", "false");
     expect(server).toHaveAttribute("aria-expanded", "true");
 
-    await user.click(pairing);
-    expect(await screen.findByRole("button", { name: "Trust and pair" })).toBeInTheDocument();
-    expect(server).toHaveAttribute("aria-expanded", "false");
-    expect(pairing).toHaveAttribute("aria-expanded", "true");
     await user.click(screen.getByRole("button", { name: "Back" }));
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
   });
@@ -228,7 +207,6 @@ describe("popup state machine", () => {
     render(
       <App
         client={client}
-        pairingClient={makePairingClient()}
         serverConfigClient={makeServerConfigClient()}
       />,
     );

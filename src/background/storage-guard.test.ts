@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest";
 const BACKGROUND_DIR = resolve(process.cwd(), "src/background");
 
 const CIPHERTEXT_CACHE = join('vault', 'protocol2', 'cache.ts');
-const PUBLIC_HOST_PAIRING_STORE = join('agent', 'pairing-store.ts');
+const LEGACY_HOST_PAIRING_MIGRATION = join('agent', 'legacy-pairing.ts');
 const PUBLIC_SERVER_CONFIG_STORE = join('config', 'server-runtime.ts');
 const SEALED_SESSION_STORE = join('session', 'runtime.ts');
 
@@ -30,7 +30,7 @@ const FORBIDDEN: readonly {
     label: "storage.local",
     pattern: /\bstorage\.local\b/,
     allowInSuffixes: [
-      PUBLIC_HOST_PAIRING_STORE,
+      LEGACY_HOST_PAIRING_MIGRATION,
       PUBLIC_SERVER_CONFIG_STORE,
       SEALED_SESSION_STORE,
     ],
@@ -100,15 +100,16 @@ describe("key-storage guard", () => {
     expect(cache).not.toMatch(/\b(masterKey|privateKey|vaultKey|entryDek|memberSecret)\b/i);
   });
 
-  it("keeps the durable Native Messaging exception limited to the public host pin", () => {
-    const store = stripComments(readFileSync(join(BACKGROUND_DIR, PUBLIC_HOST_PAIRING_STORE), "utf8"));
-    expect(store).toContain("storage.local.get");
-    expect(store).toContain("storage.local.set");
-    expect(store).toContain("storage.local.remove");
-    expect(store).toContain("hostSigningPublicKey: record.hostSigningPublicKey");
-    expect(store).toContain("fingerprint: record.fingerprint");
-    expect(store).toContain("intentToken: record.intentToken");
-    expect(store).not.toMatch(/\b(privateKey|sessionKey|ephemeralKey|nonce|ciphertext|accessToken|refreshToken)\b/);
+  it("only removes obsolete Native Messaging pairing state", () => {
+    const migration = stripComments(
+      readFileSync(join(BACKGROUND_DIR, LEGACY_HOST_PAIRING_MIGRATION), "utf8"),
+    );
+    expect(migration).toContain("storage.local.remove");
+    expect(migration).not.toContain("storage.local.get");
+    expect(migration).not.toContain("storage.local.set");
+    expect(migration).toContain("agentInjectHostPairing");
+    expect(migration).toContain("agentInjectHostPairingIntent");
+    expect(migration).not.toMatch(/\b(privateKey|sessionKey|ephemeralKey|nonce|ciphertext|accessToken|refreshToken)\b/);
   });
 
   it("keeps the durable server exception limited to a non-secret API URL", () => {

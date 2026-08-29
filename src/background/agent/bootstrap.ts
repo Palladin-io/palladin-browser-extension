@@ -1,4 +1,7 @@
+import { extensionBuildTarget } from "@shared/config/build-target";
+
 import { connectNativeAgentProvider } from "./runtime";
+import { clearLegacyHostPairingState } from "./legacy-pairing";
 
 export interface NativeAgentStartupEvent {
   addListener(listener: () => void): void;
@@ -6,13 +9,17 @@ export interface NativeAgentStartupEvent {
 
 /**
  * Start Agent Inject independently of the Vault session and register a browser-startup wake-up.
- * Public discovery cannot create trust. Pairing verification remains inside the native Agent
- * runtime and fails closed when the extension-owned pin is absent.
+ * Browser/platform Native Messaging authorization is the provider identity boundary; no Vault,
+ * account, profile, or extension-owned pairing state participates in this connection.
  */
 export function startNativeAgentBridge(
   startup: NativeAgentStartupEvent = chrome.runtime.onStartup,
   connect: () => void = connectNativeAgentProvider,
+  clearLegacyPairing: () => Promise<void> = clearLegacyHostPairingState,
+  bridgeSupported: boolean = extensionBuildTarget === "chromium",
 ): void {
+  void clearLegacyPairing().catch(() => undefined);
+  if (!bridgeSupported) return;
   connect();
   startup.addListener(connect);
 }

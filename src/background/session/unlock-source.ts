@@ -3,7 +3,7 @@
  *
  * Today the only way to unlock is the master password: re-derive the master key
  * with Argon2id and unwrap the private key. E2 adds a `RuntimeUnlock` that gets
- * keys from the paired Rust runtime after a biometric prompt (Touch ID / Windows
+ * keys from a separately authorized Rust runtime after a biometric prompt (Touch ID / Windows
  * Hello, plan §5) — a different source, the same contract. The manager depends
  * only on {@link UnlockSource}, so a new source is added without touching the
  * session lifecycle.

@@ -9,7 +9,7 @@ import { useI18n } from "../i18n";
  * Locked state (still authenticated): re-derive keys from the master password,
  * no re-login. The password is passed exactly as typed (no trim).
  *
- * The biometric button is the E2 slot: shown only when the paired runtime
+ * The biometric button is the E2 slot: shown only when an authorized runtime
  * reports it can unlock via Touch ID / Windows Hello. Today the worker always
  * reports `runtimeUnlock: false`, so it stays hidden — no dead-end affordance.
  */

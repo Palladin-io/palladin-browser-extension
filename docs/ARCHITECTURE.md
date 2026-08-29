@@ -72,30 +72,25 @@ worker's session, key, or authorization state.
   request an entry by itself or
   cause automatic form submission.
 - The same extension has two separate callers: user autofill and Agent Inject.
-  User autofill never authorizes Agent access. Agent Inject requires a pinned
-  host signing key plus a signed ephemeral session and AEAD-protected frames;
-  Native Messaging host allowlisting alone is not treated as authentication.
-- Durable pairing state contains only the host public signing key, its derived
-  fingerprint, and an opaque non-secret mutation-intent token in extension
-  local storage. An active pin is accepted only when its token matches the
-  latest successfully written durable intent, so later active-record writes
-  restart fail-closed after that intent commits. If the intent write fails, the
-  worker attempts to remove the active record, which restarts unpaired when
-  successful. If both storage operations fail, the current worker stays
-  suppressed and the UI instructs the user to retry before restarting, because
-  durable revocation cannot be claimed.
-- A synchronous runtime mutation barrier blocks reconnect and new Inject
-  admission, then drains fills admitted before the barrier. A DOM message that
-  was already dispatched may finish before this linearization point, but Pair or
-  Clear cannot commit the active record or return success until it finishes and
-  its values are wiped. Therefore no old fill can write after mutation success.
-  No Native Messaging host private key or channel session secret is persisted.
-  The popup uses the strict `palladin.inject-pairing.v1` discovery exchange to
-  obtain a challenge-bound public identity from the allowlisted host, recomputes
-  the fingerprint, and writes the pin only after the user compares it with the
-  independent trusted-runtime CLI display and explicitly chooses **Trust and
-  pair**. There is no TOFU path and Native Messaging discovery cannot create or
-  replace the pin.
+  User autofill never authorizes Agent access. For Agent Inject, the Runtime
+  authenticates the receiving extension before credential access: Chrome must
+  supply the exact compiled extension origin from `allowed_origins`, and the
+  native host additionally validates its direct Google-signed Chrome parent.
+- The extension does not authenticate through a Palladin account, profile, or
+  key. It is only the browser-controlled bridge to the exact tab/document. It
+  stores no host key, fingerprint, or pairing intent. Obsolete pairing records
+  are deleted on startup without migration.
+- The Native Host owns an installation-scoped signing identity only for the
+  encrypted host↔extension session and mutually authenticated local CLI↔host
+  channel. It announces the public key in a strict, value-free `session.offer`;
+  the extension keeps it only for that Native Messaging port and verifies the
+  signed ephemeral transcript. This session-local check is not the authority
+  that lets the Runtime release a credential—the browser/platform identity
+  boundary is.
+- The owner-only local socket has one exclusive listener, so at most one host
+  process can be the provider for an Inject operation. A missing provider or a
+  competing host fails before credential access. Uninstall revokes the lifecycle
+  token and linearizes against in-flight forwarding.
 - Playwright and AgentBrowser use their own provider adapters and do not connect
   to this extension.
 
@@ -183,12 +178,12 @@ The same typed Port receives only a coarse worker-owned liveness control. Pings
 exist exclusively while the worker reports `unlocked` and receive no response,
 so a visited page cannot infer unlock state from bridge traffic.
 
-Agent Inject uses `palladin.inject-provider.v1`. The local runtime decrypts an
-approved Inject grant and transfers one credential over private pipes to the
-Native Messaging host. A paired session begins with `session.open` /
-`session.ready`; the signed transcript binds the extension origin, both nonces,
-and both ephemeral keys. All prepare/inject traffic then travels only in
-sequence-checked AEAD `secure` frames. A browser framework supplies the paired
+Agent Inject uses `palladin.inject-provider.v1`. The Native Host first sends a
+value-free `session.offer`; the extension keeps that public key only in memory,
+then `session.open` / `session.ready` bind the browser extension origin, both
+nonces, both ephemeral keys, and the announced signing key. All prepare/inject
+traffic then travels only in sequence-checked AEAD `secure` frames. The Runtime
+sends `prepare` before opening the Agent profile, grant, or credential. A browser framework supplies the
 `targetTabId` and exact `targetUrl` snapshot during secretless preparation. The
 extension independently resolves only that WebExtensions tab ID, requires the
 observed top-frame URL to match, and pins its document ID. It re-resolves that
@@ -200,8 +195,8 @@ The isolated-world visibility gate ignores only the exact extension-owned inline
 surface objects registered in the current controller. It still rejects any page-owned
 or otherwise foreign overlay; a page cannot bypass the gate by copying an element name
 or marker. It returns only a value-free outcome. The declarative payload remains
-`form+values`; there is no CDP transport. Removing
-the pin immediately disconnects and disposes the channel. Production host
+`form+values`; there is no CDP transport. `palladin browser uninstall --confirm`
+revokes active host sessions and removes the manifest. Production host
 packaging and installed-browser validation remain release gates, so this path is
 not enabled in release builds today.
 
