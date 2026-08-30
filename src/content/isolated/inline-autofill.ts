@@ -708,7 +708,9 @@ class InlineWidget {
     if (!silent) {
       this.renderStatus(raw.status === "filled"
         ? "inline.filled"
-        : raw.status === "no-form" ? "inline.noForm" : "inline.blocked");
+        : raw.status === "no-form"
+          ? "inline.noForm"
+          : raw.status === "unavailable" ? "inline.unavailable" : "inline.blocked");
       if (raw.status === "filled") setTimeout(() => this.close(), 700);
     }
     return raw.status === "filled";

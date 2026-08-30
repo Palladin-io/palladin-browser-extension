@@ -45,7 +45,7 @@ export type InlineAutofillResult =
   | {
       readonly ok: true;
       readonly kind: "fill";
-      readonly status: "filled" | "no-form" | "blocked";
+      readonly status: "filled" | "no-form" | "blocked" | "unavailable";
     }
   | {
       readonly ok: true;
@@ -87,7 +87,10 @@ export function isInlineAutofillResult(value: unknown): value is InlineAutofillR
   if (!value.ok) return hasOnlyKeys(value, ["ok", "code"]) && value.code === "unavailable";
   if (value.kind === "fill") {
     return hasOnlyKeys(value, ["ok", "kind", "status"])
-      && (value.status === "filled" || value.status === "no-form" || value.status === "blocked");
+      && (value.status === "filled"
+        || value.status === "no-form"
+        || value.status === "blocked"
+        || value.status === "unavailable");
   }
   if (value.kind === "surface") {
     return hasOnlyKeys(value, ["ok", "kind", "status"])

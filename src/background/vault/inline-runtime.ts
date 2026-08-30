@@ -116,7 +116,11 @@ export async function handleInlineAutofillContentMessage(
     return {
       ok: true,
       kind: "fill",
-      status: fill.status === "filled" ? "filled" : fill.status === "no-form" ? "no-form" : "blocked",
+      status: fill.status === "filled"
+        ? "filled"
+        : fill.status === "no-form"
+          ? "no-form"
+          : fill.reason === "network" ? "unavailable" : "blocked",
     };
   } catch {
     return { ok: false, code: "unavailable" };

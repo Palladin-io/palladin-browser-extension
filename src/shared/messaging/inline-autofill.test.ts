@@ -27,6 +27,7 @@ describe("inline autofill messages", () => {
       entries: [{ vaultId: "v", entryId: "e", name: "Example", username: "ada@example.com", vaultName: "Personal", urlDomain: "example.com", updatedAt: "2026-08-29T08:00:00Z", match: "exact" }],
     })).toBe(true);
     expect(isInlineAutofillResult({ ok: true, kind: "fill", status: "filled" })).toBe(true);
+    expect(isInlineAutofillResult({ ok: true, kind: "fill", status: "unavailable" })).toBe(true);
     expect(isInlineAutofillResult({ ok: true, kind: "surface", status: "opened" })).toBe(true);
     expect(isInlineAutofillResult({ ok: true, kind: "fill", status: "filled", value: "secret" })).toBe(false);
   });
