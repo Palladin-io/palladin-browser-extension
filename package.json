@@ -32,7 +32,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tldts": "^7.4.8",
-    "zod": "4.3.6"
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.2.0",
