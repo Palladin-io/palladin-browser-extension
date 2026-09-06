@@ -17,6 +17,7 @@ const CIPHERTEXT_CACHE = join('vault', 'protocol2', 'cache.ts');
 const LEGACY_HOST_PAIRING_MIGRATION = join('agent', 'legacy-pairing.ts');
 const PUBLIC_SERVER_CONFIG_STORE = join('config', 'server-runtime.ts');
 const SEALED_SESSION_STORE = join('session', 'runtime.ts');
+const CAPTURE_PREFERENCES = join('capture', 'preferences-runtime.ts');
 
 const FORBIDDEN: readonly {
   readonly label: string;
@@ -33,6 +34,7 @@ const FORBIDDEN: readonly {
       LEGACY_HOST_PAIRING_MIGRATION,
       PUBLIC_SERVER_CONFIG_STORE,
       SEALED_SESSION_STORE,
+      CAPTURE_PREFERENCES,
     ],
   },
   { label: "storage.sync", pattern: /\bstorage\.sync\b/ },
@@ -122,5 +124,15 @@ describe("key-storage guard", () => {
     expect(runtime).not.toMatch(
       /\b(privateKey|masterKey|vaultKey|sessionKey|password|ciphertext|accessToken|refreshToken)\b/,
     );
+  });
+
+  it("limits capture persistence to the value-free preference store", () => {
+    const runtime = stripComments(readFileSync(join(BACKGROUND_DIR, CAPTURE_PREFERENCES), "utf8"));
+    expect(runtime).toContain("new CapturePreferenceStore");
+    expect(runtime).not.toMatch(/\b(privateKey|masterKey|vaultKey|password|username|credential|accessToken|refreshToken)\b/);
+    const store = stripComments(readFileSync(join(BACKGROUND_DIR, "capture/preferences.ts"), "utf8"))
+      .replace(/^import type .*$/gm, "");
+    expect(store).not.toMatch(/\b(privateKey|masterKey|vaultKey|password|username|credential|accessToken|refreshToken)\b/);
+    expect(store).toContain("cleanBinding(value)");
   });
 });

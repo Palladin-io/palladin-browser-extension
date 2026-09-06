@@ -146,7 +146,6 @@ const headSchema = z.object({
     || item.currentRevision !== item.memberIndexRevision
     || item.memberIndexRevision !== index.resourceRevision
     || item.currentRevision !== secret.resourceRevision
-    || item.currentRevision !== entryKey.resourceRevision
     || item.currentKeyVersion !== entryKey.keyVersion
     || index.keyVersion !== item.currentKeyVersion
     || secret.keyVersion !== item.currentKeyVersion
@@ -218,6 +217,7 @@ export const canonicalEntryDetailSchema = z.object({
   agentDiscoveryRevision: canonicalU64.nullable(),
   agentDiscoveryRevisionHighWatermark: canonicalU64,
   currentKeyVersion: u32,
+  deliveryPolicy: z.enum(['standard', 'execOnly', 'injectOnly']),
   createdAt: z.string(),
   createdBy: canonicalUuid,
   updatedAt: z.string(),

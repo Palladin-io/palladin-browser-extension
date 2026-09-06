@@ -1,6 +1,7 @@
 import en from "../../popup/locales/en.json";
 import pl from "../../popup/locales/pl.json";
 import palladinIconUrl from "../../../icons/icon-32.png?inline";
+import { createClosedSurface } from "./closed-surface";
 import {
   DEFAULT_UI_PREFERENCES,
   UI_PREFERENCES_STORAGE_KEY,
@@ -290,26 +291,12 @@ class InlineWidget {
   private destroyed = false;
 
   constructor(private readonly options: InlineWidgetOptions) {
-    this.host = options.doc.createElement("palladin-autofill");
+    const surface = createClosedSurface(options.doc, "palladin-autofill");
+    this.host = surface.host;
     this.host.setAttribute("data-palladin-inline", "");
-    this.host.style.setProperty("all", "initial", "important");
-    // `all: initial !important` is the page-isolation boundary, but it also
-    // resets typography. Re-apply Palladin's UI stack at the same priority so
-    // hostile or unusual page fonts can never leak into the closed surface.
-    this.host.style.setProperty(
-      "font-family",
-      'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
-      "important",
-    );
-    this.host.style.setProperty("font-size", "16px", "important");
-    this.host.style.setProperty("line-height", "1.4", "important");
-    this.host.style.setProperty("font-synthesis", "none", "important");
-    this.host.style.setProperty("position", "fixed", "important");
-    this.host.style.setProperty("z-index", "2147483647", "important");
     this.host.style.setProperty("width", "26px", "important");
     this.host.style.setProperty("height", "26px", "important");
-    this.host.style.setProperty("pointer-events", "none", "important");
-    this.shadow = this.host.attachShadow({ mode: "closed" });
+    this.shadow = surface.shadow;
     const style = options.doc.createElement("style");
     style.textContent = INLINE_STYLES;
     this.shadow.append(style);

@@ -5,6 +5,7 @@ import type { ServerConfigClient } from "../config/client";
 import { useI18n } from "../i18n";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { ServerSettings } from "./ServerSettings";
+import { CaptureSettings } from "./CaptureSettings";
 
 export interface SettingsScreenProps {
   serverClient: ServerConfigClient;
@@ -35,6 +36,10 @@ export function SettingsScreen({
         onToggle={() => toggle("server")}
       >
         <ServerSettings client={serverClient} onChanged={onServerChanged} embedded />
+      </SettingsSection>
+      <SettingsSection id="capture-settings" title={t("captureSettings.title")}
+        open={openSection === "capture"} onToggle={() => toggle("capture")}>
+        <CaptureSettings />
       </SettingsSection>
     </div>
   );
