@@ -68,6 +68,11 @@ in the same canonical Entry mutation. Scope/material failures stop before the
 write, and the final session/document authorization is repeated immediately
 before the API request.
 
+The successful mutation response acknowledges Save/Update immediately. The
+best-effort metadata refresh continues separately; slow cache repair cannot
+delay the success result, account opt-in persistence or wiping the write's owned
+keys. A failed refresh never turns a confirmed mutation into a retryable write.
+
 CVT-573 adds the Credential policy and grant builder to `@palladin/crypto` 0.6.0.
 Local integration currently uses an uncommitted npm tarball install. The checked-in
 dependency must be pinned to the published registry release before handoff;
@@ -120,6 +125,14 @@ tests; that broader suite is not reported as green. A preceding browser run time
 out on the first success toast while the full web unit suite was running; the
 same assertions passed on the subsequent complete run. Keep this timing case
 visible until the harness/runtime wait is understood.
+
+Two deterministic create/update regressions subsequently reproduced a concrete
+acknowledgement delay: a pending metadata refresh blocked an already successful
+mutation result and key cleanup. The writer now starts that refresh without
+awaiting it; both regressions passed after failing against the prior behavior.
+The full extension tests and three build targets passed, followed by all 20
+browser writes. This proves the stalled-refresh case is fixed, not that it was
+the cause of either historical browser timeout.
 
 A later run timed out on the next automatic update after a successful manual
 update. Browser assertions now require both visibly checked consent and its

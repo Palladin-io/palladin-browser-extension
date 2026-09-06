@@ -105,7 +105,7 @@ export class Protocol2CredentialWriter {
           if (!(await authorized())) throw new VaultDataError('locked', 'Capture authorization changed')
           return this.deps.client.createEntry(token, { vaultId: vault.id, entryId, ...material, deliveryPolicy: 'standard' })
         })
-        await this.refreshAfterWrite()
+        void this.refreshAfterWrite()
         return { action: 'created', revision: created.currentRevision }
       }
       const detail = await this.withAuth((token) => this.deps.client.getEntry(token, vault.id, target.entryId))
@@ -132,7 +132,7 @@ export class Protocol2CredentialWriter {
           agentDiscoveryChanged: discoveryChanged, agentDiscovery: discoveryChanged ? material.agentDiscovery : null,
           deliveryPolicy: detail.deliveryPolicy, ...grantMaterial })
       })
-      await this.refreshAfterWrite()
+      void this.refreshAfterWrite()
       return { action: 'updated', revision: saved.currentRevision }
     } finally {
       wipe(opened.vaultKey)
@@ -252,6 +252,8 @@ export class Protocol2CredentialWriter {
   }
 
   private async refreshAfterWrite(): Promise<void> {
+    // The mutation response is authoritative. Cache repair must not delay its
+    // acknowledgement, opt-in persistence, or wiping this write's owned keys.
     try { await this.deps.data.refresh() } catch { /* A committed write must not be offered a second time. */ }
   }
 }

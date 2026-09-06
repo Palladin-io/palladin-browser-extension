@@ -166,4 +166,29 @@ describe('captured Credential canonical writer', () => {
     expect(await writer.save(credential, url, target, authorized)).toEqual({ action: 'updated', revision: '5' })
     expect(client.updateEntry).toHaveBeenCalledTimes(1)
   })
+  it.each(['create', 'update'] as const)('acknowledges committed %s and wipes keys without waiting for refresh', async (action) => {
+    let finishRefresh!: () => void
+    let refreshStarted!: () => void
+    const started = new Promise<void>((resolve) => { refreshStarted = resolve })
+    data.refresh.mockImplementation(() => {
+      refreshStarted()
+      return new Promise<void>((resolve) => { finishRefresh = resolve })
+    })
+    const selected: CredentialWriteTarget = action === 'update' ? target
+      : { action: 'create', vaultId: VAULT, label: 'Personal', vaultLabel: 'Personal' }
+    let result: { action: 'created' | 'updated'; revision: string } | undefined
+    const saving = writer.save(credential, url, selected, authorized).then((value) => { result = value })
+    try {
+      await started
+      // Flush the write's continuations while the independently controlled refresh remains pending.
+      await new Promise<void>((resolve) => { setImmediate(resolve) })
+      expect(result).toEqual(action === 'create' ? { action: 'created', revision: '1' }
+        : { action: 'updated', revision: '5' })
+      expect(cryptoMocks.wipe).toHaveBeenCalledTimes(2)
+      expect(action === 'create' ? client.createEntry : client.updateEntry).toHaveBeenCalledTimes(1)
+    } finally {
+      finishRefresh()
+      await saving
+    }
+  })
 })
