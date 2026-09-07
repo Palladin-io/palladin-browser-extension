@@ -1,7 +1,7 @@
 # Credential capture (CVT-373)
 
-Implementation in progress. Browser acceptance and shared-package release are
-still required before this feature can be marked delivered.
+Implementation and browser acceptance are under final review. Shared-package
+release 0.6.0 is published; this feature is not yet marked delivered.
 
 ## Product contract
 
@@ -74,9 +74,8 @@ delay the success result, account opt-in persistence or wiping the write's owned
 keys. A failed refresh never turns a confirmed mutation into a retryable write.
 
 CVT-573 adds the Credential policy and grant builder to `@palladin/crypto` 0.6.0.
-Local integration currently uses an uncommitted npm tarball install. The checked-in
-dependency must be pinned to the published registry release before handoff;
-consumer builds against a local tarball are not release evidence.
+The manifest and lockfile pin the published registry release exactly. Clean
+installs no longer depend on a local npm tarball or a feature-branch package.
 
 Entry key-wrapper revision is independent of MemberSecret revision. A password
 update creates a new Entry key version whose initial wrapper revision is 1;
@@ -143,8 +142,7 @@ that alone is not proof of the original intermittent cause being eliminated.
 
 ## Acceptance remaining
 
-- Publish the reviewed shared package through the signed-tag provenance workflow.
-  Local web and extension adapters now use the current Credential/Grant/Script
-  APIs; the published generic APIs retain their existing behavior.
-- Run repository-native build/tests on the final registry dependency, then the
-  requested cloud Codex review loop for each scoped repository.
+- Complete the requested cloud Codex review loop for each scoped client repository.
+- Keep the registry-pinned builds/tests and browser acceptance green on the final
+  reviewed heads. Shared crypto 0.6.0 is published through signed-tag provenance;
+  the older generic APIs retain their existing behavior.
