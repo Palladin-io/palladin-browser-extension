@@ -28,7 +28,7 @@ function inputs(form: HTMLFormElement): HTMLInputElement[] {
   return Input ? [...form.elements].filter((element): element is HTMLInputElement => element instanceof Input) : [];
 }
 
-export function readSubmittedCredential(form: HTMLFormElement): SubmittedCredential | null {
+export function readSubmittedCredential(form: HTMLFormElement, allowMissingUsername = false): SubmittedCredential | null {
   const fields = inputs(form);
   const passwords = fields.filter((field) => field.type === "password" && !field.disabled && isCaptureVisible(field));
   if (passwords.length < 1 || passwords.length > 3 || passwords.some((field) => field.value.length === 0)) return null;
@@ -66,9 +66,19 @@ export function readSubmittedCredential(form: HTMLFormElement): SubmittedCredent
   const emails = usernameFields.filter((field) => field.type === "email" || purpose(field).includes("email"));
   const candidates = explicit.length > 0 ? explicit : emails.length > 0 ? emails : usernameFields;
   const username = candidates.length === 1 ? candidates[0]!.value.trim() : "";
-  if (!username && kind !== "password-change") return null;
+  if (!username && kind !== "password-change" && !(allowMissingUsername && candidates.length === 0)) return null;
   const credential = { kind, username, password, previousPassword };
   return isSubmittedCredential(credential) ? credential : null;
+}
+
+function readSubmittedIdentifier(form: HTMLFormElement): string | null {
+  const fields = inputs(form);
+  if (fields.some((field) => field.type === "password" || purpose(field).includes("one-time-code"))) return null;
+  const candidates = fields.filter((field) => !field.disabled && isCaptureVisible(field)
+    && ["text", "email", "tel"].includes(field.type)
+    && (field.type === "email" || purpose(field).some((token) => token === "username" || token === "email")));
+  const username = candidates.length === 1 ? candidates[0]!.value.trim() : "";
+  return username.length > 0 && username.length <= 512 ? username : null;
 }
 
 const ERROR_SELECTOR = '[role="alert"], [aria-invalid="true"], .error, .invalid-feedback, [data-error]';
@@ -98,8 +108,9 @@ export function capturePageHasPasswordForm(doc: Document): boolean {
 }
 
 interface PendingSubmission {
+  readonly identifierOnly: boolean;
   readonly id: string;
-  readonly form: HTMLFormElement;
+  readonly passwordFields: readonly WeakRef<HTMLInputElement>[];
   readonly submittedAt: number;
   readonly initialSuccessText: ReadonlyMap<Element, string>;
 }
@@ -147,14 +158,17 @@ export class CredentialSubmissionObserver {
     try {
       if (new URL(form.action || view.location.href, view.location.href).origin !== view.location.origin) return;
     } catch { return; }
-    const credential = readSubmittedCredential(form);
-    if (!credential) return;
+    const credential = readSubmittedCredential(form, true);
+    const username = credential ? null : readSubmittedIdentifier(form);
+    if (!credential && !username) return;
     this.clearPending();
     const id = this.createId();
-    this.pending = { id, form, submittedAt: this.now(),
+    this.pending = { id, passwordFields: inputs(form).filter((field) => field.type === "password")
+      .map((field) => new WeakRef(field)), identifierOnly: credential === null, submittedAt: this.now(),
       initialSuccessText: new Map(successElements(this.doc).map((element) => [element, element.textContent ?? ""])) };
-    this.send({ channel: CREDENTIAL_CAPTURE_CHANNEL, type: "submitted", documentId: this.documentId,
-      submissionId: id, credential });
+    this.send(credential
+      ? { channel: CREDENTIAL_CAPTURE_CHANNEL, type: "submitted", documentId: this.documentId, submissionId: id, credential }
+      : { channel: CREDENTIAL_CAPTURE_CHANNEL, type: "identifier", documentId: this.documentId, submissionId: id, username: username! });
     this.expiryTimer = setTimeout(() => this.clearPending(), SUBMISSION_TTL_MS);
     this.scheduleOutcome();
   }
@@ -192,9 +206,13 @@ export class CredentialSubmissionObserver {
     if (this.now() - pending.submittedAt > SUBMISSION_TTL_MS) { this.clearPending(); return; }
     let outcome: Extract<CredentialCaptureCommand, { type: "outcome" }>["outcome"] | null = null;
     if (capturePageHasError(this.doc)) outcome = "rejected";
+    else if (pending.identifierOnly) return;
     else if (successElements(this.doc).some((element) =>
       pending.initialSuccessText.get(element) !== (element.textContent ?? ""))) outcome = "success-message";
-    else if (!isCaptureVisible(pending.form) && !capturePageHasPasswordForm(this.doc)) outcome = "form-dismissed";
+    else if (pending.passwordFields.every((reference) => {
+      const field = reference.deref();
+      return !field || !isCaptureVisible(field);
+    }) && !capturePageHasPasswordForm(this.doc)) outcome = "form-dismissed";
     if (outcome === null) return;
     this.send({ channel: CREDENTIAL_CAPTURE_CHANNEL, type: "outcome", documentId: this.documentId,
       submissionId: pending.id, outcome });

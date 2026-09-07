@@ -41,9 +41,21 @@ binding; this prevents the opt-in silently carrying over to another account.
   accepted a password. Visible errors suppress a proposal. A form disappearing
   or a same-origin navigation without a password form permits a manual proposal,
   not automatic mutation without a positive success signal.
-- An observation can cross to the next browser-issued top-frame document on the
+- A complete credential observation can cross to the next browser-issued top-frame document on the
   same origin, bounded by the original three-minute lifetime. Other origins,
   tab close, lock/logout, dismissal and expiry discard the pending credentials.
+- A trusted email/username-only submit can begin a multi-step login/registration.
+  Its identifier stays only in worker memory for the same tab, exact HTTPS origin
+  and authenticated Palladin profile/session. Same-origin email verification and
+  password documents may follow within the original three-minute deadline.
+  OTP-only/unannotated forms do not supply an identifier. The password step
+  consumes that binding; it never renews its deadline. An explicit account on the
+  current password form takes precedence. Lock, tab close, rejection, origin
+  change and expiry clear it; no identifier is returned to the page or persisted.
+- SPA forms may reuse their form element for personal details after the password
+  step. Disappearance of the submitted password controls, with no visible password
+  form or error, permits only a manual proposal. Weak references avoid retaining
+  detached password controls; toggling password visibility is not a success signal.
 - Pending values live only in worker memory and travel directly from the isolated
   content script. The toast receives target metadata, never passwords.
 - Only metadata for muted sites and explicit account opt-ins persists in
@@ -146,3 +158,20 @@ that alone is not proof of the original intermittent cause being eliminated.
 - Keep the registry-pinned builds/tests and browser acceptance green on the final
   reviewed heads. Shared crypto 0.6.0 is published through signed-tag provenance;
   the older generic APIs retain their existing behavior.
+
+## Multi-step regression (2026-09-07)
+
+A Coinbase signup report exposed missing email-first capture. The earlier browser
+fixtures placed username and password on one form and did not prove multi-step
+support. New tests first failed on identifier admission, identifier/password
+joining and invalidated identity reuse. A second red test reproduced advancing
+to personal details while retaining the same SPA form. Both cases now pass.
+
+The isolated Chromium harness covers email -> OTP -> password for both login and
+registration in SPA and classic documents, no early prompt/write, one explicit
+Save, and recipient-side checks of the encrypted username/password/domain.
+It also checks persisted storage for the synthetic multi-step identifiers and
+passwords. This reproduces the documented Coinbase flow structure; it is not
+evidence of testing a real Coinbase account or every site-specific DOM variant.
+The correction changes the extension head after the earlier clean cloud review;
+that review is not a verdict on this new diff.

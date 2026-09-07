@@ -60,6 +60,72 @@ describe("credential capture worker", () => {
     return prompt(await coordinator.dispatch(confirmed, source));
   }
 
+  it("joins email and password across two same-origin registration documents without saving early", async () => {
+    await coordinator.dispatch(command({ type: "identifier", submissionId: "identifier-123456789", username: "alice@example.test" }), source);
+    expect(await coordinator.dispatch(command({ type: "get" }), source)).toEqual({ status: "prompt", prompt: null });
+    const nextSource = { ...source, browserDocumentId: "browser-password", documentId: "isolated-password", url: "https://accounts.example.com/password" };
+    for (const id of ["browser-verification", nextSource.browserDocumentId]) {
+      coordinator.navigationStarted(source.tabId);
+      coordinator.navigation(source.tabId, nextSource.url);
+      coordinator.documentConnected(source.tabId, id, nextSource.url);
+    }
+    await coordinator.dispatch({ ...command({ type: "submitted", submissionId: "submission-123456789",
+      credential: { kind: "registration", username: "", password: "new", previousPassword: null } }), documentId: nextSource.documentId }, nextSource);
+    const view = prompt(await coordinator.dispatch({ ...confirmed, documentId: nextSource.documentId }, nextSource));
+    expect(save).not.toHaveBeenCalled();
+    await coordinator.dispatch({ ...command({ type: "save", promptId: view.id, targetId: view.defaultTargetId!, autoUpdate: false }),
+      documentId: nextSource.documentId }, nextSource);
+    expect(save.mock.calls[0]![0]).toEqual({ kind: "registration", username: "alice@example.test", password: "new", previousPassword: null });
+  });
+
+  it.each(["expiry", "lock", "tab-close", "cross-origin", "account-switch", "rejection", "other-tab"])
+  ("does not reuse the previous email after %s", async (reason) => {
+    await coordinator.dispatch(command({ type: "identifier", submissionId: "identifier-123456789", username: "alice@example.test" }), source);
+    if (reason === "expiry") await vi.advanceTimersByTimeAsync(180_001);
+    if (reason === "lock") coordinator.clear();
+    if (reason === "tab-close") coordinator.clearTab(source.tabId);
+    if (reason === "cross-origin") {
+      coordinator.navigation(source.tabId, "https://other.example.com/");
+      coordinator.navigation(source.tabId, source.url);
+    }
+    if (reason === "account-switch") session = { profileId: "api:other", unlocked: true, generation: 2 };
+    if (reason === "rejection") await coordinator.dispatch(command({ type: "outcome", submissionId: "identifier-123456789", outcome: "rejected" }), source);
+    const targetSource = reason === "other-tab" ? { ...source, tabId: 2 } : source;
+    const result = await coordinator.dispatch(command({ type: "submitted", submissionId: "submission-123456789",
+      credential: { kind: "registration", username: "", password: "new", previousPassword: null } }), targetSource);
+    expect(["stale", "unavailable"]).toContain(result.status);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("does not renew the identity lifetime when a password arrives", async () => {
+    await coordinator.dispatch(command({ type: "identifier", submissionId: "identifier-123456789", username: "alice@example.test" }), source);
+    await vi.advanceTimersByTimeAsync(179_000);
+    await coordinator.dispatch(command({ type: "submitted", submissionId: "submission-123456789",
+      credential: { kind: "registration", username: "", password: "new", previousPassword: null } }), source);
+    await vi.advanceTimersByTimeAsync(1_001);
+    expect(await coordinator.dispatch(confirmed, source)).toEqual({ status: "prompt", prompt: null });
+  });
+
+  it("prefers an explicit current account and consumes rather than reuses the earlier identity", async () => {
+    await coordinator.dispatch(command({ type: "identifier", submissionId: "identifier-123456789", username: "previous@example.test" }), source);
+    await coordinator.dispatch(submitted, source);
+    const view = prompt(await coordinator.dispatch(confirmed, source));
+    await coordinator.dispatch(command({ type: "save", promptId: view.id, targetId: view.defaultTargetId!, autoUpdate: false }), source);
+    expect(save.mock.calls[0]![0].username).toBe("alice");
+    expect(await coordinator.dispatch(command({ type: "submitted", submissionId: "submission-123456789",
+      credential: { kind: "registration", username: "", password: "new", previousPassword: null } }), source)).toEqual({ status: "stale" });
+  });
+
+  it("does not stage a muted or unauthenticated identity", async () => {
+    preferences.isMuted.mockResolvedValue(true);
+    expect(await coordinator.dispatch(command({ type: "identifier", submissionId: "identifier-123456789", username: "alice@example.test" }), source))
+      .toEqual({ status: "dismissed" });
+    isSubmissionDocument.mockReturnValue(false);
+    expect(await coordinator.dispatch(command({ type: "identifier", submissionId: "identifier-123456789", username: "alice@example.test" }), source))
+      .toEqual({ status: "stale" });
+    expect(await coordinator.dispatch(command({ type: "get" }), source)).toEqual({ status: "prompt", prompt: null });
+  });
+
   it("does not propose or save before an outcome", async () => {
     await coordinator.dispatch(submitted, source);
     expect(await coordinator.dispatch(command({ type: "get" }), source)).toEqual({ status: "prompt", prompt: null });

@@ -15,6 +15,7 @@ interface DocumentCommand {
 }
 
 export type CredentialCaptureCommand = DocumentCommand & (
+  | { readonly type: "identifier"; readonly submissionId: string; readonly username: string }
   | { readonly type: "submitted"; readonly submissionId: string; readonly credential: SubmittedCredential }
   | {
       readonly type: "outcome";
@@ -84,6 +85,9 @@ export function isCredentialCaptureCommand(value: unknown): value is CredentialC
   if (!record(value) || value.channel !== CREDENTIAL_CAPTURE_CHANNEL || !id(value.documentId)) return false;
   const base = ["channel", "documentId", "type"];
   switch (value.type) {
+    case "identifier":
+      return only(value, [...base, "submissionId", "username"])
+        && id(value.submissionId) && boundedString(value.username, 1, 512) && value.username.trim() === value.username;
     case "submitted":
       return only(value, [...base, "submissionId", "credential"])
         && id(value.submissionId) && isSubmittedCredential(value.credential);

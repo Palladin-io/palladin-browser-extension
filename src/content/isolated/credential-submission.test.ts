@@ -67,6 +67,24 @@ describe("submission outcome observation", () => {
     form(username + current).dispatchEvent(new Event("submit", { bubbles: true }));
     expect(send).not.toHaveBeenCalled();
   });
+  it("observes email, verification code and password on separate registration screens", async () => {
+    observer.capture(form('<input type="email" autocomplete="email" value="alice@example.test">'));
+    expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ type: "identifier", username: "alice@example.test" }));
+    observer.capture(form('<input autocomplete="one-time-code" value="123456">'));
+    expect(send).toHaveBeenCalledTimes(1);
+    observer.capture(form(next));
+    expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ type: "submitted",
+      credential: { kind: "registration", username: "", password: " new ", previousPassword: null } }));
+    document.querySelector("form")!.remove();
+    await vi.advanceTimersByTimeAsync(800);
+    expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ outcome: "form-dismissed" }));
+  });
+  it.each(['<input autocomplete="one-time-code" value="123456">', '<input value="Alice">',
+    '<input type="email" value="a@example.test"><input type="email" value="b@example.test">'])
+  ("does not stage an OTP or ambiguous/unannotated identity step", (markup) => {
+    observer.capture(form(markup));
+    expect(send).not.toHaveBeenCalled();
+  });
   it("sends a submission once and a value-free success after SPA form removal", async () => {
     const target = form(username + current);
     observer.capture(target);
@@ -75,6 +93,20 @@ describe("submission outcome observation", () => {
     await vi.advanceTimersByTimeAsync(800);
     expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ type: "outcome", outcome: "form-dismissed" }));
     expect(send.mock.calls[1]![0]).not.toHaveProperty("credential");
+  });
+  it("offers manual capture when a reused SPA form advances from password to personal details", async () => {
+    const target = form(username + next);
+    observer.capture(target);
+    target.innerHTML = '<label>First name<input autocomplete="given-name"></label><button>Continue</button>';
+    await vi.advanceTimersByTimeAsync(800);
+    expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ outcome: "form-dismissed" }));
+  });
+  it("does not mistake showing the submitted password as text for a completed step", async () => {
+    const target = form(username + next);
+    observer.capture(target);
+    target.querySelector<HTMLInputElement>('input[type="password"]')!.type = "text";
+    await vi.advanceTimersByTimeAsync(800);
+    expect(send).toHaveBeenCalledTimes(1);
   });
   it("recognizes successful password change without removing the form", async () => {
     observer.capture(form(username + current + next));

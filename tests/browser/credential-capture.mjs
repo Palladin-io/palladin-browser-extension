@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createCaptureApi } from './capture-api.mjs'
 import { openNativePopup } from './native-popup.mjs'
+import { multistepPage } from './capture-multistep.mjs'
 import { cacheBustContentLoaders } from '../../scripts/cache-bust-content-loaders.mjs'
 import { validateBuiltManifest } from '../../scripts/validate-built-manifest.mjs'
 
@@ -364,6 +365,34 @@ try {
   assert.equal(api.writes.length, before)
   console.log('PASS: covered toast cannot save; leaving and returning to an origin does not resurrect pending credentials')
 
+  for (const mode of ['spa', 'classic']) {
+    for (const kind of ['registration', 'login']) {
+      const host = `multistep-${mode}-${kind}.example.test`
+      const password = `Synthetic-multi-step-${mode}-${kind}!`
+      const username = `multi-step-${mode}-${kind}@example.test`
+      capturedPasswords.push(password, username)
+      const count = api.writes.length
+      await page.goto(`https://${host}/multistep/email?mode=${mode}&kind=${kind}`)
+      await page.getByLabel('Email', { exact: true }).fill(username)
+      await page.getByRole('button', { name: 'Continue', exact: true }).click()
+      await page.getByLabel('Verification code', { exact: true }).fill('123456')
+      await absent()
+      assert.equal(api.writes.length, count)
+      await page.getByRole('button', { name: 'Continue', exact: true }).click()
+      await page.getByLabel('Password', { exact: true }).fill(password)
+      await absent()
+      assert.equal(api.writes.length, count)
+      await page.getByRole('button', { name: 'Continue', exact: true }).click()
+      await click('button', 'Save in Personal')
+      await wait(() => api.writes.length === count + 1, 'multi-step encrypted create')
+      const secret = await api.decrypt(api.writes.at(-1))
+      assert.equal(secret.content.username, username)
+      assert.equal(secret.content.password, password)
+      assert.equal(secret.content.urlDomain, host)
+      console.log(`PASS: ${mode} multi-step ${kind}: email, OTP, password; one explicit Save, exact encrypted account`)
+    }
+  }
+
   const persisted = JSON.stringify(await worker.evaluate(async () => {
     const databases = []
     for (const database of await indexedDB.databases()) {
@@ -417,6 +446,7 @@ try {
 }
 
 function fixturePage(url) {
+  if (url.pathname.startsWith('/multistep/')) return multistepPage(url)
   if (url.pathname === '/embedded') return '<!doctype html><html><body><iframe title="External login" style="width:100%;height:700px" src="https://child.example.test/login?mode=spa"></iframe></body></html>'
   const kind = url.pathname.split('/')[1]
   const failure = url.searchParams.has('failure')

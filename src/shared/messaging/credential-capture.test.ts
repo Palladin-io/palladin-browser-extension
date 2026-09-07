@@ -31,6 +31,7 @@ describe("isolated credential capture protocol", () => {
 
   it("requires typed, exact commands for every step", () => {
     const commands = [
+      { type: "identifier", submissionId: submitted.submissionId, username: "alice@example.test" },
       { type: "outcome", submissionId: submitted.submissionId, outcome: "success-message" },
       { type: "outcome", submissionId: submitted.submissionId, outcome: "form-dismissed" },
       { type: "outcome", submissionId: submitted.submissionId, outcome: "rejected" },
@@ -55,5 +56,8 @@ describe("isolated credential capture protocol", () => {
     expect(isCredentialCaptureResult({ status: "prompt", prompt: { ...prompt, password: "secret" } })).toBe(false);
     expect(isCredentialCaptureResult({ status: "saved", action: "updated", password: "secret" })).toBe(false);
     expect(isCredentialCaptureResult({ status: "prompt", prompt: { ...prompt, defaultTargetId: submitted.submissionId } })).toBe(false);
+  });
+  it.each(["", " ", " alice", "x".repeat(513), 123, null])("rejects malformed identifier-only input", (username) => {
+    expect(isCredentialCaptureCommand({ ...base, type: "identifier", submissionId: submitted.submissionId, username })).toBe(false);
   });
 });

@@ -75,7 +75,8 @@ interface PendingCredential {
   readonly id: string;
   readonly submissionId: string;
   profileId: string | null;
-  readonly credential: SubmittedCredential;
+  readonly credential: SubmittedCredential | null;
+  readonly identifier: string | null;
   readonly origin: string;
   readonly site: string;
   readonly submittedAt: number;
@@ -114,9 +115,10 @@ export class CredentialCaptureCoordinator {
   dispatch(command: CredentialCaptureCommand, source: CredentialCaptureSource): Promise<CredentialCaptureResult> {
     if (command.documentId !== source.documentId || origin(source.url) === null) return Promise.resolve({ status: "stale" });
     // Admit browser-authenticated submits before storage awaits can race a classic navigation.
-    const submission = command.type === "submitted" && this.deps.isSubmissionDocument(source)
+    const isSubmission = command.type === "submitted" || command.type === "identifier";
+    const submission = isSubmission && this.deps.isSubmissionDocument(source)
       ? this.stage(command, source) : null;
-    if (command.type === "submitted" && submission === null) return Promise.resolve({ status: "stale" });
+    if (isSubmission && submission === null) return Promise.resolve({ status: "stale" });
     const previous = this.operations.get(source.tabId);
     const operation = (previous ?? Promise.resolve()).then(() => this.handle(command, source, submission))
       .catch((): CredentialCaptureResult => {
@@ -149,6 +151,7 @@ export class CredentialCaptureCoordinator {
   navigationStarted(tabId: number): void {
     const pending = this.pending.get(tabId);
     if (!pending) return;
+    if (pending.credential === null) return;
     if (pending.outcome !== "waiting" || pending.navigationStarted) this.clearTab(tabId);
     else pending.navigationStarted = true;
   }
@@ -158,6 +161,7 @@ export class CredentialCaptureCoordinator {
     if (!pending) return;
     if (origin(url) !== pending.origin) { this.clearTab(tabId); return; }
     if (documentId === pending.source.browserDocumentId) return;
+    if (pending.credential === null) { pending.successorDocumentId = documentId; return; }
     if (pending.outcome !== "waiting"
       || (pending.successorDocumentId !== null && pending.successorDocumentId !== documentId)) this.clearTab(tabId);
     else pending.successorDocumentId = documentId;
@@ -170,6 +174,11 @@ export class CredentialCaptureCoordinator {
     const session = await this.deps.getSession();
     if (session === null) { this.clearTab(source.tabId); return { status: "unavailable" }; }
     if (submission) {
+      if ((submission.profileId !== null && submission.profileId !== session.profileId)
+        || (submission.sessionGeneration !== null && submission.sessionGeneration !== session.generation)) {
+        this.clearTab(source.tabId);
+        return { status: "stale" };
+      }
       submission.profileId = session.profileId;
       const muted = await this.deps.preferences.isMuted(session.profileId, submission.site);
       const current = await this.deps.getSession();
@@ -179,12 +188,23 @@ export class CredentialCaptureCoordinator {
         return { status: "stale" };
       }
       if (muted) { this.clearTab(source.tabId); return { status: "dismissed" }; }
+      if (submission.credential === null) submission.sessionGeneration = session.generation;
       return { status: "accepted" };
     }
-    if (command.type === "submitted") return { status: "stale" };
+    if (command.type === "submitted" || command.type === "identifier") return { status: "stale" };
     const pending = this.live(source.tabId, session.profileId);
     if (!pending) return command.type === "resume" ? { status: "accepted" } : { status: "prompt", prompt: null };
     if (pending.origin !== origin(source.url)) { this.clearTab(source.tabId); return { status: "stale" }; }
+
+    if (pending.credential === null) {
+      if ((command.type === "resume" && command.hasError)
+        || (command.type === "outcome" && command.outcome === "rejected"
+          && command.submissionId === pending.submissionId && sameDocument(pending.source, source))) {
+        this.clearTab(source.tabId);
+        return { status: "dismissed" };
+      }
+      return command.type === "get" ? { status: "prompt", prompt: null } : { status: "accepted" };
+    }
 
     if (command.type === "resume") {
       // Only a pending submission may cross to one new browser-issued document.
@@ -223,26 +243,40 @@ export class CredentialCaptureCoordinator {
   }
 
   private stage(
-    command: Extract<CredentialCaptureCommand, { type: "submitted" }>,
+    command: Extract<CredentialCaptureCommand, { type: "submitted" | "identifier" }>,
     source: CredentialCaptureSource,
   ): PendingCredential | null {
+    const previous = this.pending.get(source.tabId);
+    let credential = command.type === "submitted" ? { ...command.credential } : null;
+    const inherit = credential !== null && !credential.username && credential.kind !== "password-change";
+    if (inherit) {
+      if (!previous || previous.credential !== null || previous.profileId === null
+        || previous.origin !== origin(source.url) || this.now() - previous.submittedAt >= PENDING_TTL_MS
+        || !(sameDocument(previous.source, source) || previous.successorDocumentId === source.browserDocumentId)) {
+        this.clearTab(source.tabId);
+        return null;
+      }
+      credential = { ...credential!, username: previous.identifier! };
+    }
     this.clearTab(source.tabId);
     const site = registrableDomain(source.url);
     if (!site) return null;
     if (this.pending.size >= MAX_PENDING_TABS) this.clearTab(this.pending.keys().next().value!);
     const pending: PendingCredential = {
-      id: this.createId(), submissionId: command.submissionId, profileId: null,
-      credential: { ...command.credential }, origin: origin(source.url)!, site,
-      submittedAt: this.now(), sourceDocumentId: source.browserDocumentId, source,
-      outcome: "waiting", choices: new Map(), defaultTargetId: null, sessionGeneration: null,
+      id: this.createId(), submissionId: command.submissionId, profileId: inherit ? previous!.profileId : null,
+      credential, identifier: command.type === "identifier" ? command.username : null, origin: origin(source.url)!, site,
+      submittedAt: inherit ? previous!.submittedAt : this.now(), sourceDocumentId: source.browserDocumentId, source,
+      outcome: "waiting", choices: new Map(), defaultTargetId: null, sessionGeneration: inherit ? previous!.sessionGeneration : null,
       navigationStarted: false, successorDocumentId: null,
     };
     this.pending.set(source.tabId, pending);
-    this.timers.set(source.tabId, setTimeout(() => this.clearTab(source.tabId), PENDING_TTL_MS));
+    this.timers.set(source.tabId, setTimeout(() => this.clearTab(source.tabId),
+      PENDING_TTL_MS - (this.now() - pending.submittedAt)));
     return pending;
   }
 
   private async present(pending: PendingCredential, session: CaptureSession, refresh = false): Promise<CredentialCaptureResult> {
+    if (pending.credential === null) return { status: "prompt", prompt: null };
     if (!session.unlocked) return { status: "prompt", prompt: this.view(pending, "locked") };
     if (refresh || pending.sessionGeneration !== session.generation || pending.choices.size === 0) {
       const choices = await this.deps.choices(pending.credential, pending.source.url);
@@ -270,6 +304,7 @@ export class CredentialCaptureCoordinator {
     target: CredentialWriteTarget,
     autoUpdate: boolean,
   ): Promise<CredentialCaptureResult> {
+    if (pending.credential === null) return { status: "stale" };
     const stillAuthorized = () => this.stillAuthorized(pending, session);
     if (!(await stillAuthorized())) return { status: "stale" };
     let result: Awaited<ReturnType<CredentialCaptureCoordinatorDeps["save"]>>;
