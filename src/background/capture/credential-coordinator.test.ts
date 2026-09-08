@@ -153,6 +153,25 @@ describe("credential capture worker", () => {
     expect(save).toHaveBeenCalledTimes(1);
     expect(await coordinator.dispatch(command({ type: "get" }), source)).toEqual({ status: "prompt", prompt: null });
   });
+  it("retains a ready capture after a same-document SPA URL change", async () => {
+    await coordinator.dispatch(submitted, source);
+    const view = prompt(await coordinator.dispatch(command({ type: "outcome", submissionId: "submission-123456789", outcome: "form-dismissed" }), source));
+    const nextSource = { ...source, url: "https://accounts.example.com/personal-details" };
+    coordinator.navigation(source.tabId, nextSource.url);
+    const result = await coordinator.dispatch(command({ type: "save", promptId: view.id,
+      targetId: view.defaultTargetId!, autoUpdate: false }), nextSource);
+    expect(result).toEqual({ status: "saved", action: "updated" });
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+  it.each(["navigation-started", "new-document", "cross-origin"])("invalidates a ready capture after %s", async (reason) => {
+    const view = await ready();
+    if (reason === "navigation-started") coordinator.navigationStarted(source.tabId);
+    if (reason === "new-document") coordinator.documentConnected(source.tabId, "next-browser-document", source.url);
+    if (reason === "cross-origin") coordinator.navigation(source.tabId, "https://other.example.com/home");
+    await coordinator.dispatch(command({ type: "save", promptId: view.id,
+      targetId: view.defaultTargetId!, autoUpdate: false }), source);
+    expect(save).not.toHaveBeenCalled();
+  });
   it("lets users select a new vault instead of the suggested update", async () => {
     const view = await ready();
     const targetId = view.targets.find((target) => target.action === "create")!.id;

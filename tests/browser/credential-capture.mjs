@@ -383,6 +383,14 @@ try {
       await absent()
       assert.equal(api.writes.length, count)
       await page.getByRole('button', { name: 'Continue', exact: true }).click()
+      if (mode === 'spa') {
+        await wait(() => find('button', 'Save in Personal'), 'ready toast before same-document URL change')
+        await page.evaluate((flow) => {
+          const method = flow === 'registration' ? 'pushState' : 'replaceState'
+          history[method]({}, '', '/personal-details')
+        }, kind)
+        await page.waitForTimeout(1000)
+      }
       await click('button', 'Save in Personal')
       await wait(() => api.writes.length === count + 1, 'multi-step encrypted create')
       const secret = await api.decrypt(api.writes.at(-1))

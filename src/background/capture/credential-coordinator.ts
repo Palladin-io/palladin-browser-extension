@@ -145,7 +145,7 @@ export class CredentialCaptureCoordinator {
 
   navigation(tabId: number, url: string): void {
     const pending = this.pending.get(tabId);
-    if (pending && (origin(url) !== pending.origin || pending.outcome !== "waiting")) this.clearTab(tabId);
+    if (pending && origin(url) !== pending.origin) this.clearTab(tabId);
   }
 
   navigationStarted(tabId: number): void {
