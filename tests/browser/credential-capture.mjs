@@ -33,6 +33,10 @@ try {
   worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker', { timeout: 20000 })
   await worker.evaluate(() => {
     globalThis.captureTestObservations = []
+    globalThis.captureNavigationObservations = []
+    chrome.tabs.onUpdated.addListener((_tabId, change) => {
+      globalThis.captureNavigationObservations.push({ status: change.status, hasUrl: Boolean(change.url) })
+    })
     chrome.runtime.onMessage.addListener((message, sender) => {
       if (message.channel === 'palladin.credential-capture') {
         const observation = {
@@ -445,6 +449,7 @@ try {
   }
   console.error('Synthetic provider paths:', api.requests.slice(-15).join(', '))
   console.error('Capture message shapes:', await worker?.evaluate(() => globalThis.captureTestObservations.slice(-12)).catch(() => []))
+  console.error('Capture navigation shapes:', await worker?.evaluate(() => globalThis.captureNavigationObservations.slice(-12)).catch(() => []))
   throw error
 } finally {
   popup?.close()

@@ -158,6 +158,8 @@ describe("credential capture worker", () => {
     const view = prompt(await coordinator.dispatch(command({ type: "outcome", submissionId: "submission-123456789", outcome: "form-dismissed" }), source));
     const nextSource = { ...source, url: "https://accounts.example.com/personal-details" };
     coordinator.navigation(source.tabId, nextSource.url);
+    coordinator.navigationUpdated(source.tabId, "loading");
+    coordinator.navigationUpdated(source.tabId, "complete");
     const result = await coordinator.dispatch(command({ type: "save", promptId: view.id,
       targetId: view.defaultTargetId!, autoUpdate: false }), nextSource);
     expect(result).toEqual({ status: "saved", action: "updated" });
@@ -168,6 +170,14 @@ describe("credential capture worker", () => {
     if (reason === "navigation-started") coordinator.navigationStarted(source.tabId);
     if (reason === "new-document") coordinator.documentConnected(source.tabId, "next-browser-document", source.url);
     if (reason === "cross-origin") coordinator.navigation(source.tabId, "https://other.example.com/home");
+    await coordinator.dispatch(command({ type: "save", promptId: view.id,
+      targetId: view.defaultTargetId!, autoUpdate: false }), source);
+    expect(save).not.toHaveBeenCalled();
+  });
+  it.each(["loading", "complete"])("clears a ready capture after %s without a live content document", async (status) => {
+    const view = await ready();
+    isSubmissionDocument.mockReturnValue(false);
+    coordinator.navigationUpdated(source.tabId, status);
     await coordinator.dispatch(command({ type: "save", promptId: view.id,
       targetId: view.defaultTargetId!, autoUpdate: false }), source);
     expect(save).not.toHaveBeenCalled();
@@ -261,9 +271,13 @@ describe("credential capture worker", () => {
     coordinator.navigationStarted(source.tabId);
     const next = { ...source, browserDocumentId: 'next-browser-document', documentId: 'next-isolated-document' };
     coordinator.documentConnected(next.tabId, next.browserDocumentId, next.url);
+    isSubmissionDocument.mockImplementation((candidate) => candidate.browserDocumentId === next.browserDocumentId);
+    coordinator.navigationUpdated(next.tabId, "complete");
     const resumed = prompt(await coordinator.dispatch({ channel: CREDENTIAL_CAPTURE_CHANNEL,
       documentId: next.documentId, type: 'resume', hasPasswordForm: false, hasError: false, hasSuccess: true }, next));
     coordinator.documentConnected(next.tabId, next.browserDocumentId, next.url);
+    coordinator.navigationUpdated(next.tabId, "loading");
+    coordinator.navigationUpdated(next.tabId, "complete");
     expect(await coordinator.dispatch({ ...command({ type: 'save', promptId: resumed.id,
       targetId: resumed.defaultTargetId!, autoUpdate: false }), documentId: next.documentId }, next))
       .toEqual({ status: 'saved', action: 'updated' });

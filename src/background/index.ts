@@ -232,7 +232,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => credentialCaptureCoordinator.clearTab(tabId));
 chrome.tabs.onUpdated.addListener((tabId, change) => {
-  if (change.status === "loading") credentialCaptureCoordinator.navigationStarted(tabId);
+  if (change.status) credentialCaptureCoordinator.navigationUpdated(tabId, change.status);
   if (change.url) credentialCaptureCoordinator.navigation(tabId, change.url);
 });
 

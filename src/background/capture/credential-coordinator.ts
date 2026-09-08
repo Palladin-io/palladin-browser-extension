@@ -156,6 +156,16 @@ export class CredentialCaptureCoordinator {
     else pending.navigationStarted = true;
   }
 
+  navigationUpdated(tabId: number, status: string): void {
+    const pending = this.pending.get(tabId);
+    if (!pending) return;
+    // Chrome also emits loading/complete for history.pushState, without a new document.
+    const browserDocumentId = pending.successorDocumentId ?? pending.source.browserDocumentId;
+    if (this.deps.isSubmissionDocument({ ...pending.source, browserDocumentId })) return;
+    if (status === "loading") this.navigationStarted(tabId);
+    else if (status === "complete") this.clearTab(tabId);
+  }
+
   documentConnected(tabId: number, documentId: string, url: string): void {
     const pending = this.pending.get(tabId);
     if (!pending) return;
