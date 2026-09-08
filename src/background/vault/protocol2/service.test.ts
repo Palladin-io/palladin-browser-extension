@@ -263,6 +263,16 @@ beforeEach(() => {
 })
 
 describe('Protocol2VaultDataService canonical password capture', () => {
+  it('reads a current head whose independently versioned key wrapper is at revision one', async () => {
+    if (head.kind !== 'head') throw new Error('Expected head fixture')
+    const current = { ...head, currentRevision: '2', memberIndexRevision: '2', currentKeyVersion: 2,
+      entryKey: { ...head.entryKey, descriptor: { ...head.entryKey.descriptor, resourceRevision: '1', keyVersion: 2 } },
+      memberIndex: { ...head.memberIndex, descriptor: { ...head.memberIndex.descriptor, resourceRevision: '2', keyVersion: 2 } },
+      memberSecret: { ...head.memberSecret, descriptor: { ...head.memberSecret.descriptor, resourceRevision: '2', keyVersion: 2 } },
+    }
+    const { service } = harness([current])
+    expect(await service.getMetadata()).toHaveLength(1)
+  })
   it('coalesces the unlock refresh and popup sync into one cache transition', async () => {
     const { service, client } = harness([head])
     let resolveVaults: ((value: EncryptedVaultSummary[]) => void) | undefined

@@ -1229,7 +1229,6 @@ function validateCompleteItem(
     || descriptor.scope.entryId !== item.entryId
     || descriptor.memberKeyGeneration !== active.accessContext.memberKeyGeneration)
     || item.currentRevision !== item.memberIndexRevision
-    || item.currentRevision !== entryKey.resourceRevision
     || item.currentRevision !== index.resourceRevision
     || item.currentRevision !== secret.resourceRevision
     || item.currentKeyVersion !== entryKey.keyVersion

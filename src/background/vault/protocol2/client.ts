@@ -1,4 +1,5 @@
-import type { CanonicalEntryEnvelopes } from '@palladin/crypto'
+import type { CanonicalEntryEnvelopes, buildCanonicalGrantEnvelope, ScriptExecutionEncryptedPackageV1 } from '@palladin/crypto'
+import type { EntryGrantContext } from './grant-context'
 import { z } from 'zod'
 
 import { VaultClientError, type FetchLike } from '../transport'
@@ -79,7 +80,8 @@ export interface UpdateCanonicalEntryRequest {
   readonly agentDiscoveryChanged: boolean
   readonly agentDiscovery: CanonicalEntryEnvelopes['agentDiscovery']
   readonly deliveryPolicy: 'standard' | 'execOnly' | 'injectOnly'
-  readonly grantEnvelopes: readonly never[]
+  readonly grantEnvelopes: readonly Awaited<ReturnType<typeof buildCanonicalGrantEnvelope>>[]
+  readonly scriptGrantPackages?: readonly ScriptExecutionEncryptedPackageV1[]
 }
 
 async function readBoundedJson(response: Response): Promise<unknown> {
@@ -259,6 +261,26 @@ export class Protocol2VaultClient {
       ),
       canonicalEntryDetailSchema,
     )
+  }
+
+  async getActiveGrants(accessToken: string, vaultId: string): Promise<EntryGrantContext[]> {
+    const grants: EntryGrantContext[] = []
+    const visited = new Set<string>()
+    let cursor: string | null = null
+    do {
+      const query = new URLSearchParams({ vaultId, status: 'active', pageSize: '100' })
+      if (cursor !== null) query.set('cursor', cursor)
+      const response = await this.request(`/api/grants?${query}`, accessToken)
+      if (!response.ok) throw new VaultClientError('network', 'Active grants are unavailable')
+      const page = await readBoundedJson(response) as { items: EntryGrantContext[]; nextCursor?: string | null }
+      grants.push(...page.items)
+      cursor = page.nextCursor ?? null
+      if (grants.length > 10_000 || (cursor !== null && visited.has(cursor))) {
+        throw new VaultClientError('network', 'Active grant pagination exceeded its budget')
+      }
+      if (cursor !== null) visited.add(cursor)
+    } while (cursor !== null)
+    return grants
   }
 
   async issueEntryCreationChallenge(

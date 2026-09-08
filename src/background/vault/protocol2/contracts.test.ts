@@ -14,6 +14,11 @@ interface NegativeFixtureCase {
 const negativeCases = (negativeFixtures as { cases: NegativeFixtureCase[] }).cases
 
 describe('frozen Current Entry Sync Policy 2 consumer contract', () => {
+  it('accepts a fresh key wrapper revision independently of the current Entry revision', () => {
+    const response = structuredClone(validSnapshotFixture.response)
+    response.items[0].entryKey.descriptor.resourceRevision = '1'
+    expect(snapshotSchema.safeParse(response).success).toBe(true)
+  })
   it('parses the complete snapshot, terminal tombstone delta and reset controls', () => {
     const valid = validSnapshotFixture as { response: unknown }
     const controls = tombstoneResetFixture as {

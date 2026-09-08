@@ -18,6 +18,7 @@ import {
 import { clipboardCopyAvailable } from "@shared/config/build-target";
 
 import { serverConfig } from "../config/server-runtime";
+import { hasVaultManagePermission } from "../capture/permissions";
 import type { AlarmScheduler } from "../session/auto-lock";
 import { sessionManager } from "../session/runtime";
 import { browserDocumentIdForTab } from "../tab-documents";
@@ -26,6 +27,7 @@ import { clearClipboard } from "./clipboard-runtime";
 import type { ActiveTab, VaultCommandDeps } from "./commands";
 import { IndexedDbProtocol2Cache } from "./protocol2/cache";
 import { Protocol2VaultClient } from "./protocol2/client";
+import { Protocol2CredentialWriter } from "./protocol2/credential-writer";
 import {
   Protocol2VaultDataService,
   type Protocol2SessionAccessor,
@@ -45,10 +47,16 @@ const session: Protocol2SessionAccessor = {
   getPrivateKey: () => sessionManager.getKeys()?.privateKey ?? null,
 };
 
+const protocol2Client = new Protocol2VaultClient((...args) => fetch(...args), () => serverConfig.apiUrl);
 export const vaultData = new Protocol2VaultDataService({
-  client: new Protocol2VaultClient((...args) => fetch(...args), () => serverConfig.apiUrl),
+  client: protocol2Client,
   cache: new IndexedDbProtocol2Cache(),
   session,
+});
+
+export const credentialWriter = new Protocol2CredentialWriter({
+  client: protocol2Client, session, data: vaultData,
+  canWrite: async () => hasVaultManagePermission(await sessionManager.getAccessToken()),
 });
 
 export const clipboardGuard = new ClipboardGuard({ alarms, clear: clearClipboard });

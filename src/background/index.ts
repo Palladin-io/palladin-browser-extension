@@ -20,6 +20,10 @@ import {
   serverPermissionOrigin,
 } from "@shared/config/server";
 import { openSidePanel } from "@shared/browser/side-panel";
+import { isCredentialCaptureCommand } from "@shared/messaging/credential-capture";
+import { isCaptureSettingsCommand } from "@shared/messaging/capture-settings";
+import { handleCaptureSettings } from "./capture/settings-runtime";
+import { credentialCaptureCoordinator, credentialCaptureSource } from "./capture/credential-runtime";
 
 import { startNativeAgentBridge } from "./agent/bootstrap";
 import { handleNativeAgentAlarm } from "./agent/runtime";
@@ -197,7 +201,15 @@ chrome.runtime.onConnect.addListener((port) => {
     return;
   }
   const unregisterDocument = registerTopFrameDocument(port, chrome.runtime.id);
-  if (unregisterDocument !== null) port.onDisconnect.addListener(unregisterDocument);
+  if (unregisterDocument !== null) {
+    port.onDisconnect.addListener(() => {
+      credentialCaptureCoordinator.documentDisconnected(port.sender!.tab!.id!, port.sender!.documentId!);
+      unregisterDocument();
+    });
+    if (typeof port.sender?.url === "string") credentialCaptureCoordinator.documentConnected(
+      port.sender.tab!.id!, port.sender.documentId!, port.sender.url,
+    );
+  }
 
   port.onMessage.addListener((raw) => {
     // This private, value-free ping exists only to prevent Chrome's normal
@@ -219,6 +231,36 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (result === null) return false;
   sendResponse(result);
   return false;
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => credentialCaptureCoordinator.clearTab(tabId));
+chrome.tabs.onUpdated.addListener((tabId, change) => {
+  if (change.status) credentialCaptureCoordinator.navigationUpdated(tabId, change.status);
+  if (change.url) credentialCaptureCoordinator.navigation(tabId, change.url);
+});
+
+chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
+  if (!isCredentialCaptureCommand(raw)) return false;
+  const source = credentialCaptureSource(raw, sender);
+  if (source === null) { sendResponse({ status: "stale" }); return false; }
+  if (raw.type === "unlock") {
+    if (sender.tab?.windowId === undefined) { sendResponse({ status: "unavailable" }); return false; }
+    void openSidePanel(undefined, undefined, sender.tab.windowId)
+      .then((opened) => sendResponse({ status: opened ? "accepted" : "unavailable" }))
+      .catch(() => sendResponse({ status: "unavailable" }));
+    return true;
+  }
+  void (async () => {
+    const lease = serverOperations.tryAcquire();
+    if (lease === null) { sendResponse({ status: "unavailable" }); return; }
+    try {
+      const result = await credentialCaptureCoordinator.dispatch(raw, source);
+      sendResponse(result);
+      if (result.status === "saved") publishSurfaceState(vaultChanged());
+    } catch { sendResponse({ status: "unavailable" }); }
+    finally { lease.release(); }
+  })();
+  return true;
 });
 
 // Top-frame isolated content scripts request value-free matching suggestions,
@@ -314,6 +356,10 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
     }
     try {
       await sessionManager.touchActivity();
+      if (isCaptureSettingsCommand(raw)) {
+        sendResponse(await handleCaptureSettings(raw));
+        return;
+      }
       const sessionResult = await handleRuntimeMessage(sessionManager, raw);
       if (sessionResult !== null) {
         sendResponse(sessionResult);

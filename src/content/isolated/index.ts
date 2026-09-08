@@ -43,6 +43,7 @@ import { performBoundFill } from "./fill";
 import { createReconnectingWorkerPort } from "./worker-port";
 import { createSessionKeepalive } from "./session-keepalive";
 import { startInlineAutofill } from "./inline-autofill";
+import { startCredentialCapture } from "./credential-capture";
 
 const sessionNonce = generateNonce();
 const documentId = generateNonce();
@@ -95,9 +96,12 @@ const passwordCapture = startPasswordCaptureDetection(
 const inlineAutofill = window.top === window
   ? startInlineAutofill(document, documentId)
   : null;
+let credentialCapture = window.top === window && window.location.protocol === "https:"
+  ? startCredentialCapture(document, documentId) : null;
 const agentInjectDom = createAgentInjectDomAccess(
   document,
-  (element) => inlineAutofill?.isOwnedSurface(element) ?? false,
+  (element) => (inlineAutofill?.isOwnedSurface(element) ?? false)
+    || (credentialCapture?.isOwnedSurface(element) ?? false),
 );
 
 // Fill requests arrive as a direct, tab-addressed runtime message from the
@@ -116,6 +120,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === "surface/session-changed" && message.status === "unlocked") {
       inlineAutofill?.retryAutomaticFill();
     }
+    if (message.type === "surface/session-changed") void credentialCapture?.refresh();
     return undefined;
   }
   if (isTabUrlRequestMessage(message)) {
@@ -188,10 +193,16 @@ window.addEventListener("message", (event: MessageEvent) => {
 // and content-script state survive, so restore a fresh worker registration when
 // the same page returns instead of logging an unchecked runtime.lastError.
 window.addEventListener("pageshow", (event: PageTransitionEvent) => {
-  if (event.persisted) port.reconnect();
+  if (event.persisted) {
+    port.reconnect();
+    if (window.top === window && window.location.protocol === "https:") {
+      credentialCapture = startCredentialCapture(document, documentId);
+    }
+  }
 });
 
 window.addEventListener("pagehide", () => sessionKeepalive.stop());
+window.addEventListener("pagehide", () => { credentialCapture?.stop(); credentialCapture = null; });
 window.addEventListener("unload", () => inlineAutofill?.stop(), { once: true });
 
 // Handshake: hand the session nonce to the main-world slot so it can talk back.

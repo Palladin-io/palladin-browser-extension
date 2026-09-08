@@ -24,11 +24,12 @@
     "check:docs": "node scripts/check-docs.mjs",
     "check:icons": "node scripts/check-icons.mjs",
     "test": "npm run check:docs && npm run check:icons && vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:browser:capture": "node tests/browser/credential-capture.mjs"
   },
   "dependencies": {
     "@microsoft/signalr": "10.0.0",
-    "@palladin/crypto": "0.4.0",
+    "@palladin/crypto": "0.6.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tldts": "^7.4.11",
@@ -47,6 +48,7 @@
     "fake-indexeddb": "6.2.5",
     "jsdom": "^25.0.1",
     "libsodium-wrappers": "0.8.4",
+    "playwright": "1.63.0",
     "typescript": "^5.7.0",
     "vite": "^6.3.5",
     "vitest": "^3.0.0"
