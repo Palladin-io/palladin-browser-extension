@@ -87,6 +87,7 @@ interface PendingCredential {
   defaultTargetId: string | null;
   sessionGeneration: number | null;
   navigationStarted: boolean;
+  loading: boolean;
   successorDocumentId: string | null;
 }
 
@@ -159,11 +160,18 @@ export class CredentialCaptureCoordinator {
   navigationUpdated(tabId: number, status: string): void {
     const pending = this.pending.get(tabId);
     if (!pending) return;
+    pending.loading = status === "loading";
     // Chrome also emits loading/complete for history.pushState, without a new document.
     const browserDocumentId = pending.successorDocumentId ?? pending.source.browserDocumentId;
     if (this.deps.isSubmissionDocument({ ...pending.source, browserDocumentId })) return;
     if (status === "loading") this.navigationStarted(tabId);
-    else if (status === "complete") this.clearTab(tabId);
+  }
+
+  documentDisconnected(tabId: number, browserDocumentId: string): void {
+    const pending = this.pending.get(tabId);
+    if (pending?.loading && this.deps.isSubmissionDocument({ ...pending.source, browserDocumentId })) {
+      this.navigationStarted(tabId);
+    }
   }
 
   documentConnected(tabId: number, documentId: string, url: string): void {
@@ -277,7 +285,7 @@ export class CredentialCaptureCoordinator {
       credential, identifier: command.type === "identifier" ? command.username : null, origin: origin(source.url)!, site,
       submittedAt: inherit ? previous!.submittedAt : this.now(), sourceDocumentId: source.browserDocumentId, source,
       outcome: "waiting", choices: new Map(), defaultTargetId: null, sessionGeneration: inherit ? previous!.sessionGeneration : null,
-      navigationStarted: false, successorDocumentId: null,
+      navigationStarted: false, loading: false, successorDocumentId: null,
     };
     this.pending.set(source.tabId, pending);
     this.timers.set(source.tabId, setTimeout(() => this.clearTab(source.tabId),

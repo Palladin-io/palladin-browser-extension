@@ -202,7 +202,10 @@ chrome.runtime.onConnect.addListener((port) => {
   }
   const unregisterDocument = registerTopFrameDocument(port, chrome.runtime.id);
   if (unregisterDocument !== null) {
-    port.onDisconnect.addListener(unregisterDocument);
+    port.onDisconnect.addListener(() => {
+      credentialCaptureCoordinator.documentDisconnected(port.sender!.tab!.id!, port.sender!.documentId!);
+      unregisterDocument();
+    });
     if (typeof port.sender?.url === "string") credentialCaptureCoordinator.documentConnected(
       port.sender.tab!.id!, port.sender.documentId!, port.sender.url,
     );
