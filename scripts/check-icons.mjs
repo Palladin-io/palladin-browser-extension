@@ -8,27 +8,27 @@ const EXPECTED_ICONS = Object.freeze({
   "logo-source.png": Object.freeze({
     width: 400,
     height: 400,
-    sha256: "cde8920946dd325c126a53b29a6a66a793a34cb1004576d3663cc0d0d0681648",
+    sha256: "21bccbb1e1a170559b99b64ac001ae5333a5b9e35ef8adc8f501de9c8f5c250b",
   }),
   "icon-16.png": Object.freeze({
     width: 16,
     height: 16,
-    sha256: "d1d4d6fb4f51d44d63a2a35246827bc1b4595860fa56ad4b799f19afdf3f81ef",
+    sha256: "80bbb8ba8d475c6032cc1cf44d948047bcc502f9d27169b43d7e88a68c33dbd8",
   }),
   "icon-32.png": Object.freeze({
     width: 32,
     height: 32,
-    sha256: "5f8e321032f7a352e3d94187bcaf4b4e86cd3feac3653205f3fd697bd524fdf4",
+    sha256: "f6a14eff56abff71f96d310f50222e2761d0130a6ce5dc0721626b483ffdfadf",
   }),
   "icon-48.png": Object.freeze({
     width: 48,
     height: 48,
-    sha256: "601df691c2b81d0479e92b8e8c1dd207617922ff157fd45ee3a611adabaa6797",
+    sha256: "fd9cc4ea75b76fc7c80b161b87b70186d869da52888a1f139ade144bf1ae0144",
   }),
   "icon-128.png": Object.freeze({
     width: 128,
     height: 128,
-    sha256: "be34b9bfb7062635abfec793875984fe3a796ecccfd4baccd8cb592ade61f1e3",
+    sha256: "0171096badc5a43aec72eaabc12c5c5990dc34890b9b476107624df21e595863",
   }),
 });
 
