@@ -26,3 +26,14 @@ jobs:
         run: npm audit || true
       - run: npm run build
       - run: npm test
+      - name: Install Chromium for the synthetic shared-unlock platform probe
+        run: npx playwright install --with-deps chromium
+      - name: Probe shared-unlock platform trust signals
+        run: npm run test:browser:shared-unlock-platform
+      - name: Retain synthetic platform evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: shared-unlock-platform-probe
+          path: test-results/shared-unlock-platform-probe/
+          if-no-files-found: error
+          retention-days: 7

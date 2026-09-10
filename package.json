@@ -25,7 +25,8 @@
     "check:icons": "node scripts/check-icons.mjs",
     "test": "npm run check:docs && npm run check:icons && vitest run",
     "test:watch": "vitest",
-    "test:browser:capture": "node tests/browser/credential-capture.mjs"
+    "test:browser:capture": "node tests/browser/credential-capture.mjs",
+    "test:browser:shared-unlock-platform": "node tests/browser/shared-unlock-platform-probe.mjs"
   },
   "dependencies": {
     "@microsoft/signalr": "10.0.0",
