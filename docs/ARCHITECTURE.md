@@ -405,14 +405,16 @@ This cryptographic boundary does not duplicate backend business invariants.
 The SessionManager installer is captured before receiver proofs. It refuses an
 account switch and fences local lock/logout, a newer manual/automatic attempt,
 route changes and expiry during sealing, storage and publication. A failed
-installation removes only its own envelope and leaves any newer session alone;
+installation removes only its own envelope and leaves any newer session alone.
+A concurrent lock preserves a prior own sealed session; logout/environment
+revocation prevents its restoration;
 the coordinator must revoke the newly committed receiver lineage separately.
 Duplicate installation cannot replace or wipe the successful independent session.
 
 The receiver preserves original unlockedAt and idle/absolute/offline deadlines.
 Actual own activity may move idle only within original ceilings; policy changes
 and on-close do not remove inherited deadlines. Key reads enforce those deadlines
-synchronously when browser alarms are late. Worker restart retains no keys and
+synchronously when browser alarms are late, including a shorter local idle policy. Worker restart retains no keys and
 requires a new authorized operation or manual unlock. Turning sharing OFF must
 not alter these own-session limits.
 

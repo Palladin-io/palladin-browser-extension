@@ -139,6 +139,8 @@ export class SessionManager {
   private unlocksInFlight = 0;
   private sharedUnlockAttempt = 0;
   private sharedUnlockLimits: SessionUnlockLimits | null = null;
+  private sharedUnlockLocalDeadline = Infinity;
+  private sessionClearGeneration = 0;
 
   constructor(deps: SessionManagerDeps) {
     this.store = deps.store;
@@ -186,7 +188,7 @@ export class SessionManager {
   getKeys(): SessionKeys | null {
     // Browser alarms can be delayed by suspension. Enforce the inherited
     // deadline synchronously at the key-use boundary as well.
-    if (this.sharedUnlockLimits && this.now() >= unlockDeadline(this.sharedUnlockLimits)) {
+    if (this.sharedUnlockLimits && this.now() >= Math.min(unlockDeadline(this.sharedUnlockLimits), this.sharedUnlockLocalDeadline)) {
       void this.lock();
     }
     return this.keys;
@@ -209,6 +211,7 @@ export class SessionManager {
     assertRouteCurrent: () => void,
   ): Promise<SharedUnlockInstaller> {
     const generation = this.captureLifecycleGeneration();
+    const clearGeneration = this.sessionClearGeneration;
     const attempt = ++this.sharedUnlockAttempt;
     let cancelled = false;
     let consumed = false;
@@ -303,7 +306,8 @@ export class SessionManager {
               await this.runDurableMutation(async () => {
                 const current = await this.store.getSealedSession();
                 if (current?.encodedSuitePayload !== written.encodedSuitePayload) return;
-                if (previousEnvelope && this.isLifecycleCurrent(generation)) await this.store.setSealedSession(previousEnvelope);
+                if (previousEnvelope && clearGeneration === this.sessionClearGeneration
+                  && apiUrl === this.authClient.currentApiUrl()) await this.store.setSealedSession(previousEnvelope);
                 else await this.store.clearSealedSession();
               });
             }
@@ -794,6 +798,8 @@ export class SessionManager {
 
       this.wipeKeys();
       this.sharedUnlockLimits = inherited;
+      const localIdle = policyIdleMs(policy);
+      this.sharedUnlockLocalDeadline = localIdle === null ? Infinity : unlockedAt + localIdle;
       if (ownTokens) this.tokens = ownTokens;
       this.keys = keys;
       published = true;
@@ -830,6 +836,7 @@ export class SessionManager {
 
   /** Lock, revoke the refresh token server-side, and clear ALL session state. */
   async logout(): Promise<void> {
+    this.sessionClearGeneration += 1;
     this.beginLifecycleTermination();
     try {
       this.wipeKeys();
@@ -855,6 +862,7 @@ export class SessionManager {
 
   private wipeKeys(): void {
     this.sharedUnlockLimits = null;
+    this.sharedUnlockLocalDeadline = Infinity;
     if (!this.keys) return;
     this.wipeSessionKeys(this.keys);
     this.keys = null;
@@ -896,6 +904,7 @@ export class SessionManager {
   }
 
   private async invalidateBoundSession(userId: string): Promise<void> {
+    this.sessionClearGeneration += 1;
     this.beginLifecycleTermination();
     try {
       this.wipeKeys();
@@ -1137,6 +1146,8 @@ export class SessionManager {
       };
     }
     this.autoLock.arm(policy, at, this.sharedUnlockLimits ? unlockDeadline(this.sharedUnlockLimits) : undefined);
+    const idle = policyIdleMs(policy);
+    this.sharedUnlockLocalDeadline = idle === null ? Infinity : at + idle;
   }
 
   async getAutoLockPolicy(): Promise<AutoLockPolicy> {
@@ -1148,7 +1159,11 @@ export class SessionManager {
   async setAutoLockPolicy(policy: AutoLockPolicy): Promise<void> {
     const at = this.now();
     await this.store.setAutoLock({ policy, lastActivityAt: at });
-    if (this.getKeys()) this.autoLock.arm(policy, at,
-      this.sharedUnlockLimits ? unlockDeadline(this.sharedUnlockLimits) : undefined);
+    if (this.getKeys()) {
+      this.autoLock.arm(policy, at,
+        this.sharedUnlockLimits ? unlockDeadline(this.sharedUnlockLimits) : undefined);
+      const idle = policyIdleMs(policy);
+      this.sharedUnlockLocalDeadline = idle === null ? Infinity : at + idle;
+    }
   }
 }

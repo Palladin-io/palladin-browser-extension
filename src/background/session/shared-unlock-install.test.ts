@@ -111,6 +111,34 @@ describe("shared unlock receiver installation", () => {
     expect(await h.manager.getUserId()).toBe(account.accountId);
   });
 
+  for (const action of ["lock", "logout"] as const) {
+    it(`preserves the prior locked session only for ${action} during replacement write`, async () => {
+      const h = harness();
+      await h.manager.login(account.email, account.password);
+      await h.manager.lock();
+      const previous = await h.store.getSealedSession();
+      const attempt = await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {});
+      const original = h.store.setSealedSession.bind(h.store);
+      vi.spyOn(h.store, "setSealedSession").mockImplementationOnce(async envelope => {
+        await original(envelope); void h.manager[action]();
+      });
+      const value = fresh();
+      await expect(attempt.install(value)).rejects.toThrow(); erased(value);
+      expect(await h.store.getSealedSession()).toEqual(action === "lock" ? previous : null);
+      expect(await h.manager.getStatus()).toBe(action === "lock" ? "locked" : "signed-out");
+    });
+  }
+
+  it("enforces a shorter local policy at key use when the alarm is late", async () => {
+    const h = harness(); await h.manager.setAutoLockPolicy("15m");
+    const value = { ...fresh(), limits: { ...installation.limits,
+      idleDeadlineMs: h.now.value + 3_600_000, absoluteDeadlineMs: h.now.value + 7_200_000,
+      offlineDeadlineMs: h.now.value + 7_200_000 } };
+    await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install(value);
+    h.now.value += 15 * 60_000;
+    expect(h.manager.getKeys()).toBeNull(); erased(value);
+  });
+
   it("does not install twice or wipe the active keys on a duplicate", async () => {
     const h = harness(); const value = fresh();
     const attempt = await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {});
