@@ -59,8 +59,11 @@ try {
   await writeFile(output, JSON.stringify(evidence, null, 2) + '\n')
   console.log('PASS: seven synthetic platform observations; shared-unlock trust gate remains unproven.')
 } finally {
-  await context?.close()
-  await rm(root, { recursive: true, force: true })
+  try {
+    await context?.close()
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
 }
 
 async function createFixture(name, changed) {
