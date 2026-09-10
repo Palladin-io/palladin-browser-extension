@@ -418,6 +418,24 @@ synchronously when browser alarms are late, including a shorter local idle polic
 requires a new authorized operation or manual unlock. Turning sharing OFF must
 not alter these own-session limits.
 
-Verified browser transport, source authorization, closing/preference coordination
+Verified browser transport, inherited-source coordination, closing/preference coordination
 and surfaces are not wired to these components yet. There is no new page command
 that can invoke the installer and no claim of end-to-end platform acceptance.
+
+
+Manual login/password unlock now prepares its own Identity authority before
+publishing keys. The password-derived AuthCredential goes only to Identity,
+never to a peer or durable storage. TOTP retains it only for the pending manual
+challenge; expiry/cancel/lock/logout erases it. The password source exposes a
+synchronous borrowed-proof callback, so inherited MK installation cannot derive
+or manufacture this proof. Failed/offline/step-up preparation leaves sharing
+unavailable and permits the ordinary own password unlock.
+
+`shared-unlock/source-authority.ts` reads current account preference and authorizes
+one fresh RAM generation with current credential/wrapper revisions. OFF can
+prepare an own root but remains OFF; there is no preference write or automatic
+retry. Reset/timeouts wipe pending proof and reject late success. The own Identity
+ceilings use the existing durable-session expiry plus the actual local idle policy;
+these are not Vault access leases. Signed per-Vault offline authorization remains
+independent. New handoffs, inherited roots and own activity still need the browser
+coordinator; no shared key route is exposed by this preparatory hook.

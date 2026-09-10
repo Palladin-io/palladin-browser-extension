@@ -9,6 +9,8 @@ import { serverConfig } from "../config/server-runtime";
 import { AuthClient } from "./auth-client";
 import { AutoLock, type AlarmScheduler } from "./auto-lock";
 import { SessionManager } from "./session-manager";
+import { SharedUnlockApi } from "../shared-unlock/api";
+import { SharedUnlockSourceAuthority } from "../shared-unlock/source-authority";
 import { SessionStore, type StorageArea } from "./session-store";
 
 // Only the password-sealed session envelope and policy metadata are durable.
@@ -41,11 +43,18 @@ export const sessionAutoLock = new AutoLock(alarms, () => {
   void manager.lock();
 });
 
+export const sharedUnlockSource = new SharedUnlockSourceAuthority(
+  new SharedUnlockApi((...args) => fetch(...args), () => serverConfig.apiUrl),
+);
+
 manager = new SessionManager({
   store: new SessionStore(durableStorageArea, legacySessionStorageArea),
   authClient: new AuthClient((...args) => fetch(...args), () => serverConfig.apiUrl),
   autoLock: sessionAutoLock,
   clientId: runtimeClientId,
+  prepareManualUnlock: context => sharedUnlockSource.prepare(context),
 });
+
+manager.hooks.onLocked(() => sharedUnlockSource.reset());
 
 export const sessionManager = manager;

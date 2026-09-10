@@ -48,6 +48,7 @@ import {
   type SyncTrigger,
 } from "./hooks";
 import { SessionStore } from "./session-store";
+import type { PrepareManualUnlock } from "./manual-unlock";
 import { unlockDeadline, type SessionUnlockLimits, type SharedUnlockInstaller } from "./shared-unlock-install";
 import { MasterPasswordUnlock, type UnlockSource } from "./unlock-source";
 import {
@@ -76,6 +77,8 @@ export interface SessionManagerDeps {
   clientId?: string;
   /** Absolute durable-session lifetime. Mirrors the backend refresh-session lifetime. */
   durableSessionTtlMs?: number;
+  /** Optional sharing preparation never prevents the client's own manual unlock. */
+  prepareManualUnlock?: PrepareManualUnlock;
 }
 
 export const PENDING_TOTP_TTL_MS = 5 * 60 * 1_000;
@@ -109,6 +112,7 @@ interface PendingTotpContext {
   readonly lifecycleGeneration: number;
   readonly bootstrap: LoginKdfBootstrap & { readonly accountId: string };
   readonly masterKey: Uint8Array;
+  readonly authCredential: Uint8Array;
 }
 
 export class SessionManager {
@@ -120,6 +124,7 @@ export class SessionManager {
   private readonly pendingTotpTimers: NonNullable<SessionManagerDeps["pendingTotpTimers"]>;
   private readonly clientId: string;
   private readonly durableSessionTtlMs: number;
+  private readonly prepareManualUnlock: PrepareManualUnlock | undefined;
 
   readonly hooks: SessionHooks;
   private readonly sync: SyncTrigger;
@@ -154,6 +159,7 @@ export class SessionManager {
       ?? ((password) => new MasterPasswordUnlock(password));
     this.clientId = deps.clientId ?? "palladin-browser-extension-test-client";
     this.durableSessionTtlMs = deps.durableSessionTtlMs ?? DURABLE_SESSION_TTL_MS;
+    this.prepareManualUnlock = deps.prepareManualUnlock;
     if (
       !Number.isSafeInteger(this.durableSessionTtlMs)
       || this.durableSessionTtlMs <= 0
@@ -501,6 +507,7 @@ export class SessionManager {
           lifecycleGeneration: generation,
           bootstrap,
           masterKey: identity.masterKey,
+          authCredential: identity.authCredential.slice(),
         };
         this.pendingTotp = pending;
         try {
@@ -508,10 +515,12 @@ export class SessionManager {
             this.pendingTotpTimer = null;
             if (this.pendingTotp !== pending) return;
             wipe(pending.masterKey);
+            wipe(pending.authCredential);
             this.pendingTotp = null;
           }, PENDING_TOTP_TTL_MS);
         } catch (error) {
           this.pendingTotp = null;
+          wipe(pending.authCredential);
           throw error;
         }
         transferredMasterKey = true;
@@ -524,6 +533,7 @@ export class SessionManager {
         bootstrap,
         generation,
         apiUrl,
+        identity.authCredential,
       );
       return { status: "unlocked" };
     } finally {
@@ -563,13 +573,12 @@ export class SessionManager {
     }
     this.pendingTotp = null;
     this.cancelPendingTotpTimer();
-    await this.establishSession(
-      response,
-      pending.masterKey,
-      pending.bootstrap,
-      generation,
-      pending.apiUrl,
-    );
+    try {
+      await this.establishSession(response, pending.masterKey, pending.bootstrap,
+        generation, pending.apiUrl, pending.authCredential);
+    } finally {
+      wipe(pending.authCredential);
+    }
   }
 
   cancelTotp(): void {
@@ -590,12 +599,14 @@ export class SessionManager {
     bootstrap: LoginKdfBootstrap & { readonly accountId: string },
     generation: number,
     apiUrl: string,
+    authCredential: Uint8Array,
   ): Promise<void> {
     let handedToSession = false;
     let persistedEnvelope: BrowserSessionEnvelope | null = null;
     let privateKey: Uint8Array | null = null;
     let trackedPrivateKey: Uint8Array | null = null;
     this.trackInFlightKeyMaterial(masterKey);
+    this.trackInFlightKeyMaterial(authCredential);
     let encryptedPrivateKey: Uint8Array | null = null;
     try {
       this.assertLifecycleGeneration(generation);
@@ -664,13 +675,18 @@ export class SessionManager {
       await this.setSealedSessionForGeneration(envelope, generation);
       this.assertApiUrl(apiUrl);
 
+      const limits = await this.prepareOwnSharing(tokens, account, authCredential, envelope, generation);
+      this.assertLifecycleGeneration(generation);
+      this.assertApiUrl(apiUrl);
+
       const keys = { masterKey, privateKey };
       privateKey = null;
       handedToSession = true;
       this.tokens = tokens;
-      await this.setUnlocked(keys, tokens.userId, generation);
+      await this.setUnlocked(keys, tokens.userId, generation, limits);
     } finally {
       this.untrackInFlightKeyMaterial(masterKey);
+      this.untrackInFlightKeyMaterial(authCredential);
       if (trackedPrivateKey) this.untrackInFlightKeyMaterial(trackedPrivateKey);
       if (encryptedPrivateKey) wipe(encryptedPrivateKey);
       if (privateKey) wipe(privateKey);
@@ -721,7 +737,16 @@ export class SessionManager {
       throw new SessionError("no-account-material", "No cached material to unlock");
     }
     const material = this.materialFromEnvelope(envelope);
-    const keys = await source.deriveKeys(material);
+    let manualProof: Uint8Array | null = null;
+    const keys = await source.deriveKeys(material, proof => {
+      this.assertLifecycleGeneration(generation);
+      if (manualProof) throw new SessionLifecycleChangedError();
+      manualProof = proof.slice();
+      this.trackInFlightKeyMaterial(manualProof);
+    }).catch(error => {
+      if (manualProof) { wipe(manualProof); this.untrackInFlightKeyMaterial(manualProof); }
+      throw error;
+    });
     this.trackSessionKeys(keys);
     try {
       try {
@@ -760,13 +785,55 @@ export class SessionManager {
           throw new SessionError("not-authenticated", "Stored session binding is invalid");
         }
         this.tokens = tokens;
-        await this.setUnlocked(keys, tokens.userId, generation);
+        let limits: SessionUnlockLimits | null = null;
+        if (manualProof && this.prepareManualUnlock) {
+          try {
+            const account = await this.authClient.getAccount(tokens.accessToken, tokens.apiUrl);
+            this.assertLifecycleGeneration(generation);
+            this.assertApiUrl(tokens.apiUrl);
+            limits = await this.prepareOwnSharing(tokens, account, manualProof, envelope, generation);
+          } catch {
+            // Network/step-up failures stop sharing, not this own password unlock.
+          }
+        }
+        this.assertLifecycleGeneration(generation);
+        this.assertApiUrl(tokens.apiUrl);
+        await this.setUnlocked(keys, tokens.userId, generation, limits);
       } catch (error) {
         if (this.keys !== keys) this.wipeSessionKeys(keys);
         throw error;
       }
     } finally {
       this.untrackSessionKeys(keys);
+      if (manualProof) { wipe(manualProof); this.untrackInFlightKeyMaterial(manualProof); }
+    }
+  }
+
+  private async prepareOwnSharing(tokens: SessionTokens, account: AccountResponse,
+    authCredential: Uint8Array, envelope: BrowserSessionEnvelope, generation: number): Promise<SessionUnlockLimits | null> {
+    if (!this.prepareManualUnlock) return null;
+    const apiUrl = tokens.apiUrl;
+    const attempt = this.sharedUnlockAttempt;
+    const assertCurrent = () => {
+      this.assertLifecycleGeneration(generation);
+      this.assertApiUrl(apiUrl);
+      if (attempt !== this.sharedUnlockAttempt) throw new SessionLifecycleChangedError();
+    };
+    try {
+      assertCurrent();
+      const policy = await this.getAutoLockPolicy();
+      assertCurrent();
+      const now = this.now(), idle = policyIdleMs(policy);
+      // These are own Identity-session ceilings. Offline Vault access remains
+      // independently bounded by each signed Vault lease; this grants none.
+      const limits = { unlockedAtMs: now,
+        idleDeadlineMs: Math.min(idle === null ? Infinity : now + idle, envelope.context.expiresAt),
+        absoluteDeadlineMs: envelope.context.expiresAt, offlineDeadlineMs: envelope.context.expiresAt };
+      const prepared = await this.prepareManualUnlock({ tokens, account, authCredential, limits, assertCurrent });
+      assertCurrent();
+      return prepared;
+    } catch {
+      return null;
     }
   }
 
@@ -1012,7 +1079,10 @@ export class SessionManager {
 
   private clearPendingTotp(): void {
     this.cancelPendingTotpTimer();
-    if (this.pendingTotp) wipe(this.pendingTotp.masterKey);
+    if (this.pendingTotp) {
+      wipe(this.pendingTotp.masterKey);
+      wipe(this.pendingTotp.authCredential);
+    }
     this.pendingTotp = null;
   }
 

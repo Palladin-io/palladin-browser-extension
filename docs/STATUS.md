@@ -21,8 +21,9 @@ offline ceilings and rejects lock/logout, cancellation, environment/account
 changes and stale asynchronous results. Durable storage contains the ordinary
 password-sealed own-session envelope; MK and recovered private keys stay in RAM.
 
-These components are not yet connected to the browser messaging runtime. Source
-manual authorization, verified Web/Extension routing, durable link/preference
+Manual login/password unlock now prepares fresh own Identity authority, including
+TOTP proof cleanup and failure fallback. These components are not yet connected to
+the browser messaging runtime. Verified Web/Extension routing, inherited source/own activity handling, durable link/preference
 coordination, UI and the full platform matrix remain open release gates. The
 platform probe proves only its recorded browser signals, not the feature.
 
