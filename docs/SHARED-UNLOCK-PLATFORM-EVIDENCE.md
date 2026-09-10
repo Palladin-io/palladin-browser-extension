@@ -7,16 +7,24 @@ key, account, credential, backend session or Palladin environment is used.
 ## Required boundary
 
 The approved target is automatic Web <-> Extension login/unlock in one normal
-browser profile without a desktop application or native broker. Every handoff
-must independently authenticate the recipient installation and profile, including
-an official-artifact check that cannot be satisfied by a modified unpacked build
-with the same extension ID. A copied profile must not inherit that authority.
+browser profile without a desktop application or native broker. On 2026-09-10
+the product owner accepted the configured exact extension ID/origin authenticated
+by the trusted browser as the recipient boundary. A peer's self-reported ID,
+package metadata or pairing marker is never its own authority.
 
-The 2026-09-10 lifecycle correction permits a new authenticated handoff from a
-still-valid unlocked peer after a worker restart, and permits independent
-operation after closing the source Web tab. It does not weaken the recipient
-authentication requirement, persist keys, reuse an old handoff, override a lock
-or reset a session deadline.
+This supersedes the earlier requirement to distinguish an official installation
+from a manually substituted extension with the same ID or a complete copied
+profile. Those cases are client compromise outside this feature's protection;
+a same-ID substitute can receive MK under this accepted boundary. Ordinary
+separate profiles are not automatically linked. No store attestation or original
+profile attestation is required. This decision does not enable Agent Inject.
+
+The lifecycle correction permits a fresh authenticated handoff from a still-valid
+unlocked peer after a worker restart, and independent operation after the source
+Web tab closes. Account/environment isolation, browser document/generation checks,
+current Identity authorization, RAM-only keys, encrypted one-time handoff, durable
+lock/logout/off/revoke and original session limits remain mandatory. The probe
+below implements none of those runtime handoffs.
 
 ## Reproduce the Chromium observations
 
@@ -57,21 +65,22 @@ artifacts are ignored by Git. A failed run removes the previous report before
 testing, so a stale successful result cannot be mistaken for the current run.
 
 Both fixtures are unpacked and synthetic. Neither is described as an official
-store-installed Palladin artifact. These observations disprove the sufficiency
-of the tested signals; they do not establish that every possible browser trust
-mechanism is impossible, nor attest an installed production extension.
+store-installed Palladin artifact. These observations show that the tested signals do not attest package bytes
+or distinguish a copied profile. The accepted browser-identity boundary above
+does not claim either property. The probe does not attest a production artifact
+or verify a real MK handoff.
 
 ## Independent authority assessment
 
 | Candidate | Evidence and limit | CVT-587 status |
 |---|---|---|
-| Extension ID or extension-frame origin | The Chrome manifest `key` deliberately preserves the same ID for development. The probe observes different bytes under the same ID/origin. | Insufficient on its own. |
-| Peer-reported `management.getSelf()` | Browser metadata is available inside the extension; a response relayed by the candidate extension is still candidate-controlled. | Insufficient on its own. |
-| Saved local pairing marker | The synthetic profile copy preserves the marker. | Insufficient on its own. |
+| Extension ID or extension-frame origin | The Chrome manifest `key` deliberately preserves the same ID for development. The probe observes different bytes under the same ID/origin. | Not package/profile attestation; browser-confirmed exact ID/origin is accepted within the stated client-compromise boundary. |
+| Peer-reported `management.getSelf()` | Browser metadata is available inside the extension; a relayed response is candidate-controlled. | Never authority for the peer; not required by the accepted boundary. |
+| Saved local pairing marker | The synthetic profile copy preserves the marker. | Correlation/revocation metadata only; cannot authorize a handoff. |
 | Browser-authored Web sender context | The probe observes allowed origin/top-frame/document context and rejects an unlisted origin. | Useful Web sender boundary; does not attest recipient package/profile. |
 | Chrome enterprise platform-key attestation | Official API is ChromeOS-only and policy-restricted. | Does not cover the required ordinary desktop browser matrix. |
-| Safari webpage messaging | Apple documents addressing by extension bundle ID and team ID. Exact installed-artifact/profile verification still requires a positive and negative installed-Safari probe. | Not yet verified; not inferred from Chromium. |
-| Firefox webpage messaging | Mozilla documents no Web-page `runtime.connect`/`sendMessage` support. A content-script adapter would need its own independently verified boundary. | Adapter and artifact/profile authority not yet verified. |
+| Safari webpage messaging | Apple documents addressing by extension bundle ID and team ID. The real Safari route, document binding and lifecycle still require installed-artifact tests. | Not yet verified; not inferred from Chromium. |
+| Firefox webpage messaging | Mozilla documents no Web-page `runtime.connect`/`sendMessage` support. A content-script adapter would need its own independently verified boundary. | Adapter and actual browser-route authority not yet verified; no original-profile attestation required. |
 
 Sources checked 2026-09-10:
 
@@ -86,14 +95,13 @@ Sources checked 2026-09-10:
 
 Chrome, Chromium, Brave, Edge, Opera, Firefox and Safari remain in the required
 matrix. A Chromium probe is not evidence for branded browsers, another OS,
-Firefox or Safari. No row has a verified official-artifact/profile trust adapter
-from this work. A successful probe command means its limited assertions passed;
-it does not satisfy CVT-587, CVT-604 or the parent goal.
+Firefox or Safari. No row has a verified complete shared-unlock adapter from this
+work. A successful probe command means its limited assertions passed; it does
+not satisfy CVT-587, CVT-604 or the parent goal.
 
-Before a Member MK handoff can be implemented, the protocol must identify a
-recipient proof issued or verified by an authority independent of that recipient,
-then demonstrate acceptance of the official artifact and rejection of the
-same-ID substitute and profile copy. A release signature or downloaded artifact
-hash alone describes distributed bytes, not which code is answering a live
-handshake. Tests of the actual handoff, Identity bootstrap, lifecycle, settings
-and all distributed browser/OS artifacts remain outstanding.
+Implementation may proceed under the accepted browser-identity boundary. Each
+adapter must obtain actual browser authority for its exact configured route and
+must verify the source/recipient generations, account/environment, one-time
+Identity operation and current link/limits. A stable marker or a peer's payload
+cannot replace those checks. Actual handoff, Identity bootstrap, cancellation,
+lifecycle, settings and all supported browser/OS artifact tests remain outstanding.
