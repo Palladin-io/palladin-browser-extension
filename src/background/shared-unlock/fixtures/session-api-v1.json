@@ -1,0 +1,1745 @@
+{
+  "warning": "Generated deterministic synthetic API examples. Tokens are invalid placeholders. Never use in production.",
+  "responses": [
+    {
+      "name": "preference-default",
+      "type": "preference",
+      "body": {
+        "sharedUnlockEnabled": true,
+        "revision": 1
+      }
+    },
+    {
+      "name": "preference-explicit-off",
+      "type": "preference",
+      "body": {
+        "sharedUnlockEnabled": false,
+        "revision": 4
+      }
+    },
+    {
+      "name": "link-created",
+      "type": "link",
+      "body": {
+        "linkId": "44444444-4444-4444-8444-444444444444",
+        "revision": 1,
+        "epoch": 1,
+        "state": "locked",
+        "lastInvalidationSequence": 0,
+        "lastLogoutSequence": 0
+      }
+    },
+    {
+      "name": "link-active",
+      "type": "link",
+      "body": {
+        "linkId": "44444444-4444-4444-8444-444444444444",
+        "revision": 2,
+        "epoch": 2,
+        "state": "active",
+        "lastInvalidationSequence": 0,
+        "lastLogoutSequence": 0
+      }
+    },
+    {
+      "name": "link-locked",
+      "type": "link",
+      "body": {
+        "linkId": "44444444-4444-4444-8444-444444444444",
+        "revision": 3,
+        "epoch": 3,
+        "state": "locked",
+        "lastInvalidationSequence": 12,
+        "lastLogoutSequence": 0
+      }
+    },
+    {
+      "name": "link-logged-out",
+      "type": "link",
+      "body": {
+        "linkId": "44444444-4444-4444-8444-444444444444",
+        "revision": 4,
+        "epoch": 4,
+        "state": "locked",
+        "lastInvalidationSequence": 13,
+        "lastLogoutSequence": 13
+      }
+    },
+    {
+      "name": "link-disconnected",
+      "type": "link",
+      "body": {
+        "linkId": "44444444-4444-4444-8444-444444444444",
+        "revision": 5,
+        "epoch": 5,
+        "state": "revoked",
+        "lastInvalidationSequence": 14,
+        "lastLogoutSequence": 13
+      }
+    },
+    {
+      "name": "link-reconnected",
+      "type": "link",
+      "body": {
+        "linkId": "44444444-4444-4444-8444-444444444444",
+        "revision": 6,
+        "epoch": 6,
+        "state": "locked",
+        "lastInvalidationSequence": 15,
+        "lastLogoutSequence": 13
+      }
+    },
+    {
+      "name": "link-fresh-login-active",
+      "type": "link",
+      "body": {
+        "linkId": "44444444-4444-4444-8444-444444444444",
+        "revision": 7,
+        "epoch": 7,
+        "state": "active",
+        "lastInvalidationSequence": 15,
+        "lastLogoutSequence": 13
+      }
+    },
+    {
+      "name": "web-to-extension/manual",
+      "type": "authorization",
+      "body": {
+        "authorizationId": "55555555-5555-4555-8555-555555555555",
+        "sequence": 11,
+        "accountId": "11111111-1111-4111-8111-111111111111",
+        "organizationId": "33333333-3333-4333-8333-333333333333",
+        "credentialRevision": 3,
+        "privateKeyWrapRevision": 5,
+        "authorizationVersion": 4,
+        "unlockedAtMs": 1799999990000,
+        "idleDeadlineMs": 1800000100000,
+        "absoluteDeadlineMs": 1800000200000,
+        "offlineDeadlineMs": 1800000300000
+      }
+    },
+    {
+      "name": "web-to-extension/own-activity",
+      "type": "authorization",
+      "body": {
+        "authorizationId": "55555555-5555-4555-8555-555555555555",
+        "sequence": 11,
+        "accountId": "11111111-1111-4111-8111-111111111111",
+        "organizationId": "33333333-3333-4333-8333-333333333333",
+        "credentialRevision": 3,
+        "privateKeyWrapRevision": 5,
+        "authorizationVersion": 4,
+        "unlockedAtMs": 1799999990000,
+        "idleDeadlineMs": 1800000110000,
+        "absoluteDeadlineMs": 1800000200000,
+        "offlineDeadlineMs": 1800000300000
+      }
+    },
+    {
+      "name": "web-to-extension/offered-or-consumed",
+      "type": "operation",
+      "body": {
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "web-to-extension",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        },
+        "sourcePublicKey": "e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM",
+        "recipientPublicKey": "D6poTtKIZ7l_Smot7l34zpdOdrcBjj8iocTPJnhXDyA",
+        "recipientProofPublicKey": "skkdlQKuKGMKK6yy4MdFEP_N0yjDNP8-E5PnWy0x59w",
+        "challenge": "mZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZk",
+        "transcriptHash": "lxItOeqBGIywqjLTEf2CEUbsaW9pOlZwcyq_qgOtCxo",
+        "keyContext": {
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "securityVersion": 1,
+          "minimumSecurityVersion": 1,
+          "kdfProfileId": "identity-argon2id-password-v1",
+          "kdfSalt": "IiIiIiIiIiIiIiIiIiIiIg",
+          "credentialRevision": 3,
+          "privateKeyWrapRevision": 5,
+          "memberKeyVersion": 7,
+          "publicKey": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "encryptedPrivateKey": "RERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERE"
+        }
+      }
+    },
+    {
+      "name": "web-to-extension/commit-session-0",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": false,
+          "emailVerified": false,
+          "waitlistDeveloperBenefitStartedAt": null,
+          "waitlistDeveloperBenefitEndsAt": null
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "web-to-extension",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "web-to-extension/commit-session-1",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": true,
+          "emailVerified": false,
+          "waitlistDeveloperBenefitStartedAt": null,
+          "waitlistDeveloperBenefitEndsAt": null
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "web-to-extension",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "web-to-extension/commit-session-2",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": false,
+          "emailVerified": true,
+          "waitlistDeveloperBenefitStartedAt": null,
+          "waitlistDeveloperBenefitEndsAt": null
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "web-to-extension",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "web-to-extension/commit-session-3",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": true,
+          "emailVerified": true,
+          "waitlistDeveloperBenefitStartedAt": null,
+          "waitlistDeveloperBenefitEndsAt": null
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "web-to-extension",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "web-to-extension/commit-session-4",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": false,
+          "emailVerified": false,
+          "waitlistDeveloperBenefitStartedAt": "2027-01-15T08:00:00Z",
+          "waitlistDeveloperBenefitEndsAt": null
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "web-to-extension",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "web-to-extension/commit-session-5",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": true,
+          "emailVerified": false,
+          "waitlistDeveloperBenefitStartedAt": "2027-01-15T08:00:00Z",
+          "waitlistDeveloperBenefitEndsAt": null
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "web-to-extension",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "web-to-extension/commit-session-6",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": false,
+          "emailVerified": true,
+          "waitlistDeveloperBenefitStartedAt": "2027-01-15T08:00:00Z",
+          "waitlistDeveloperBenefitEndsAt": null
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "web-to-extension",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "web-to-extension/commit-session-7",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": true,
+          "emailVerified": true,
+          "waitlistDeveloperBenefitStartedAt": "2027-01-15T08:00:00Z",
+          "waitlistDeveloperBenefitEndsAt": null
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "web-to-extension",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "web-to-extension/commit-session-8",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": false,
+          "emailVerified": false,
+          "waitlistDeveloperBenefitStartedAt": null,
+          "waitlistDeveloperBenefitEndsAt": "2027-02-15T08:00:00Z"
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "web-to-extension",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "web-to-extension/commit-session-9",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": true,
+          "emailVerified": false,
+          "waitlistDeveloperBenefitStartedAt": null,
+          "waitlistDeveloperBenefitEndsAt": "2027-02-15T08:00:00Z"
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "web-to-extension",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "web-to-extension/commit-session-10",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": false,
+          "emailVerified": true,
+          "waitlistDeveloperBenefitStartedAt": null,
+          "waitlistDeveloperBenefitEndsAt": "2027-02-15T08:00:00Z"
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "web-to-extension",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "web-to-extension/commit-session-11",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": true,
+          "emailVerified": true,
+          "waitlistDeveloperBenefitStartedAt": null,
+          "waitlistDeveloperBenefitEndsAt": "2027-02-15T08:00:00Z"
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "web-to-extension",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "web-to-extension/commit-session-12",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": false,
+          "emailVerified": false,
+          "waitlistDeveloperBenefitStartedAt": "2027-01-15T08:00:00Z",
+          "waitlistDeveloperBenefitEndsAt": "2027-02-15T08:00:00Z"
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "web-to-extension",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "web-to-extension/commit-session-13",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": true,
+          "emailVerified": false,
+          "waitlistDeveloperBenefitStartedAt": "2027-01-15T08:00:00Z",
+          "waitlistDeveloperBenefitEndsAt": "2027-02-15T08:00:00Z"
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "web-to-extension",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "web-to-extension/commit-session-14",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": false,
+          "emailVerified": true,
+          "waitlistDeveloperBenefitStartedAt": "2027-01-15T08:00:00Z",
+          "waitlistDeveloperBenefitEndsAt": "2027-02-15T08:00:00Z"
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "web-to-extension",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "web-to-extension/commit-session-15",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": true,
+          "emailVerified": true,
+          "waitlistDeveloperBenefitStartedAt": "2027-01-15T08:00:00Z",
+          "waitlistDeveloperBenefitEndsAt": "2027-02-15T08:00:00Z"
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "web-to-extension",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "extension-to-web/manual",
+      "type": "authorization",
+      "body": {
+        "authorizationId": "55555555-5555-4555-8555-555555555555",
+        "sequence": 11,
+        "accountId": "11111111-1111-4111-8111-111111111111",
+        "organizationId": "88888888-8888-4888-8888-888888888888",
+        "credentialRevision": 3,
+        "privateKeyWrapRevision": 5,
+        "authorizationVersion": 9,
+        "unlockedAtMs": 1799999990000,
+        "idleDeadlineMs": 1800000100000,
+        "absoluteDeadlineMs": 1800000200000,
+        "offlineDeadlineMs": 1800000300000
+      }
+    },
+    {
+      "name": "extension-to-web/own-activity",
+      "type": "authorization",
+      "body": {
+        "authorizationId": "55555555-5555-4555-8555-555555555555",
+        "sequence": 11,
+        "accountId": "11111111-1111-4111-8111-111111111111",
+        "organizationId": "88888888-8888-4888-8888-888888888888",
+        "credentialRevision": 3,
+        "privateKeyWrapRevision": 5,
+        "authorizationVersion": 9,
+        "unlockedAtMs": 1799999990000,
+        "idleDeadlineMs": 1800000110000,
+        "absoluteDeadlineMs": 1800000200000,
+        "offlineDeadlineMs": 1800000300000
+      }
+    },
+    {
+      "name": "extension-to-web/offered-or-consumed",
+      "type": "operation",
+      "body": {
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "extension-to-web",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        },
+        "sourcePublicKey": "e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM",
+        "recipientPublicKey": "D6poTtKIZ7l_Smot7l34zpdOdrcBjj8iocTPJnhXDyA",
+        "recipientProofPublicKey": "skkdlQKuKGMKK6yy4MdFEP_N0yjDNP8-E5PnWy0x59w",
+        "challenge": "mZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZk",
+        "transcriptHash": "zg7LN4Ju79-cNH2DHiYwdZAl-7nND95K10kDdrYtGA0",
+        "keyContext": {
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "securityVersion": 1,
+          "minimumSecurityVersion": 1,
+          "kdfProfileId": "identity-argon2id-password-v1",
+          "kdfSalt": "IiIiIiIiIiIiIiIiIiIiIg",
+          "credentialRevision": 3,
+          "privateKeyWrapRevision": 5,
+          "memberKeyVersion": 7,
+          "publicKey": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "encryptedPrivateKey": "RERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERE"
+        }
+      }
+    },
+    {
+      "name": "extension-to-web/commit-session-0",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": false,
+          "emailVerified": false,
+          "waitlistDeveloperBenefitStartedAt": null,
+          "waitlistDeveloperBenefitEndsAt": null
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "extension-to-web",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "extension-to-web/commit-session-1",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": true,
+          "emailVerified": false,
+          "waitlistDeveloperBenefitStartedAt": null,
+          "waitlistDeveloperBenefitEndsAt": null
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "extension-to-web",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "extension-to-web/commit-session-2",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": false,
+          "emailVerified": true,
+          "waitlistDeveloperBenefitStartedAt": null,
+          "waitlistDeveloperBenefitEndsAt": null
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "extension-to-web",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "extension-to-web/commit-session-3",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": true,
+          "emailVerified": true,
+          "waitlistDeveloperBenefitStartedAt": null,
+          "waitlistDeveloperBenefitEndsAt": null
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "extension-to-web",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "extension-to-web/commit-session-4",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": false,
+          "emailVerified": false,
+          "waitlistDeveloperBenefitStartedAt": "2027-01-15T08:00:00Z",
+          "waitlistDeveloperBenefitEndsAt": null
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "extension-to-web",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "extension-to-web/commit-session-5",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": true,
+          "emailVerified": false,
+          "waitlistDeveloperBenefitStartedAt": "2027-01-15T08:00:00Z",
+          "waitlistDeveloperBenefitEndsAt": null
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "extension-to-web",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "extension-to-web/commit-session-6",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": false,
+          "emailVerified": true,
+          "waitlistDeveloperBenefitStartedAt": "2027-01-15T08:00:00Z",
+          "waitlistDeveloperBenefitEndsAt": null
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "extension-to-web",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "extension-to-web/commit-session-7",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": true,
+          "emailVerified": true,
+          "waitlistDeveloperBenefitStartedAt": "2027-01-15T08:00:00Z",
+          "waitlistDeveloperBenefitEndsAt": null
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "extension-to-web",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "extension-to-web/commit-session-8",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": false,
+          "emailVerified": false,
+          "waitlistDeveloperBenefitStartedAt": null,
+          "waitlistDeveloperBenefitEndsAt": "2027-02-15T08:00:00Z"
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "extension-to-web",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "extension-to-web/commit-session-9",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": true,
+          "emailVerified": false,
+          "waitlistDeveloperBenefitStartedAt": null,
+          "waitlistDeveloperBenefitEndsAt": "2027-02-15T08:00:00Z"
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "extension-to-web",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "extension-to-web/commit-session-10",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": false,
+          "emailVerified": true,
+          "waitlistDeveloperBenefitStartedAt": null,
+          "waitlistDeveloperBenefitEndsAt": "2027-02-15T08:00:00Z"
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "extension-to-web",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "extension-to-web/commit-session-11",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": true,
+          "emailVerified": true,
+          "waitlistDeveloperBenefitStartedAt": null,
+          "waitlistDeveloperBenefitEndsAt": "2027-02-15T08:00:00Z"
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "extension-to-web",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "extension-to-web/commit-session-12",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": false,
+          "emailVerified": false,
+          "waitlistDeveloperBenefitStartedAt": "2027-01-15T08:00:00Z",
+          "waitlistDeveloperBenefitEndsAt": "2027-02-15T08:00:00Z"
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "extension-to-web",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "extension-to-web/commit-session-13",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": true,
+          "emailVerified": false,
+          "waitlistDeveloperBenefitStartedAt": "2027-01-15T08:00:00Z",
+          "waitlistDeveloperBenefitEndsAt": "2027-02-15T08:00:00Z"
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "extension-to-web",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "extension-to-web/commit-session-14",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": false,
+          "emailVerified": true,
+          "waitlistDeveloperBenefitStartedAt": "2027-01-15T08:00:00Z",
+          "waitlistDeveloperBenefitEndsAt": "2027-02-15T08:00:00Z"
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "extension-to-web",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    },
+    {
+      "name": "extension-to-web/commit-session-15",
+      "type": "commit",
+      "body": {
+        "session": {
+          "accessToken": "synthetic-recipient-access-token-not-valid",
+          "refreshToken": "synthetic-recipient-refresh-token-not-valid",
+          "userId": "11111111-1111-4111-8111-111111111111",
+          "isOnboarded": true,
+          "emailVerified": true,
+          "waitlistDeveloperBenefitStartedAt": "2027-01-15T08:00:00Z",
+          "waitlistDeveloperBenefitEndsAt": "2027-02-15T08:00:00Z"
+        },
+        "authorizationId": "66666666-6666-4666-8666-666666666666",
+        "authorizationSequence": 11,
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "extension-to-web",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        }
+      }
+    }
+  ],
+  "operations": [
+    {
+      "direction": "web-to-extension",
+      "sourceAuthorization": {
+        "authorizationId": "55555555-5555-4555-8555-555555555555",
+        "sequence": 11,
+        "accountId": "11111111-1111-4111-8111-111111111111",
+        "organizationId": "33333333-3333-4333-8333-333333333333",
+        "credentialRevision": 3,
+        "privateKeyWrapRevision": 5,
+        "authorizationVersion": 4,
+        "unlockedAtMs": 1799999990000,
+        "idleDeadlineMs": 1800000100000,
+        "absoluteDeadlineMs": 1800000200000,
+        "offlineDeadlineMs": 1800000300000
+      },
+      "operation": {
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "web-to-extension",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        },
+        "sourcePublicKey": "e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM",
+        "recipientPublicKey": "D6poTtKIZ7l_Smot7l34zpdOdrcBjj8iocTPJnhXDyA",
+        "recipientProofPublicKey": "skkdlQKuKGMKK6yy4MdFEP_N0yjDNP8-E5PnWy0x59w",
+        "challenge": "mZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZk",
+        "transcriptHash": "lxItOeqBGIywqjLTEf2CEUbsaW9pOlZwcyq_qgOtCxo",
+        "keyContext": {
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "securityVersion": 1,
+          "minimumSecurityVersion": 1,
+          "kdfProfileId": "identity-argon2id-password-v1",
+          "kdfSalt": "IiIiIiIiIiIiIiIiIiIiIg",
+          "credentialRevision": 3,
+          "privateKeyWrapRevision": 5,
+          "memberKeyVersion": 7,
+          "publicKey": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "encryptedPrivateKey": "RERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERE"
+        }
+      },
+      "proofs": {
+        "consume": {
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "signature": "gIwO3K4mTXm3Xd2vzoqsIh7I-Jiwvcbx8w8fqLlD5ENSvjPy3T3EAYp_dGXmcMuoMGPtbVtet-osXDU9G8z3BA"
+        },
+        "commit": {
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "signature": "GbAGfDWHKnRMXn9OozqGqfWEniTB5FlY6R9wJ2yVXuJbbtLVQwE9DXkZ0_7FETiZ9S_MC24lbzBcl9KsCGqRAg"
+        }
+      },
+      "transcript": "AAAAGXBhbGxhZGluLnNoYXJlZC11bmxvY2sudjEAAAAkWDI1NTE5LUhLREYtU0hBMjU2LVhDSEFDSEEyMFBPTFkxMzA1AAAAGXBhbGxhZGluLnNoYXJlZC11bmxvY2sudjEAAAAQd2ViLXRvLWV4dGVuc2lvbgAAACQ3Nzc3Nzc3Ny03Nzc3LTQ3NzctODc3Ny03Nzc3Nzc3Nzc3NzcAAAAkMTExMTExMTEtMTExMS00MTExLTgxMTEtMTExMTExMTExMTExAAAAJDMzMzMzMzMzLTMzMzMtNDMzMy04MzMzLTMzMzMzMzMzMzMzMwAAABhodHRwczovL2FwaS5leGFtcGxlLnRlc3QAAAAYaHR0cHM6Ly9hcHAuZXhhbXBsZS50ZXN0AAAAIGFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhAAAAGnN5bnRoZXRpYy10YWItNy1kb2N1bWVudC05AAAAK016TXpNek16TXpNek16TXpNek16TXpNek16TXpNek16TXpNek16TXpNek0AAAArUkVSRVJFUkVSRVJFUkVSRVJFUkVSRVJFUkVSRVJFUkVSRVJFUkVSRVJFUQAAACQ0NDQ0NDQ0NC00NDQ0LTQ0NDQtODQ0NC00NDQ0NDQ0NDQ0NDQAAAABMgAAAAEzAAAAATQAAAAreDRwdUF2a3NVN3d3VE1PbzhuNS1Pck1aVWxYWUE1ZHdhV05ocWQ3b3ZYMAAAAA0xODAwMDAwMDAwMDAwAAAADTE4MDAwMDAwMzAwMDAAAAANMTc5OTk5OTk5MDAwMAAAAA0xODAwMDAwMTAwMDAwAAAADTE4MDAwMDAyMDAwMDAAAAANMTgwMDAwMDMwMDAwMAAAACtlMDZRbTc1X19rVEVaYUlnQTMxZ2p1TllsOU1lLVhMd2YzU0pMTEQzUHhNAAAAK0Q2cG9UdEtJWjdsX1Ntb3Q3bDM0enBkT2RyY0Jqajhpb2NUUEpuaFhEeUE"
+    },
+    {
+      "direction": "extension-to-web",
+      "sourceAuthorization": {
+        "authorizationId": "55555555-5555-4555-8555-555555555555",
+        "sequence": 11,
+        "accountId": "11111111-1111-4111-8111-111111111111",
+        "organizationId": "88888888-8888-4888-8888-888888888888",
+        "credentialRevision": 3,
+        "privateKeyWrapRevision": 5,
+        "authorizationVersion": 9,
+        "unlockedAtMs": 1799999990000,
+        "idleDeadlineMs": 1800000100000,
+        "absoluteDeadlineMs": 1800000200000,
+        "offlineDeadlineMs": 1800000300000
+      },
+      "operation": {
+        "context": {
+          "protocol": "palladin.shared-unlock.v1",
+          "direction": "extension-to-web",
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "organizationId": "33333333-3333-4333-8333-333333333333",
+          "apiOrigin": "https://api.example.test",
+          "webOrigin": "https://app.example.test",
+          "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "documentBinding": "synthetic-tab-7-document-9",
+          "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+          "linkId": "44444444-4444-4444-8444-444444444444",
+          "linkEpoch": 2,
+          "preferenceRevision": 3,
+          "authorizationVersion": 4,
+          "keyContextDigest": "x4puAvksU7wwTMOo8n5-OrMZUlXYA5dwaWNhqd7ovX0",
+          "issuedAtMs": 1800000000000,
+          "expiresAtMs": 1800000030000,
+          "unlockedAtMs": 1799999990000,
+          "idleDeadlineMs": 1800000100000,
+          "absoluteDeadlineMs": 1800000200000,
+          "offlineDeadlineMs": 1800000300000
+        },
+        "sourcePublicKey": "e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM",
+        "recipientPublicKey": "D6poTtKIZ7l_Smot7l34zpdOdrcBjj8iocTPJnhXDyA",
+        "recipientProofPublicKey": "skkdlQKuKGMKK6yy4MdFEP_N0yjDNP8-E5PnWy0x59w",
+        "challenge": "mZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZk",
+        "transcriptHash": "zg7LN4Ju79-cNH2DHiYwdZAl-7nND95K10kDdrYtGA0",
+        "keyContext": {
+          "accountId": "11111111-1111-4111-8111-111111111111",
+          "securityVersion": 1,
+          "minimumSecurityVersion": 1,
+          "kdfProfileId": "identity-argon2id-password-v1",
+          "kdfSalt": "IiIiIiIiIiIiIiIiIiIiIg",
+          "credentialRevision": 3,
+          "privateKeyWrapRevision": 5,
+          "memberKeyVersion": 7,
+          "publicKey": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+          "encryptedPrivateKey": "RERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERE"
+        }
+      },
+      "proofs": {
+        "consume": {
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "signature": "rooi4M1E3FSkZfoJYKOZoeZOWVmepPHt4eCnbAuXaeyAo3UQxyc6RSF5rdsAaFFRRhzIgRNRkzDMWlsXhg4XAA"
+        },
+        "commit": {
+          "operationId": "77777777-7777-4777-8777-777777777777",
+          "signature": "iIqE6nB9NFG6wGUL-mjHhpuqOm1swfNYm9hc5akqMfFQELIxgUxk18_CHKX63E7sYWs2G5MBwZIacqypt0lvBg"
+        }
+      },
+      "transcript": "AAAAGXBhbGxhZGluLnNoYXJlZC11bmxvY2sudjEAAAAkWDI1NTE5LUhLREYtU0hBMjU2LVhDSEFDSEEyMFBPTFkxMzA1AAAAGXBhbGxhZGluLnNoYXJlZC11bmxvY2sudjEAAAAQZXh0ZW5zaW9uLXRvLXdlYgAAACQ3Nzc3Nzc3Ny03Nzc3LTQ3NzctODc3Ny03Nzc3Nzc3Nzc3NzcAAAAkMTExMTExMTEtMTExMS00MTExLTgxMTEtMTExMTExMTExMTExAAAAJDMzMzMzMzMzLTMzMzMtNDMzMy04MzMzLTMzMzMzMzMzMzMzMwAAABhodHRwczovL2FwaS5leGFtcGxlLnRlc3QAAAAYaHR0cHM6Ly9hcHAuZXhhbXBsZS50ZXN0AAAAIGFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhAAAAGnN5bnRoZXRpYy10YWItNy1kb2N1bWVudC05AAAAK016TXpNek16TXpNek16TXpNek16TXpNek16TXpNek16TXpNek16TXpNek0AAAArUkVSRVJFUkVSRVJFUkVSRVJFUkVSRVJFUkVSRVJFUkVSRVJFUkVSRVJFUQAAACQ0NDQ0NDQ0NC00NDQ0LTQ0NDQtODQ0NC00NDQ0NDQ0NDQ0NDQAAAABMgAAAAEzAAAAATQAAAAreDRwdUF2a3NVN3d3VE1PbzhuNS1Pck1aVWxYWUE1ZHdhV05ocWQ3b3ZYMAAAAA0xODAwMDAwMDAwMDAwAAAADTE4MDAwMDAwMzAwMDAAAAANMTc5OTk5OTk5MDAwMAAAAA0xODAwMDAwMTAwMDAwAAAADTE4MDAwMDAyMDAwMDAAAAANMTgwMDAwMDMwMDAwMAAAACtlMDZRbTc1X19rVEVaYUlnQTMxZ2p1TllsOU1lLVhMd2YzU0pMTEQzUHhNAAAAK0Q2cG9UdEtJWjdsX1Ntb3Q3bDM0enBkT2RyY0Jqajhpb2NUUEpuaFhEeUE"
+    }
+  ],
+  "lifecycle": {
+    "originalSequence": 11,
+    "freshManualSequence": 16,
+    "steps": [
+      "link-created",
+      "link-active",
+      "link-locked",
+      "link-logged-out",
+      "link-disconnected",
+      "link-reconnected",
+      "link-fresh-login-active"
+    ],
+    "oldSessionRevokedAfter": "link-logged-out",
+    "limitsNeverRenewedBy": [
+      "handoff",
+      "peer-close",
+      "document-open",
+      "worker-restart",
+      "heartbeat",
+      "off-on",
+      "reconnect",
+      "ack"
+    ]
+  }
+}

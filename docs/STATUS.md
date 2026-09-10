@@ -12,11 +12,25 @@ release gate below is complete.
 `main` and arrives through normal review; historical prototype branches are not
 release candidates.
 
+## Shared unlock implementation in progress (CVT-583)
+
+The worker has a typed Identity API client, generated provider/consumer fixtures,
+cryptographic member-key recovery and a one-shot receiver session installer.
+Installation owns only the receiver's tokens, retains inherited idle/absolute/
+offline ceilings and rejects lock/logout, cancellation, environment/account
+changes and stale asynchronous results. Durable storage contains the ordinary
+password-sealed own-session envelope; MK and recovered private keys stay in RAM.
+
+These components are not yet connected to the browser messaging runtime. Source
+manual authorization, verified Web/Extension routing, durable link/preference
+coordination, UI and the full platform matrix remain open release gates. The
+platform probe proves only its recorded browser signals, not the feature.
+
 ## Development baseline
 
 - One buildable source tree with a locked dependency graph.
 - The shared cryptographic dependency is the exact public registry release
-  `@palladin/crypto@0.4.0`, published from signed tag `v0.4.0` with npm/Sigstore
+  `@palladin/crypto@0.7.0`, published from signed tag `v0.7.0` with npm/Sigstore
   provenance. No temporary Git SHA or extension-local crypto wire remains.
 - CI and local tests cover messaging, session lock/wipe, ciphertext-only cache,
   canonical writes for credentials, keys, scripts and cards, domain matching,

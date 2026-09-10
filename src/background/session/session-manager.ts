@@ -37,6 +37,7 @@ import {
 import {
   AutoLock,
   DEFAULT_AUTO_LOCK_POLICY,
+  policyIdleMs,
   type AutoLockPolicy,
 } from "./auto-lock";
 import {
@@ -47,6 +48,7 @@ import {
   type SyncTrigger,
 } from "./hooks";
 import { SessionStore } from "./session-store";
+import { unlockDeadline, type SessionUnlockLimits, type SharedUnlockInstaller } from "./shared-unlock-install";
 import { MasterPasswordUnlock, type UnlockSource } from "./unlock-source";
 import {
   SessionError,
@@ -134,6 +136,9 @@ export class SessionManager {
   private durableMutationTail: Promise<void> = Promise.resolve();
   private refreshInFlight: Promise<string | null> | null = null;
   private loginInFlight = false;
+  private unlocksInFlight = 0;
+  private sharedUnlockAttempt = 0;
+  private sharedUnlockLimits: SessionUnlockLimits | null = null;
 
   constructor(deps: SessionManagerDeps) {
     this.store = deps.store;
@@ -172,14 +177,140 @@ export class SessionManager {
   }
 
   async getStatus(): Promise<SessionStatus> {
-    if (this.keys) return "unlocked";
+    if (this.getKeys()) return "unlocked";
     if (await this.getBoundMemoryTokens()) return "locked";
     return await this.getBoundEnvelope() ? "locked" : "signed-out";
   }
 
   /** Live keys for in-worker consumers (fill engine, later). Null when locked. */
   getKeys(): SessionKeys | null {
+    // Browser alarms can be delayed by suspension. Enforce the inherited
+    // deadline synchronously at the key-use boundary as well.
+    if (this.sharedUnlockLimits && this.now() >= unlockDeadline(this.sharedUnlockLimits)) {
+      void this.lock();
+    }
     return this.keys;
+  }
+
+  /** Snapshot for an in-worker coordinator; contains no key or token. */
+  getSharedUnlockLimits(): SessionUnlockLimits | null {
+    return this.getKeys() && this.sharedUnlockLimits ? { ...this.sharedUnlockLimits } : null;
+  }
+
+  /**
+   * Capture before the receiver sends any proof. The route fence must reject
+   * navigation, OFF, disconnect and changed account/organization/generations.
+   * A successful commit whose installation fails is revoked by the coordinator
+   * through ordinary own-session logout, never a linked group logout.
+   */
+  async beginSharedUnlockInstall(
+    accountId: string,
+    apiUrl: string,
+    assertRouteCurrent: () => void,
+  ): Promise<SharedUnlockInstaller> {
+    const generation = this.captureLifecycleGeneration();
+    const attempt = ++this.sharedUnlockAttempt;
+    let cancelled = false;
+    let consumed = false;
+    let pendingKeys: SessionKeys | null = null;
+    const checkLocal = () => {
+      this.assertLifecycleGeneration(generation);
+      this.assertApiUrl(apiUrl);
+      if (cancelled || attempt !== this.sharedUnlockAttempt || this.loginInFlight || this.unlocksInFlight > 0 || this.pendingTotp || this.keys) {
+        throw new SessionLifecycleChangedError();
+      }
+    };
+    const assertCurrent = () => {
+      checkLocal();
+      assertRouteCurrent();
+      checkLocal();
+    };
+    assertCurrent();
+    const existingAccountId = await this.getUserId();
+    assertCurrent();
+    if (existingAccountId && existingAccountId !== accountId) throw new SessionLifecycleChangedError();
+    const previousEnvelope = await this.getBoundEnvelope();
+    assertCurrent();
+    return {
+      assertCurrent,
+      cancel: () => {
+        cancelled = true;
+        if (pendingKeys) this.wipeSessionKeys(pendingKeys);
+      },
+      install: async ({ tokens, material, keys, limits }) => {
+        // Ownership already moved to the live session. A duplicate cannot wipe
+        // its buffers (nor use them to replace or renew that session).
+        if (consumed && [this.keys, pendingKeys].some(owned => owned
+          && (owned.masterKey === keys.masterKey || owned.privateKey === keys.privateKey))) {
+          throw new SessionLifecycleChangedError();
+        }
+        let envelope: BrowserSessionEnvelope | null = null;
+        let published = false;
+        // Own the buffers immediately, including a duplicate install call.
+        this.trackSessionKeys(keys);
+        try {
+          if (consumed) throw new SessionLifecycleChangedError();
+          consumed = true;
+          pendingKeys = keys;
+          assertCurrent();
+          if (tokens.userId !== accountId || material.accountId !== accountId || tokens.apiUrl !== apiUrl) {
+            throw new SessionLifecycleChangedError();
+          }
+          const inherited = { ...limits };
+          const assertInstallCurrent = () => {
+            assertCurrent();
+            if (this.now() >= unlockDeadline(inherited)) throw new SessionLifecycleChangedError();
+          };
+          assertInstallCurrent();
+          const issuedAt = this.now();
+          envelope = await this.sealDurablePayload({ state: "active", ...tokens }, keys.masterKey, {
+            apiUrl, accountId, clientId: this.clientId,
+            identitySecurityVersion: material.kdf.securityVersion,
+            minimumIdentitySecurityVersion: material.kdf.minimumSecurityVersion,
+            kdfProfileId: material.kdf.profileId, kdfSalt: material.kdf.kdfSalt,
+            encryptedPrivateKey: material.encryptedPrivateKey,
+            issuedAt, expiresAt: issuedAt + this.durableSessionTtlMs,
+          });
+          assertInstallCurrent();
+          await this.runDurableMutation(async () => {
+            assertInstallCurrent();
+            await this.store.setSealedSession(envelope!);
+            assertInstallCurrent();
+          });
+          assertInstallCurrent();
+          await this.setUnlocked(keys, accountId, generation, inherited, assertInstallCurrent, tokens);
+          assertRouteCurrent();
+          if (cancelled || attempt !== this.sharedUnlockAttempt || this.now() >= unlockDeadline(inherited)) {
+            throw new SessionLifecycleChangedError();
+          }
+          published = this.keys === keys && this.isLifecycleCurrent(generation);
+          if (!published) throw new SessionLifecycleChangedError();
+        } finally {
+          if (pendingKeys === keys) pendingKeys = null;
+          this.untrackSessionKeys(keys);
+          if (!published) {
+            if (this.keys === keys) {
+              this.wipeKeys();
+              this.tokens = null;
+              this.autoLock.disarm();
+              // Notify surfaces even if an unlocked listener threw. Cleanup
+              // must finish regardless of another subscriber's exception.
+              try { this.hooks.emitLocked({ userId: accountId }); } catch { /* keys already erased */ }
+            }
+            this.wipeSessionKeys(keys);
+            if (envelope) {
+              const written = envelope;
+              await this.runDurableMutation(async () => {
+                const current = await this.store.getSealedSession();
+                if (current?.encodedSuitePayload !== written.encodedSuitePayload) return;
+                if (previousEnvelope && this.isLifecycleCurrent(generation)) await this.store.setSealedSession(previousEnvelope);
+                else await this.store.clearSealedSession();
+              });
+            }
+          }
+        }
+      },
+    };
   }
 
   /**
@@ -322,6 +453,7 @@ export class SessionManager {
     if (this.loginInFlight) {
       throw new SessionError("network", "Another sign-in attempt is already in progress");
     }
+    this.sharedUnlockAttempt += 1;
     this.loginInFlight = true;
     try {
       return await this.performLogin(email, password);
@@ -568,6 +700,16 @@ export class SessionManager {
 
   /** Re-derive keys for a locked session from cached material, via any source. */
   async unlock(source: UnlockSource): Promise<void> {
+    this.sharedUnlockAttempt += 1;
+    this.unlocksInFlight += 1;
+    try {
+      await this.performUnlock(source);
+    } finally {
+      this.unlocksInFlight -= 1;
+    }
+  }
+
+  private async performUnlock(source: UnlockSource): Promise<void> {
     const generation = this.captureLifecycleGeneration();
     const envelope = await this.getBoundEnvelope();
     this.assertLifecycleGeneration(generation);
@@ -633,21 +775,29 @@ export class SessionManager {
     keys: SessionKeys,
     userId: string,
     generation: number,
+    inherited: SessionUnlockLimits | null = null,
+    assertCurrent?: () => void,
+    ownTokens?: SessionTokens,
   ): Promise<void> {
     let published = false;
     try {
       this.assertLifecycleGeneration(generation);
+      assertCurrent?.();
       const record = await this.store.getAutoLock();
       this.assertLifecycleGeneration(generation);
+      assertCurrent?.();
       const policy = record?.policy ?? DEFAULT_AUTO_LOCK_POLICY;
       const unlockedAt = this.now();
       await this.store.setAutoLock({ policy, lastActivityAt: unlockedAt });
       this.assertLifecycleGeneration(generation);
+      assertCurrent?.();
 
       this.wipeKeys();
+      this.sharedUnlockLimits = inherited;
+      if (ownTokens) this.tokens = ownTokens;
       this.keys = keys;
       published = true;
-      this.autoLock.arm(policy, unlockedAt);
+      this.autoLock.arm(policy, unlockedAt, inherited ? unlockDeadline(inherited) : undefined);
       this.hooks.emitUnlocked({ userId });
       if (generation !== this.lifecycleGeneration) return;
       this.sync.requestSync("unlocked");
@@ -704,6 +854,7 @@ export class SessionManager {
   }
 
   private wipeKeys(): void {
+    this.sharedUnlockLimits = null;
     if (!this.keys) return;
     this.wipeSessionKeys(this.keys);
     this.keys = null;
@@ -969,12 +1120,23 @@ export class SessionManager {
 
   /** Record user activity and push the idle deadline out (no-op while locked). */
   async touchActivity(): Promise<void> {
-    if (!this.keys) return;
-    const record = await this.store.getAutoLock();
-    const policy = record?.policy ?? DEFAULT_AUTO_LOCK_POLICY;
+    if (!this.getKeys()) return;
+    const generation = this.captureLifecycleGeneration();
     const at = this.now();
+    const record = await this.store.getAutoLock();
+    if (!this.isLifecycleCurrent(generation) || !this.getKeys()) return;
+    const policy = record?.policy ?? DEFAULT_AUTO_LOCK_POLICY;
     await this.store.setAutoLock({ policy, lastActivityAt: at });
-    this.autoLock.arm(policy, at);
+    if (!this.isLifecycleCurrent(generation) || !this.getKeys()) return;
+    if (this.sharedUnlockLimits) {
+      const idle = policyIdleMs(policy);
+      this.sharedUnlockLimits = {
+        ...this.sharedUnlockLimits,
+        idleDeadlineMs: Math.min(idle === null ? Infinity : at + idle,
+          this.sharedUnlockLimits.absoluteDeadlineMs, this.sharedUnlockLimits.offlineDeadlineMs),
+      };
+    }
+    this.autoLock.arm(policy, at, this.sharedUnlockLimits ? unlockDeadline(this.sharedUnlockLimits) : undefined);
   }
 
   async getAutoLockPolicy(): Promise<AutoLockPolicy> {
@@ -986,6 +1148,7 @@ export class SessionManager {
   async setAutoLockPolicy(policy: AutoLockPolicy): Promise<void> {
     const at = this.now();
     await this.store.setAutoLock({ policy, lastActivityAt: at });
-    if (this.keys) this.autoLock.arm(policy, at);
+    if (this.getKeys()) this.autoLock.arm(policy, at,
+      this.sharedUnlockLimits ? unlockDeadline(this.sharedUnlockLimits) : undefined);
   }
 }

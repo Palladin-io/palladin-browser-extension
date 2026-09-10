@@ -387,3 +387,35 @@ autofill heuristic.
 Release work must add, at minimum, locked dependencies, type checking, unit and
 integration tests, permission-diff review, artifact hashes, an SBOM, provenance
 attestation, and a documented browser-store signing process.
+
+## Shared unlock session components (CVT-583, runtime wiring pending)
+
+`background/shared-unlock/api.ts` follows the Identity session contract with typed
+responses and generated consumer fixtures. Source requests use the source's own
+session; consume/commit run as receiver requests with one-shot proofs. No source
+token crosses the peer channel. Requests reject environment changes/cancellation
+before and after asynchronous boundaries and never retry a consumed operation.
+
+`shared/crypto/shared-unlock-keys.ts` composes only the published crypto package:
+verify Identity's key-context commitment against the authorized operation, unwrap
+the private key with the recovered MK and derive/compare its public key against
+Identity's independent descriptor. It owns temporary buffers and wipes failures.
+This cryptographic boundary does not duplicate backend business invariants.
+
+The SessionManager installer is captured before receiver proofs. It refuses an
+account switch and fences local lock/logout, a newer manual/automatic attempt,
+route changes and expiry during sealing, storage and publication. A failed
+installation removes only its own envelope and leaves any newer session alone;
+the coordinator must revoke the newly committed receiver lineage separately.
+Duplicate installation cannot replace or wipe the successful independent session.
+
+The receiver preserves original unlockedAt and idle/absolute/offline deadlines.
+Actual own activity may move idle only within original ceilings; policy changes
+and on-close do not remove inherited deadlines. Key reads enforce those deadlines
+synchronously when browser alarms are late. Worker restart retains no keys and
+requires a new authorized operation or manual unlock. Turning sharing OFF must
+not alter these own-session limits.
+
+Verified browser transport, source authorization, closing/preference coordination
+and surfaces are not wired to these components yet. There is no new page command
+that can invoke the installer and no claim of end-to-end platform acceptance.
