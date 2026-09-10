@@ -75,9 +75,10 @@ async function createFixture(name, changed) {
     'worker.js': `globalThis.implementationChanged = ${changed};
 globalThis.senderObservations = [];
 chrome.runtime.onMessageExternal.addListener((message, sender, reply) => {
-  if (message.kind !== 'probe' || sender.origin !== '${origin}' || sender.frameId !== 0) return;
+  // Observe every delivery before application guards so browser rejection is measurable.
   globalThis.senderObservations.push({ origin: sender.origin, frameId: sender.frameId,
     hasTab: Number.isInteger(sender.tab?.id), hasDocument: typeof sender.documentId === 'string' });
+  if (message.kind !== 'probe' || sender.origin !== '${origin}' || sender.frameId !== 0) return;
   reply({ kind: 'synthetic-response', installType: 'normal' });
 });`,
     'bridge.html': '<!doctype html><script src="bridge.js"></script>',
