@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import shutil
 import socketserver
 import subprocess
 import threading
@@ -18,6 +19,7 @@ import urllib.parse
 parser = argparse.ArgumentParser()
 parser.add_argument('--driver-url', default='http://127.0.0.1:55187')
 parser.add_argument('--prepare-only', action='store_true')
+parser.add_argument('--product-extension', type=Path)
 parser.add_argument('--ci-screenshot-on-failure', action='store_true')
 parser.add_argument('--ci-grant-fixture-access', action='store_true')
 parser.add_argument('--background-kind', choices=['classic-worker', 'module-worker', 'document'], default='module-worker')
@@ -25,8 +27,13 @@ args = parser.parse_args()
 if args.ci_screenshot_on_failure or args.ci_grant_fixture_access:
     assert os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted', 'Native CI diagnostics only on disposable GitHub-hosted runners'
 assert args.driver_url == 'http://127.0.0.1:55187', 'Task-owned local SafariDriver only'
-out = Path('test-results/shared-unlock-safari-boundary').resolve()
+out = Path('test-results/shared-unlock-safari-product-channel' if args.product_extension else 'test-results/shared-unlock-safari-boundary').resolve()
 fixture = out / 'fixture'
+if args.product_extension:
+    assert args.background_kind == 'module-worker', 'Product uses its built module worker'
+    assert args.product_extension.resolve() == Path('dist/safari').resolve(), 'Only the task-built Safari artifact is allowed'
+    if fixture.exists(): shutil.rmtree(fixture)
+    shutil.copytree(args.product_extension, fixture)
 fixture.mkdir(parents=True, exist_ok=True)
 origin = 'http://127.0.0.1:55189'
 background = {'service_worker': 'background.js'}
@@ -52,13 +59,13 @@ void (async () => {
   const tabs = await browser.tabs.query({});
   if (!tabs.some(tab => tab.url === url)) await browser.tabs.create({ url, active: false });
 })();
-browser.runtime.onMessage.addListener((message, _sender, respond) => {
-  if (message?.type === 'synthetic-internal-probe') {
+browser.runtime.onConnect.addListener(port => {
+  if (port.name === 'synthetic-internal-probe') {
     const events = { external: browser.runtime.onConnectExternal,
       beforeNavigate: browser.webNavigation.onBeforeNavigate, committed: browser.webNavigation.onCommitted,
       errorOccurred: browser.webNavigation.onErrorOccurred, tabReplaced: browser.webNavigation.onTabReplaced,
       tabRemoved: browser.tabs.onRemoved };
-    respond({ workerListenerReady: true, lifecycleEvents: Object.fromEntries(Object.entries(events).map(([name, event]) =>
+    port.postMessage({ workerListenerReady: true, lifecycleEvents: Object.fromEntries(Object.entries(events).map(([name, event]) =>
       [name, typeof event?.addListener === 'function' && typeof event?.removeListener === 'function'])) });
   }
 });
@@ -88,6 +95,25 @@ browser.runtime.onConnectExternal.addListener(port => {
     runtimeOrigin: browser.runtime.getURL(''), sender: scope(port.sender), senderTab: scope(port.sender?.tab) });
 });
 ''')
+product_provenance = None
+if args.product_extension:
+    product_manifest = json.loads((args.product_extension / 'manifest.json').read_text())
+    original_worker = product_manifest['background']['service_worker']
+    assert product_manifest['background'].get('type') == 'module'
+    assert original_worker != 'background.js'
+    source_files = sorted(path for path in args.product_extension.rglob('*') if path.is_file())
+    for name in ['diagnostics.html', 'diagnostics.js', 'diagnostic-background.js', 'background.js']:
+        assert not (args.product_extension / name).exists(), 'Diagnostic filename collides with the product'
+    product_provenance = {'sourceHead': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+        'sourceDirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip()),
+        'artifactSha256': hashlib.sha256(b''.join(path.relative_to(args.product_extension).as_posix().encode() + b'\0' + path.read_bytes() for path in source_files)).hexdigest(),
+        'diagnosticInstrumentation': ['test display name', 'diagnostic extension page', 'background wrapper imports unchanged product worker']}
+    diagnostics = (fixture / 'background.js').read_text().split('function scope(value)', 1)[0]
+    (fixture / 'diagnostic-background.js').write_text(diagnostics)
+    (fixture / 'background.js').write_text('import "./diagnostic-background.js";\nimport ' + json.dumps('./' + original_worker) + ';\n')
+    product_manifest['name'] = manifest['name']
+    product_manifest['background']['service_worker'] = 'background.js'
+    (fixture / 'manifest.json').write_text(json.dumps(product_manifest, indent=2))
 (fixture / 'diagnostics.html').write_text('<!doctype html><title>Synthetic extension diagnostics</title><pre id="result">pending</pre><button id="grant">Grant loopback page access</button><pre id="grant-result">pending</pre><script src="diagnostics.js"></script>')
 (fixture / 'diagnostics.js').write_text('''
 document.getElementById('grant').addEventListener('click', async () => {
@@ -101,12 +127,21 @@ document.getElementById('grant').addEventListener('click', async () => {
 (async () => {
   const result = { runtimeId: browser.runtime.id, runtimeOrigin: browser.runtime.getURL('') };
   try { result.permissions = await browser.permissions.getAll(); } catch { result.permissionReadFailed = true; }
-  try { result.worker = await browser.runtime.sendMessage({ type: 'synthetic-internal-probe' }); } catch { result.workerReadFailed = true; }
+  try {
+    result.worker = await new Promise((resolve, reject) => {
+      const port = browser.runtime.connect({ name: 'synthetic-internal-probe' });
+      const timer = setTimeout(() => { port.disconnect(); reject(new Error('Diagnostic timeout')); }, 2000);
+      port.onMessage.addListener(message => { clearTimeout(timer); resolve(message); port.disconnect(); });
+    });
+  } catch { result.workerReadFailed = true; }
   document.getElementById('result').textContent = JSON.stringify(result);
 })();
 ''')
 fixture_hash = hashlib.sha256(b''.join((fixture / name).read_bytes()
     for name in ['manifest.json', 'background.js', 'diagnostics.html', 'diagnostics.js'])).hexdigest()
+if args.product_extension:
+    fixture_hash = hashlib.sha256(b''.join(path.relative_to(fixture).as_posix().encode() + b'\0' + path.read_bytes()
+        for path in sorted(fixture.rglob('*')) if path.is_file())).hexdigest()
 if args.prepare_only:
     print('Prepared synthetic Safari fixture; no browser or session was started.')
     raise SystemExit(0)
@@ -146,8 +181,9 @@ def request(method, path, body=None):
 
 session = None
 server = None
+other_port_server = None
 checks = []
-observations = {'backgroundKind': args.background_kind}
+observations = {'backgroundKind': args.background_kind, 'product': product_provenance}
 stage = 'session'
 for name in ['report.json', 'failure.json']:
     (out / name).unlink(missing_ok=True)
@@ -191,6 +227,105 @@ def probe(extension_id):
         port.onDisconnect.addListener(() => { void browser.runtime.lastError; finish({ outcome: 'disconnected' }); });
       } catch (error) { finish({ outcome: 'exception', errorName: error.name }); }
     ''', 'args': [extension_id]})
+
+
+def product_probe(extension_id, variant='valid'):
+    return command('POST', '/execute/async', {'script': '''
+      const id = arguments[0], variant = arguments[1], done = arguments[arguments.length - 1];
+      const protocol = 'palladin.shared-unlock.browser.v1';
+      const bytes = crypto.getRandomValues(new Uint8Array(32));
+      const webNonce = btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+      const hello = { type: 'hello', protocol, apiUrl: 'http://localhost:55083', webNonce };
+      if (variant === 'wrong-api') hello.apiUrl = 'http://localhost:55085';
+      if (variant === 'extra-claim') hello.claimedAccountId = 'synthetic';
+      let finished = false, ready = null;
+      const finish = value => { if (!finished) { finished = true; clearTimeout(timer); done(value); } };
+      const timer = setTimeout(() => finish({ outcome: 'timeout', ready }), 6500);
+      try {
+        const port = browser.runtime.connect(id, { name: protocol });
+        window.syntheticProductPort = port;
+        port.onMessage.addListener(message => {
+          if (message?.type !== 'ready') return;
+          const expected = ['apiUrl', 'channelId', 'documentBinding', 'extensionId', 'protocol', 'type', 'webNonce', 'webOrigin'];
+          if (Object.keys(message).sort().join(',') !== expected.sort().join(',')
+            || message.webNonce !== webNonce || message.extensionId !== id || message.protocol !== protocol
+            || message.apiUrl !== hello.apiUrl || message.webOrigin !== location.origin) {
+            finish({ outcome: 'invalid-ready' }); return;
+          }
+          ready = message;
+          if (variant === 'repeat') port.postMessage(hello);
+          else finish({ outcome: 'ready', ready });
+        });
+        port.onDisconnect.addListener(() => { void browser.runtime.lastError; finish({ outcome: 'disconnected', hadReady: ready !== null }); });
+        port.postMessage(hello);
+      } catch (error) { finish({ outcome: 'exception', errorName: error.name }); }
+    ''', 'args': [extension_id, variant]})
+
+def current_product_document(diagnostic_handle, web_handle):
+    command('POST', '/window', {'handle': diagnostic_handle})
+    result = command('POST', '/execute/async', {'script': '''
+      const done = arguments[arguments.length - 1];
+      (async () => {
+        const tabs = await browser.tabs.query({});
+        const tab = tabs.find(tab => tab.url === 'http://127.0.0.1:55189/allowed');
+        if (!tab) { done({ missingTab: true }); return; }
+        const frame = await browser.webNavigation.getFrame({ tabId: tab.id, frameId: 0 });
+        done({ tabId: tab.id, incognito: tab.incognito, url: tab.url, status: tab.status,
+          documentId: frame.documentId, frameUrl: frame.url, parentFrameId: frame.parentFrameId });
+      })().catch(() => done({ nativeReadFailed: true }));
+    ''', 'args': []})
+    command('POST', '/window', {'handle': web_handle})
+    return result
+
+def run_product_channel(extension_id, diagnostic_handle, web_handle):
+    global stage, other_port_server
+    extension_id = urllib.parse.unquote(extension_id)
+    stage = 'product-channel-ready'
+    first = product_probe(extension_id)
+    observations['productFirst'] = first
+    assert first['outcome'] == 'ready'
+    checks.append('actual-product-bootstrap-and-native-ready')
+    native = current_product_document(diagnostic_handle, web_handle)
+    observations['productNativeDocument'] = native
+    assert native['incognito'] is False and native['status'] == 'complete' and native['parentFrameId'] == -1
+    assert native['url'] == native['frameUrl'] == origin + '/allowed'
+    assert first['ready']['documentBinding'] == str(native['tabId']) + '/' + native['documentId'] + '/' + first['ready']['channelId']
+    checks.append('product-ready-bound-to-independent-native-current-document')
+    for variant in ['wrong-api', 'extra-claim', 'repeat']:
+        stage = 'product-reject-' + variant
+        rejected = product_probe(extension_id, variant)
+        observations[stage] = rejected
+        assert rejected['outcome'] == 'disconnected'
+        if variant == 'repeat': assert rejected['hadReady'] is True
+        checks.append(stage)
+    stage = 'product-same-url-reload'
+    command('POST', '/refresh', {})
+    second = product_probe(extension_id)
+    observations['productAfterReload'] = second
+    assert second['outcome'] == 'ready'
+    current = current_product_document(diagnostic_handle, web_handle)
+    assert current['documentId'] != native['documentId']
+    assert second['ready']['documentBinding'] == str(current['tabId']) + '/' + current['documentId'] + '/' + second['ready']['channelId']
+    assert second['ready']['channelId'] != first['ready']['channelId']
+    checks.append('product-reload-requires-new-native-document-and-channel')
+    stage = 'product-wrong-recipient'
+    wrong = product_probe('org.example.nonexistent.Extension (AAAAAAAAAA)')
+    observations[stage] = wrong
+    assert wrong['outcome'] != 'ready'
+    checks.append(stage)
+    stage = 'product-wrong-port-on-granted-host'
+    other_port_server = LoopbackServer(('127.0.0.1', 55190), Site)
+    threading.Thread(target=other_port_server.serve_forever, daemon=True).start()
+    navigate('http://127.0.0.1:55190/denied')
+    wrong_port = product_probe(extension_id)
+    observations[stage] = wrong_port
+    assert wrong_port['outcome'] == 'disconnected'
+    checks.append(stage)
+    report = {'status': 'instrumented-product-channel-only', 'checks': checks, 'observations': observations,
+        'fixtureSha256': fixture_hash, 'osVersion': platform.mac_ver()[0], 'architecture': platform.machine(),
+        'observedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'identityOrKeysUsed': False, 'fullMatrix': False}
+    (out / 'report.json').write_text(json.dumps(report, indent=2))
+    print('PASS: ' + str(len(checks)) + ' Safari product-channel checks; no Identity/MK/Entry acceptance.')
 
 try:
     created = request('POST', '/session', {'capabilities': {'alwaysMatch': {'browserName': 'safari', 'platformName': 'macOS'}}})
@@ -271,7 +406,7 @@ try:
             observations['fixturePermissionRequest'] = grant
             stage = 'fixture-page-access-permission'
             assert grant and json.loads(grant).get('granted') is True
-            command('DELETE', '/window')
+            if not args.product_extension: command('DELETE', '/window')
     assert observations['internalDiagnostics'], 'Installed fixture did not become observable'
     lifecycle = json.loads(observations['internalDiagnostics'][0]['result'])['worker']['lifecycleEvents']
     assert all(lifecycle.get(name) is True for name in ['external', 'beforeNavigate', 'committed', 'errorOccurred', 'tabRemoved']), 'Missing required native lifecycle event'
@@ -281,6 +416,9 @@ try:
     threading.Thread(target=server.serve_forever, daemon=True).start()
     stage = 'allowed-native-port'
     navigate(origin + '/allowed')
+    if args.product_extension:
+        run_product_channel(extension_id, diagnostic_handles[0], initial_window)
+        raise SystemExit(0)
     first_result = probe(extension_id)
     observations['nativeRecipientProbe'] = first_result
     # Compare only two browser-derived representations. This synthetic probe
@@ -353,3 +491,4 @@ finally:
         try: request('DELETE', '/session/' + session)
         except Exception: pass
     if server: server.shutdown(); server.server_close()
+    if other_port_server: other_port_server.shutdown(); other_port_server.server_close()

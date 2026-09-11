@@ -7,6 +7,11 @@ on:
       - .github/workflows/shared-unlock-safari.yml
       - tests/browser/shared-unlock-safari-boundary.py
       - tests/browser/safari-ci-permission.applescript
+      - src/**
+      - manifest/**
+      - scripts/**
+      - package.json
+      - package-lock.json
   workflow_dispatch:
 
 permissions:
@@ -19,11 +24,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        background: [classic-worker, module-worker, document]
+        background: [classic-worker, module-worker, document, product]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        if: matrix.background == 'product'
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build the configured Safari product
+        if: matrix.background == 'product'
+        env:
+          VITE_API_URL: http://localhost:55083
+          VITE_POSTHOG_KEY: ''
+          VITE_SHARED_UNLOCK_ENVIRONMENTS: '[{"apiUrl":"http://localhost:55083","webOrigin":"http://127.0.0.1:55189"}]'
+        run: |
+          npm ci
+          npm run build:safari
       - name: Observe native Safari extension boundary
         shell: bash
         env:
@@ -48,12 +67,16 @@ jobs:
           else:
               raise SystemExit('SafariDriver did not start')
           PY
-          python3 tests/browser/shared-unlock-safari-boundary.py --ci-screenshot-on-failure --ci-grant-fixture-access --background-kind "$SAFARI_FIXTURE_BACKGROUND"
+          if [ "$SAFARI_FIXTURE_BACKGROUND" = product ]; then
+            python3 tests/browser/shared-unlock-safari-boundary.py --ci-screenshot-on-failure --ci-grant-fixture-access --product-extension dist/safari
+          else
+            python3 tests/browser/shared-unlock-safari-boundary.py --ci-screenshot-on-failure --ci-grant-fixture-access --background-kind "$SAFARI_FIXTURE_BACKGROUND"
+          fi
       - name: Retain synthetic Safari observations
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: shared-unlock-safari-boundary-${{ matrix.background }}
-          path: test-results/shared-unlock-safari-boundary/
+          path: test-results/shared-unlock-safari-*/
           if-no-files-found: error
           retention-days: 7

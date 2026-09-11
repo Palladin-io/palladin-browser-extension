@@ -1,5 +1,37 @@
 # Safari recipient and document boundary
 
+## Installed product channel
+
+The `--product-extension dist/safari` mode installs a copy of the actual Safari
+build configured for Web `http://127.0.0.1:55189` and API
+`http://localhost:55083`. It retains the original product worker and permissions.
+Test instrumentation changes the display name, adds a private diagnostic page
+and a wrapper that imports the unchanged product worker. The diagnostic page
+requests only the already declared loopback host and reads native tab/document
+metadata independently of the product's ready message. It never installs an
+account, session or key. Source/artifact and instrumented fixture hashes are
+recorded separately; this is not an unmodified distributed artifact proof.
+
+The test requires a product ready frame, its exact native document binding, a
+new document/channel after reload, and rejection of another API, extra hello
+claims, repeated hello, another recipient and another port on the granted host.
+The CI product job builds only this repository; it uses no private checkout or
+backend secrets. The three synthetic background probes remain separate jobs.
+Actual Identity/MK/Entry and supported-version/distribution acceptance remain
+open until their own scenarios run successfully.
+
+```sh
+VITE_API_URL=http://localhost:55083 VITE_POSTHOG_KEY='' \
+VITE_SHARED_UNLOCK_ENVIRONMENTS='[{"apiUrl":"http://localhost:55083","webOrigin":"http://127.0.0.1:55189"}]' \
+npm run build:safari
+python3 tests/browser/shared-unlock-safari-boundary.py --product-extension dist/safari
+```
+
+The same owner-approved local Safari automation prerequisite applies. The CI
+native grant helper remains restricted to disposable GitHub-hosted runners and
+the exact synthetic display name plus loopback host; it does not change local
+Safari settings.
+
 The product now contains a separate Safari native-Port adapter. This probe still
 tests a synthetic fixture, not product login/unlock. The latest increment removes
 global `tabs` permission and checks the lifecycle event APIs and native tab
