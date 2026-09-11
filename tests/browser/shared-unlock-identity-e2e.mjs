@@ -92,6 +92,27 @@ async function observeLocalContext() {
     return [webOrigin, new URL(apiUrl).origin, new URL(sesUrl).origin, 'http://localhost:54583'].includes(url.origin)
       || url.protocol === 'chrome-extension:' ? route.continue() : route.abort()
   })
+  const originKind = raw => {
+    const url = new URL(raw)
+    return url.origin === webOrigin ? 'web' : url.origin === new URL(apiUrl).origin ? 'api'
+      : url.protocol === 'chrome-extension:' ? 'extension' : 'other'
+  }
+  context.on('weberror', event => {
+    const name = event.error().name
+    requests.push({ check: 'uncaught-browser-error', stage,
+      kind: ['Error', 'TypeError', 'ReferenceError', 'SyntaxError', 'RangeError'].includes(name) ? name : 'other' })
+  })
+  context.on('requestfailed', request => {
+    const text = request.failure()?.errorText ?? ''
+    requests.push({ check: 'browser-request-failed', stage, origin: originKind(request.url()),
+      resource: request.resourceType(), reason: /^net::ERR_[A-Z_]+$/.test(text) ? text : 'other' })
+  })
+  context.on('console', message => {
+    if (message.type() !== 'error') return
+    // Record only a category; console text can contain URLs or application data.
+    requests.push({ check: 'browser-console-error', stage,
+      contentSecurityPolicy: message.text().includes('Content Security Policy') })
+  })
   context.on('response', response => {
     const url = new URL(response.url())
     if (url.origin === new URL(apiUrl).origin) requests.push({ stage, path: url.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id'), status: response.status() })
@@ -423,6 +444,24 @@ try {
     observedAt: new Date().toISOString(), browser: context.browser().version(), provenance, fullMatrix: false, entryDecryptionVerified: true })
   console.log(`PARTIAL: ${checks.length} native Identity/Entry checks; full matrix still required.`)
 } catch (error) {
+  if (page) {
+    try {
+      const state = await page.evaluate(() => ({
+        readyState: document.readyState,
+        rootChildren: document.getElementById('root')?.childElementCount ?? null,
+        scriptElements: document.scripts.length,
+        verificationTokenPresent: new URL(location.href).searchParams.has('token'),
+      }))
+      requests.push({ check: 'web-load-state-at-failure', ...state })
+    } catch { requests.push({ check: 'web-load-state-at-failure', unavailable: true }) }
+    const flags = {}
+    for (const label of ['Email Verified', 'Verifying your email', 'Check your email', 'Link expired',
+      'Invalid verification link', 'Loading...', 'Unlock your vault', 'Sign in']) {
+      try { flags[label] = await page.getByRole('heading', { name: label, exact: true }).isVisible() }
+      catch { flags[label] = null }
+    }
+    requests.push({ check: 'web-known-heading-at-failure', flags })
+  }
   if (page && accountIsolation) {
     const flags = {}
     for (const label of ['Synthetic account B proof', 'Personal', 'Retry', 'No entries yet.',

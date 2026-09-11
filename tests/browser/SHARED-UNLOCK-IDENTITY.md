@@ -347,3 +347,12 @@ macOS26.4.1 arm64 and geckodriver0.37.1. Source heads and artifact hashes are in
 the versioned reports; the previous810cf86 results were retained separately.
 These are actual password/lifecycle observations, without adding trusted-input,
 full-browser restart, TLS, permission-prompt or full-platform acceptance.
+
+
+Failure diagnostics also record browser-error categories, failed-request origin
+classes/resource types and browser error codes, CSP-error presence, document
+readiness/root child count, known-heading visibility and a boolean indicating
+whether the verification-token parameter remains present. They never include
+console/error text, token/query values, request bodies, screenshots or DOM dumps.
+These observations diagnose load/navigation failures before a handoff is reached;
+a later passing retry does not close an unexplained earlier failure.
