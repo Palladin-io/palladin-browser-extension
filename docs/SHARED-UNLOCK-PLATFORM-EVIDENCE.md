@@ -6,7 +6,55 @@ tests. Only the latter use synthetic accounts with real browser cryptography
 and an isolated Palladin backend. No result here proves the full acceptance
 matrix or production support.
 
-## Current acceptance status — 2026-09-11
+## Current acceptance status — 2026-09-12
+
+Chrome152.0.7977.84/macOS26.4.1 arm64/local-unpacked/CDP passed41 actual
+Identity/Entry checks at2026-09-11T23:42:44.577Z, with clean-at-start
+Web e1c8d6e…aa64af2, Extension beab24e…d21a5ac and Backend dde6bb96…aac65.
+The tenth explicit manual authorization returned real429 and Retry-After48s.
+Web Entry decryption remained available throughout that entire cooldown, while
+the peer denied Entry access and no password-proof replay occurred. A fresh
+manual retry returned200 and restored peer decryption. TOTP, account ON/OFF,
+both Disconnect/Reconnect flows, failed-save/CAS retry, own activity, Web
+close/reopen, worker restart and shared lock/logout also passed. This run does
+not test full Chrome restart, account isolation or the entire platform matrix.
+The ignored local report is report.chrome-manual-lock-checkpoint.json;
+artifact SHA-256 values are Web4a869906…44720f and Extension82992f42…6df753.
+
+This fixes an actual fallback defect. The earlier41-check run at23:21:54Z
+accepted a Web relock during just7 seconds of cooldown, despite the15-minute
+Web idle limit. It is retained as historical evidence, not accepted fallback
+coverage. The native scenario now requires continued Web Entry access through
+the whole limiter window. It does not extend deadlines, inject activity, alter
+rate limits or mock Identity responses.
+
+Both clients capture prior lock acknowledgements from an authenticated own
+session-state read after flushing pending closing intents and before sharing
+authorization. That RAM-only checkpoint is scoped to the verified own manual
+key generation. It cannot advertise a source, create an authorization or renew
+activity. Rootless repair ignores only that link's already acknowledged lock;
+newer locks, logout, missing/different links and own generation changes still
+close the client. Persisted observations and peer frames cannot supply it.
+Tests cover the original RED regression, subsequent/new pending locks, logout,
+scope/generation loss and untrusted durable hints. Web2070/282 full plus11 final
+coordinator tests, Extension1731/143 full, lint/types/builds/secret scan PASS.
+Extension CI34658950621 and Safari boundary34658950630 PASS; the latter does not
+establish Safari Identity or the minimum16.4 runtime. Safari remains scheduled
+last and the AbortSignal.any review finding remains open.
+
+A separate account-free Chrome152 test confirmed CDP loadUnpacked installation
+is absent after closing and relaunching the same profile. Chromium's
+[CDP loader](https://github.com/chromium/chromium/blob/main/chrome/browser/devtools/protocol/extensions_handler.cc)
+marks that installation as CDP-owned and
+[extension preferences initialization](https://github.com/chromium/chromium/blob/main/extensions/browser/extension_prefs.cc)
+cleans it up. Reinstallation after restart is not evidence of persistent-session
+survival. Full Chrome restart needs a persistently installed artifact. The
+headed/native installation approach is not yet proven; no user profile was
+edited. Earlier bootstrap/navigation failures remain archived; scoped request
+interception and waiting for completed field decryption improve the harness,
+but a later pass does not explain every historical timeout.
+
+## Earlier Safari acceptance status — 2026-09-11
 
 The owner moved remaining Safari acceptance to the end of CVT-583 on2026-09-11.
 This reorders work; Safari and its full original matrix are not accepted or removed.
