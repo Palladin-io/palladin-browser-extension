@@ -19,10 +19,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--driver-url', default='http://127.0.0.1:55187')
 parser.add_argument('--prepare-only', action='store_true')
 parser.add_argument('--ci-screenshot-on-failure', action='store_true')
+parser.add_argument('--ci-grant-fixture-access', action='store_true')
 parser.add_argument('--background-kind', choices=['classic-worker', 'module-worker', 'document'], default='module-worker')
 args = parser.parse_args()
-if args.ci_screenshot_on_failure:
-    assert os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted', 'Screenshots only on disposable GitHub-hosted runners'
+if args.ci_screenshot_on_failure or args.ci_grant_fixture_access:
+    assert os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted', 'Native CI diagnostics only on disposable GitHub-hosted runners'
 assert args.driver_url == 'http://127.0.0.1:55187', 'Task-owned local SafariDriver only'
 out = Path('test-results/shared-unlock-safari-boundary').resolve()
 fixture = out / 'fixture'
@@ -139,6 +140,14 @@ stage = 'session'
 for name in ['report.json', 'failure.json']:
     (out / name).unlink(missing_ok=True)
 
+def grant_ci_fixture_access():
+    try:
+        result = subprocess.run(['/usr/bin/osascript', str(Path(__file__).with_name('safari-ci-permission.applescript'))],
+            capture_output=True, text=True, timeout=15)
+        observations['ciNativePermissionAction'] = {'exitCode': result.returncode, 'result': result.stdout.strip()[:200]}
+    except (OSError, subprocess.TimeoutExpired):
+        observations['ciNativePermissionAction'] = {'failed': True}
+
 def command(method, path, body=None):
     return request(method, '/session/' + session + path, body)
 
@@ -216,6 +225,9 @@ try:
             ''', 'args': []})
             observations['internalDiagnostics'].append({'browserUrl': url, 'result': result})
             button = command('POST', '/element', {'using': 'css selector', 'value': '#grant'})
+            stage = 'fixture-native-permission-click'
+            if args.ci_grant_fixture_access:
+                threading.Thread(target=grant_ci_fixture_access, daemon=True).start()
             command('POST', '/element/' + button['element-6066-11e4-a52e-4f735466cecf'] + '/click', {})
             try:
                 alert_text = command('GET', '/alert/text')

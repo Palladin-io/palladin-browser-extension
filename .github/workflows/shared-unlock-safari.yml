@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/shared-unlock-safari.yml
       - tests/browser/shared-unlock-safari-boundary.py
+      - tests/browser/safari-ci-permission.applescript
   workflow_dispatch:
 
 permissions:
@@ -47,7 +48,7 @@ jobs:
           else:
               raise SystemExit('SafariDriver did not start')
           PY
-          python3 tests/browser/shared-unlock-safari-boundary.py --ci-screenshot-on-failure --background-kind "$SAFARI_FIXTURE_BACKGROUND"
+          python3 tests/browser/shared-unlock-safari-boundary.py --ci-screenshot-on-failure --ci-grant-fixture-access --background-kind "$SAFARI_FIXTURE_BACKGROUND"
       - name: Retain synthetic Safari observations
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

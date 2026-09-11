@@ -124,3 +124,30 @@ To observe native permission UI on failure, the CI workflow explicitly enables a
 failure screenshot. The flag refuses to run outside a GitHub-hosted Actions VM;
 ordinary local invocation never captures the user's desktop. The screenshot is
 part of the seven-day synthetic artifact and contains no Identity or vault data.
+
+
+### Native background and host-permission observations
+
+Run34631153165 (48d6093) tested classic worker, module worker and nonpersistent
+background document separately on disposable Safari26.6.2 runners. Each installed
+fixture opened its own browser-reported `safari-web-extension://` diagnostics page.
+All three returned a ready internal worker listener and the percent-decoded
+installation identifier as `browser.runtime.id`. API permissions were present,
+but granted `origins` were empty. No external-Port response passed. A previous
+run occasionally did not observe the installed page within the setup wait; this
+is now an explicit setup failure rather than evidence about external messaging.
+The default probe uses a module worker, matching the product manifest.
+
+A subsequent real click on the fixture's `permissions.request` button produced
+an explicit Safari error (run34631412243): a port is invalid in its origin match
+pattern. 4dcd9e7 uses `http://127.0.0.1/*` for both declaration and request while
+retaining exact `http://127.0.0.1:55189` sender assertions and a loopback-only
+server. It does not change product host permissions. A grant is accepted only
+through the browser's normal permission API; no permission database is edited.
+The native request result and any permission UI remain observations to collect.
+
+Run34630327241's failure screenshot showed a macOS Local Network prompt for
+Python. The literal loopback fixture now skips HTTPServer's reverse DNS and
+system-proxy discovery. The prompt disappeared in run34630632833, while external
+messaging still failed. This removes an unrelated test-environment dependency;
+it does not prove the cause of the Port failure or grant network privileges.
