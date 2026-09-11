@@ -251,7 +251,7 @@ try {
   await page.goto(verification)
   await page.getByRole('heading', { name: 'Email Verified', exact: true }).waitFor()
   checks.push('actual-email-verification-through-local-ses')
-  await page.waitForURL(url => url.pathname !== '/verify-email')
+  await page.waitForURL(url => url.pathname !== '/verify-email', { waitUntil: 'domcontentloaded' })
   stage = 'manual-web-login'
   if (new URL(page.url()).pathname !== '/login') {
     stage = 'manual-web-logout'
@@ -263,8 +263,10 @@ try {
     await loggedOutDocument
   }
   stage = 'manual-web-login-fields'
-  await page.waitForURL(url => url.pathname === '/login')
-  await page.waitForLoadState('networkidle')
+  await page.waitForURL(url => url.pathname === '/login', { waitUntil: 'domcontentloaded' })
+  // Product readiness is the real form after the awaited logout document,
+  // not an absence of background shared-session requests.
+  await page.locator('#login-email').waitFor()
   await page.locator('#login-email').fill(email)
   await page.locator('#login-password').fill(password)
   assert(await page.locator('#login-email').inputValue() === email, 'Login form must contain the complete synthetic email')
@@ -460,6 +462,9 @@ try {
     observedAt: new Date().toISOString(), browser: context.browser().version(), provenance, fullMatrix: false, entryDecryptionVerified: true })
   console.log(`PARTIAL: ${checks.length} native Identity/Entry checks; full matrix still required.`)
 } catch (error) {
+  const navigationWait = error.message?.match(/waiting for navigation.*until "(load|domcontentloaded|networkidle|commit)"/)
+  if (navigationWait) requests.push({ check: 'navigation-wait-at-failure', waitUntil: navigationWait[1],
+    observedNavigation: /navigated to/.test(error.message) })
   requests.push({ check: 'pending-browser-resources-at-failure', resources: [...pendingRequests.values()]
     .map(({ origin, resource, startedAt }) => ({ origin, resource, elapsedMs: Date.now() - startedAt })) })
   if (page) {

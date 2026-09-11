@@ -26,7 +26,6 @@ export async function verifySharedUnlockAccountIsolation({ page, popup, apiUrl,
     const reloaded = page.waitForEvent('domcontentloaded')
     await page.getByRole('button', { name: 'Log out', exact: true }).click()
     await reloaded; await page.locator('#login-email').waitFor()
-    await page.waitForLoadState('networkidle')
   }
   const settings = async () => {
     await page.getByRole('link', { name: 'Settings', exact: true }).click()
@@ -34,7 +33,7 @@ export async function verifySharedUnlockAccountIsolation({ page, popup, apiUrl,
   }
 
   setStage('account-isolation-establish-account-a')
-  await page.waitForLoadState('networkidle'); await login(email, password)
+  await page.locator('#login-email').waitFor(); await login(email, password)
   await popup.waitText('Unlocked'); await revealA()
   // OFF allows the user to log out Web without closing their Extension session.
   await settings()
@@ -73,7 +72,7 @@ export async function verifySharedUnlockAccountIsolation({ page, popup, apiUrl,
   assert(verification, 'Separate account B must receive its own verification')
   await page.goto(verification)
   await page.getByRole('heading', { name: 'Email Verified', exact: true }).waitFor()
-  await page.waitForURL(url => url.pathname !== '/verify-email')
+  await page.waitForURL(url => url.pathname !== '/verify-email', { waitUntil: 'domcontentloaded' })
   if (new URL(page.url()).pathname !== '/login') await logout()
   await login(emailB, passwordB)
   await settings()
