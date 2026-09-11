@@ -198,15 +198,23 @@ try:
     observations['browserInstalledExtensionId'] = extension_id
     checks.append('browser-installed-synthetic-extension')
     stage = 'internal-fixture-diagnostics'
+    diagnostic_handles = []
     for attempt in range(100):
         handles = command('GET', '/window/handles')
-        if len(handles) > 1:
+        for handle in handles:
+            if handle == initial_window:
+                continue
+            command('POST', '/window', {'handle': handle})
+            url = command('GET', '/url')
+            if url.startswith('safari-web-extension://') and url.endswith('/diagnostics.html'):
+                diagnostic_handles.append(handle)
+        # A new window handle can precede navigation away from about:blank.
+        # Wait for the actual browser-reported fixture URL, not merely two tabs.
+        if diagnostic_handles:
             break
         time.sleep(0.1)
     observations['internalDiagnostics'] = []
-    for handle in handles:
-        if handle == initial_window:
-            continue
+    for handle in diagnostic_handles:
         command('POST', '/window', {'handle': handle})
         url = command('GET', '/url')
         if url.startswith('safari-web-extension://') and url.endswith('/diagnostics.html'):
@@ -276,6 +284,11 @@ try:
     assert first['sender']['url'] == origin + '/allowed'
     assert first['sender']['frameId'] == 0
     checks.append('native-external-port-and-browser-top-frame-sender')
+    assert first['senderTab']['incognito'] is False and first['currentTab']['incognito'] is False
+    checks.append('normal-profile-confirmed-by-native-tab')
+    assert isinstance(first['sender'].get('documentId'), str) and first['sender']['documentId']
+    assert first['currentFrame']['documentId'] == first['sender']['documentId']
+    checks.append('native-current-document-confirmed')
     assert first['sender']['url'] != 'https://wrong.example.test'
     checks.append('payload-claims-do-not-replace-browser-sender')
     stage = 'same-url-reload'
@@ -286,6 +299,9 @@ try:
     assert second and second['sender']['url'] == origin + '/allowed'
     observations['afterReload'] = second
     checks.append('same-url-reload-observed-with-native-metadata')
+    assert second['sender']['documentId'] != first['sender']['documentId']
+    assert second['currentFrame']['documentId'] == second['sender']['documentId']
+    checks.append('same-url-reload-has-new-native-document')
     stage = 'wrong-recipient'
     wrong = probe('org.example.nonexistent.Extension (AAAAAAAAAA)')
     observations['wrongRecipientProbe'] = wrong
