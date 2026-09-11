@@ -29,6 +29,12 @@ helper now records those stages separately and attempts dismissal through a
 native WebDriver click on an inert control-page button outside the Popup. It
 still requires no remaining Popup view before opening a new one. This candidate
 needs its own native result; the earlier15 PASS does not erase the repeat failure.
+That candidate failed in34641471862 at19:57:22Z specifically while waiting for
+the old Popup to disappear: native view present, closed=false, readyState=complete
+and Sign in still visible. The next candidate sends native Escape through macOS
+only if Safari and the allowlisted test window are frontmost, then still requires
+the old view to disappear. No arbitrary window title, secret or API command is
+accepted by the dismissal helper. Its native outcome remains to be observed.
 
 Firefox155 regression after the optional encrypted username parameter passed16
 checks at19:51:03Z on clean Webc58ec2b/Extension7b89809, with the same artifacts

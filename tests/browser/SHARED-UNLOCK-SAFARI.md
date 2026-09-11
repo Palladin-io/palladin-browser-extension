@@ -25,6 +25,14 @@ passed separately in CI34640667500 at19:48:09Z:15 account-free channel/UI checks
 including the product's onboarding button and reopening a fresh Popup that
 retains the completed onboarding choice. Ordinary CI34640667407 also passed.
 That result does not validate the unexecuted Identity flow or Web build step.
+Repeat34641036018 timed out during close/reopen after14 checks. A native
+control-page click also failed to dismiss the Popup in34641471862; the new
+stages explicitly observed the old view still present and not closed. Dismissal
+now uses native Escape only when Safari and one of the two fixed test-window
+titles are frontmost. It never enables Accessibility/Automation permission or
+targets another application/window. macOS denying that UI action fails the test.
+This candidate still needs a native pass; the earlier15-check result does not
+erase the two failures.
 
 Prepare the isolated backend as in [Identity setup](SHARED-UNLOCK-IDENTITY.md),
 with API55083, verification links targeting127.0.0.1:5173 and SES delivery55084.

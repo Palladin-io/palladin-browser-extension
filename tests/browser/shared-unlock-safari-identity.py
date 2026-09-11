@@ -100,7 +100,6 @@ void (async () => {
     (fixture / names[0]).write_text('''<!doctype html><title>Shared unlock test controls</title>
 <button id="grant">Grant loopback access</button><pre id="grant-result">pending</pre>
 <button id="open-popup">Open native Popup</button>
-<button id="focus-control-page" style="position:fixed;right:20px;bottom:20px">Focus test controls</button>
 <script src="cvt583-identity.js"></script>''')
     (fixture / names[1]).write_text('''
 document.getElementById('grant').addEventListener('click', async () => {
@@ -199,7 +198,7 @@ try:
     diagnostic_handle = browser.wait(find_control, 'installed control page')
     assert browser.script('return browser.runtime.id') == extension_id
     popup_url = browser.script("return browser.runtime.getURL('src/popup/index.html')")
-    popup = SafariPopup(browser.request, diagnostic_handle, popup_url)
+    popup = SafariPopup(browser.request, diagnostic_handle, popup_url, 'Shared unlock test controls')
     stage = 'native-loopback-permission'
     browser.click('#grant')
     browser.wait(lambda: browser.script("return document.getElementById('grant-result').textContent === 'granted'"), 'owner loopback permission')
@@ -266,7 +265,8 @@ try:
 except Exception as error:
     write_evidence('failure', {'stage': stage, 'errorType': type(error).__name__,
         'webdriverError': error.kind if isinstance(error, SafariDriverError) else None,
-        'popupStage': popup.last_stage if popup else None})
+        'popupStage': popup.last_stage if popup else None,
+        'popupDismissal': popup.last_native_dismissal if popup else None})
     print('FAIL at ' + stage + '; value-free failure.json recorded.')
     raise SystemExit(1) from None
 finally:

@@ -88,11 +88,14 @@ class SafariWebDriver(WebDriverActions):
 
 
 class SafariPopup(WebDriverActions):
-    def __init__(self, request, diagnostic_handle, popup_url):
+    def __init__(self, request, diagnostic_handle, popup_url, diagnostic_title='Synthetic extension diagnostics'):
+        assert diagnostic_title in ['Synthetic extension diagnostics', 'Shared unlock test controls']
         self.request = request
         self.diagnostic_handle = diagnostic_handle
         self.popup_url = popup_url
+        self.diagnostic_title = diagnostic_title
         self.last_stage = 'idle'
+        self.last_native_dismissal = None
 
     def show(self):
         self.last_stage = 'activate-control-page'
@@ -118,8 +121,14 @@ class SafariPopup(WebDriverActions):
         self.last_stage = 'activate-control-page-for-close'
         self.request('POST', '/window', {'handle': self.diagnostic_handle})
         if self.read('return !!popup'):
-            self.last_stage = 'dismiss-popup-with-native-page-click'
-            self.click('#focus-control-page')
+            self.last_stage = 'dismiss-popup-with-native-escape'
+            result = subprocess.run(['/usr/bin/osascript', str(Path(__file__).with_name('safari-popup-dismiss.applescript')),
+                self.diagnostic_title], capture_output=True, text=True, timeout=10)
+            outcome = result.stdout.strip()
+            self.last_native_dismissal = outcome if outcome in ['escaped-test-popup', 'invalid-test-title',
+                'safari-not-frontmost', 'test-window-missing', 'front-window-is-not-test', 'native-ui-unavailable'] else 'unknown'
+            if result.returncode != 0 or result.stdout.strip() != 'escaped-test-popup':
+                raise RuntimeError('Native test-window dismissal unavailable')
         self.last_stage = 'observe-native-popup-closed'
         self.wait(lambda: self.read('return !popup'), 'native Popup closed')
         self.show()

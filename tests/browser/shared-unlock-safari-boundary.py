@@ -153,7 +153,7 @@ void (async () => {
     actualPopupUrl: location.href === browser.runtime.getURL('src/popup/index.html') };
 })().catch(() => { globalThis.syntheticPopupObservation = { observationFailed: true }; });
 ''')
-(fixture / 'diagnostics.html').write_text('<!doctype html><title>Synthetic extension diagnostics</title><pre id="result">pending</pre><button id="grant">Grant loopback page access</button><pre id="grant-result">pending</pre><button id="open-popup">Open native product Popup</button><button id="focus-control-page" style="position:fixed;right:20px;bottom:20px">Focus test controls</button><script src="diagnostics.js"></script>')
+(fixture / 'diagnostics.html').write_text('<!doctype html><title>Synthetic extension diagnostics</title><pre id="result">pending</pre><button id="grant">Grant loopback page access</button><pre id="grant-result">pending</pre><button id="open-popup">Open native product Popup</button><script src="diagnostics.js"></script>')
 (fixture / 'diagnostics.js').write_text('''
 document.getElementById('open-popup').addEventListener('click', () => {
   void browser.action.openPopup().catch(() => undefined);
@@ -457,6 +457,7 @@ def run_product_channel(extension_id, diagnostic_handle, web_handle):
         assert popup.has_text('Continue to Palladin') is False
     finally:
         observations['nativePopupUiStage'] = popup.last_stage
+        observations['nativePopupDismissal'] = popup.last_native_dismissal
         try: observations['nativePopupUiState'] = popup.snapshot()
         except Exception: observations['nativePopupUiState'] = {'unavailable': True}
     checks.append('fresh-native-popup-preserves-completed-onboarding')
