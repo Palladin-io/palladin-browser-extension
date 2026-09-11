@@ -94,6 +94,21 @@ relaxes Web CSP. This is development-installation evidence, not store evidence.
 The option is independent of the browser label; engines that still support the
 original load flag can use the default installation path.
 
+`--totp` adds real Web enrollment after the initial Entry proof, then a fresh
+password/TOTP login. It requires the enabled 2FA display, a shared logout, six
+actual peer Entry-reveal denials while the password-only challenge is pending,
+an Identity401 for a deliberately invalid code, and a correct fresh code followed
+by peer unlock and actual password decryption. The test authenticator uses the
+published crypto SDK; seed/codes remain in process memory, recovery codes are
+never read or exported, and the server clock/replay protection are unchanged.
+The original lifecycle scenario then continues with the MFA-authenticated session.
+Reports use an additional `.totp` suffix. The first run stopped at the enabled
+state after real enroll/confirm200: Identity GET account omitted totpEnabled,
+so the Web still displayed disabled. Backend0bab2b6d adds the field; all15
+GetAccount tests pass, including four cases that failed before the fix. The
+complete native MFA rerun is still required. Pass `--backend-source` to record
+that isolated running API checkout alongside both client source hashes.
+
 `--full-browser-restart` adds a separate lifecycle case after both clients have
 successfully unlocked and the restarted worker has decrypted the Entry. It closes
 the entire browser, waits for disconnection, and reopens the same test profile
