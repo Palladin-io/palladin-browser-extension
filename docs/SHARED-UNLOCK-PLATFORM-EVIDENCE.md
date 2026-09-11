@@ -30,8 +30,10 @@ This code is not yet native product acceptance. The probe now checks required
 lifecycle API availability and tab URL/status with host access but without global
 `tabs`. Run34634982018 confirmed the missing optional replacement event and a
 successful native host grant in all three variants, then stopped at its former
-event assertion. The corrected probe and real product Identity/MK/Entry tests
-remain pending.
+event assertion. The corrected probe d188270 passed10 checks in all three variants in
+run34635229213 (classic18:47:47Z, module18:47:43Z, document18:47:31Z), including
+exact tab URL/status/current document without global `tabs`. Real product
+Identity/MK/Entry tests remain pending.
 
 All completed Identity runs below used macOS26.4.1 arm64 and disposable profiles.
 The historical sections retain earlier failures and narrower observations; this
@@ -41,13 +43,13 @@ with a channel-only probe or a successful build.
 | Browser / version | Installation | Identity/Entry/lifecycle | UTC observation |
 |---|---|---|---|
 | Chrome152.0.7977.84 | Unpacked, browser CDP; headless |16/16 PASS|16:28:18|
-| Chromium153.0.8010.12 | Unpacked, load flag; headless |20/20 PASS, own activity + full browser restart|17:36:10|
+| Chromium153.0.8010.12 | Unpacked, load flag; headless |20/20 PASS, current Safari-adapter increment + own activity/full restart|18:48:02|
 | Brave1.95.101 / engine153.0.8010.37 | Unpacked, browser CDP; headless |16/16 PASS|16:25:33|
 | Edge153.0.4234.32 | Unpacked, browser CDP; headless |17/17 PASS, own activity|17:34:54|
 | Firefox140.0 | Temporary product XPI |16/16 PASS, new coordinator|18:01:57|
 | Firefox155.0.1 | Temporary product XPI |16/16 PASS, new coordinator|18:02:48|
 | Opera135.0.5973.133 / engine151.0.7922.176 | Unpacked, browser CDP; headless |16/16 PASS|17:03:15|
-| Safari26.6.2 / macOS26.6.2 arm64 | Synthetic module worker, native one-day loopback grant in disposable CI |9 native channel/document observations; no product Identity/MK adapter|18:17:51|
+| Safari26.6.2 / macOS26.6.2 arm64 | Synthetic module worker, native one-day loopback grant in disposable CI |10 native channel/document observations, no global tabs; product handoff unverified|18:47:43|
 
 The16 baseline checks cover real registration/email/password login, automatic unlock,
 live encrypted Entry/password decryption, continued operation after Web closure,
@@ -61,7 +63,8 @@ input evidence. Reproduction and limitations:
 [Safari probe](../tests/browser/SHARED-UNLOCK-SAFARI.md).
 
 The combined own-activity/full-browser-restart case passes20 checks on Chromium153.
-Current Edge/Chromium/Firefox runs use Web1314dec and Extension runtime3444a75;
+Current Chromium20 uses clean Webc58ec2b/Extensiond188270 (18:48:02Z).
+Edge/Firefox runs retain Web1314dec and Extension runtime3444a75;
 Chrome/Brave/Opera rows retain their earlier runtime810cf86 observations. Edge's CDP development installation does not survive browser
 restart, so that distribution path remains unverified. New delayed-authorization
 Edge failures are also retained below; earlier successful runs do not erase them.

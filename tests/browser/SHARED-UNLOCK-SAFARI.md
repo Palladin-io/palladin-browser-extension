@@ -12,6 +12,14 @@ The adapter now treats replacement events as optional and requires fresh native
 tab/document lookups before each operation; a removed tab cannot keep its route.
 The probe preserves that observation and requires only the events actually used.
 
+The corrected d188270 fixture passed10 checks in all three variants in
+workflow34635229213: classic18:47:47Z, module18:47:43Z, document18:47:31Z.
+Safari26.6.2/macOS26.6.2 arm64, host grant with no global `tabs` permission.
+The browser returns exact tab URL/status, normal-profile flags and matching
+sender/current-frame document IDs. Module fixture SHA256:
+`254c15b0eeacaeacd1af228a10a4f0c2c847fc1d88ad149c9457f3cb8542d800`.
+No Identity or keys were used; this remains synthetic evidence.
+
 CVT-587/CVT-592/CVT-604, within CVT-583. This is a synthetic browser probe and
 packaging preparation, not an implemented Safari shared-unlock adapter or
 Identity/MK/Entry acceptance.
