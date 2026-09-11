@@ -115,9 +115,13 @@ try:
     observations['capabilities'] = created['capabilities']
     command('POST', '/timeouts', {'script': 10000, 'pageLoad': 20000, 'implicit': 0})
     stage = 'install-extension'
-    extension_id = command('POST', '/webextension', {'type': 'path', 'path': str(fixture)})
-    observations['installationResult'] = extension_id
+    installation = command('POST', '/webextension', {'type': 'path', 'path': str(fixture)})
+    observations['installationResult'] = installation
     stage = 'decode-installed-extension'
+    # Safari 26.6.2 returns { extension: native_identifier } (CI 34629126061).
+    # This is browser-owned installation metadata, never a page-provided ID.
+    assert isinstance(installation, dict)
+    extension_id = installation.get('extension')
     assert isinstance(extension_id, str) and extension_id
     observations['browserInstalledExtensionId'] = extension_id
     checks.append('browser-installed-synthetic-extension')
