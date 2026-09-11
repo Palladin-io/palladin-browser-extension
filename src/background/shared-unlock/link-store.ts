@@ -164,14 +164,25 @@ export class SharedUnlockLinkStore {
   /** Called only for the receipt of an explicit reconnect. A later disconnect
    * or closing action invalidates this receipt; a background read never clears it. */
   acknowledgeReconnect(scope: SharedUnlockLinkScope, linkId: string, disconnectId: string,
-    response: SharedUnlockLink): Promise<SharedUnlockLinkMarker> {
+    response: SharedUnlockLink, assertOwnCurrent: () => void = () => {}): Promise<SharedUnlockLinkMarker> {
     const selected = { ...scope }, received = projectLink(response);
+    assertOwnCurrent();
     return this.serial(async () => {
+      assertOwnCurrent();
       const marker = await this.require(selected, linkId);
+      assertOwnCurrent();
       if (received.linkId !== linkId || marker.disconnectId !== disconnectId || marker.pending.length
         || (marker.observed && marker.observed.revision > received.revision)) throw new SharedUnlockLinkStorageError();
       const updated = { ...marker, observed: this.latest(marker.observed, received), disconnectId: null };
-      await this.save(selected, updated);
+      try {
+        await this.save(selected, updated);
+        assertOwnCurrent();
+      } catch (error) {
+        // A failed or cancelled clear cannot become a successful reconnect on repair.
+        try { await this.save(selected, { ...updated, disconnectId: marker.disconnectId }); }
+        catch { /* The retained exact denial remains in pendingWrites. */ }
+        throw error;
+      }
       return updated;
     });
   }

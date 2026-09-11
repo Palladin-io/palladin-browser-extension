@@ -783,3 +783,17 @@ Worker reads use the token-only settings lease even while keys are locked, and
 dispose it on every completion or failed initial read. A restarted worker with
 no own JWT cannot use a peer hint as authority. Locked/restarted closing repair,
 real Identity/MK/Entry E2E and the complete browser artifact matrix remain gates.
+
+## Explicit reconnect storage fence
+
+The local reconnect receipt accepts an own-session fence before and after its
+asynchronous write. A failed or cancelled clear restores the exact disconnect
+ID while retaining the latest nonsensitive receipt. If restoration also fails,
+RAM admission stays denied; later repair writes the denial, never a previously
+failed successful clear. A new closing decision still defeats the old receipt.
+Only completed storage is evidence of persistence across worker loss.
+
+Focused tests cover cancellation during storage, failure of the clear and its
+restoration, restart and repair. Extension Settings disconnect/reconnect controls
+and the cross-client explicit reconnect notification/acknowledgement remain
+unfinished. Web's own new control alone does not clear the extension's latch.
