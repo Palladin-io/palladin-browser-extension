@@ -268,6 +268,15 @@ a future onboarding version deliberately uses a new key. No installed software
 metadata is stored, logged, analysed, or sent to Palladin.
 
 Fresh installation also opens the branded full-page onboarding surface. Its
+hero and completion screen reuse the approved logo at the landing's proportions:
+112px shield (96px on narrow screens), 32px wordmark (30px narrow), and a 24px
+gap. Light uses the web-auth white bloom over its pale radial background;
+dark uses the locally bundled monochrome grain with an eased fade. Onboarding
+content/control surfaces are opaque and primary remains `#E54645` in both
+themes. `src/onboarding/assets/brand-grain.svg` is copied unchanged from the
+Palladin landing's project-authored Apache-2.0 decorative source asset.
+
+The onboarding
 import action uses the value-free web-panel intent `/vaults?intent=import`;
 after login, unlock, and authoritative Member sync, the panel resolves the
 server-owned default Vault marker and opens that Vault's existing client-side

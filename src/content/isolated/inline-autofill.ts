@@ -754,7 +754,7 @@ const INLINE_STYLES = `
   * { box-sizing: border-box; }
   button { font: inherit; letter-spacing: normal; text-transform:none; }
   .launcher { width:26px; height:26px; padding:2px; border:0; border-radius:8px; background:transparent; box-shadow:none; cursor:pointer; pointer-events:auto; }
-  .launcher:hover, .launcher:focus-visible { background:rgba(235,71,71,.1); outline:2px solid rgba(235,71,71,.3); outline-offset:1px; }
+  .launcher:hover, .launcher:focus-visible { background:rgba(229,70,69,.1); outline:2px solid rgba(229,70,69,.3); outline-offset:1px; }
   .launcher img { display:block; width:22px; height:22px; object-fit:contain; }
   .panel { position:absolute; top:34px; left:0; width:min(344px, calc(100vw - 24px)); overflow:hidden; border:1px solid rgba(12,14,18,.1); border-radius:15px; background:linear-gradient(160deg,#f7f9fb 0%,#e8ecf1 100%); color:#0c0e12; box-shadow:0 14px 34px rgba(30,42,58,.16); pointer-events:auto; }
   .title { display:flex; align-items:center; gap:9px; padding:12px 14px; color:#3d4e66; font-size:13px; line-height:1.35; font-weight:750; background:transparent; border-bottom:1px solid rgba(12,14,18,.08); }
@@ -764,7 +764,7 @@ const INLINE_STYLES = `
   .option-row:hover { border-color:rgba(12,14,18,.14); background:#fff; }
   .option { display:flex; align-items:center; width:100%; min-width:0; min-height:63px; padding:9px 10px; border:0; border-radius:10px 0 0 10px; background:transparent; color:inherit; text-align:left; cursor:pointer; }
   .option:hover { background:rgba(12,14,18,.025); }
-  .option:focus-visible { outline:2px solid rgba(235,71,71,.28); outline-offset:-2px; }
+  .option:focus-visible { outline:2px solid rgba(229,70,69,.28); outline-offset:-2px; }
   .submit-login { align-self:stretch; display:flex; align-items:center; justify-content:center; gap:5px; min-width:76px; min-height:63px; padding:0 11px; border:0; border-left:1px solid rgba(12,14,18,.08); border-radius:0 10px 10px 0; background:transparent; color:#d95749; box-shadow:none; font-size:11.5px; line-height:1; font-weight:750; cursor:pointer; }
   .submit-login:hover, .submit-login:focus-visible { border-left-color:rgba(219,86,72,.22); background:#fcecea; color:#c9483c; outline:2px solid rgba(219,86,72,.18); outline-offset:-2px; }
   .entry-text { display:flex; flex-direction:column; min-width:0; gap:2px; }
@@ -782,13 +782,13 @@ const INLINE_STYLES = `
   @keyframes palladin-loading { from { opacity:.42; } to { opacity:.88; } }
   @media (prefers-reduced-motion:reduce) { .loading-lines i, .loading-action { animation:none; } }
   .status { padding:15px 13px; color:#5a6478; font-size:14px; line-height:1.45; }
-  .update-notice { border-left:3px solid #EB4747; }
+  .update-notice { border-left:3px solid #E54645; }
   .session-required { display:grid; gap:8px; padding:12px; }
   .session-required .status { padding:0; }
-  .open-palladin { min-height:36px; border:0; border-radius:8px; background:#EB4747; color:#fff; font:600 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif; cursor:pointer; }
-  .open-palladin:hover, .open-palladin:focus-visible { background:#d63c3c; outline:2px solid rgba(235,71,71,.35); outline-offset:2px; }
+  .open-palladin { min-height:36px; border:0; border-radius:8px; background:#E54645; color:#fff; font:600 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif; cursor:pointer; }
+  .open-palladin:hover, .open-palladin:focus-visible { background:#d63c3c; outline:2px solid rgba(229,70,69,.35); outline-offset:2px; }
   :host([data-theme="dark"]) .panel { background:linear-gradient(160deg,#1f232b 0%,#16191f 100%); color:#e8eaed; border-color:rgba(232,234,237,.1); box-shadow:0 16px 40px rgba(0,0,0,.34); }
-  :host([data-theme="dark"]) .launcher:hover, :host([data-theme="dark"]) .launcher:focus-visible { background:rgba(235,71,71,.18); }
+  :host([data-theme="dark"]) .launcher:hover, :host([data-theme="dark"]) .launcher:focus-visible { background:rgba(229,70,69,.18); }
   :host([data-theme="dark"]) .title { color:#d5dbe4; border-color:rgba(232,234,237,.09); }
   :host([data-theme="dark"]) .option-row { border-color:rgba(232,234,237,.1); background:rgba(232,234,237,.05); }
   :host([data-theme="dark"]) .option-row:hover { border-color:rgba(232,234,237,.17); background:rgba(232,234,237,.07); }

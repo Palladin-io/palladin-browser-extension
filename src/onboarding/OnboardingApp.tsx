@@ -187,6 +187,10 @@ export function OnboardingApp({
       <TopBar preferences={preferences} />
       <div className="onboarding-shell">
         <header className="hero">
+          <div className="onboarding-hero-brand" aria-label="Palladin.io">
+            <img src={brandLogoUrl} alt="" />
+            <p>Palladin<span>.io</span></p>
+          </div>
           <h1>{t("onboarding.page.title")}</h1>
           <p>{t("onboarding.page.subtitle")}</p>
         </header>
