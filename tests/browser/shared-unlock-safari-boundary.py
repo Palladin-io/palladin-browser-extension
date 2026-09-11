@@ -73,8 +73,16 @@ browser.runtime.onConnectExternal.addListener(port => {
     runtimeOrigin: browser.runtime.getURL(''), sender: scope(port.sender), senderTab: scope(port.sender?.tab) });
 });
 ''')
-(fixture / 'diagnostics.html').write_text('<!doctype html><title>Synthetic extension diagnostics</title><pre id="result">pending</pre><script src="diagnostics.js"></script>')
+(fixture / 'diagnostics.html').write_text('<!doctype html><title>Synthetic extension diagnostics</title><pre id="result">pending</pre><button id="grant">Grant loopback page access</button><pre id="grant-result">pending</pre><script src="diagnostics.js"></script>')
 (fixture / 'diagnostics.js').write_text('''
+document.getElementById('grant').addEventListener('click', async () => {
+  const result = {};
+  try {
+    result.granted = await browser.permissions.request({ origins: ['http://127.0.0.1:55189/*'] });
+    result.permissions = await browser.permissions.getAll();
+  } catch (error) { result.error = String(error.message).slice(0, 500); }
+  document.getElementById('grant-result').textContent = JSON.stringify(result);
+});
 (async () => {
   const result = { runtimeId: browser.runtime.id, runtimeOrigin: browser.runtime.getURL('') };
   try { result.permissions = await browser.permissions.getAll(); } catch { result.permissionReadFailed = true; }
@@ -205,6 +213,30 @@ try:
               check();
             ''', 'args': []})
             observations['internalDiagnostics'].append({'browserUrl': url, 'result': result})
+            button = command('POST', '/element', {'using': 'css selector', 'value': '#grant'})
+            command('POST', '/element/' + button['element-6066-11e4-a52e-4f735466cecf'] + '/click', {})
+            try:
+                alert_text = command('GET', '/alert/text')
+                observations['fixturePermissionAlert'] = alert_text
+                # Accept only an identified prompt for this declared fixture host.
+                if '127.0.0.1' in alert_text:
+                    command('POST', '/alert/accept', {})
+            except RuntimeError:
+                observations['fixturePermissionAlert'] = 'not-a-webdriver-alert'
+            grant = command('POST', '/execute/async', {'script': '''
+              const done = arguments[arguments.length - 1];
+              let attempt = 0;
+              const check = () => {
+                const text = document.getElementById('grant-result')?.textContent;
+                if (text && text !== 'pending') { done(text); return; }
+                if (++attempt === 20) { done(null); return; }
+                setTimeout(check, 100);
+              };
+              check();
+            ''', 'args': []})
+            observations['fixturePermissionRequest'] = grant
+            stage = 'fixture-page-access-permission'
+            assert grant and json.loads(grant).get('granted') is True
             command('DELETE', '/window')
     command('POST', '/window', {'handle': initial_window})
     server = LoopbackServer(('127.0.0.1', 55189), Site)

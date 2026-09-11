@@ -211,3 +211,12 @@ verification and did not reach fill; it is retained separately as failure
 evidence. The passing temporary-XPI observation resolves that run's password
 compatibility failure, but does not complete the version/OS/distribution matrix
 or the remaining expiry, account-isolation and independent-review gates.
+
+
+After the own-source coordinator fix (Web1314dec/Extension runtime3444a75),
+the unchanged Firefox harness repeated all16 steps on140.0 at18:01:57Z and155.0.1
+at18:02:48Z on2026-09-11. Both used clean source trees, Extension62fc2ef,
+macOS26.4.1 arm64 and geckodriver0.37.1. Source heads and artifact hashes are in
+the versioned reports; the previous810cf86 results were retained separately.
+These are actual password/lifecycle observations, without adding trusted-input,
+full-browser restart, TLS, permission-prompt or full-platform acceptance.

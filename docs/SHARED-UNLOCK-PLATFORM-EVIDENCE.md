@@ -16,15 +16,15 @@ with a channel-only probe or a successful build.
 | Browser / version | Installation | Identity/Entry/lifecycle | UTC observation |
 |---|---|---|---|
 | Chrome152.0.7977.84 | Unpacked, browser CDP; headless |16/16 PASS|16:28:18|
-| Chromium153.0.8010.12 | Unpacked, load flag; headless |16/16 PASS|16:24:12|
+| Chromium153.0.8010.12 | Unpacked, load flag; headless |20/20 PASS, own activity + full browser restart|17:36:10|
 | Brave1.95.101 / engine153.0.8010.37 | Unpacked, browser CDP; headless |16/16 PASS|16:25:33|
-| Edge153.0.4234.32 | Unpacked, browser CDP; headless |16/16 PASS|16:59:14|
-| Firefox140.0 | Temporary product XPI |16/16 PASS|15:58:29|
-| Firefox155.0.1 | Temporary product XPI |16/16 PASS|16:02:22|
+| Edge153.0.4234.32 | Unpacked, browser CDP; headless |17/17 PASS, own activity|17:34:54|
+| Firefox140.0 | Temporary product XPI |16/16 PASS, new coordinator|18:01:57|
+| Firefox155.0.1 | Temporary product XPI |16/16 PASS, new coordinator|18:02:48|
 | Opera135.0.5973.133 / engine151.0.7922.176 | Unpacked, browser CDP; headless |16/16 PASS|17:03:15|
-| Safari26.4 | Synthetic packaging only |No product adapter; probe stopped before session creation|16:47:24|
+| Safari26.6.2 / macOS26.6.2 arm64 | Synthetic WebDriver install in disposable CI |Installation confirmed; no external-Port reply or product adapter|18:01:15|
 
-The16 checks cover real registration/email/password login, automatic unlock,
+The16 baseline checks cover real registration/email/password login, automatic unlock,
 live encrypted Entry/password decryption, continued operation after Web closure,
 reopened Web, browser-controlled background restart and shared manual lock/logout.
 They do not cover all settings, account-isolation, expiry, offline, multi-document,
@@ -35,8 +35,9 @@ input evidence. Reproduction and limitations:
 [Identity harness](../tests/browser/SHARED-UNLOCK-IDENTITY.md),
 [Safari probe](../tests/browser/SHARED-UNLOCK-SAFARI.md).
 
-The additional full-browser-restart case passes19 checks on Chromium153, as
-recorded below. Edge's CDP development installation does not survive browser
+The combined own-activity/full-browser-restart case passes20 checks on Chromium153.
+Current Edge/Chromium/Firefox runs use Web1314dec and Extension runtime3444a75;
+Chrome/Brave/Opera rows retain their earlier runtime810cf86 observations. Edge's CDP development installation does not survive browser
 restart, so that distribution path remains unverified. New delayed-authorization
 Edge failures are also retained below; earlier successful runs do not erase them.
 
@@ -681,3 +682,25 @@ build, but both baseline comparisons subsequently completed17 checks too. Native
 HTTP response timing does not by itself prove when the client applied a renewal.
 Consequently this fix is not presented as conclusive resolution of the earlier
 intermittent Edge failure; the original reports and that investigation remain open.
+
+
+## New coordinator: committed native repeats — 2026-09-11
+
+Web1314dec and Extension runtime3444a75 passed Edge17 checks at17:34:54Z and
+Chromium20 at17:36:10Z, including real own activity during source preparation;
+Chromium additionally covers full browser closure as described above. The clean
+source heads and configured artifacts are recorded in scenario-suffixed reports.
+Full local suites passed Web2004/278 and Extension1635/138, with lint/typecheck
+and configured builds; CI34628446380 and34629126016 passed.
+
+The same runtime was repeated on Firefox140.0 at18:01:57Z and Firefox155.0.1
+at18:02:48Z:16 actual Identity/Entry/password/lifecycle checks each passed.
+Both report clean Web1314dec/Extension62fc2ef (later extension commits change only
+Safari synthetic tests/docs/CI), macOS26.4.1 arm64 and geckodriver0.37.1.
+Firefox artifact SHA256 is c34f20d76664ce7bb04d9a82c392dd6a792a37eb8389268fa6317028119f689c;
+its harness's Web digest is d12431e74b2251f7ce04eb1339e7365e50e249fa68eb65bcc821616f670487aa.
+The Python and Node harnesses use different file ordering when hashing directories;
+compare hashes within the corresponding harness, not across their algorithms.
+Earlier runtime810cf86 reports were preserved separately before these repeats.
+These Firefox runs do not add native trusted-input or full-browser-restart cases.
+The original intermittent Edge failure and the full acceptance matrix remain open.
