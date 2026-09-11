@@ -96,6 +96,43 @@ relaxes Web CSP. This is development-installation evidence, not store evidence.
 The option is independent of the browser label; engines that still support the
 original load flag can use the default installation path.
 
+`--settings` uses real SPA navigation and native popup controls for default-on,
+Web OFF/Extension ON propagation, existing-session independence while OFF,
+explicit disconnect cancellation/confirmation in both clients, and fresh manual
+unlock after explicit reconnect. Every locked Extension assertion invokes the
+actual private Entry reveal path. It also checks that a disconnected client can
+unlock itself without silently reconnecting or unlocking its peer.
+
+The first attempt's hard navigation wiped Web's own keys while OFF; the test now
+uses the actual Settings/Security links. The next attempt exposed a product bug:
+Extension's locally sealed expiry was slightly later than its own server session,
+so manual source authorization returned409 and closing repair relocked the client.
+Backend PR57 caps requested ceilings to the authoritative own refresh expiry,
+preserves expired/misordered rejection and returns the exact stored limits.
+Three new overshoot cases first failed; all34 authorization tests and CI pass.
+Backend PR57 passed one independent review without findings and merged asba60ff52
+at2026-09-11T21:23:13Z; deployment is not confirmed.
+The native rerun passed29 checks at2026-09-11T21:15:35Z on clean Web6dcb1db /
+Extension8f5df51 / Backenddde6bb96, Chromium153.0.8010.12/macOS26.4.1 arm64.
+It covers both disconnect/reconnect directions; it is local unpacked evidence.
+
+`--settings-races` additionally aborts a real Web preference PUT and requires
+the visible local-pause error while the account remains ON. A new Web document
+must remain locked even while the existing Extension can decrypt the Entry;
+an explicit retry then saves the failed OFF choice. It holds a subsequent Web
+PUT until the Extension writes the same old revision, then requires an actual
+Identity409, the conflict display, and a successful explicit retry at the current
+revision. No response, session, key or account preference is injected. These
+race scenarios passed with the remaining lifecycle flow:20 checks at2026-09-11T21:23:14Z
+on Web6dcb1db / Extensione50b5f8 / Backenddde6bb96, Chromium153/macOS26.4.1.
+The extension tree had only this documentation update pending; runtime artifacts
+were unchanged. The first race run lost its native popup when a new tab became
+active; the driver now opens a fresh native popup for that real browser transition.
+A combined TOTP/settings/restart run remains required; its earlier attempt timed
+out in automatic handoff during a full-document settings navigation. Enrollment
+now follows real SPA Settings/Security links. The distinct reopen-Web test remains,
+and that previous intermittent handoff failure is not claimed as resolved.
+
 `--totp` adds real Web enrollment after the initial Entry proof, then a fresh
 password/TOTP login. It requires the enabled 2FA display, a shared logout, six
 actual peer Entry-reveal denials while the password-only challenge is pending,
