@@ -510,6 +510,13 @@ body {
   color: var(--cv-success);
 }
 
+.shared-unlock-notice:not(:empty) {
+  padding: 10px 14px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--cv-success);
+}
+
 .settings-actions {
   display: flex;
   justify-content: flex-end;

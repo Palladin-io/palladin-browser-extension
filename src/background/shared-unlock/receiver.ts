@@ -5,6 +5,7 @@ import type { SharedUnlockInstaller } from "../session/shared-unlock-install";
 import type { SessionKeys } from "../session/types";
 import { SharedUnlockApi, SharedUnlockApiError } from "./api";
 import type { SharedUnlockAuthorization, SharedUnlockCommit, SharedUnlockOperation } from "./api-types";
+import { sharedUnlockCompletionNotice } from './completion-notice';
 
 /** Browser/document + selected account and local-link authority, established
  * independently of the operation/envelope. OFF, revoke, navigation and peer
@@ -161,17 +162,19 @@ export async function beginSharedUnlockReceiver(route: SharedUnlockReceiverRoute
         const result = { operationId: commit.context.operationId,
           authorizationId: commit.authorizationId, authorizationSequence: commit.authorizationSequence };
         // Verified own receiver root remains usable independently of the Port.
-
+        const assertOwnCurrent = () => {
+          if (manager.getKeys() !== ownedKeys || !manager.getSharedUnlockLimits()) throw new SharedUnlockApiError("cancelled");
+        };
         try {
           onInstalled?.({ authorizationId: commit.authorizationId, sequence: commit.authorizationSequence,
             accountId: binding.accountId, organizationId: binding.organizationId,
             credentialRevision: consumed.keyContext.credentialRevision, privateKeyWrapRevision: consumed.keyContext.privateKeyWrapRevision,
             authorizationVersion: commit.context.authorizationVersion, unlockedAtMs: commit.context.unlockedAtMs,
             idleDeadlineMs: commit.context.idleDeadlineMs, absoluteDeadlineMs: commit.context.absoluteDeadlineMs,
-            offlineDeadlineMs: commit.context.offlineDeadlineMs }, binding.extensionGeneration, () => {
-            if (manager.getKeys() !== ownedKeys || !manager.getSharedUnlockLimits()) throw new SharedUnlockApiError("cancelled");
-          });
+            offlineDeadlineMs: commit.context.offlineDeadlineMs }, binding.extensionGeneration, assertOwnCurrent);
         } catch { /* Failed sharing adoption does not revoke a completed own session. */ }
+        try { assertOwnCurrent(); sharedUnlockCompletionNotice.completed(); }
+        catch { /* A newer own session or presentation error cannot undo completion. */ }
         // Installation already checked the final route and local generation.
         // Closing the peer afterwards cannot revoke this independent session.
         try { input.acknowledge({ operationId: result.operationId,

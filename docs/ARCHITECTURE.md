@@ -28,6 +28,34 @@ copy comes from exact-parity locale catalogs, while manifest/store-facing copy
 uses MV3 `_locales`. Theme tokens mirror the web panel and never alter the
 worker's session, key, or authorization state.
 
+### Shared unlock completion in Popup and Side Panel
+
+The single-use automatic receiver emits a completion only after its own committed
+installation, while its own installed keys/limits still match. The worker selects
+at most one already connected, visible Popup/Side Panel over the private
+`palladin.shared-unlock.notice.v1` Port. Registration requires the browser sender's
+own extension ID, no content tab and an exact product surface URL. It accepts only
+strict visibility messages; it never receives session state or key material.
+There are at most32 registrations and no stored completion, operation identifier,
+delivery retry or later replay. Failed delivery does not select a second surface.
+Generic unlock/lock hooks clear presentation; only the automatic receiver emits
+success. No message calls activity/refresh or renews session limits.
+
+The shared React App displays the exact PL/EN text in a polite status region for
+four seconds without moving focus. Hidden surfaces, delivery at least two seconds
+late, worker disconnect and a newer lock discard it. Remount/reconnect never
+replays an old notification. A private Port reconnects after worker loss without
+sending keepalive or activity traffic. Popup and Side Panel reuse this component;
+no additional Safari surface is introduced. Worker restart loses all notice state.
+
+The surface session hook also fences initial reads and manual login/unlock/TOTP/
+lock/logout results against newer worker events and newer local actions. A late
+result cannot change a newly locked/signed-out screen back to unlocked. This UI
+ordering is not key custody or an authorization boundary; the worker remains
+authoritative. Tests use real receiver crypto and SessionManager, and the shared
+App in both hosts with a real notice distributor over synthetic browser Ports.
+They do not replace native Identity/MK/Entry or browser-matrix acceptance.
+
 - The page main world is controlled by the visited site. It is never a trust
   anchor, even if a message contains a nonce that page scripts can observe.
 - The isolated-world script validates shape, direction, frame, origin, and

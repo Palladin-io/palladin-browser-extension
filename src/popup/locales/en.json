@@ -1,4 +1,5 @@
 {
+  "unlock.sharedUnlockCompleted": "Extension unlocked by the Palladin panel.",
   "sharedUnlockSettings.title": "Shared unlock",
   "sharedUnlockSettings.description": "Enabled by default for your account on all devices. The web panel and your trusted extension can unlock each other in this browser profile.",
   "sharedUnlockSettings.behavior": "Closing a tab leaves the extension unlocked within its own session limits. Returning to the web panel can unlock it automatically. Manual lock or logout applies to both linked clients on the same account while shared unlock is enabled.",

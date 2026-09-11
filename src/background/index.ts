@@ -4,6 +4,8 @@ import { isSurfaceActivity } from "../shared/messaging/surface-activity";
 import { isSharedUnlockSettingsCommand } from '../shared/messaging/shared-unlock-settings';
 import { handleSharedUnlockSettings } from './shared-unlock/settings-runtime';
 import { coordinateSharedUnlockBrowser } from "./shared-unlock/browser-runtime";
+import { sharedUnlockCompletionNotice } from './shared-unlock/completion-notice';
+import { SHARED_UNLOCK_NOTICE_PORT } from '../shared/messaging/shared-unlock-notice';
 /**
  * Service worker entry point (MV3). Bootstrap only: it wires the content Port,
  * the popup command channel, the session lifecycle, and the sync + auto-lock
@@ -148,6 +150,8 @@ function unavailableDuringServerChange(raw: unknown): unknown {
 // Clear legacy badge text after each committed session transition.
 sessionManager.hooks.onUnlocked(() => refreshBadge());
 sessionManager.hooks.onLocked(() => refreshBadge());
+sessionManager.hooks.onUnlocked(() => sharedUnlockCompletionNotice.clear());
+sessionManager.hooks.onLocked(() => sharedUnlockCompletionNotice.clear());
 sessionManager.hooks.onUnlocked(() => publishSurfaceState(sessionChanged("unlocked")));
 sessionManager.hooks.onLocked(() => {
   void sessionManager.getStatus()
@@ -201,6 +205,10 @@ const sharedUnlockBrowser = __PALLADIN_TARGET__ === "chromium" && __PALLADIN_SHA
 startNativeAgentBridge();
 
 chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === SHARED_UNLOCK_NOTICE_PORT) {
+    sharedUnlockCompletionNotice.register(port, chrome.runtime.id, chrome.runtime.getURL(''));
+    return;
+  }
   if (port.name !== CONTENT_PORT && port.name !== SESSION_LIVENESS_PORT) return;
 
   sessionLiveness.register(

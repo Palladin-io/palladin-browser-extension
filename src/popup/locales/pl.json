@@ -1,4 +1,5 @@
 {
+  "unlock.sharedUnlockCompleted": "Rozszerzenie odblokowane przez panel Palladin.",
   "sharedUnlockSettings.title": "Wspólne odblokowanie",
   "sharedUnlockSettings.description": "Domyślnie włączone dla Twojego konta na wszystkich urządzeniach. Panel webowy i zaufane rozszerzenie mogą odblokowywać się nawzajem w tym profilu przeglądarki.",
   "sharedUnlockSettings.behavior": "Zamknięcie karty pozostawia rozszerzenie odblokowane w granicach jego sesji. Powrót do panelu może odblokować go automatycznie. Ręczna blokada lub wylogowanie obejmują oba powiązane klienty na tym samym koncie, gdy wspólne odblokowanie jest włączone.",

@@ -19,6 +19,7 @@ import {
 } from "./onboarding/client";
 import { createSessionClient, type SessionClient } from "./session/client";
 import { startSurfaceActivity } from "./session/surface-activity";
+import { SharedUnlockNotice } from './session/SharedUnlockNotice';
 import { startSurfaceSessionLiveness } from "./session/surface-liveness";
 import { useSession, type SessionPhase } from "./session/useSession";
 import { PasswordManagerIntro } from "./screens/PasswordManagerIntro";
@@ -162,6 +163,7 @@ export function App({
 
   return (
     <main className="popup" data-surface={surface}>
+      <SharedUnlockNotice unlocked={session.phase === 'unlocked'} />
       <Header
         status={onboardingStatus === "completed" ? headerStatus(session.phase) : undefined}
         contextLabel={onboardingStatus === "pending"

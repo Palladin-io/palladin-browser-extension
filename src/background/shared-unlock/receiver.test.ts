@@ -23,6 +23,7 @@ import { SharedUnlockApi } from "./api";
 import { beginSharedUnlockReceiver, type SharedUnlockReceiverRoute } from "./receiver";
 import type { SharedUnlockCommit, SharedUnlockOperation } from "./api-types";
 import fixtures from "./fixtures/session-api-v1.json";
+import { sharedUnlockCompletionNotice } from './completion-notice';
 
 const apiUrl = "https://api.example.test";
 const baseline = fixtures.responses.find(r => r.type === "operation" && r.body.context?.direction === "web-to-extension")!.body as SharedUnlockOperation;
@@ -31,7 +32,7 @@ const newSession = { accessToken: "receiver-own-access", refreshToken: "receiver
   isOnboarded: true, emailVerified: true, waitlistDeveloperBenefitStartedAt: null, waitlistDeveloperBenefitEndsAt: null };
 const cancels: (() => void)[] = [];
 beforeAll(async () => { await loadSodium(); });
-beforeEach(() => { vi.spyOn(Date, "now").mockReturnValue(now); });
+beforeEach(() => { vi.spyOn(Date, "now").mockReturnValue(now); vi.spyOn(sharedUnlockCompletionNotice, 'completed').mockImplementation(() => {}); });
 afterEach(() => { for (const cancel of cancels.splice(0)) cancel(); vi.restoreAllMocks(); });
 const deferred = <T>() => { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; };
 
@@ -103,6 +104,33 @@ async function setup(options: { confirmLocalLink?: SharedUnlockReceiverRoute["co
 }
 
 describe("Extension own receiver transaction with real crypto and session installation", () => {
+  it('announces only a completed own install once even when ACK delivery fails', async () => {
+    const f = await setup({ pause: 'commit' });
+    const input = { ...f.input, acknowledge: () => { throw new Error('peer closed'); } };
+    const pending = f.receiver.receive(input);
+    await vi.waitFor(() => expect(f.events).toContain('commit'));
+    expect(sharedUnlockCompletionNotice.completed).not.toHaveBeenCalled();
+    f.pendingResponse.resolve(new Response(JSON.stringify(f.ownCommit)));
+    await pending;
+    expect(f.manager.getKeys()).not.toBeNull();
+    expect(sharedUnlockCompletionNotice.completed).toHaveBeenCalledExactlyOnceWith();
+    f.receiver.cancel();
+    await expect(f.receiver.receive(input)).rejects.toMatchObject({ code: 'conflict' });
+    expect(sharedUnlockCompletionNotice.completed).toHaveBeenCalledOnce();
+  });
+  it('does not announce a rejected final own link check', async () => {
+    const f = await setup({ confirmLocalLink: async () => { throw new Error('locked remotely'); } });
+    await expect(f.receiver.receive(f.input)).rejects.toThrow('locked remotely');
+    expect(sharedUnlockCompletionNotice.completed).not.toHaveBeenCalled();
+  });
+  it('does not announce a completed install already superseded by local lock', async () => {
+    let lock!: () => void;
+    const f = await setup({ onInstalled: () => lock() });
+    lock = () => { void f.manager.lock(); };
+    await f.receiver.receive(f.input);
+    expect(f.manager.getKeys()).toBeNull();
+    expect(sharedUnlockCompletionNotice.completed).not.toHaveBeenCalled();
+  });
   it("publishes verified inherited authority independently of subsequent peer loss", async () => {
     const adopted = vi.fn<SharedUnlockInstalled>();
     const f = await setup({ onInstalled: adopted });
@@ -206,6 +234,7 @@ describe("Extension own receiver transaction with real crypto and session instal
         if (pause === "commit") await vi.waitFor(() => expect(f.events.filter(e => e === "logout")).toHaveLength(1));
         else expect(f.events).not.toContain("logout");
         expect(f.ack).not.toHaveBeenCalled();
+        expect(sharedUnlockCompletionNotice.completed).not.toHaveBeenCalled();
         expect(f.manager.getKeys()).toBeNull();
         expect(await f.manager.getAccessToken()).toBeNull();
         expect(await f.store.getSealedSession()).toBeNull();
