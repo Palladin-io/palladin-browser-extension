@@ -10,6 +10,7 @@ import { openNativePopup } from './native-popup.mjs'
 import { verifyTotpSharedUnlock } from './shared-unlock-totp-steps.mjs'
 import { verifySharedUnlockSettings } from './shared-unlock-settings-steps.mjs'
 import { verifySharedUnlockSettingsRaces } from './shared-unlock-settings-races.mjs'
+import { verifySharedUnlockAccountIsolation } from './shared-unlock-account-isolation.mjs'
 
 // Explicit, already built clients and isolated local Identity/SES test services.
 // No account credentials, recovery words, tokens or keys are written to reports.
@@ -29,6 +30,8 @@ const ownActivityDuringPrepare = process.argv.includes('--own-activity-during-pr
 const totp = process.argv.includes('--totp')
 const settings = process.argv.includes('--settings')
 const settingsRaces = process.argv.includes('--settings-races')
+const accountIsolation = process.argv.includes('--account-isolation')
+assert(!(accountIsolation && totp), 'Account isolation currently requires password-only synthetic accounts')
 const backendSource = process.argv.includes('--backend-source') ? path.resolve(argument('--backend-source')) : undefined
 for (const url of [apiUrl, sesUrl]) assert(['localhost', '127.0.0.1'].includes(new URL(url).hostname), 'Isolated loopback services only')
 const webOrigin = 'http://127.0.0.1:5173', webDirectory = path.join(webSource, 'dist')
@@ -70,6 +73,7 @@ const provenance = {
   totp,
   settings,
   settingsRaces,
+  accountIsolation,
 }
 const launchOptions = {
   ...(browserExecutable ? { executablePath: browserExecutable } : { channel: 'chromium' }), headless: !headed,
@@ -90,6 +94,7 @@ async function observeLocalContext() {
   })
 }
 const password = 'Synthetic!' + randomBytes(24).toString('base64url'), email = `cvt583-${randomBytes(8).toString('hex')}@example.test`
+const allowedEmails = new Set([email])
 try {
   await mkdir(output, { recursive: true }); await rm(path.join(output, 'report.json'), { force: true })
   await rm(path.join(output, 'failure.json'), { force: true })
@@ -101,7 +106,7 @@ try {
     request.on('end', () => {
       try {
         const message = JSON.parse(body)
-        assert(message.Destination.ToAddresses.includes(email))
+        assert(message.Destination.ToAddresses.some(address => allowedEmails.has(address)))
         assert.equal(typeof message.Content.Simple.Body.Html.Data, 'string')
         if (messages.length < 10) messages.push(message)
         response.writeHead(200, { 'Content-Type': 'application/json' }); response.end(JSON.stringify({ MessageId: randomBytes(16).toString('hex') }))
@@ -403,6 +408,11 @@ try {
   requests.push({ check: 'native-popup-signout-click-observed', attempts: signoutClick.attempts })
   await page.locator('#login-email').waitFor()
   checks.push('extension-logout-propagated-to-web')
+  if (accountIsolation) await verifySharedUnlockAccountIsolation({ page, popup, apiUrl, webOrigin,
+    email, password, vaultId, entryId, entryPassword, allowEmail: value => allowedEmails.add(value),
+    verificationFor: address => JSON.stringify(messages.filter(message => message.Destination.ToAddresses.includes(address)))
+      .match(/http:\/\/127\.0\.0\.1:5173\/verify-email\?token=[^"\\\s<]+/)?.[0],
+    setStage: value => { stage = value }, recordCheck: value => checks.push(value) })
   await writeEvidence('report', { status: 'partial-pass', checks, requests,
     observedAt: new Date().toISOString(), browser: context.browser().version(), provenance, fullMatrix: false, entryDecryptionVerified: true })
   console.log(`PARTIAL: ${checks.length} native Identity/Entry checks; full matrix still required.`)
@@ -431,6 +441,6 @@ async function writeEvidence(kind, value) {
   const contents = JSON.stringify(value, null, 2)
   await writeFile(path.join(output, `${kind}.json`), contents)
   const version = String(provenance.browserVersion ?? 'launch').replace(/[^a-zA-Z0-9.-]/g, '_')
-  const scenario = (fullBrowserRestart ? '.full-browser-restart' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '') + (totp ? '.totp' : '') + (settings ? '.settings' : '') + (settingsRaces ? '.settings-races' : '')
+  const scenario = (fullBrowserRestart ? '.full-browser-restart' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '') + (totp ? '.totp' : '') + (settings ? '.settings' : '') + (settingsRaces ? '.settings-races' : '') + (accountIsolation ? '.account-isolation' : '')
   await writeFile(path.join(output, `${kind}.${browserLabel}-${version}${scenario}.json`), contents)
 }

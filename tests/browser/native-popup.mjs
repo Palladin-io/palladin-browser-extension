@@ -132,6 +132,13 @@ export async function openNativePopup(worker, profile, extensionId) {
       })
       return !exceptionDetails && result.value === true
     },
+    async revealDeniedForOtherAccount(vaultId, entryId) {
+      const { result, exceptionDetails } = await command('Runtime.evaluate', {
+        expression: `(async () => { const r = await chrome.runtime.sendMessage(${JSON.stringify({ type: 'vault/reveal', vaultId, entryId, field: 'password' })}); return r?.ok === false && typeof r.code === 'string' && r.code !== 'locked' && !('reveal' in r) })()`,
+        awaitPromise: true, returnByValue: true,
+      })
+      return !exceptionDetails && result.value === true
+    },
     async hasButton(name) { return (await command('Accessibility.getFullAXTree')).nodes.some((node) =>
       !node.ignored && node.role?.value === 'button' && node.name?.value === name) },
     async waitButton(name) { await wait(() => this.hasButton(name), name) },
