@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 
 // Faults change transport timing/delivery only. Identity produces the actual
 // conflict response; no preference/session/key state is injected into either app.
-export async function verifySharedUnlockSettingsRaces({ page, popup, apiUrl, webOrigin,
+export async function verifySharedUnlockSettingsRaces({ page, popup, reopenPopup, apiUrl, webOrigin,
   vaultId, entryId, entryPassword, setStage, recordCheck }) {
   const endpoint = apiUrl + '/api/account/shared-unlock'
   const toggle = () => page.getByRole('switch', { name: 'Shared unlock', exact: true })
@@ -23,16 +23,20 @@ export async function verifySharedUnlockSettingsRaces({ page, popup, apiUrl, web
     await page.getByText('The save did not finish. Synchronization remains locally paused. Retry to save your choice.', { exact: true }).waitFor()
   } finally { await page.unroute(endpoint, abortWrite) }
   await waitWeb(true); await popup.waitSwitch('Shared unlock', true); await reveal()
+  setStage('settings-failed-off-new-document-cannot-unlock')
   const probe = await page.context().newPage()
   try {
     await probe.goto(webOrigin + '/unlock')
     await probe.locator('#unlock-password').waitFor()
+    popup = await reopenPopup()
     for (let attempt = 0; attempt < 6; attempt++) {
       assert(await probe.locator('#unlock-password').isVisible(), 'Persisted local pause must deny a new document while Identity remains ON')
       await reveal()
       await new Promise(resolve => setTimeout(resolve, 500))
     }
   } finally { await probe.close() }
+  popup = await reopenPopup()
+  await popup.click('Settings'); await popup.click('Shared unlock')
   recordCheck('failed-web-off-preserves-account-on-but-blocks-new-document-unlock')
 
   setStage('settings-failed-off-explicit-retry-persists-original-choice')

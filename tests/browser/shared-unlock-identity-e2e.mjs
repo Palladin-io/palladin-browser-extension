@@ -268,6 +268,7 @@ try {
   if (settings) await verifySharedUnlockSettings({ page, popup, apiUrl, webOrigin, password,
     vaultId, entryId, entryPassword, setStage: value => { stage = value }, recordCheck: value => checks.push(value) })
   if (settingsRaces) await verifySharedUnlockSettingsRaces({ page, popup, apiUrl, webOrigin,
+    reopenPopup: async () => { popup?.close(); popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId); return popup },
     vaultId, entryId, entryPassword, setStage: value => { stage = value }, recordCheck: value => checks.push(value) })
   // A new manual authorization also exercises shared lock and unlock snapshot.
   stage = 'web-manual-lock-propagates'
