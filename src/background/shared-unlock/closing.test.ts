@@ -22,7 +22,7 @@ async function setup(action: "lock" | "logout" = "lock") {
     if (current.conflict) return response({}, 409);
     const action = String(url).split("/").at(-1);
     current.link = { ...current.link, revision: current.link.revision + 1, epoch: current.link.epoch + 1,
-      state: action === "disconnect" ? "revoked" : "locked", lastInvalidationSequence: 8,
+      state: action === "disconnect" || current.link.state === "revoked" ? "revoked" : "locked", lastInvalidationSequence: 8,
       lastLogoutSequence: action === "logout" ? 8 : current.link.lastLogoutSequence };
     return response(current.link);
   });
@@ -82,4 +82,17 @@ describe("own Identity closing delivery", () => {
     expect(f.fetcher).toHaveBeenCalledOnce(); expect((await f.store.read(scope))!.pending).toHaveLength(1);
     expect(vi.getTimerCount()).toBe(0);
   });
+});
+
+
+it("settles logout of a revoked link without removing its explicit reconnect latch", async () => {
+  const f = await setup("logout");
+  f.current.link = { ...f.current.link, state: "revoked", lastInvalidationSequence: 7 };
+  const before = await f.store.observe(scope, f.current.link);
+  expect(before.disconnectId).not.toBeNull();
+  await f.run();
+  const marker = await f.store.read(scope);
+  expect(marker).toMatchObject({ pending: [], disconnectId: before.disconnectId,
+    observed: { state: "revoked", lastLogoutSequence: 8, lastInvalidationSequence: 8 } });
+  expect(f.fetcher.mock.calls.filter(([, init]) => init?.method === "POST").map(([url]) => String(url).split("/").at(-1))).toEqual(["logout"]);
 });
