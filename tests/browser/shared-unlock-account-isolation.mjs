@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
+import { waitForWebEntryPassword } from './native-web-entry.mjs'
 
 // Two accounts are created and authenticated through the real product UI.
 // Credentials and Entry values stay in memory; evidence contains booleans only.
@@ -94,11 +95,7 @@ export async function verifySharedUnlockAccountIsolation({ page, popup, apiUrl,
   await page.waitForURL(url => /^\/vaults\/[^/]+\/entries\/[^/]+$/.test(url.pathname))
   const [, , vaultB, , entryB] = new URL(page.url()).pathname.split('/')
   assert.notEqual(vaultB, vaultId); assert.notEqual(entryB, entryId)
-  const revealB = async () => {
-    await page.locator('#entry-detail-password').waitFor()
-    assert(await page.locator('#entry-detail-password').evaluate((element, expected) => element.value === expected, entryPasswordB),
-      'Web must decrypt its own account B Entry')
-  }
+  const revealB = () => waitForWebEntryPassword(page, entryPasswordB)
   await stable(async () => { await revealA(); await revealB() })
   assert(await popup.revealDeniedForOtherAccount(vaultB, entryB), 'Account A must reject account B Entry access')
   recordCheck('both-account-preferences-on-retain-distinct-decrypted-entries')

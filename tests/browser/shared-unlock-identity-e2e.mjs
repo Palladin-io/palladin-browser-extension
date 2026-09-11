@@ -28,7 +28,6 @@ const installViaCdp = process.argv.includes('--install-via-cdp')
 const headed = process.argv.includes('--headed')
 const fullBrowserRestart = process.argv.includes('--full-browser-restart')
 const authorizationRateLimitRetry = process.argv.includes('--authorization-rate-limit-retry')
-assert(!authorizationRateLimitRetry || fullBrowserRestart, 'Rate-limit scenario requires a full browser restart')
 const ownActivityDuringPrepare = process.argv.includes('--own-activity-during-prepare')
 const totp = process.argv.includes('--totp')
 const settings = process.argv.includes('--settings')
@@ -414,6 +413,14 @@ try {
   await popup.waitText('Synthetic shared unlock proof')
   assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword), 'Restarted worker must freshly unlock and decrypt the actual Entry')
   checks.push('restarted-extension-automatically-unlocked-and-decrypted-entry')
+  if (authorizationRateLimitRetry && !fullBrowserRestart) {
+    stage = 'lock-before-explicit-authorization-rate-limit'
+    await page.getByRole('button', { name: 'Lock', exact: true }).click()
+    await page.locator('#unlock-password').waitFor()
+    await popup.waitButton('Unlock')
+    await verifyAuthorizationRateLimitRetry({ page, popup, apiUrl, password, vaultId, entryId, entryPassword,
+      setStage: value => { stage = value }, recordCheck: value => checks.push(value), recordRequest: value => requests.push(value) })
+  }
   if (fullBrowserRestart) {
     stage = 'full-browser-close-while-both-unlocked'
     const previousBrowser = context.browser()

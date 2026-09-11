@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { waitForWebEntryPassword } from './native-web-entry.mjs'
 
 // Exercise the real Identity limiter through the normal UI. No response mocks,
 // bucket resets, clock changes, credential logging or client-state injection.
@@ -50,9 +51,7 @@ export async function verifyAuthorizationRateLimitRetry({ page, popup, apiUrl,
     await page.getByRole('link', { name: 'Vaults', exact: true }).click()
     await page.getByText('Personal', { exact: true }).first().click()
     await page.getByText('Synthetic shared unlock proof', { exact: true }).first().click()
-    await page.locator('#entry-detail-password').waitFor()
-    assert(await page.locator('#entry-detail-password').evaluate((element, expected) => element.value === expected, entryPassword),
-      'The manually unlocked Web must still decrypt its own Entry after shared authorization is throttled')
+    await waitForWebEntryPassword(page, entryPassword)
     recordCheck('real-429-preserves-web-entry-decryption-and-denies-peer-key-use')
     setStage('authorization-rate-limit-server-cooldown')
     const retryAt = deniedAt + seconds * 1000 + 1000
