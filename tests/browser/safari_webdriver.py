@@ -22,6 +22,8 @@ class SafariDriverError(RuntimeError):
 class SafariWebDriver(WebDriverActions):
     def __init__(self, log_file):
         self.session = None
+        self.installed_extensions = []
+        self.cleanup = {'extensionsUninstalled': 0, 'extensionUninstallFailed': False, 'sessionDeleted': False}
         self.log = Path(log_file).open('w')
         self.http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         with socket.socket() as reservation:
@@ -65,18 +67,29 @@ class SafariWebDriver(WebDriverActions):
             except Exception: kind = 'webdriver error'
             allowed = {'session not created', 'invalid session id', 'no such window',
                 'no such element', 'stale element reference', 'timeout', 'script timeout',
-                'element not interactable', 'element click intercepted', 'unknown error', 'remote-automation-disabled'}
+                'element not interactable', 'element click intercepted', 'unknown error', 'remote-automation-disabled',
+                'javascript error', 'unsupported operation'}
             raise SafariDriverError(kind if kind in allowed else 'webdriver error') from None
 
     def install(self, directory):
         value = self.request('POST', '/webextension', {'type': 'path', 'path': str(Path(directory).resolve())})
         if not isinstance(value, dict) or not isinstance(value.get('extension'), str):
             raise RuntimeError('Missing browser installation identity')
-        return urllib.parse.unquote(value['extension'])
+        extension = urllib.parse.unquote(value['extension'])
+        self.installed_extensions.append(extension)
+        return extension
 
     def close(self):
         if self.session:
-            try: self.request('DELETE', '')
+            for extension in self.installed_extensions:
+                try:
+                    self.request('DELETE', '/webextension/' + urllib.parse.quote(extension, safe=''))
+                    self.cleanup['extensionsUninstalled'] += 1
+                except Exception: self.cleanup['extensionUninstallFailed'] = True
+            self.installed_extensions.clear()
+            try:
+                self.request('DELETE', '')
+                self.cleanup['sessionDeleted'] = True
             except Exception: pass
             self.session = None
         self.driver.terminate()

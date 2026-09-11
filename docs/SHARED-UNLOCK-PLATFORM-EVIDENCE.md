@@ -8,6 +8,17 @@ matrix or production support.
 
 ## Current acceptance status — 2026-09-11
 
+The owner moved remaining Safari acceptance to the end of CVT-583 on2026-09-11.
+This reorders work; Safari and its full original matrix are not accepted or removed.
+Local remote automation and the developer-features setting were restored to their
+original disabled states, and Safari Settings showed no synthetic test extension.
+The final local attempt at20:25:17Z timed out during installation, before Identity.
+Safari's automation glass pane was observed; Continue Session was selected only
+on that identified browser dialog. The failed run did not confirm session deletion
+or return an installed ID. The native settings check, rather than that failed
+cleanup response, establishes absence of the test extension. The test-server path
+fix below has not yet received a complete native rerun.
+
 Safari Identity harness715b076 is implemented with real Web registration,
 browser-derived Safari recipient configuration and a random encrypted username
 as Entry proof. Each extension assertion reopens a fresh native Popup, so retained
@@ -15,7 +26,9 @@ React state cannot pass it. Private Web bundles are temporary and excluded from
 retained artifacts; no auth/key injection or CSP changes are used.
 The local macOS26.4.1 attempt at19:46:42Z stopped before Identity with
 `remote-automation-disabled`. Zero Identity checks passed and local settings
-were not changed. Owner approval remains pending. Password autofill, restart,
+were not changed at that time. The owner subsequently approved temporary local
+automation and the exact loopback grant; the local test and restoration are
+recorded below. Password autofill, restart,
 the full lifecycle/security/distribution matrix and final review remain open.
 
 The shared native Popup helper passed15 account-free checks in Safari
@@ -40,6 +53,25 @@ without interrupting the session. The OS-key helper was removed without acceptin
 the dialog. A fixed Popup-owned close task is the next candidate; native absence
 of the old view is still mandatory. Its instrumentation is explicit and does not
 accept arbitrary code, session data or API commands.
+
+Run34642556171 on1a99079 failed earlier, after11 checks at native-popup-view-authority
+at20:08:47Z, with crossWindowPopupCall.observationFailed=true. It did not reach the
+close check, so it neither validates nor disproves the own-realm close candidate.
+Ordinary CI34642556174 passed. No Safari Identity acceptance follows from that CI.
+
+The owner-approved local Safari26.4/macOS26.4.1 runs installed the actual fixture,
+matched its native identity and granted only127.0.0.1. The first attempt at20:16:08Z
+failed at control-page discovery. Later attempts at20:18:31Z,20:20:08Z and20:22:34Z
+passed the installation/permission check but stopped before registration.
+An account-free startup probe identified HTTP403 from the test server: macOS's
+/var and /private/var spellings were compared without canonicalizing both roots.
+The harness now resolves its temporary Web root before checking containment.
+The password-only Web build also supplies a synthetic non-working Google client ID
+because Web requires that config at startup; no real OAuth project is used.
+Cleanup now explicitly uninstalls the exact extension through WebDriver before
+deleting its session, with bounded success/failure evidence in cleanup.json.
+Runs at20:18:31Z,20:20:08Z and20:22:34Z each confirmed one uninstall and session
+deletion. No credentials or recovery words were logged.
 
 Firefox155 regression after the optional encrypted username parameter passed16
 checks at19:51:03Z on clean Webc58ec2b/Extension7b89809, with the same artifacts

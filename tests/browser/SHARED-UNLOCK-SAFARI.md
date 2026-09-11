@@ -2,6 +2,17 @@
 
 ## Real Identity scenario
 
+The owner moved remaining Safari acceptance to the end of CVT-583 on2026-09-11.
+This reorders work; Safari and its full original matrix are not accepted or removed.
+Local remote automation and the developer-features setting were restored to their
+original disabled states, and Safari Settings showed no synthetic test extension.
+The final local attempt at20:25:17Z timed out during installation, before Identity.
+Safari's automation glass pane was observed; Continue Session was selected only
+on that identified browser dialog. The failed run did not confirm session deletion
+or return an installed ID. The native settings check, rather than that failed
+cleanup response, establishes absence of the test extension. The test-server path
+fix below has not yet received a complete native rerun.
+
 `shared-unlock-safari-identity.py` uses the real Web registration/password flow,
 the isolated backend and RAM-only SES delivery. It builds Web with the exact
 Safari identifier returned by native installation, explicitly disables optional
@@ -36,6 +47,18 @@ automation action was taken. The current candidate schedules a fixed
 view to disappear. It accepts no arbitrary code or privileged command and needs
 no system UI permission. This candidate still needs a native pass; earlier
 successes do not erase the recorded failures.
+
+The later1a99079 run34642556171 stopped earlier, after11 checks at
+native-popup-view-authority (20:08:47Z); it never reached the close candidate.
+Its normal Test workflow34642556174 passed. Owner-approved local runs then
+reached native installation and the exact loopback grant, but found a test-server
+HTTP403 before registration. Canonicalizing the temporary Web root fixes the
+macOS /var versus /private/var comparison without weakening traversal checks.
+The Web build supplies a clearly synthetic Google client ID for the existing
+required startup field, and points public assets only to the isolated local host.
+The temporary session uses only the normal non-secret language preference for
+English selectors. Cleanup explicitly uninstalls the browser-returned extension
+ID and deletes the WebDriver session, recording only bounded cleanup outcomes.
 
 Prepare the isolated backend as in [Identity setup](SHARED-UNLOCK-IDENTITY.md),
 with API55083, verification links targeting127.0.0.1:5173 and SES delivery55084.

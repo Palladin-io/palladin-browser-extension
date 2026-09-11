@@ -70,6 +70,7 @@ provenance = {'webHead': subprocess.check_output(['git', 'rev-parse', 'HEAD'], c
 def set_stage(value):
     global stage
     stage = value
+    print('Stage: ' + value, flush=True)
 
 
 def write_evidence(name, extra):
@@ -167,6 +168,10 @@ def build_web(destination, extension_id):
     for name in re.findall(r'^(VITE_[A-Z0-9_]+)=', (web_source / '.env.example').read_text(), re.MULTILINE):
         env[name] = ''
     env.update(VITE_API_URL=api_url, VITE_SIGNALR_HUB_URL=api_url + '/hubs/notifications',
+        # Web currently requires this value even for password-only login.
+        # A synthetic non-working ID avoids any real OAuth project configuration.
+        VITE_GOOGLE_CLIENT_ID='synthetic-cvt583-test.apps.googleusercontent.com',
+        VITE_PUBLIC_ASSET_URL='http://127.0.0.1:54583/palladin-local-public-assets',
         VITE_SHARED_UNLOCK_SAFARI_EXTENSION_ID=extension_id)
     with (out / 'web-build.log').open('w') as log:
         result = subprocess.run(['npm', 'run', 'build', '--', '--outDir', str(destination)],
@@ -201,7 +206,9 @@ try:
             if url.startswith('safari-web-extension://') and url.endswith('/cvt583-identity.html'): return handle
         return None
     diagnostic_handle = browser.wait(find_control, 'installed control page')
+    stage = 'verify-native-installed-extension-identity'
     assert browser.script('return browser.runtime.id') == extension_id
+    stage = 'read-native-popup-url'
     popup_url = browser.script("return browser.runtime.getURL('src/popup/index.html')")
     popup = SafariPopup(browser.request, diagnostic_handle, popup_url)
     stage = 'native-loopback-permission'
@@ -209,7 +216,9 @@ try:
     browser.wait(lambda: browser.script("return document.getElementById('grant-result').textContent === 'granted'"), 'owner loopback permission')
     checks.append('native-installed-product-identity-and-loopback-permission')
     stage = 'build-web-with-browser-owned-safari-id'
-    web_dist = Path(scratch.name) / 'dist'
+    # macOS may spell the temporary root through /var -> /private/var.
+    # Compare canonical paths on both sides of the traversal boundary.
+    web_dist = (Path(scratch.name) / 'dist').resolve()
     build_web(web_dist, extension_id)
     provenance['webArtifactSha256'] = artifact_hash(web_dist)
     for line in (web_dist / '_headers').read_text().splitlines():
@@ -221,6 +230,9 @@ try:
         service = LoopbackServer(('127.0.0.1', port), handler)
         threading.Thread(target=service.serve_forever, daemon=True).start(); services.append(service)
     browser.request('POST', '/window', {'handle': web_handle})
+    stage = 'deterministic-web-ui-language'
+    browser.request('POST', '/url', {'url': web_origin + '/register'})
+    browser.script("localStorage.setItem('palladin-lang', 'en')")
     register_and_login_web(browser, web_origin, email, password, verify_url, set_stage, checks.append)
     stage = 'extension-automatic-unlock'
     popup.show()
@@ -268,14 +280,30 @@ try:
         'passwordAutofillVerified': False, 'backgroundRestartVerified': False})
     print('PARTIAL: ' + str(len(checks)) + ' Safari Identity/Entry checks PASS; full matrix remains required.')
 except Exception as error:
+    web_ui = None
+    if browser:
+        try:
+            browser.request('POST', '/window', {'handle': web_handle})
+            web_ui = browser.script('''return {
+              registration: !!document.querySelector('#register-email'),
+              login: !!document.querySelector('#login-email'),
+              unlock: !!document.querySelector('#unlock-password'),
+              recovery: !!document.querySelector('ol.ph-no-capture'),
+              englishContinue: [...document.querySelectorAll('button')].some(b => b.innerText.trim() === 'Continue'),
+              enabledSubmit: !!document.querySelector('button[type="submit"]:not(:disabled)')
+            }''')
+        except Exception: web_ui = {'unavailable': True}
     write_evidence('failure', {'stage': stage, 'errorType': type(error).__name__,
+        'webUi': web_ui,
         'webdriverError': error.kind if isinstance(error, SafariDriverError) else None,
         'popupStage': popup.last_stage if popup else None,
         'popupDismissal': popup.last_dismissal if popup else None})
     print('FAIL at ' + stage + '; value-free failure.json recorded.')
     raise SystemExit(1) from None
 finally:
-    if browser: browser.close()
+    if browser:
+        browser.close()
+        (out / 'cleanup.json').write_text(json.dumps(browser.cleanup, indent=2))
     for service in services: service.shutdown(); service.server_close()
     messages.clear()
     scratch.cleanup()
