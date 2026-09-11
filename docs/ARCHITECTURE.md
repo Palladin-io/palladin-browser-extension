@@ -354,7 +354,9 @@ SignalR
 `ReceiveVaultSyncInvalidation` is the primary live path while the worker is
 unlocked: its strict value-free payload identifies one Vault and monotonic
 structural version, and the worker fetches only that Vault's authenticated
-detail/delta. Duplicate and out-of-order hints are coalesced; a removal
+detail/delta. Vault IDs are opaque server-owned strings; the receiver does not
+impose its own UUID-version restriction (the backend currently issues UUIDv7).
+Duplicate and out-of-order hints are coalesced; a removal
 tombstone wins over an update at the same mutation version. Unlock and SignalR
 reconnect perform a full all-Vault repair. Popup/side-panel mounts, active-tab
 changes and page reloads rebuild presentation from encrypted local cache

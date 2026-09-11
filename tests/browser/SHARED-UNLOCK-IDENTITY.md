@@ -49,9 +49,10 @@ This avoids writing a test password to the user's clipboard.
 
 A successful run is deliberately `partial-pass`: it is local unpacked Chromium
 evidence, not the complete browser/OS/distributed-artifact acceptance matrix.
-The Entry assertion follows a fresh manual authorization and unlock snapshot;
-it does not prove live invalidation delivery for Entries created after a peer's
-initial empty snapshot. The restart step uses the browser's ServiceWorker
+The harness first observes an authoritative empty Extension snapshot, creates
+an Entry in Web, and requires its list update and password decryption in the
+still-unlocked Extension before any relock. It then repeats the Entry assertion
+after a fresh manual authorization and unlock snapshot. The restart step uses the browser's ServiceWorker
 stop/start commands and requires observed `stopped` then `running` states while
 the source Web document remains alive. It attaches the current native worker
 target, then requires automatic unlock and actual Entry password decryption.

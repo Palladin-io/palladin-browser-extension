@@ -87,7 +87,7 @@ try {
   })
   context.on('response', response => {
     const url = new URL(response.url())
-    if (url.origin === new URL(apiUrl).origin) requests.push({ path: url.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id'), status: response.status() })
+    if (url.origin === new URL(apiUrl).origin) requests.push({ stage, path: url.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id'), status: response.status() })
   })
   page = await context.newPage()
   page.on('requestfailed', request => {
@@ -144,6 +144,17 @@ try {
   stage = 'manual-web-login-completion'
   await page.waitForURL(url => !['/login','/unlock'].includes(url.pathname))
   checks.push('actual-web-manual-password-login')
+  stage = 'extension-automatic-unlock'
+  popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId)
+  for (let attempt = 0; attempt < 200; attempt++) {
+    if (await popup.hasText('Unlocked')) break
+    if (await popup.hasButton('Continue to Palladin')) { await popup.click('Continue to Palladin'); break }
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  await popup.waitText('Unlocked')
+  checks.push('actual-extension-automatic-unlock')
+  await popup.waitText('No entries yet')
+  checks.push('extension-authoritative-empty-snapshot-before-entry-creation')
   stage = 'web-create-entry'
   await page.getByRole('link', { name: 'Vaults', exact: true }).click()
   await page.getByText('Personal', { exact: true }).first().click()
@@ -156,18 +167,11 @@ try {
   await page.waitForURL(url => /^\/vaults\/[^/]+\/entries\/[^/]+$/.test(url.pathname))
   const [, , vaultId, , entryId] = new URL(page.url()).pathname.split('/')
   checks.push('actual-web-encrypted-entry-created')
-  stage = 'extension-automatic-unlock'
-  popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId)
-  for (let attempt = 0; attempt < 200; attempt++) {
-    if (await popup.hasText('Unlocked')) break
-    if (await popup.hasButton('Continue to Palladin')) { await popup.click('Continue to Palladin'); break }
-    await new Promise(resolve => setTimeout(resolve, 100))
-  }
-  await popup.waitText('Unlocked')
-  checks.push('actual-extension-automatic-unlock')
-  // A new manual authorization after Entry creation also exercises shared lock.
-  // Live Entry invalidation is tracked separately; it is not asserted by this
-  // fresh-unlock snapshot test.
+  stage = 'live-entry-invalidation-after-empty-snapshot'
+  await popup.waitText('Synthetic shared unlock proof')
+  assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword), 'Live Entry invalidation must make the real Entry decryptable without relocking')
+  checks.push('live-entry-invalidation-and-decryption-without-relocking')
+  // A new manual authorization also exercises shared lock and unlock snapshot.
   stage = 'web-manual-lock-propagates'
   await page.getByRole('button', { name: 'Lock', exact: true }).click()
   await popup.waitButton('Unlock')
