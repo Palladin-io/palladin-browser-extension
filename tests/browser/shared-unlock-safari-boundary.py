@@ -4,8 +4,10 @@ import argparse
 import hashlib
 import http.server
 import json
+import os
 from pathlib import Path
 import platform
+import subprocess
 import threading
 import time
 import urllib.error
@@ -15,7 +17,10 @@ import urllib.parse
 parser = argparse.ArgumentParser()
 parser.add_argument('--driver-url', default='http://127.0.0.1:55187')
 parser.add_argument('--prepare-only', action='store_true')
+parser.add_argument('--ci-screenshot-on-failure', action='store_true')
 args = parser.parse_args()
+if args.ci_screenshot_on_failure:
+    assert os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted', 'Screenshots only on disposable GitHub-hosted runners'
 assert args.driver_url == 'http://127.0.0.1:55187', 'Task-owned local SafariDriver only'
 out = Path('test-results/shared-unlock-safari-boundary').resolve()
 fixture = out / 'fixture'
@@ -187,6 +192,13 @@ try:
     (out / 'report.json').write_text(json.dumps(result, indent=2))
     print('PASS: ' + str(len(checks)) + ' synthetic Safari observations; not product acceptance.')
 except Exception as error:
+    if args.ci_screenshot_on_failure:
+        try:
+            captured = subprocess.run(['/usr/sbin/screencapture', '-x', str(out / 'safari-screen.png')],
+                timeout=5, capture_output=True)
+            observations['ciScreenshotCaptured'] = captured.returncode == 0
+        except (OSError, subprocess.TimeoutExpired):
+            observations['ciScreenshotCaptured'] = False
     (out / 'failure.json').write_text(json.dumps({'stage': stage, 'checks': checks, 'observations': observations,
         'errorType': type(error).__name__, 'fixtureSha256': fixture_hash,
         'observedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}, indent=2))
