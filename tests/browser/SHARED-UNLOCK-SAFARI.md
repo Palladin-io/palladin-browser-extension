@@ -6,6 +6,12 @@ global `tabs` permission and checks the lifecycle event APIs and native tab
 URL/status required by the adapter. Earlier nine-check results below belong to
 the earlier fixture with `tabs`; they do not prove the new permission scope.
 
+Run34634982018 found `webNavigation.onTabReplaced` absent in all three Safari26
+background variants. The remaining lifecycle events and host grant were present.
+The adapter now treats replacement events as optional and requires fresh native
+tab/document lookups before each operation; a removed tab cannot keep its route.
+The probe preserves that observation and requires only the events actually used.
+
 CVT-587/CVT-592/CVT-604, within CVT-583. This is a synthetic browser probe and
 packaging preparation, not an implemented Safari shared-unlock adapter or
 Identity/MK/Entry acceptance.

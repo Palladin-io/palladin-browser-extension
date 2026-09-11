@@ -75,4 +75,17 @@ describe("Safari native external Port adapter", () => {
     else Object.assign(f.api, { [missing]: undefined });
     expect(startSafariSharedUnlockBrowser(environments, () => environments[0].apiUrl)).toBeNull();
   });
+  it("fences a removed tab through native reads when Safari has no replacement event", async () => {
+    const f = fixture(); f.controller.close(); Object.assign(f.api.webNavigation, { onTabReplaced: undefined });
+    const received = vi.fn();
+    const controller = startSafariSharedUnlockBrowser(environments, () => environments[0].apiUrl, undefined,
+      route => route.onOperation(received))!;
+    expect(controller).not.toBeNull();
+    const p = f.port(); p.onMessage.emit(hello); await settle(); const route = controller.routes()[0];
+    f.api.tabs.get.mockRejectedValue(new Error("No tab with that ID"));
+    p.onMessage.emit({ ...hello, type: "operation", channelId: route.channelId, documentBinding: route.documentBinding,
+      attemptId: "A".repeat(43), payload: { kind: "cancel" } });
+    await settle(); expect(received).not.toHaveBeenCalled(); expect(route.signal.aborted).toBe(true);
+    expect(p.disconnect).toHaveBeenCalledOnce(); controller.close();
+  });
 });

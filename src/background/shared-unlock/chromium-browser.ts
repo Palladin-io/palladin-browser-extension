@@ -12,6 +12,7 @@ export function startChromiumSharedUnlockBrowser(environments: readonly SharedUn
     getFrame: tabId => chrome.webNavigation.getFrame({ tabId, frameId: 0 }),
   };
   return startExternalSharedUnlockBrowser({ native: chrome, initialize,
+    tabReplacedEvent: chrome.webNavigation.onTabReplaced,
     accept: (port, channelId, onClosed) => ChromiumSharedUnlockRoute.accept(port, browser, environments, channelId, onClosed),
     matchesCommit: (route, details) => route.documentId === details.documentId && details.documentLifecycle === "active",
     ...(onReady ? { onReady } : {}),

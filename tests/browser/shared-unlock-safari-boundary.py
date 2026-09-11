@@ -274,7 +274,7 @@ try:
             command('DELETE', '/window')
     assert observations['internalDiagnostics'], 'Installed fixture did not become observable'
     lifecycle = json.loads(observations['internalDiagnostics'][0]['result'])['worker']['lifecycleEvents']
-    assert lifecycle and all(lifecycle.values()), 'Missing required native lifecycle event'
+    assert all(lifecycle.get(name) is True for name in ['external', 'beforeNavigate', 'committed', 'errorOccurred', 'tabRemoved']), 'Missing required native lifecycle event'
     checks.append('native-lifecycle-events-available')
     command('POST', '/window', {'handle': initial_window})
     server = LoopbackServer(('127.0.0.1', 55189), Site)

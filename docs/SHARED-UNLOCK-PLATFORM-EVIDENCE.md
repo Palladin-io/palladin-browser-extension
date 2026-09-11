@@ -13,8 +13,11 @@ native external Ports, the decoded configured bundle/team recipient, native
 extension URL and sender document ID, and independent `tabs.get`/top-frame
 `webNavigation.getFrame` reads bounded to two seconds. Missing lifecycle fields
 are not fabricated; supplied non-active/non-top-frame values are rejected.
-Top navigation, tab removal/replacement/error and configuration changes retire
-pending as well as ready connections. Chromium shares only the bounded Port
+Top navigation, tab removal/error and configuration changes retire pending as
+well as ready connections. Safari26 has no `webNavigation.onTabReplaced` (native
+run34634982018); it relies on the required fresh tab/document lookup before each
+use. If a platform exposes replacement events, those also retire connections.
+Chromium shares only the bounded Port
 mechanics and retains its stricter native lifecycle authority.
 
 Configured Safari artifacts add `webNavigation`, exact configured Web host
@@ -25,7 +28,10 @@ runtime environment checks retain the exact configured port. The Web's Safari
 recipient configuration is empty by default and has no cross-browser fallback.
 This code is not yet native product acceptance. The probe now checks required
 lifecycle API availability and tab URL/status with host access but without global
-`tabs`; its new result and real product Identity/MK/Entry tests are still pending.
+`tabs`. Run34634982018 confirmed the missing optional replacement event and a
+successful native host grant in all three variants, then stopped at its former
+event assertion. The corrected probe and real product Identity/MK/Entry tests
+remain pending.
 
 All completed Identity runs below used macOS26.4.1 arm64 and disposable profiles.
 The historical sections retain earlier failures and narrower observations; this

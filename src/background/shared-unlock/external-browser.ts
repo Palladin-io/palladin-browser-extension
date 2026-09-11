@@ -10,6 +10,7 @@ interface ExternalBrowserOptions<Route extends DocumentRoute> {
   initialize(): Promise<unknown>;
   accept(port: chrome.runtime.Port, channelId: string, onClosed: () => void): Route | null;
   matchesCommit(route: Route, details: chrome.webNavigation.WebNavigationFramedCallbackDetails): boolean;
+  tabReplacedEvent?: chrome.webNavigation.WebNavigationEvent<chrome.webNavigation.WebNavigationReplacementCallbackDetails>;
   onReady?(route: Route): void;
 }
 
@@ -128,7 +129,7 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
   native.webNavigation.onBeforeNavigate.addListener(beforeNavigate);
   native.webNavigation.onCommitted.addListener(committed);
   native.webNavigation.onErrorOccurred.addListener(failed);
-  native.webNavigation.onTabReplaced.addListener(replaced);
+  options.tabReplacedEvent?.addListener(replaced);
   native.tabs.onRemoved.addListener(removed);
   return {
     /** Internal trusted routes only. Never expose this registry to page messages. */
@@ -147,7 +148,7 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
       native.webNavigation.onBeforeNavigate.removeListener(beforeNavigate);
       native.webNavigation.onCommitted.removeListener(committed);
       native.webNavigation.onErrorOccurred.removeListener(failed);
-      native.webNavigation.onTabReplaced.removeListener(replaced);
+      options.tabReplacedEvent?.removeListener(replaced);
       native.tabs.onRemoved.removeListener(removed);
       for (const disconnect of [...connections]) disconnect();
       active.clear(); navigating.clear(); documents.clear();
