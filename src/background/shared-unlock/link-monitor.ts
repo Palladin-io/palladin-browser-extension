@@ -6,13 +6,13 @@ import { SharedUnlockLinkStore } from "./link-store";
 export interface SharedUnlockLinkMonitorClient {
   nonce(): Promise<string>;
   subscribe(changed: () => void): () => void;
-  capture(): { session: SharedUnlockClosingSession; sequence: number; signal: AbortSignal;
+  capture(): { session: SharedUnlockClosingSession; sequence: number | undefined; signal: AbortSignal;
     assertCurrent(): void; dispose(): void } | null;
   closeSession(action: "lock" | "logout"): Promise<void>;
 }
 
-/** Peer frames are only invalidation hints. Own Identity and own current root
- * sequence decide whether to erase an already installed session. */
+/** Peer frames are only hints. A live own root can compare Identity barriers;
+ * without it Identity must resolve the captured own logical session itself. */
 export function startSharedUnlockLinkMonitor(route: SharedUnlockCoordinatorRoute, client: SharedUnlockLinkMonitorClient,
   store: SharedUnlockLinkStore, api: SharedUnlockApi) {
   let stopped = false, running = false, outgoing = false, again = false;
@@ -49,15 +49,20 @@ export function startSharedUnlockLinkMonitor(route: SharedUnlockCoordinatorRoute
       if (captured.session.apiUrl !== route.apiUrl) return;
       const marker = await wait(store.read(scope)); check();
       if (!marker) return;
-      const link = await wait(api.readLink(captured.session, marker.linkId, signal)); check();
-      const action = captured.sequence <= link.lastLogoutSequence ? "logout"
-        : captured.sequence <= link.lastInvalidationSequence ? "lock" : null;
+      const sequence = captured.sequence;
+      const state = sequence === undefined
+        ? await wait(api.readSessionState(captured.session, marker.linkId, signal))
+        : await wait(api.readLink(captured.session, marker.linkId, signal)).then(link => ({ link,
+          action: sequence <= link.lastLogoutSequence ? "logout" as const
+            : sequence <= link.lastInvalidationSequence ? "lock" as const : "none" as const }));
+      check();
+      const { link } = state, action = state.action === "none" ? null : state.action;
       if (action) {
         // Invoke the synchronous local wipe before any durable observation wait.
         const closed = client.closeSession(action);
-        void store.observe(scope, link).catch(() => {});
+        if (link) void store.observe(scope, link).catch(() => {});
         await closed;
-      } else { await wait(store.observe(scope, link)); }
+      } else if (link) { await wait(store.observe(scope, link)); }
     } catch { /* Transport/storage failure grants no new authority and does not invent a group action. */ }
     finally {
       clearTimeout(timeout); own?.dispose(); controller.abort(); if (abort === controller) abort = null;

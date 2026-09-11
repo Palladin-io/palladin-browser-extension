@@ -1,3 +1,4 @@
+import type { SharedUnlockSessionState } from './api-types'
 import type { FetchLike } from "../session/auth-client";
 import type { SessionTokens } from "../session/types";
 import type {
@@ -39,6 +40,11 @@ export class SharedUnlockApi {
   createLink(session: SessionTokens, linkId: string, preferenceRevision: number, signal?: AbortSignal): Promise<SharedUnlockLink> {
     return this.request(session.apiUrl, `${accountPath}/links`, "POST",
       { linkId, expectedPreferenceRevision: preferenceRevision }, session, signal);
+  }
+
+  readSessionState(session: SessionTokens, linkId: string, signal?: AbortSignal): Promise<SharedUnlockSessionState> {
+    return this.request(session.apiUrl, `${accountPath}/session-state`, 'POST',
+      { linkId, refreshToken: session.refreshToken }, session, signal);
   }
 
   readLink(session: SessionTokens, linkId: string, signal?: AbortSignal): Promise<SharedUnlockLink> {

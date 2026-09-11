@@ -10,32 +10,32 @@ import type { SharedUnlockLink } from "./api-types";
 const accountId = "11111111-1111-4111-8111-111111111111", linkId = "22222222-2222-4222-8222-222222222222";
 const hint: SharedUnlockOperationMessage = { attemptId: "A".repeat(43), payload: { kind: "link-invalidated" } };
 const tick = () => vi.advanceTimersByTimeAsync(0);
-async function setup(authority?: SharedUnlockSourceAuthority) {
+async function setup(authority?: SharedUnlockSourceAuthority, rootless = false) {
   let values: Record<string, unknown> = {}, failWrite = false;
   const storage = { get: async () => structuredClone(values), set: async (next: Record<string, unknown>) => { if (failWrite) throw new Error("disk"); values = { ...values, ...structuredClone(next) }; }, remove: async () => {} };
   const store = new SharedUnlockLinkStore(storage, () => crypto.randomUUID());
   const scope = { accountId, apiUrl: "https://api.test", webOrigin: "https://web.test", extensionId: "a".repeat(32) };
   await store.adopt(scope, linkId);
-  const state = { unlocked: true, generation: 1, sequence: 7,
+  const state = { unlocked: !rootless, authenticated: true, action: "none" as "none" | "lock" | "logout", generation: 1, sequence: 7,
     link: { linkId, revision: 2, epoch: 2, state: "active", lastInvalidationSequence: 0, lastLogoutSequence: 0 } as SharedUnlockLink };
   const listeners = new Set<(message: SharedUnlockOperationMessage) => void>(), watchers = new Set<() => void>();
   const routeAbort = new AbortController();
   const route: SharedUnlockCoordinatorRoute = { ...scope, documentBinding: "own-document", signal: routeAbort.signal,
     assertCurrent: () => { if (routeAbort.signal.aborted) throw new Error("retired"); }, verifyCurrent: async () => { route.assertCurrent(); },
     close: () => routeAbort.abort(), sendOperation: vi.fn(), onOperation: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; } };
-  const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(state.link)));
+  const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(rootless ? { action: state.action, link: state.link } : state.link)));
   const disposed = vi.fn();
-  const closeSession = vi.fn(async () => { state.unlocked = false; state.generation++; for (const changed of watchers) changed(); });
+  const closeSession = vi.fn(async (action: "lock" | "logout") => { if (action === "logout") state.authenticated = false; state.unlocked = false; state.generation++; for (const changed of watchers) changed(); });
   const monitor = startSharedUnlockLinkMonitor(route, {
     nonce: async () => "A".repeat(43), subscribe: listener => { watchers.add(listener); return () => { watchers.delete(listener); }; },
     capture: () => {
-      if (!state.unlocked) return null;
+      if (!state.authenticated || (!rootless && !state.unlocked)) return null;
       const witness = authority?.closingWitness();
       if (authority && !witness) return null;
       const generation = state.generation, abort = new AbortController();
       return { session: { apiUrl: scope.apiUrl, userId: accountId, accessToken: "own-access", refreshToken: "own-refresh" },
-        sequence: witness?.sequence ?? state.sequence, signal: abort.signal, dispose: () => { disposed(); abort.abort(); },
-        assertCurrent: () => { if ((authority && authority.closingWitness()?.authorizationId !== witness?.authorizationId) || !state.unlocked || state.generation !== generation) throw new Error("own changed"); } };
+        sequence: rootless ? undefined : witness?.sequence ?? state.sequence, signal: abort.signal, dispose: () => { disposed(); abort.abort(); },
+        assertCurrent: () => { if ((authority && authority.closingWitness()?.authorizationId !== witness?.authorizationId) || !state.authenticated || (!rootless && !state.unlocked) || state.generation !== generation) throw new Error("own changed"); } };
     }, closeSession,
   }, store, new SharedUnlockApi(fetcher, () => scope.apiUrl));
   return { state, route, store, scope, fetcher, closeSession, disposed, failWrite: () => { failWrite = true; },
@@ -111,4 +111,54 @@ it.each(["lock", "logout"] as const)("still repairs %s after sharing authority e
   expect(f.fetcher.mock.calls[1][1]).toMatchObject({ headers: { authorization: "Bearer own-access" } });
   expect(authority.snapshot().authorization).toBeNull();
   f.close();
+});
+
+
+describe("own Identity session repair without a local root", () => {
+  it("logs out an already-locked own session using only its own authenticated POST", async () => {
+    const f = await setup(undefined, true); f.state.action = "logout"; await tick();
+    expect(f.closeSession).toHaveBeenCalledExactlyOnceWith("logout");
+    expect(f.fetcher).toHaveBeenCalledExactlyOnceWith("https://api.test/api/account/shared-unlock/session-state", expect.objectContaining({
+      method: "POST", headers: expect.objectContaining({ authorization: "Bearer own-access" }),
+      body: JSON.stringify({ linkId, refreshToken: "own-refresh" }),
+    }));
+    expect(f.route.sendOperation).not.toHaveBeenCalled(); f.close();
+  });
+  it("does not reconstruct a newer own session from an old local sequence or peer hint", async () => {
+    const f = await setup(undefined, true); f.state.link = { ...f.state.link, lastLogoutSequence: 99 }; await tick();
+    expect(f.closeSession).not.toHaveBeenCalled(); expect(f.state.unlocked).toBe(false); f.close();
+  });
+  it("honors own Identity logout when the bound link is missing", async () => {
+    const f = await setup(undefined, true);
+    f.fetcher.mockResolvedValue(new Response(JSON.stringify({ action: "logout", link: null })));
+    await tick(); expect(f.closeSession).toHaveBeenCalledExactlyOnceWith("logout"); f.close();
+  });
+  it("rejects a late logout response after a newer own session", async () => {
+    const f = await setup(undefined, true); let resolve!: (r: Response) => void;
+    f.fetcher.mockImplementation(() => new Promise(r => { resolve = r; })); await tick();
+    f.state.generation++; resolve(new Response(JSON.stringify({ action: "logout", link: f.state.link })));
+    await tick(); expect(f.closeSession).not.toHaveBeenCalled(); f.close();
+  });
+  it("preserves the own login after route closure instead of accepting its late result", async () => {
+    const f = await setup(undefined, true); let resolve!: (r: Response) => void;
+    f.fetcher.mockImplementation(() => new Promise(r => { resolve = r; })); await tick(); f.close();
+    resolve(new Response(JSON.stringify({ action: "logout", link: f.state.link })));
+    await tick(); expect(f.closeSession).not.toHaveBeenCalled(); expect(f.state.authenticated).toBe(true);
+  });
+  it("does not turn own401 into an invented peer action", async () => {
+    const f = await setup(undefined, true); f.fetcher.mockResolvedValue(new Response('{}', { status: 401 }));
+    await tick(); expect(f.closeSession).not.toHaveBeenCalled(); expect(f.fetcher).toHaveBeenCalledOnce(); f.close();
+  });
+  it("bounds an uncooperative own POST and rejects its late success", async () => {
+    const f = await setup(undefined, true); let resolve!: (r: Response) => void;
+    f.fetcher.mockImplementation(() => new Promise(r => { resolve = r; })); await tick();
+    await vi.advanceTimersByTimeAsync(2000); expect(f.disposed).toHaveBeenCalledOnce();
+    resolve(new Response(JSON.stringify({ action: "logout", link: f.state.link })));
+    await tick(); expect(f.closeSession).not.toHaveBeenCalled(); f.close();
+  });
+  it("does not read another client's session when own authentication is unavailable", async () => {
+    const f = await setup(undefined, true); f.state.authenticated = false; await tick();
+    f.emit(); await vi.advanceTimersByTimeAsync(1000);
+    expect(f.fetcher).not.toHaveBeenCalled(); expect(f.closeSession).not.toHaveBeenCalled(); f.close();
+  });
 });

@@ -96,3 +96,5 @@ export interface SharedUnlockOperationInput {
   readonly recipientPublicKey: string;
   readonly recipientProofPublicKey: string;
 }
+
+export interface SharedUnlockSessionState { readonly action: 'none' | 'lock' | 'logout'; readonly link: SharedUnlockLink | null }

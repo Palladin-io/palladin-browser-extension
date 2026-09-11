@@ -922,3 +922,34 @@ Identity responses remain synthetic: full native two-client Identity/MK/Entry E2
 and the complete browser/OS/distributed-artifact matrix remain release gates.
 Already-locked/restarted group-closing repair, live trust/unlock presentation and
 independent multi-document limits remain separate unfinished requirements.
+
+
+### Closing repair without a local unlock root
+
+The browser link monitor now also captures an own token-only session while keys
+are locked. With a live RAM closing witness it retains the existing own GET-link
+comparison. Without that witness it uses `POST /api/account/shared-unlock/session-state`
+with the exact own refresh token and locally selected link ID; Identity resolves
+that logical session and returns `none`, `lock` or `logout` with nullable link
+metadata. Client code does not infer a replacement sequence from durable account
+checkpoints or peer frames. This path requires the coordinated Identity API change
+in backend PR55.
+
+Replies remain tied to the own account, token pair, generation, document and
+route. The existing 2-second timer/wall-clock, 1 start/second coalescing and
+15-second repair bound apply. A late reply cannot close a replacement session.
+Logout clears an already-locked own login; a lock response does not repeatedly
+retire an already-locked generation. Neither action echoes a group mutation.
+`none` never unlocks keys or restores source authority. OFF does not erase an
+already committed closing barrier.401/network failure invents no peer action;
+normal own-session authentication/refresh and pre-key-use repair still need their
+full lifecycle acceptance.
+
+Focused tests cover the rootless own POST, already-locked logout, missing bound
+link, own token/document changes, cancellation, no own JWT and late timeout.
+Production composition tests use the real Web auth store or worker token-lease
+boundary; the worker transport test still substitutes SessionManager. They do not
+prove real browser restart/MK/Entry behavior. A worker restart can remove access
+to its own sealed tokens as well as its keys; without own authentication this
+monitor cannot query Identity. The separate newly authenticated receiver and
+remaining expired-access/resume/key-use acceptance must retain that boundary.

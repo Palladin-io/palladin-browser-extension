@@ -13,7 +13,7 @@ vi.mock('../session/runtime', async () => {
   return ({
   sessionManager: {
     hooks: { onLocked: vi.fn(() => () => {}), onUnlocked: vi.fn(() => () => {}) },
-    getUserId: async () => '11111111-1111-4111-8111-111111111111', getStatus: async () => 'locked',
+    getUserId: async () => '11111111-1111-4111-8111-111111111111', getStatus: async () => 'locked', getKeys: () => null,
     captureSharedUnlockSettingsSession: vi.fn(), captureSharedUnlockSource: vi.fn(), lock: vi.fn(), logout: vi.fn(),
   },
   sharedUnlockSource: { snapshot: () => ({ authorization: null, preference: null, sourceGeneration: null }),
@@ -51,7 +51,7 @@ it('connects locked worker preference repair to its token-only lease without bor
   expect(fetcher).toHaveBeenCalledExactlyOnceWith(scope.apiUrl + '/api/account/shared-unlock', expect.objectContaining({
     method: 'GET', headers: expect.objectContaining({ authorization: 'Bearer own-worker-access' }),
   }))
-  expect(dispose).toHaveBeenCalledTimes(2)
+  expect(dispose).toHaveBeenCalledTimes(3)
   expect(sessionManager.captureSharedUnlockSource).not.toHaveBeenCalled()
   expect(sessionManager.lock).not.toHaveBeenCalled(); expect(sessionManager.logout).not.toHaveBeenCalled()
   expect(f.sent.some(message => message.payload.kind === 'preference-invalidated')).toBe(false)
@@ -63,7 +63,7 @@ it('disposes a captured settings lease when its first read loses the own lifecyc
     read: () => { throw new Error('own lifecycle changed') } })
   vi.stubGlobal('fetch', fetcher)
   start()
-  await vi.waitFor(() => expect(dispose).toHaveBeenCalledTimes(2))
+  await vi.waitFor(() => expect(dispose).toHaveBeenCalledTimes(3))
   expect(fetcher).not.toHaveBeenCalled(); expect(sharedUnlockPreferences.isDisabled(scope)).toBe(false)
 })
 
@@ -77,7 +77,7 @@ it('connects peer reconnect to the locked worker own token lease without borrowi
     return { signal: abort.signal, dispose: () => abort.abort(), read: () => ({ apiUrl: scope.apiUrl, userId: scope.accountId,
       accessToken: 'own-worker-access', refreshToken: 'own-worker-refresh' }) }
   })
-  const fetcher = vi.fn<typeof fetch>(async url => new Response(JSON.stringify(String(url).endsWith('/' + linkId)
+  const fetcher = vi.fn<typeof fetch>(async url => new Response(JSON.stringify(String(url).endsWith('/session-state') ? { action: 'none', link: null } : String(url).endsWith('/' + linkId)
     ? { ...revoked, state: 'locked', revision: 3, epoch: 3, lastInvalidationSequence: 3 }
     : { sharedUnlockEnabled: true, revision: 1 })))
   vi.stubGlobal('fetch', fetcher)
@@ -85,8 +85,8 @@ it('connects peer reconnect to the locked worker own token lease without borrowi
   f.emit({ attemptId: 'B'.repeat(42) + 'A', payload: { kind: 'link-reconnect', accountId: scope.accountId, linkId, reconnectRevision: 3 } })
   await vi.waitFor(() => expect(f.sent.some(message => message.payload.kind === 'link-reconnect-ack')).toBe(true))
   expect((await sharedUnlockLinks.read(linkScope))?.disconnectId).toBeNull()
-  expect(fetcher.mock.calls.every(([, init]) => init?.method === 'GET'
-    && new Headers(init.headers).get('authorization') === 'Bearer own-worker-access')).toBe(true)
+  expect(fetcher.mock.calls.every(([url, init]) => new Headers(init?.headers).get('authorization') === 'Bearer own-worker-access'
+    && (String(url).endsWith('/session-state') ? init?.method === 'POST' && init.body === JSON.stringify({ linkId, refreshToken: 'own-worker-refresh' }) : init?.method === 'GET'))).toBe(true)
   expect(sessionManager.captureSharedUnlockSource).not.toHaveBeenCalled()
   expect(sessionManager.lock).not.toHaveBeenCalled(); expect(sessionManager.logout).not.toHaveBeenCalled()
 })
@@ -106,4 +106,46 @@ it('a restarted worker with no own JWT may select a hinted receiver link without
   expect((await sharedUnlockLinks.read(linkScope))?.disconnectId).toBe(marker.disconnectId)
   expect(fetcher).not.toHaveBeenCalled(); expect(sessionManager.captureSharedUnlockSource).not.toHaveBeenCalled()
   expect(sessionManager.lock).not.toHaveBeenCalled(); expect(sessionManager.logout).not.toHaveBeenCalled()
+})
+
+it.each(['lock', 'logout'] as const)('uses own Identity %s while the worker is already locked without a RAM root', async action => {
+  const linkId = '22222222-2222-4222-8222-222222222222'
+  await sharedUnlockLinks.adopt({ ...scope, webOrigin: 'https://web.test', extensionId: 'a'.repeat(32) }, linkId)
+  vi.mocked(sessionManager.captureSharedUnlockSettingsSession).mockImplementation(() => {
+    const abort = new AbortController()
+    return { signal: abort.signal, dispose: () => abort.abort(), read: () => ({ apiUrl: scope.apiUrl, userId: scope.accountId,
+      accessToken: 'own-worker-access', refreshToken: 'own-worker-refresh' }) }
+  })
+  const fetcher = vi.fn<typeof fetch>(async url => new Response(JSON.stringify(String(url).endsWith('/session-state')
+    ? { action, link: null } : { sharedUnlockEnabled: false, revision: 2 })))
+  vi.stubGlobal('fetch', fetcher); const f = start()
+  await vi.waitFor(() => expect(fetcher).toHaveBeenCalledWith(scope.apiUrl + '/api/account/shared-unlock/session-state', expect.objectContaining({
+    method: 'POST', body: JSON.stringify({ linkId, refreshToken: 'own-worker-refresh' }),
+    headers: expect.objectContaining({ authorization: 'Bearer own-worker-access' }),
+  })))
+  if (action === 'logout') await vi.waitFor(() => expect(sessionManager.logout).toHaveBeenCalledOnce())
+  else expect(sessionManager.logout).not.toHaveBeenCalled()
+  expect(sessionManager.lock).not.toHaveBeenCalled()
+  expect(sessionManager.captureSharedUnlockSource).not.toHaveBeenCalled()
+  expect(f.sent.some(message => message.payload.kind === 'link-invalidated')).toBe(false)
+})
+
+it('discards a closing response when the worker own token lease has changed', async () => {
+  const linkId = '22222222-2222-4222-8222-222222222222'
+  await sharedUnlockLinks.adopt({ ...scope, webOrigin: 'https://web.test', extensionId: 'a'.repeat(32) }, linkId)
+  let current = true, finish!: (response: Response) => void
+  vi.mocked(sessionManager.captureSharedUnlockSettingsSession).mockImplementation(() => {
+    const abort = new AbortController()
+    return { signal: abort.signal, dispose: () => abort.abort(), read: () => {
+      if (!current) throw new Error('new own session')
+      return { apiUrl: scope.apiUrl, userId: scope.accountId, accessToken: 'own-worker-access', refreshToken: 'own-worker-refresh' }
+    } }
+  })
+  const fetcher = vi.fn<typeof fetch>(async url => String(url).endsWith('/session-state')
+    ? new Promise(resolve => { finish = resolve }) : new Response(JSON.stringify({ sharedUnlockEnabled: true, revision: 1 })))
+  vi.stubGlobal('fetch', fetcher); start()
+  await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+  current = false; finish(new Response(JSON.stringify({ action: 'logout', link: null })))
+  await new Promise(resolve => setTimeout(resolve, 0))
+  expect(sessionManager.logout).not.toHaveBeenCalled(); expect(sessionManager.lock).not.toHaveBeenCalled()
 })

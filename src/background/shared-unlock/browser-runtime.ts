@@ -40,19 +40,18 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
     nonce, subscribe,
     capture: () => {
       const root = sharedUnlockSource.closingWitness();
-      if (!root) return null;
-      const captured = sessionManager.captureSharedUnlockSource();
+      const captured = sessionManager.captureSharedUnlockSettingsSession();
       try {
-        const session = captured.read().tokens;
-        return { session, sequence: root.sequence, signal: captured.signal, dispose: () => captured.dispose(),
+        const session = captured.read();
+        return { session, sequence: root?.sequence, signal: captured.signal, dispose: () => captured.dispose(),
           assertCurrent: () => {
             captured.read();
             const current = sharedUnlockSource.closingWitness();
-            if (current?.authorizationId !== root.authorizationId || current.sourceGeneration !== root.sourceGeneration) throw new Error("Shared link own root changed");
+            if (current?.authorizationId !== root?.authorizationId || current?.sourceGeneration !== root?.sourceGeneration) throw new Error("Shared link own root changed");
           } };
       } catch (error) { captured.dispose(); throw error; }
     },
-    closeSession: action => action === "logout" ? sessionManager.logout() : sessionManager.lock(),
+    closeSession: action => action === "logout" ? sessionManager.logout() : sessionManager.getKeys() ? sessionManager.lock() : Promise.resolve(),
   }, sharedUnlockLinks, api);
   const coordinator = startSharedUnlockBrowserCoordinator(route, {
     role: "extension",
