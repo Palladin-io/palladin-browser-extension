@@ -486,3 +486,24 @@ storage rollback; it does not race cancellation against rollback completion.
 Real SDK/SessionManager tests cover these boundaries with mocked Identity and a
 synthetic Entry primitive. Browser operation dispatch and independent link/account/
 preference coordination are still not wired; these are not full browser E2E proofs.
+
+
+`shared-unlock/source.ts` now creates an extension-to-Web operation using only
+its own SessionManager session and current source authority. A worker-only source
+capture borrows existing keys/tokens, reads effective limits synchronously and
+invalidates on lock/logout, manual work, a newer receiver or token rotation.
+Disposal drops references and stops that operation without changing the own
+session. It performs no storage write, activity update or implicit token refresh.
+
+The source compares account/org/link/preference and exact browser document/
+generations to independent authority, plus its own root/key revisions. Published
+SDK crypto validates participant keys/transcript and the descriptor commitment;
+recovered private key must equal the independently held own Member private key.
+Outgoing projection includes only protocol fields, including nested context and
+descriptor. A final asynchronous browser verification and synchronous send remain
+inside the own-session/route/30-second fence. Send failure is not retried.
+
+Source tests use real SDK and SessionManager with mocked Identity/root preparation,
+including actual token rotation cancelling an already pending operation. They
+recover Member/Vault keys and decrypt a synthetic Entry primitive; they do not
+wire browser dispatch or establish inherited-source/link/preference authority.

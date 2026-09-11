@@ -25,6 +25,11 @@ offline ceilings and rejects lock/logout, cancellation, environment/account
 changes and stale asynchronous results. Durable storage contains the ordinary
 password-sealed own-session envelope; MK and recovered private keys stay in RAM.
 
+The source transaction now creates a one-shot extension-to-Web operation from
+its own live session and authority, verifies the receiver immediately before
+synchronous send, and cancels on local lifecycle or token rotation. It does not
+renew activity or persist keys.
+
 Manual login/password unlock now prepares fresh own Identity authority, including
 TOTP proof cleanup and failure fallback. These components are not yet connected to
 the browser messaging runtime. Verified Web/Extension routing, inherited source/own activity handling, durable link/preference

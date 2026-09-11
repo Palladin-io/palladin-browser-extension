@@ -12,6 +12,7 @@
  * so the whole lifecycle is unit-testable against fakes.
  */
 
+import type { SharedUnlockSourceSession } from "./shared-unlock-source";
 import {
   assertIdentityKdfProfile,
   type BrowserSessionEnvelope,
@@ -144,6 +145,7 @@ export class SessionManager {
   private unlocksInFlight = 0;
   private sharedUnlockAttempt = 0;
   private sharedUnlockReceiverAbort: AbortController | null = null;
+  private readonly sharedUnlockSourceAborts = new Set<AbortController>();
   private sharedUnlockLimits: SessionUnlockLimits | null = null;
   private sharedUnlockLocalDeadline = Infinity;
   private sessionClearGeneration = 0;
@@ -209,6 +211,42 @@ export class SessionManager {
     } : null;
   }
 
+  /** Capture own authority before producing a source offer. No storage read,
+   * activity update, token refresh or peer-selected session is allowed here. */
+  captureSharedUnlockSource(): SharedUnlockSourceSession {
+    const generation = this.captureLifecycleGeneration();
+    const attempt = this.sharedUnlockAttempt;
+    const controller = new AbortController();
+    let keys = this.getKeys();
+    let tokens = this.tokens;
+    const read = () => {
+      this.assertLifecycleGeneration(generation);
+      const limits = this.getSharedUnlockLimits();
+      if (controller.signal.aborted || !keys || !tokens || !limits
+        || this.keys !== keys || this.tokens !== tokens || this.refreshInFlight
+        || this.loginInFlight || this.unlocksInFlight > 0 || this.pendingTotp
+        || attempt !== this.sharedUnlockAttempt) throw new SessionLifecycleChangedError();
+      this.assertApiUrl(tokens.apiUrl);
+      return { keys, tokens, limits };
+    };
+    const dispose = () => {
+      keys = null;
+      tokens = null;
+      this.sharedUnlockSourceAborts.delete(controller);
+      controller.abort();
+    };
+    read();
+    this.sharedUnlockSourceAborts.add(controller);
+    controller.signal.addEventListener("abort", dispose, { once: true });
+    return { signal: controller.signal, read, dispose };
+  }
+
+  private invalidateSharedUnlockSources(): void {
+    const pending = [...this.sharedUnlockSourceAborts];
+    this.sharedUnlockSourceAborts.clear();
+    for (const controller of pending) controller.abort();
+  }
+
   /**
    * Capture before the receiver sends any proof. The route fence must reject
    * navigation, OFF, disconnect and changed account/organization/generations.
@@ -223,6 +261,7 @@ export class SessionManager {
     const generation = this.captureLifecycleGeneration();
     const clearGeneration = this.sessionClearGeneration;
     const attempt = ++this.sharedUnlockAttempt;
+    this.invalidateSharedUnlockSources();
     this.sharedUnlockReceiverAbort?.abort();
     const receiverAbort = new AbortController();
     this.sharedUnlockReceiverAbort = receiverAbort;
@@ -370,6 +409,7 @@ export class SessionManager {
    */
   refreshAccessToken(): Promise<string | null> {
     if (this.refreshInFlight) return this.refreshInFlight;
+    this.invalidateSharedUnlockSources();
     const operation = this.rotateAccessToken().finally(() => {
       if (this.refreshInFlight === operation) this.refreshInFlight = null;
     });
@@ -485,6 +525,7 @@ export class SessionManager {
       throw new SessionError("network", "Another sign-in attempt is already in progress");
     }
     this.sharedUnlockAttempt += 1;
+    this.invalidateSharedUnlockSources();
     this.sharedUnlockReceiverAbort?.abort();
     this.sharedUnlockReceiverAbort = null;
     this.loginInFlight = true;
@@ -744,6 +785,7 @@ export class SessionManager {
   /** Re-derive keys for a locked session from cached material, via any source. */
   async unlock(source: UnlockSource): Promise<void> {
     this.sharedUnlockAttempt += 1;
+    this.invalidateSharedUnlockSources();
     this.sharedUnlockReceiverAbort?.abort();
     this.sharedUnlockReceiverAbort = null;
     this.unlocksInFlight += 1;
@@ -1099,6 +1141,7 @@ export class SessionManager {
     this.clearPendingTotp();
     this.lifecycleTerminations += 1;
     this.lifecycleGeneration += 1;
+    this.invalidateSharedUnlockSources();
     this.sharedUnlockReceiverAbort?.abort();
     this.sharedUnlockReceiverAbort = null;
     this.wipeInFlightKeyMaterial();
