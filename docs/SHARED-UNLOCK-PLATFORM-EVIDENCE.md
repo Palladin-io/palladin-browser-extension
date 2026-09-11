@@ -471,3 +471,39 @@ Python `tests/browser/__pycache__/` directory observed by git status, not a runt
 source edit; that disposable directory is now ignored. Extension CI34616058282
 on62109a7 passed **1593 tests /135 files** and the repository's build/browser
 checks. The140 password/lifecycle gate is unchanged.
+
+## Firefox 140–152 private fill transport — implementation in validation
+
+The compatibility implementation adds a separate isolated-document Port for
+User Credential/card fill. It is not the page relay, `CONTENT_PORT`, capture or
+Agent Inject transport. Admission requires browser-owned Firefox 140–152,
+absent native document ID, own extension ID, exact HTTPS origin, top frame and
+normal-profile tab. Firefox 153+ retains native document addressing.
+
+The worker independently probes the browser's current top frame without a
+secret and compares its isolated document nonce with the original private Port
+registration. Only that original Port carries the fill payload. A replacement
+document cannot receive a password between the probe and delivery. Navigation,
+tab loss, Port loss and pagehide retire registrations; BFCache restore and worker
+restart require fresh admission and a fresh private route ID. Reads and results
+expire after two seconds; the content consumer rejects expired/future messages,
+checks the document again and wipes received field references after its DOM
+operation. Existing exact-host, form-target and no-overwrite checks still apply.
+
+Legacy Vault fill captures the own key installation/API before decrypting and
+checks that same session after decryption and immediately after the final browser
+read. A lock, expiry or changed key installation prevents secret delivery.
+Focused tests cover these independent browser/message/session boundaries,
+including stale Port delivery after BFCache restoration and session replacement
+during a browser read. Three configured target builds pass. The first native
+run stopped at email verification before reaching fill; the isolated repeat on
+Firefox140.0/geckodriver0.37.1/macOS26.4.1 arm64 passed **all16 checks at15:58:29Z**,
+including actual password fill and background restart. This is a working-tree
+runtime observation (artifact SHA256
+`285735aa7e3cc9e6d40609edc77424ecb84edb359575250bc776c073c797288e`),
+with the unchanged Web artifact recorded in the versioned report. It remains a
+temporary-XPI partial pass, not the full version/OS/distribution acceptance.
+Full local validation passes **1625 tests /138 files** with two workers, without
+changing timeouts. The initial default eleven-worker run overlapped a native
+browser test and failed39 tests, predominantly on timeouts; it is not a pass.
+Modern Firefox/Chromium regression and independent review are pending.

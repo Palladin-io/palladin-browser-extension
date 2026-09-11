@@ -11,6 +11,7 @@ import {
   type VaultCommandDeps,
 } from "./commands";
 import type { EntryMetadata } from "./entry-metadata";
+import { VaultDataError } from "./errors";
 
 const HTTPS_MATCH = "https://example.com/login";
 
@@ -22,7 +23,7 @@ interface Harness {
   revealEntry: ReturnType<typeof vi.fn>;
 }
 
-type TestTab = Omit<ActiveTab, "documentId" | "browserDocumentId"> & {
+type TestTab = Omit<Extract<ActiveTab, { browserDocumentId: string }>, "documentId" | "browserDocumentId"> & {
   readonly documentId?: string;
   readonly browserDocumentId?: string;
 };
@@ -165,6 +166,25 @@ describe("vault/list", () => {
 });
 
 describe("vault/fill gates", () => {
+  it("does not decrypt a legacy Firefox fill without a session fence", async () => {
+    const h = await makeHarness(buildVaultWorld(), null);
+    h.deps.getActiveTab = async () => ({ id: 7, url: HTTPS_MATCH, documentId: "a".repeat(32),
+      documentTransport: "legacy-firefox-port", legacyFirefoxRouteId: "route" });
+    const result = await dispatchVaultCommand(h.deps, { type: "vault/fill", vaultId: "vault-1", entryId: "entry-cred" });
+    expect(result).toEqual({ ok: true, fill: { status: "blocked", reason: "locked" } });
+    expect(h.revealEntry).not.toHaveBeenCalled(); expect(h.sendFill).not.toHaveBeenCalled();
+  });
+  it("rejects a legacy Firefox fill when the session changes while decrypting", async () => {
+    const world = buildVaultWorld(), h = await makeHarness(world, null);
+    h.deps.getActiveTab = async () => ({ id: 7, url: HTTPS_MATCH, documentId: "a".repeat(32),
+      documentTransport: "legacy-firefox-port", legacyFirefoxRouteId: "route" });
+    let current = true;
+    h.deps.captureFillSession = () => () => { if (!current) throw new VaultDataError("locked", "Session changed"); };
+    h.revealEntry.mockImplementationOnce(async () => { current = false; return world.secrets.get("entry-cred")!; });
+    const result = await dispatchVaultCommand(h.deps, { type: "vault/fill", vaultId: "vault-1", entryId: "entry-cred" });
+    expect(result).toEqual({ ok: true, fill: { status: "blocked", reason: "locked" } });
+    expect(h.sendFill).not.toHaveBeenCalled();
+  });
   it("fills a credential when the tab matches over https", async () => {
     const world = await buildVaultWorld();
     const { deps, sendFill } = await makeHarness(world, { id: 7, url: HTTPS_MATCH });

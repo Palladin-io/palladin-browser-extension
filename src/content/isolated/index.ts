@@ -44,6 +44,9 @@ import { createReconnectingWorkerPort } from "./worker-port";
 import { createSessionKeepalive } from "./session-keepalive";
 import { startInlineAutofill } from "./inline-autofill";
 import { startCredentialCapture } from "./credential-capture";
+import { extensionBuildTarget } from "@shared/config/build-target";
+import { FIREFOX_LEGACY_FILL_PORT } from "../../shared/messaging/firefox-legacy-fill";
+import { startLegacyFirefoxFill } from "./firefox-legacy-fill";
 
 const sessionNonce = generateNonce();
 const documentId = generateNonce();
@@ -103,6 +106,14 @@ const agentInjectDom = createAgentInjectDomAccess(
   (element) => (inlineAutofill?.isOwnedSurface(element) ?? false)
     || (credentialCapture?.isOwnedSurface(element) ?? false),
 );
+
+if (extensionBuildTarget === "firefox" && window === window.top && location.protocol === "https:") {
+  startLegacyFirefoxFill(window, documentId, () => chrome.runtime.connect({ name: FIREFOX_LEGACY_FILL_PORT }),
+    () => { void chrome.runtime.lastError; }, request => {
+      const loginTarget = request.loginTargetId === null ? null : inlineAutofill?.resolveLoginTarget(request.loginTargetId) ?? null;
+      return performBoundFill(document, request, window.location.href, documentId, loginTarget);
+    }, () => inlineAutofill?.retryAutomaticFill());
+}
 
 // Fill requests arrive as a direct, tab-addressed runtime message from the
 // worker (never the page). We perform the DOM write here in the isolated world

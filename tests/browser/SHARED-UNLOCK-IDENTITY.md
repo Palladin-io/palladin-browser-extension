@@ -122,3 +122,13 @@ autofill source guard requires native sender.documentId; MemberIndex visibility
 is not treated as password proof. The subsequent lifecycle checks did not run
 on140. Keep that failure as an open compatibility gate while completing the
 legacy route and actual password/lifecycle acceptance.
+
+The private legacy fill transport subsequently passed all16 steps on
+Firefox140.0/geckodriver0.37.1/macOS26.4.1 arm64 at15:58:29Z on2026-09-11,
+including actual password autofill, Web closure/reopening, browser-controlled
+background restart and shared manual lock/logout. The versioned report records
+the working-tree build and artifact hash. An earlier new run stopped at email
+verification and did not reach fill; it is retained separately as failure
+evidence. The passing temporary-XPI observation resolves that run's password
+compatibility failure, but does not complete the version/OS/distribution matrix
+or the remaining expiry, account-isolation and independent-review gates.

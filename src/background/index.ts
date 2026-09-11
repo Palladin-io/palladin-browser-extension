@@ -64,6 +64,8 @@ import {
   inlineAutofillSource,
 } from "./vault/inline-runtime";
 import { clipboardGuard, vaultCommandDeps, vaultData } from "./vault/runtime";
+import { legacyFirefoxDocuments } from "./vault/firefox-legacy-runtime";
+import { FIREFOX_LEGACY_FILL_PORT } from "../shared/messaging/firefox-legacy-fill";
 import {
   VaultInvalidationCoordinator,
   VaultRealtimeConnection,
@@ -209,6 +211,10 @@ const sharedUnlockBrowser = __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__.length === 0
 startNativeAgentBridge();
 
 chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === FIREFOX_LEGACY_FILL_PORT) {
+    if (legacyFirefoxDocuments) legacyFirefoxDocuments.register(port); else port.disconnect();
+    return;
+  }
   if (port.name === SHARED_UNLOCK_NOTICE_PORT) {
     sharedUnlockCompletionNotice.register(port, chrome.runtime.id, chrome.runtime.getURL(''));
     return;
@@ -315,6 +321,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
     }
     try {
       const result = await handleInlineAutofillContentMessage({
+        resolveLegacySource: (documentId, sender) => legacyFirefoxDocuments?.resolveSource(documentId, sender) ?? Promise.resolve(null),
         getStatus: () => sessionManager.getStatus(),
         getMetadata: () => vaultData.getMetadata(),
         recency: inlineAutofillRecency,
