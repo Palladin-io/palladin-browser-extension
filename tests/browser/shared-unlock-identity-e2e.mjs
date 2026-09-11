@@ -13,6 +13,7 @@ import { openNativePopup } from './native-popup.mjs'
 const argument = name => process.argv[process.argv.indexOf(name) + 1]
 for (const name of ['--web-source', '--api-url', '--ses-url']) assert(process.argv.includes(name), `${name} required`)
 const webSource = path.resolve(argument('--web-source')), apiUrl = argument('--api-url'), sesUrl = argument('--ses-url')
+const delayManualAuthorization = process.argv.includes('--delay-manual-authorization')
 for (const url of [apiUrl, sesUrl]) assert(['localhost', '127.0.0.1'].includes(new URL(url).hostname), 'Isolated loopback services only')
 const webOrigin = 'http://127.0.0.1:5173', webDirectory = path.join(webSource, 'dist')
 const extension = path.resolve('dist/chromium'), output = path.resolve('test-results/shared-unlock-identity')
@@ -37,6 +38,7 @@ const provenance = {
   webArtifactSha256: await artifactHash(webDirectory), extensionArtifactSha256: await artifactHash(extension),
   platform: platform(), architecture: arch(), apiOrigin: new URL(apiUrl).origin, webOrigin,
   distribution: 'local-unpacked', emailDelivery: 'local-ses-v2-fixture',
+  delayedManualAuthorization: delayManualAuthorization,
 }
 const password = 'Synthetic!' + randomBytes(24).toString('base64url'), email = `cvt583-${randomBytes(8).toString('hex')}@example.test`
 try {
@@ -90,6 +92,16 @@ try {
     if (url.origin === new URL(apiUrl).origin) requests.push({ stage, path: url.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id'), status: response.status() })
   })
   page = await context.newPage()
+  // Delay only transport, never the backend result or any session/key state.
+  // This exposes the interval after local password verification but before
+  // Identity replaces the previously locked logical session's authorization.
+  if (delayManualAuthorization) await page.route(apiUrl + '/api/account/shared-unlock/authorizations', async route => {
+    if (stage === 'web-fresh-manual-unlock') {
+      requests.push({ check: 'manual-authorization-request-delayed', delayMs: 1500 })
+      await new Promise(resolve => setTimeout(resolve, 1500))
+    }
+    try { await route.continue() } catch { /* A superseding local lock may cancel it. */ }
+  })
   page.on('requestfailed', request => {
     const url = new URL(request.url())
     if (url.origin === new URL(apiUrl).origin) requests.push({ path: url.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id'), status: 'request-failed' })

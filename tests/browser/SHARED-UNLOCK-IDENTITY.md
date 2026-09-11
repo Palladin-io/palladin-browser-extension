@@ -59,3 +59,9 @@ target, then requires automatic unlock and actual Entry password decryption.
 This proves a browser-controlled worker restart, not full browser/profile
 shutdown. Offline/expiry, account mismatch and the other platforms remain
 separate acceptance scenarios.
+
+Add `--delay-manual-authorization` to delay the Web request that creates fresh
+manual authorization by 1.5 seconds after shared lock. This changes transport
+timing only and exposes repair reads of the previous locked root while the new
+password unlock is preparing. The report records this option and the actual
+delay. No API response, key state, clock, lock result, or token is substituted.
