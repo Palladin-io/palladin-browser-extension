@@ -1,0 +1,52 @@
+name: Safari shared-unlock boundary
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/shared-unlock-safari.yml
+      - tests/browser/shared-unlock-safari-boundary.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  safari-boundary:
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Observe native Safari extension boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p test-results/shared-unlock-safari-boundary
+          # Only the disposable GitHub-hosted VM changes this setting.
+          sudo /usr/bin/safaridriver --enable
+          /usr/bin/safaridriver -p 55187 > test-results/shared-unlock-safari-boundary/driver.log 2>&1 &
+          safari_driver_pid=$!
+          trap 'kill "$safari_driver_pid" 2>/dev/null || true; wait "$safari_driver_pid" 2>/dev/null || true' EXIT
+          python3 - <<'PY'
+          import socket
+          import time
+          for attempt in range(50):
+              try:
+                  with socket.create_connection(('127.0.0.1', 55187), timeout=1):
+                      break
+              except OSError:
+                  time.sleep(0.2)
+          else:
+              raise SystemExit('SafariDriver did not start')
+          PY
+          python3 tests/browser/shared-unlock-safari-boundary.py
+      - name: Retain synthetic Safari observations
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: shared-unlock-safari-boundary
+          path: test-results/shared-unlock-safari-boundary/
+          if-no-files-found: error
+          retention-days: 7

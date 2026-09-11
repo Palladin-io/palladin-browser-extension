@@ -81,3 +81,19 @@ Sources: [Apple webpage messaging](https://developer.apple.com/documentation/saf
 [Apple WWDC22 recipient-ID contract](https://developer.apple.com/videos/play/wwdc2022/10099/),
 [WebKit Safari26 extension automation](https://webkit.org/blog/17333/webkit-features-in-safari-26-0/),
 [W3C WebExtensions Classic WebDriver commands](https://github.com/w3c/webextensions/blob/main/specification/webdriver-classic.bs).
+
+## Disposable CI execution
+
+The separate `Safari shared-unlock boundary` workflow runs this account-free
+probe on a standard GitHub-hosted `macos-26` VM. It enables remote automation only
+inside that disposable VM, starts a task-owned SafariDriver, then retains the
+synthetic fixture and report/failure for seven days. It uses `pull_request`,
+read-only repository permission, pinned checkout/upload actions and no secrets;
+checkout does not persist Git credentials. It does not run on a personal Mac or
+use any existing user profile. No Identity or Member key is involved.
+
+This provides an independent execution path while local Safari setting approval
+is pending. A successful job would prove only the probe's observations, not a
+product adapter or Safari16.4/full-platform acceptance. See the
+[GitHub runner contract](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
+and [macOS26 image contents](https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md).
