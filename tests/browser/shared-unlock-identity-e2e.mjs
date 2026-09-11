@@ -417,6 +417,14 @@ try {
     observedAt: new Date().toISOString(), browser: context.browser().version(), provenance, fullMatrix: false, entryDecryptionVerified: true })
   console.log(`PARTIAL: ${checks.length} native Identity/Entry checks; full matrix still required.`)
 } catch (error) {
+  if (page && accountIsolation) {
+    const flags = {}
+    for (const label of ['Synthetic account B proof', 'Personal', 'Retry', 'No entries yet.',
+      'Could not load vault data. Please reload the page.', 'Syncing']) {
+      try { flags[label] = await page.getByText(label, { exact: true }).first().isVisible() } catch { flags[label] = null }
+    }
+    requests.push({ check: 'account-isolation-web-error-presentation', flags })
+  }
   if (popup) {
     const flags = {}
     for (const label of ['Unlocked', 'No entries yet', 'Try again', "Couldn't reach Palladin", "Couldn't open the encrypted Vault", "Couldn't open one of the encrypted entry indexes", 'Your session changed', 'One password manager works best', 'Sign in', 'Unlock']) {
