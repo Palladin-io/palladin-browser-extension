@@ -9,6 +9,10 @@ import { chromium } from 'playwright'
 
 // Builds the actual product artifact with explicit synthetic public configuration.
 // No accounts, credentials, tokens, API server, runtime injection or patched bundle.
+const webSourceIndex = process.argv.indexOf('--web-source')
+if (webSourceIndex >= 0 && !process.argv[webSourceIndex + 1]) throw new Error('--web-source requires a Web repository path')
+const webSource = webSourceIndex < 0 ? null : path.resolve(process.argv[webSourceIndex + 1])
+let servedWeb = null
 const protocol = 'palladin.shared-unlock.browser.v1'
 const apiUrl = 'http://localhost:5000'
 const extension = path.resolve('dist/chromium')
@@ -94,9 +98,63 @@ try {
   assert.equal((await connect(malformed, extensionId, { apiUrl: 'https://different.example.test' })).type, 'disconnected')
   checks.push('web-cannot-select-another-api-environment')
 
+  if (webSource) {
+    const webBuild = spawnSync('npm', ['run', 'build'], { cwd: webSource, encoding: 'utf8', timeout: 120000,
+      env: { ...process.env, VITE_API_URL: apiUrl, VITE_SHARED_UNLOCK_EXTENSION_ID: extensionId,
+        VITE_GOOGLE_CLIENT_ID: 'synthetic-client.apps.googleusercontent.com',
+        VITE_SIGNALR_HUB_URL: apiUrl + '/hubs/notifications', VITE_PUBLIC_ASSET_URL: 'http://localhost:4566/palladin-local-public-assets',
+        VITE_POSTHOG_KEY: '', VITE_FIREBASE_API_KEY: '', VITE_FIREBASE_APP_ID: '', VITE_FIREBASE_VAPID_KEY: '' } })
+    await writeFile(path.join(outputDirectory, 'web-build.log'), (webBuild.stdout ?? '') + (webBuild.stderr ?? ''))
+    assert.equal(webBuild.status, 0, 'Web product build must pass; inspect web-build.log')
+    const webDirectory = path.join(webSource, 'dist')
+    const headers = Object.fromEntries((await readFile(path.join(webDirectory, '_headers'), 'utf8')).split('\n')
+      .map(line => line.match(/^\s+([^:]+):\s*(.+)$/)).filter(Boolean).map(match => [match[1], match[2]]))
+    assert(headers['Content-Security-Policy'])
+    servedWeb = { directory: webDirectory, headers }
+    for (const existing of context.pages()) await existing.close()
+    // Value-free observation only: the wrapper calls the actual browser API and
+    // leaves product bytes and native recipient selection unchanged.
+    await context.addInitScript(() => {
+      globalThis.applicationChannelProbe = []
+      const runtime = globalThis.chrome?.runtime
+      if (!runtime?.connect) return
+      const original = runtime.connect
+      runtime.connect = function (...args) {
+        const port = original.apply(runtime, args)
+        if (args[1]?.name === 'palladin.shared-unlock.browser.v1') {
+          const observed = { extensionId: args[0], closed: false, ready: null }
+          globalThis.applicationChannelProbe.push(observed)
+          port.onMessage.addListener(message => {
+            if (message?.type === 'ready') observed.ready = { extensionId: message.extensionId, documentBinding: message.documentBinding }
+          })
+          port.onDisconnect.addListener(() => { void runtime.lastError; observed.closed = true })
+        }
+        return port
+      }
+    })
+    await context.route('**/*', route => {
+      const url = new URL(route.request().url())
+      return url.origin === allowed || url.protocol === 'chrome-extension:' ? route.continue() : route.abort()
+    })
+    const application = await context.newPage()
+    const response = await application.goto(allowed + '/login')
+    assert.equal(response.headers()['content-security-policy'], headers['Content-Security-Policy'])
+    await application.waitForFunction(() => globalThis.applicationChannelProbe.some(item => item.ready && !item.closed), { timeout: 15000 })
+    const beforeReload = await application.evaluate(() => globalThis.applicationChannelProbe.find(item => item.ready && !item.closed))
+    assert.equal(beforeReload.extensionId, extensionId)
+    await application.reload()
+    await application.waitForFunction(() => globalThis.applicationChannelProbe.some(item => item.ready && !item.closed), { timeout: 15000 })
+    const afterReload = await application.evaluate(() => globalThis.applicationChannelProbe.find(item => item.ready && !item.closed))
+    assert.notEqual(afterReload.ready.documentBinding.split('/')[1], beforeReload.ready.documentBinding.split('/')[1])
+    checks.push('actual-web-application-bootstrap-under-delivered-csp')
+    checks.push('actual-web-application-reload-establishes-new-document-channel')
+    await writeFile(path.join(outputDirectory, 'web-artifact-hashes.json'), JSON.stringify(await hashes(webDirectory), null, 2) + '\n')
+  }
+
   const report = { scope: 'actual-configured-unpacked-chromium-product-channel', observedAt: new Date().toISOString(),
     platform: platform(), arch: arch(), browser: context.browser()?.version(), containsUserData: false,
     verifiesCryptoHandoff: false, distributedArtifactAcceptance: false, productionSupport: false,
+    includesActualWebApplication: Boolean(webSource),
     artifactFileHashes: await hashes(extension), checks,
     limitations: 'Local Chromium only. No Identity session or MK handoff. Store artifacts, supported desktop matrix, Firefox and Safari remain unverified.' }
   await writeFile(path.join(outputDirectory, 'report.json'), JSON.stringify(report, null, 2) + '\n')
@@ -109,7 +167,18 @@ try {
 }
 
 async function serve() {
-  const server = createServer((_request, response) => { response.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }); response.end('<!doctype html><title>Synthetic channel fixture</title><body>Channel fixture</body>') })
+  const server = createServer((request, response) => {
+    void (async () => {
+      if (!servedWeb) { response.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }); response.end('<!doctype html><title>Synthetic channel fixture</title><body>Channel fixture</body>'); return }
+      const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname)
+      let file = path.resolve(servedWeb.directory, '.' + pathname)
+      if (!file.startsWith(servedWeb.directory + path.sep)) file = path.join(servedWeb.directory, 'index.html')
+      let bytes
+      try { bytes = await readFile(file) } catch { file = path.join(servedWeb.directory, 'index.html'); bytes = await readFile(file) }
+      const mime = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.png': 'image/png' }[path.extname(file)] ?? 'application/octet-stream'
+      response.writeHead(200, { ...servedWeb.headers, 'Content-Type': mime, 'Cache-Control': 'no-store' }); response.end(bytes)
+    })().catch(() => { response.writeHead(500); response.end() })
+  })
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
   servers.push(server)
   return `http://127.0.0.1:${server.address().port}`

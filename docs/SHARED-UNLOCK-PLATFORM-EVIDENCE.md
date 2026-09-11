@@ -235,3 +235,21 @@ Primary browser contracts used:
 - [Chrome Runtime MessageSender and Port](https://developer.chrome.com/docs/extensions/reference/api/runtime)
 - [Chrome Web Navigation](https://developer.chrome.com/docs/extensions/reference/api/webNavigation)
 - [Chrome externally connectable](https://developer.chrome.com/docs/extensions/reference/manifest/externally-connectable)
+
+
+### Optional paired Web application check
+
+`npm run test:browser:shared-unlock-chromium-channel -- --web-source /path/to/web-repository`
+also builds the specified Web checkout with explicit synthetic local configuration
+and the real extension ID. After the standalone cases it serves that unchanged
+Web build under its generated `_headers` and verifies application bootstrap and
+reload against the actual extension. A value-free test observer wraps the native
+connect call, preserving its browser implementation and exact recipient; product
+bytes are not patched. All external page requests are blocked, no user account
+is used, and Web file hashes are retained beside the extension report.
+
+**Eleven checks PASS on Chromium 153.0.8010.12/macOS arm64**, including both real
+application bootstrap and new-document reload under delivered CSP. The report marks
+whether the optional real Web mode ran. Ordinary fork-safe CI uses standalone
+mode and does not clone or require a private Web repository. This paired probe
+still transfers no MK and proves no Identity/session/shared-lifecycle acceptance.
