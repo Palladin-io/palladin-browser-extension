@@ -95,11 +95,11 @@ export async function openNativePopup(worker, profile, extensionId) {
     }
   }
   return {
-    async click(name) {
+    async click(name, role = 'button') {
       let attempts = 0
       await wait(async () => {
         const node = (await command('Accessibility.getFullAXTree')).nodes.find((node) =>
-          !node.ignored && node.role?.value === 'button' && node.name?.value === name)
+          !node.ignored && node.role?.value === role && node.name?.value === name)
         if (!node) return false
         attempts += 1
         return clickButton(node.backendDOMNodeId)
@@ -135,6 +135,12 @@ export async function openNativePopup(worker, profile, extensionId) {
     async hasButton(name) { return (await command('Accessibility.getFullAXTree')).nodes.some((node) =>
       !node.ignored && node.role?.value === 'button' && node.name?.value === name) },
     async waitButton(name) { await wait(() => this.hasButton(name), name) },
+    async waitSwitch(name, checked) {
+      await wait(async () => (await command('Accessibility.getFullAXTree')).nodes.some(node =>
+        !node.ignored && node.role?.value === 'switch' && node.name?.value === name
+        && node.properties?.some(property => property.name === 'checked' && String(property.value.value) === String(checked))),
+      `switch ${name}: ${checked}`)
+    },
     async waitText(text) { await wait(() => evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`), text) },
     async screenshot(file) { const { data } = await command('Page.captureScreenshot'); await writeFile(file, Buffer.from(data, 'base64')) },
     close() { socket.close() },

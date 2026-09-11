@@ -8,6 +8,7 @@ import path from 'node:path'
 import { chromium } from 'playwright'
 import { openNativePopup } from './native-popup.mjs'
 import { verifyTotpSharedUnlock } from './shared-unlock-totp-steps.mjs'
+import { verifySharedUnlockSettings } from './shared-unlock-settings-steps.mjs'
 
 // Explicit, already built clients and isolated local Identity/SES test services.
 // No account credentials, recovery words, tokens or keys are written to reports.
@@ -25,6 +26,7 @@ const headed = process.argv.includes('--headed')
 const fullBrowserRestart = process.argv.includes('--full-browser-restart')
 const ownActivityDuringPrepare = process.argv.includes('--own-activity-during-prepare')
 const totp = process.argv.includes('--totp')
+const settings = process.argv.includes('--settings')
 const backendSource = process.argv.includes('--backend-source') ? path.resolve(argument('--backend-source')) : undefined
 for (const url of [apiUrl, sesUrl]) assert(['localhost', '127.0.0.1'].includes(new URL(url).hostname), 'Isolated loopback services only')
 const webOrigin = 'http://127.0.0.1:5173', webDirectory = path.join(webSource, 'dist')
@@ -64,6 +66,7 @@ const provenance = {
   fullBrowserRestart,
   ownActivityDuringPrepare,
   totp,
+  settings,
 }
 const launchOptions = {
   ...(browserExecutable ? { executablePath: browserExecutable } : { channel: 'chromium' }), headless: !headed,
@@ -259,6 +262,8 @@ try {
   checks.push('live-entry-invalidation-and-decryption-without-relocking')
   if (totp) await verifyTotpSharedUnlock({ page, popup, apiUrl, webOrigin, email, password,
     vaultId, entryId, entryPassword, setStage: value => { stage = value }, recordCheck: value => checks.push(value) })
+  if (settings) await verifySharedUnlockSettings({ page, popup, apiUrl, webOrigin, password,
+    vaultId, entryId, entryPassword, setStage: value => { stage = value }, recordCheck: value => checks.push(value) })
   // A new manual authorization also exercises shared lock and unlock snapshot.
   stage = 'web-manual-lock-propagates'
   await page.getByRole('button', { name: 'Lock', exact: true }).click()
@@ -420,6 +425,6 @@ async function writeEvidence(kind, value) {
   const contents = JSON.stringify(value, null, 2)
   await writeFile(path.join(output, `${kind}.json`), contents)
   const version = String(provenance.browserVersion ?? 'launch').replace(/[^a-zA-Z0-9.-]/g, '_')
-  const scenario = (fullBrowserRestart ? '.full-browser-restart' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '') + (totp ? '.totp' : '')
+  const scenario = (fullBrowserRestart ? '.full-browser-restart' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '') + (totp ? '.totp' : '') + (settings ? '.settings' : '')
   await writeFile(path.join(output, `${kind}.${browserLabel}-${version}${scenario}.json`), contents)
 }
