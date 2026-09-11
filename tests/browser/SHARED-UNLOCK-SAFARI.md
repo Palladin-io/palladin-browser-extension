@@ -2,6 +2,30 @@
 
 ## Installed product channel
 
+
+First native run34636215449 (test2de8417) disconnected before ready. The later
+minimal diagnostic run34636880642 (02e2658) showed the product worker loaded
+without recorded errors and confirmed the native current document. The cause
+was a remaining Safari-only empty-environments override in `vite.config.ts`.
+Fix16ab8ea has a three-target build regression with Safari RED then GREEN;
+its native product run34637021800 passed10 checks at19:07:35Z. Intermediate diagnostic runs
+34636552105/34636635182 failed because an optional event-inspection method was
+not available; that test-only dependency was removed. The product worker is
+imported statically, preserving its original module-loading semantics.
+
+
+Safari26.6.2/macOS26.6.2 arm64 product result: native ready bound to an
+independent current-document query, new document/channel after reload, and
+rejection of wrong API, extra hello claim, repeated hello, wrong recipient and
+wrong port on the already granted host. Product worker reports loaded with no
+recorded errors. All three synthetic variants and ordinary CI34637021792 also
+passed. The checkout is GitHub's clean PR merge commit
+`fde9b808fe3673ec6e3fccecfe3c97abcf17418a` for branch head16ab8ea, not a main
+release. Original Safari artifact SHA256:
+`12741b0d2ab5233a96041dcb27c289a06a0d3af0ed070338c4391afc4af8fb16`;
+instrumented fixture SHA256:
+`ef877637ed24ca89f51d6653bdf88ac0e54230847d40da0b461d3115569efb52`.
+
 The `--product-extension dist/safari` mode installs a copy of the actual Safari
 build configured for Web `http://127.0.0.1:55189` and API
 `http://localhost:55083`. It retains the original product worker and permissions.

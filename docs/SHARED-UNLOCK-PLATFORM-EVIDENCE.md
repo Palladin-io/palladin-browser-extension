@@ -8,6 +8,23 @@ matrix or production support.
 
 ## Current acceptance status — 2026-09-11
 
+
+The installed product-channel test found a packaging defect: `vite.config.ts`
+still replaced Safari's configured environments with an empty array. The
+manifest exposed the route while the compiled worker disabled it. Run34636215449
+failed before ready; run34636880642 independently confirmed a loaded worker and
+valid native document but no ready. Fix16ab8ea removes the Safari-only override.
+A build-config regression fails only on Safari before the fix and passes on all
+three targets afterwards. The configured Safari build now contains the selected
+Web origin. Native product run34637021800 passed10 checks at19:07:35Z on
+Safari26.6.2/macOS26.6.2 arm64; all three synthetic variants also passed.
+The ordinary Extension CI34637021792 and Webc58ec2b CI34634984109 passed.
+
+The product-channel fixture imports the unchanged compiled worker, adding only
+a private diagnostic page/wrapper and synthetic display name. Its hashes and
+instrumentation are explicit. It does not inject sessions or keys, and this
+PASS does not prove the real Web/Identity/MK/Entry flow or distribution.
+
 The current implementation increment adds a Safari product adapter. It uses
 native external Ports, the decoded configured bundle/team recipient, native
 extension URL and sender document ID, and independent `tabs.get`/top-frame
@@ -49,7 +66,7 @@ with a channel-only probe or a successful build.
 | Firefox140.0 | Temporary product XPI |16/16 PASS, new coordinator|18:01:57|
 | Firefox155.0.1 | Temporary product XPI |16/16 PASS, new coordinator|18:02:48|
 | Opera135.0.5973.133 / engine151.0.7922.176 | Unpacked, browser CDP; headless |16/16 PASS|17:03:15|
-| Safari26.6.2 / macOS26.6.2 arm64 | Synthetic module worker, native one-day loopback grant in disposable CI |10 native channel/document observations, no global tabs; product handoff unverified|18:47:43|
+| Safari26.6.2 / macOS26.6.2 arm64 | Instrumented product module worker, one-day loopback grant in disposable CI |10 product channel checks; Identity/MK/Entry unverified|19:07:35|
 
 The16 baseline checks cover real registration/email/password login, automatic unlock,
 live encrypted Entry/password decryption, continued operation after Web closure,
