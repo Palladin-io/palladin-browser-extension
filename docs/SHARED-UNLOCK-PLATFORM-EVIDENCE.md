@@ -464,3 +464,10 @@ Identity/Entry/password/background-restart checks at15:22:41Z. The repeated140.0
 run at15:21:45Z pinpoints `live-entry-password-autofill`: native Popup remains
 unlocked and shows the created Entry, but password fill times out. The ignored
 versioned report/failure files preserve both outcomes and their artifact hashes.
+
+Final configured rebuild at Extension62109a7/Webb47aff9 again passed16 checks on
+Firefox155 at15:29:26Z. The report's Extension dirty flag reflects the generated
+Python `tests/browser/__pycache__/` directory observed by git status, not a runtime
+source edit; that disposable directory is now ignored. Extension CI34616058282
+on62109a7 passed **1593 tests /135 files** and the repository's build/browser
+checks. The140 password/lifecycle gate is unchanged.
