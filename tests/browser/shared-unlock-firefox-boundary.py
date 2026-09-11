@@ -89,17 +89,29 @@ const state=await browser.runtime.sendMessage({{kind:'state'}});
 parent.postMessage({{tag:'palladin-synthetic-probe',kind:'frame',sw,state,actualOwnId:browser.runtime.id}}, {json.dumps(origin)});
 }})();'''
 
-def fixture(id):
+def fixture(case):
+    id = case['id']
     manifest=dict(manifest_base)
     manifest['browser_specific_settings']={'gecko':{'id':id,'data_collection_permissions':{'required':['none']}}}
-    data={'manifest.json':json.dumps(manifest),'background.js':background,'content.js':content,
+    if case.get('alias'):
+        manifest['applications']={'gecko':{'id':case['alias']}}
+    raw_manifest=json.dumps(manifest)
+    if case.get('duplicate_settings_first'):
+        raw_manifest='{"browser_specific_settings":'+json.dumps({'gecko':{'id':case['duplicate_settings_first']}})+','+raw_manifest[1:]
+    if case.get('duplicate_id_first'):
+        raw_manifest=raw_manifest.replace('"id": '+json.dumps(id), '"id": '+json.dumps(case['duplicate_id_first'])+', "id": '+json.dumps(id), 1)
+    data={'manifest.json':raw_manifest,'background.js':background,'content.js':content,
       'probe.html':'<!doctype html><script src="probe.js"></script>', 'probe.js':frame,
       'fake-manifest.json':json.dumps({'browser_specific_settings':{'gecko':{'id':EXPECTED}}}),
       'sw.js':"self.addEventListener('fetch',e=>e.respondWith(new Response("+json.dumps(json.dumps({'browser_specific_settings':{'gecko':{'id':EXPECTED}}}))+")));"}
     archive=io.BytesIO()
     with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED) as z:
+        if case.get('duplicate_zip_first'):
+            first=dict(manifest)
+            first['browser_specific_settings']={'gecko':{'id':case['duplicate_zip_first'],'data_collection_permissions':{'required':['none']}}}
+            z.writestr('manifest.json',json.dumps(first))
         for name,value in data.items(): z.writestr(name,value)
-    (ROOT / ('expected.xpi' if id == EXPECTED else 'other.xpi')).write_bytes(archive.getvalue())
+    (ROOT / (case['name']+'.xpi')).write_bytes(archive.getvalue())
     return base64.b64encode(archive.getvalue()).decode()
 
 session=None
@@ -120,8 +132,29 @@ try:
       'prefs':{'browser.shell.checkDefaultBrowser':False,'datareporting.healthreport.uploadEnabled':False,'toolkit.telemetry.enabled':False}}}}})
     session=created['sessionId']; root='/session/'+session
     result={'browserVersion':created['capabilities']['browserVersion'],'platformName':created['capabilities']['platformName'],'architecture':platform.machine(),'osVersion':platform.mac_ver()[0] or platform.release(),'pythonVersion':platform.python_version(),'geckodriverVersion':created['capabilities'].get('moz:geckodriverVersion'),'checkedAtUtc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'scope':'Synthetic Firefox manifest-resource candidate only; not browser-identity approval, no shared unlock or MK','cases':[]}
-    for id in [EXPECTED,OTHER]:
-        installed=request('POST',root+'/moz/addon/install',{'addon':fixture(id),'temporary':True})
+    cases=[
+      {'name':'expected','id':EXPECTED},
+      {'name':'other','id':OTHER},
+      {'name':'alias-expected-canonical-other','id':OTHER,'alias':EXPECTED},
+      {'name':'alias-other-canonical-expected','id':EXPECTED,'alias':OTHER},
+      {'name':'duplicate-settings-expected-first','id':OTHER,'duplicate_settings_first':EXPECTED},
+      {'name':'duplicate-settings-other-first','id':EXPECTED,'duplicate_settings_first':OTHER},
+      {'name':'duplicate-id-expected-first','id':OTHER,'duplicate_id_first':EXPECTED},
+      {'name':'duplicate-id-other-first','id':EXPECTED,'duplicate_id_first':OTHER},
+      {'name':'duplicate-zip-expected-first','id':OTHER,'duplicate_zip_first':EXPECTED},
+      {'name':'duplicate-zip-other-first','id':EXPECTED,'duplicate_zip_first':OTHER},
+    ]
+    for case in cases:
+        id=case['id']
+        addon=fixture(case)
+        try:
+            installed=request('POST',root+'/moz/addon/install',{'addon':addon,'temporary':True})
+        except RuntimeError as error:
+            if not case.get('duplicate_zip_first') or 'Could not install add-on' not in str(error): raise
+            # A rejected ambiguous package establishes no identity. Never count
+            # an installation failure as a positive supported runtime route.
+            result['cases'].append({'name':case['name'],'installation':'rejected','accepted':False})
+            continue
         request('POST',root+'/url',{'url':origin+'/'+id})
         deadline=time.monotonic()+15
         while time.monotonic()<deadline:
@@ -132,27 +165,32 @@ try:
         fetched=request('POST',root+'/execute/async',{'script':"const done=arguments[arguments.length-1]; const item=window.observations.find(x=>x.candidateUrl); fetch(item.fetch.url,{credentials:'omit',redirect:'error',cache:'no-store'}).then(async r=>done({url:r.url,body:await r.json()}),e=>done({error:String(e)}));",'args':[]})
         candidate=next(x for x in observations if 'candidateUrl' in x)
         frame_observation=next(x for x in observations if x.get('kind')=='frame')
-        assert installed == id
+        if not case.get('duplicate_zip_first'): assert installed == id
+        assert installed in [EXPECTED,OTHER]
         assert candidate['claimedId'] == EXPECTED
-        assert candidate['fetch']['actualId'] == id
-        assert candidate['accepted'] == (id == EXPECTED)
+        assert candidate['fetch']['actualId'] == installed
+        assert candidate['accepted'] == (installed == EXPECTED)
         assert candidate['fetch']['redirected'] is False
         assert candidate['fetch']['status'] == 200
         assert candidate['fetch']['url'] == frame_observation['origin'] + '/manifest.json'
         assert frame_observation['origin'].startswith('moz-extension://') and frame_observation['sourceMatches']
-        assert frame_observation['data']['actualOwnId'] == id
+        assert frame_observation['data']['actualOwnId'] == installed
         assert frame_observation['data']['state']['webRequestRegistration'] == 'registered'
         assert frame_observation['data']['state']['dnr'] == 'registered'
         assert frame_observation['data']['state']['observed'] == []
         assert frame_observation['data']['sw'] != 'registered'
-        assert fetched['body']['browser_specific_settings']['gecko']['id'] == id
+        assert fetched['body']['browser_specific_settings']['gecko']['id'] == installed
         assert fetched['url'] == candidate['fetch']['url']
         request('POST',root+'/url',{'url':origin.replace('127.0.0.1','localhost')+'/unlisted-origin'})
         denied=request('POST',root+'/execute/async',{'script':"const done=arguments[arguments.length-1]; fetch(arguments[0],{credentials:'omit',redirect:'error',cache:'no-store'}).then(r=>done({denied:false,status:r.status}),e=>done({denied:true,errorName:e.name}));",'args':[candidate['fetch']['url']]})
         assert denied['denied'] is True
-        result['cases'].append({'requestedId':id,'browserInstalledId':installed,'observations':observations,'afterInterceptionAttempt':fetched,'unlistedOrigin':denied})
+        result['cases'].append({'name':case['name'],'requestedId':id,'browserInstalledId':installed,'observations':observations,'afterInterceptionAttempt':fetched,'unlistedOrigin':denied})
         request('POST',root+'/moz/addon/uninstall',{'id':installed})
-    result['fixtureSha256']={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in ['expected.xpi','other.xpi']}
+        request('POST',root+'/url',{'url':origin+'/after-uninstall'})
+        removed=request('POST',root+'/execute/async',{'script':"const done=arguments[arguments.length-1]; fetch(arguments[0],{credentials:'omit',redirect:'error',cache:'no-store'}).then(r=>done({denied:false,status:r.status}),e=>done({denied:true,errorName:e.name}));",'args':[candidate['fetch']['url']]})
+        assert removed['denied'] is True
+        result['cases'][-1]['afterUninstall']=removed
+    result['fixtureSha256']={case['name']+'.xpi':hashlib.sha256((ROOT/(case['name']+'.xpi')).read_bytes()).hexdigest() for case in cases}
     (ROOT/'report.json').write_text(json.dumps(result,indent=2)+'\n')
     print(f"Firefox {result['browserVersion']} on {result['platformName']}/{result['architecture']}: synthetic positive and wrong-ID/resource/interception cases PASS. This does not approve the candidate identity boundary or shared unlock.")
 finally:

@@ -168,6 +168,39 @@ Primary references checked for this candidate:
 - [Firefox ExtensionProtocolHandler](https://github.com/mozilla-firefox/firefox/blob/88fa72d2f463129e64c2eb5c5227ef20b5c08574/netwerk/protocol/res/ExtensionProtocolHandler.cpp): browser-side extension resource resolution; inference about this candidate still needs installed-artifact proof.
 - [Firefox WebRequest](https://github.com/mozilla-firefox/firefox/blob/88fa72d2f463129e64c2eb5c5227ef20b5c08574/toolkit/components/extensions/webrequest/WebRequest.sys.mjs): request interception implementation; does not by itself prove the absence of every alternate modification path.
 
+### Alias, duplicate and removal checks
+
+The expanded probe passed **10 installed fixture cases** on Firefox155.0.1 /
+geckodriver0.37.1 / macOS arm64 at2026-09-11T13:31:05Z. In addition to the original
+two cases, it tests both orderings of conflicting `applications` versus
+`browser_specific_settings`, duplicate settings properties, duplicate `id`
+properties, and duplicate `manifest.json` ZIP entries. For every accepted package,
+the canonical resource ID equals the independently observed browser install ID.
+An other-ID installation is never accepted merely because another property or
+ZIP entry claims the expected ID. A package actually installed under the expected
+ID remains within the approved same-ID boundary. All10 canonical resource fetches
+were denied after uninstall, including from the originally allowed Web origin.
+The existing frame/source, interception and unlisted-origin assertions run for
+each case. The report records per-case installation results and all fixture hashes.
+
+The actual app's `application.ini` identifies source revision
+`5fdfd0092780e85643e2cddc0e1b590c8b9ef860`, BuildID20260903215306; codesign identifies
+Mozilla Corporation. Source inspection at that revision corroborates these narrow
+observations: [Extension.sys.mjs](https://hg.mozilla.org/releases/mozilla-release/file/5fdfd0092780e85643e2cddc0e1b590c8b9ef860/toolkit/components/extensions/Extension.sys.mjs)
+reads root manifest JSON and prefers the Gecko settings used by the probe;
+[XPIInstall.sys.mjs](https://hg.mozilla.org/releases/mozilla-release/file/5fdfd0092780e85643e2cddc0e1b590c8b9ef860/toolkit/mozapps/extensions/internal/XPIInstall.sys.mjs)
+derives the manifest ID and passes it into signature verification, whose
+certificate-name mismatch fails verification. This is source inspection, not
+a signed-distribution test or an independent review verdict.
+
+These results narrow the outstanding Firefox identity questions but do not enable
+a runtime adapter. Current-document/BFCache/update/disable-enable behavior, actual
+product CSP, browser messaging integration, Identity/MK/Entry handoff, the supported
+Firefox version/OS/distribution matrix and independent security review remain
+open. The other browsers remain required. Actual local Chromium Identity/Entry
+testing is documented separately in
+[`tests/browser/SHARED-UNLOCK-IDENTITY.md`](../tests/browser/SHARED-UNLOCK-IDENTITY.md).
+
 
 ## Actual Chromium product channel - 2026-09-11
 
