@@ -150,6 +150,15 @@ Extension tree; runtime artifacts are unchanged. The native popup is reopened
 at explicit driver boundaries. The prior Entry-list timeout remains unresolved;
 this pass does not claim that intermittent behavior is fixed.
 
+`--account-unlock-cycles N` repeats the independent Web B lock/reload/manual
+unlock and real Entry decryption, bounded to1–5 cycles and requiring account
+isolation. Each completed cycle is recorded; the report suffix preserves the
+chosen count. Five cycles passed with the full flow:33 checks at2026-09-11T21:49:16Z
+on clean Web6dcb1db / Extensionaf45b0a / Backenddde6bb96, Google Chrome152.0.7977.84,
+macOS26.4.1 arm64, local CDP unpacked. This did not reproduce the prior Entry-list
+timeout and does not resolve it. Error evidence now also distinguishes the Web's
+actual encrypted Vault-list and Entry-index synchronization messages.
+
 `--settings-races` additionally aborts a real Web preference PUT and requires
 the visible local-pause error while the account remains ON. A new Web document
 must remain locked even while the existing Extension can decrypt the Entry;
