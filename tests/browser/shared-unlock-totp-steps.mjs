@@ -42,7 +42,7 @@ export async function verifyTotpSharedUnlock({ page, popup, apiUrl, webOrigin,
     setStage('totp-password-alone-does-not-unlock-peer')
     await page.locator('#login-email').fill(email)
     await page.locator('#login-password').fill(password)
-    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await page.getByRole('button', { name: 'Sign In', exact: true }).click()
     await page.locator('#totp-code').waitFor()
     for (let attempt = 0; attempt < 6; attempt++) {
       assert(await page.locator('#totp-code').isVisible(), 'Web must retain the second-factor challenge')
