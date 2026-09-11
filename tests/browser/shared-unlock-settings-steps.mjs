@@ -2,14 +2,17 @@ import assert from 'node:assert/strict'
 
 // All writes use real Web/native-popup controls. Only value-free checks leave
 // the synthetic clients; private Entry reads are compared inside the popup.
-export async function verifySharedUnlockSettings({ page, popup, apiUrl, webOrigin,
+export async function verifySharedUnlockSettings({ page, popup, apiUrl,
   password, vaultId, entryId, entryPassword, setStage, recordCheck }) {
   const webSwitch = () => page.getByRole('switch', { name: 'Shared unlock', exact: true })
   const waitWebSwitch = async checked => {
     await page.getByRole('switch', { name: 'Shared unlock', exact: true, checked }).waitFor()
   }
   const webSettings = async () => {
-    await page.goto(webOrigin + '/settings/security')
+    // A full document navigation deliberately wipes keys; OFF/disconnected
+    // clients must reach settings through the same SPA navigation as the user.
+    await page.getByRole('link', { name: 'Settings', exact: true }).click()
+    await page.getByRole('link', { name: 'Security', exact: true }).click()
     await webSwitch().waitFor()
   }
   const extensionSettings = async () => {
@@ -65,6 +68,7 @@ export async function verifySharedUnlockSettings({ page, popup, apiUrl, webOrigi
     await new Promise(resolve => setTimeout(resolve, 500))
   }
   recordCheck('off-keeps-peer-unlocked-and-reopened-web-locked')
+  setStage('settings-manual-unlock-preserves-off')
   await unlockWeb(); await webSettings(); await extensionSettings()
   await waitWebSwitch(false); await popup.waitSwitch('Shared unlock', false)
   recordCheck('manual-unlock-and-document-reload-preserve-account-off')
