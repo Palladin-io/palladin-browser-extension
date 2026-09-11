@@ -20,7 +20,9 @@ enumeration secrets in ignored local configuration, never this repository.
 Build the Web panel with explicit `VITE_API_URL=http://localhost:55083`,
 `VITE_SIGNALR_HUB_URL=http://localhost:55083/hubs/notifications`, and
 `VITE_SHARED_UNLOCK_EXTENSION_ID` equal to the ID derived from the actual
-Chromium manifest key. Keep analytics and push disabled for the test. Build the
+Chromium manifest key. Set the required `VITE_GOOGLE_CLIENT_ID` to the nonworking
+test value `synthetic-cvt583-test.apps.googleusercontent.com`; Google login is
+not used. Keep analytics and push disabled for the test. Build the
 extension with the same API URL and this explicit environment mapping:
 
 ```json
@@ -106,8 +108,29 @@ Reports use an additional `.totp` suffix. The first run stopped at the enabled
 state after real enroll/confirm200: Identity GET account omitted totpEnabled,
 so the Web still displayed disabled. Backend0bab2b6d adds the field; all15
 GetAccount tests pass, including four cases that failed before the fix. The
-complete native MFA rerun is still required. Pass `--backend-source` to record
-that isolated running API checkout alongside both client source hashes.
+next run exposed a second product defect: the generic Web401 handler cleared
+the pending challenge and reloaded the login page after a correctly rejected
+code. Web6dcb1db gives pre-login requests a transport without session recovery;
+its two regression cases first failed, then the full Web suite passed2024 tests.
+An intervening native run stopped before registration because its rebuilt Web
+artifact omitted the required synthetic Google configuration; that is not MFA
+evidence. The earlier exact-label test-selector correction is4257a8f.
+
+The configured rerun on2026-09-11 at20:55:50Z passed24 checks with clean
+Web6dcb1db / Extension4257a8f / Backend0bab2b6d, Chromium153.0.8010.12,
+macOS26.4.1 arm64, local unpacked distribution. It includes actual incorrect
+then correct TOTP, six password-only peer reveal denials, own source activity,
+worker restart, same-profile full browser restart with both clients locked and
+real reveal denied until a fresh manual unlock, reopening Web, shared lock/logout.
+Web artifact SHA256:0fcc3d2b67ed6aa8db5f4d9cb22c00e3385e4f7225788a5350afc505339a4375.
+Extension artifact SHA256:84080ad8e306e9ecf756c6129a500d8bef8242064f10cfb0ae1013906fd14880.
+Google Chrome152.0.7977.84 passed21 checks at20:56:37Z on the same clean sources
+and artifacts, using the browser-owned CDP unpacked installer. This includes
+actual TOTP and worker restart, but does not claim full-browser restart. Backend
+PR56 subsequently passed independent review without findings and merged as29c7d4b2.
+This is partial native evidence; factor-age expiry, recovery codes and the full
+platform/settings/account/lifecycle matrix remain required. Pass `--backend-source`
+to record that isolated running API checkout alongside both client source hashes.
 
 `--full-browser-restart` adds a separate lifecycle case after both clients have
 successfully unlocked and the restarted worker has decrypted the Entry. It closes
