@@ -61,8 +61,15 @@ export async function verifyAuthorizationRateLimitRetry({ page, popup, apiUrl,
     }
     assert.equal(authorizationRequests, requestCountAtDenial, 'No automatic replay of the rejected password proof')
     recordCheck('server-retry-after-elapses-without-proof-replay-or-peer-key-use')
-    setStage('authorization-rate-limit-explicit-fresh-retry')
-    await lock()
+    setStage('authorization-rate-limit-prepare-fresh-retry')
+    // The server cooldown can exceed this client's own idle timeout. Honor
+    // that lock instead of attempting to click a now-absent Lock control.
+    const alreadyLocked = await page.locator('#unlock-password').isVisible()
+    recordRequest({ check: 'web-own-idle-lock-before-rate-limit-retry', alreadyLocked })
+    if (!alreadyLocked) await lock()
+    await popup.waitButton('Unlock')
+    assert(await popup.revealDeniedWhileLocked(vaultId, entryId), 'Peer must remain locked before the fresh retry')
+    setStage('authorization-rate-limit-submit-fresh-retry')
     const retry = await unlock()
     assert.equal(retry.status(), 200, 'Fresh explicit authorization after Retry-After must succeed')
     await popup.waitText('Unlocked')

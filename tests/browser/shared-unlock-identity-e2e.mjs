@@ -503,6 +503,11 @@ try {
     observedAt: new Date().toISOString(), browser: context.browser().version(), provenance, fullMatrix: false, entryDecryptionVerified: true })
   console.log(`PARTIAL: ${checks.length} native Identity/Entry checks; full matrix still required.`)
 } catch (error) {
+  requests.push({ check: 'failed-driver-wait-category',
+    lockButton: /name: ["']Lock["']/.test(error.message ?? ''),
+    unlockButton: /name: ["']Unlock["']/.test(error.message ?? ''),
+    disabled: (error.message ?? '').includes('element is not enabled'),
+    pointerIntercepted: (error.message ?? '').includes('intercepts pointer events') })
   const navigationWait = error.message?.match(/waiting for navigation.*until "(load|domcontentloaded|networkidle|commit)"/)
   if (navigationWait) requests.push({ check: 'navigation-wait-at-failure', waitUntil: navigationWait[1],
     observedNavigation: /navigated to/.test(error.message) })
