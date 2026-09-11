@@ -80,6 +80,8 @@ export interface SessionManagerDeps {
   durableSessionTtlMs?: number;
   /** Optional sharing preparation never prevents the client's own manual unlock. */
   prepareManualUnlock?: PrepareManualUnlock;
+  /** Explicit popup action only; expiry/security cleanup never invokes this. */
+  recordManualClosing?: (accountId: string, action: "lock" | "logout") => Promise<void>;
 }
 
 export const PENDING_TOTP_TTL_MS = 5 * 60 * 1_000;
@@ -126,6 +128,7 @@ export class SessionManager {
   private readonly clientId: string;
   private readonly durableSessionTtlMs: number;
   private readonly prepareManualUnlock: PrepareManualUnlock | undefined;
+  private readonly recordManualClosing: SessionManagerDeps["recordManualClosing"];
 
   readonly hooks: SessionHooks;
   private readonly sync: SyncTrigger;
@@ -163,6 +166,7 @@ export class SessionManager {
     this.clientId = deps.clientId ?? "palladin-browser-extension-test-client";
     this.durableSessionTtlMs = deps.durableSessionTtlMs ?? DURABLE_SESSION_TTL_MS;
     this.prepareManualUnlock = deps.prepareManualUnlock;
+    this.recordManualClosing = deps.recordManualClosing;
     if (
       !Number.isSafeInteger(this.durableSessionTtlMs)
       || this.durableSessionTtlMs <= 0
@@ -951,25 +955,29 @@ export class SessionManager {
   // ─── Lock / logout ──────────────────────────────────────────────────────────
 
   /** Wipe key material and stop the idle timer; the sealed durable session survives. */
-  async lock(): Promise<void> {
+  async lock(reason?: "manual"): Promise<void> {
     this.beginLifecycleTermination();
     try {
       const wasUnlocked = this.keys !== null;
       this.wipeKeys();
       this.autoLock.disarm();
-      if (!wasUnlocked) return;
+      if (!wasUnlocked && reason !== "manual") return;
       const tokens = await this.getBoundMemoryTokens();
       const userId = tokens?.userId ?? (await this.getBoundEnvelope())?.context.accountId ?? null;
       // A refresh-pending envelope intentionally has no published tokens, but
       // surfaces must still observe the authoritative transition to locked.
-      if (userId) this.hooks.emitLocked({ userId });
+      try {
+        if (userId && reason === "manual") await this.recordManualClosing?.(userId, "lock");
+      } finally {
+        if (userId) this.hooks.emitLocked({ userId });
+      }
     } finally {
       this.endLifecycleTermination();
     }
   }
 
   /** Lock, revoke the refresh token server-side, and clear ALL session state. */
-  async logout(): Promise<void> {
+  async logout(reason?: "manual"): Promise<void> {
     this.sessionClearGeneration += 1;
     this.beginLifecycleTermination();
     try {
@@ -979,16 +987,21 @@ export class SessionManager {
       const durableUserId = tokens
         ? tokens.userId
         : (await this.getBoundEnvelope())?.context.accountId ?? null;
-      if (tokens) {
-        // Remote revocation is best-effort and pinned to the issuing host. Do
-        // not let an unavailable old/self-hosted server block the authoritative
-        // local wipe or a subsequent server change.
-        void this.authClient.logout(tokens.refreshToken, tokens.apiUrl);
-        void this.push.unregister(tokens.userId);
+      if (reason === "manual") this.tokens = null;
+      try {
+        if (durableUserId && reason === "manual") await this.recordManualClosing?.(durableUserId, "logout");
+      } finally {
+        if (tokens) {
+          // Remote revocation is best-effort and pinned to the issuing host. Do
+          // not let an unavailable old/self-hosted server block the authoritative
+          // local wipe or a subsequent server change.
+          void this.authClient.logout(tokens.refreshToken, tokens.apiUrl);
+          void this.push.unregister(tokens.userId);
+        }
+        await this.runDurableMutation(() => this.store.clearAll());
+        this.tokens = null;
+        if (durableUserId) this.hooks.emitLocked({ userId: durableUserId });
       }
-      await this.runDurableMutation(() => this.store.clearAll());
-      this.tokens = null;
-      if (durableUserId) this.hooks.emitLocked({ userId: durableUserId });
     } finally {
       this.endLifecycleTermination();
     }

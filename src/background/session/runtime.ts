@@ -56,6 +56,13 @@ manager = new SessionManager({
   autoLock: sessionAutoLock,
   clientId: runtimeClientId,
   prepareManualUnlock: context => sharedUnlockSource.prepare(context),
+  recordManualClosing: async (accountId, action) => {
+    const scopes = __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__
+      .filter(environment => environment.apiUrl === serverConfig.apiUrl)
+      .map(environment => ({ ...environment, accountId, extensionId: runtimeClientId }));
+    const results = await Promise.allSettled(scopes.map(scope => sharedUnlockLinks.recordManualClosing(scope, action)));
+    if (results.some(result => result.status === "rejected")) throw new Error("Shared unlock closing could not be saved");
+  },
 });
 
 manager.hooks.onLocked(() => sharedUnlockSource.reset());

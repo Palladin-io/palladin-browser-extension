@@ -634,3 +634,35 @@ claimed. Full browser Identity/Entry E2E and the supported artifact matrix remai
 required. The actual paired Chromium probe also observes signed-out state sent
 and received by both product coordinators and detects local Port disconnects;
 it does not supply an account or perform an Identity/MK handoff.
+
+
+## Explicit manual closing persistence — pre-release increment
+
+The popup's explicit lock/logout commands now pass a manual reason to
+SessionManager. Keys are wiped and in-flight session work is cancelled before
+waiting for storage; manual logout also removes published memory tokens before
+that wait. The worker records closing against existing links for the current
+account/API and configured Web origins, even if the peer is closed or the own
+client is already locked. Internal security/expiry lock and cleanup do not emit
+this manual action. Failed persistence still leaves local keys erased and
+returns a failure; it does not claim a durable closing receipt.
+
+Web logoutAndReload records the existing account's pending logout before reload,
+using the same origin-wide marker store as the coordinator. It clears own auth
+synchronously. A failed marker write prevents reload, and generic auth-failure
+clearClientSession does not create shared logout intent. A throwing secondary
+cleanup cannot prevent the own auth wipe or the closing record.
+
+The store never creates a link while closing. Logout remains stronger than lock,
+disconnect remains a separate latch, and failed writes retain the existing RAM
+admission gate until repaired. Receiver-only markers may lack an observed server
+revision; revision zero/null preference is a repair hint, not authority for a
+mutation. Restart durability is proven only after a successful write.
+
+**Still required before merge:** deliver these intents through own Identity and
+the linked peer, reconcile stale CAS receipts and missed actions, and flush old
+closings before preparing a fresh manual source authorization. At this increment
+pending actions deliberately keep sharing unavailable, including after a new
+manual unlock, until that reconciliation is implemented. No peer lock/logout
+has been delivered by this increment. Durable expiry barriers, OFF semantics,
+activity, settings/UI and the full browser/Identity/Entry matrix remain open.

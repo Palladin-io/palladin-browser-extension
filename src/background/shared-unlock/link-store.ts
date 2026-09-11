@@ -50,6 +50,23 @@ export class SharedUnlockLinkStore {
     return this.serial(() => this.load(selected));
   }
 
+  /** Explicit own UI action, including when the peer is absent. Never allocate
+   * a link while closing; missing preference/revision is repaired via Identity. */
+  recordManualClosing(scope: SharedUnlockLinkScope, action: "lock" | "logout"): Promise<SharedUnlockLinkMarker | null> {
+    const selected = { ...scope };
+    return this.serial(async () => {
+      const marker = this.pendingWrites.get(this.key(selected)) ?? await this.load(selected);
+      if (!marker) return null;
+      const previous = marker.pending.find(intent => intent.action !== "disconnect");
+      const pending = previous?.action === "logout" || previous?.action === action ? marker.pending
+        : [{ id: this.newId(), action, expectedRevision: marker.observed?.revision ?? 0, preferenceRevision: null },
+          ...marker.pending.filter(intent => intent.action === "disconnect")];
+      const updated = { ...marker, pending };
+      await this.save(selected, updated);
+      return updated;
+    });
+  }
+
   /** Allocate once before contacting Identity. A failed/restarted create must
    * reuse this ID, never create a different link to escape an existing barrier. */
   ensure(scope: SharedUnlockLinkScope): Promise<SharedUnlockLinkMarker> {
