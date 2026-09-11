@@ -79,7 +79,6 @@ browser.runtime.onConnect.addListener(port => {
       errorOccurred: browser.webNavigation.onErrorOccurred, tabReplaced: browser.webNavigation.onTabReplaced,
       tabRemoved: browser.tabs.onRemoved };
     port.postMessage({ workerListenerReady: true, product: globalThis.syntheticProductDiagnostic,
-      productListenerPresent: browser.runtime.onConnectExternal.hasListeners(),
       lifecycleEvents: Object.fromEntries(Object.entries(events).map(([name, event]) =>
       [name, typeof event?.addListener === 'function' && typeof event?.removeListener === 'function'])) });
   }
@@ -395,7 +394,7 @@ try:
               const check = () => {
                 const text = document.getElementById('result')?.textContent;
                 if (text && text !== 'pending') { done(text); return; }
-                if (++attempt === 20) { done(null); return; }
+                if (++attempt === 40) { done(null); return; }
                 setTimeout(check, 100);
               };
               check();
