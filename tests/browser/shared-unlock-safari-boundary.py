@@ -35,6 +35,12 @@ manifest = {'manifest_version': 3, 'name': 'Synthetic shared unlock boundary', '
 (fixture / 'manifest.json').write_text(json.dumps(manifest, indent=2))
 (fixture / 'background.js').write_text('''
 let disconnected = 0;
+browser.runtime.onInstalled.addListener(() => {
+  void browser.tabs.create({ url: browser.runtime.getURL('diagnostics.html') });
+});
+browser.runtime.onMessage.addListener((message, _sender, respond) => {
+  if (message?.type === 'synthetic-internal-probe') respond({ workerListenerReady: true });
+});
 function scope(value) {
   if (!value) return null;
   const result = {};
@@ -61,7 +67,17 @@ browser.runtime.onConnectExternal.addListener(port => {
     runtimeOrigin: browser.runtime.getURL(''), sender: scope(port.sender), senderTab: scope(port.sender?.tab) });
 });
 ''')
-fixture_hash = hashlib.sha256((fixture / 'manifest.json').read_bytes() + (fixture / 'background.js').read_bytes()).hexdigest()
+(fixture / 'diagnostics.html').write_text('<!doctype html><title>Synthetic extension diagnostics</title><pre id="result">pending</pre><script src="diagnostics.js"></script>')
+(fixture / 'diagnostics.js').write_text('''
+(async () => {
+  const result = { runtimeId: browser.runtime.id, runtimeOrigin: browser.runtime.getURL('') };
+  try { result.permissions = await browser.permissions.getAll(); } catch { result.permissionReadFailed = true; }
+  try { result.worker = await browser.runtime.sendMessage({ type: 'synthetic-internal-probe' }); } catch { result.workerReadFailed = true; }
+  document.getElementById('result').textContent = JSON.stringify(result);
+})();
+''')
+fixture_hash = hashlib.sha256(b''.join((fixture / name).read_bytes()
+    for name in ['manifest.json', 'background.js', 'diagnostics.html', 'diagnostics.js'])).hexdigest()
 if args.prepare_only:
     print('Prepared synthetic Safari fixture; no browser or session was started.')
     raise SystemExit(0)
@@ -143,6 +159,7 @@ try:
     created = request('POST', '/session', {'capabilities': {'alwaysMatch': {'browserName': 'safari', 'platformName': 'macOS'}}})
     session = created['sessionId']
     observations['capabilities'] = created['capabilities']
+    initial_window = command('GET', '/window')
     command('POST', '/timeouts', {'script': 10000, 'pageLoad': 20000, 'implicit': 0})
     stage = 'install-extension'
     installation = command('POST', '/webextension', {'type': 'path', 'path': str(fixture)})
@@ -155,6 +172,35 @@ try:
     assert isinstance(extension_id, str) and extension_id
     observations['browserInstalledExtensionId'] = extension_id
     checks.append('browser-installed-synthetic-extension')
+    stage = 'internal-fixture-diagnostics'
+    for attempt in range(20):
+        handles = command('GET', '/window/handles')
+        if len(handles) > 1:
+            break
+        time.sleep(0.1)
+    observations['internalDiagnostics'] = []
+    for handle in handles:
+        if handle == initial_window:
+            continue
+        command('POST', '/window', {'handle': handle})
+        url = command('GET', '/url')
+        if url.startswith('safari-web-extension://') and url.endswith('/diagnostics.html'):
+            # Read only the installed fixture page. This is diagnostic data,
+            # not an external-Port sender or product document-binding proof.
+            result = command('POST', '/execute/async', {'script': '''
+              const done = arguments[arguments.length - 1];
+              let attempt = 0;
+              const check = () => {
+                const text = document.getElementById('result')?.textContent;
+                if (text && text !== 'pending') { done(text); return; }
+                if (++attempt === 20) { done(null); return; }
+                setTimeout(check, 100);
+              };
+              check();
+            ''', 'args': []})
+            observations['internalDiagnostics'].append({'browserUrl': url, 'result': result})
+            command('DELETE', '/window')
+    command('POST', '/window', {'handle': initial_window})
     server = LoopbackServer(('127.0.0.1', 55189), Site)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     stage = 'allowed-native-port'
