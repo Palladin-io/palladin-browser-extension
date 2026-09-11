@@ -51,7 +51,19 @@ manifest = {'manifest_version': 3, 'name': 'Synthetic shared unlock boundary', '
 (fixture / 'manifest.json').write_text(json.dumps(manifest, indent=2))
 (fixture / 'background.js').write_text('''
 let disconnected = 0;
-globalThis.syntheticProductDiagnostic = { importState: 'not-instrumented', external: [] };
+globalThis.syntheticProductDiagnostic = { importState: 'diagnostics-ready', errors: [] };
+function captureSyntheticWorkerError(error, event) {
+  const state = globalThis.syntheticProductDiagnostic;
+  if (state.errors.length >= 5) return;
+  const frames = (String(error?.stack || '').match(/[A-Za-z0-9._-]+\\.js:\\d+:\\d+/g) || []).slice(0, 5);
+  if (!frames.length && event?.filename) {
+    const file = String(event.filename).split('/').at(-1);
+    if (/^[A-Za-z0-9._-]+\\.js$/.test(file)) frames.push(file + ':' + event.lineno + ':' + event.colno);
+  }
+  state.errors.push({ name: ['Error', 'TypeError', 'SyntaxError', 'ReferenceError'].includes(error?.name) ? error.name : 'other', frames });
+}
+self.addEventListener('error', event => captureSyntheticWorkerError(event.error, event));
+self.addEventListener('unhandledrejection', event => captureSyntheticWorkerError(event.reason));
 // A temporary WebDriver installation did not reliably expose the onInstalled
 // page. Open this synthetic diagnostic from background startup instead, without
 // stealing focus or depending on a one-shot installation event.
@@ -113,13 +125,9 @@ if args.product_extension:
         'diagnosticInstrumentation': ['test display name', 'diagnostic extension page', 'background wrapper imports unchanged product worker']}
     diagnostics = (fixture / 'background.js').read_text().split('function scope(value)', 1)[0]
     (fixture / 'diagnostic-background.js').write_text(diagnostics)
-    (fixture / 'background.js').write_text('import "./diagnostic-background.js";\n'
-        + 'globalThis.syntheticProductDiagnostic.importState = "pending";\n'
-        + 'import(' + json.dumps('./' + original_worker) + ').then(() => { globalThis.syntheticProductDiagnostic.importState = "loaded"; }, error => {\n'
-        + 'globalThis.syntheticProductDiagnostic.importState = "failed";\n'
-        + 'globalThis.syntheticProductDiagnostic.errorName = ["Error", "TypeError", "SyntaxError", "ReferenceError"].includes(error?.name) ? error.name : "other";\n'
-        + 'globalThis.syntheticProductDiagnostic.frames = (String(error?.stack || "").match(/[A-Za-z0-9._-]+\\.js:\\d+:\\d+/g) || []).slice(0, 5);\n'
-        + '});\n')
+    (fixture / 'background.js').write_text('import "./diagnostic-background.js";\nimport '
+        + json.dumps('./' + original_worker) + ';\n'
+        + 'globalThis.syntheticProductDiagnostic.importState = "loaded";\n')
     product_manifest['name'] = manifest['name']
     product_manifest['background']['service_worker'] = 'background.js'
     (fixture / 'manifest.json').write_text(json.dumps(product_manifest, indent=2))
