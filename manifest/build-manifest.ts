@@ -65,6 +65,10 @@ export function buildManifest(target: BuildTarget = "chromium", sharedUnlockEnvi
     throw new Error(`Unknown build target: ${target}`);
   }
   const manifest = deepMerge(base as unknown as Json, overlay);
+  if (target === "safari") {
+    // Safari rejects port-bearing host patterns; runtime API/origin checks retain exact ports.
+    manifest.host_permissions = (manifest.host_permissions as string[]).map(pattern => pattern.replace(/^(https?:\/\/[^/:]+):\d+\//, "$1/"));
+  }
   if (target === "chromium" && sharedUnlockEnvironments.length > 0) {
     manifest.permissions = [...new Set([...(manifest.permissions as string[]), ...sharedUnlock.permissions])];
     manifest.externally_connectable = { ...sharedUnlock.externally_connectable,
@@ -77,6 +81,12 @@ export function buildManifest(target: BuildTarget = "chromium", sharedUnlockEnvi
     manifest.content_scripts = [...(manifest.content_scripts as unknown[]), {
       matches, js: ["src/content/shared-unlock-firefox.ts"], run_at: "document_start", all_frames: false,
     }];
+  }
+  if (target === "safari" && sharedUnlockEnvironments.length > 0) {
+    const matches = sharedUnlockWebMatches(sharedUnlockEnvironments);
+    manifest.permissions = [...new Set([...(manifest.permissions as string[]), "webNavigation"])];
+    manifest.host_permissions = [...new Set([...(manifest.host_permissions as string[]), ...matches])];
+    manifest.externally_connectable = { matches };
   }
   return manifest as unknown as ManifestV3Export;
 }

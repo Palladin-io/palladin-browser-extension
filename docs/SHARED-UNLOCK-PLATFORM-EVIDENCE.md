@@ -8,6 +8,25 @@ matrix or production support.
 
 ## Current acceptance status — 2026-09-11
 
+The current implementation increment adds a Safari product adapter. It uses
+native external Ports, the decoded configured bundle/team recipient, native
+extension URL and sender document ID, and independent `tabs.get`/top-frame
+`webNavigation.getFrame` reads bounded to two seconds. Missing lifecycle fields
+are not fabricated; supplied non-active/non-top-frame values are rejected.
+Top navigation, tab removal/replacement/error and configuration changes retire
+pending as well as ready connections. Chromium shares only the bounded Port
+mechanics and retains its stricter native lifecycle authority.
+
+Configured Safari artifacts add `webNavigation`, exact configured Web host
+permissions and `externally_connectable.matches`. They do not add global `tabs`,
+native messaging, offscreen, a Chromium identity or a DOM relay. Safari rejects
+ports in host patterns, so Safari's local API pattern is normalized to its host;
+runtime environment checks retain the exact configured port. The Web's Safari
+recipient configuration is empty by default and has no cross-browser fallback.
+This code is not yet native product acceptance. The probe now checks required
+lifecycle API availability and tab URL/status with host access but without global
+`tabs`; its new result and real product Identity/MK/Entry tests are still pending.
+
 All completed Identity runs below used macOS26.4.1 arm64 and disposable profiles.
 The historical sections retain earlier failures and narrower observations; this
 table identifies the latest successful product runs rather than replacing them

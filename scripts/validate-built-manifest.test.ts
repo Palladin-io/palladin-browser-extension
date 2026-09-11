@@ -5,6 +5,21 @@ const manifest = { permissions: ["webNavigation"], externally_connectable: {
   ids: [], matches: ["https://app.example.test/*"], accepts_tls_channel_id: false,
 } };
 describe("built shared unlock routing gate", () => {
+  const safari = { permissions: ["webNavigation"], externally_connectable: { matches: ["https://app.example.test/*"] } };
+  it("accepts the independently configured Safari route without Chromium identity fields", () => {
+    expect(() => validateSharedUnlockRouting(safari, "safari", environments)).not.toThrow();
+    expect(() => validateSharedUnlockRouting(safari, "safari")).toThrow();
+    expect(() => validateSharedUnlockRouting(safari, "chromium", environments)).toThrow();
+  });
+  it.each([{ ids: ["*"] }, { matches: ["https://*/*"] }, { matches: ["https://other.test/*"] },
+    { accepts_tls_channel_id: false }, { unexpected: true },
+  ])("rejects widened or substituted Safari routing %#", patch => {
+    expect(() => validateSharedUnlockRouting({ ...safari, externally_connectable: { ...safari.externally_connectable, ...patch } }, "safari", environments)).toThrow();
+  });
+  it("rejects Safari without navigation authority or with an exposed manifest", () => {
+    expect(() => validateSharedUnlockRouting({ ...safari, permissions: [] }, "safari", environments)).toThrow();
+    expect(() => validateSharedUnlockRouting({ ...safari, web_accessible_resources: [{ resources: ["manifest.json"], matches: ["<all_urls>"] }] }, "safari", environments)).toThrow();
+  });
   const firefox = { permissions: ["webNavigation"], web_accessible_resources: [{
     resources: ["manifest.json", "src/shared-unlock-bridge/index.html"], matches: ["https://app.example.test/*"],
   }] };

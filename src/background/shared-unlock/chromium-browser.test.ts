@@ -111,13 +111,18 @@ describe("Chromium shared unlock runtime channel", () => {
     const f = fixture(); const p = f.port(); await vi.advanceTimersByTimeAsync(5000);
     expect(p.disconnect).toHaveBeenCalledOnce(); expect(p.onMessage.listeners.size).toBe(0); f.controller.close();
   });
-  it.each(["close", "suspend", "timeout", "peer"])("cannot finish pending initialization after %s", async reason => {
+  it.each(["close", "suspend", "timeout", "peer", "navigation", "commit", "removal", "replacement", "error"])("cannot finish pending initialization after %s", async reason => {
     let finish!: () => void; const f = fixture(() => new Promise<void>(resolve => { finish = resolve; }));
     const p = f.port(); p.onMessage.emit(hello);
     if (reason === "close") f.controller.close();
     if (reason === "suspend") f.controller.suspend()();
     if (reason === "timeout") await vi.advanceTimersByTimeAsync(5000);
     if (reason === "peer") p.onDisconnect.emit();
+    if (reason === "navigation") f.api.webNavigation.onBeforeNavigate.emit(navigation);
+    if (reason === "commit") f.api.webNavigation.onCommitted.emit({ ...navigation, documentId: "new-document" });
+    if (reason === "removal") f.api.tabs.onRemoved.emit(7);
+    if (reason === "replacement") f.api.webNavigation.onTabReplaced.emit({ replacedTabId: 7, tabId: 9 });
+    if (reason === "error") f.api.webNavigation.onErrorOccurred.emit(navigation);
     finish(); await settle(); expect(p.postMessage).not.toHaveBeenCalled(); expect(f.controller.routes()).toHaveLength(0); f.controller.close();
   });
   it("retires at navigation start, denies the navigating document, then accepts a fresh committed document", async () => {

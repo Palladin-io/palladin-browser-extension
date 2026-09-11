@@ -1,5 +1,11 @@
 # Safari recipient and document boundary
 
+The product now contains a separate Safari native-Port adapter. This probe still
+tests a synthetic fixture, not product login/unlock. The latest increment removes
+global `tabs` permission and checks the lifecycle event APIs and native tab
+URL/status required by the adapter. Earlier nine-check results below belong to
+the earlier fixture with `tabs`; they do not prove the new permission scope.
+
 CVT-587/CVT-592/CVT-604, within CVT-583. This is a synthetic browser probe and
 packaging preparation, not an implemented Safari shared-unlock adapter or
 Identity/MK/Entry acceptance.

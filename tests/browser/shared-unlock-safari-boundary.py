@@ -37,7 +37,7 @@ elif args.background_kind == 'document':
 manifest = {'manifest_version': 3, 'name': 'Synthetic shared unlock boundary', 'version': '1.0.0',
     # Safari rejects a port in a host permission (native run34631412243).
     # The fixture binds only port55189; all sender assertions retain exact URLs.
-    'permissions': ['tabs', 'webNavigation', 'scripting'], 'host_permissions': ['http://127.0.0.1/*'],
+    'permissions': ['webNavigation', 'scripting'], 'host_permissions': ['http://127.0.0.1/*'],
     'externally_connectable': {'matches': ['http://127.0.0.1/*']},
     'background': background,
     'browser_specific_settings': {'safari': {'strict_min_version': '16.4'}}}
@@ -53,12 +53,19 @@ void (async () => {
   if (!tabs.some(tab => tab.url === url)) await browser.tabs.create({ url, active: false });
 })();
 browser.runtime.onMessage.addListener((message, _sender, respond) => {
-  if (message?.type === 'synthetic-internal-probe') respond({ workerListenerReady: true });
+  if (message?.type === 'synthetic-internal-probe') {
+    const events = { external: browser.runtime.onConnectExternal,
+      beforeNavigate: browser.webNavigation.onBeforeNavigate, committed: browser.webNavigation.onCommitted,
+      errorOccurred: browser.webNavigation.onErrorOccurred, tabReplaced: browser.webNavigation.onTabReplaced,
+      tabRemoved: browser.tabs.onRemoved };
+    respond({ workerListenerReady: true, lifecycleEvents: Object.fromEntries(Object.entries(events).map(([name, event]) =>
+      [name, typeof event?.addListener === 'function' && typeof event?.removeListener === 'function'])) });
+  }
 });
 function scope(value) {
   if (!value) return null;
   const result = {};
-  for (const name of ['id', 'url', 'origin', 'frameId', 'parentFrameId', 'documentId', 'parentDocumentId', 'documentLifecycle', 'incognito', 'status']) {
+  for (const name of ['id', 'url', 'origin', 'frameId', 'parentFrameId', 'documentId', 'parentDocumentId', 'documentLifecycle', 'incognito', 'status', 'frameType', 'errorOccurred', 'discarded', 'frozen', 'pendingUrl']) {
     if (value[name] !== undefined) result[name] = value[name];
   }
   return result;
@@ -266,6 +273,9 @@ try:
             assert grant and json.loads(grant).get('granted') is True
             command('DELETE', '/window')
     assert observations['internalDiagnostics'], 'Installed fixture did not become observable'
+    lifecycle = json.loads(observations['internalDiagnostics'][0]['result'])['worker']['lifecycleEvents']
+    assert lifecycle and all(lifecycle.values()), 'Missing required native lifecycle event'
+    checks.append('native-lifecycle-events-available')
     command('POST', '/window', {'handle': initial_window})
     server = LoopbackServer(('127.0.0.1', 55189), Site)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -290,6 +300,8 @@ try:
     assert first['sender']['frameId'] == 0
     checks.append('native-external-port-and-browser-top-frame-sender')
     assert first['senderTab']['incognito'] is False and first['currentTab']['incognito'] is False
+    assert first['senderTab']['url'] == origin + '/allowed' and first['currentTab']['url'] == origin + '/allowed'
+    assert first['currentTab']['status'] == 'complete'
     checks.append('normal-profile-confirmed-by-native-tab')
     assert isinstance(first['sender'].get('documentId'), str) and first['sender']['documentId']
     assert first['currentFrame']['documentId'] == first['sender']['documentId']

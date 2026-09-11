@@ -30,11 +30,12 @@ export function validateBuiltManifest(
     );
   }
   invariant(
-    sameSet(manifest.host_permissions, [
-      "http://localhost:5000/*",
+    sameSet(manifest.host_permissions, [...new Set([
+      target === "safari" ? "http://localhost/*" : "http://localhost:5000/*",
       "https://api.stage.palladin.io/*",
       "https://api.palladin.io/*",
-    ]),
+      ...(target === "safari" ? configuredWebHosts(sharedUnlockEnvironments) : []),
+    ])]),
     `${target}: unexpected host permissions`,
   );
   invariant(
@@ -50,7 +51,7 @@ export function validateBuiltManifest(
   validateSharedUnlockRouting(manifest, target, sharedUnlockEnvironments);
   if (target === "chromium") validateChromium(manifest, outputDirectory, channel, sharedUnlockEnvironments.length > 0);
   if (target === "firefox") validateFirefox(manifest, outputDirectory, sharedUnlockEnvironments.length > 0);
-  if (target === "safari") validateSafari(manifest, outputDirectory);
+  if (target === "safari") validateSafari(manifest, outputDirectory, sharedUnlockEnvironments.length > 0);
 }
 
 function validateContentLoaders(manifest, outputDirectory, target) {
@@ -172,9 +173,9 @@ function validateFirefox(manifest, outputDirectory, sharedUnlockConfigured) {
   );
 }
 
-function validateSafari(manifest, outputDirectory) {
+function validateSafari(manifest, outputDirectory, sharedUnlockConfigured) {
   invariant(manifest.key === undefined, "safari: Chromium key leaked into manifest");
-  invariant(sameSet(manifest.permissions, commonPermissions), "safari: unexpected permissions");
+  invariant(sameSet(manifest.permissions, [...commonPermissions, ...(sharedUnlockConfigured ? ["webNavigation"] : [])]), "safari: unexpected permissions");
   invariant(
     manifest.optional_permissions === undefined,
     "safari: installed-extension discovery permission leaked in",
@@ -215,16 +216,21 @@ export function validateSharedUnlockRouting(manifest, target, environments = [])
   const resourceRoutes = (manifest.web_accessible_resources ?? []).filter(entry =>
     entry.resources?.some(pattern => criticalResources.some(resource =>
       new RegExp("^" + pattern.split("*").map(part => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$").test(resource))));
-  if (target === "safari" || environments.length === 0) {
+  if (environments.length === 0) {
     invariant(manifest.externally_connectable === undefined, `${target}: unexpected external route`);
     invariant(!manifest.permissions?.includes("webNavigation"), `${target}: unexpected navigation permission`);
     invariant(resourceRoutes.length === 0, `${target}: unexpected public bridge/manifest route`);
     return;
   }
-  const expected = [...new Set(environments.map(({ webOrigin }) => {
-    const url = new URL(webOrigin);
-    return `${url.protocol}//${url.hostname}/*`;
-  }))];
+  const expected = configuredWebHosts(environments);
+  if (target === "safari") {
+    const route = manifest.externally_connectable;
+    invariant(route && Object.keys(route).join(",") === "matches" && sameSet(route.matches, expected),
+      "safari: external route differs from configured hosts");
+    invariant(resourceRoutes.length === 0, "safari: unexpected public bridge/manifest route");
+    invariant(manifest.permissions?.includes("webNavigation"), "safari: missing navigation permission");
+    return;
+  }
   if (target === "firefox") {
     invariant(manifest.externally_connectable === undefined, "firefox: Chromium external route leaked in");
     invariant(manifest.permissions?.includes("webNavigation"), "firefox: missing navigation permission");
@@ -240,4 +246,11 @@ export function validateSharedUnlockRouting(manifest, target, environments = [])
     && sameSet(route.ids, []) && sameSet(route.matches, expected) && route.accepts_tls_channel_id === false,
     "chromium: shared unlock route differs from configured hosts");
   invariant(manifest.permissions?.includes("webNavigation"), "chromium: missing navigation permission");
+}
+
+function configuredWebHosts(environments) {
+  return [...new Set(environments.map(({ webOrigin }) => {
+    const url = new URL(webOrigin);
+    return `${url.protocol}//${url.hostname}/*`;
+  }))];
 }

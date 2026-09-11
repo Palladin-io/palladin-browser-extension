@@ -40,5 +40,12 @@ export function isSharedUnlockBrowserMessage(value: unknown): value is SharedUnl
 export function isSharedUnlockExtensionId(value: unknown): value is string {
   return typeof value === "string" && value.length <= 256 && (/^[a-p]{32}$/.test(value)
     || /^[A-Za-z0-9._-]+@[A-Za-z0-9._-]+$/.test(value)
-    || /^\{[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\}$/.test(value));
+    || /^\{[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\}$/.test(value)
+    || isSafariSharedUnlockExtensionId(value));
+}
+
+/** Syntax only; expected identity comes from runtime.id or explicit Web config. */
+export function isSafariSharedUnlockExtensionId(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 256
+    && /^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+ \((?:[A-Z0-9]{10}|UNSIGNED)\)$/.test(value);
 }

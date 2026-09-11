@@ -35,6 +35,7 @@ import { credentialCaptureCoordinator, credentialCaptureSource } from "./capture
 
 import { startChromiumSharedUnlockBrowser } from "./shared-unlock/chromium-browser";
 import { startFirefoxSharedUnlockBrowser } from "./shared-unlock/firefox-browser";
+import { startSafariSharedUnlockBrowser } from "./shared-unlock/safari-browser";
 import { startNativeAgentBridge } from "./agent/bootstrap";
 import { handleNativeAgentAlarm } from "./agent/runtime";
 import { applyBadge } from "./badge";
@@ -204,7 +205,9 @@ const sharedUnlockBrowser = __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__.length === 0
     ? startChromiumSharedUnlockBrowser(__PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
     : __PALLADIN_TARGET__ === "firefox"
       ? startFirefoxSharedUnlockBrowser(__PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
-      : null;
+      : __PALLADIN_TARGET__ === "safari"
+        ? startSafariSharedUnlockBrowser(__PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
+        : null;
 
 // Agent Inject is independent of popup lock, account, and profile state. Chrome
 // authorizes the official extension through the exact Native Messaging origin.

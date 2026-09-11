@@ -58,7 +58,7 @@ describe("buildManifest (shared)", () => {
     expect(manifest.background?.service_worker).toBeTruthy();
     expect(manifest.background?.type).toBe("module");
     expect(manifest.host_permissions).toEqual([
-      "http://localhost:5000/*",
+      target === "safari" ? "http://localhost/*" : "http://localhost:5000/*",
       "https://api.stage.palladin.io/*",
       "https://api.palladin.io/*",
     ]);
@@ -223,9 +223,24 @@ describe("configured Chromium shared-unlock route", () => {
     expect(manifests.firefox.web_accessible_resources).toBeUndefined();
     expect(manifests.firefox.permissions).not.toContain("webNavigation");
   });
-  it.each(["safari"] as const)("does not turn the Chromium route into claimed %s support", target => {
-    const configured = buildManifest(target, pairs) as unknown as Manifest;
-    expect(configured.permissions).not.toContain("webNavigation");
-    expect(configured.externally_connectable).toBeUndefined();
+  it("gives configured Safari native external messaging and exact Web host access", () => {
+    const configured = buildManifest("safari", pairs) as unknown as Manifest;
+    expect(configured.permissions).toContain("webNavigation");
+    expect(configured.permissions).not.toContain("tabs");
+    expect(configured.permissions).not.toContain("nativeMessaging");
+    expect(configured.permissions).not.toContain("offscreen");
+    expect(configured.key).toBeUndefined();
+    expect(configured.externally_connectable).toEqual({ matches: ["https://app.example.test/*"] });
+    expect(configured.host_permissions).toContain("https://app.example.test/*");
+    expect(configured.web_accessible_resources).toBeUndefined();
+    expect(manifests.safari.permissions).not.toContain("webNavigation");
+    expect(manifests.safari.externally_connectable).toBeUndefined();
+    expect(manifests.safari.host_permissions).not.toContain("https://app.example.test/*");
+  });
+  it("normalizes Safari host-pattern ports without changing other platforms", () => {
+    expect(manifests.safari.host_permissions).toContain("http://localhost/*");
+    expect(manifests.safari.host_permissions).not.toContain("http://localhost:5000/*");
+    expect(manifests.chromium.host_permissions).toContain("http://localhost:5000/*");
+    expect(manifests.firefox.host_permissions).toContain("http://localhost:5000/*");
   });
 });
