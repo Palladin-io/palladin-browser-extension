@@ -51,6 +51,8 @@ browser.runtime.onConnectExternal.addListener(port => {
       currentTab: scope(currentTab), currentFrame: scope(currentFrame), frameError, disconnected }); }
     catch { /* navigation closed the synthetic Port */ }
   });
+  port.postMessage({ type: 'connected', runtimeId: browser.runtime.id,
+    runtimeOrigin: browser.runtime.getURL(''), sender: scope(port.sender), senderTab: scope(port.sender?.tab) });
 });
 ''')
 fixture_hash = hashlib.sha256((fixture / 'manifest.json').read_bytes() + (fixture / 'background.js').read_bytes()).hexdigest()
@@ -102,14 +104,21 @@ def probe(extension_id):
           chromeType: typeof globalThis.chrome, secureContext: globalThis.isSecureContext }); return;
       }
       let finished = false;
+      let connected = null;
       const finish = value => { if (!finished) { finished = true; clearTimeout(timer); done(value); } };
-      const timer = setTimeout(() => finish({ outcome: 'timeout' }), 2500);
+      const timer = setTimeout(() => finish({ outcome: 'timeout', connected }), 2500);
       try {
         const port = browser.runtime.connect(id, { name: 'synthetic-boundary' });
         window.syntheticBoundaryPort = port;
-        port.onMessage.addListener(message => finish({ outcome: 'message', message }));
+        port.onMessage.addListener(message => {
+          if (message?.type === 'connected') {
+            connected = message;
+            port.postMessage({ type: 'probe', claimedOrigin: 'https://wrong.example.test', claimedExtensionId: 'wrong' });
+          } else {
+            finish({ outcome: 'message', message, connected });
+          }
+        });
         port.onDisconnect.addListener(() => { void browser.runtime.lastError; finish({ outcome: 'disconnected' }); });
-        port.postMessage({ type: 'probe', claimedOrigin: 'https://wrong.example.test', claimedExtensionId: 'wrong' });
       } catch (error) { finish({ outcome: 'exception', errorName: error.name }); }
     ''', 'args': [extension_id]})
 
