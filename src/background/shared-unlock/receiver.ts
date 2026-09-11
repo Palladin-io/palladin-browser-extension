@@ -15,7 +15,7 @@ export interface SharedUnlockReceiverRoute {
   readonly binding: Pick<SharedUnlockContext, "accountId" | "organizationId" | "apiOrigin" | "webOrigin"
     | "extensionId" | "documentBinding" | "webGeneration" | "extensionGeneration" | "linkId" | "linkEpoch" | "preferenceRevision">;
   assertCurrent(): void;
-  assertFreshAuthorization?(sequence: number): Promise<void>;
+  assertFreshAuthorization?(sequence: number, deadlineMs: number): Promise<void | number>;
 }
 
 /** Internal inherited-authority metadata, never a wire ACK. */
@@ -133,8 +133,6 @@ export async function beginSharedUnlockReceiver(route: SharedUnlockReceiverRoute
         assertCurrent();
         await cryptoReceiver.verifyCommit(commit.context);
         assertBinding(commit.context);
-        await wait(route.assertFreshAuthorization?.(commit.authorizationSequence) ?? Promise.resolve());
-        assertCurrent();
         const ownedKeys = keys;
         keys = null; // The installer now owns and wipes on every failure.
         const descriptor = consumed.keyContext;
@@ -146,6 +144,11 @@ export async function beginSharedUnlockReceiver(route: SharedUnlockReceiverRoute
           material: { accountId: descriptor.accountId, encryptedPrivateKey: descriptor.encryptedPrivateKey,
             kdf: { securityVersion: descriptor.securityVersion, minimumSecurityVersion: descriptor.minimumSecurityVersion,
               profileId: descriptor.kdfProfileId, kdfSalt: descriptor.kdfSalt } },
+          checkpoint: async deadlineMs => {
+            const persisted = await wait(route.assertFreshAuthorization?.(commit.authorizationSequence, deadlineMs) ?? Promise.resolve());
+            assertCurrent();
+            return persisted ?? deadlineMs;
+          },
           keys: ownedKeys, limits: { unlockedAtMs: commit.context.unlockedAtMs,
             idleDeadlineMs: commit.context.idleDeadlineMs, absoluteDeadlineMs: commit.context.absoluteDeadlineMs,
             offlineDeadlineMs: commit.context.offlineDeadlineMs },

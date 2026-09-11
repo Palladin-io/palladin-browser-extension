@@ -49,7 +49,7 @@ import {
   type SyncTrigger,
 } from "./hooks";
 import { SessionStore } from "./session-store";
-import type { PrepareManualUnlock } from "./manual-unlock";
+import type { PrepareManualUnlock, PreparedManualUnlock } from "./manual-unlock";
 import { unlockDeadline, type SessionUnlockLimits, type SharedUnlockInstaller } from "./shared-unlock-install";
 import { MasterPasswordUnlock, type UnlockSource } from "./unlock-source";
 import {
@@ -310,7 +310,7 @@ export class SessionManager {
           receiverAbort.abort();
           if (pendingKeys) this.wipeSessionKeys(pendingKeys);
         },
-        install: async ({ tokens, material, keys, limits }) => {
+        install: async ({ tokens, material, keys, limits, checkpoint }) => {
           // Ownership already moved to the live session. A duplicate cannot wipe
           // its buffers (nor use them to replace or renew that session).
           if (consumed && [this.keys, pendingKeys].some(owned => owned
@@ -351,7 +351,7 @@ export class SessionManager {
               assertInstallCurrent();
             });
             assertInstallCurrent();
-            await this.setUnlocked(keys, accountId, generation, inherited, assertInstallCurrent, tokens);
+            await this.setUnlocked(keys, accountId, generation, inherited, assertInstallCurrent, tokens, checkpoint);
             assertRouteCurrent();
             if (cancelled || attempt !== this.sharedUnlockAttempt || this.now() >= unlockDeadline(inherited)) {
               throw new SessionLifecycleChangedError();
@@ -758,7 +758,7 @@ export class SessionManager {
       privateKey = null;
       handedToSession = true;
       this.tokens = tokens;
-      await this.setUnlocked(keys, tokens.userId, generation, limits);
+      await this.setUnlocked(keys, tokens.userId, generation, limits, undefined, undefined, limits?.checkpoint);
     } finally {
       this.untrackInFlightKeyMaterial(masterKey);
       this.untrackInFlightKeyMaterial(authCredential);
@@ -863,7 +863,7 @@ export class SessionManager {
           throw new SessionError("not-authenticated", "Stored session binding is invalid");
         }
         this.tokens = tokens;
-        let limits: SessionUnlockLimits | null = null;
+        let limits: PreparedManualUnlock | null = null;
         if (manualProof && this.prepareManualUnlock) {
           try {
             const account = await this.authClient.getAccount(tokens.accessToken, tokens.apiUrl);
@@ -876,7 +876,7 @@ export class SessionManager {
         }
         this.assertLifecycleGeneration(generation);
         this.assertApiUrl(tokens.apiUrl);
-        await this.setUnlocked(keys, tokens.userId, generation, limits);
+        await this.setUnlocked(keys, tokens.userId, generation, limits, undefined, undefined, limits?.checkpoint);
       } catch (error) {
         if (this.keys !== keys) this.wipeSessionKeys(keys);
         throw error;
@@ -888,7 +888,7 @@ export class SessionManager {
   }
 
   private async prepareOwnSharing(tokens: SessionTokens, account: AccountResponse,
-    authCredential: Uint8Array, envelope: BrowserSessionEnvelope, generation: number): Promise<SessionUnlockLimits | null> {
+    authCredential: Uint8Array, envelope: BrowserSessionEnvelope, generation: number): Promise<PreparedManualUnlock | null> {
     if (!this.prepareManualUnlock) return null;
     const apiUrl = tokens.apiUrl;
     const attempt = this.sharedUnlockAttempt;
@@ -927,6 +927,7 @@ export class SessionManager {
     inherited: SessionUnlockLimits | null = null,
     assertCurrent?: () => void,
     ownTokens?: SessionTokens,
+    checkpoint?: (effectiveDeadlineMs: number) => Promise<number>,
   ): Promise<void> {
     let published = false;
     try {
@@ -941,15 +942,26 @@ export class SessionManager {
       this.assertLifecycleGeneration(generation);
       assertCurrent?.();
 
-      this.wipeKeys();
-      this.sharedUnlockLimits = inherited;
       const localIdle = policyIdleMs(policy);
-      this.sharedUnlockLocalDeadline = localIdle === null ? Infinity : unlockedAt + localIdle;
+      let localDeadline = localIdle === null ? Infinity : unlockedAt + localIdle;
+      if (checkpoint && inherited) {
+        localDeadline = Math.min(localDeadline, await checkpoint(Math.min(localDeadline, unlockDeadline(inherited))));
+        this.assertLifecycleGeneration(generation);
+        assertCurrent?.();
+        if (this.now() >= Math.min(localDeadline, unlockDeadline(inherited))) throw new SessionLifecycleChangedError();
+      }
+      if (inherited && this.now() >= Math.min(localDeadline, unlockDeadline(inherited))) throw new SessionLifecycleChangedError();
+      this.wipeKeys();
+      this.sharedUnlockLimits = inherited ? {
+        unlockedAtMs: inherited.unlockedAtMs, idleDeadlineMs: inherited.idleDeadlineMs,
+        absoluteDeadlineMs: inherited.absoluteDeadlineMs, offlineDeadlineMs: inherited.offlineDeadlineMs,
+      } : null;
+      this.sharedUnlockLocalDeadline = localDeadline;
       if (ownTokens) this.tokens = ownTokens;
       this.keyScope = { userId, apiUrl: (ownTokens ?? this.tokens)?.apiUrl ?? this.authClient.currentApiUrl() };
       this.keys = keys;
       published = true;
-      this.autoLock.arm(policy, unlockedAt, inherited ? unlockDeadline(inherited) : undefined);
+      this.autoLock.arm(policy, unlockedAt, inherited ? Math.min(unlockDeadline(inherited), localDeadline) : undefined);
       this.hooks.emitUnlocked({ userId });
       if (generation !== this.lifecycleGeneration) return;
       this.sync.requestSync("unlocked");

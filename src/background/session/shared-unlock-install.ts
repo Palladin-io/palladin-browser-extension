@@ -18,6 +18,8 @@ export interface SharedUnlockInstallation {
   /** Already unwrapped and bound to Identity's independent member public key. */
   readonly keys: SessionKeys;
   readonly limits: SessionUnlockLimits;
+  /** Internal own Identity sequence is captured by the receiver; not peer input. */
+  readonly checkpoint?: (effectiveDeadlineMs: number) => Promise<number>;
 }
 
 /** Worker-only transaction captured before consume/commit or any key recovery. */

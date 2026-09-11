@@ -280,3 +280,22 @@ it('destroys keys even when the local retirement callback fails', async () => {
   await h.manager.lock();
   erased(value); expect(h.manager.getKeys()).toBeNull();
 });
+
+it('checkpoints effective local idle before publishing keys and arms the saved earlier deadline', async () => {
+  const h = harness(); await h.manager.setAutoLockPolicy('15m');
+  const value = fresh();
+  const limits = { ...value.limits, idleDeadlineMs: h.now.value + 5_000_000,
+    absoluteDeadlineMs: h.now.value + 6_000_000, offlineDeadlineMs: h.now.value + 6_000_000 };
+  const savedDeadline = h.now.value + 500;
+  const checkpoint = vi.fn(async (deadline: number) => {
+    expect(deadline).toBe(h.now.value + 15 * 60_000);
+    expect(h.manager.getKeys()).toBeNull();
+    return savedDeadline;
+  });
+  await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install({ ...value, limits, checkpoint });
+  expect(checkpoint).toHaveBeenCalledOnce();
+  expect(h.manager.getSharedUnlockLimits()?.idleDeadlineMs).toBe(savedDeadline);
+  expect(h.alarms.whenFor(AUTO_LOCK_ALARM)).toBe(savedDeadline);
+  h.now.value = savedDeadline;
+  expect(h.manager.getKeys()).toBeNull(); erased(value);
+});

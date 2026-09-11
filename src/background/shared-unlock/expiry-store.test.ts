@@ -15,7 +15,7 @@ describe('own retired authorization sequence', () => {
     const restarted = make(s)
     await expect(restarted.assertFresh(scope, 9)).rejects.toThrow('retired locally')
     await expect(restarted.assertFresh(scope, 10)).resolves.toBeUndefined()
-    expect(Object.values(s.values)).toEqual([{ version: 1, ...scope, throughSequence: 9 }])
+    expect(Object.values(s.values)).toEqual([{ version: 2, ...scope, throughSequence: 9, checkpoint: null }])
   })
   it('keeps different accounts and API environments independent', async () => {
     const store = make(storage()); await store.advance(scope, 9)
@@ -57,3 +57,53 @@ describe('own retired authorization sequence', () => {
     await expect(make(s).assertFresh(scope, 9)).rejects.toThrow('retired locally')
   })
 })
+
+describe('deadline retained while the client is closed', () => {
+  it('permits reopening before the deadline without restarting the same authorization lifetime', async () => {
+    const s = storage(); let now = 100;
+    const first = new SharedUnlockExpiryStore(s, action => action(), () => now);
+    expect(await first.checkpoint(scope, 5, 200)).toBe(200);
+    now = 150;
+    const restarted = new SharedUnlockExpiryStore(s, action => action(), () => now);
+    expect(await restarted.checkpoint(scope, 5, 900)).toBe(200);
+    now = 200;
+    await expect(restarted.assertFresh(scope, 5)).rejects.toThrow('retired locally');
+    now = 100;
+    await expect(new SharedUnlockExpiryStore(s, action => action(), () => now).assertFresh(scope, 5)).rejects.toThrow('retired locally');
+  });
+  it('detects expiry after restart without any live timer or earlier expiry event', async () => {
+    const s = storage();
+    await new SharedUnlockExpiryStore(s, action => action(), () => 100).checkpoint(scope, 5, 200);
+    const restarted = new SharedUnlockExpiryStore(s, action => action(), () => 200);
+    await expect(restarted.checkpoint(scope, 5, 900)).rejects.toThrow('retired locally');
+    expect(await restarted.checkpoint(scope, 6, 900)).toBe(900);
+    await expect(restarted.assertFresh(scope, 5)).rejects.toThrow('retired locally');
+  });
+  it('never replaces a newer own authorization with an older live peer root', async () => {
+    const store = new SharedUnlockExpiryStore(storage(), action => action(), () => 100);
+    await store.checkpoint(scope, 6, 900);
+    await expect(store.checkpoint(scope, 5, 200)).rejects.toThrow('retired locally');
+    expect(await store.checkpoint(scope, 6, 1000)).toBe(900);
+  });
+  it('repairs a failed checkpoint write before permitting a later admission', async () => {
+    const s = storage(), store = new SharedUnlockExpiryStore(s, action => action(), () => 100);
+    s.set.mockRejectedValueOnce(new Error('disk unavailable'));
+    await expect(store.checkpoint(scope, 5, 200)).rejects.toThrow('disk unavailable');
+    expect(await store.checkpoint(scope, 5, 900)).toBe(200);
+    await expect(new SharedUnlockExpiryStore(s, action => action(), () => 200).assertFresh(scope, 5)).rejects.toThrow('retired locally');
+  });
+  it('keeps previously persisted v1 retirement barriers when upgrading the record', async () => {
+    const s = storage(), store = new SharedUnlockExpiryStore(s, action => action(), () => 100);
+    s.values['palladin.shared-unlock.expiry.v1:' + JSON.stringify([scope.apiUrl, scope.accountId])] = { version: 1, ...scope, throughSequence: 4 };
+    expect(await store.checkpoint(scope, 5, 200)).toBe(200);
+    await expect(store.assertFresh(scope, 4)).rejects.toThrow('retired locally');
+    expect(Object.values(s.values)).toEqual([{ version: 2, ...scope, throughSequence: 4, checkpoint: { sequence: 5, deadlineMs: 200 } }]);
+  });
+  it('uses elapsed wall time again after a stalled successful storage write', async () => {
+    const s = storage(); let now = 100;
+    const save = s.set.getMockImplementation()!;
+    s.set.mockImplementationOnce(async items => { await save(items); now = 200; });
+    await expect(new SharedUnlockExpiryStore(s, action => action(), () => now).checkpoint(scope, 5, 200)).rejects.toThrow('retired locally');
+    await expect(new SharedUnlockExpiryStore(s, action => action(), () => now).assertFresh(scope, 5)).rejects.toThrow('retired locally');
+  });
+});

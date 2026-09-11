@@ -174,3 +174,46 @@ it("does not extend the manual proof deadline while a suspended closing repair r
     expect(vi.getTimerCount()).toBe(0);
   } finally { vi.useRealTimers(); }
 });
+
+it('publishes own source authority only after its durable checkpoint and keeps the saved shorter limit', async () => {
+  const own = makeContext();
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ sharedUnlockEnabled: true, revision: 3 })).mockResolvedValueOnce(response(authorization));
+  let release!: (value: number) => void;
+  const save = vi.fn(() => new Promise<number>(resolve => { release = resolve; }));
+  const source = new SharedUnlockSourceAuthority(new SharedUnlockApi(fetcher, () => apiUrl), () => authorization.unlockedAtMs + 1, undefined, save);
+  const preparation = source.prepare(own);
+  await vi.waitFor(() => expect(save).toHaveBeenCalledOnce());
+  expect(source.snapshot().authorization).toBeNull();
+  release(authorization.unlockedAtMs + 50);
+  await preparation;
+  expect(source.snapshot().authorization?.idleDeadlineMs).toBe(authorization.unlockedAtMs + 50);
+  expect(own.authCredential).toEqual(new Uint8Array(32));
+});
+it('disables sharing and wipes the fresh proof when the checkpoint write fails', async () => {
+  const own = makeContext();
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ sharedUnlockEnabled: true, revision: 3 })).mockResolvedValueOnce(response(authorization));
+  const source = new SharedUnlockSourceAuthority(new SharedUnlockApi(fetcher, () => apiUrl), () => authorization.unlockedAtMs + 1, undefined, async () => { throw new Error('disk unavailable'); });
+  await source.prepare(own);
+  expect(source.snapshot().authorization).toBeNull();
+  expect(own.authCredential).toEqual(new Uint8Array(32));
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});
+it('cancels a stalled checkpoint at the existing ten-second proof deadline', async () => {
+  vi.useFakeTimers();
+  try {
+    const own = makeContext();
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ sharedUnlockEnabled: true, revision: 3 })).mockResolvedValueOnce(response(authorization));
+    let release!: (value: number) => void;
+    const save = vi.fn(() => new Promise<number>(resolve => { release = resolve; }));
+    const source = new SharedUnlockSourceAuthority(new SharedUnlockApi(fetcher, () => apiUrl), () => authorization.unlockedAtMs + 1, undefined, save);
+    const preparation = source.prepare(own);
+    await vi.waitFor(() => expect(save).toHaveBeenCalledOnce());
+    await vi.advanceTimersByTimeAsync(10_000);
+    await preparation;
+    expect(own.authCredential).toEqual(new Uint8Array(32));
+    expect(source.snapshot().authorization).toBeNull();
+    release(authorization.idleDeadlineMs);
+    await Promise.resolve();
+    expect(source.snapshot().authorization).toBeNull();
+  } finally { vi.useRealTimers(); }
+});

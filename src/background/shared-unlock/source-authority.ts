@@ -21,7 +21,7 @@ export class SharedUnlockSourceAuthority {
 
   constructor(private readonly api: SharedUnlockApi, private readonly now: () => number = Date.now,
     private readonly beforeAuthorize?: (session: ManualUnlockContext["tokens"], signal: AbortSignal, check: () => void) => Promise<void>,
-    private readonly onAuthorized?: (authorization: SharedUnlockAuthorization, session: ManualUnlockContext["tokens"]) => void) {}
+    private readonly onAuthorized?: (authorization: SharedUnlockAuthorization, session: ManualUnlockContext["tokens"]) => void | number | Promise<number>) {}
 
   private readonly listeners = new Set<() => void>();
   subscribe(listener: () => void): () => void {
@@ -103,7 +103,7 @@ export class SharedUnlockSourceAuthority {
       const preference = await this.api.readPreference(context.tokens, controller.signal);
       check();
       this.state = { preference, authorization: null, sourceGeneration: null, failure: null };
-      const authorization = await this.api.authorize(context.tokens, {
+      let authorization = await this.api.authorize(context.tokens, {
         authCredential: toBase64Url(context.authCredential), sourceGeneration: generation,
         expectedPreferenceRevision: preference.revision,
         expectedCredentialRevision: account.kdf.credentialRevision,
@@ -112,7 +112,14 @@ export class SharedUnlockSourceAuthority {
         offlineDeadlineMs: context.limits.offlineDeadlineMs,
       }, controller.signal);
       check();
-      this.onAuthorized?.(authorization, context.tokens);
+      const persistedDeadline = await new Promise<void | number>((resolve, reject) => {
+        const cancelled = () => reject(new SharedUnlockApiError("cancelled"));
+        if (controller.signal.aborted) { cancelled(); return; }
+        controller.signal.addEventListener("abort", cancelled, { once: true });
+        Promise.resolve().then(() => { check(); return this.onAuthorized?.(authorization, context.tokens); })
+          .then(resolve, reject).finally(() => controller.signal.removeEventListener("abort", cancelled));
+      });
+      if (persistedDeadline !== undefined) authorization = { ...authorization, idleDeadlineMs: Math.min(authorization.idleDeadlineMs, persistedDeadline) };
       check();
       this.checkSession = context.assertCurrent;
       this.state = { preference, authorization, sourceGeneration: generation, failure: null };

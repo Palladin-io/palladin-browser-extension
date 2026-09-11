@@ -1,3 +1,4 @@
+import { persistManualSharedUnlockDeadline } from "../shared-unlock/manual-checkpoint";
 /**
  * Composition root: build the one live {@link SessionManager} from the real
  * Chrome APIs. This is the only session module that reaches for `chrome`, `fetch`,
@@ -58,7 +59,11 @@ export const sharedUnlockSource = new SharedUnlockSourceAuthority(sharingApi, Da
     for (const scope of linkScopes(session.userId, session.apiUrl)) {
       await flushSharedUnlockClosings(scope, session, sharedUnlockLinks, sharingApi, signal, check);
     }
-  }, (root, session) => sharedUnlockExpiry.remember({ accountId: session.userId, apiUrl: session.apiUrl }, root.sequence));
+  }, (root, session) => {
+    const scope = { accountId: session.userId, apiUrl: session.apiUrl };
+    sharedUnlockExpiry.remember(scope, root.sequence);
+    return sharedUnlockExpiry.checkpoint(scope, root.sequence, Math.min(root.idleDeadlineMs, root.absoluteDeadlineMs, root.offlineDeadlineMs));
+  });
 
 manager = new SessionManager({
   store: new SessionStore(durableStorageArea, legacySessionStorageArea),
@@ -66,7 +71,15 @@ manager = new SessionManager({
   autoLock: sessionAutoLock,
   clientId: runtimeClientId,
   retireSharedUnlock: scope => sharedUnlockExpiry.retire({ accountId: scope.userId, apiUrl: scope.apiUrl }),
-  prepareManualUnlock: context => sharedUnlockSource.prepare(context),
+  prepareManualUnlock: async context => {
+    const root = await sharedUnlockSource.prepare(context);
+    if (!root) return null;
+    return { ...root, checkpoint: deadlineMs => persistManualSharedUnlockDeadline(
+      { accountId: context.tokens.userId, apiUrl: context.tokens.apiUrl }, root.sequence,
+      deadlineMs, sharedUnlockExpiry, context.assertCurrent, () => {
+        if (sharedUnlockSource.snapshot().authorization?.authorizationId === root.authorizationId) sharedUnlockSource.reset();
+      }) };
+  },
   deliverManualClosing: (session, check) => deliverSharedUnlockClosings(linkScopes(session.userId, session.apiUrl),
     session, sharedUnlockLinks, sharingApi, check),
   recordManualClosing: async (accountId, action) => {

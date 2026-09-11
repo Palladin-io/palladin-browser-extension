@@ -111,3 +111,23 @@ describe("fresh manual password proof boundary", () => {
     });
   }
 });
+
+it("persists the final shorter policy before keys on both own login and password unlock", async () => {
+  const checkpoint = vi.fn(async (deadline: number) => {
+    expect(deadline).toBe(1_000_000 + 15 * 60_000);
+    expect(h.manager.getKeys()).toBeNull();
+    return 1_000_500;
+  });
+  const prepare = vi.fn<PrepareManualUnlock>().mockImplementation(async context => {
+    await h.manager.setAutoLockPolicy("15m");
+    return { ...context.limits, checkpoint };
+  });
+  const h = harness(prepare);
+  await h.manager.login(account.email, account.password);
+  expect(h.manager.getSharedUnlockLimits()?.idleDeadlineMs).toBe(1_000_500);
+  await h.manager.lock();
+  await h.manager.unlockWithPassword(account.password);
+  expect(h.manager.getSharedUnlockLimits()?.idleDeadlineMs).toBe(1_000_500);
+  expect(checkpoint).toHaveBeenCalledTimes(2);
+  expect(Object.keys(h.manager.getSharedUnlockLimits()!)).not.toContain("checkpoint");
+});

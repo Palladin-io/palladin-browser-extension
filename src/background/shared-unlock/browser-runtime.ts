@@ -73,7 +73,7 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
     },
     source: (binding, signal, assertCurrent) => beginSharedUnlockSource({ apiUrl: route.apiUrl, binding, signal, assertCurrent }, sessionManager, sharedUnlockSource, api),
     receiver: (binding, signal, assertCurrent) => beginSharedUnlockReceiver({ apiUrl: route.apiUrl, binding, signal, assertCurrent,
-      assertFreshAuthorization: sequence => sharedUnlockExpiry.assertFresh(scope(binding.accountId), sequence) }, sessionManager, api,
+      assertFreshAuthorization: (sequence, deadlineMs) => sharedUnlockExpiry.checkpoint(scope(binding.accountId), sequence, deadlineMs) }, sessionManager, api,
       (authorization, generation, assertOwnCurrent) => {
         assertOwnCurrent();
         sharedUnlockExpiry.remember(scope(binding.accountId), authorization.sequence);

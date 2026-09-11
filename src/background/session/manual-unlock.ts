@@ -12,4 +12,8 @@ export interface ManualUnlockContext {
 }
 
 /** Establish own sharing authority while the manual unlock is still in progress. */
-export type PrepareManualUnlock = (context: ManualUnlockContext) => Promise<SessionUnlockLimits | null>;
+export type PreparedManualUnlock = SessionUnlockLimits & {
+  /** Preserve a shorter final local policy before own keys become available. */
+  checkpoint?: (deadlineMs: number) => Promise<number>;
+};
+export type PrepareManualUnlock = (context: ManualUnlockContext) => Promise<PreparedManualUnlock | null>;

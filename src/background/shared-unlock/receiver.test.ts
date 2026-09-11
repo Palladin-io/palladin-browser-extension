@@ -32,7 +32,7 @@ beforeEach(() => { vi.spyOn(Date, "now").mockReturnValue(now); });
 afterEach(() => { for (const cancel of cancels.splice(0)) cancel(); vi.restoreAllMocks(); });
 const deferred = <T>() => { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; };
 
-async function setup(options: { assertFreshAuthorization?: (sequence: number) => Promise<void>; onInstalled?: SharedUnlockInstalled; pause?: "consume" | "commit";
+async function setup(options: { assertFreshAuthorization?: SharedUnlockReceiverRoute["assertFreshAuthorization"]; onInstalled?: SharedUnlockInstalled; pause?: "consume" | "commit";
   transformConsume?: (op: SharedUnlockOperation) => SharedUnlockOperation;
   transformCommit?: (commit: SharedUnlockCommit) => SharedUnlockCommit } = {}) {
   const routeAbort = new AbortController();
@@ -356,4 +356,37 @@ it('accepts a fresh manual authorization above the persisted local barrier', asy
   await f.receiver.receive(f.input);
   expect(f.events).toEqual(['consume', 'envelope', 'commit']);
   expect(f.ack).toHaveBeenCalledOnce();
+});
+
+it('rejects a previously checkpointed authorization that expired while this client was closed', async () => {
+  const values: Record<string, unknown> = {};
+  const storage = { get: async () => values, set: async (items: Record<string, unknown>) => { Object.assign(values, items); } };
+  const scope = { apiUrl, accountId: baseline.context.accountId };
+  await new SharedUnlockExpiryStore(storage, action => action(), () => now - 100).checkpoint(scope, 5, now - 1);
+  const restarted = new SharedUnlockExpiryStore(storage, action => action(), () => now);
+  const f = await setup({ assertFreshAuthorization: (sequence, deadline) => restarted.checkpoint(scope, sequence, deadline) });
+  await expect(f.receiver.receive(f.input)).rejects.toThrow('retired locally');
+  expect(f.manager.getKeys()).toBeNull();
+  expect(f.events).toEqual(['consume', 'envelope', 'commit', 'logout']);
+  expect(f.ack).not.toHaveBeenCalled();
+});
+it('installs only through the earlier saved deadline when reopened while still valid', async () => {
+  const values: Record<string, unknown> = {};
+  const storage = { get: async () => values, set: async (items: Record<string, unknown>) => { Object.assign(values, items); } };
+  const scope = { apiUrl, accountId: baseline.context.accountId };
+  await new SharedUnlockExpiryStore(storage, action => action(), () => now - 100).checkpoint(scope, 5, now + 50);
+  const restarted = new SharedUnlockExpiryStore(storage, action => action(), () => now);
+  const f = await setup({ assertFreshAuthorization: (sequence, deadline) => restarted.checkpoint(scope, sequence, deadline) });
+  await f.receiver.receive(f.input);
+  expect(f.manager.getSharedUnlockLimits()?.idleDeadlineMs).toBe(now + 50);
+  expect(f.ack).toHaveBeenCalledOnce();
+  expect(f.events).not.toContain('logout');
+});
+it('keeps receiver keys unpublished and revokes the new own lineage if the checkpoint cannot be saved', async () => {
+  const store = new SharedUnlockExpiryStore({ get: async () => ({}), set: async () => { throw new Error('disk unavailable'); } }, action => action(), () => now);
+  const f = await setup({ assertFreshAuthorization: (sequence, deadline) => store.checkpoint({ apiUrl, accountId: baseline.context.accountId }, sequence, deadline) });
+  await expect(f.receiver.receive(f.input)).rejects.toThrow('disk unavailable');
+  expect(f.manager.getKeys()).toBeNull();
+  expect(f.events).toEqual(['consume', 'envelope', 'commit', 'logout']);
+  expect(f.ack).not.toHaveBeenCalled();
 });
