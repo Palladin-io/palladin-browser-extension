@@ -1,6 +1,6 @@
 import { randomBytes, toBase64Url, wipe } from "@palladin/crypto";
 import { serverConfig } from "../config/server-runtime";
-import { sessionManager, sharedUnlockLinks, sharedUnlockSource, sharedUnlockExpiry } from "../session/runtime";
+import { sessionManager, sharedUnlockLinks, sharedUnlockSource, sharedUnlockExpiry, sharedUnlockPreferenceGate } from "../session/runtime";
 import { startSharedUnlockLinkMonitor } from "./link-monitor";
 import { SharedUnlockApi } from "./api";
 import { startSharedUnlockBrowserCoordinator } from "./browser-coordinator";
@@ -15,6 +15,8 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
   const api = new SharedUnlockApi((...args) => fetch(...args), () => serverConfig.apiUrl);
   const scope = (accountId: string) => ({ accountId, apiUrl: route.apiUrl, webOrigin: route.webOrigin, extensionId: route.extensionId });
   const admissible = async (accountId: string, linkId?: string) => {
+    route.assertCurrent();
+    if (!await sharedUnlockPreferenceGate.isAllowed(scope(accountId))) throw new Error("Shared unlock is locally paused");
     route.assertCurrent();
     const marker = await sharedUnlockLinks.ensure(scope(accountId));
     route.assertCurrent();
@@ -53,14 +55,15 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
       const accountId = await sessionManager.getUserId();
       const status = await sessionManager.getStatus();
       const state = sharedUnlockSource.snapshot();
-      const source = status === "unlocked" && state.authorization?.accountId === accountId
+      const source = status === "unlocked" && accountId && await sharedUnlockPreferenceGate.isAllowed(scope(accountId)) && state.authorization?.accountId === accountId
         && state.sourceGeneration && state.preference?.sharedUnlockEnabled
         ? { organizationId: state.authorization.organizationId, generation: state.sourceGeneration } : null;
       return { accountId, status, source };
     },
     subscribe,
     selectLink: async (accountId, proposed) => (await admissible(accountId, proposed)).linkId,
-    prepareSource: async (accountId, organizationId, linkId, signal, assertCurrent) => {
+    prepareSource: async (accountId, organizationId, linkId, signal, assertAttempt) => {
+      const assertCurrent = () => { assertAttempt(); sharedUnlockPreferenceGate.assertAllowed(scope(accountId)); };
       await admissible(accountId, linkId); assertCurrent();
       const result = await prepareSharedUnlockLink({ scope: scope(accountId), organizationId, signal,
         verifyBrowser: () => route.verifyCurrent(), assertCurrent }, sessionManager, sharedUnlockSource, api, sharedUnlockLinks);
@@ -71,8 +74,10 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
       const marker = await admissible(binding.accountId, binding.linkId);
       if (signal.aborted || (marker.observed && binding.linkEpoch < marker.observed.epoch)) throw new Error("Shared unlock receiver selection expired");
     },
-    source: (binding, signal, assertCurrent) => beginSharedUnlockSource({ apiUrl: route.apiUrl, binding, signal, assertCurrent }, sessionManager, sharedUnlockSource, api),
-    receiver: (binding, signal, assertCurrent) => beginSharedUnlockReceiver({ apiUrl: route.apiUrl, binding, signal, assertCurrent,
+    source: (binding, signal, assertCurrent) => beginSharedUnlockSource({ apiUrl: route.apiUrl, binding, signal,
+      assertCurrent: () => { assertCurrent(); sharedUnlockPreferenceGate.assertAllowed(scope(binding.accountId)); } }, sessionManager, sharedUnlockSource, api),
+    receiver: (binding, signal, assertCurrent) => beginSharedUnlockReceiver({ apiUrl: route.apiUrl, binding, signal,
+      assertCurrent: () => { assertCurrent(); sharedUnlockPreferenceGate.assertAllowed(scope(binding.accountId)); },
       assertFreshAuthorization: (sequence, deadlineMs, hardDeadlineMs) => sharedUnlockExpiry.checkpoint(scope(binding.accountId), sequence, deadlineMs, hardDeadlineMs) }, sessionManager, api,
       (authorization, generation, assertOwnCurrent) => {
         assertOwnCurrent();
@@ -82,5 +87,8 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
           assertOwnCurrent(); if (serverConfig.apiUrl !== route.apiUrl) throw new Error("Shared unlock own environment changed");
         }); }),
   });
-  return { close: () => { coordinator.close(); monitor.close(); } };
+  const unsubscribeGate = sharedUnlockPreferenceGate.subscribe(changed => {
+    if (changed.apiUrl === route.apiUrl) coordinator.cancelPending(changed.accountId);
+  });
+  return { close: () => { unsubscribeGate(); coordinator.close(); monitor.close(); } };
 }

@@ -706,11 +706,27 @@ retires subscriptions/timers and leaves a valid own session intact. Best-effort
 hint delivery is awaited within the sender's existing deadline before Web reload.
 
 **Remaining release gates:** this monitor requires an in-memory installed own
-root. Already-locked/restarted clients, expired own access tokens, local expiry
-barriers and key-use recovery still need completion and focused proofs. A pending
-logout against an already revoked link remains a conflict; it is not erased as
-if disconnect implied logout. Fresh manual authorization cannot revive a server-
-revoked old Identity lineage. Settings/OFF propagation/reconnect UX, own activity,
-canonical browser fixtures and real Identity/Entry E2E on the entire supported
-artifact matrix remain required. The current synthetic Identity tests and paired
-Chromium channel probe do not close those gates.
+root. Already-locked/restarted clients, expired own access tokens and independent
+multi-document activity/expiry still need completion and focused proofs. Backend
+PR #54 supports logout on a revoked link while preserving disconnect and revoking
+old linked refresh lineages; client receipt tests retain the local disconnect.
+Own input now updates only its own Identity idle authority and durable checkpoint,
+with the original absolute/offline ceilings. Full settings/OFF propagation,
+disconnect/reconnect UX, canonical browser fixtures and real Identity/Entry E2E on
+the entire supported artifact matrix remain required. Synthetic Identity tests
+and the paired Chromium channel probe do not close those gates.
+
+
+## Local preference pause (implementation increment)
+
+The worker's account/API-scoped preference gate fences source admission, receiver
+installation and future manual closing delivery. Pausing synchronously cancels
+both pending directions; completed own keys and deadlines remain unchanged. Only
+a nonsensitive pause ID and its scope are durable. Failed writes retain RAM denial;
+late cancellation after a clear restores the persisted denial where storage works.
+
+Local OFF/disconnect admission rejection leaves the browser route available for
+an explicit later resumption with fresh state/attempt IDs. Tests cover paused Web
+and Extension receivers, late crypto results and unrelated accounts. Settings
+commands/UI do not yet call this worker pause API; full account-preference
+propagation, disconnect/reconnect and the artifact matrix remain release gates.

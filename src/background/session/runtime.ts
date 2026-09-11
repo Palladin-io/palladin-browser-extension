@@ -1,3 +1,4 @@
+import { SharedUnlockPreferenceGate } from "../shared-unlock/preference-gate";
 import { recordExtensionOwnPolicy } from "../shared-unlock/own-policy-runtime";
 import { recordExtensionOwnActivity } from "../shared-unlock/own-activity-runtime";
 import { OwnSharedUnlockActivityRecorder } from "../shared-unlock/own-activity";
@@ -52,6 +53,7 @@ export const sessionAutoLock = new AutoLock(alarms, () => {
 
 export const sharedUnlockExpiry = new SharedUnlockExpiryStore(durableStorageArea);
 export const sharedUnlockLinks = new SharedUnlockLinkStore(durableStorageArea);
+export const sharedUnlockPreferenceGate = new SharedUnlockPreferenceGate(durableStorageArea);
 
 const sharingApi = new SharedUnlockApi((...args) => fetch(...args), () => serverConfig.apiUrl);
 const linkScopes = (accountId: string, apiUrl: string) => __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__
@@ -59,8 +61,9 @@ const linkScopes = (accountId: string, apiUrl: string) => __PALLADIN_SHARED_UNLO
   .map(environment => ({ ...environment, accountId, extensionId: runtimeClientId }));
 export const sharedUnlockSource = new SharedUnlockSourceAuthority(sharingApi, Date.now,
   async (session, signal, check) => {
+    if (!await sharedUnlockPreferenceGate.isAllowed({ accountId: session.userId, apiUrl: session.apiUrl })) return;
     for (const scope of linkScopes(session.userId, session.apiUrl)) {
-      await flushSharedUnlockClosings(scope, session, sharedUnlockLinks, sharingApi, signal, check);
+      await flushSharedUnlockClosings(scope, session, sharedUnlockLinks, sharingApi, signal, () => { check(); sharedUnlockPreferenceGate.assertAllowed(scope); });
     }
   }, (root, session) => {
     const scope = { accountId: session.userId, apiUrl: session.apiUrl };
@@ -87,9 +90,14 @@ manager = new SessionManager({
         if (sharedUnlockSource.snapshot().authorization?.authorizationId === root.authorizationId) sharedUnlockSource.reset();
       }, Math.min(root.absoluteDeadlineMs, root.offlineDeadlineMs)) };
   },
-  deliverManualClosing: (session, check) => deliverSharedUnlockClosings(linkScopes(session.userId, session.apiUrl),
-    session, sharedUnlockLinks, sharingApi, check),
+  deliverManualClosing: async (session, check) => {
+    if (!await sharedUnlockPreferenceGate.isAllowed({ accountId: session.userId, apiUrl: session.apiUrl })) return;
+    check();
+    await deliverSharedUnlockClosings(linkScopes(session.userId, session.apiUrl), session, sharedUnlockLinks, sharingApi,
+      () => { check(); sharedUnlockPreferenceGate.assertAllowed({ accountId: session.userId, apiUrl: session.apiUrl }); });
+  },
   recordManualClosing: async (accountId, action) => {
+    if (!await sharedUnlockPreferenceGate.isAllowed({ accountId, apiUrl: serverConfig.apiUrl })) return;
     const scopes = linkScopes(accountId, serverConfig.apiUrl);
     const results = await Promise.allSettled(scopes.map(scope => sharedUnlockLinks.recordManualClosing(scope, action)));
     if (results.some(result => result.status === "rejected")) throw new Error("Shared unlock closing could not be saved");

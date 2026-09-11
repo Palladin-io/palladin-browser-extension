@@ -64,7 +64,8 @@ function pair(source: "web" | "extension") {
   web.setDeliver(message => extension.emit(message)); extension.setDeliver(message => web.emit(message));
   return { web, extension, start() {
     const a = startSharedUnlockBrowserCoordinator(web.route, web.client), b = startSharedUnlockBrowserCoordinator(extension.route, extension.client);
-    return () => { a.close(); b.close(); web.route.close(); extension.route.close(); };
+    return Object.assign(() => { a.close(); b.close(); web.route.close(); extension.route.close(); },
+      { web: a, extension: b });
   } };
 }
 beforeEach(() => { vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] }); counter = 0; });
@@ -117,6 +118,38 @@ describe("automatic browser account/link selection", () => {
     await vi.advanceTimersByTimeAsync(30_000); await settle();
     expect(f.extension.client.receiver).not.toHaveBeenCalled();
     resolve(); await settle(); expect(f.extension.client.receiver).not.toHaveBeenCalled(); close();
+  });
+  it.each(["web", "extension"] as const)("explicit pause cancels an active %s receiver and resume uses a fresh attempt", async role => {
+    const sourceRole = role === "web" ? "extension" : "web";
+    const f = pair(sourceRole), receiver = f[role];
+    const original = receiver.client.receiver;
+    let release!: () => void;
+    let oldSignal!: AbortSignal;
+    let oldCheck!: () => void;
+    vi.mocked(receiver.client.receiver).mockImplementationOnce(async (...args) => {
+      oldSignal = args[1]; oldCheck = args[2];
+      await new Promise<void>(resolve => { release = resolve; });
+      oldCheck(); return original(...args);
+    });
+    const close = f.start(); await settle();
+    expect(receiver.client.receiver).toHaveBeenCalledOnce();
+    const oldPrepare = f[sourceRole].messages.find(m => m.payload.kind === "prepare")!;
+    close[role].cancelPending("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    expect(oldSignal.aborted).toBe(false);
+    vi.mocked(receiver.client.selectLink).mockRejectedValue(new Error("locally paused"));
+    close[role].cancelPending(accountId);
+    expect(oldSignal.aborted).toBe(true);
+    expect(oldCheck).toThrow();
+    release(); await settle();
+    expect(receiver.installed()).toBe(false);
+    expect(receiver.route.signal.aborted).toBe(false);
+    expect(receiver.client.received).not.toHaveBeenCalled();
+    vi.mocked(receiver.client.selectLink).mockImplementation(async (_account, proposed) => proposed ?? linkId);
+    close[role].cancelPending(accountId); await settle();
+    expect(receiver.installed()).toBe(true);
+    const prepares = f[sourceRole].messages.filter(m => m.payload.kind === "prepare");
+    expect(prepares.at(-1)!.attemptId).not.toBe(oldPrepare.attemptId);
+    close();
   });
   it("rejects a substituted organization in preparation before receiver crypto", async () => {
     const f = pair("web");

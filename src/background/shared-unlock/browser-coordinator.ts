@@ -185,7 +185,9 @@ export function startSharedUnlockBrowserCoordinator(route: SharedUnlockCoordinat
       selectionRunning = true;
       const revision = version;
       try {
-        await client.selectLink(payload.accountId, payload.linkId); assertCurrent(); if (revision !== version) return;
+        try { await client.selectLink(payload.accountId, payload.linkId); }
+        catch { return; } // Local OFF/disconnect is a recoverable admission denial.
+        assertCurrent(); if (revision !== version) return;
         selected = payload;
         await route.verifyCurrent(); assertCurrent(); if (revision !== version) return;
         send(payload.extensionStateId, { ...payload, kind: "link-selected" });
@@ -220,6 +222,8 @@ export function startSharedUnlockBrowserCoordinator(route: SharedUnlockCoordinat
         // Installation has its own final fence. Peer close after that point must
         // not prevent local adoption of an independently valid receiver root.
         client.received?.(result, chosen);
+      } catch (error) {
+        if (!attempt.abort.signal.aborted) throw error;
       } finally { refreshAgain = true; finish(attempt); }
       return;
     }
@@ -230,5 +234,9 @@ export function startSharedUnlockBrowserCoordinator(route: SharedUnlockCoordinat
   const unwatch = client.subscribe(() => { ownRevision++; if (active?.direction !== "receiver") cancel(); void refresh(); });
   route.signal.addEventListener("abort", close, { once: true });
   void refresh();
-  return { close };
+  return { close, cancelPending: (accountId: string) => {
+    if (stopped || (own?.accountId ?? selected?.accountId ?? peer?.accountId) !== accountId) return;
+    version++; ownRevision++; cancel(); selected = null; attempted = null; own = null;
+    void refresh();
+  } };
 }
