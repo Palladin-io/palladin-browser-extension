@@ -1,4 +1,6 @@
 import { isSurfaceActivity } from "../shared/messaging/surface-activity";
+import { isSharedUnlockSettingsCommand } from '../shared/messaging/shared-unlock-settings';
+import { handleSharedUnlockSettings } from './shared-unlock/settings-runtime';
 import { coordinateSharedUnlockBrowser } from "./shared-unlock/browser-runtime";
 /**
  * Service worker entry point (MV3). Bootstrap only: it wires the content Port,
@@ -327,6 +329,14 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 // to capture and then the vault command surface.
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isTrustedExtensionPage(sender, chrome.runtime.id, chrome.runtime.getURL(""))) return false;
+  if (isSharedUnlockSettingsCommand(raw)) {
+    const lease = serverOperations.tryAcquire();
+    if (lease === null) { sendResponse({ ok: false, code: 'unavailable', locallyPaused: false }); return false; }
+    void handleSharedUnlockSettings(raw)
+      .then(sendResponse, () => sendResponse({ ok: false, code: 'unavailable', locallyPaused: false }))
+      .finally(() => lease.release());
+    return true;
+  }
   void (async () => {
     await initializeServerConfig();
     if (isServerConfigCommand(raw)) {

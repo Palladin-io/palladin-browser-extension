@@ -727,6 +727,35 @@ late cancellation after a clear restores the persisted denial where storage work
 
 Local OFF/disconnect admission rejection leaves the browser route available for
 an explicit later resumption with fresh state/attempt IDs. Tests cover paused Web
-and Extension receivers, late crypto results and unrelated accounts. Settings
-commands/UI do not yet call this worker pause API; full account-preference
-propagation, disconnect/reconnect and the artifact matrix remain release gates.
+and Extension receivers, late crypto results and unrelated accounts. The shared
+Settings surface now calls this gate through the trusted worker command boundary.
+Full background account-preference propagation, disconnect/reconnect and the
+artifact matrix remain release gates.
+
+## Shared account preference settings
+
+Popup and Side Panel mount the same Settings section. The worker reads/writes
+Identity's account preference with own JWT, revision CAS and a ten-second budget.
+It issues one RAM-only context nonce for the current own settings session; stale
+screens cannot mutate a later account/session. UI receives only the preference,
+local pause state and that opaque context, never keys or credentials. Command
+shapes are strict at the browser messaging boundary. A trusted extension page and
+a server-operation lease are checked before dispatch; a set pauses synchronously
+before storage or API waits. Page/content bridge messages cannot use this channel.
+
+SessionManager's settings lease borrows only current own tokens, not MK/private
+keys. It supports an already locked session that still has its own JWT in RAM.
+Lock/logout, login/unlock, refresh and installation of a new own session retire
+old leases; a pending browser receiver does not disable Settings, so OFF can
+cancel that receiver before key publication. A restarted worker with only the
+sealed session must authenticate/unlock before changing the account preference.
+
+Successful ON and OFF settle only their exact local pending-write marker.
+Network/storage/CAS/authentication failure or a late cancelled result retains
+denial; there is no automatic mutation retry. Boolean preference changes notify
+source selection without changing its authority or deadlines. Settings surfaces
+refresh on value-free worker hints, focus and a fifteen-second interval; session
+hints invalidate old screen results. PL/EN, keyboard switching, two-host state,
+signed-out guidance, CAS/retry and real SessionManager lock/receiver races have
+focused tests. Full Web/Extension background invalidation, local trust display,
+disconnect/reconnect, native visual acceptance and the artifact matrix remain open.

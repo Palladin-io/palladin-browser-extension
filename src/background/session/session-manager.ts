@@ -13,6 +13,7 @@
  */
 
 import type { SharedUnlockSourceSession } from "./shared-unlock-source";
+import type { SharedUnlockSettingsSession } from './shared-unlock-settings';
 import {
   assertIdentityKdfProfile,
   type BrowserSessionEnvelope,
@@ -164,6 +165,7 @@ export class SessionManager {
   private sharedUnlockAttempt = 0;
   private sharedUnlockReceiverAbort: AbortController | null = null;
   private readonly sharedUnlockSourceAborts = new Set<AbortController>();
+  private readonly sharedUnlockSettingsAborts = new Set<AbortController>();
   private sharedUnlockLimits: SessionUnlockLimits | null = null;
   private sharedUnlockLocalDeadline = Infinity;
   private sessionClearGeneration = 0;
@@ -262,6 +264,33 @@ export class SessionManager {
     this.sharedUnlockSourceAborts.add(controller);
     controller.signal.addEventListener("abort", dispose, { once: true });
     return { signal: controller.signal, read, dispose };
+  }
+
+  captureSharedUnlockSettingsSession(): SharedUnlockSettingsSession {
+    const generation = this.captureLifecycleGeneration(), controller = new AbortController();
+    let tokens = this.tokens;
+    const read = () => {
+      this.assertLifecycleGeneration(generation);
+      if (controller.signal.aborted || !tokens || this.tokens !== tokens || this.refreshInFlight
+        || this.loginInFlight || this.unlocksInFlight > 0 || this.pendingTotp) throw new SessionLifecycleChangedError();
+      this.assertApiUrl(tokens.apiUrl);
+      return tokens;
+    };
+    const dispose = () => {
+      tokens = null;
+      this.sharedUnlockSettingsAborts.delete(controller);
+      controller.abort();
+    };
+    read();
+    this.sharedUnlockSettingsAborts.add(controller);
+    controller.signal.addEventListener('abort', dispose, { once: true });
+    return { signal: controller.signal, read, dispose };
+  }
+
+  private invalidateSharedUnlockSettings(): void {
+    const pending = [...this.sharedUnlockSettingsAborts];
+    this.sharedUnlockSettingsAborts.clear();
+    for (const controller of pending) controller.abort();
   }
 
   private invalidateSharedUnlockSources(): void {
@@ -433,6 +462,7 @@ export class SessionManager {
   refreshAccessToken(): Promise<string | null> {
     if (this.refreshInFlight) return this.refreshInFlight;
     this.invalidateSharedUnlockSources();
+    this.invalidateSharedUnlockSettings();
     const operation = this.rotateAccessToken().finally(() => {
       if (this.refreshInFlight === operation) this.refreshInFlight = null;
     });
@@ -549,6 +579,7 @@ export class SessionManager {
     }
     this.sharedUnlockAttempt += 1;
     this.invalidateSharedUnlockSources();
+    this.invalidateSharedUnlockSettings();
     this.sharedUnlockReceiverAbort?.abort();
     this.sharedUnlockReceiverAbort = null;
     this.loginInFlight = true;
@@ -809,6 +840,7 @@ export class SessionManager {
   async unlock(source: UnlockSource): Promise<void> {
     this.sharedUnlockAttempt += 1;
     this.invalidateSharedUnlockSources();
+    this.invalidateSharedUnlockSettings();
     this.sharedUnlockReceiverAbort?.abort();
     this.sharedUnlockReceiverAbort = null;
     this.unlocksInFlight += 1;
@@ -969,6 +1001,7 @@ export class SessionManager {
       }
       checkPolicy();
       if (inherited && this.now() >= Math.min(localDeadline, unlockDeadline(inherited))) throw new SessionLifecycleChangedError();
+      this.invalidateSharedUnlockSettings();
       this.wipeKeys();
       this.sharedUnlockLimits = inherited ? {
         unlockedAtMs: inherited.unlockedAtMs, idleDeadlineMs: inherited.idleDeadlineMs,
@@ -1215,6 +1248,7 @@ export class SessionManager {
     this.lifecycleTerminations += 1;
     this.lifecycleGeneration += 1;
     this.invalidateSharedUnlockSources();
+    this.invalidateSharedUnlockSettings();
     this.sharedUnlockReceiverAbort?.abort();
     this.sharedUnlockReceiverAbort = null;
     this.wipeInFlightKeyMaterial();

@@ -1,4 +1,6 @@
 import { recordExtensionOwnPolicy } from "../shared-unlock/own-policy-runtime";
+import { SharedUnlockSettings } from '../shared-unlock/settings';
+import { SharedUnlockPreferenceGate } from '../shared-unlock/preference-gate';
 import { SharedUnlockApi } from "../shared-unlock/api";
 import { SharedUnlockSourceAuthority } from "../shared-unlock/source-authority";
 import { OwnSharedUnlockActivityRecorder } from "../shared-unlock/own-activity";
@@ -52,6 +54,71 @@ const erased = (value: SharedUnlockInstallation) => {
 };
 
 describe("shared unlock receiver installation", () => {
+  it('keeps Settings usable during a pending receiver so OFF can cancel it before key installation', async () => {
+    const h = harness(), value = fresh()
+    const first = await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})
+    await first.install(value); await h.manager.lock()
+    const gate = new SharedUnlockPreferenceGate(h.storage)
+    const api = { readPreference: vi.fn(async () => ({ sharedUnlockEnabled: true, revision: 1 })),
+      setPreference: vi.fn(async () => ({ sharedUnlockEnabled: false, revision: 2 })) }
+    const settings = new SharedUnlockSettings(() => h.manager.captureSharedUnlockSettingsSession(), api, gate, () => {}, () => {})
+    const current = await settings.dispatch({ type: 'shared-unlock-settings/get' })
+    expect(current.ok).toBe(true); if (!current.ok) throw new Error('Missing settings context')
+    const receiver = await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})
+    const unsubscribe = gate.subscribe(() => receiver.cancel())
+    const saving = settings.dispatch({ type: 'shared-unlock-settings/set', contextId: current.contextId, enabled: false, revision: 1 })
+    expect(receiver.signal.aborted).toBe(true)
+    expect(await saving).toMatchObject({ ok: true, sharedUnlockEnabled: false })
+    const late = fresh()
+    await expect(receiver.install(late)).rejects.toThrow()
+    erased(late); expect(h.manager.getKeys()).toBeNull(); unsubscribe()
+    await h.manager.logout()
+  })
+  it('uses a fresh own Identity settings lease while locked without reading or reinstalling keys', async () => {
+    const h = harness(), value = fresh()
+    const install = await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})
+    await install.install(value)
+    const oldLease = h.manager.captureSharedUnlockSettingsSession()
+    await h.manager.lock()
+    expect(oldLease.signal.aborted).toBe(true); expect(oldLease.read).toThrow()
+    const getKeys = vi.spyOn(h.manager, 'getKeys')
+    const api = { readPreference: vi.fn(async () => ({ sharedUnlockEnabled: true, revision: 1 })),
+      setPreference: vi.fn(async () => ({ sharedUnlockEnabled: false, revision: 2 })) }
+    const settings = new SharedUnlockSettings(() => h.manager.captureSharedUnlockSettingsSession(), api,
+      new SharedUnlockPreferenceGate(h.storage), () => {}, () => {})
+    const current = await settings.dispatch({ type: 'shared-unlock-settings/get' })
+    expect(current.ok).toBe(true); if (!current.ok) throw new Error('Missing settings context')
+    expect(await settings.dispatch({ type: 'shared-unlock-settings/set', contextId: current.contextId, revision: 1, enabled: false }))
+      .toMatchObject({ ok: true, sharedUnlockEnabled: false })
+    expect(getKeys).not.toHaveBeenCalled()
+    expect(api.setPreference).toHaveBeenCalledWith(value.tokens, false, 1, expect.any(AbortSignal))
+    getKeys.mockRestore(); expect(h.manager.getKeys()).toBeNull(); expect(await h.manager.getStatus()).toBe('locked')
+    await h.manager.logout()
+    expect(await settings.dispatch({ type: 'shared-unlock-settings/set', contextId: current.contextId, revision: 2, enabled: true }))
+      .toMatchObject({ ok: false })
+  })
+  it('binds Settings to the real own key session and refuses a late save after lock', async () => {
+    const h = harness(), value = fresh()
+    const install = await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})
+    await install.install(value)
+    const gate = new SharedUnlockPreferenceGate(h.storage)
+    let finish!: () => void
+    const api = { readPreference: vi.fn(async () => ({ sharedUnlockEnabled: true, revision: 1 })),
+      setPreference: vi.fn(() => new Promise<{ sharedUnlockEnabled: boolean; revision: number }>(resolve => {
+        finish = () => resolve({ sharedUnlockEnabled: false, revision: 2 })
+      })) }
+    const accept = vi.fn(), settings = new SharedUnlockSettings(() => h.manager.captureSharedUnlockSettingsSession(), api, gate, accept, () => {})
+    const selected = await settings.dispatch({ type: 'shared-unlock-settings/get' })
+    expect(selected.ok).toBe(true); if (!selected.ok) throw new Error('Missing settings context')
+    const saved = settings.dispatch({ type: 'shared-unlock-settings/set', contextId: selected.contextId, enabled: false, revision: selected.revision })
+    await vi.waitFor(() => expect(finish).toBeDefined())
+    accept.mockClear(); await h.manager.lock(); finish()
+    expect(await saved).toMatchObject({ ok: false, code: 'cancelled', locallyPaused: true })
+    expect(accept).not.toHaveBeenCalled(); expect(h.manager.getKeys()).toBeNull()
+    expect(await gate.isAllowed({ accountId: account.accountId, apiUrl })).toBe(false)
+    expect(await settings.dispatch({ type: 'shared-unlock-settings/set', contextId: selected.contextId, enabled: true, revision: 2 })).toMatchObject({ ok: false })
+    expect(api.setPreference).toHaveBeenCalledOnce()
+  })
   it("installs only the receiver tokens, seals them and retains the original limits", async () => {
     const h = harness(); const value = fresh();
     const attempt = await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {});

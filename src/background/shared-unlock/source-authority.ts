@@ -129,6 +129,7 @@ export class SharedUnlockSourceAuthority {
     if (!current.authorization || current.sourceGeneration !== sourceGeneration) throw new SharedUnlockApiError("cancelled");
     if (current.preference && preference.revision < current.preference.revision) return;
     this.state = { ...this.state, preference: { sharedUnlockEnabled: preference.sharedUnlockEnabled, revision: preference.revision } };
+    if (current.preference?.sharedUnlockEnabled !== preference.sharedUnlockEnabled) this.notify();
   }
 
   /** Failed preparation disables sharing, while SessionManager may unlock itself. */

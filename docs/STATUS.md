@@ -14,6 +14,15 @@ release candidates.
 
 ## Shared unlock implementation in progress (CVT-583)
 
+The common Popup/Side Panel Settings surface now reads/writes the one Identity
+account preference through the worker. It supports ON/OFF, explicit retry after
+failed/CAS writes and authenticated settings while keys are locked. The worker
+uses a token-only own-session lease and immediately pauses pending handoffs on
+set; late results cannot escape a local pause or change the next account. Live
+Settings refreshes use value-free hints and bounded polling. Full background
+Web/Extension preference invalidation, trust status and disconnect/reconnect UI
+remain incomplete; this is not release acceptance for shared unlock.
+
 The worker has a typed Identity API client, generated provider/consumer fixtures,
 cryptographic member-key recovery and a one-shot receiver transaction using the
 real session installer. It consumes and commits its own Identity session, rejects

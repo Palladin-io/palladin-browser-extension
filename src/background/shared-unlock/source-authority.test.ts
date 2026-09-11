@@ -136,6 +136,23 @@ it("does not overwrite a newer explicit OFF while adopting a completed own recei
   expect(source.snapshot().preference).toEqual({ sharedUnlockEnabled: false, revision: 2 });
 });
 
+it('notifies source selection on account ON/OFF without renewing its own root', () => {
+  const source = new SharedUnlockSourceAuthority(new SharedUnlockApi(vi.fn<typeof fetch>(), () => apiUrl), () => authorization.unlockedAtMs + 1)
+  const generation = 'A'.repeat(43)
+  source.adopt(authorization, generation, { sharedUnlockEnabled: true, revision: 1 }, () => {})
+  const changed = vi.fn(), unsubscribe = source.subscribe(changed)
+  source.acceptPreference({ sharedUnlockEnabled: false, revision: 2 }, generation)
+  expect(changed).toHaveBeenCalledOnce()
+  source.acceptPreference({ sharedUnlockEnabled: false, revision: 2 }, generation)
+  source.acceptPreference({ sharedUnlockEnabled: true, revision: 1 }, generation)
+  expect(changed).toHaveBeenCalledOnce()
+  source.acceptPreference({ sharedUnlockEnabled: true, revision: 3 }, generation)
+  expect(changed).toHaveBeenCalledTimes(2)
+  expect(source.snapshot().authorization).toEqual(authorization)
+  expect(source.snapshot().sourceGeneration).toBe(generation)
+  unsubscribe()
+})
+
 
 it("settles previous closings before reading fresh preference and authorizing a new root", async () => {
   let finish!: () => void;
