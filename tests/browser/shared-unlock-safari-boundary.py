@@ -116,6 +116,8 @@ try:
     command('POST', '/timeouts', {'script': 10000, 'pageLoad': 20000, 'implicit': 0})
     stage = 'install-extension'
     extension_id = command('POST', '/webextension', {'type': 'path', 'path': str(fixture)})
+    observations['installationResult'] = extension_id
+    stage = 'decode-installed-extension'
     assert isinstance(extension_id, str) and extension_id
     observations['browserInstalledExtensionId'] = extension_id
     checks.append('browser-installed-synthetic-extension')
