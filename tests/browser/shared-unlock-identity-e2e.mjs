@@ -46,6 +46,7 @@ const temporary = await mkdtemp(path.join(tmpdir(), 'palladin-identity-e2e-'))
 let context, server, mailServer, page, popup, stage = 'preflight'
 let ownActivityRequested = false, ownActivityObserved = false
 const checks = [], requests = []
+const pendingRequests = new Map()
 const progress = setInterval(() => console.log(`PROGRESS ${JSON.stringify({ stage, completedChecks: checks.length })}`), 10000)
 progress.unref()
 const messages = [] // Synthetic SES v2 delivery, memory-only; never written to a report.
@@ -90,6 +91,7 @@ const launchOptions = {
     : [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`])],
 }
 async function observeLocalContext() {
+  pendingRequests.clear()
   context.setDefaultTimeout(20000)
   await context.route('**/*', route => {
     const url = new URL(route.request().url())
@@ -101,6 +103,11 @@ async function observeLocalContext() {
     return url.origin === webOrigin ? 'web' : url.origin === new URL(apiUrl).origin ? 'api'
       : url.protocol === 'chrome-extension:' ? 'extension' : 'other'
   }
+  context.on('request', request => pendingRequests.set(request, {
+    origin: originKind(request.url()), resource: request.resourceType(), startedAt: Date.now(),
+  }))
+  context.on('requestfinished', request => pendingRequests.delete(request))
+  context.on('requestfailed', request => pendingRequests.delete(request))
   context.on('weberror', event => {
     const name = event.error().name
     requests.push({ check: 'uncaught-browser-error', stage,
@@ -453,6 +460,8 @@ try {
     observedAt: new Date().toISOString(), browser: context.browser().version(), provenance, fullMatrix: false, entryDecryptionVerified: true })
   console.log(`PARTIAL: ${checks.length} native Identity/Entry checks; full matrix still required.`)
 } catch (error) {
+  requests.push({ check: 'pending-browser-resources-at-failure', resources: [...pendingRequests.values()]
+    .map(({ origin, resource, startedAt }) => ({ origin, resource, elapsedMs: Date.now() - startedAt })) })
   if (page) {
     try {
       const state = await page.evaluate(() => ({
