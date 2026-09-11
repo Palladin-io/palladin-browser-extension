@@ -1,9 +1,39 @@
 # Shared unlock platform evidence
 
-CVT-587/CVT-592, part of CVT-583. This note separates synthetic capability
-probes from limited actual-product Chromium and Firefox channel tests. Neither proves a
-complete shared unlock or production support. No Member key, account, credential,
-backend session or Palladin environment is used by these browser probes.
+CVT-587/CVT-592/CVT-604, part of CVT-583. This note separates synthetic
+capability probes, product-channel tests and actual Identity/Entry/lifecycle
+tests. Only the latter use synthetic accounts with real browser cryptography
+and an isolated Palladin backend. No result here proves the full acceptance
+matrix or production support.
+
+## Current acceptance status — 2026-09-11
+
+All completed Identity runs below used macOS26.4.1 arm64 and disposable profiles.
+The historical sections retain earlier failures and narrower observations; this
+table identifies the latest successful product runs rather than replacing them
+with a channel-only probe or a successful build.
+
+| Browser / version | Installation | Identity/Entry/lifecycle | UTC observation |
+|---|---|---|---|
+| Chrome152.0.7977.84 | Unpacked, browser CDP; headless |16/16 PASS|16:28:18|
+| Chromium153.0.8010.12 | Unpacked, load flag; headless |16/16 PASS|16:24:12|
+| Brave1.95.101 / engine153.0.8010.37 | Unpacked, browser CDP; headless |16/16 PASS|16:25:33|
+| Edge153.0.4234.32 | Unpacked, browser CDP; headless |16/16 PASS|16:59:14|
+| Firefox140.0 | Temporary product XPI |16/16 PASS|15:58:29|
+| Firefox155.0.1 | Temporary product XPI |16/16 PASS|16:02:22|
+| Opera135.0.5973.133 / engine151.0.7922.176 | Unpacked, browser CDP; headless |16/16 PASS|17:03:15|
+| Safari26.4 | Synthetic packaging only |No product adapter; probe stopped before session creation|16:47:24|
+
+The16 checks cover real registration/email/password login, automatic unlock,
+live encrypted Entry/password decryption, continued operation after Web closure,
+reopened Web, browser-controlled background restart and shared manual lock/logout.
+They do not cover all settings, account-isolation, expiry, offline, multi-document,
+OS-lock/sleep/resume or distribution cases. Windows/Linux, other required
+versions (including the Chromium116 and Safari16.4 floors), the full matrix and
+independent final review remain open. Firefox popup DOM activation is not trusted
+input evidence. Reproduction and limitations:
+[Identity harness](../tests/browser/SHARED-UNLOCK-IDENTITY.md),
+[Safari probe](../tests/browser/SHARED-UNLOCK-SAFARI.md).
 
 ## Required boundary
 
@@ -81,7 +111,7 @@ or verify a real MK handoff.
 | Browser-authored Web sender context | The probe observes allowed origin/top-frame/document context and rejects an unlisted origin. | Useful Web sender boundary; does not attest recipient package/profile. |
 | Chrome enterprise platform-key attestation | Official API is ChromeOS-only and policy-restricted. | Does not cover the required ordinary desktop browser matrix. |
 | Safari webpage messaging | Apple documents addressing by extension bundle ID and team ID. The real Safari route, document binding and lifecycle still require installed-artifact tests. | Not yet verified; not inferred from Chromium. |
-| Firefox webpage messaging | Mozilla documents no Web-page `runtime.connect`/`sendMessage` support. A content-script adapter would need its own independently verified boundary. | Adapter and actual browser-route authority not yet verified; no original-profile attestation required. |
+| Firefox webpage messaging | No Web-page `runtime.connect`/`sendMessage`; the implemented extension-resource/private-Port adapter has actual140/155 Identity/Entry observations below. | Partial browser evidence; full version/OS/distribution and negative lifecycle acceptance remain open. No original-profile attestation required. |
 
 Sources checked 2026-09-10:
 
@@ -105,7 +135,8 @@ adapter must obtain actual browser authority for its exact configured route and
 must verify the source/recipient generations, account/environment, one-time
 Identity operation and current link/limits. A stable marker or a peer's payload
 cannot replace those checks. Actual handoff, Identity bootstrap, cancellation,
-lifecycle, settings and all supported browser/OS artifact tests remain outstanding.
+lifecycle and settings require the remaining acceptance cases; the current-status
+table records completed product runs. Full browser/OS artifact testing remains open.
 
 ## Firefox manifest-resource candidate - 2026-09-11
 
@@ -560,7 +591,36 @@ attempt timed out launching the browser, before any Identity check; its process
 was confirmed terminal before the successful fresh-profile repeat.
 
 The full browser/version/OS/distribution and negative security/lifecycle matrix
-remains open, including Edge, Opera and Safari. Product runtime is unchanged by
+remains open, including Safari. The later Edge/Opera runs are recorded below.
+Product runtime is unchanged by
 these harness improvements; reports identify the working-tree harness state.
 
 The shared native-popup helper also passes the credential-capture regression:24 encrypted writes and the synthetic plaintext/key storage inspection. Documentation, Node syntax and diff checks pass. Earlier runtime810cf86 and docs d7309d3 CI are green; the new harness commit has its own CI gate.
+
+## Edge and Opera actual Identity/Entry observations — 2026-09-11
+
+Edge153.0.4234.32 passed16 checks at16:59:14Z; Opera135.0.5973.133
+(engine151.0.7922.176) passed16 checks at17:03:15Z. Both used macOS26.4.1
+arm64, headless disposable profiles, the actual unpacked product artifact and
+browser-owned CDP installation. Each final Sign out had one observed trusted
+click. The1500ms manual-authorization delay was enabled. No product changes were
+needed for either browser. The limitations in the current-status table apply.
+
+Edge came from the [Microsoft enterprise feed](https://edgeupdates.microsoft.com/api/products?view=enterprise).
+Its package hash matched the feed, and pkgutil verified Microsoft's installer
+signature and notarization. The application was extracted locally with
+`pkgutil --expand-full`; installer scripts were not executed. Strict deep
+codesign verification passed with Microsoft TeamUBF8T346G9.
+
+Opera came from the official [135.0.5973.133 macOS archive](https://get.geo.opera.com/pub/opera/desktop/135.0.5973.133/mac/),
+using the arm64 autoupdate archive and its published SHA256. The extracted
+application passed strict deep codesign verification with Opera TeamA2P9LX4JPN.
+Ignored browser-verification receipts record both downloads, signing identities,
+bundle versions and executable hashes. No system browser installation was replaced.
+
+Versioned reports are `report.edge-153.0.4234.32.json` and
+`report.opera-151.0.7922.176.json` under the ignored Identity result directory.
+Both identify Webb47aff9/Extensionfe58fca, runtime810cf86, and identical artifact
+hashes. Opera's dirty-tree flag records documentation edits only; harness and
+runtime bytes were unchanged. Extensionfe58fca CI34624193092 passed. Neither
+the browser results nor CI complete CVT-583 or authorize release by themselves.
