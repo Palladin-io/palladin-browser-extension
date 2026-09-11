@@ -128,10 +128,19 @@ on Web6dcb1db / Extensione50b5f8 / Backenddde6bb96, Chromium153/macOS26.4.1.
 The extension tree had only this documentation update pending; runtime artifacts
 were unchanged. The first race run lost its native popup when a new tab became
 active; the driver now opens a fresh native popup for that real browser transition.
-A combined TOTP/settings/restart run remains required; its earlier attempt timed
-out in automatic handoff during a full-document settings navigation. Enrollment
-now follows real SPA Settings/Security links. The distinct reopen-Web test remains,
-and that previous intermittent handoff failure is not claimed as resolved.
+The combined TOTP/settings/races/own-activity/full-browser-restart run passed41
+checks at2026-09-11T21:26:39Z on clean Web6dcb1db / Extension63191a5 /
+Backenddde6bb96, Chromium153/macOS26.4.1 arm64. Google Chrome152.0.7977.84
+subsequently passed38 checks on those same clean sources and artifacts, using
+CDP unpacked installation and worker restart, without full-browser restart.
+Both runs include actual Entry access/denial, reopened Web automatic unlock and
+shared lock/logout. Normal Extension CI34649231437 and Web CI34646663177 passed.
+These are local-unpacked results; the full OS/version/distribution matrix remains.
+The earlier combined attempt timed out in automatic handoff during full-document
+settings navigation. Enrollment now follows real SPA Settings/Security links.
+The distinct reopen-Web test passed in the combined runs; that earlier intermittent
+handoff failure is not claimed as resolved. Safari remains last by owner decision;
+CI34649231397 product boundary failed, while classic/module/document passed.
 
 `--totp` adds real Web enrollment after the initial Entry proof, then a fresh
 password/TOTP login. It requires the enabled 2FA display, a shared logout, six
