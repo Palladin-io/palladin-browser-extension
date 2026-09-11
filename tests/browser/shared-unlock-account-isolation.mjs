@@ -5,7 +5,7 @@ import { randomBytes } from 'node:crypto'
 // Credentials and Entry values stay in memory; evidence contains booleans only.
 export async function verifySharedUnlockAccountIsolation({ page, popup, apiUrl,
   webOrigin, email, password, vaultId, entryId, entryPassword, reopenPopup, allowEmail,
-  verificationFor, setStage, recordCheck }) {
+  verificationFor, unlockCycles = 1, setStage, recordCheck }) {
   const emailB = `cvt583-${randomBytes(8).toString('hex')}@example.test`
   const passwordB = 'Synthetic!' + randomBytes(24).toString('base64url')
   const entryPasswordB = 'Entry!' + randomBytes(24).toString('base64url')
@@ -105,26 +105,29 @@ export async function verifySharedUnlockAccountIsolation({ page, popup, apiUrl,
   recordCheck('both-account-preferences-on-retain-distinct-decrypted-entries')
   recordCheck('extension-account-a-denies-account-b-entry-without-secret-payload')
 
-  setStage('account-isolation-web-b-lock-and-reload')
-  await page.getByRole('button', { name: 'Lock', exact: true }).click()
-  await page.locator('#unlock-password').waitFor(); await page.reload()
-  await page.locator('#unlock-password').waitFor()
-  await stable(async () => {
-    assert(await page.locator('#unlock-password').isVisible(), 'Account A must not unlock account B Web')
-    await revealA()
-  })
-  recordCheck('account-b-lock-and-document-reload-do-not-lock-or-adopt-account-a')
-  setStage('account-isolation-manual-web-b-unlock')
-  await page.locator('#unlock-password').fill(passwordB)
-  await page.getByRole('button', { name: 'Unlock', exact: true }).click()
-  await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
-  setStage('account-isolation-web-b-vault-list-after-unlock')
-  await page.getByRole('link', { name: 'Vaults', exact: true }).click()
-  await page.getByText('Personal', { exact: true }).first().click()
-  setStage('account-isolation-web-b-entry-list-after-unlock')
-  await page.getByText('Synthetic account B proof', { exact: true }).first().click()
-  await revealB(); await revealA()
-  recordCheck('manual-account-b-unlock-restores-only-its-own-entry')
+  for (let cycle = 0; cycle < unlockCycles; cycle++) {
+    setStage(`account-isolation-web-b-lock-and-reload-cycle-${cycle + 1}`)
+    await page.getByRole('button', { name: 'Lock', exact: true }).click()
+    await page.locator('#unlock-password').waitFor(); await page.reload()
+    await page.locator('#unlock-password').waitFor()
+    await stable(async () => {
+      assert(await page.locator('#unlock-password').isVisible(), 'Account A must not unlock account B Web')
+      await revealA()
+    })
+    recordCheck('account-b-lock-and-document-reload-do-not-lock-or-adopt-account-a')
+    setStage(`account-isolation-manual-web-b-unlock-cycle-${cycle + 1}`)
+    await page.locator('#unlock-password').fill(passwordB)
+    await page.getByRole('button', { name: 'Unlock', exact: true }).click()
+    await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+    setStage(`account-isolation-web-b-vault-list-after-unlock-cycle-${cycle + 1}`)
+    await page.getByRole('link', { name: 'Vaults', exact: true }).click()
+    await page.getByText('Personal', { exact: true }).first().click()
+    setStage(`account-isolation-web-b-entry-list-after-unlock-cycle-${cycle + 1}`)
+    await page.getByText('Synthetic account B proof', { exact: true }).first().click()
+    await revealB(); await revealA()
+    recordCheck('manual-account-b-unlock-restores-only-its-own-entry')
+
+  }
 
   setStage('account-isolation-extension-a-lock')
   popup = await reopenPopup()

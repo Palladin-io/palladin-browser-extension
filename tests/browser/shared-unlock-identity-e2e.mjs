@@ -31,6 +31,9 @@ const totp = process.argv.includes('--totp')
 const settings = process.argv.includes('--settings')
 const settingsRaces = process.argv.includes('--settings-races')
 const accountIsolation = process.argv.includes('--account-isolation')
+const accountUnlockCycles = process.argv.includes('--account-unlock-cycles') ? Number(argument('--account-unlock-cycles')) : 1
+assert(Number.isInteger(accountUnlockCycles) && accountUnlockCycles >= 1 && accountUnlockCycles <= 5, 'Account unlock cycles must be between 1 and 5')
+assert(accountIsolation || accountUnlockCycles === 1, 'Repeated account unlock requires account isolation')
 assert(!(accountIsolation && totp), 'Account isolation currently requires password-only synthetic accounts')
 const backendSource = process.argv.includes('--backend-source') ? path.resolve(argument('--backend-source')) : undefined
 for (const url of [apiUrl, sesUrl]) assert(['localhost', '127.0.0.1'].includes(new URL(url).hostname), 'Isolated loopback services only')
@@ -74,6 +77,7 @@ const provenance = {
   settings,
   settingsRaces,
   accountIsolation,
+  accountUnlockCycles,
 }
 const launchOptions = {
   ...(browserExecutable ? { executablePath: browserExecutable } : { channel: 'chromium' }), headless: !headed,
@@ -409,7 +413,7 @@ try {
   await page.locator('#login-email').waitFor()
   checks.push('extension-logout-propagated-to-web')
   if (accountIsolation) await verifySharedUnlockAccountIsolation({ page, popup, apiUrl, webOrigin,
-    email, password, vaultId, entryId, entryPassword,
+    email, password, vaultId, entryId, entryPassword, unlockCycles: accountUnlockCycles,
     reopenPopup: async () => { popup?.close(); popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId); return popup },
     allowEmail: value => allowedEmails.add(value),
     verificationFor: address => JSON.stringify(messages.filter(message => message.Destination.ToAddresses.includes(address)))
@@ -422,7 +426,8 @@ try {
   if (page && accountIsolation) {
     const flags = {}
     for (const label of ['Synthetic account B proof', 'Personal', 'Retry', 'No entries yet.',
-      'Could not load vault data. Please reload the page.', 'Syncing']) {
+      'Could not load vault data. Please reload the page.', 'Syncing',
+      'The encrypted vault list could not be synchronized.', 'The encrypted entry index could not be synchronized.']) {
       try { flags[label] = await page.getByText(label, { exact: true }).first().isVisible() } catch { flags[label] = null }
     }
     requests.push({ check: 'account-isolation-web-error-presentation', flags })
@@ -451,6 +456,6 @@ async function writeEvidence(kind, value) {
   const contents = JSON.stringify(value, null, 2)
   await writeFile(path.join(output, `${kind}.json`), contents)
   const version = String(provenance.browserVersion ?? 'launch').replace(/[^a-zA-Z0-9.-]/g, '_')
-  const scenario = (fullBrowserRestart ? '.full-browser-restart' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '') + (totp ? '.totp' : '') + (settings ? '.settings' : '') + (settingsRaces ? '.settings-races' : '') + (accountIsolation ? '.account-isolation' : '')
+  const scenario = (fullBrowserRestart ? '.full-browser-restart' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '') + (totp ? '.totp' : '') + (settings ? '.settings' : '') + (settingsRaces ? '.settings-races' : '') + (accountIsolation ? '.account-isolation' : '') + (accountUnlockCycles > 1 ? `.unlock-cycles-${accountUnlockCycles}` : '')
   await writeFile(path.join(output, `${kind}.${browserLabel}-${version}${scenario}.json`), contents)
 }
