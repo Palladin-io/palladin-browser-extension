@@ -65,3 +65,49 @@ manual authorization by 1.5 seconds after shared lock. This changes transport
 timing only and exposes repair reads of the previous locked root while the new
 password unlock is preparing. The report records this option and the actual
 delay. No API response, key state, clock, lock result, or token is substituted.
+
+## Firefox Identity, Entry and background restart
+
+`shared-unlock-firefox-identity.py` runs the same real registration, email,
+password, encrypted Entry and shared-lifecycle flow on the Firefox product build.
+Use the isolated backend configuration above. Also configure Web's
+`VITE_SHARED_UNLOCK_FIREFOX_EXTENSION_ID` to the actual built manifest's Gecko
+ID and build the Firefox target with the same explicit environment mapping.
+Python's standard library, Node with built-in WebSocket, Firefox and geckodriver
+are required. The driver creates and removes its own disposable profile.
+
+```sh
+python3 tests/browser/shared-unlock-firefox-identity.py \
+  --firefox /absolute/path/to/firefox \
+  --geckodriver /absolute/path/to/geckodriver \
+  --web-source /absolute/path/to/built-web-repository \
+  --api-url http://localhost:55083 \
+  --ses-url http://127.0.0.1:55084
+```
+
+Geckodriver's `--allow-system-access` operates Firefox's native popup and its
+real add-on DevTools target; it never turns the popup into an extension tab or
+replaces the product sender. Popup buttons use DOM activation of their real
+callbacks, so this test does **not** prove trusted-input or idle renewal.
+The restart uses the same browser-owned `terminateBackgroundScript` operation
+as about:debugging. It requires observed running→stopped→running states, leaves
+the source Web document alive, then requires fresh automatic unlock and Entry
+decryption. It does not reload the add-on or alter its session state.
+
+Firefox's clipboard reveal restriction remains enforced. Instead, the test
+saves a Credential for `https://shared-unlock-login.example.test` through Web
+and verifies actual automatic password fill into an initially empty login form.
+A BiDi network fixture supplies that controlled HTTPS document, and Firefox's
+permission store grants only the declared optional host for that exact fixture.
+The real extension's HTTPS, host, document, type and no-submit checks still run.
+This proves decryption and fill in the browser, **not** a TLS handshake or the
+browser's site-permission prompt UX. Password comparisons return only booleans;
+there is no clipboard write, screenshot, injected key or mocked Identity result.
+
+Reports under ignored `test-results/shared-unlock-firefox-identity/` record
+value-free checks, artifact hashes, source heads, version and these limitations.
+The 2026-09-11 14:53:07Z run passed all 16 steps on Firefox 155.0.1, geckodriver
+0.37.1, macOS 26.4.1 arm64 with a temporary product XPI. This is `partial-pass`:
+Firefox 140–152 still lacks the current adapter's required document authority;
+the older-version path, full OS/distribution matrix, other platforms, expiry,
+tokenless/resume/key-use, mismatch and independent review remain required.

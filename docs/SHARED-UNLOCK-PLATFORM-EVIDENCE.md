@@ -355,3 +355,35 @@ those versions when the required authority is absent. The extension's general
 140 floor is unchanged. Completing the approved scope requires a separately
 verified older-version authority path; dropping these checks or raising the
 product floor would not satisfy the existing acceptance criteria.
+
+## Firefox real Identity/Entry and background restart — 2026-09-11
+
+The new [native Firefox Identity harness](../tests/browser/SHARED-UNLOCK-IDENTITY.md#firefox-identity-entry-and-background-restart)
+passed **16 checks at 14:53:07Z** on Firefox 155.0.1 / geckodriver 0.37.1 /
+macOS 26.4.1 arm64, temporary product XPI. Actual artifacts: Web head `ceaedeb`
+and Extension head `e0a0492` (runtime `4568b63` / `3694ec9`), isolated backend
+main `117c84d6`. The ignored report records complete artifact hashes.
+
+It registers an account using browser crypto/recovery confirmation, receives
+and verifies the real email token through a RAM-only SES delivery fixture,
+logs in with the real password, and observes automatic Extension unlock. After
+an authoritative empty Extension snapshot, Web creates an encrypted Credential;
+the still-unlocked Extension receives the live invalidation and decrypts its
+password for actual automatic exact-host fill. It repeats password proof after
+fresh manual unlock, after Web closure and after a browser-controlled background
+stop/start. Reopened Web automatically unlocks from Extension. Manual lock works
+in both directions; Extension logout also logs Web out.
+
+The restart uses Firefox's own DevTools termination operation, requires observed
+running→stopped→running states and leaves Web alive. It does not mutate product
+state. Native popup DOM activation preserves the real sender but is not evidence
+of trusted input/idle renewal. The login page is a controlled BiDi HTTPS response
+with only its declared optional exact-host permission granted by the browser;
+TLS handshake and the permission-prompt UX are outside this proof. Actual Web
+CSP and all product guards remain enforced. No clipboard, screenshots, key/auth
+injection or Identity response replacement; secret comparisons return booleans.
+
+This extends the earlier channel proof to real Identity/MK/Entry and controlled
+background restart, not whole-browser shutdown. Firefox 140–152 compatibility,
+all OS/distribution/lifecycle variants, other platforms, expiry/tokenless/resume/
+key-use/mismatch and final review remain open. No full-matrix acceptance is claimed.
