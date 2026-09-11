@@ -3,6 +3,9 @@ import { initializeServerConfig, serverConfig } from '../config/server-runtime'
 import { sessionManager, sharedUnlockPreferenceGate, sharedUnlockSource } from '../session/runtime'
 import { SharedUnlockApi } from './api'
 import { SharedUnlockSettings } from './settings'
+import { sharedUnlockPreferences } from './preference-state-runtime'
+
+sharedUnlockPreferences.subscribe(() => { void chrome.runtime.sendMessage(sharedUnlockSettingsChanged()).catch(() => {}) })
 
 const settings = new SharedUnlockSettings(
   () => sessionManager.captureSharedUnlockSettingsSession(),
@@ -13,8 +16,10 @@ const settings = new SharedUnlockSettings(
     if (current.authorization?.accountId === session.userId && current.sourceGeneration) {
       sharedUnlockSource.acceptPreference(preference, current.sourceGeneration)
     }
+    sharedUnlockPreferences.observe({ accountId: session.userId, apiUrl: session.apiUrl }, preference)
   },
   () => { void chrome.runtime.sendMessage(sharedUnlockSettingsChanged()).catch(() => {}) },
+  scope => sharedUnlockPreferences.saved(scope),
 )
 
 export function handleSharedUnlockSettings(command: SharedUnlockSettingsCommand) {

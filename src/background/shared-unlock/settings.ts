@@ -15,6 +15,7 @@ export class SharedUnlockSettings {
     private readonly gate: SharedUnlockPreferenceGate,
     private readonly accept: (session: SessionTokens, preference: SharedUnlockPreference) => void,
     private readonly changed: () => void,
+    private readonly committed: (scope: { apiUrl: string; accountId: string }) => void = () => {},
   ) {}
 
   private ownContext(): SettingsContext {
@@ -66,6 +67,7 @@ export class SharedUnlockSettings {
         await wait(pause.persisted); check()
         preference = await wait(this.api.setPreference(session, command.enabled, command.revision, signal)); check()
         this.accept(session, preference); check()
+        this.committed(scope); check()
         await wait(this.gate.complete(scope, pause.id, check)); check()
         locallyPaused = false
       } else {

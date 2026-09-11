@@ -19,9 +19,10 @@ account preference through the worker. It supports ON/OFF, explicit retry after
 failed/CAS writes and authenticated settings while keys are locked. The worker
 uses a token-only own-session lease and immediately pauses pending handoffs on
 set; late results cannot escape a local pause or change the next account. Live
-Settings refreshes use value-free hints and bounded polling. Full background
-Web/Extension preference invalidation, trust status and disconnect/reconnect UI
-remain incomplete; this is not release acceptance for shared unlock.
+Settings and the verified Web/Extension route refresh preferences through their
+own Identity session, value-free hints and bounded polling outside Settings.
+Trust status, disconnect/reconnect UI and full browser acceptance remain
+incomplete; this is not release acceptance for shared unlock.
 
 The worker has a typed Identity API client, generated provider/consumer fixtures,
 cryptographic member-key recovery and a one-shot receiver transaction using the

@@ -1,4 +1,5 @@
 import { SharedUnlockPreferenceGate } from "../shared-unlock/preference-gate";
+import { sharedUnlockPreferences } from '../shared-unlock/preference-state-runtime';
 import { recordExtensionOwnPolicy } from "../shared-unlock/own-policy-runtime";
 import { recordExtensionOwnActivity } from "../shared-unlock/own-activity-runtime";
 import { OwnSharedUnlockActivityRecorder } from "../shared-unlock/own-activity";
@@ -105,5 +106,7 @@ manager = new SessionManager({
 });
 
 manager.hooks.onLocked(() => sharedUnlockSource.reset());
+manager.hooks.onLocked(() => sharedUnlockPreferences.clear());
+manager.hooks.onUnlocked(() => sharedUnlockPreferences.clear());
 
 export const sessionManager = manager;

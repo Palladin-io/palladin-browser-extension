@@ -18,14 +18,14 @@ function setup() {
   const capture = vi.fn(() => ({ signal: abort.signal, read, dispose: () => abort.abort() }))
   const api = { readPreference: vi.fn(async () => ({ sharedUnlockEnabled: true, revision: 3 })),
     setPreference: vi.fn(async (_session: typeof tokens, enabled: boolean) => ({ sharedUnlockEnabled: enabled, revision: 4 })) }
-  const accept = vi.fn(), changed = vi.fn()
-  const settings = new SharedUnlockSettings(capture, api, gate, accept, changed)
+  const accept = vi.fn(), changed = vi.fn(), committed = vi.fn()
+  const settings = new SharedUnlockSettings(capture, api, gate, accept, changed, committed)
   async function command(enabled = false) {
     const current = await settings.dispatch({ type: 'shared-unlock-settings/get' })
     if (!current.ok) throw new Error('No settings context')
     return { type: 'shared-unlock-settings/set' as const, contextId: current.contextId, revision: current.revision, enabled }
   }
-  return { settings, command, api, gate, storage, values, abort, capture, changed, accept }
+  return { settings, command, api, gate, storage, values, abort, capture, changed, accept, committed }
 }
 afterEach(() => vi.useRealTimers())
 describe('worker-owned shared unlock account settings', () => {
@@ -36,6 +36,7 @@ describe('worker-owned shared unlock account settings', () => {
     expect(popup).toMatchObject({ ok: true, sharedUnlockEnabled: true, revision: 3, locallyPaused: false })
     expect(JSON.stringify(popup)).not.toMatch(/synthetic|masterKey|privateKey|accountId|accessToken|refreshToken/)
     expect(f.abort.signal.aborted).toBe(false)
+    expect(f.committed).not.toHaveBeenCalled()
   })
   it.each([false, true])('pauses synchronously, then writes %s with own session/CAS and settles the exact marker', async enabled => {
     const f = setup(), command = await f.command(enabled)
@@ -44,6 +45,7 @@ describe('worker-owned shared unlock account settings', () => {
     expect(f.changed).toHaveBeenCalledOnce()
     expect(await saved).toMatchObject({ ok: true, sharedUnlockEnabled: enabled, revision: 4, locallyPaused: false })
     expect(f.api.setPreference).toHaveBeenCalledExactlyOnceWith(tokens, enabled, 3, expect.any(AbortSignal))
+    expect(f.committed).toHaveBeenCalledExactlyOnceWith(scope)
     expect(await new SharedUnlockPreferenceGate(f.storage).isAllowed(scope)).toBe(true)
     expect(f.abort.signal.aborted).toBe(false)
   })
@@ -51,6 +53,7 @@ describe('worker-owned shared unlock account settings', () => {
     const f = setup(), command = await f.command(); f.api.setPreference.mockRejectedValue(new SharedUnlockApiError(code))
     expect(await f.settings.dispatch(command)).toMatchObject({ ok: false, code: code === 'conflict' ? code : 'unavailable', locallyPaused: true })
     expect(f.api.setPreference).toHaveBeenCalledOnce()
+    expect(f.committed).not.toHaveBeenCalled()
     expect(await new SharedUnlockPreferenceGate(f.storage).isAllowed(scope)).toBe(false)
   })
   it('does not mutate from a signed-out or stale UI context', async () => {
@@ -78,6 +81,7 @@ describe('worker-owned shared unlock account settings', () => {
     await vi.waitFor(() => expect(finish).toBeDefined()); f.accept.mockClear(); f.abort.abort(); finish()
     expect(await saved).toMatchObject({ ok: false, code: 'cancelled', locallyPaused: true })
     expect(f.accept).not.toHaveBeenCalled(); expect(await f.gate.isAllowed(scope)).toBe(false)
+    expect(f.committed).not.toHaveBeenCalled()
   })
   it('bounds an unresponsive Identity save and rejects its late success', async () => {
     vi.useFakeTimers()

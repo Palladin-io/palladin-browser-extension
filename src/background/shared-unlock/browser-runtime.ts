@@ -1,3 +1,5 @@
+import { sharedUnlockPreferences } from './preference-state-runtime'
+import { startSharedUnlockPreferenceMonitor } from './preference-monitor'
 import { randomBytes, toBase64Url, wipe } from "@palladin/crypto";
 import { serverConfig } from "../config/server-runtime";
 import { sessionManager, sharedUnlockLinks, sharedUnlockSource, sharedUnlockExpiry, sharedUnlockPreferenceGate } from "../session/runtime";
@@ -16,7 +18,7 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
   const scope = (accountId: string) => ({ accountId, apiUrl: route.apiUrl, webOrigin: route.webOrigin, extensionId: route.extensionId });
   const admissible = async (accountId: string, linkId?: string) => {
     route.assertCurrent();
-    if (!await sharedUnlockPreferenceGate.isAllowed(scope(accountId))) throw new Error("Shared unlock is locally paused");
+    if (sharedUnlockPreferences.isDisabled(scope(accountId)) || !await sharedUnlockPreferenceGate.isAllowed(scope(accountId))) throw new Error("Shared unlock is locally paused");
     route.assertCurrent();
     const marker = await sharedUnlockLinks.ensure(scope(accountId));
     route.assertCurrent();
@@ -55,7 +57,7 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
       const accountId = await sessionManager.getUserId();
       const status = await sessionManager.getStatus();
       const state = sharedUnlockSource.snapshot();
-      const source = status === "unlocked" && accountId && await sharedUnlockPreferenceGate.isAllowed(scope(accountId)) && state.authorization?.accountId === accountId
+      const source = status === "unlocked" && accountId && !sharedUnlockPreferences.isDisabled(scope(accountId)) && await sharedUnlockPreferenceGate.isAllowed(scope(accountId)) && state.authorization?.accountId === accountId
         && state.sourceGeneration && state.preference?.sharedUnlockEnabled
         ? { organizationId: state.authorization.organizationId, generation: state.sourceGeneration } : null;
       return { accountId, status, source };
@@ -63,7 +65,7 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
     subscribe,
     selectLink: async (accountId, proposed) => (await admissible(accountId, proposed)).linkId,
     prepareSource: async (accountId, organizationId, linkId, signal, assertAttempt) => {
-      const assertCurrent = () => { assertAttempt(); sharedUnlockPreferenceGate.assertAllowed(scope(accountId)); };
+      const assertCurrent = () => { assertAttempt(); sharedUnlockPreferenceGate.assertAllowed(scope(accountId)); sharedUnlockPreferences.assertNotDisabled(scope(accountId)); };
       await admissible(accountId, linkId); assertCurrent();
       const result = await prepareSharedUnlockLink({ scope: scope(accountId), organizationId, signal,
         verifyBrowser: () => route.verifyCurrent(), assertCurrent }, sessionManager, sharedUnlockSource, api, sharedUnlockLinks);
@@ -75,9 +77,9 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
       if (signal.aborted || (marker.observed && binding.linkEpoch < marker.observed.epoch)) throw new Error("Shared unlock receiver selection expired");
     },
     source: (binding, signal, assertCurrent) => beginSharedUnlockSource({ apiUrl: route.apiUrl, binding, signal,
-      assertCurrent: () => { assertCurrent(); sharedUnlockPreferenceGate.assertAllowed(scope(binding.accountId)); } }, sessionManager, sharedUnlockSource, api),
+      assertCurrent: () => { assertCurrent(); sharedUnlockPreferenceGate.assertAllowed(scope(binding.accountId)); sharedUnlockPreferences.assertNotDisabled(scope(binding.accountId)); } }, sessionManager, sharedUnlockSource, api),
     receiver: (binding, signal, assertCurrent) => beginSharedUnlockReceiver({ apiUrl: route.apiUrl, binding, signal,
-      assertCurrent: () => { assertCurrent(); sharedUnlockPreferenceGate.assertAllowed(scope(binding.accountId)); },
+      assertCurrent: () => { assertCurrent(); sharedUnlockPreferenceGate.assertAllowed(scope(binding.accountId)); sharedUnlockPreferences.assertNotDisabled(scope(binding.accountId)); },
       assertFreshAuthorization: (sequence, deadlineMs, hardDeadlineMs) => sharedUnlockExpiry.checkpoint(scope(binding.accountId), sequence, deadlineMs, hardDeadlineMs) }, sessionManager, api,
       (authorization, generation, assertOwnCurrent) => {
         assertOwnCurrent();
@@ -90,5 +92,28 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
   const unsubscribeGate = sharedUnlockPreferenceGate.subscribe(changed => {
     if (changed.apiUrl === route.apiUrl) coordinator.cancelPending(changed.accountId);
   });
-  return { close: () => { unsubscribeGate(); coordinator.close(); monitor.close(); } };
+  const unsubscribePreferences = sharedUnlockPreferences.subscribe(change => {
+    if (change.scope.apiUrl !== route.apiUrl) return;
+    try {
+      const current = sharedUnlockSource.snapshot();
+      if (change.preference && current.authorization?.accountId === change.scope.accountId && current.sourceGeneration) {
+        sharedUnlockSource.acceptPreference(change.preference, current.sourceGeneration);
+      }
+    } finally { coordinator.cancelPending(change.scope.accountId) }
+  });
+  const preferenceMonitor = startSharedUnlockPreferenceMonitor(route, {
+    nonce,
+    subscribe: changed => {
+      const removers = [sessionManager.hooks.onLocked(changed), sessionManager.hooks.onUnlocked(changed)];
+      return () => { for (const remove of removers) remove(); };
+    },
+    capture: () => {
+      const captured = sessionManager.captureSharedUnlockSettingsSession();
+      try {
+        return { session: captured.read(), signal: captured.signal,
+          assertCurrent: () => { captured.read(); }, dispose: () => captured.dispose() };
+      } catch (error) { captured.dispose(); throw error; }
+    },
+  }, sharedUnlockPreferences, api);
+  return { close: () => { unsubscribeGate(); unsubscribePreferences(); preferenceMonitor.close(); coordinator.close(); monitor.close(); } };
 }

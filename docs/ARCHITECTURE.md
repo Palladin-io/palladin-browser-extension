@@ -729,8 +729,8 @@ Local OFF/disconnect admission rejection leaves the browser route available for
 an explicit later resumption with fresh state/attempt IDs. Tests cover paused Web
 and Extension receivers, late crypto results and unrelated accounts. The shared
 Settings surface now calls this gate through the trusted worker command boundary.
-Full background account-preference propagation, disconnect/reconnect and the
-artifact matrix remain release gates.
+Background account-preference repair is connected below; disconnect/reconnect
+and the artifact matrix remain release gates.
 
 ## Shared account preference settings
 
@@ -757,5 +757,29 @@ source selection without changing its authority or deadlines. Settings surfaces
 refresh on value-free worker hints, focus and a fifteen-second interval; session
 hints invalidate old screen results. PL/EN, keyboard switching, two-host state,
 signed-out guidance, CAS/retry and real SessionManager lock/receiver races have
-focused tests. Full Web/Extension background invalidation, local trust display,
-disconnect/reconnect, native visual acceptance and the artifact matrix remain open.
+focused tests. Local trust display, disconnect/reconnect, native visual acceptance
+and the artifact matrix remain open.
+
+## Background account preference repair
+
+Each verified browser route reads the account preference through its own current
+Identity tokens on connection, own lifecycle changes and a fifteen-second repair
+interval. Only a successful own settings write sends a strict value-free
+`preference-invalidated` hint. The recipient performs its own GET; a peer never
+supplies an enabled value, account selector or bearer. Observations do not echo
+hints. Pending reads and outgoing verification have a two-second budget; reads
+coalesce to one in flight plus one pending refresh, at most one start per second.
+
+Account/API-scoped RAM observations reject older revisions. Observed OFF cancels
+source and receiver attempts and fences admission and final key installation.
+ON can wake a still-valid source, but cannot renew its root, keys or deadlines or
+clear a failed-save pause. Existing own sessions stay intact. Own lock/unlock
+clears observations; a rejected own JWT forgets only its transient observation,
+so it cannot permanently block a later independently authorized receiver.
+Network failure retains known OFF. Fresh Identity consume/commit authority and
+the durable local pause/link/expiry barriers remain required for any handoff.
+
+Worker reads use the token-only settings lease even while keys are locked, and
+dispose it on every completion or failed initial read. A restarted worker with
+no own JWT cannot use a peer hint as authority. Locked/restarted closing repair,
+real Identity/MK/Entry E2E and the complete browser artifact matrix remain gates.
