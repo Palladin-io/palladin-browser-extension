@@ -117,6 +117,7 @@ export async function verifySharedUnlockSettings({ page, popup, apiUrl,
   await unlockExtension(); await reveal()
   for (let attempt = 0; attempt < 6; attempt++) {
     assert(await page.locator('#unlock-password').isVisible(), 'Disconnected extension must not unlock Web')
+    await reveal()
     await new Promise(resolve => setTimeout(resolve, 500))
   }
   await extensionSettings(); await popup.waitSwitch('Shared unlock', true)
@@ -125,9 +126,11 @@ export async function verifySharedUnlockSettings({ page, popup, apiUrl,
 
   setStage('settings-extension-reconnect-needs-fresh-unlock')
   await popup.click('Reconnect'); await popup.click('Cancel'); await reveal()
+  setStage('settings-extension-confirmed-reconnect-keeps-both-locked')
   await popup.click('Reconnect'); await popup.click('Confirm'); await popup.click('Back')
   await popup.waitButton('Unlock'); await denyPeer()
   assert(await page.locator('#unlock-password').isVisible(), 'Reconnect alone cannot unlock Web')
+  setStage('settings-extension-fresh-unlock-restores-web')
   await unlockExtension(); await reveal()
   await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
   recordCheck('explicit-extension-reconnect-requires-fresh-unlock-and-restores-web')
