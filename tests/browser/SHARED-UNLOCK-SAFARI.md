@@ -17,6 +17,15 @@ During setup the owner grants only the already declared127.0.0.1 host through
 Safari's normal permission dialog. Backend and Web use distinct loopback ports;
 the product still checks exact configured origins.
 
+The first local run715b076 on macOS26.4.1 arm64 stopped at Safari session
+creation at19:46:42Z with the bounded category `remote-automation-disabled`.
+No account/Identity check ran. The configured Safari build, Python syntax,
+fixture JavaScript checks and staged secret scan passed. The actual Popup helper
+passed separately in CI34640667500 at19:48:09Z:15 account-free channel/UI checks,
+including the product's onboarding button and reopening a fresh Popup that
+retains the completed onboarding choice. Ordinary CI34640667407 also passed.
+That result does not validate the unexecuted Identity flow or Web build step.
+
 Prepare the isolated backend as in [Identity setup](SHARED-UNLOCK-IDENTITY.md),
 with API55083, verification links targeting127.0.0.1:5173 and SES delivery55084.
 Read the Web repository's instructions before invoking its build. Then run:
@@ -50,6 +59,10 @@ Preparation or a failure before Identity is not an accepted E2E result.
 
 ## Installed product channel
 
+The latest helper validation715b076 passed15 checks in run34640667500 at19:48:09Z.
+It adds real product onboarding activation and a closed/reopened native Popup
+to the13 checks below. Clean CI merge checkout9d668fa681be17da4666febd9a4b256c3fe3bd34;
+the original artifact and fixture hashes are unchanged from7deb6c9 below.
 The latest product probe7deb6c9 passed13 checks in run34639004301 at19:29:17Z
 on Safari26.6.2/macOS26.6.2 arm64. Ordinary CI34639004324 also passed.
 The three added checks distinguish native Popup authority from a tab: opening

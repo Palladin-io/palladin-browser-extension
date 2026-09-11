@@ -8,7 +8,22 @@ matrix or production support.
 
 ## Current acceptance status — 2026-09-11
 
-Latest native Safari run34639004301 (7deb6c9, runtime16ab8ea) passed13
+Safari Identity harness715b076 is implemented with real Web registration,
+browser-derived Safari recipient configuration and a random encrypted username
+as Entry proof. Each extension assertion reopens a fresh native Popup, so retained
+React state cannot pass it. Private Web bundles are temporary and excluded from
+retained artifacts; no auth/key injection or CSP changes are used.
+The local macOS26.4.1 attempt at19:46:42Z stopped before Identity with
+`remote-automation-disabled`. Zero Identity checks passed and local settings
+were not changed. Owner approval remains pending. Password autofill, restart,
+the full lifecycle/security/distribution matrix and final review remain open.
+
+The shared native Popup helper passed15 account-free checks in Safari
+CI34640667500 at19:48:09Z, including real onboarding completion and closing/reopening
+the Popup. Ordinary CI34640667407 passed1718 tests/141 files and all three builds.
+This validates the native UI mechanism, not the unexecuted Safari Identity flow.
+
+Earlier native Safari run34639004301 (7deb6c9, runtime16ab8ea) passed13
 instrumented product-channel/Popup checks at19:29:17Z. It proves that the native
 Popup can use the unchanged private-command guard, while a Popup URL in a tab
 and a cross-window API call from diagnostics retain tab authority and are rejected.
@@ -87,7 +102,7 @@ with a channel-only probe or a successful build.
 | Firefox140.0 | Temporary product XPI |16/16 PASS, new coordinator|18:01:57|
 | Firefox155.0.1 | Temporary product XPI |16/16 PASS, current runtime; earlier restart timeout remains open|19:29:14|
 | Opera135.0.5973.133 / engine151.0.7922.176 | Unpacked, browser CDP; headless |16/16 PASS|17:03:15|
-| Safari26.6.2 / macOS26.6.2 arm64 | Instrumented product worker/Popup, one-day loopback grant in disposable CI |13 channel/Popup authority checks; Identity/MK/Entry unverified|19:29:17|
+| Safari26.6.2 / macOS26.6.2 arm64 | Instrumented product worker/Popup, one-day loopback grant in disposable CI |15 channel/Popup authority/UI checks; Identity/MK/Entry unverified|19:48:09|
 
 The16 baseline checks cover real registration/email/password login, automatic unlock,
 live encrypted Entry/password decryption, continued operation after Web closure,

@@ -171,7 +171,14 @@ except Exception as error:
     if browser:
         if hasattr(browser, 'popup_url'):
             try:
-                popup_state = browser.native_evaluate('''(()=>{const t=document.body.innerText;return {
+                popup_state = browser.native_evaluate('''(async()=>{
+                  const t=document.body.innerText;
+                  let runtimeStatus='unavailable';
+                  try {
+                    const response=await chrome.runtime.sendMessage({type:'session/status'});
+                    if(response?.ok===true && ['signed-out','locked','unlocked'].includes(response.status)) runtimeStatus=response.status;
+                  } catch { }
+                  return {runtimeStatus,
                   onboarding:t.includes('Continue to Palladin'),unlocked:t.includes('Unlocked'),
                   signIn:t.includes('Sign in'),unlock:t.includes('Unlock'),retry:t.includes('Try again'),
                   empty:t.includes('No entries yet'),entryVisible:t.includes('Synthetic shared unlock proof'),unreachable:t.includes("Couldn't reach Palladin"),
