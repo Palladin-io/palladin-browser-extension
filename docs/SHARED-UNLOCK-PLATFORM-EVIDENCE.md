@@ -851,3 +851,34 @@ tab context and document IDs checked against webNavigation, with a new ID after
 same-URL reload. This is still account/key-free; the product adapter, private-window
 rejection, full lifecycle and real Identity/Entry acceptance remain required.
 Details and the earlier setup failures are retained in the Safari probe note.
+
+## Review corrections, 2026-09-12
+
+Round 1 of Extension PR43 on b1db5ad reported two confirmed P1 defects and a
+Safari compatibility finding. The worker no longer records an inline fill as
+own activity: passive exact-host fill remains automatic, but cannot renew local
+or Identity idle. Only the separately validated native surface activity channel
+records its original observed timestamp. TOTP completion now holds the same
+manual-login exclusion as password login through account retrieval, envelope
+persistence, sharing preparation and key publication. It rejects concurrent
+manual attempts and shared receiver admission during that interval.
+
+The worker composition guard and two real SessionManager TOTP regressions failed
+before the fixes; 155 focused tests pass afterward. Full suite: 1721 tests in 142
+files PASS with two workers; all three target builds/typecheck/docs/icons PASS.
+The first default-worker run had 30 failures in 11 files (timeouts and late async
+assertions); it is retained, not counted as passing. No timeout was increased.
+Safari's AbortSignal.any compatibility finding remains open and is scheduled
+last by the owner. These fixes do not establish Safari acceptance.
+
+Web ede6a3a separately fixes automatic login routing and serializes final receiver
+publication with durable local denial locks. A native Chromium153/macOS26.4.1
+arm64/local-unpacked run at 2026-09-11T22:15:30.971Z on initially clean Web ede6a3a,
+Extension b1db5ad and Backend dde6bb96 passed 38 checks, then failed at manual
+unlock after a full browser restart: Web unlocked but the Extension stayed locked;
+no authorize/activate request was observed in that stage. This failure remains
+unresolved. Archive: failure.web-review-full-restart.json under the ignored
+Identity test results. The earlier zero-check registration failure used mismatched
+localhost/127.0.0.1 harness origins, so the network allowlist blocked requests;
+that separate failure is also retained. Earlier 41/38 and account-isolation passes
+remain evidence only for their own recorded artifacts and scopes.

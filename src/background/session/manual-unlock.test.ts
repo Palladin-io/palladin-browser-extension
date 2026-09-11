@@ -131,3 +131,34 @@ it("persists the final shorter policy before keys on both own login and password
   expect(checkpoint).toHaveBeenCalledTimes(2);
   expect(Object.keys(h.manager.getSharedUnlockLimits()!)).not.toContain("checkpoint");
 });
+
+it.each(['account read', 'sharing preparation'] as const)(
+  'keeps TOTP completion exclusive through %s', async boundary => {
+    let release!: () => void, entered!: () => void;
+    const stalled = new Promise<void>(resolve => { release = resolve; });
+    const reached = new Promise<void>(resolve => { entered = resolve; });
+    const prepare = vi.fn<PrepareManualUnlock>().mockImplementation(async context => {
+      if (boundary === 'sharing preparation') { entered(); await stalled; }
+      context.assertCurrent(); return context.limits;
+    });
+    const h = harness(prepare, { totpRequired: true });
+    if (boundary === 'account read') {
+      const getAccount = h.auth.getAccount.bind(h.auth);
+      vi.spyOn(h.auth, 'getAccount').mockImplementation(async (...args) => {
+        entered(); await stalled; return getAccount(...args);
+      });
+    }
+    await h.manager.login(account.email, account.password);
+    const completing = h.manager.completeTotp('challenge-1', '123456');
+    await reached;
+    try {
+      expect(h.manager.getKeys()).toBeNull();
+      await expect(h.manager.beginSharedUnlockInstall(account.accountId, 'https://api.test', () => {})).rejects.toThrow();
+      await expect(h.manager.beginSharedUnlockInstall('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'https://api.test', () => {})).rejects.toThrow();
+      await expect(h.manager.login(account.email, account.password)).rejects.toThrow('already in progress');
+      await expect(h.manager.completeTotp('challenge-1', '123456')).rejects.toThrow('already in progress');
+    } finally { release(); await completing; }
+    expect(await h.manager.getStatus()).toBe('unlocked');
+    await h.manager.logout();
+  },
+);

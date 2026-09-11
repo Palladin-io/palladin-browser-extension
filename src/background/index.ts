@@ -329,7 +329,8 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
         getMetadata: () => vaultData.getMetadata(),
         recency: inlineAutofillRecency,
         fill: async (source, vaultId, entryId, scope, loginTargetId) => {
-          await sessionManager.touchActivity();
+          // This channel includes passive exact-host autofill. A fill request
+          // is not trusted own activity and must never renew session deadlines.
           return fillInlineSelectedEntry(
             vaultCommandDeps,
             source,

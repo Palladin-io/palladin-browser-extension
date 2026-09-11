@@ -585,6 +585,15 @@ export class SessionManager {
    * password stays on the client; only `authCredential` is sent.
    */
   async login(email: string, password: string): Promise<LoginResult> {
+    this.beginManualLogin();
+    try {
+      return await this.performLogin(email, password);
+    } finally {
+      this.loginInFlight = false;
+    }
+  }
+
+  private beginManualLogin(): void {
     if (this.loginInFlight) {
       throw new SessionError("network", "Another sign-in attempt is already in progress");
     }
@@ -594,11 +603,6 @@ export class SessionManager {
     this.sharedUnlockReceiverAbort?.abort();
     this.sharedUnlockReceiverAbort = null;
     this.loginInFlight = true;
-    try {
-      return await this.performLogin(email, password);
-    } finally {
-      this.loginInFlight = false;
-    }
   }
 
   private async performLogin(email: string, password: string): Promise<LoginResult> {
@@ -679,6 +683,17 @@ export class SessionManager {
     challengeToken: string,
     code: string,
   ): Promise<void> {
+    // The password step has settled, but factor verification and session
+    // establishment still own the manual-login exclusion through publication.
+    this.beginManualLogin();
+    try {
+      await this.performTotpCompletion(challengeToken, code);
+    } finally {
+      this.loginInFlight = false;
+    }
+  }
+
+  private async performTotpCompletion(challengeToken: string, code: string): Promise<void> {
     const pending = this.pendingTotp;
     const generation = this.captureLifecycleGeneration();
     if (
