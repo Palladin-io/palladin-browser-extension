@@ -15,7 +15,7 @@ export interface SharedUnlockReceiverRoute {
   readonly binding: Pick<SharedUnlockContext, "accountId" | "organizationId" | "apiOrigin" | "webOrigin"
     | "extensionId" | "documentBinding" | "webGeneration" | "extensionGeneration" | "linkId" | "linkEpoch" | "preferenceRevision">;
   assertCurrent(): void;
-  assertFreshAuthorization?(sequence: number, deadlineMs: number): Promise<void | number>;
+  assertFreshAuthorization?(sequence: number, deadlineMs: number, hardDeadlineMs: number): Promise<void | number>;
 }
 
 /** Internal inherited-authority metadata, never a wire ACK. */
@@ -145,7 +145,7 @@ export async function beginSharedUnlockReceiver(route: SharedUnlockReceiverRoute
             kdf: { securityVersion: descriptor.securityVersion, minimumSecurityVersion: descriptor.minimumSecurityVersion,
               profileId: descriptor.kdfProfileId, kdfSalt: descriptor.kdfSalt } },
           checkpoint: async deadlineMs => {
-            const persisted = await wait(route.assertFreshAuthorization?.(commit.authorizationSequence, deadlineMs) ?? Promise.resolve());
+            const persisted = await wait(route.assertFreshAuthorization?.(commit.authorizationSequence, deadlineMs, Math.min(commit.context.absoluteDeadlineMs, commit.context.offlineDeadlineMs)) ?? Promise.resolve());
             assertCurrent();
             return persisted ?? deadlineMs;
           },

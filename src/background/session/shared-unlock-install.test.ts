@@ -1,3 +1,8 @@
+import { SharedUnlockApi } from "../shared-unlock/api";
+import { SharedUnlockSourceAuthority } from "../shared-unlock/source-authority";
+import { OwnSharedUnlockActivityRecorder } from "../shared-unlock/own-activity";
+import { recordExtensionOwnActivity } from "../shared-unlock/own-activity-runtime";
+import sharedUnlockFixtures from "../shared-unlock/fixtures/session-api-v1.json";
 import { SharedUnlockExpiryStore } from '../shared-unlock/expiry-store';
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { fromBase64, openBrowserSessionEnvelope, toBase64Url, wipe } from "@palladin/crypto";
@@ -27,7 +32,7 @@ beforeAll(async () => {
 const fresh = (): SharedUnlockInstallation => ({
   ...installation, keys: { masterKey: installation.keys.masterKey.slice(), privateKey: installation.keys.privateKey.slice() },
 });
-function harness(storage = new FakeStorageArea(), retireSharedUnlock?: (scope: { userId: string; apiUrl: string }) => void) {
+function harness(storage = new FakeStorageArea(), retireSharedUnlock?: (scope: { userId: string; apiUrl: string }) => void, onOwnActivity?: () => void) {
   const now = { value: 1_000_000 };
   const environment = { value: apiUrl };
   const alarms = new FakeAlarms();
@@ -37,7 +42,7 @@ function harness(storage = new FakeStorageArea(), retireSharedUnlock?: (scope: {
   const hooks = new SessionHooks();
   let manager: SessionManager;
   const autoLock = new AutoLock(alarms, () => { void manager.lock(); });
-  manager = new SessionManager({ store, authClient: auth, autoLock, hooks, ...(retireSharedUnlock ? { retireSharedUnlock } : {}), now: () => now.value });
+  manager = new SessionManager({ store, authClient: auth, autoLock, hooks, ...(onOwnActivity ? { onOwnActivity } : {}), ...(retireSharedUnlock ? { retireSharedUnlock } : {}), now: () => now.value });
   return { manager, store, storage, alarms, environment, now, hooks, auth };
 }
 const erased = (value: SharedUnlockInstallation) => {
@@ -357,4 +362,34 @@ it("does not let a delayed older input overwrite a newer activity deadline", asy
   expect(h.manager.getSharedUnlockLimits()?.idleDeadlineMs).toBe(latestDeadline);
   expect(h.alarms.whenFor(AUTO_LOCK_ALARM)).toBe(latestDeadline);
   await h.manager.lock();
+});
+
+it("connects admitted real SessionManager input to only its own Identity root and durable checkpoint", async () => {
+  const values: Record<string, unknown> = {};
+  const h = harness(new FakeStorageArea(), undefined, () => recordExtensionOwnActivity(h.manager, authority, recorder));
+  const now = vi.spyOn(Date, "now").mockImplementation(() => h.now.value);
+  const value = fresh();
+  const root = { ...sharedUnlockFixtures.operations[0].sourceAuthorization, ...value.limits, accountId: account.accountId };
+  const fetcher = vi.fn<typeof fetch>(async (url, init) => {
+    expect(String(url)).toBe(apiUrl + "/api/account/shared-unlock/authorizations/activity");
+    expect(new Headers(init?.headers).get("authorization")).toBe("Bearer receiver-own-access");
+    const input = JSON.parse(String(init?.body));
+    expect(input.refreshToken).toBe("receiver-own-refresh");
+    return new Response(JSON.stringify({ ...root, idleDeadlineMs: input.idleDeadlineMs }));
+  });
+  const api = new SharedUnlockApi(fetcher, () => apiUrl);
+  const authority = new SharedUnlockSourceAuthority(api, () => h.now.value);
+  const expiry = new SharedUnlockExpiryStore({ get: async () => values, set: async items => { Object.assign(values, items); } }, action => action(), () => h.now.value);
+  const recorder = new OwnSharedUnlockActivityRecorder(api, expiry);
+  try {
+    await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install(value);
+    authority.adopt(root, "A".repeat(43), { sharedUnlockEnabled: true, revision: 1 }, () => { if (!h.manager.getKeys()) throw new Error("own keys locked"); });
+    await expiry.checkpoint({ apiUrl, accountId: account.accountId }, root.sequence, value.limits.idleDeadlineMs, value.limits.offlineDeadlineMs);
+    h.now.value += 100;
+    await h.manager.touchActivity(h.now.value);
+    await vi.waitFor(() => expect(authority.snapshot().authorization?.idleDeadlineMs).toBe(value.limits.offlineDeadlineMs));
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(h.manager.getSharedUnlockLimits()?.absoluteDeadlineMs).toBe(value.limits.absoluteDeadlineMs);
+    expect(await expiry.checkpoint({ apiUrl, accountId: account.accountId }, root.sequence, value.limits.absoluteDeadlineMs, value.limits.offlineDeadlineMs)).toBe(value.limits.offlineDeadlineMs);
+  } finally { await h.manager.lock(); authority.reset(); now.mockRestore(); }
 });

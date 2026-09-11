@@ -6,11 +6,15 @@ interface ExpiryStorage {
   set(values: Record<string, unknown>): Promise<void>;
 }
 const sequenceSchema = z.number().int().min(0).max(0xffff_ffff);
-const checkpointSchema = z.object({ sequence: sequenceSchema, deadlineMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER) }).strict();
+const timeSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+const legacyCheckpointSchema = z.object({ sequence: sequenceSchema, deadlineMs: timeSchema }).strict();
+const checkpointSchema = legacyCheckpointSchema.extend({ hardDeadlineMs: timeSchema }).strict()
+  .refine(value => value.deadlineMs <= value.hardDeadlineMs, "Checkpoint exceeds its hard ceiling");
 const fields = { apiUrl: z.string().min(1).max(2048), accountId: z.string().uuid(), throughSequence: sequenceSchema };
 const schema = z.union([
   z.object({ version: z.literal(1), ...fields }).strict(),
-  z.object({ version: z.literal(2), ...fields, checkpoint: checkpointSchema.nullable() }).strict(),
+  z.object({ version: z.literal(2), ...fields, checkpoint: legacyCheckpointSchema.nullable() }).strict(),
+  z.object({ version: z.literal(3), ...fields, checkpoint: checkpointSchema.nullable() }).strict(),
 ]);
 type Checkpoint = z.infer<typeof checkpointSchema>;
 interface RecordState { throughSequence: number; checkpoint: Checkpoint | null }
@@ -18,7 +22,7 @@ const mergeCheckpoint = (a: Checkpoint | null, b: Checkpoint | null): Checkpoint
   if (!a) return b;
   if (!b) return a;
   if (a.sequence !== b.sequence) return a.sequence > b.sequence ? a : b;
-  return { sequence: a.sequence, deadlineMs: Math.min(a.deadlineMs, b.deadlineMs) };
+  return { sequence: a.sequence, deadlineMs: Math.min(a.deadlineMs, b.deadlineMs), hardDeadlineMs: Math.min(a.hardDeadlineMs, b.hardDeadlineMs) };
 };
 
 /** Denial-only metadata from a previously verified own Identity root. No key,
@@ -37,7 +41,7 @@ export class SharedUnlockExpiryStore {
   private readonly storage: ExpiryStorage;
   private readonly exclusive: <T>(action: () => Promise<T>) => Promise<T>;
   constructor(storage: ExpiryStorage, exclusive: <T>(action: () => Promise<T>) => Promise<T> = action => action(),
-    private readonly now: () => number = Date.now) {
+    private readonly now: () => number = () => Date.now()) {
     this.storage = storage; this.exclusive = exclusive;
   }
   advance(scope: SharedUnlockExpiryScope, sequence: number): Promise<void> {
@@ -51,13 +55,36 @@ export class SharedUnlockExpiryStore {
   }
   /** Called with verified OWN Identity sequence and effective own limits before
    * publishing keys/authority. A new document/worker cannot renew the same root. */
-  checkpoint(scope: SharedUnlockExpiryScope, sequence: number, deadlineMs: number): Promise<number> {
+  checkpoint(scope: SharedUnlockExpiryScope, sequence: number, deadlineMs: number, hardDeadlineMs = deadlineMs): Promise<number> {
     const selected = { ...scope };
-    this.queue(selected, { throughSequence: 0, checkpoint: { sequence, deadlineMs } });
+    this.queue(selected, { throughSequence: 0, checkpoint: { sequence, deadlineMs: Math.min(deadlineMs, hardDeadlineMs), hardDeadlineMs } });
     return this.serial(async () => {
       const record = await this.readAndRepair(selected);
       this.assertSequence(record, sequence);
       return record.checkpoint!.deadlineMs;
+    });
+  }
+  /** Only real own input with an independently captured live key/session/root
+   * may call this. Handoff/checkpoint, peer messages and restart never renew. */
+  renewOwn(scope: SharedUnlockExpiryScope, sequence: number, deadlineMs: number, assertOwnCurrent: () => void): Promise<void> {
+    const selected = { ...scope };
+    assertOwnCurrent();
+    return this.serial(async () => {
+      assertOwnCurrent();
+      const record = await this.readAndRepair(selected);
+      assertOwnCurrent();
+      this.assertSequence(record, sequence);
+      const checkpoint = record.checkpoint;
+      if (!checkpoint || checkpoint.sequence !== sequence) throw new Error("Shared unlock own checkpoint unavailable");
+      const next = { ...checkpoint, deadlineMs: Math.max(checkpoint.deadlineMs, Math.min(deadlineMs, checkpoint.hardDeadlineMs)) };
+      // A renewal is never placed in the failed-write repair queue: only a
+      // successful write by this still-live owner may relax an idle denial.
+      if (next.deadlineMs > checkpoint.deadlineMs) {
+        await this.storage.set({ [this.key(selected)]: { version: 3, apiUrl: selected.apiUrl, accountId: selected.accountId, ...record, checkpoint: next } });
+        assertOwnCurrent();
+        const latest = this.merge({ ...record, checkpoint: next }, this.pending.get(this.key(selected)));
+        this.assertSequence(latest, sequence);
+      }
     });
   }
   private assertSequence(record: RecordState, sequence: number): void {
@@ -85,11 +112,13 @@ export class SharedUnlockExpiryStore {
     if (Object.hasOwn(values, key)) {
       const parsed = schema.safeParse(values[key]);
       if (!parsed.success || parsed.data.apiUrl !== scope.apiUrl || parsed.data.accountId !== scope.accountId) throw new Error("Shared unlock expiry record unavailable");
-      previous = { throughSequence: parsed.data.throughSequence, checkpoint: parsed.data.version === 2 ? parsed.data.checkpoint : null };
+      previous = { throughSequence: parsed.data.throughSequence, checkpoint: parsed.data.version === 1 || !parsed.data.checkpoint ? null
+        : parsed.data.version === 3 ? parsed.data.checkpoint
+          : { ...parsed.data.checkpoint, hardDeadlineMs: parsed.data.checkpoint.deadlineMs } };
     }
     const pending = this.pending.get(key), record = this.merge(previous, pending);
     if (pending || previous.throughSequence !== record.throughSequence) {
-      await this.storage.set({ [key]: { version: 2, apiUrl: scope.apiUrl, accountId: scope.accountId, ...record } });
+      await this.storage.set({ [key]: { version: 3, apiUrl: scope.apiUrl, accountId: scope.accountId, ...record } });
       if (this.pending.get(key) === pending) this.pending.delete(key);
     }
     // A later synchronous retirement and time passing during storage still fence admission.

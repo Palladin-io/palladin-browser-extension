@@ -80,6 +80,8 @@ export interface SessionManagerDeps {
   durableSessionTtlMs?: number;
   /** Optional sharing preparation never prevents the client's own manual unlock. */
   prepareManualUnlock?: PrepareManualUnlock;
+  /** Only after successfully admitted own input updates the live local limits. */
+  onOwnActivity?: () => void;
   /** Explicit popup action only; expiry/security cleanup never invokes this. */
   recordManualClosing?: (accountId: string, action: "lock" | "logout") => Promise<void>;
   retireSharedUnlock?: (scope: Pick<SessionTokens, "userId" | "apiUrl">) => void;
@@ -130,6 +132,7 @@ export class SessionManager {
   private readonly clientId: string;
   private readonly durableSessionTtlMs: number;
   private readonly prepareManualUnlock: PrepareManualUnlock | undefined;
+  private readonly onOwnActivity: SessionManagerDeps["onOwnActivity"];
   private readonly recordManualClosing: SessionManagerDeps["recordManualClosing"];
   private readonly retireSharedUnlock: SessionManagerDeps["retireSharedUnlock"];
   private readonly deliverManualClosing: SessionManagerDeps["deliverManualClosing"];
@@ -173,6 +176,7 @@ export class SessionManager {
     this.clientId = deps.clientId ?? "palladin-browser-extension-test-client";
     this.durableSessionTtlMs = deps.durableSessionTtlMs ?? DURABLE_SESSION_TTL_MS;
     this.prepareManualUnlock = deps.prepareManualUnlock;
+    this.onOwnActivity = deps.onOwnActivity;
     this.recordManualClosing = deps.recordManualClosing;
     this.retireSharedUnlock = deps.retireSharedUnlock;
     this.deliverManualClosing = deps.deliverManualClosing;
@@ -1350,6 +1354,7 @@ export class SessionManager {
     this.autoLock.arm(policy, at, this.sharedUnlockLimits ? unlockDeadline(this.sharedUnlockLimits) : undefined);
     const idle = policyIdleMs(policy);
     this.sharedUnlockLocalDeadline = idle === null ? Infinity : at + idle;
+    try { this.onOwnActivity?.(); } catch { /* Optional sharing cannot undo ordinary own activity. */ }
   }
 
   async getAutoLockPolicy(): Promise<AutoLockPolicy> {

@@ -31,16 +31,16 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
   const monitor = startSharedUnlockLinkMonitor(route, {
     nonce, subscribe,
     capture: () => {
-      const state = sharedUnlockSource.snapshot();
-      if (!state.authorization || !state.sourceGeneration) return null;
+      const root = sharedUnlockSource.closingWitness();
+      if (!root) return null;
       const captured = sessionManager.captureSharedUnlockSource();
       try {
-        const session = captured.read().tokens, root = state.authorization;
+        const session = captured.read().tokens;
         return { session, sequence: root.sequence, signal: captured.signal, dispose: () => captured.dispose(),
           assertCurrent: () => {
             captured.read();
-            const current = sharedUnlockSource.snapshot();
-            if (current.authorization?.authorizationId !== root.authorizationId || current.sourceGeneration !== state.sourceGeneration) throw new Error("Shared link own root changed");
+            const current = sharedUnlockSource.closingWitness();
+            if (current?.authorizationId !== root.authorizationId || current.sourceGeneration !== root.sourceGeneration) throw new Error("Shared link own root changed");
           } };
       } catch (error) { captured.dispose(); throw error; }
     },
@@ -73,7 +73,7 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
     },
     source: (binding, signal, assertCurrent) => beginSharedUnlockSource({ apiUrl: route.apiUrl, binding, signal, assertCurrent }, sessionManager, sharedUnlockSource, api),
     receiver: (binding, signal, assertCurrent) => beginSharedUnlockReceiver({ apiUrl: route.apiUrl, binding, signal, assertCurrent,
-      assertFreshAuthorization: (sequence, deadlineMs) => sharedUnlockExpiry.checkpoint(scope(binding.accountId), sequence, deadlineMs) }, sessionManager, api,
+      assertFreshAuthorization: (sequence, deadlineMs, hardDeadlineMs) => sharedUnlockExpiry.checkpoint(scope(binding.accountId), sequence, deadlineMs, hardDeadlineMs) }, sessionManager, api,
       (authorization, generation, assertOwnCurrent) => {
         assertOwnCurrent();
         sharedUnlockExpiry.remember(scope(binding.accountId), authorization.sequence);

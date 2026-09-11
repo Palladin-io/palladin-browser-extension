@@ -1,3 +1,5 @@
+import { recordExtensionOwnActivity } from "../shared-unlock/own-activity-runtime";
+import { OwnSharedUnlockActivityRecorder } from "../shared-unlock/own-activity";
 import { persistManualSharedUnlockDeadline } from "../shared-unlock/manual-checkpoint";
 /**
  * Composition root: build the one live {@link SessionManager} from the real
@@ -62,14 +64,17 @@ export const sharedUnlockSource = new SharedUnlockSourceAuthority(sharingApi, Da
   }, (root, session) => {
     const scope = { accountId: session.userId, apiUrl: session.apiUrl };
     sharedUnlockExpiry.remember(scope, root.sequence);
-    return sharedUnlockExpiry.checkpoint(scope, root.sequence, Math.min(root.idleDeadlineMs, root.absoluteDeadlineMs, root.offlineDeadlineMs));
+    return sharedUnlockExpiry.checkpoint(scope, root.sequence, Math.min(root.idleDeadlineMs, root.absoluteDeadlineMs, root.offlineDeadlineMs), Math.min(root.absoluteDeadlineMs, root.offlineDeadlineMs));
   });
+
+const activityRecorder = new OwnSharedUnlockActivityRecorder(sharingApi, sharedUnlockExpiry);
 
 manager = new SessionManager({
   store: new SessionStore(durableStorageArea, legacySessionStorageArea),
   authClient: new AuthClient((...args) => fetch(...args), () => serverConfig.apiUrl),
   autoLock: sessionAutoLock,
   clientId: runtimeClientId,
+  onOwnActivity: () => recordExtensionOwnActivity(manager, sharedUnlockSource, activityRecorder),
   retireSharedUnlock: scope => sharedUnlockExpiry.retire({ accountId: scope.userId, apiUrl: scope.apiUrl }),
   prepareManualUnlock: async context => {
     const root = await sharedUnlockSource.prepare(context);
@@ -78,7 +83,7 @@ manager = new SessionManager({
       { accountId: context.tokens.userId, apiUrl: context.tokens.apiUrl }, root.sequence,
       deadlineMs, sharedUnlockExpiry, context.assertCurrent, () => {
         if (sharedUnlockSource.snapshot().authorization?.authorizationId === root.authorizationId) sharedUnlockSource.reset();
-      }) };
+      }, Math.min(root.absoluteDeadlineMs, root.offlineDeadlineMs)) };
   },
   deliverManualClosing: (session, check) => deliverSharedUnlockClosings(linkScopes(session.userId, session.apiUrl),
     session, sharedUnlockLinks, sharingApi, check),

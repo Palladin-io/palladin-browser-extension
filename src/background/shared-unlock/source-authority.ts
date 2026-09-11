@@ -23,6 +23,37 @@ export class SharedUnlockSourceAuthority {
     private readonly beforeAuthorize?: (session: ManualUnlockContext["tokens"], signal: AbortSignal, check: () => void) => Promise<void>,
     private readonly onAuthorized?: (authorization: SharedUnlockAuthorization, session: ManualUnlockContext["tokens"]) => void | number | Promise<number>) {}
 
+  private closingRoot: { authorizationId: string; sequence: number; sourceGeneration: string } | null = null;
+  /** RAM-only closing witness for this own key generation. Expiry removes sharing
+   * authority, but must not disable authenticated lock/logout repair. */
+  closingWitness() {
+    try { this.checkSession?.(); } catch { this.reset(); }
+    return this.closingRoot ? { ...this.closingRoot } : null;
+  }
+
+  private readonly activities = new Set<symbol>();
+  /** Borrowed own RAM authority for input already admitted by the local key
+   * session. A pending own renewal never advertises an expired source to peers. */
+  captureActivity() {
+    this.checkSession?.();
+    const root = this.state.authorization, generation = this.state.sourceGeneration;
+    if (!root || !generation || (this.activities.size === 0 && this.now() >= Math.min(root.idleDeadlineMs, root.absoluteDeadlineMs, root.offlineDeadlineMs))) {
+      throw new SharedUnlockApiError("cancelled");
+    }
+    const version = this.version, ticket = Symbol();
+    this.activities.add(ticket);
+    const assertCurrent = () => {
+      if (version !== this.version || !this.activities.has(ticket) || this.state.authorization?.authorizationId !== root.authorizationId
+        || this.state.sourceGeneration !== generation) throw new SharedUnlockApiError("cancelled");
+      this.checkSession?.();
+      if (version !== this.version || !this.activities.has(ticket)) throw new SharedUnlockApiError("cancelled");
+    };
+    return { authorization: { ...root }, generation, assertCurrent,
+      apply: (authorization: SharedUnlockAuthorization) => { assertCurrent(); this.state = { ...this.state, authorization: { ...authorization } }; this.notify(); },
+      dispose: () => { this.activities.delete(ticket); },
+    };
+  }
+
   private readonly listeners = new Set<() => void>();
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
@@ -43,11 +74,14 @@ export class SharedUnlockSourceAuthority {
     this.reset();
     assertOwnCurrent();
     this.checkSession = assertOwnCurrent;
+    this.closingRoot = { authorizationId: authorization.authorizationId, sequence: authorization.sequence, sourceGeneration: generation };
     this.state = { authorization: { ...authorization }, preference: selectedPreference, sourceGeneration: generation, failure: null };
     this.notify();
   }
 
   reset(): void {
+    this.closingRoot = null;
+    this.activities.clear();
     this.version += 1;
     this.controller?.abort();
     this.controller = null;
@@ -62,7 +96,11 @@ export class SharedUnlockSourceAuthority {
     try {
       this.checkSession?.();
       const a = this.state.authorization;
-      if (a && this.now() >= Math.min(a.idleDeadlineMs, a.absoluteDeadlineMs, a.offlineDeadlineMs)) this.reset();
+      if (a && this.now() >= Math.min(a.idleDeadlineMs, a.absoluteDeadlineMs, a.offlineDeadlineMs)) {
+        const expired = { ...this.state, authorization: null, sourceGeneration: null };
+        if (!this.activities.size) this.state = expired;
+        return { ...expired, preference: expired.preference ? { ...expired.preference } : null };
+      }
     } catch { this.reset(); }
     return { ...this.state,
       preference: this.state.preference ? { ...this.state.preference } : null,
@@ -121,6 +159,7 @@ export class SharedUnlockSourceAuthority {
       });
       if (persistedDeadline !== undefined) authorization = { ...authorization, idleDeadlineMs: Math.min(authorization.idleDeadlineMs, persistedDeadline) };
       check();
+      this.closingRoot = { authorizationId: authorization.authorizationId, sequence: authorization.sequence, sourceGeneration: generation };
       this.checkSession = context.assertCurrent;
       this.state = { preference, authorization, sourceGeneration: generation, failure: null };
       return authorization;

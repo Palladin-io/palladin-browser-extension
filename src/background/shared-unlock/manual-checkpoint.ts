@@ -4,13 +4,13 @@ import type { SharedUnlockExpiryScope, SharedUnlockExpiryStore } from "./expiry-
  * can share. Failure disables only that root's sharing, preserving ordinary
  * password unlock; an already successful initial checkpoint fences older roots. */
 export async function persistManualSharedUnlockDeadline(scope: SharedUnlockExpiryScope, sequence: number,
-  deadlineMs: number, store: SharedUnlockExpiryStore, assertCurrent: () => void, disableOwnSharing: () => void): Promise<number> {
+  deadlineMs: number, store: SharedUnlockExpiryStore, assertCurrent: () => void, disableOwnSharing: () => void, hardDeadlineMs = deadlineMs): Promise<number> {
   assertCurrent();
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const until = Date.now() + 2_000;
   try {
     const saved = await Promise.race([
-      store.checkpoint(scope, sequence, deadlineMs),
+      store.checkpoint(scope, sequence, deadlineMs, hardDeadlineMs),
       new Promise<never>((_resolve, reject) => { timeout = setTimeout(() => reject(new Error("Shared unlock checkpoint unavailable")), 2_000); }),
     ]);
     assertCurrent();

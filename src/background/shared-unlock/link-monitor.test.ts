@@ -1,3 +1,5 @@
+import { SharedUnlockSourceAuthority } from "./source-authority";
+import fixtures from "./fixtures/session-api-v1.json";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startSharedUnlockLinkMonitor } from "./link-monitor";
 import { SharedUnlockApi } from "./api";
@@ -8,7 +10,7 @@ import type { SharedUnlockLink } from "./api-types";
 const accountId = "11111111-1111-4111-8111-111111111111", linkId = "22222222-2222-4222-8222-222222222222";
 const hint: SharedUnlockOperationMessage = { attemptId: "A".repeat(43), payload: { kind: "link-invalidated" } };
 const tick = () => vi.advanceTimersByTimeAsync(0);
-async function setup() {
+async function setup(authority?: SharedUnlockSourceAuthority) {
   let values: Record<string, unknown> = {}, failWrite = false;
   const storage = { get: async () => structuredClone(values), set: async (next: Record<string, unknown>) => { if (failWrite) throw new Error("disk"); values = { ...values, ...structuredClone(next) }; }, remove: async () => {} };
   const store = new SharedUnlockLinkStore(storage, () => crypto.randomUUID());
@@ -28,10 +30,12 @@ async function setup() {
     nonce: async () => "A".repeat(43), subscribe: listener => { watchers.add(listener); return () => { watchers.delete(listener); }; },
     capture: () => {
       if (!state.unlocked) return null;
+      const witness = authority?.closingWitness();
+      if (authority && !witness) return null;
       const generation = state.generation, abort = new AbortController();
       return { session: { apiUrl: scope.apiUrl, userId: accountId, accessToken: "own-access", refreshToken: "own-refresh" },
-        sequence: state.sequence, signal: abort.signal, dispose: () => { disposed(); abort.abort(); },
-        assertCurrent: () => { if (!state.unlocked || state.generation !== generation) throw new Error("own changed"); } };
+        sequence: witness?.sequence ?? state.sequence, signal: abort.signal, dispose: () => { disposed(); abort.abort(); },
+        assertCurrent: () => { if ((authority && authority.closingWitness()?.authorizationId !== witness?.authorizationId) || !state.unlocked || state.generation !== generation) throw new Error("own changed"); } };
     }, closeSession,
   }, store, new SharedUnlockApi(fetcher, () => scope.apiUrl));
   return { state, route, store, scope, fetcher, closeSession, disposed, failWrite: () => { failWrite = true; },
@@ -89,4 +93,22 @@ describe("installed own root repair after a peer hint", () => {
     expect(sharedUnlockOperationSchema.safeParse(hint).success).toBe(true);
     expect(sharedUnlockOperationSchema.safeParse({ ...hint, payload: { ...hint.payload, action: "logout", accountId } }).success).toBe(false);
   });
+});
+
+
+it.each(["lock", "logout"] as const)("still repairs %s after sharing authority expired in a live own session", async action => {
+  const root = { ...fixtures.operations[0].sourceAuthorization, accountId, sequence: 7 };
+  let now = root.unlockedAtMs + 1;
+  const authority = new SharedUnlockSourceAuthority(new SharedUnlockApi(vi.fn<typeof fetch>(), () => "https://api.test"), () => now);
+  authority.adopt(root, "A".repeat(43), { sharedUnlockEnabled: true, revision: 1 }, () => {});
+  const f = await setup(authority); await tick();
+  now = root.idleDeadlineMs;
+  expect(authority.snapshot().authorization).toBeNull();
+  expect(() => authority.captureActivity()).toThrow();
+  f.state.link = { ...f.state.link, revision: 3, epoch: 3, state: "locked", lastInvalidationSequence: 8, lastLogoutSequence: action === "logout" ? 8 : 0 };
+  f.emit(); await vi.advanceTimersByTimeAsync(1000);
+  expect(f.closeSession).toHaveBeenCalledExactlyOnceWith(action);
+  expect(f.fetcher.mock.calls[1][1]).toMatchObject({ headers: { authorization: "Bearer own-access" } });
+  expect(authority.snapshot().authorization).toBeNull();
+  f.close();
 });

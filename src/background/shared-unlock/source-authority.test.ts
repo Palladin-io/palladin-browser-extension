@@ -69,7 +69,7 @@ describe("manual authority cancellation", () => {
     expect(context.authCredential).toEqual(new Uint8Array(32));
   });
 
-  it("does not retain an expired or locally invalidated root", async () => {
+  it("does not expose an expired or locally invalidated sharing root", async () => {
     let now = authorization.unlockedAtMs + 1;
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async url => String(url).endsWith("authorizations")
       ? response(authorization) : response({ sharedUnlockEnabled: true, revision: 3 }));
@@ -216,4 +216,30 @@ it('cancels a stalled checkpoint at the existing ten-second proof deadline', asy
     await Promise.resolve();
     expect(source.snapshot().authorization).toBeNull();
   } finally { vi.useRealTimers(); }
+});
+
+
+it("retains only a closing witness after sharing expires, then clears it with the own generation", () => {
+  let now = authorization.unlockedAtMs + 1, current = true;
+  const source = new SharedUnlockSourceAuthority(new SharedUnlockApi(vi.fn<typeof fetch>(), () => apiUrl), () => now);
+  const check = () => { if (!current) throw new Error("own session retired"); };
+  source.adopt(authorization, "A".repeat(43), { sharedUnlockEnabled: true, revision: 1 }, check);
+  const witness = { authorizationId: authorization.authorizationId, sequence: authorization.sequence, sourceGeneration: "A".repeat(43) };
+  now = authorization.idleDeadlineMs;
+  expect(source.snapshot()).toMatchObject({ authorization: null, sourceGeneration: null });
+  expect(source.closingWitness()).toEqual(witness);
+  expect(() => source.captureActivity()).toThrow();
+  // A clock correction cannot revive discarded sharing authority.
+  now = authorization.unlockedAtMs + 1;
+  expect(source.snapshot().authorization).toBeNull();
+  expect(() => source.captureActivity()).toThrow();
+  current = false;
+  expect(source.closingWitness()).toBeNull();
+  current = true;
+  expect(source.closingWitness()).toBeNull();
+  source.adopt({ ...authorization, authorizationId: "33333333-3333-4333-8333-333333333333", sequence: authorization.sequence + 1 },
+    "B".repeat(43), { sharedUnlockEnabled: true, revision: 1 }, check);
+  expect(source.closingWitness()).toMatchObject({ sequence: authorization.sequence + 1, sourceGeneration: "B".repeat(43) });
+  source.reset();
+  expect(source.closingWitness()).toBeNull();
 });
