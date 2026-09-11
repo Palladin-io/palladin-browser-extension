@@ -61,7 +61,7 @@ provenance = {'webHead': subprocess.check_output(['git', 'rev-parse', 'HEAD'], c
     'extensionWorkingTreeDirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=repo, text=True).strip()),
     'osVersion': platform.mac_ver()[0], 'architecture': platform.machine(),
     'distribution': 'temporary-instrumented-product-resources',
-    'instrumentation': ['test display name', 'private test control page', 'wrapper imports unchanged product worker'],
+    'instrumentation': ['test display name', 'private test control page', 'wrapper imports unchanged product worker', 'fixed Popup-own-realm close function'],
     'entryProof': 'random encrypted username compared in actual native Popup and reopened Web; password autofill not tested',
     'popupAutomation': 'native getViews Popup DOM and product React handlers; not trusted-input/idle evidence',
     'emailDelivery': 'RAM-only loopback SES-v2 fixture'}
@@ -82,7 +82,7 @@ def prepare_fixture():
     worker = manifest['background']['service_worker']
     assert manifest['background'].get('type') == 'module'
     assert 'http://127.0.0.1/*' in manifest.get('host_permissions', [])
-    names = ['cvt583-identity.html', 'cvt583-identity.js', 'cvt583-identity-background.js']
+    names = ['cvt583-identity.html', 'cvt583-identity.js', 'cvt583-identity-background.js', 'cvt583-popup-close.js']
     assert all(not (extension / name).exists() for name in names)
     provenance['extensionArtifactSha256'] = artifact_hash(extension)
     if fixture.exists(): shutil.rmtree(fixture)
@@ -111,6 +111,11 @@ document.getElementById('open-popup').addEventListener('click', () => {
   void browser.action.openPopup().catch(() => undefined);
 });
 ''')
+    popup_document = fixture / 'src/popup/index.html'
+    popup_html = popup_document.read_text()
+    assert popup_html.count('</body>') == 1
+    popup_document.write_text(popup_html.replace('</body>', '<script src="/cvt583-popup-close.js"></script></body>'))
+    (fixture / names[3]).write_text('globalThis.syntheticClosePopup = () => setTimeout(() => window.close(), 0);\n')
     provenance['fixtureSha256'] = artifact_hash(fixture)
 
 
@@ -198,7 +203,7 @@ try:
     diagnostic_handle = browser.wait(find_control, 'installed control page')
     assert browser.script('return browser.runtime.id') == extension_id
     popup_url = browser.script("return browser.runtime.getURL('src/popup/index.html')")
-    popup = SafariPopup(browser.request, diagnostic_handle, popup_url, 'Shared unlock test controls')
+    popup = SafariPopup(browser.request, diagnostic_handle, popup_url)
     stage = 'native-loopback-permission'
     browser.click('#grant')
     browser.wait(lambda: browser.script("return document.getElementById('grant-result').textContent === 'granted'"), 'owner loopback permission')
@@ -266,7 +271,7 @@ except Exception as error:
     write_evidence('failure', {'stage': stage, 'errorType': type(error).__name__,
         'webdriverError': error.kind if isinstance(error, SafariDriverError) else None,
         'popupStage': popup.last_stage if popup else None,
-        'popupDismissal': popup.last_native_dismissal if popup else None})
+        'popupDismissal': popup.last_dismissal if popup else None})
     print('FAIL at ' + stage + '; value-free failure.json recorded.')
     raise SystemExit(1) from None
 finally:

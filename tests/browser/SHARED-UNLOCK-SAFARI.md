@@ -28,11 +28,14 @@ That result does not validate the unexecuted Identity flow or Web build step.
 Repeat34641036018 timed out during close/reopen after14 checks. A native
 control-page click also failed to dismiss the Popup in34641471862; the new
 stages explicitly observed the old view still present and not closed. Dismissal
-now uses native Escape only when Safari and one of the two fixed test-window
-titles are frontmost. It never enables Accessibility/Automation permission or
-targets another application/window. macOS denying that UI action fails the test.
-This candidate still needs a native pass; the earlier15-check result does not
-erase the two failures.
+then tried native Escape only with Safari and a recognized test window frontmost.
+Run34641976140 at20:03:18Z showed Safari's automation glass pane asking whether
+to stop the test session, so that OS-key helper was removed. No stop/disable
+automation action was taken. The current candidate schedules a fixed
+`window.close()` task from an added Popup-owned script, then requires the native
+view to disappear. It accepts no arbitrary code or privileged command and needs
+no system UI permission. This candidate still needs a native pass; earlier
+successes do not erase the recorded failures.
 
 Prepare the isolated backend as in [Identity setup](SHARED-UNLOCK-IDENTITY.md),
 with API55083, verification links targeting127.0.0.1:5173 and SES delivery55084.
@@ -49,7 +52,8 @@ python3 tests/browser/shared-unlock-safari-identity.py --web-source /path/to/pal
 
 The installed fixture copies the actual built extension, preserving permissions
 and all product modules. Instrumentation adds a synthetic display name, a private
-control page and a wrapper that statically imports the unchanged worker. Popup
+control page, a fixed Popup-own-realm close function and a wrapper that statically
+imports the unchanged worker. Popup
 controls use native `extension.getViews` and the product's own React handlers;
 they never call privileged APIs through the control page. Native boundary CI
 separately tests this UI mechanism, including a fresh Popup after onboarding.

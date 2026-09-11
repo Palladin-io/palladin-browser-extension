@@ -34,7 +34,12 @@ the old Popup to disappear: native view present, closed=false, readyState=comple
 and Sign in still visible. The next candidate sends native Escape through macOS
 only if Safari and the allowlisted test window are frontmost, then still requires
 the old view to disappear. No arbitrary window title, secret or API command is
-accepted by the dismissal helper. Its native outcome remains to be observed.
+accepted by the dismissal helper. Run34641976140 at20:03:18Z instead showed the
+automation glass-pane dialog: ordinary OS keys cannot control that test window
+without interrupting the session. The OS-key helper was removed without accepting
+the dialog. A fixed Popup-owned close task is the next candidate; native absence
+of the old view is still mandatory. Its instrumentation is explicit and does not
+accept arbitrary code, session data or API commands.
 
 Firefox155 regression after the optional encrypted username parameter passed16
 checks at19:51:03Z on clean Webc58ec2b/Extension7b89809, with the same artifacts

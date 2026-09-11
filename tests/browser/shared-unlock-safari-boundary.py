@@ -124,7 +124,7 @@ if args.product_extension:
     product_provenance = {'sourceHead': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
         'sourceDirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip()),
         'artifactSha256': hashlib.sha256(b''.join(path.relative_to(args.product_extension).as_posix().encode() + b'\0' + path.read_bytes() for path in source_files)).hexdigest(),
-        'diagnosticInstrumentation': ['test display name', 'diagnostic extension page', 'background wrapper imports unchanged product worker', 'Popup document loads fixed value-free sender/status probe']}
+        'diagnosticInstrumentation': ['test display name', 'diagnostic extension page', 'background wrapper imports unchanged product worker', 'Popup document loads fixed value-free sender/status and close probes']}
     diagnostics = (fixture / 'background.js').read_text().split('function scope(value)', 1)[0]
     (fixture / 'diagnostic-background.js').write_text(diagnostics)
     (fixture / 'background.js').write_text('import "./diagnostic-background.js";\nimport '
@@ -140,6 +140,7 @@ if args.product_extension:
     # Cross-window API calls retain the caller's authority in Safari. Run this
     # fixed read-only probe in the actual Popup realm, without eval or a relay.
     (fixture / 'diagnostic-popup.js').write_text('''
+globalThis.syntheticClosePopup = () => setTimeout(() => window.close(), 0);
 globalThis.syntheticPopupObservation = { pending: true };
 void (async () => {
   const sender = await new Promise((resolve, reject) => {
@@ -457,7 +458,7 @@ def run_product_channel(extension_id, diagnostic_handle, web_handle):
         assert popup.has_text('Continue to Palladin') is False
     finally:
         observations['nativePopupUiStage'] = popup.last_stage
-        observations['nativePopupDismissal'] = popup.last_native_dismissal
+        observations['nativePopupDismissal'] = popup.last_dismissal
         try: observations['nativePopupUiState'] = popup.snapshot()
         except Exception: observations['nativePopupUiState'] = {'unavailable': True}
     checks.append('fresh-native-popup-preserves-completed-onboarding')
