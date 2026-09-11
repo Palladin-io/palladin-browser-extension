@@ -26,7 +26,21 @@ export async function openNativePopup(worker, profile, extensionId) {
   const popupUrl = `chrome-extension://${extensionId}/src/popup/index.html`
   let target = (await send('Target.getTargets')).targetInfos.find((target) => target.url === popupUrl)
   if (!target) {
-    try { await worker.evaluate(() => chrome.action.openPopup()) }
+    try {
+      if (worker) await worker.evaluate(() => chrome.action.openPopup())
+      else {
+        // After a browser-controlled stop/start, Playwright may retain its old
+        // Worker wrapper. Attach the actual current browser target instead.
+        const background = (await send('Target.getTargets')).targetInfos.find(info =>
+          info.type === 'service_worker' && info.url.startsWith(`chrome-extension://${extensionId}/`))
+        if (!background) throw new Error('Native extension worker target missing')
+        const attached = await send('Target.attachToTarget', { targetId: background.targetId, flatten: true })
+        try {
+          const opened = await send('Runtime.evaluate', { expression: 'chrome.action.openPopup()', awaitPromise: true }, attached.sessionId)
+          if (opened.exceptionDetails) throw new Error('Native extension popup could not open')
+        } finally { await send('Target.detachFromTarget', { sessionId: attached.sessionId }) }
+      }
+    }
     catch (error) { socket.close(); throw error }
     target = (await send('Target.getTargets')).targetInfos.find((target) => target.url === popupUrl)
   }

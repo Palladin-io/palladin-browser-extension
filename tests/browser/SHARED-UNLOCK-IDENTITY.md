@@ -51,5 +51,10 @@ A successful run is deliberately `partial-pass`: it is local unpacked Chromium
 evidence, not the complete browser/OS/distributed-artifact acceptance matrix.
 The Entry assertion follows a fresh manual authorization and unlock snapshot;
 it does not prove live invalidation delivery for Entries created after a peer's
-initial empty snapshot. Restart, offline/expiry, account mismatch and the other
-platforms remain separate acceptance scenarios.
+initial empty snapshot. The restart step uses the browser's ServiceWorker
+stop/start commands and requires observed `stopped` then `running` states while
+the source Web document remains alive. It attaches the current native worker
+target, then requires automatic unlock and actual Entry password decryption.
+This proves a browser-controlled worker restart, not full browser/profile
+shutdown. Offline/expiry, account mismatch and the other platforms remain
+separate acceptance scenarios.

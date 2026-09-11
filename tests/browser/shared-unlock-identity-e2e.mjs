@@ -75,7 +75,7 @@ try {
   context = await chromium.launchPersistentContext(path.join(temporary, 'profile'), { channel: 'chromium', headless: true,
     args: ['--remote-debugging-port=0', `--disable-extensions-except=${extension}`, `--load-extension=${extension}`] })
   context.setDefaultTimeout(20000)
-  const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker')
+  let worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker')
   const extensionId = new URL(worker.url()).host
   const manifest = JSON.parse(await readFile(path.join(extension, 'manifest.json'), 'utf8'))
   const expected = createHash('sha256').update(Buffer.from(manifest.key, 'base64')).digest('hex').slice(0,32).replace(/[0-9a-f]/g, c => String.fromCharCode(97 + parseInt(c,16)))
@@ -192,6 +192,44 @@ try {
   page = await context.newPage(); await page.goto(webOrigin + '/unlock')
   await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
   checks.push('reopened-web-automatically-unlocked-by-extension')
+  stage = 'browser-stops-extension-worker'
+  await page.bringToFront()
+  requests.push({ check: 'restart-source-visible', visible: await page.evaluate(() => document.visibilityState === 'visible') })
+  const cdp = await context.newCDPSession(page)
+  const versions = new Map()
+  let stoppedByBrowser = false
+  cdp.on('ServiceWorker.workerVersionUpdated', ({ versions: updates }) => {
+    for (const version of updates) {
+      versions.set(version.versionId, version)
+      if (version.scriptURL.startsWith(`chrome-extension://${extensionId}/`) && version.runningStatus === 'stopped') stoppedByBrowser = true
+      if (version.scriptURL.startsWith(`chrome-extension://${extensionId}/`)) requests.push({ check: 'browser-worker-lifecycle', runningStatus: version.runningStatus, status: version.status })
+    }
+  })
+  await cdp.send('ServiceWorker.enable')
+  let version
+  for (let attempt = 0; attempt < 100 && !version; attempt++) {
+    version = [...versions.values()].find(v => v.scriptURL === worker.url() && v.runningStatus === 'running')
+    if (!version) await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  assert(version, 'Browser must expose the actual running extension worker')
+  await cdp.send('ServiceWorker.stopWorker', { versionId: version.versionId })
+  // Keep the source Web document alive: its existing channel reconnect wakes
+  // MV3. Reloading it here would deliberately destroy the only remaining keys.
+  await cdp.send('ServiceWorker.startWorker', { scopeURL: `chrome-extension://${extensionId}/` })
+  for (let attempt = 0; attempt < 200; attempt++) {
+    if (stoppedByBrowser && versions.get(version.versionId)?.runningStatus === 'running') break
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  assert(stoppedByBrowser && versions.get(version.versionId)?.runningStatus === 'running', 'Browser must confirm stopped then running')
+  worker = null // Reattach the actual CDP target, not Playwright's stale wrapper.
+  checks.push('browser-stopped-and-restarted-extension-worker')
+  await cdp.detach()
+  stage = 'restarted-extension-automatic-unlock'
+  popup.close(); popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId)
+  await popup.waitText('Unlocked')
+  await popup.waitText('Synthetic shared unlock proof')
+  assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword), 'Restarted worker must freshly unlock and decrypt the actual Entry')
+  checks.push('restarted-extension-automatically-unlocked-and-decrypted-entry')
   stage = 'extension-manual-lock-propagates'
   popup.close(); popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId)
   await popup.click('Lock')
