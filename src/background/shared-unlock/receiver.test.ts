@@ -395,30 +395,31 @@ it('keeps receiver keys unpublished and revokes the new own lineage if the check
   expect(f.ack).not.toHaveBeenCalled();
 });
 
-async function rootlessReconnectFixture() {
+async function receiverLinkFixture(reconnect = true) {
   const context = baseline.context
   const scope = { apiUrl, webOrigin: context.webOrigin, extensionId: context.extensionId, accountId: context.accountId }
   const values: Record<string, unknown> = {}
   const area = { get: async () => structuredClone(values), set: async (items: Record<string, unknown>) => { Object.assign(values, structuredClone(items)) }, remove: async () => {} }
   const links = new SharedUnlockLinkStore(area)
   await links.adopt(scope, context.linkId)
-  const marker = await links.observe(scope, { linkId: context.linkId, state: 'revoked', revision: 1,
+  let marker = await links.observe(scope, { linkId: context.linkId, state: 'revoked', revision: 1,
     epoch: Math.max(0, context.linkEpoch - 1), lastInvalidationSequence: 3, lastLogoutSequence: 0 })
-  const active = { linkId: context.linkId, state: 'active', revision: 3, epoch: context.linkEpoch, lastInvalidationSequence: 4, lastLogoutSequence: 0 }
+  const active = { linkId: context.linkId, state: 'active' as const, revision: 3, epoch: context.linkEpoch, lastInvalidationSequence: 4, lastLogoutSequence: 0 }
   const fetcher = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(active)))
   const abort = new AbortController()
   const route: SharedUnlockCoordinatorRoute = { ...scope, documentBinding: context.documentBinding, signal: abort.signal,
     assertCurrent: () => { if (abort.signal.aborted) throw new Error('closed') }, verifyCurrent: async () => {},
     close: () => abort.abort(), sendOperation: () => {}, onOperation: () => () => {} }
   const staging = new SharedUnlockReconnectStaging(route, () => {})
-  staging.observe({ accountId: scope.accountId, linkId: context.linkId, reconnectRevision: 2 })
+  if (reconnect) staging.observe({ accountId: scope.accountId, linkId: context.linkId, reconnectRevision: 2 })
+  else marker = await links.acknowledgeReconnect(scope, context.linkId, marker.disconnectId!, active)
   const captured = staging.capture(marker, context, links, new SharedUnlockApi(fetcher, () => apiUrl))
   cancels.push(() => { staging.close(); abort.abort() })
   return { scope, links, marker, active, fetcher, confirm: captured.confirm }
 }
 it('a restarted receiver uses its own committed JWT and keeps keys unpublished until fresh link confirmation', async () => {
   // A new worker starts without an own JWT or keys.
-  const link = await rootlessReconnectFixture(), response = deferred<Response>()
+  const link = await receiverLinkFixture(), response = deferred<Response>()
   link.fetcher.mockImplementationOnce(() => response.promise)
   const f = await setup({ confirmLocalLink: link.confirm }), pending = f.receiver.receive(f.input)
   await vi.waitFor(() => expect(link.fetcher).toHaveBeenCalledOnce())
@@ -432,7 +433,7 @@ it('a restarted receiver uses its own committed JWT and keeps keys unpublished u
 })
 it('own Identity rejection after commit preserves revocation and revokes only the new receiver session', async () => {
   // A new worker starts without an own JWT or keys.
-  const link = await rootlessReconnectFixture(); link.fetcher.mockResolvedValue(new Response('{}', { status: 401 }))
+  const link = await receiverLinkFixture(); link.fetcher.mockResolvedValue(new Response('{}', { status: 401 }))
   const f = await setup({ confirmLocalLink: link.confirm })
   await expect(f.receiver.receive(f.input)).rejects.toThrow()
   expect(f.manager.getKeys()).toBeNull(); expect(() => f.manager.captureSharedUnlockSettingsSession()).toThrow()
@@ -441,7 +442,7 @@ it('own Identity rejection after commit preserves revocation and revokes only th
 })
 it('a new own lock during rootless confirmation wins over a late authenticated success', async () => {
   // A new worker starts without an own JWT or keys.
-  const link = await rootlessReconnectFixture(), response = deferred<Response>(); link.fetcher.mockImplementationOnce(() => response.promise)
+  const link = await receiverLinkFixture(), response = deferred<Response>(); link.fetcher.mockImplementationOnce(() => response.promise)
   const f = await setup({ confirmLocalLink: link.confirm }), pending = f.receiver.receive(f.input)
   const rejected = expect(pending).rejects.toThrow()
   await vi.waitFor(() => expect(link.fetcher).toHaveBeenCalled())
@@ -449,5 +450,31 @@ it('a new own lock during rootless confirmation wins over a late authenticated s
   response.resolve(new Response(JSON.stringify(link.active))); await rejected
   expect(f.manager.getKeys()).toBeNull(); expect(() => f.manager.captureSharedUnlockSettingsSession()).toThrow()
   expect((await link.links.read(link.scope))?.disconnectId).toBe(link.marker.disconnectId)
+  expect(f.ack).not.toHaveBeenCalled(); expect(f.events).toContain('logout')
+})
+
+
+it('a normal receiver without an old JWT or reconnect hint waits for own current link authority before publishing keys', async () => {
+  const link = await receiverLinkFixture(false), response = deferred<Response>()
+  link.fetcher.mockImplementationOnce(() => response.promise)
+  const f = await setup({ confirmLocalLink: link.confirm }), pending = f.receiver.receive(f.input)
+  await vi.waitFor(() => expect(link.fetcher).toHaveBeenCalledOnce())
+  expect(f.manager.getKeys()).toBeNull(); expect(() => f.manager.captureSharedUnlockSettingsSession()).toThrow()
+  expect(link.marker.disconnectId).toBeNull(); expect(f.events).toContain('commit')
+  expect(link.fetcher.mock.calls[0][1]).toMatchObject({ headers: { authorization: 'Bearer receiver-own-access' } })
+  response.resolve(new Response(JSON.stringify(link.active))); await pending
+  expect(f.manager.getKeys()?.masterKey).toEqual(f.masterKey)
+  expect(f.ack).toHaveBeenCalledOnce(); expect(f.events).not.toContain('logout')
+})
+it('a server lock after normal receiver commit prevents key installation even before local invalidation delivery', async () => {
+  const link = await receiverLinkFixture(false), response = deferred<Response>()
+  link.fetcher.mockImplementationOnce(() => response.promise)
+  const f = await setup({ confirmLocalLink: link.confirm }), pending = f.receiver.receive(f.input)
+  const rejected = expect(pending).rejects.toThrow()
+  await vi.waitFor(() => expect(link.fetcher).toHaveBeenCalledOnce())
+  expect(f.events).toContain('commit'); expect((await link.links.read(link.scope))?.observed).toEqual(link.active)
+  response.resolve(new Response(JSON.stringify({ ...link.active, state: 'locked', epoch: link.active.epoch + 1,
+    lastInvalidationSequence: f.ownCommit.authorizationSequence + 1 }))); await rejected
+  expect(f.manager.getKeys()).toBeNull(); expect(() => f.manager.captureSharedUnlockSettingsSession()).toThrow()
   expect(f.ack).not.toHaveBeenCalled(); expect(f.events).toContain('logout')
 })

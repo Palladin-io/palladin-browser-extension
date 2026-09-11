@@ -66,18 +66,17 @@ export class SharedUnlockReconnectStaging {
           let current = await wait(links.read(scope)); check()
           if (!current || current.linkId !== linkId || current.pending.length
             || (current.disconnectId !== null && current.disconnectId !== disconnectId)) throw new Error('Local link changed before install')
-          if (hint) {
-            if (current.disconnectId && !this.canStage(current, linkEpoch)) throw new Error('Newer local disconnect')
-            const authoritative = await wait(api.readLink(session, linkId, signal)); check()
-            // Independent authority is this receiver's own authenticated Identity
-            // response, bound to its selected local link and committed generation.
-            if (authoritative.linkId !== linkId || authoritative.epoch !== linkEpoch || authoritative.state !== 'active'
-              || authoritative.revision < hint.reconnectRevision || authoritative.lastInvalidationSequence >= authorizationSequence) throw new Error('Own Identity rejected reconnect')
-            if (current.disconnectId) {
-              await wait(links.acknowledgeReconnect(scope, linkId, current.disconnectId, authoritative, check)); check()
-            }
-            current = await wait(links.read(scope)); check()
+          if (hint && current.disconnectId && !this.canStage(current, linkEpoch)) throw new Error('Newer local disconnect')
+          const authoritative = await wait(api.readLink(session, linkId, signal)); check()
+          // This fresh own Identity read fences closing after the cryptographic
+          // commit, including normal/tokenless receivers without a reconnect hint.
+          if (authoritative.linkId !== linkId || authoritative.epoch !== linkEpoch || authoritative.state !== 'active'
+            || (hint && authoritative.revision < hint.reconnectRevision)
+            || authoritative.lastInvalidationSequence >= authorizationSequence) throw new Error('Own Identity rejected receiver installation')
+          if (hint && current.disconnectId) {
+            await wait(links.acknowledgeReconnect(scope, linkId, current.disconnectId, authoritative, check)); check()
           }
+          current = await wait(links.read(scope)); check()
           if (!current || current.linkId !== linkId || current.pending.length || current.disconnectId
             || current.observed?.state === 'revoked' || (current.observed && current.observed.epoch > linkEpoch)) throw new Error('Local link is unavailable for installation')
         } finally { clearTimeout(timer); abort.abort() }

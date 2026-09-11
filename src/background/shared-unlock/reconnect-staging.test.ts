@@ -120,3 +120,32 @@ it('normal admission also binds the stored scope and selected document to the in
   expect(() => f.staging.capture(marker, { ...binding, apiOrigin: 'https://other.test' }, f.links, f.api)).toThrow()
   expect(f.fetcher).not.toHaveBeenCalled()
 })
+
+
+it('normal receivers also require a fresh own Identity read before keys, without reconnect invitation', async () => {
+  const f = await setup(), marker = await f.links.acknowledgeReconnect(scope, linkId, f.marker.disconnectId!, active)
+  await f.staging.capture(marker, binding, f.links, f.api).confirm(own, 4, f.abort.signal, () => {})
+  expect(f.fetcher).toHaveBeenCalledExactlyOnceWith(scope.apiUrl + '/api/account/shared-unlock/links/' + linkId,
+    expect.objectContaining({ headers: expect.objectContaining({ authorization: 'Bearer new-own-committed-access' }) }))
+  expect(f.changed).not.toHaveBeenCalled()
+})
+it('normal receivers reject a server closing committed after their own crypto commit despite unchanged local markers', async () => {
+  for (const closing of [{ ...active, state: 'locked', epoch: 5, revision: 5, lastInvalidationSequence: 5 },
+    { ...active, lastInvalidationSequence: 4, lastLogoutSequence: 4 }, { ...active, state: 'revoked' }]) {
+    const f = await setup(), marker = await f.links.acknowledgeReconnect(scope, linkId, f.marker.disconnectId!, active)
+    f.fetcher.mockResolvedValue(new Response(JSON.stringify(closing)))
+    await expect(f.staging.capture(marker, binding, f.links, f.api).confirm(own, 4, f.abort.signal, () => {})).rejects.toThrow()
+    expect((await f.links.read(scope))?.observed).toEqual(active)
+  }
+})
+it('normal receivers re-read the local disconnect after their own fresh Identity read', async () => {
+  const f = await setup(), marker = await f.links.acknowledgeReconnect(scope, linkId, f.marker.disconnectId!, active)
+  let finish!: (value: Response) => void
+  f.fetcher.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+  const pending = f.staging.capture(marker, binding, f.links, f.api).confirm(own, 4, f.abort.signal, () => {})
+  const rejected = expect(pending).rejects.toThrow()
+  await vi.waitFor(() => expect(f.fetcher).toHaveBeenCalled())
+  const newer = await f.links.beginClosing(scope, linkId, 'disconnect', 4, null)
+  finish(new Response(JSON.stringify(active))); await rejected
+  expect((await f.links.read(scope))?.disconnectId).toBe(newer.disconnectId)
+})

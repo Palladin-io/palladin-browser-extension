@@ -953,3 +953,23 @@ prove real browser restart/MK/Entry behavior. A worker restart can remove access
 to its own sealed tokens as well as its keys; without own authentication this
 monitor cannot query Identity. The separate newly authenticated receiver and
 remaining expired-access/resume/key-use acceptance must retain that boundary.
+
+
+### Fresh link authority before every receiver installation
+
+Every receiver now performs a bounded fresh link GET using its own newly committed
+Identity session before publishing keys, including an ordinary receiver with no
+old JWT and no reconnect notice. The response must still match the selected
+link/epoch and precede no newer closing barrier relative to the cryptographically
+verified own authorization sequence. An explicit reconnect notice is needed only
+to clear the exact local disconnect latch; it is not needed to enforce this read.
+The local marker is read again after the GET, so a disconnect delivered while
+Identity was pending also wins. Existing 2-second and operation deadline fences,
+key wipe and cleanup of only the incomplete newly issued session remain in force.
+
+Regression tests fail against the previous normal-receiver path and pass with
+this check. Real crypto plus the client's own installation store/SessionManager
+prove that a normal receiver keeps keys/tokens unpublished while the own GET is
+pending, and rejects a server lock occurring after commit even before the local
+invalidation arrives. This is a pre-install freshness check; it does not establish
+all later resume/key-use behavior or native browser acceptance.
