@@ -47,6 +47,12 @@ let context, server, mailServer, page, popup, stage = 'preflight'
 let ownActivityRequested = false, ownActivityObserved = false
 const checks = [], requests = []
 const pendingRequests = new Map()
+const routedRequests = new Map()
+const servedResources = new Map()
+const safePath = raw => {
+  const pathname = new URL(raw, webOrigin).pathname
+  return pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id')
+}
 const progress = setInterval(() => console.log(`PROGRESS ${JSON.stringify({ stage, completedChecks: checks.length })}`), 10000)
 progress.unref()
 const messages = [] // Synthetic SES v2 delivery, memory-only; never written to a report.
@@ -93,10 +99,18 @@ const launchOptions = {
 async function observeLocalContext() {
   pendingRequests.clear()
   context.setDefaultTimeout(20000)
-  await context.route('**/*', route => {
-    const url = new URL(route.request().url())
-    return [webOrigin, new URL(apiUrl).origin, new URL(sesUrl).origin, 'http://localhost:54583'].includes(url.origin)
-      || url.protocol === 'chrome-extension:' ? route.continue() : route.abort()
+  routedRequests.clear()
+  await context.route('**/*', async route => {
+    const request = route.request(), url = new URL(request.url())
+    const allowed = [webOrigin, new URL(apiUrl).origin, new URL(sesUrl).origin, 'http://localhost:54583'].includes(url.origin)
+      || url.protocol === 'chrome-extension:'
+    const state = { allowed, completed: false, failed: false }
+    routedRequests.set(request, state)
+    try {
+      if (allowed) await route.continue()
+      else await route.abort()
+      state.completed = true
+    } catch (error) { state.failed = true; throw error }
   })
   const originKind = raw => {
     const url = new URL(raw)
@@ -105,9 +119,11 @@ async function observeLocalContext() {
   }
   context.on('request', request => pendingRequests.set(request, {
     origin: originKind(request.url()), resource: request.resourceType(), startedAt: Date.now(),
+    path: originKind(request.url()) === 'other' ? null : safePath(request.url()),
   }))
-  context.on('requestfinished', request => pendingRequests.delete(request))
-  context.on('requestfailed', request => pendingRequests.delete(request))
+  const retireRequest = request => { pendingRequests.delete(request); routedRequests.delete(request) }
+  context.on('requestfinished', retireRequest)
+  context.on('requestfailed', retireRequest)
   context.on('weberror', event => {
     const name = event.error().name
     requests.push({ check: 'uncaught-browser-error', stage,
@@ -154,6 +170,9 @@ try {
     .map(line => line.match(/^\s+([^:]+):\s*(.+)$/)).filter(Boolean).map(match => [match[1], match[2]]))
   assert(headers['Content-Security-Policy'])
   server = createServer((request, response) => {
+    const resourcePath = safePath(request.url)
+    const served = { receivedAt: Date.now(), responseSent: false }
+    servedResources.set(resourcePath, served)
     void (async () => {
       let file = path.resolve(webDirectory, '.' + new URL(request.url, webOrigin).pathname)
       if (!file.startsWith(webDirectory + path.sep)) file = path.join(webDirectory, 'index.html')
@@ -161,6 +180,7 @@ try {
       try { bytes = await readFile(file) } catch { file = path.join(webDirectory, 'index.html'); bytes = await readFile(file) }
       const mime = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' }[path.extname(file)] ?? 'application/octet-stream'
       response.writeHead(200, { ...headers, 'Content-Type': mime, 'Cache-Control': 'no-store' }); response.end(bytes)
+      served.responseSent = true
     })().catch(() => { response.writeHead(500); response.end() })
   })
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(5173, '127.0.0.1', resolve) })
@@ -465,8 +485,13 @@ try {
   const navigationWait = error.message?.match(/waiting for navigation.*until "(load|domcontentloaded|networkidle|commit)"/)
   if (navigationWait) requests.push({ check: 'navigation-wait-at-failure', waitUntil: navigationWait[1],
     observedNavigation: /navigated to/.test(error.message) })
-  requests.push({ check: 'pending-browser-resources-at-failure', resources: [...pendingRequests.values()]
-    .map(({ origin, resource, startedAt }) => ({ origin, resource, elapsedMs: Date.now() - startedAt })) })
+  requests.push({ check: 'pending-browser-resources-at-failure', resources: [...pendingRequests.entries()]
+    .map(([request, { origin, resource, path: resourcePath, startedAt }]) => {
+      const served = origin === 'web' ? servedResources.get(resourcePath) : undefined
+      return { origin, resource, path: resourcePath, elapsedMs: Date.now() - startedAt,
+        route: routedRequests.get(request) ?? null,
+        staticResponseSent: served && served.receivedAt >= startedAt ? served.responseSent : null }
+    }) })
   if (page) {
     try {
       const state = await page.evaluate(() => ({
