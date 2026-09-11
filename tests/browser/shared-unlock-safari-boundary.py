@@ -118,12 +118,12 @@ if args.product_extension:
     assert product_manifest['background'].get('type') == 'module'
     assert original_worker != 'background.js'
     source_files = sorted(path for path in args.product_extension.rglob('*') if path.is_file())
-    for name in ['diagnostics.html', 'diagnostics.js', 'diagnostic-background.js', 'background.js']:
+    for name in ['diagnostics.html', 'diagnostics.js', 'diagnostic-background.js', 'diagnostic-popup.js', 'background.js']:
         assert not (args.product_extension / name).exists(), 'Diagnostic filename collides with the product'
     product_provenance = {'sourceHead': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
         'sourceDirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip()),
         'artifactSha256': hashlib.sha256(b''.join(path.relative_to(args.product_extension).as_posix().encode() + b'\0' + path.read_bytes() for path in source_files)).hexdigest(),
-        'diagnosticInstrumentation': ['test display name', 'diagnostic extension page', 'background wrapper imports unchanged product worker']}
+        'diagnosticInstrumentation': ['test display name', 'diagnostic extension page', 'background wrapper imports unchanged product worker', 'Popup document loads fixed value-free sender/status probe']}
     diagnostics = (fixture / 'background.js').read_text().split('function scope(value)', 1)[0]
     (fixture / 'diagnostic-background.js').write_text(diagnostics)
     (fixture / 'background.js').write_text('import "./diagnostic-background.js";\nimport '
@@ -132,6 +132,26 @@ if args.product_extension:
     product_manifest['name'] = manifest['name']
     product_manifest['background']['service_worker'] = 'background.js'
     (fixture / 'manifest.json').write_text(json.dumps(product_manifest, indent=2))
+    popup_document = fixture / 'src/popup/index.html'
+    popup_html = popup_document.read_text()
+    assert popup_html.count('</body>') == 1
+    popup_document.write_text(popup_html.replace('</body>', '<script src="/diagnostic-popup.js"></script></body>'))
+    # Cross-window API calls retain the caller's authority in Safari. Run this
+    # fixed read-only probe in the actual Popup realm, without eval or a relay.
+    (fixture / 'diagnostic-popup.js').write_text('''
+globalThis.syntheticPopupObservation = { pending: true };
+void (async () => {
+  const sender = await new Promise((resolve, reject) => {
+    const port = browser.runtime.connect({ name: 'synthetic-internal-probe' });
+    const timer = setTimeout(() => { port.disconnect(); reject(new Error('Diagnostic timeout')); }, 2000);
+    port.onMessage.addListener(message => { clearTimeout(timer); resolve(message.sender); port.disconnect(); });
+  });
+  const response = await browser.runtime.sendMessage({ type: 'session/status' });
+  globalThis.syntheticPopupObservation = { sender,
+    signedOut: response?.ok === true && response.status === 'signed-out',
+    actualPopupUrl: location.href === browser.runtime.getURL('src/popup/index.html') };
+})().catch(() => { globalThis.syntheticPopupObservation = { observationFailed: true }; });
+''')
 (fixture / 'diagnostics.html').write_text('<!doctype html><title>Synthetic extension diagnostics</title><pre id="result">pending</pre><button id="grant">Grant loopback page access</button><pre id="grant-result">pending</pre><button id="open-popup">Open native product Popup</button><script src="diagnostics.js"></script>')
 (fixture / 'diagnostics.js').write_text('''
 document.getElementById('open-popup').addEventListener('click', () => {
@@ -383,7 +403,7 @@ def run_product_channel(extension_id, diagnostic_handle, web_handle):
         const popup = views.find(view => view.location.href === browser.runtime.getURL('src/popup/index.html'));
         if (!popup) {
           if (++attempt >= 30) { done({ getViewsAvailable: true, popupAvailable: false }); return; }
-          setTimeout(observe, 100); return;
+          setTimeout(() => { void observe().catch(() => done({ observationFailed: true })); }, 100); return;
         }
         const sender = await new Promise((resolve, reject) => {
           const port = popup.browser.runtime.connect({ name: 'synthetic-internal-probe' });
@@ -396,10 +416,31 @@ def run_product_channel(extension_id, diagnostic_handle, web_handle):
       };
       void observe().catch(() => done({ observationFailed: true }));
     ''', 'args': []})
-    observations['nativeProductPopup'] = native_popup
-    assert native_popup.get('signedOut') is True
-    assert native_popup['sender']['hasTab'] is False and native_popup['sender']['url'] == popup_url
+    observations['crossWindowPopupCall'] = native_popup
+    assert native_popup.get('signedOut') is False and native_popup.get('popupAvailable') is True
+    assert native_popup['sender']['hasTab'] is True and native_popup['sender']['url'] == diagnostics_url
     assert native_popup['sender']['id'] == extension_id
+    checks.append('cross-window-api-call-retains-tab-caller-authority')
+    stage = 'native-popup-own-realm-authority'
+    own_realm = command('POST', '/execute/async', {'script': '''
+      const done = arguments[arguments.length - 1];
+      let attempt = 0;
+      const observe = () => {
+        try {
+          const popup = browser.extension.getViews({ type: 'popup' })
+            .find(view => view.location.href === browser.runtime.getURL('src/popup/index.html'));
+          const result = popup?.syntheticPopupObservation;
+          if (result && !result.pending) { done(result); return; }
+          if (++attempt >= 30) { done({ observationTimeout: true, popupAvailable: !!popup }); return; }
+          setTimeout(observe, 100);
+        } catch { done({ observationFailed: true }); }
+      };
+      observe();
+    ''', 'args': []})
+    observations['nativeProductPopup'] = own_realm
+    assert own_realm.get('signedOut') is True and own_realm.get('actualPopupUrl') is True
+    assert own_realm['sender']['hasTab'] is False and own_realm['sender']['url'] == popup_url
+    assert own_realm['sender']['id'] == extension_id
     checks.append('native-popup-reaches-unchanged-private-command-guard')
     report = {'status': 'instrumented-product-channel-only', 'checks': checks, 'observations': observations,
         'fixtureSha256': fixture_hash, 'osVersion': platform.mac_ver()[0], 'architecture': platform.machine(),
