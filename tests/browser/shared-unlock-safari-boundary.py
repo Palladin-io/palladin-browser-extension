@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import socketserver
 import subprocess
 import threading
 import time
@@ -76,12 +77,23 @@ class Site(http.server.BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass
 
+class LoopbackServer(http.server.ThreadingHTTPServer):
+    def server_bind(self):
+        # HTTPServer's default getfqdn() is unnecessary for this literal loopback
+        # fixture and can invoke local-network discovery on the macOS runner.
+        socketserver.TCPServer.server_bind(self)
+        self.server_name = '127.0.0.1'
+        self.server_port = self.server_address[1]
+
+# This harness talks only to its literal loopback driver, never a system proxy.
+driver_http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
 def request(method, path, body=None):
     data = None if body is None else json.dumps(body).encode()
     req = urllib.request.Request(args.driver_url + path, data=data, method=method,
         headers={'Content-Type': 'application/json'})
     try:
-        with urllib.request.urlopen(req, timeout=35) as response:
+        with driver_http.open(req, timeout=35) as response:
             return json.load(response)['value']
     except urllib.error.HTTPError as error:
         value = json.load(error).get('value', {})
@@ -143,7 +155,7 @@ try:
     assert isinstance(extension_id, str) and extension_id
     observations['browserInstalledExtensionId'] = extension_id
     checks.append('browser-installed-synthetic-extension')
-    server = http.server.ThreadingHTTPServer(('127.0.0.1', 55189), Site)
+    server = LoopbackServer(('127.0.0.1', 55189), Site)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     stage = 'allowed-native-port'
     navigate(origin + '/allowed')

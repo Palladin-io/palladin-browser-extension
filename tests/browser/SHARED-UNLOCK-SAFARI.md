@@ -97,3 +97,30 @@ is pending. A successful job would prove only the probe's observations, not a
 product adapter or Safari16.4/full-platform acceptance. See the
 [GitHub runner contract](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
 and [macOS26 image contents](https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md).
+
+
+## Observed Safari26.6.2 CI boundary (2026-09-11)
+
+The disposable macOS26.6.2 arm64 runner creates a real Safari26.6.2 session.
+Installation returns an object with an `extension` string, rather than a bare
+string (run34629126061). The identifier includes a percent-encoded space before
+`(UNSIGNED)`. b843f8e decodes the observed object shape and passes installation;
+run34629708338 then failed at the first native webpage Port.
+
+Runs34629944077 and34630127432 distinguish that failure: `browser.runtime.connect`
+exists; the raw browser-returned identifier disconnects, while the percent-decoded
+representation times out. The latter receives no background `connected` message,
+so the test does not yet establish a native sender, current document, or profile
+boundary. This is not proof that decoding alone fixes routing. Both candidates
+come only from browser installation metadata; there is no page-provided expected
+identity and no product fallback. Negative cases after this failed positive gate
+have not executed. Generic Test CI34629708163 and34629943999 passed separately.
+
+Apple requires webpage access permission for external messaging; a missing grant
+is a hypothesis to investigate, not an observed cause. See
+[Apple's webpage-messaging explanation](https://developer.apple.com/videos/play/wwdc2022/10099/)
+and [Safari permission management](https://developer.apple.com/documentation/safariservices/managing-safari-web-extension-permissions).
+To observe native permission UI on failure, the CI workflow explicitly enables a
+failure screenshot. The flag refuses to run outside a GitHub-hosted Actions VM;
+ordinary local invocation never captures the user's desktop. The screenshot is
+part of the seven-day synthetic artifact and contains no Identity or vault data.
