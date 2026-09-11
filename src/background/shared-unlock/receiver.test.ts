@@ -100,6 +100,7 @@ describe("Extension own receiver transaction with real crypto and session instal
     const f = await setup(); const envelope = await f.input.envelope();
     let receive!: (message: SharedUnlockOperationMessage) => void;
     const messages: SharedUnlockOperationMessage[] = [];
+    let masterKeyAtAck: Uint8Array | null | undefined = null;
     const transport: SharedUnlockOperationTransport = {
       signal: new AbortController().signal, assertCurrent: f.route.assertCurrent, verifyCurrent: async () => f.route.assertCurrent(),
       onOperation: listener => { receive = listener; return () => {}; },
@@ -108,13 +109,14 @@ describe("Extension own receiver transaction with real crypto and session instal
         if (message.payload.kind === "receiver-offer") receive(sharedUnlockOperationSchema.parse({ attemptId: message.attemptId,
           payload: { kind: "handoff", operation: f.operation, envelope } }));
         if (message.payload.kind === "ack") {
-          expect(f.manager.getKeys()?.masterKey).toEqual(f.masterKey);
+          masterKeyAtAck = f.manager.getKeys()?.masterKey;
         }
       },
     };
     const result = receiveSharedUnlockBrowserTransfer(transport, "A".repeat(43), async () => f.receiver);
     receive({ attemptId: "A".repeat(43), payload: { kind: "source-offer", publicKey: f.operation.sourcePublicKey } });
     expect((await result).operationId).toBe(f.operation.context.operationId);
+    expect(masterKeyAtAck).toEqual(f.masterKey);
     expect(messages.map(m => m.payload.kind)).toEqual(["receiver-offer", "ack"]);
     expect(messages[1].payload).toEqual({ kind: "ack", operationId: f.operation.context.operationId,
       webGeneration: f.operation.context.webGeneration, extensionGeneration: f.operation.context.extensionGeneration });
