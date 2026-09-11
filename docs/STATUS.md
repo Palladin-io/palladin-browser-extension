@@ -15,7 +15,11 @@ release candidates.
 ## Shared unlock implementation in progress (CVT-583)
 
 The worker has a typed Identity API client, generated provider/consumer fixtures,
-cryptographic member-key recovery and a one-shot receiver session installer.
+cryptographic member-key recovery and a one-shot receiver transaction using the
+real session installer. It consumes and commits its own Identity session, rejects
+substituted crypto/route bindings, cleans incomplete late issuance and preserves
+a completed session after peer/ACK loss. Lock/logout/manual/new receiver cancel
+pending work and wipe temporary keys synchronously.
 Installation owns only the receiver's tokens, retains inherited idle/absolute/
 offline ceilings and rejects lock/logout, cancellation, environment/account
 changes and stale asynchronous results. Durable storage contains the ordinary

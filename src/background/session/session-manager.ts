@@ -143,6 +143,7 @@ export class SessionManager {
   private loginInFlight = false;
   private unlocksInFlight = 0;
   private sharedUnlockAttempt = 0;
+  private sharedUnlockReceiverAbort: AbortController | null = null;
   private sharedUnlockLimits: SessionUnlockLimits | null = null;
   private sharedUnlockLocalDeadline = Infinity;
   private sessionClearGeneration = 0;
@@ -222,13 +223,17 @@ export class SessionManager {
     const generation = this.captureLifecycleGeneration();
     const clearGeneration = this.sessionClearGeneration;
     const attempt = ++this.sharedUnlockAttempt;
+    this.sharedUnlockReceiverAbort?.abort();
+    const receiverAbort = new AbortController();
+    this.sharedUnlockReceiverAbort = receiverAbort;
     let cancelled = false;
     let consumed = false;
+    let completed = false;
     let pendingKeys: SessionKeys | null = null;
     const checkLocal = () => {
       this.assertLifecycleGeneration(generation);
       this.assertApiUrl(apiUrl);
-      if (cancelled || attempt !== this.sharedUnlockAttempt || this.loginInFlight || this.unlocksInFlight > 0 || this.pendingTotp || this.keys) {
+      if (cancelled || receiverAbort.signal.aborted || attempt !== this.sharedUnlockAttempt || this.loginInFlight || this.unlocksInFlight > 0 || this.pendingTotp || this.keys) {
         throw new SessionLifecycleChangedError();
       }
     };
@@ -237,93 +242,106 @@ export class SessionManager {
       assertRouteCurrent();
       checkLocal();
     };
-    assertCurrent();
-    const existingAccountId = await this.getUserId();
-    assertCurrent();
-    if (existingAccountId && existingAccountId !== accountId) throw new SessionLifecycleChangedError();
-    const previousEnvelope = await this.getBoundEnvelope();
-    assertCurrent();
-    return {
-      assertCurrent,
-      cancel: () => {
-        cancelled = true;
-        if (pendingKeys) this.wipeSessionKeys(pendingKeys);
-      },
-      install: async ({ tokens, material, keys, limits }) => {
-        // Ownership already moved to the live session. A duplicate cannot wipe
-        // its buffers (nor use them to replace or renew that session).
-        if (consumed && [this.keys, pendingKeys].some(owned => owned
-          && (owned.masterKey === keys.masterKey || owned.privateKey === keys.privateKey))) {
-          throw new SessionLifecycleChangedError();
-        }
-        let envelope: BrowserSessionEnvelope | null = null;
-        let published = false;
-        // Own the buffers immediately, including a duplicate install call.
-        this.trackSessionKeys(keys);
-        try {
-          if (consumed) throw new SessionLifecycleChangedError();
-          consumed = true;
-          pendingKeys = keys;
-          assertCurrent();
-          if (tokens.userId !== accountId || material.accountId !== accountId || tokens.apiUrl !== apiUrl) {
+    try {
+      assertCurrent();
+      const existingAccountId = await this.getUserId();
+      assertCurrent();
+      if (existingAccountId && existingAccountId !== accountId) throw new SessionLifecycleChangedError();
+      const previousEnvelope = await this.getBoundEnvelope();
+      assertCurrent();
+      return {
+        get completed() { return completed; },
+        signal: receiverAbort.signal,
+        assertCurrent,
+        cancel: () => {
+          if (completed) return;
+          cancelled = true;
+          if (this.sharedUnlockReceiverAbort === receiverAbort) this.sharedUnlockReceiverAbort = null;
+          receiverAbort.abort();
+          if (pendingKeys) this.wipeSessionKeys(pendingKeys);
+        },
+        install: async ({ tokens, material, keys, limits }) => {
+          // Ownership already moved to the live session. A duplicate cannot wipe
+          // its buffers (nor use them to replace or renew that session).
+          if (consumed && [this.keys, pendingKeys].some(owned => owned
+            && (owned.masterKey === keys.masterKey || owned.privateKey === keys.privateKey))) {
             throw new SessionLifecycleChangedError();
           }
-          const inherited = { ...limits };
-          const assertInstallCurrent = () => {
+          let envelope: BrowserSessionEnvelope | null = null;
+          let published = false;
+          // Own the buffers immediately, including a duplicate install call.
+          this.trackSessionKeys(keys);
+          try {
+            if (consumed) throw new SessionLifecycleChangedError();
+            consumed = true;
+            pendingKeys = keys;
             assertCurrent();
-            if (this.now() >= unlockDeadline(inherited)) throw new SessionLifecycleChangedError();
-          };
-          assertInstallCurrent();
-          const issuedAt = this.now();
-          envelope = await this.sealDurablePayload({ state: "active", ...tokens }, keys.masterKey, {
-            apiUrl, accountId, clientId: this.clientId,
-            identitySecurityVersion: material.kdf.securityVersion,
-            minimumIdentitySecurityVersion: material.kdf.minimumSecurityVersion,
-            kdfProfileId: material.kdf.profileId, kdfSalt: material.kdf.kdfSalt,
-            encryptedPrivateKey: material.encryptedPrivateKey,
-            issuedAt, expiresAt: issuedAt + this.durableSessionTtlMs,
-          });
-          assertInstallCurrent();
-          await this.runDurableMutation(async () => {
-            assertInstallCurrent();
-            await this.store.setSealedSession(envelope!);
-            assertInstallCurrent();
-          });
-          assertInstallCurrent();
-          await this.setUnlocked(keys, accountId, generation, inherited, assertInstallCurrent, tokens);
-          assertRouteCurrent();
-          if (cancelled || attempt !== this.sharedUnlockAttempt || this.now() >= unlockDeadline(inherited)) {
-            throw new SessionLifecycleChangedError();
-          }
-          published = this.keys === keys && this.isLifecycleCurrent(generation);
-          if (!published) throw new SessionLifecycleChangedError();
-        } finally {
-          if (pendingKeys === keys) pendingKeys = null;
-          this.untrackSessionKeys(keys);
-          if (!published) {
-            if (this.keys === keys) {
-              this.wipeKeys();
-              this.tokens = null;
-              this.autoLock.disarm();
-              // Notify surfaces even if an unlocked listener threw. Cleanup
-              // must finish regardless of another subscriber's exception.
-              try { this.hooks.emitLocked({ userId: accountId }); } catch { /* keys already erased */ }
+            if (tokens.userId !== accountId || material.accountId !== accountId || tokens.apiUrl !== apiUrl) {
+              throw new SessionLifecycleChangedError();
             }
-            this.wipeSessionKeys(keys);
-            if (envelope) {
-              const written = envelope;
-              await this.runDurableMutation(async () => {
-                const current = await this.store.getSealedSession();
-                if (current?.encodedSuitePayload !== written.encodedSuitePayload) return;
-                if (previousEnvelope && clearGeneration === this.sessionClearGeneration
-                  && apiUrl === this.authClient.currentApiUrl()) await this.store.setSealedSession(previousEnvelope);
-                else await this.store.clearSealedSession();
-              });
+            const inherited = { ...limits };
+            const assertInstallCurrent = () => {
+              assertCurrent();
+              if (this.now() >= unlockDeadline(inherited)) throw new SessionLifecycleChangedError();
+            };
+            assertInstallCurrent();
+            const issuedAt = this.now();
+            envelope = await this.sealDurablePayload({ state: "active", ...tokens }, keys.masterKey, {
+              apiUrl, accountId, clientId: this.clientId,
+              identitySecurityVersion: material.kdf.securityVersion,
+              minimumIdentitySecurityVersion: material.kdf.minimumSecurityVersion,
+              kdfProfileId: material.kdf.profileId, kdfSalt: material.kdf.kdfSalt,
+              encryptedPrivateKey: material.encryptedPrivateKey,
+              issuedAt, expiresAt: issuedAt + this.durableSessionTtlMs,
+            });
+            assertInstallCurrent();
+            await this.runDurableMutation(async () => {
+              assertInstallCurrent();
+              await this.store.setSealedSession(envelope!);
+              assertInstallCurrent();
+            });
+            assertInstallCurrent();
+            await this.setUnlocked(keys, accountId, generation, inherited, assertInstallCurrent, tokens);
+            assertRouteCurrent();
+            if (cancelled || attempt !== this.sharedUnlockAttempt || this.now() >= unlockDeadline(inherited)) {
+              throw new SessionLifecycleChangedError();
+            }
+            published = this.keys === keys && this.isLifecycleCurrent(generation);
+            if (!published) throw new SessionLifecycleChangedError();
+            completed = true;
+            if (this.sharedUnlockReceiverAbort === receiverAbort) this.sharedUnlockReceiverAbort = null;
+          } finally {
+            if (pendingKeys === keys) pendingKeys = null;
+            this.untrackSessionKeys(keys);
+            if (!published) {
+              if (this.keys === keys) {
+                this.wipeKeys();
+                this.tokens = null;
+                this.autoLock.disarm();
+                // Notify surfaces even if an unlocked listener threw. Cleanup
+                // must finish regardless of another subscriber's exception.
+                try { this.hooks.emitLocked({ userId: accountId }); } catch { /* keys already erased */ }
+              }
+              this.wipeSessionKeys(keys);
+              if (envelope) {
+                const written = envelope;
+                await this.runDurableMutation(async () => {
+                  const current = await this.store.getSealedSession();
+                  if (current?.encodedSuitePayload !== written.encodedSuitePayload) return;
+                  if (previousEnvelope && clearGeneration === this.sessionClearGeneration
+                    && apiUrl === this.authClient.currentApiUrl()) await this.store.setSealedSession(previousEnvelope);
+                  else await this.store.clearSealedSession();
+                });
+              }
             }
           }
-        }
-      },
-    };
+        },
+      };
+    } catch (error) {
+      if (this.sharedUnlockReceiverAbort === receiverAbort) this.sharedUnlockReceiverAbort = null;
+      receiverAbort.abort();
+      throw error;
+    }
   }
 
   /**
@@ -467,6 +485,8 @@ export class SessionManager {
       throw new SessionError("network", "Another sign-in attempt is already in progress");
     }
     this.sharedUnlockAttempt += 1;
+    this.sharedUnlockReceiverAbort?.abort();
+    this.sharedUnlockReceiverAbort = null;
     this.loginInFlight = true;
     try {
       return await this.performLogin(email, password);
@@ -724,6 +744,8 @@ export class SessionManager {
   /** Re-derive keys for a locked session from cached material, via any source. */
   async unlock(source: UnlockSource): Promise<void> {
     this.sharedUnlockAttempt += 1;
+    this.sharedUnlockReceiverAbort?.abort();
+    this.sharedUnlockReceiverAbort = null;
     this.unlocksInFlight += 1;
     try {
       await this.performUnlock(source);
@@ -1077,6 +1099,8 @@ export class SessionManager {
     this.clearPendingTotp();
     this.lifecycleTerminations += 1;
     this.lifecycleGeneration += 1;
+    this.sharedUnlockReceiverAbort?.abort();
+    this.sharedUnlockReceiverAbort = null;
     this.wipeInFlightKeyMaterial();
   }
 

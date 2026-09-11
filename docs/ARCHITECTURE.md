@@ -408,7 +408,7 @@ route changes and expiry during sealing, storage and publication. A failed
 installation removes only its own envelope and leaves any newer session alone.
 A concurrent lock preserves a prior own sealed session; logout/environment
 revocation prevents its restoration;
-the coordinator must revoke the newly committed receiver lineage separately.
+the receiver transaction revokes the newly committed receiver lineage separately.
 Duplicate installation cannot replace or wipe the successful independent session.
 
 The receiver preserves original unlockedAt and idle/absolute/offline deadlines.
@@ -462,3 +462,27 @@ transport ignores abort. It does not mutate the current local session or emit a
 peer/group logout. No observer fires for a failed response or unreadable/lost body;
 a consumed commit is never replayed to recover a missing token. These API mechanics
 still require the actual receiver transaction and browser coordinator to call them.
+
+
+`shared-unlock/receiver.ts` now composes the published SDK proof/DH receiver,
+Identity consume/commit, key recovery and SessionManager installation. The browser
+coordinator must supply account/org/link/preference and exact document/generation
+bindings independently of the offered operation. Both signed proofs bind the
+operation; the consumed Identity descriptor supplies member-key authority; the
+committed transcript must match before installing only the receiver's own tokens.
+
+The installer exposes a monotonic completion fact at its final synchronous route/
+local-generation check. A disconnect queued before the install promise resumes
+cannot revoke an already completed own session. ACK carries only operation ID
+and Web/Extension generations; loss never retries the operation or logs out a
+completed receiver. An incomplete available late commit body triggers bounded
+own-lineage cleanup on the original Identity. Lost bodies are never replayed.
+
+A synchronous installer AbortSignal cancels pending receiver work on local lock,
+logout, manual work or a newer receiver. It wipes recovered temporary keys even
+when commit transport is stalled. The receiver also applies the route signal and
+30-second attempt deadline. Installation owns its buffers through asynchronous
+storage rollback; it does not race cancellation against rollback completion.
+Real SDK/SessionManager tests cover these boundaries with mocked Identity and a
+synthetic Entry primitive. Browser operation dispatch and independent link/account/
+preference coordination are still not wired; these are not full browser E2E proofs.

@@ -48,7 +48,10 @@ describe("shared unlock receiver installation", () => {
   it("installs only the receiver tokens, seals them and retains the original limits", async () => {
     const h = harness(); const value = fresh();
     const attempt = await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {});
+    expect(attempt.completed).toBe(false);
     await attempt.install(value);
+    expect(attempt.completed).toBe(true);
+    expect(attempt.signal.aborted).toBe(false);
     expect(await h.manager.getStatus()).toBe("unlocked");
     expect(await h.manager.getAccessToken()).toBe("receiver-own-access");
     expect(h.manager.getSharedUnlockLimits()).toEqual(value.limits);

@@ -22,6 +22,10 @@ export interface SharedUnlockInstallation {
 
 /** Worker-only transaction captured before consume/commit or any key recovery. */
 export interface SharedUnlockInstaller {
+  /** Monotonic completion fact set at the final synchronous publication boundary. */
+  readonly completed: boolean;
+  /** Synchronous cancellation on lock/logout, manual work or a newer receiver. */
+  readonly signal: AbortSignal;
   assertCurrent(): void;
   /** Takes ownership of keys even when cancelled, expired or already consumed. */
   install(installation: SharedUnlockInstallation): Promise<void>;
