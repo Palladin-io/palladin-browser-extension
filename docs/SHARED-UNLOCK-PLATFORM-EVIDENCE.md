@@ -8,6 +8,26 @@ matrix or production support.
 
 ## Current acceptance status — 2026-09-11
 
+Latest native Safari run34639004301 (7deb6c9, runtime16ab8ea) passed13
+instrumented product-channel/Popup checks at19:29:17Z. It proves that the native
+Popup can use the unchanged private-command guard, while a Popup URL in a tab
+and a cross-window API call from diagnostics retain tab authority and are rejected.
+Earlier runs34637914020/34638324611 failed those mistaken positive assumptions;
+the corrected test uses a fixed value-free script in the Popup's own realm.
+Ordinary CI34639004324 passed1718 tests/141 files and all three builds.
+No Safari Identity/MK/Entry or distribution acceptance is claimed.
+
+Firefox155.0.1 on the current Webc58ec2b/Extension7deb6c9 tree passed16
+real Identity/Entry checks at19:29:14Z after sharing the unchanged Python Web
+steps with future Safari tests. An earlier run on Extension6b40b7d timed out
+after the browser-observed background restart at19:18:40Z, after13 checks.
+Its coarse stage did not distinguish the Popup's unlocked display from password
+autofill. The two waits now have separate failure stages; runs9673be7 at19:21:45Z
+and7deb6c9 at19:29:14Z passed. No runtime fix explains that intermittent failure,
+so it remains open. All three use the same Firefox artifact SHA256
+`be9cc51f652eb0863163cfd4045270b9a29e4f477d994e44f7e0de98e3c2502a`
+and Web Python artifact SHA256
+`cd51bfe70b615d42d292a690c01fd29fce7ba98d9bed682ec76248d248a5c6fd`.
 
 The installed product-channel test found a packaging defect: `vite.config.ts`
 still replaced Safari's configured environments with an empty array. The
@@ -20,8 +40,9 @@ Web origin. Native product run34637021800 passed10 checks at19:07:35Z on
 Safari26.6.2/macOS26.6.2 arm64; all three synthetic variants also passed.
 The ordinary Extension CI34637021792 and Webc58ec2b CI34634984109 passed.
 
-The product-channel fixture imports the unchanged compiled worker, adding only
-a private diagnostic page/wrapper and synthetic display name. Its hashes and
+The product-channel fixture imports the unchanged compiled worker, adding
+a private diagnostic page/wrapper, a fixed Popup sender/status script and
+synthetic display name. Its hashes and
 instrumentation are explicit. It does not inject sessions or keys, and this
 PASS does not prove the real Web/Identity/MK/Entry flow or distribution.
 
@@ -64,9 +85,9 @@ with a channel-only probe or a successful build.
 | Brave1.95.101 / engine153.0.8010.37 | Unpacked, browser CDP; headless |16/16 PASS|16:25:33|
 | Edge153.0.4234.32 | Unpacked, browser CDP; headless |17/17 PASS, own activity|17:34:54|
 | Firefox140.0 | Temporary product XPI |16/16 PASS, new coordinator|18:01:57|
-| Firefox155.0.1 | Temporary product XPI |16/16 PASS, new coordinator|18:02:48|
+| Firefox155.0.1 | Temporary product XPI |16/16 PASS, current runtime; earlier restart timeout remains open|19:29:14|
 | Opera135.0.5973.133 / engine151.0.7922.176 | Unpacked, browser CDP; headless |16/16 PASS|17:03:15|
-| Safari26.6.2 / macOS26.6.2 arm64 | Instrumented product module worker, one-day loopback grant in disposable CI |10 product channel checks; Identity/MK/Entry unverified|19:07:35|
+| Safari26.6.2 / macOS26.6.2 arm64 | Instrumented product worker/Popup, one-day loopback grant in disposable CI |13 channel/Popup authority checks; Identity/MK/Entry unverified|19:29:17|
 
 The16 baseline checks cover real registration/email/password login, automatic unlock,
 live encrypted Entry/password decryption, continued operation after Web closure,
@@ -81,7 +102,8 @@ input evidence. Reproduction and limitations:
 
 The combined own-activity/full-browser-restart case passes20 checks on Chromium153.
 Current Chromium20 uses clean Webc58ec2b/Extensiond188270 (18:48:02Z).
-Edge/Firefox runs retain Web1314dec and Extension runtime3444a75;
+Edge/Firefox140 runs retain Web1314dec and Extension runtime3444a75;
+Firefox155 uses clean Webc58ec2b/Extension7deb6c9 (runtime16ab8ea).
 Chrome/Brave/Opera rows retain their earlier runtime810cf86 observations. Edge's CDP development installation does not survive browser
 restart, so that distribution path remains unverified. New delayed-authorization
 Edge failures are also retained below; earlier successful runs do not erase them.

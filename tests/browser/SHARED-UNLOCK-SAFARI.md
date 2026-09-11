@@ -2,6 +2,25 @@
 
 ## Installed product channel
 
+The latest product probe7deb6c9 passed13 checks in run34639004301 at19:29:17Z
+on Safari26.6.2/macOS26.6.2 arm64. Ordinary CI34639004324 also passed.
+The three added checks distinguish native Popup authority from a tab: opening
+the Popup URL as a tab is rejected, and calling its runtime API from another
+extension tab retains that caller's tab identity. A fixed read-only script loaded
+inside the actual native Popup receives `signed-out` through the unchanged
+private-command guard, with its exact native ID/URL and no sender tab.
+
+Earlier run34637914020 incorrectly expected a tab copy to pass that guard.
+Run34638324611 found the real Popup with `extension.getViews`, but its API call
+still had the diagnostics tab's sender. These were harness assumptions, not
+reasons to weaken the product guard. The successful probe adds an explicit
+Popup-document script alongside the existing diagnostic instrumentation. It
+uses no eval, session/key injection or private-command relay. This remains
+instrumented, account-free evidence; real Identity/MK/Entry is still pending.
+The clean CI merge checkout was fabdf86cd892e65d04f1506a330e6126ee51a1b8
+for branch head7deb6c9. Original artifact SHA256 is unchanged from below;
+instrumented fixture SHA256 is
+`c70a714dd7a98a32409f82f37402e8cb7287e25ac4f5b2e8b4f2314ab12f4231`.
 
 First native run34636215449 (test2de8417) disconnected before ready. The later
 minimal diagnostic run34636880642 (02e2658) showed the product worker loaded
@@ -29,8 +48,9 @@ instrumented fixture SHA256:
 The `--product-extension dist/safari` mode installs a copy of the actual Safari
 build configured for Web `http://127.0.0.1:55189` and API
 `http://localhost:55083`. It retains the original product worker and permissions.
-Test instrumentation changes the display name, adds a private diagnostic page
-and a wrapper that imports the unchanged product worker. The diagnostic page
+Test instrumentation changes the display name, adds a private diagnostic page,
+a fixed sender/status script to the Popup document, and a wrapper that imports
+the unchanged product worker. The diagnostic page
 requests only the already declared loopback host and reads native tab/document
 metadata independently of the product's ready message. It never installs an
 account, session or key. Source/artifact and instrumented fixture hashes are
@@ -56,8 +76,8 @@ native grant helper remains restricted to disposable GitHub-hosted runners and
 the exact synthetic display name plus loopback host; it does not change local
 Safari settings.
 
-The product now contains a separate Safari native-Port adapter. This probe still
-tests a synthetic fixture, not product login/unlock. The latest increment removes
+The product now contains a separate Safari native-Port adapter. The synthetic
+mode described below tests a fixture, not product login/unlock. It removes
 global `tabs` permission and checks the lifecycle event APIs and native tab
 URL/status required by the adapter. Earlier nine-check results below belong to
 the earlier fixture with `tabs`; they do not prove the new permission scope.
@@ -76,9 +96,9 @@ sender/current-frame document IDs. Module fixture SHA256:
 `254c15b0eeacaeacd1af228a10a4f0c2c847fc1d88ad149c9457f3cb8542d800`.
 No Identity or keys were used; this remains synthetic evidence.
 
-CVT-587/CVT-592/CVT-604, within CVT-583. This is a synthetic browser probe and
-packaging preparation, not an implemented Safari shared-unlock adapter or
-Identity/MK/Entry acceptance.
+CVT-587/CVT-592/CVT-604, within CVT-583. The following historical observations
+established the synthetic browser route and packaging preparation. They do not
+prove Identity/MK/Entry acceptance; the current product adapter is covered above.
 
 Apple documents native webpage messaging through `browser.runtime.connect` and
 `externally_connectable`. For packaged extensions the recipient is a composed
@@ -147,8 +167,9 @@ fixture icon set produces a converter warning; no release icon claim is made.
 The first actual probe attempt stopped at session creation: Safari26.4
 (21624.1.16.11.4) requires Allow remote automation. No extension was installed in
 an automation session and no native-channel observation passed. This host-setting
-gate is separate from implementing the product adapter. Web currently selects
-only Chromium or Firefox; Extension's Safari shared-unlock branch is still null.
+gate was separate from implementing the product adapter. At that point Web
+selected only Chromium or Firefox and Extension's Safari branch was null;
+the implemented adapter and its current limits are recorded above.
 Do not substitute the existing Chromium/Firefox evidence or a custom WKWebView
 for installed Safari acceptance. Safari16.4 floor, real Identity/Entry, the full
 OS/version/distribution and negative lifecycle/security matrix remain open.
