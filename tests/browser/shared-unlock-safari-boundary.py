@@ -10,6 +10,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import urllib.parse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--driver-url', default='http://127.0.0.1:55187')
@@ -96,17 +97,20 @@ def navigate(url):
 def probe(extension_id):
     return command('POST', '/execute/async', {'script': '''
       const id = arguments[0], done = arguments[arguments.length - 1];
-      if (typeof globalThis.browser?.runtime?.connect !== 'function') { done(null); return; }
+      if (typeof globalThis.browser?.runtime?.connect !== 'function') {
+        done({ outcome: 'missing-api', browserType: typeof globalThis.browser,
+          chromeType: typeof globalThis.chrome, secureContext: globalThis.isSecureContext }); return;
+      }
       let finished = false;
       const finish = value => { if (!finished) { finished = true; clearTimeout(timer); done(value); } };
-      const timer = setTimeout(() => finish(null), 2500);
+      const timer = setTimeout(() => finish({ outcome: 'timeout' }), 2500);
       try {
         const port = browser.runtime.connect(id, { name: 'synthetic-boundary' });
         window.syntheticBoundaryPort = port;
-        port.onMessage.addListener(message => finish(message));
-        port.onDisconnect.addListener(() => { void browser.runtime.lastError; finish(null); });
+        port.onMessage.addListener(message => finish({ outcome: 'message', message }));
+        port.onDisconnect.addListener(() => { void browser.runtime.lastError; finish({ outcome: 'disconnected' }); });
         port.postMessage({ type: 'probe', claimedOrigin: 'https://wrong.example.test', claimedExtensionId: 'wrong' });
-      } catch { finish(null); }
+      } catch (error) { finish({ outcome: 'exception', errorName: error.name }); }
     ''', 'args': [extension_id]})
 
 try:
@@ -129,7 +133,19 @@ try:
     threading.Thread(target=server.serve_forever, daemon=True).start()
     stage = 'allowed-native-port'
     navigate(origin + '/allowed')
-    first = probe(extension_id)
+    first_result = probe(extension_id)
+    observations['nativeRecipientProbe'] = first_result
+    # Compare only two browser-derived representations. This synthetic probe
+    # does not define product recipient configuration or accept page claims.
+    decoded_id = urllib.parse.unquote(extension_id)
+    if decoded_id != extension_id:
+        decoded_result = probe(decoded_id)
+        observations['decodedRecipientProbe'] = decoded_result
+        if first_result.get('outcome') != 'message' and decoded_result.get('outcome') == 'message':
+            extension_id = decoded_id
+            first_result = decoded_result
+    observations['messagingRecipientId'] = extension_id
+    first = first_result.get('message')
     assert first and first['type'] == 'observation'
     observations['first'] = first
     assert first['sender']['url'] == origin + '/allowed'
@@ -139,16 +155,22 @@ try:
     checks.append('payload-claims-do-not-replace-browser-sender')
     stage = 'same-url-reload'
     command('POST', '/refresh', {})
-    second = probe(extension_id)
+    second_result = probe(extension_id)
+    observations['reloadProbe'] = second_result
+    second = second_result.get('message')
     assert second and second['sender']['url'] == origin + '/allowed'
     observations['afterReload'] = second
     checks.append('same-url-reload-observed-with-native-metadata')
     stage = 'wrong-recipient'
-    assert probe('org.example.nonexistent.Extension (AAAAAAAAAA)') is None
+    wrong = probe('org.example.nonexistent.Extension (AAAAAAAAAA)')
+    observations['wrongRecipientProbe'] = wrong
+    assert wrong.get('outcome') != 'message'
     checks.append('wrong-recipient-has-no-reply')
     stage = 'unlisted-web-origin'
     navigate('http://localhost:55189/denied')
-    assert probe(extension_id) is None
+    unlisted = probe(extension_id)
+    observations['unlistedOriginProbe'] = unlisted
+    assert unlisted.get('outcome') != 'message'
     checks.append('unlisted-web-origin-has-no-reply')
     result = {'status': 'synthetic-observations-only', 'checks': checks, 'observations': observations,
         'fixtureSha256': fixture_hash, 'osVersion': platform.mac_ver()[0], 'architecture': platform.machine(),
