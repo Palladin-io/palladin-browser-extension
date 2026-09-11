@@ -511,3 +511,56 @@ again passed16/16 checks on155.0.1 at16:02:22Z. Chromium153/macOS arm64 passed
 16/16 Identity/Entry/worker-restart checks at16:03:03Z, including the1500ms
 manual-authorization delay. Independent review and the full acceptance matrix
 remain open. These local artifacts are not signed-distribution evidence.
+
+## Chrome and Brave actual Identity/Entry observations — 2026-09-11
+
+The Identity harness now accepts an explicit browser executable and label,
+records its executable SHA256 and actual engine version, and retains separate
+versioned reports. These runs use fresh temporary profiles and the same
+configured product artifacts as the preceding Chromium run. Browser labels are
+operator-supplied metadata; independently verified vendor signatures and the
+recorded executable hashes identify the actual browser binaries.
+
+| Browser | Engine | macOS / architecture | Mode / extension installation | Actual checks |
+|---|---|---|---|---|
+| Google Chrome152.0.7977.84 |152.0.7977.84|26.4.1 / arm64|headless / unpacked via browser CDP|16 PASS16:28:18Z|
+| Brave1.95.101|153.0.8010.37|26.4.1 / arm64|headless / unpacked via browser CDP|16 PASS16:25:33Z|
+| Playwright Chromium|153.0.8010.12|26.4.1 / arm64|headless / unpacked via load flag|16 PASS16:24:12Z|
+
+Chrome is a task-owned copy of the installed Google-signed application
+(TeamEQHXZ8M8AV). Brave came from the official
+[v1.95.101 release](https://github.com/brave/brave-browser/releases/tag/v1.95.101);
+its DMG SHA256 matches the release asset digest
+`2deaed060d24f0809bb87332a4d75c7dd140bd38d0915b9e63791917eee3898f`.
+Both copied bundles passed strict deep codesign verification, Brave with
+TeamKL8N8XSYF4. Extended filesystem attributes were removed only from task-owned
+copies before verification; signed application bytes were not edited.
+Ignored `browser-verification.<label>.json` receipts retain signature identity,
+executable hash and observed bundle version.
+
+Each passing run includes real registration/verification/password login,
+automatic Extension unlock, live encrypted Entry update and actual password
+decryption, Web close/reopen, observed worker stop/start, fresh unlock/decryption
+and shared manual lock/logout. The1500ms manual-authorization delay is enabled.
+Chrome's explicit development installation uses browser-owned
+`Extensions.loadUnpacked`; no storage/key injection, Identity substitution or
+CSP relaxation is used. This does not prove store installation, full browser
+shutdown, OS-lock/sleep/resume, idle renewal, other versions or operating systems.
+
+Failures are retained separately: a Chromium run reached15 checks but did not
+observe final logout; the old pointer helper did not confirm delivery of that
+click. The helper now requires an actual trusted click on the exact button and
+does not replay an observed click. Passing Chrome, Chromium and Brave repeats each
+record one delivered Sign out click; this is stronger interaction evidence,
+not a claim that the earlier failure's root cause was conclusively reproduced.
+Another Chromium attempt and the first Brave attempt typed into the transient
+SPA login form before `logoutAndReload` replaced the document. The harness now
+waits for the real final document before entering credentials. A second Brave
+attempt timed out launching the browser, before any Identity check; its process
+was confirmed terminal before the successful fresh-profile repeat.
+
+The full browser/version/OS/distribution and negative security/lifecycle matrix
+remains open, including Edge, Opera and Safari. Product runtime is unchanged by
+these harness improvements; reports identify the working-tree harness state.
+
+The shared native-popup helper also passes the credential-capture regression:24 encrypted writes and the synthetic plaintext/key storage inspection. Documentation, Node syntax and diff checks pass. Earlier runtime810cf86 and docs d7309d3 CI are green; the new harness commit has its own CI gate.

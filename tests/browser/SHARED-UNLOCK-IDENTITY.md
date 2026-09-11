@@ -66,6 +66,52 @@ timing only and exposes repair reads of the previous locked root while the new
 password unlock is preparing. The report records this option and the actual
 delay. No API response, key state, clock, lock result, or token is substituted.
 
+### Branded Chromium-family browsers
+
+Use an explicit browser executable and label to run the same Identity/Entry
+checks on Chrome, Brave, Edge or Opera. The harness always creates its own
+temporary profile; it never attaches to an existing user profile. Verify the
+vendor package/signature before running it. A label is an operator-supplied
+report dimension, not proof of the browser vendor; reports also retain the
+actual browser version, executable SHA256, OS version and built artifact hashes.
+
+```sh
+node tests/browser/shared-unlock-identity-e2e.mjs \
+  --web-source /absolute/path/to/built-web-repository \
+  --api-url http://localhost:55083 --ses-url http://127.0.0.1:55084 \
+  --browser-label chrome \
+  --browser-executable '/absolute/path/to/Google Chrome.app/Contents/MacOS/Google Chrome' \
+  --install-via-cdp --delay-manual-authorization
+```
+
+Current official Chrome no longer accepts `--load-extension`. The explicit
+`--install-via-cdp` option uses the browser's `Extensions.loadUnpacked` command
+over the automation pipe with `--enable-unsafe-extension-debugging`. It only
+installs the actual unpacked artifact and checks its browser-returned ID against
+the manifest-derived ID and worker origin. It never reads or writes extension
+storage through the debugging API, installs keys, substitutes authentication or
+relaxes Web CSP. This is development-installation evidence, not store evidence.
+The option is independent of the browser label; engines that still support the
+original load flag can use the default installation path.
+
+Runs are headless by default and record that fact. `--headed` selects a visible
+browser; neither mode by itself proves OS-lock/sleep, trusted idle renewal or
+distribution acceptance. Versioned `report.<label>-<version>.json` and failure
+files preserve observations across browsers; the unversioned files describe only
+the latest run. The required matrix remains open for untested combinations.
+
+After a manual Web logout, the harness waits for the document replacement owned
+by `logoutAndReload`, not merely the intermediate SPA `/login` route. Input then
+uses ordinary browser form filling and checks complete values without logging
+them. Native popup button actions require an observed trusted click on the exact
+button. A click that was delivered is never retried; a missing pointer delivery
+may resolve the fresh button again. Reports retain the delivered Sign out click
+attempt count. This instrumentation observes input delivery only and does not
+change product handlers, session state or authentication.
+
+References: [Chrome flag removal](https://groups.google.com/a/chromium.org/g/chromium-extensions/c/1-g8EFx2BBY),
+[browser-owned extension installation](https://chromedevtools.github.io/devtools-protocol/tot/Extensions/#method-loadUnpacked).
+
 ## Firefox Identity, Entry and background restart
 
 `shared-unlock-firefox-identity.py` runs the same real registration, email,

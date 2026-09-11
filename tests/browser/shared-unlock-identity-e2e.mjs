@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { randomBytes, createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import { readFile, writeFile, mkdir, mkdtemp, rm, readdir } from 'node:fs/promises'
-import { tmpdir, platform, arch } from 'node:os'
+import { tmpdir, platform, arch, release } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import { chromium } from 'playwright'
@@ -14,12 +14,21 @@ const argument = name => process.argv[process.argv.indexOf(name) + 1]
 for (const name of ['--web-source', '--api-url', '--ses-url']) assert(process.argv.includes(name), `${name} required`)
 const webSource = path.resolve(argument('--web-source')), apiUrl = argument('--api-url'), sesUrl = argument('--ses-url')
 const delayManualAuthorization = process.argv.includes('--delay-manual-authorization')
+const browserExecutable = process.argv.includes('--browser-executable') ? path.resolve(argument('--browser-executable')) : undefined
+const browserLabel = process.argv.includes('--browser-label') ? argument('--browser-label') : 'chromium'
+assert(['chrome', 'chromium', 'brave', 'edge', 'opera'].includes(browserLabel), 'Known browser label required')
+assert(!browserExecutable || process.argv.includes('--browser-label'), 'Explicit executable requires an explicit browser label')
+assert(browserLabel === 'chromium' || browserExecutable, 'Branded browser requires its explicit executable')
+const installViaCdp = process.argv.includes('--install-via-cdp')
+const headed = process.argv.includes('--headed')
 for (const url of [apiUrl, sesUrl]) assert(['localhost', '127.0.0.1'].includes(new URL(url).hostname), 'Isolated loopback services only')
 const webOrigin = 'http://127.0.0.1:5173', webDirectory = path.join(webSource, 'dist')
 const extension = path.resolve('dist/chromium'), output = path.resolve('test-results/shared-unlock-identity')
 const temporary = await mkdtemp(path.join(tmpdir(), 'palladin-identity-e2e-'))
 let context, server, mailServer, page, popup, stage = 'preflight'
 const checks = [], requests = []
+const progress = setInterval(() => console.log(`PROGRESS ${JSON.stringify({ stage, completedChecks: checks.length })}`), 10000)
+progress.unref()
 const messages = [] // Synthetic SES v2 delivery, memory-only; never written to a report.
 async function artifactHash(directory) {
   const hash = createHash('sha256')
@@ -35,8 +44,13 @@ async function artifactHash(directory) {
 const provenance = {
   webHead: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: webSource, encoding: 'utf8' }).trim(),
   extensionHead: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+  webWorkingTreeDirty: execFileSync('git', ['status', '--porcelain'], { cwd: webSource, encoding: 'utf8' }).trim().length > 0,
+  extensionWorkingTreeDirty: execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim().length > 0,
   webArtifactSha256: await artifactHash(webDirectory), extensionArtifactSha256: await artifactHash(extension),
   platform: platform(), architecture: arch(), apiOrigin: new URL(apiUrl).origin, webOrigin,
+  osRelease: release(), osVersion: platform() === 'darwin' ? execFileSync('sw_vers', ['-productVersion'], { encoding: 'utf8' }).trim() : release(), browserLabel, headed,
+  browserExecutableSha256: browserExecutable ? createHash('sha256').update(await readFile(browserExecutable)).digest('hex') : null,
+  extensionInstallation: installViaCdp ? 'browser-owned-cdp-loadUnpacked' : 'command-line-load-extension',
   distribution: 'local-unpacked', emailDelivery: 'local-ses-v2-fixture',
   delayedManualAuthorization: delayManualAuthorization,
 }
@@ -74,14 +88,28 @@ try {
     })().catch(() => { response.writeHead(500); response.end() })
   })
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(5173, '127.0.0.1', resolve) })
-  context = await chromium.launchPersistentContext(path.join(temporary, 'profile'), { channel: 'chromium', headless: true,
-    args: ['--remote-debugging-port=0', `--disable-extensions-except=${extension}`, `--load-extension=${extension}`] })
+  stage = 'browser-launch'
+  context = await chromium.launchPersistentContext(path.join(temporary, 'profile'), {
+    ...(browserExecutable ? { executablePath: browserExecutable } : { channel: 'chromium' }), headless: !headed,
+    ...(installViaCdp ? { ignoreDefaultArgs: ['--disable-extensions'] } : {}),
+    args: ['--remote-debugging-port=0', ...(installViaCdp ? ['--enable-unsafe-extension-debugging']
+      : [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`])] })
+  provenance.browserVersion = context.browser().version()
+  if (installViaCdp) {
+    stage = 'browser-installs-unpacked-extension'
+    const browserCdp = await context.browser().newBrowserCDPSession()
+    try {
+      const installed = await browserCdp.send('Extensions.loadUnpacked', { path: extension })
+      provenance.browserInstalledExtensionId = installed.id
+    } finally { await browserCdp.detach() }
+  }
   context.setDefaultTimeout(20000)
   let worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker')
   const extensionId = new URL(worker.url()).host
   const manifest = JSON.parse(await readFile(path.join(extension, 'manifest.json'), 'utf8'))
   const expected = createHash('sha256').update(Buffer.from(manifest.key, 'base64')).digest('hex').slice(0,32).replace(/[0-9a-f]/g, c => String.fromCharCode(97 + parseInt(c,16)))
   assert.equal(extensionId, expected)
+  if (installViaCdp) assert.equal(extensionId, provenance.browserInstalledExtensionId)
   await context.route('**/*', route => {
     const url = new URL(route.request().url())
     return [webOrigin, new URL(apiUrl).origin, new URL(sesUrl).origin, 'http://localhost:54583'].includes(url.origin)
@@ -141,13 +169,20 @@ try {
   stage = 'manual-web-login'
   if (new URL(page.url()).pathname !== '/login') {
     stage = 'manual-web-logout'
+    // logoutAndReload clears auth first (SPA login route), then finishes its
+    // closing/cleanup before replacing the document. Do not type into the
+    // transient form that the real logout is still about to replace.
+    const loggedOutDocument = page.waitForEvent('domcontentloaded')
     await page.getByRole('button', { name: 'Log out', exact: true }).click()
+    await loggedOutDocument
   }
   stage = 'manual-web-login-fields'
   await page.waitForURL(url => url.pathname === '/login')
   await page.waitForLoadState('networkidle')
-  await page.locator('#login-email').click(); await page.locator('#login-email').pressSequentially(email, { delay: 5 })
-  await page.locator('#login-password').click(); await page.locator('#login-password').pressSequentially(password, { delay: 5 })
+  await page.locator('#login-email').fill(email)
+  await page.locator('#login-password').fill(password)
+  assert(await page.locator('#login-email').inputValue() === email, 'Login form must contain the complete synthetic email')
+  assert(await page.locator('#login-password').inputValue() === password, 'Login form must contain the complete synthetic password')
   requests.push({ check: 'login-fields-after-fill', emailMatches: await page.locator('#login-email').inputValue() === email,
     passwordMatches: await page.locator('#login-password').inputValue() === password,
     submitEnabled: await page.getByRole('button', { name: /^Sign in$/i }).isEnabled() })
@@ -258,11 +293,12 @@ try {
   await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
   await popup.waitText('Unlocked')
   stage = 'extension-logout-propagates'
-  await popup.click('Sign out')
+  const signoutClick = await popup.click('Sign out')
+  requests.push({ check: 'native-popup-signout-click-observed', attempts: signoutClick.attempts })
   await page.locator('#login-email').waitFor()
   checks.push('extension-logout-propagated-to-web')
-  await writeFile(path.join(output, 'report.json'), JSON.stringify({ status: 'partial-pass', checks, requests,
-    observedAt: new Date().toISOString(), browser: context.browser().version(), provenance, fullMatrix: false, entryDecryptionVerified: true }, null, 2))
+  await writeEvidence('report', { status: 'partial-pass', checks, requests,
+    observedAt: new Date().toISOString(), browser: context.browser().version(), provenance, fullMatrix: false, entryDecryptionVerified: true })
   console.log(`PARTIAL: ${checks.length} native Identity/Entry checks; full matrix still required.`)
 } catch (error) {
   if (popup) {
@@ -272,14 +308,22 @@ try {
     }
     requests.push({ check: 'native-popup-error-presentation', flags })
   }
-  await writeFile(path.join(output, 'failure.json'), JSON.stringify({ stage, checks, requests, errorType: error.name,
+  await writeEvidence('failure', { stage, checks, requests, errorType: error.name,
     timeout: error.name === 'TimeoutError' ? error.message.split('\n')[0] : undefined,
-    pagePath: page ? new URL(page.url()).pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id') : null, provenance, observedAt: new Date().toISOString() }, null, 2))
+    pagePath: page ? new URL(page.url()).pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id') : null, provenance, observedAt: new Date().toISOString() })
   console.error(`FAIL at ${stage}; value-free failure.json recorded.`); process.exitCode = 1
 } finally {
+  clearInterval(progress)
   popup?.close()
   await context?.close()
   if (server?.listening) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)) }
   if (mailServer?.listening) { mailServer.closeAllConnections(); await new Promise(resolve => mailServer.close(resolve)) }
   await rm(temporary, { recursive: true, force: true })
+}
+
+async function writeEvidence(kind, value) {
+  const contents = JSON.stringify(value, null, 2)
+  await writeFile(path.join(output, `${kind}.json`), contents)
+  const version = String(provenance.browserVersion ?? 'launch').replace(/[^a-zA-Z0-9.-]/g, '_')
+  await writeFile(path.join(output, `${kind}.${browserLabel}-${version}.json`), contents)
 }

@@ -64,11 +64,47 @@ export async function openNativePopup(worker, profile, extensionId) {
     await command('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 })
     await command('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 })
   }
+  // React may replace a button between AX lookup and pointer dispatch. Observe
+  // the actual trusted click on that exact node; never replay an observed click
+  // or replace the product callback with a runtime/session command.
+  const clickButton = async (backendNodeId) => {
+    const { object } = await command('DOM.resolveNode', { backendNodeId })
+    if (!object.objectId) return false
+    const objectId = object.objectId
+    try {
+      await command('Runtime.callFunctionOn', { objectId, functionDeclaration: `function() {
+        const state = { observed: false, trusted: false, handler: null };
+        state.handler = event => { state.observed = true; state.trusted = event.isTrusted; };
+        this.__palladinTestClick = state;
+        this.addEventListener('click', state.handler, { capture: true, once: true });
+      }` })
+      await clickNode(backendNodeId)
+      const result = await command('Runtime.callFunctionOn', { objectId, returnByValue: true,
+        functionDeclaration: 'function() { const s = this.__palladinTestClick; return { observed: s?.observed === true, trusted: s?.trusted === true }; }' })
+      if (result.result.value?.observed && !result.result.value.trusted) throw new Error('Untrusted native popup click')
+      return result.result.value?.observed === true
+    } finally {
+      try {
+        await command('Runtime.callFunctionOn', { objectId, functionDeclaration: `function() {
+          const state = this.__palladinTestClick;
+          if (state) this.removeEventListener('click', state.handler, true);
+          delete this.__palladinTestClick;
+        }` })
+      } catch { /* The real action may close its popup document. */ }
+      try { await command('Runtime.releaseObject', { objectId }) } catch { /* target closed */ }
+    }
+  }
   return {
     async click(name) {
-      const node = await wait(async () => (await command('Accessibility.getFullAXTree')).nodes.find((node) =>
-        !node.ignored && node.role?.value === 'button' && node.name?.value === name), name)
-      await clickNode(node.backendDOMNodeId)
+      let attempts = 0
+      await wait(async () => {
+        const node = (await command('Accessibility.getFullAXTree')).nodes.find((node) =>
+          !node.ignored && node.role?.value === 'button' && node.name?.value === name)
+        if (!node) return false
+        attempts += 1
+        return clickButton(node.backendDOMNodeId)
+      }, `trusted button click: ${name}`)
+      return { attempts }
     },
     async fill(selector, value) {
       await wait(() => evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`), selector)
