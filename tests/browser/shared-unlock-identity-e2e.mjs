@@ -1,0 +1,231 @@
+import assert from 'node:assert/strict'
+import { randomBytes, createHash } from 'node:crypto'
+import { createServer } from 'node:http'
+import { readFile, writeFile, mkdir, mkdtemp, rm, readdir } from 'node:fs/promises'
+import { tmpdir, platform, arch } from 'node:os'
+import { execFileSync } from 'node:child_process'
+import path from 'node:path'
+import { chromium } from 'playwright'
+import { openNativePopup } from './native-popup.mjs'
+
+// Explicit, already built clients and isolated local Identity/SES test services.
+// No account credentials, recovery words, tokens or keys are written to reports.
+const argument = name => process.argv[process.argv.indexOf(name) + 1]
+for (const name of ['--web-source', '--api-url', '--ses-url']) assert(process.argv.includes(name), `${name} required`)
+const webSource = path.resolve(argument('--web-source')), apiUrl = argument('--api-url'), sesUrl = argument('--ses-url')
+for (const url of [apiUrl, sesUrl]) assert(['localhost', '127.0.0.1'].includes(new URL(url).hostname), 'Isolated loopback services only')
+const webOrigin = 'http://127.0.0.1:5173', webDirectory = path.join(webSource, 'dist')
+const extension = path.resolve('dist/chromium'), output = path.resolve('test-results/shared-unlock-identity')
+const temporary = await mkdtemp(path.join(tmpdir(), 'palladin-identity-e2e-'))
+let context, server, mailServer, page, popup, stage = 'preflight'
+const checks = [], requests = []
+const messages = [] // Synthetic SES v2 delivery, memory-only; never written to a report.
+async function artifactHash(directory) {
+  const hash = createHash('sha256')
+  async function visit(relative) {
+    for (const item of (await readdir(path.join(directory, relative), { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
+      const name = path.join(relative, item.name)
+      if (item.isDirectory()) await visit(name)
+      else { assert(item.isFile(), 'Artifacts must contain only regular files'); hash.update(name); hash.update('\0'); hash.update(await readFile(path.join(directory, name))); hash.update('\0') }
+    }
+  }
+  await visit(''); return hash.digest('hex')
+}
+const provenance = {
+  webHead: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: webSource, encoding: 'utf8' }).trim(),
+  extensionHead: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+  webArtifactSha256: await artifactHash(webDirectory), extensionArtifactSha256: await artifactHash(extension),
+  platform: platform(), architecture: arch(), apiOrigin: new URL(apiUrl).origin, webOrigin,
+  distribution: 'local-unpacked', emailDelivery: 'local-ses-v2-fixture',
+}
+const password = 'Synthetic!' + randomBytes(24).toString('base64url'), email = `cvt583-${randomBytes(8).toString('hex')}@example.test`
+try {
+  await mkdir(output, { recursive: true }); await rm(path.join(output, 'report.json'), { force: true })
+  await rm(path.join(output, 'failure.json'), { force: true })
+  assert.equal((await fetch(apiUrl + '/api/health')).status, 200)
+  mailServer = createServer((request, response) => {
+    if (request.method !== 'POST' || request.url !== '/v2/email/outbound-emails') { response.writeHead(404); response.end(); return }
+    let body = ''
+    request.on('data', chunk => { body += chunk; if (body.length > 262144) request.destroy() })
+    request.on('end', () => {
+      try {
+        const message = JSON.parse(body)
+        assert(message.Destination.ToAddresses.includes(email))
+        assert.equal(typeof message.Content.Simple.Body.Html.Data, 'string')
+        if (messages.length < 10) messages.push(message)
+        response.writeHead(200, { 'Content-Type': 'application/json' }); response.end(JSON.stringify({ MessageId: randomBytes(16).toString('hex') }))
+      } catch { response.writeHead(400); response.end() }
+    })
+  })
+  await new Promise((resolve, reject) => { mailServer.once('error', reject); mailServer.listen(Number(new URL(sesUrl).port), '127.0.0.1', resolve) })
+  const headers = Object.fromEntries((await readFile(path.join(webDirectory, '_headers'), 'utf8')).split('\n')
+    .map(line => line.match(/^\s+([^:]+):\s*(.+)$/)).filter(Boolean).map(match => [match[1], match[2]]))
+  assert(headers['Content-Security-Policy'])
+  server = createServer((request, response) => {
+    void (async () => {
+      let file = path.resolve(webDirectory, '.' + new URL(request.url, webOrigin).pathname)
+      if (!file.startsWith(webDirectory + path.sep)) file = path.join(webDirectory, 'index.html')
+      let bytes
+      try { bytes = await readFile(file) } catch { file = path.join(webDirectory, 'index.html'); bytes = await readFile(file) }
+      const mime = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' }[path.extname(file)] ?? 'application/octet-stream'
+      response.writeHead(200, { ...headers, 'Content-Type': mime, 'Cache-Control': 'no-store' }); response.end(bytes)
+    })().catch(() => { response.writeHead(500); response.end() })
+  })
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(5173, '127.0.0.1', resolve) })
+  context = await chromium.launchPersistentContext(path.join(temporary, 'profile'), { channel: 'chromium', headless: true,
+    args: ['--remote-debugging-port=0', `--disable-extensions-except=${extension}`, `--load-extension=${extension}`] })
+  context.setDefaultTimeout(20000)
+  const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker')
+  const extensionId = new URL(worker.url()).host
+  const manifest = JSON.parse(await readFile(path.join(extension, 'manifest.json'), 'utf8'))
+  const expected = createHash('sha256').update(Buffer.from(manifest.key, 'base64')).digest('hex').slice(0,32).replace(/[0-9a-f]/g, c => String.fromCharCode(97 + parseInt(c,16)))
+  assert.equal(extensionId, expected)
+  await context.route('**/*', route => {
+    const url = new URL(route.request().url())
+    return [webOrigin, new URL(apiUrl).origin, new URL(sesUrl).origin, 'http://localhost:54583'].includes(url.origin)
+      || url.protocol === 'chrome-extension:' ? route.continue() : route.abort()
+  })
+  context.on('response', response => {
+    const url = new URL(response.url())
+    if (url.origin === new URL(apiUrl).origin) requests.push({ path: url.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id'), status: response.status() })
+  })
+  page = await context.newPage()
+  page.on('requestfailed', request => {
+    const url = new URL(request.url())
+    if (url.origin === new URL(apiUrl).origin) requests.push({ path: url.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id'), status: 'request-failed' })
+  })
+  stage = 'registration-credentials'; await page.goto(webOrigin + '/register')
+  await page.locator('#register-email').fill(email)
+  await page.locator('#register-password').fill(password)
+  await page.locator('#register-password-confirm').fill(password)
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  stage = 'registration-recovery'
+  const words = await page.locator('ol.ph-no-capture li span.font-mono').allTextContents()
+  assert.equal(words.length, 24)
+  await page.getByRole('button', { name: "I've Saved My Recovery Key", exact: true }).click()
+  const inputs = page.locator('input[id^="recovery-word-"]')
+  await inputs.first().waitFor()
+  for (let i = 0; i < await inputs.count(); i++) {
+    const input = inputs.nth(i), index = Number((await input.getAttribute('id')).split('-').at(-1))
+    await input.fill(words[index])
+  }
+  words.fill('')
+  stage = 'registration-commit'
+  const registered = page.waitForResponse(r => r.url() === apiUrl + '/api/auth/register')
+  await page.getByRole('button', { name: 'Verify & Complete Setup', exact: true }).click()
+  assert.equal((await registered).status(), 200)
+  checks.push('actual-web-registration-with-browser-crypto')
+  stage = 'local-email-verification'
+  let verification
+  for (let attempt = 0; attempt < 100 && !verification; attempt++) {
+    verification = JSON.stringify(messages).match(/http:\/\/127\.0\.0\.1:5173\/verify-email\?token=[^"\\\s<]+/)?.[0]
+    if (!verification) await new Promise(resolve => setTimeout(resolve, 200))
+  }
+  assert(verification, 'Local SES must contain this synthetic account verification')
+  await page.goto(verification)
+  await page.getByRole('heading', { name: 'Email Verified', exact: true }).waitFor()
+  checks.push('actual-email-verification-through-local-ses')
+  await page.waitForURL(url => url.pathname !== '/verify-email')
+  stage = 'manual-web-login'
+  if (new URL(page.url()).pathname !== '/login') {
+    stage = 'manual-web-logout'
+    await page.getByRole('button', { name: 'Log out', exact: true }).click()
+  }
+  stage = 'manual-web-login-fields'
+  await page.waitForURL(url => url.pathname === '/login')
+  await page.waitForLoadState('networkidle')
+  await page.locator('#login-email').click(); await page.locator('#login-email').pressSequentially(email, { delay: 5 })
+  await page.locator('#login-password').click(); await page.locator('#login-password').pressSequentially(password, { delay: 5 })
+  requests.push({ check: 'login-fields-after-fill', emailMatches: await page.locator('#login-email').inputValue() === email,
+    passwordMatches: await page.locator('#login-password').inputValue() === password,
+    submitEnabled: await page.getByRole('button', { name: /^Sign in$/i }).isEnabled() })
+  stage = 'manual-web-login-submit'
+  await page.getByRole('button', { name: /^Sign in$/i }).click()
+  stage = 'manual-web-login-completion'
+  await page.waitForURL(url => !['/login','/unlock'].includes(url.pathname))
+  checks.push('actual-web-manual-password-login')
+  stage = 'web-create-entry'
+  await page.getByRole('link', { name: 'Vaults', exact: true }).click()
+  await page.getByText('Personal', { exact: true }).first().click()
+  await page.getByRole('button', { name: 'Add Entry', exact: true }).first().click()
+  const entryPassword = 'Entry!' + randomBytes(24).toString('base64url')
+  for (const [selector, value] of [['#entry-label', 'Synthetic shared unlock proof'], ['#entry-username', 'synthetic-entry-user'], ['#entry-password', entryPassword]]) {
+    await page.locator(selector).click(); await page.locator(selector).pressSequentially(value, { delay: 5 })
+  }
+  await page.getByRole('button', { name: 'Save Entry', exact: true }).click()
+  await page.waitForURL(url => /^\/vaults\/[^/]+\/entries\/[^/]+$/.test(url.pathname))
+  const [, , vaultId, , entryId] = new URL(page.url()).pathname.split('/')
+  checks.push('actual-web-encrypted-entry-created')
+  stage = 'extension-automatic-unlock'
+  popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId)
+  for (let attempt = 0; attempt < 200; attempt++) {
+    if (await popup.hasText('Unlocked')) break
+    if (await popup.hasButton('Continue to Palladin')) { await popup.click('Continue to Palladin'); break }
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  await popup.waitText('Unlocked')
+  checks.push('actual-extension-automatic-unlock')
+  // A new manual authorization after Entry creation also exercises shared lock.
+  // Live Entry invalidation is tracked separately; it is not asserted by this
+  // fresh-unlock snapshot test.
+  stage = 'web-manual-lock-propagates'
+  await page.getByRole('button', { name: 'Lock', exact: true }).click()
+  await popup.waitButton('Unlock')
+  checks.push('web-manual-lock-propagated-to-extension')
+  stage = 'web-fresh-manual-unlock'
+  await page.locator('#unlock-password').click()
+  await page.locator('#unlock-password').pressSequentially(password, { delay: 5 })
+  await page.getByRole('button', { name: 'Unlock', exact: true }).click()
+  await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+  await popup.waitText('Unlocked')
+  checks.push('extension-automatically-unlocked-after-new-manual-authorization')
+  stage = 'extension-entry-list'
+  await popup.waitText('Synthetic shared unlock proof')
+  stage = 'extension-entry-decryption'
+  assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword), 'Native popup must decrypt the actual Entry')
+  checks.push('actual-extension-entry-password-decrypted')
+  stage = 'extension-survives-web-close'
+  await page.close(); page = undefined
+  assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword), 'Completed extension session must survive Web closure')
+  checks.push('extension-entry-decryption-after-web-close')
+  stage = 'reopened-web-automatic-unlock'
+  page = await context.newPage(); await page.goto(webOrigin + '/unlock')
+  await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+  checks.push('reopened-web-automatically-unlocked-by-extension')
+  stage = 'extension-manual-lock-propagates'
+  popup.close(); popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId)
+  await popup.click('Lock')
+  await page.locator('#unlock-password').waitFor()
+  checks.push('extension-manual-lock-propagated-to-web')
+  stage = 'manual-unlock-before-shared-logout'
+  await page.locator('#unlock-password').click()
+  await page.locator('#unlock-password').pressSequentially(password, { delay: 5 })
+  await page.getByRole('button', { name: 'Unlock', exact: true }).click()
+  await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+  await popup.waitText('Unlocked')
+  stage = 'extension-logout-propagates'
+  await popup.click('Sign out')
+  await page.locator('#login-email').waitFor()
+  checks.push('extension-logout-propagated-to-web')
+  await writeFile(path.join(output, 'report.json'), JSON.stringify({ status: 'partial-pass', checks, requests,
+    observedAt: new Date().toISOString(), browser: context.browser().version(), provenance, fullMatrix: false, entryDecryptionVerified: true }, null, 2))
+  console.log(`PARTIAL: ${checks.length} native Identity/Entry checks; full matrix still required.`)
+} catch (error) {
+  if (popup) {
+    const flags = {}
+    for (const label of ['Unlocked', 'No entries yet', 'Try again', "Couldn't reach Palladin", "Couldn't open the encrypted Vault", "Couldn't open one of the encrypted entry indexes", 'Your session changed', 'One password manager works best', 'Sign in', 'Unlock']) {
+      try { flags[label] = await popup.hasText(label) } catch { flags[label] = null }
+    }
+    requests.push({ check: 'native-popup-error-presentation', flags })
+  }
+  await writeFile(path.join(output, 'failure.json'), JSON.stringify({ stage, checks, requests, errorType: error.name,
+    timeout: error.name === 'TimeoutError' ? error.message.split('\n')[0] : undefined,
+    pagePath: page ? new URL(page.url()).pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id') : null, provenance, observedAt: new Date().toISOString() }, null, 2))
+  console.error(`FAIL at ${stage}; value-free failure.json recorded.`); process.exitCode = 1
+} finally {
+  popup?.close()
+  await context?.close()
+  if (server?.listening) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)) }
+  if (mailServer?.listening) { mailServer.closeAllConnections(); await new Promise(resolve => mailServer.close(resolve)) }
+  await rm(temporary, { recursive: true, force: true })
+}

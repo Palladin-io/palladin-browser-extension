@@ -65,8 +65,19 @@ export async function openNativePopup(worker, profile, extensionId) {
       await command('Input.insertText', { text: value })
     },
     async hasText(text) { return evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`) },
+    // Exercise the same private command as CopyButton, inside the real native
+    // popup sender boundary. Only a boolean leaves the browser; no clipboard,
+    // synthetic secret, key, or command response enters reports.
+    async revealedFieldMatches(vaultId, entryId, field, expected) {
+      const { result, exceptionDetails } = await command('Runtime.evaluate', {
+        expression: `(async () => { const r = await chrome.runtime.sendMessage(${JSON.stringify({ type: 'vault/reveal', vaultId, entryId, field })}); return r?.ok === true && r.reveal?.value === ${JSON.stringify(expected)} })()`,
+        awaitPromise: true, returnByValue: true,
+      })
+      return !exceptionDetails && result.value === true
+    },
     async hasButton(name) { return (await command('Accessibility.getFullAXTree')).nodes.some((node) =>
       !node.ignored && node.role?.value === 'button' && node.name?.value === name) },
+    async waitButton(name) { await wait(() => this.hasButton(name), name) },
     async waitText(text) { await wait(() => evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`), text) },
     async screenshot(file) { const { data } = await command('Page.captureScreenshot'); await writeFile(file, Buffer.from(data, 'base64')) },
     close() { socket.close() },
