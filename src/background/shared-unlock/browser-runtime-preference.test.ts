@@ -18,7 +18,7 @@ vi.mock('../session/runtime', async () => {
   },
   sharedUnlockSource: { snapshot: () => ({ authorization: null, preference: null, sourceGeneration: null }),
     closingWitness: () => null, subscribe: () => () => {} },
-  sharedUnlockLinks: new SharedUnlockLinkStore({ get: async () => structuredClone(values), set: async items => { Object.assign(values, structuredClone(items)) }, remove: async () => {} }), sharedUnlockExpiry: {}, sharedUnlockPreferenceGate: { subscribe: () => () => {} },
+  sharedUnlockLinks: new SharedUnlockLinkStore({ get: async () => structuredClone(values), set: async items => { Object.assign(values, structuredClone(items)) }, remove: async () => {} }), sharedUnlockExpiry: {}, sharedUnlockPreferenceGate: { subscribe: () => () => {}, isAllowed: async () => true, assertAllowed: () => {} },
 }) })
 const scope = { apiUrl: 'https://api.test', accountId: '11111111-1111-4111-8111-111111111111' }
 const cleanup: (() => void)[] = []
@@ -88,5 +88,22 @@ it('connects peer reconnect to the locked worker own token lease without borrowi
   expect(fetcher.mock.calls.every(([, init]) => init?.method === 'GET'
     && new Headers(init.headers).get('authorization') === 'Bearer own-worker-access')).toBe(true)
   expect(sessionManager.captureSharedUnlockSource).not.toHaveBeenCalled()
+  expect(sessionManager.lock).not.toHaveBeenCalled(); expect(sessionManager.logout).not.toHaveBeenCalled()
+})
+
+it('a restarted worker with no own JWT may select a hinted receiver link without clearing revocation or borrowing source keys', async () => {
+  const linkScope = { ...scope, webOrigin: 'https://web.test', extensionId: 'a'.repeat(32) }
+  const linkId = '22222222-2222-4222-8222-222222222222'
+  await sharedUnlockLinks.adopt(linkScope, linkId)
+  const marker = await sharedUnlockLinks.observe(linkScope, { linkId, revision: 2, epoch: 2, state: 'revoked', lastInvalidationSequence: 2, lastLogoutSequence: 0 })
+  vi.mocked(sessionManager.captureSharedUnlockSettingsSession).mockImplementation(() => { throw new Error('no own JWT') })
+  const fetcher = vi.fn<typeof fetch>(); vi.stubGlobal('fetch', fetcher)
+  const f = start(), peerId = 'C'.repeat(42) + 'A'
+  f.emit({ attemptId: peerId, payload: { kind: 'state', stateId: peerId, accountId: scope.accountId, status: 'unlocked',
+    generation: 'D'.repeat(42) + 'A', source: { organizationId: '33333333-3333-4333-8333-333333333333' } } })
+  f.emit({ attemptId: 'B'.repeat(42) + 'A', payload: { kind: 'link-reconnect', accountId: scope.accountId, linkId, reconnectRevision: 3 } })
+  await vi.waitFor(() => expect(f.sent.some(message => message.payload.kind === 'link')).toBe(true), { timeout: 2000 })
+  expect((await sharedUnlockLinks.read(linkScope))?.disconnectId).toBe(marker.disconnectId)
+  expect(fetcher).not.toHaveBeenCalled(); expect(sessionManager.captureSharedUnlockSource).not.toHaveBeenCalled()
   expect(sessionManager.lock).not.toHaveBeenCalled(); expect(sessionManager.logout).not.toHaveBeenCalled()
 })

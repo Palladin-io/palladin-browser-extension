@@ -15,6 +15,8 @@ export interface SharedUnlockReceiverRoute {
   readonly binding: Pick<SharedUnlockContext, "accountId" | "organizationId" | "apiOrigin" | "webOrigin"
     | "extensionId" | "documentBinding" | "webGeneration" | "extensionGeneration" | "linkId" | "linkEpoch" | "preferenceRevision">;
   assertCurrent(): void;
+  confirmLocalLink?(session: { apiUrl: string; userId: string; accessToken: string; refreshToken: string },
+    authorizationSequence: number, signal: AbortSignal, assertOwnCurrent: () => void): Promise<void>;
   assertFreshAuthorization?(sequence: number, deadlineMs: number, hardDeadlineMs: number): Promise<void | number>;
 }
 
@@ -146,6 +148,9 @@ export async function beginSharedUnlockReceiver(route: SharedUnlockReceiverRoute
               profileId: descriptor.kdfProfileId, kdfSalt: descriptor.kdfSalt } },
           checkpoint: async deadlineMs => {
             const persisted = await wait(route.assertFreshAuthorization?.(commit.authorizationSequence, deadlineMs, Math.min(commit.context.absoluteDeadlineMs, commit.context.offlineDeadlineMs)) ?? Promise.resolve());
+            assertCurrent();
+            await wait(route.confirmLocalLink?.({ apiUrl, userId: commit.session.userId, accessToken: commit.session.accessToken,
+              refreshToken: commit.session.refreshToken }, commit.authorizationSequence, abort.signal, assertCurrent) ?? Promise.resolve());
             assertCurrent();
             return persisted ?? deadlineMs;
           },

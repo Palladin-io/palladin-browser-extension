@@ -1,3 +1,4 @@
+import type { SharedUnlockReconnectStaging } from './reconnect-staging'
 import type { SharedUnlockCoordinatorRoute } from './browser-coordinator'
 import type { SharedUnlockApi } from './api'
 import type { SharedUnlockPreferenceMonitorClient } from './preference-monitor'
@@ -10,7 +11,7 @@ type Notice = Extract<SharedUnlockOperationMessage['payload'], { kind: 'link-rec
  * Own Identity and the exact local disconnect fence must independently agree.
  * No JWT means no acknowledgement or clearing; the bounded hint waits in RAM. */
 export function startSharedUnlockReconnectMonitor(route: SharedUnlockCoordinatorRoute, client: SharedUnlockPreferenceMonitorClient,
-  links: SharedUnlockLinkStore, api: Pick<SharedUnlockApi, 'readLink'>, changed: (accountId: string) => void) {
+  links: SharedUnlockLinkStore, api: Pick<SharedUnlockApi, 'readLink'>, changed: (accountId: string) => void, staging?: SharedUnlockReconnectStaging) {
   let stopped = false, running = false, again = false, nextAt = 0
   let invitation: Notice | null = null, acknowledgement: Notice | null = null
   let controller: AbortController | null = null, retry: ReturnType<typeof setTimeout> | null = null
@@ -30,7 +31,7 @@ export function startSharedUnlockReconnectMonitor(route: SharedUnlockCoordinator
     const deadline = Date.now() + 2000, timer = setTimeout(() => abort.abort(), 2000)
     let own: ReturnType<typeof client.capture> = null
     try {
-      route.assertCurrent(); own = client.capture(); if (!own) return
+      route.assertCurrent(); if (invitation) staging?.observe(invitation); own = client.capture(); if (!own) return
       const captured = own, session = own.session
       const signal = AbortSignal.any([abort.signal, captured.signal, route.signal])
       const check = () => {
@@ -99,7 +100,7 @@ export function startSharedUnlockReconnectMonitor(route: SharedUnlockCoordinator
   }
   const close = () => {
     if (stopped) return
-    stopped = true; controller?.abort(); invitation = null; acknowledgement = null
+    stopped = true; staging?.close(); controller?.abort(); invitation = null; acknowledgement = null
     if (retry) clearTimeout(retry)
     if (interval) clearInterval(interval)
     for (const remove of removers) remove()

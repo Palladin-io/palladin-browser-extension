@@ -27,7 +27,7 @@ export interface SharedUnlockCoordinatorClient {
     source: { organizationId: string; generation: string } | null }>;
   subscribe(changed: () => void): () => void;
   /** Extension owns allocation; Web only adopts the exact browser-selected ID. */
-  selectLink(accountId: string, proposedId?: string): Promise<string>;
+  selectLink(accountId: string, proposedId?: string, direction?: "source" | "receiver"): Promise<string>;
   prepareSource(accountId: string, organizationId: string, linkId: string, signal: AbortSignal,
     assertCurrent: () => void): Promise<{ linkEpoch: number; preferenceRevision: number }>;
   checkReceiver(binding: SharedUnlockSelectedBinding, signal: AbortSignal): Promise<void>;
@@ -142,7 +142,7 @@ export function startSharedUnlockBrowserCoordinator(route: SharedUnlockCoordinat
     const revision = version;
     selectionRunning = true;
     try {
-      const linkId = await client.selectLink(current.accountId); assertCurrent();
+      const linkId = await client.selectLink(current.accountId, undefined, current.ownSource ? "source" : "receiver"); assertCurrent();
       if (version !== revision) return;
       selected = { kind: "link", accountId: current.accountId, linkId, webStateId: current.web.stateId, extensionStateId: current.extension.stateId };
       await route.verifyCurrent(); assertCurrent(); if (version !== revision) return;
@@ -185,7 +185,7 @@ export function startSharedUnlockBrowserCoordinator(route: SharedUnlockCoordinat
       selectionRunning = true;
       const revision = version;
       try {
-        try { await client.selectLink(payload.accountId, payload.linkId); }
+        try { await client.selectLink(payload.accountId, payload.linkId, matches(payload)!.ownSource ? "source" : "receiver"); }
         catch { return; } // Local OFF/disconnect is a recoverable admission denial.
         assertCurrent(); if (revision !== version) return;
         selected = payload;

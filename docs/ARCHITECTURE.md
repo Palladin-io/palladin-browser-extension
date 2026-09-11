@@ -875,3 +875,50 @@ post-lock lineage. These are synthetic Identity tests. Own authentication is
 still required for Settings; rootless/tokenless repair, live trust and remaining
 unlock presentation, native visual/Identity/MK/Entry E2E and the full artifact
 matrix remain release gates.
+
+## Reconnect after a client restart
+
+A verified `link-reconnect` hint now permits bounded receiver staging even when
+that client has no own JWT. The coordinator supplies the local source/receiver
+role independently of the frame: only receiver selection may defer a retained
+revocation. Sources remain denied. Staging requires the exact scoped stored link,
+a known observation, no pending closing, and an invitation newer than any currently
+observed revocation. The proposed epoch must not reuse the revoked epoch. Account
+mismatch and failed preference-save pause remain hard denials.
+
+The hint does not clear the marker, authorize key publication or renew a root.
+The ordinary one-shot consume/crypto-open/commit transaction first obtains the
+receiver's own newly issued Identity session. Immediately before publishing keys,
+`confirmLocalLink` reads the exact selected link with that own JWT. Its current
+active epoch must match the independently selected and committed operation; its
+invalidation barrier must precede the own authorization sequence. This catches a
+lock/logout/disconnect after commit. Browser revision hints are checked against
+that fresh own response. Only then may the exact captured disconnect latch clear.
+The existing storage cancellation rollback remains in force, followed by a final
+local pending/revocation/epoch read. There is no new reconnect invitation or
+account preference write; the existing authenticated monitor later acknowledges
+the original invitation.
+
+The extension performs this check inside the install checkpoint, after durable
+preparation and before synchronous token/key publication. Web checks after its
+expiry checkpoint and before the atomic auth-store install. A failed, timed-out
+or cancelled confirmation wipes temporary recovered keys and revokes only the
+incomplete new receiver session. A completed own session still survives peer loss.
+Normal receivers also recheck local closing immediately before installation.
+No existing client token is borrowed or persisted in new metadata.
+
+The staging notice is one route-bound RAM item; duplicates/older same-link hints
+do not renew attempts. Its delivery uses the existing monitor's one-start/second
+bound. New notice/account or route retirement invalidates pending staging. Own
+link confirmation has a two-second timer and wall-clock bound inside the existing
+thirty-second receiver attempt. Original unlockedAt, authorization sequence and
+idle/absolute/offline/MFA limits remain inherited, never restarted.
+
+Tests cover runtime selection without an own JWT, a real crypto receiver and real
+Web store/SessionManager, unpublished keys while own GET waits, own-JWT-only
+confirmation, cancellation/revocation cleanup, stale/foreign/pending scope,
+newer local closing, current Identity barrier/epoch rejection and storage/timeouts.
+Identity responses remain synthetic: full native two-client Identity/MK/Entry E2E
+and the complete browser/OS/distributed-artifact matrix remain release gates.
+Already-locked/restarted group-closing repair, live trust/unlock presentation and
+independent multi-document limits remain separate unfinished requirements.

@@ -79,8 +79,8 @@ describe("automatic browser account/link selection", () => {
     expect(source.client.source).toHaveBeenCalledOnce(); expect(recipient.client.receiver).toHaveBeenCalledOnce();
     expect(recipient.client.receiver).toHaveBeenCalledWith(expect.objectContaining({ accountId, organizationId, linkId,
       apiOrigin: operation.context.apiOrigin, extensionId: operation.context.extensionId, documentBinding: operation.context.documentBinding }), expect.any(AbortSignal), expect.any(Function));
-    expect(f.extension.client.selectLink).toHaveBeenCalledWith(accountId);
-    expect(f.web.client.selectLink).toHaveBeenCalledWith(accountId, linkId);
+    expect(f.extension.client.selectLink).toHaveBeenCalledWith(accountId, undefined, role === "extension" ? "source" : "receiver");
+    expect(f.web.client.selectLink).toHaveBeenCalledWith(accountId, linkId, role === "web" ? "source" : "receiver");
     expect(source.messages.map(m => m.payload.kind)).toContain("handoff");
     expect(JSON.stringify([...f.web.messages, ...f.extension.messages])).not.toContain("local-only");
     await settle(); expect(source.client.source).toHaveBeenCalledOnce(); // No reverse/recursive handoff.
