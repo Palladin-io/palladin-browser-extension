@@ -132,8 +132,11 @@ if args.product_extension:
     product_manifest['name'] = manifest['name']
     product_manifest['background']['service_worker'] = 'background.js'
     (fixture / 'manifest.json').write_text(json.dumps(product_manifest, indent=2))
-(fixture / 'diagnostics.html').write_text('<!doctype html><title>Synthetic extension diagnostics</title><pre id="result">pending</pre><button id="grant">Grant loopback page access</button><pre id="grant-result">pending</pre><script src="diagnostics.js"></script>')
+(fixture / 'diagnostics.html').write_text('<!doctype html><title>Synthetic extension diagnostics</title><pre id="result">pending</pre><button id="grant">Grant loopback page access</button><pre id="grant-result">pending</pre><button id="open-popup">Open native product Popup</button><script src="diagnostics.js"></script>')
 (fixture / 'diagnostics.js').write_text('''
+document.getElementById('open-popup').addEventListener('click', () => {
+  void browser.action.openPopup().catch(() => undefined);
+});
 document.getElementById('grant').addEventListener('click', async () => {
   const result = {};
   try {
@@ -362,10 +365,42 @@ def run_product_channel(extension_id, diagnostic_handle, web_handle):
       })().catch(() => done({ observationFailed: true }));
     ''', 'args': []})
     observations['productPopupPage'] = surface
-    assert surface.get('signedOut') is True and surface.get('actualPopupUrl') is True
+    assert surface.get('signedOut') is False and surface.get('actualPopupUrl') is True
     assert surface['sender']['id'] == extension_id and surface['sender']['url'] == popup_url
-    assert surface['sender']['hasTab'] is False
-    checks.append('actual-popup-page-reaches-unchanged-private-command-guard')
+    assert surface['sender']['hasTab'] is True
+    checks.append('tab-copy-of-popup-is-rejected-by-private-command-guard')
+    stage = 'native-popup-view-authority'
+    diagnostics_url = command('POST', '/execute/sync', {'script': "return browser.runtime.getURL('diagnostics.html')", 'args': []})
+    navigate(diagnostics_url)
+    button = command('POST', '/element', {'using': 'css selector', 'value': '#open-popup'})
+    command('POST', '/element/' + button['element-6066-11e4-a52e-4f735466cecf'] + '/click', {})
+    native_popup = command('POST', '/execute/async', {'script': '''
+      const done = arguments[arguments.length - 1];
+      let attempt = 0;
+      const observe = async () => {
+        if (typeof browser.extension?.getViews !== 'function') { done({ getViewsAvailable: false }); return; }
+        const views = browser.extension.getViews({ type: 'popup' });
+        const popup = views.find(view => view.location.href === browser.runtime.getURL('src/popup/index.html'));
+        if (!popup) {
+          if (++attempt >= 30) { done({ getViewsAvailable: true, popupAvailable: false }); return; }
+          setTimeout(observe, 100); return;
+        }
+        const sender = await new Promise((resolve, reject) => {
+          const port = popup.browser.runtime.connect({ name: 'synthetic-internal-probe' });
+          const timer = setTimeout(() => { port.disconnect(); reject(new Error('Diagnostic timeout')); }, 2000);
+          port.onMessage.addListener(message => { clearTimeout(timer); resolve(message.sender); port.disconnect(); });
+        });
+        const response = await popup.browser.runtime.sendMessage({ type: 'session/status' });
+        done({ getViewsAvailable: true, popupAvailable: true, sender,
+          signedOut: response?.ok === true && response.status === 'signed-out' });
+      };
+      void observe().catch(() => done({ observationFailed: true }));
+    ''', 'args': []})
+    observations['nativeProductPopup'] = native_popup
+    assert native_popup.get('signedOut') is True
+    assert native_popup['sender']['hasTab'] is False and native_popup['sender']['url'] == popup_url
+    assert native_popup['sender']['id'] == extension_id
+    checks.append('native-popup-reaches-unchanged-private-command-guard')
     report = {'status': 'instrumented-product-channel-only', 'checks': checks, 'observations': observations,
         'fixtureSha256': fixture_hash, 'osVersion': platform.mac_ver()[0], 'architecture': platform.machine(),
         'observedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'identityOrKeysUsed': False, 'fullMatrix': False}

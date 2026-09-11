@@ -147,7 +147,9 @@ try:
     stage = 'background-restart-and-fresh-handoff'
     popup(); browser.wait_background_running(extension_id)
     checks.append('browser-owned-background-restarted-observed')
+    stage = 'restarted-extension-unlocked-surface'
     browser.native_wait_text('Unlocked')
+    stage = 'restarted-extension-password-autofill'
     assert browser.autofill_matches('synthetic-entry-user', entry_password)
     checks.append('restarted-extension-automatically-unlocked-and-entry-decrypted')
     stage = 'extension-manual-lock-propagates'
