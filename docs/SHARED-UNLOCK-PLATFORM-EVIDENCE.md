@@ -1,7 +1,7 @@
 # Shared unlock platform evidence
 
 CVT-587/CVT-592, part of CVT-583. This note separates synthetic capability
-probes from a limited actual-product Chromium channel test. Neither proves a
+probes from limited actual-product Chromium and Firefox channel tests. Neither proves a
 complete shared unlock or production support. No Member key, account, credential,
 backend session or Palladin environment is used by these browser probes.
 
@@ -193,11 +193,10 @@ derives the manifest ID and passes it into signature verification, whose
 certificate-name mismatch fails verification. This is source inspection, not
 a signed-distribution test or an independent review verdict.
 
-These results narrow the outstanding Firefox identity questions but do not enable
-a runtime adapter. Current-document/BFCache/update/disable-enable behavior, actual
-product CSP, browser messaging integration, Identity/MK/Entry handoff, the supported
-Firefox version/OS/distribution matrix and independent security review remain
-open. The other browsers remain required. Actual local Chromium Identity/Entry
+Those synthetic results alone did not enable an adapter. The subsequent product
+adapter and limited channel/CSP proof are recorded below. BFCache/update/disable-enable,
+Identity/MK/Entry handoff, the supported Firefox version/OS/distribution matrix and
+independent security review remain open. The other browsers remain required. Actual local Chromium Identity/Entry
 testing is documented separately in
 [`tests/browser/SHARED-UNLOCK-IDENTITY.md`](../tests/browser/SHARED-UNLOCK-IDENTITY.md).
 
@@ -223,7 +222,8 @@ configured Chromium artifact adds `manifest.chromium.shared-unlock.json`:
 patterns intentionally route by host; the worker independently enforces the exact
 port and configured API. Build validation compares the artifact to explicit build
 configuration and rejects extra origins/extension IDs or unexpected permission.
-Firefox/Safari do not receive this route or permission from the Chromium setting.
+Firefox uses its own configured private-frame route described below; Safari does
+not receive this external route or navigation permission.
 
 The permission is needed to distinguish successive documents in the same tab and
 retire routes at navigation start. Handlers act only on bound tab IDs, with
@@ -286,3 +286,63 @@ application bootstrap and new-document reload under delivered CSP. The report ma
 whether the optional real Web mode ran. Ordinary fork-safe CI uses standalone
 mode and does not clone or require a private Web repository. This paired probe
 still transfers no MK and proves no Identity/session/shared-lifecycle acceptance.
+
+## Firefox product adapter and delivered CSP — 2026-09-11
+
+The Firefox build now composes the existing encrypted handoff/own Identity
+coordinator through a separate browser adapter. With explicit
+`VITE_SHARED_UNLOCK_ENVIRONMENTS`, it adds `webNavigation`, exact configured host
+patterns for a discovery content script, and Web-accessible canonical
+`manifest.json` plus `src/shared-unlock-bridge/index.html`. Without configuration,
+these capabilities and the bridge artifact are absent. Safari remains unchanged.
+CRXJS generates the one canonical manifest first; a final bundle hook adds its
+self-reference. No copied manifest or relayed `runtime.getManifest()` is authority.
+Generated route validation compares permissions and critical resource matches
+against independent build input and rejects wildcard/second routes.
+
+The own extension iframe forwards strict bounded protocol frames only from the
+exact configured Web origin in its direct top parent. Its private runtime Port
+is accepted only with the browser's own extension ID/origin/exact URL, normal
+profile tab and bridge document. The worker compares `getAllFrames` results for
+the top Web document and bridge, including `parentFrameId` and `parentDocumentId`;
+page-supplied document IDs are never used as expected values. Checks accept
+Firefox's safe-integer frame IDs above 32 bits. Missing document authority fails
+closed. Both documents are rechecked before dispatch and at sensitive coordinator
+boundaries. Their navigation, tab removal/replacement, Port loss or server change
+retires ready and pending routes. Queue/deadline limits match the Chromium route.
+Only framing is shared with Chromium; its browser-specific checks remain intact.
+
+Web uses its explicitly configured Gecko ID in the route and all account/link
+scopes. UA selects the adapter only; it cannot authenticate an ID. The Web adapter
+independently fetches the exact canonical browser resource, rejects redirects,
+other IDs and supplied paths, and pins native iframe origin/source. It rechecks
+resource identity on inbound frames and sensitive awaits. Keys and plaintext
+Identity tokens never enter the iframe. Web's generated CSP enables
+`moz-extension:` for resource fetch/frames only when a valid Firefox ID is supplied;
+script-src receives no extension scheme. Removal/reinsertion, src restoration,
+reload, resource failure and pagehide permanently retire the old route.
+
+Run against explicitly configured built artifacts with Python standard library,
+Firefox and geckodriver in a fresh disposable profile:
+
+```sh
+python3 tests/browser/shared-unlock-firefox-channel.py \
+  --firefox /path/to/firefox --geckodriver /path/to/geckodriver \
+  --web-origin http://127.0.0.1:5173 --api-url http://localhost:55083 \
+  --web-source /path/to/web-repository
+```
+
+`--web-source` serves the actual Web `dist` and its generated security headers;
+it observes public ready metadata after removing the first bridge and letting
+the real lifecycle reconnect. It does not replace the provider, install keys or
+set auth state. Without this option, a synthetic CSP page exercises the real
+extension's hello/ready and repeated-hello rejection. Results and artifact hashes
+are written only under ignored `test-results/shared-unlock-firefox-channel/`.
+
+Both modes passed locally on **Firefox 155.0.1 / geckodriver 0.37.1 / macOS 26.4.1
+arm64**, using a temporary installation of the built product XPI. This proves
+limited real browser transport and delivered Web CSP, not a completed Firefox
+Identity/MK/Entry flow, signed distribution, Firefox 140 floor, all OS versions,
+BFCache/update/disable-enable matrix or independent security approval. Those
+remain release gates. The earlier ten-case synthetic manifest identity probe now
+also records browser-owned sender and top/bridge/parent document identities.

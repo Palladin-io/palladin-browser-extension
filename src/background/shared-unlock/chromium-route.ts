@@ -1,7 +1,5 @@
-import { SHARED_UNLOCK_BROWSER_PORT } from "../../shared/messaging/shared-unlock-browser";
-import type { SharedUnlockOperationFrame, SharedUnlockOperationMessage } from "../../shared/messaging/shared-unlock-operation";
-import { isSharedUnlockBrowserMessage, type SharedUnlockBrowserMessage } from "../../shared/messaging/shared-unlock-browser";
 import type { SharedUnlockEnvironment } from "../../shared/config/shared-unlock-environments";
+import { SharedUnlockBrowserRoute } from "./browser-route";
 
 export interface SharedUnlockBrowserApi {
   readonly extensionId: string;
@@ -10,34 +8,13 @@ export interface SharedUnlockBrowserApi {
   getFrame(tabId: number): Promise<chrome.webNavigation.GetFrameResultDetails | null | undefined>;
 }
 
-/** The only authority here is browser-authored sender/tab/frame state + build configuration.
- * Does not authorize keys, account linking or Identity operations on its own. */
-export class ChromiumSharedUnlockRoute {
-  readonly apiUrl: string;
-  readonly webOrigin: string;
-  readonly extensionId: string;
-  readonly documentBinding: string;
-  private closed = false;
-  private readonly abort = new AbortController();
-  private webNonce: string | null = null;
-  private readonly operationListeners = new Set<(message: SharedUnlockOperationMessage) => void>();
-  readonly channelId: string;
-  get signal(): AbortSignal { return this.abort.signal; }
-  private readonly port: chrome.runtime.Port;
-  private readonly browser: SharedUnlockBrowserApi;
-  readonly tabId: number;
-  readonly documentId: string;
-  private readonly onClosed: () => void;
-
-  private constructor(port: chrome.runtime.Port, browser: SharedUnlockBrowserApi, environment: SharedUnlockEnvironment,
-    tabId: number, documentId: string, channelId: string, onClosed: () => void) {
-    this.port = port; this.browser = browser; this.apiUrl = environment.apiUrl; this.webOrigin = environment.webOrigin;
-    this.extensionId = browser.extensionId; this.tabId = tabId; this.documentId = documentId;
-    this.documentBinding = `${tabId}/${documentId}/${channelId}`;
-    this.onClosed = onClosed;
-    this.channelId = channelId;
+/** Chromium authority comes only from the browser's external sender/current frame. */
+export class ChromiumSharedUnlockRoute extends SharedUnlockBrowserRoute {
+  private constructor(port: chrome.runtime.Port, private readonly browser: SharedUnlockBrowserApi,
+    environment: SharedUnlockEnvironment, readonly tabId: number, readonly documentId: string,
+    channelId: string, onClosed: () => void) {
+    super(port, environment, browser.extensionId, channelId, `${tabId}/${documentId}/${channelId}`, onClosed);
   }
-
   static accept(port: chrome.runtime.Port, browser: SharedUnlockBrowserApi,
     environments: readonly SharedUnlockEnvironment[], channelId: string, onClosed: () => void): ChromiumSharedUnlockRoute | null {
     const sender = port.sender;
@@ -51,14 +28,11 @@ export class ChromiumSharedUnlockRoute {
     return new ChromiumSharedUnlockRoute(port, browser, environment, sender.tab!.id!, sender.documentId, channelId, onClosed);
   }
 
-  /** Synchronous fence around crypto awaits; navigation callbacks retire this object. */
-  assertCurrent(): void {
-    if (this.closed || this.browser.currentApiUrl() !== this.apiUrl || this.browser.extensionId !== this.extensionId) {
-      this.close();
+  protected assertBrowserCurrent(): void {
+    if (this.browser.currentApiUrl() !== this.apiUrl || this.browser.extensionId !== this.extensionId) {
       throw new Error("Shared unlock browser route changed");
     }
   }
-
   /** Query the CURRENT top frame by tab/frame ID, not the old document by its ID. */
   async verifyCurrent(): Promise<void> {
     this.assertCurrent();
@@ -74,44 +48,6 @@ export class ChromiumSharedUnlockRoute {
     } catch (error) { this.close(); throw error; }
   }
 
-  openOperations(webNonce: string): void {
-    this.assertCurrent();
-    if (this.webNonce !== null) throw new Error("Shared unlock channel already ready");
-    this.webNonce = webNonce;
-  }
-  onOperation(listener: (message: SharedUnlockOperationMessage) => void): () => void {
-    this.assertCurrent();
-    this.operationListeners.add(listener);
-    return () => this.operationListeners.delete(listener);
-  }
-  sendOperation(payload: SharedUnlockOperationMessage): void {
-    if (!this.webNonce) throw new Error("Shared unlock channel not ready");
-    this.post({ type: "operation", protocol: SHARED_UNLOCK_BROWSER_PORT, apiUrl: this.apiUrl,
-      webNonce: this.webNonce, channelId: this.channelId, documentBinding: this.documentBinding, ...payload });
-  }
-  receiveOperation(frame: SharedUnlockOperationFrame): void {
-    this.assertCurrent();
-    if (frame.apiUrl !== this.apiUrl || frame.webNonce !== this.webNonce || frame.channelId !== this.channelId
-      || frame.documentBinding !== this.documentBinding || !this.operationListeners.size) {
-      this.close(); throw new Error("Shared unlock operation route mismatch");
-    }
-    for (const listener of [...this.operationListeners]) { this.assertCurrent(); listener({ attemptId: frame.attemptId, payload: frame.payload }); }
-  }
-
-  /** Transport callers must finish verifyCurrent immediately before a sensitive send. */
-  post(message: SharedUnlockBrowserMessage): void {
-    this.assertCurrent();
-    if (!isSharedUnlockBrowserMessage(message)) throw new Error("Invalid shared unlock browser message");
-    this.port.postMessage(message);
-  }
-  close(): void {
-    if (this.closed) return;
-    this.closed = true;
-    this.abort.abort();
-    this.operationListeners.clear();
-    try { this.port.disconnect(); } catch { /* already disconnected */ }
-    this.onClosed();
-  }
 }
 
 function origin(url: string): string | null {

@@ -8,14 +8,14 @@ import { sessionManager, sharedUnlockLinks, sharedUnlockSource, sharedUnlockExpi
 import { startSharedUnlockLinkMonitor } from "./link-monitor";
 import { SharedUnlockApi } from "./api";
 import { startSharedUnlockBrowserCoordinator } from "./browser-coordinator";
-import type { ChromiumSharedUnlockRoute } from "./chromium-route";
+import type { SharedUnlockBrowserRoute } from "./browser-route";
 import { prepareSharedUnlockLink } from "./prepare-link";
 import { beginSharedUnlockSource } from "./source";
 import { beginSharedUnlockReceiver } from "./receiver";
 
 /** Worker-only composition. Browser messages never gain a SessionManager or
  * storage handle; the coordinator only receives scoped nonsensitive metadata. */
-export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) {
+export function coordinateSharedUnlockBrowser(route: SharedUnlockBrowserRoute) {
   const api = new SharedUnlockApi((...args) => fetch(...args), () => serverConfig.apiUrl);
   const scope = (accountId: string) => ({ accountId, apiUrl: route.apiUrl, webOrigin: route.webOrigin, extensionId: route.extensionId });
   const staging = new SharedUnlockReconnectStaging(route, accountId => coordinator.cancelPending(accountId))

@@ -67,13 +67,16 @@ def request(method,path,body=None):
 
 manifest_base={'manifest_version':3,'name':'Palladin synthetic boundary probe','version':'0.0.1',
   'background':{'scripts':['background.js']},
-  'permissions':['webRequest','webRequestBlocking','webRequestFilterResponse','declarativeNetRequest'],
+  'permissions':['webRequest','webRequestBlocking','webRequestFilterResponse','declarativeNetRequest','webNavigation'],
   'host_permissions':['<all_urls>'],
   'content_scripts':[{'matches':['http://127.0.0.1/*'],'js':['content.js'],'run_at':'document_end'}],
   'web_accessible_resources':[{'resources':['manifest.json','probe.html','probe.js','fake-manifest.json','sw.js'], 'matches':['http://127.0.0.1/*']}]}
 
 background='''const state={webRequestRegistration:null, observed:[], dnr:null};
-browser.runtime.onMessage.addListener(raw => raw?.kind === 'state' ? Promise.resolve(state) : undefined);
+browser.runtime.onMessage.addListener((raw,sender) => raw?.kind === 'state' ? (async()=>({ ...state,
+ sender:{id:sender.id,url:sender.url,origin:sender.origin,frameId:sender.frameId,documentId:sender.documentId,
+ tab:sender.tab?{id:sender.tab.id,incognito:sender.tab.incognito,url:sender.tab.url}:null},
+ frames:sender.tab?await browser.webNavigation.getAllFrames({tabId:sender.tab.id}):null }))() : undefined);
 try { browser.webRequest.onBeforeRequest.addListener(d=>{state.observed.push(d.url); return {redirectUrl:browser.runtime.getURL('fake-manifest.json')};},
  {urls:[browser.runtime.getURL('manifest.json')]}, ['blocking']); state.webRequestRegistration='registered'; }
 catch(e){state.webRequestRegistration=String(e);}

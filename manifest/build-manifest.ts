@@ -1,5 +1,6 @@
 import { sharedUnlockWebMatches, type SharedUnlockEnvironment } from "../src/shared/config/shared-unlock-environments";
 import sharedUnlock from "./manifest.chromium.shared-unlock.json" with { type: "json" };
+import { FIREFOX_SHARED_UNLOCK_BRIDGE_PATH } from "../src/shared/messaging/shared-unlock-firefox";
 
 import type { ManifestV3Export } from "@crxjs/vite-plugin";
 
@@ -68,6 +69,14 @@ export function buildManifest(target: BuildTarget = "chromium", sharedUnlockEnvi
     manifest.permissions = [...new Set([...(manifest.permissions as string[]), ...sharedUnlock.permissions])];
     manifest.externally_connectable = { ...sharedUnlock.externally_connectable,
       matches: sharedUnlockWebMatches(sharedUnlockEnvironments) };
+  }
+  if (target === "firefox" && sharedUnlockEnvironments.length > 0) {
+    const matches = sharedUnlockWebMatches(sharedUnlockEnvironments);
+    manifest.permissions = [...new Set([...(manifest.permissions as string[]), "webNavigation"])];
+    manifest.web_accessible_resources = [{ resources: ["manifest.json", FIREFOX_SHARED_UNLOCK_BRIDGE_PATH], matches }];
+    manifest.content_scripts = [...(manifest.content_scripts as unknown[]), {
+      matches, js: ["src/content/shared-unlock-firefox.ts"], run_at: "document_start", all_frames: false,
+    }];
   }
   return manifest as unknown as ManifestV3Export;
 }

@@ -7,6 +7,7 @@ import { parseSharedUnlockEnvironments } from "./src/shared/config/shared-unlock
 
 import { buildManifest, resolveBuildTarget } from "./manifest/build-manifest";
 import { resolveExtensionBuildChannel } from "./src/shared/config/build-channel";
+import { firefoxCanonicalManifestResource } from "./manifest/firefox-canonical-resource";
 
 const target = resolveBuildTarget(process.env.PALLADIN_TARGET);
 const channel = resolveExtensionBuildChannel(process.env.PALLADIN_CHANNEL);
@@ -19,7 +20,7 @@ export default defineConfig(({ mode }) => {
     define: {
       __PALLADIN_TARGET__: JSON.stringify(target),
       __PALLADIN_CHANNEL__: JSON.stringify(channel),
-      __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__: JSON.stringify(target === "chromium" ? sharedUnlockEnvironments : []),
+      __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__: JSON.stringify(target === "safari" ? [] : sharedUnlockEnvironments),
     },
     resolve: {
       alias: {
@@ -28,6 +29,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       react(),
+      ...(target === "firefox" && sharedUnlockEnvironments.length > 0 ? [firefoxCanonicalManifestResource()] : []),
       crx({
         manifest: buildManifest(target, sharedUnlockEnvironments),
         // CRXJS needs its Firefox mode to retain and bundle background.scripts;
@@ -59,6 +61,9 @@ export default defineConfig(({ mode }) => {
                 input: {
                   onboarding: fileURLToPath(new URL("./src/onboarding/index.html", import.meta.url)),
                   sidePanel: fileURLToPath(new URL("./src/side-panel/index.html", import.meta.url)),
+                  ...(sharedUnlockEnvironments.length > 0 ? {
+                    sharedUnlockBridge: fileURLToPath(new URL("./src/shared-unlock-bridge/index.html", import.meta.url)),
+                  } : {}),
                 },
               }
             : {

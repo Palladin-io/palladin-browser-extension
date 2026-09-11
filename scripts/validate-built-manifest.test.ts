@@ -5,6 +5,25 @@ const manifest = { permissions: ["webNavigation"], externally_connectable: {
   ids: [], matches: ["https://app.example.test/*"], accepts_tls_channel_id: false,
 } };
 describe("built shared unlock routing gate", () => {
+  const firefox = { permissions: ["webNavigation"], web_accessible_resources: [{
+    resources: ["manifest.json", "src/shared-unlock-bridge/index.html"], matches: ["https://app.example.test/*"],
+  }] };
+  it("accepts only the explicitly configured Firefox bridge and canonical manifest", () => {
+    expect(() => validateSharedUnlockRouting(firefox, "firefox", environments)).not.toThrow();
+    expect(() => validateSharedUnlockRouting(firefox, "firefox")).toThrow();
+    expect(() => validateSharedUnlockRouting(firefox, "chromium", environments)).toThrow();
+  });
+  it.each([
+    { resources: ["*"] }, { resources: ["manifest.json", "src/*"] }, { matches: ["<all_urls>"] },
+    { matches: ["https://other.example.test/*"] }, { extension_ids: ["*"] },
+  ])("rejects widened Firefox resource routing %#", patch => {
+    expect(() => validateSharedUnlockRouting({ ...firefox, web_accessible_resources: [{ ...firefox.web_accessible_resources[0], ...patch }] }, "firefox", environments)).toThrow();
+  });
+  it("rejects a second public route to the canonical manifest", () => {
+    expect(() => validateSharedUnlockRouting({ ...firefox, web_accessible_resources: [
+      ...firefox.web_accessible_resources, { resources: ["manifest.*"], matches: ["<all_urls>"] },
+    ] }, "firefox", environments)).toThrow();
+  });
   it("checks the generated manifest against independent build configuration", () => {
     expect(() => validateSharedUnlockRouting(manifest, "chromium", environments)).not.toThrow();
   });

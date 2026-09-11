@@ -27,6 +27,7 @@ interface Manifest {
   optional_host_permissions?: string[];
   content_security_policy?: { extension_pages?: string };
   content_scripts?: Array<{ matches: string[]; js: string[]; world?: string }>;
+  web_accessible_resources?: Array<{ resources: string[]; matches: string[] }>;
   minimum_chrome_version?: string;
   side_panel?: { default_path?: string };
   sidebar_action?: {
@@ -211,7 +212,18 @@ describe("configured Chromium shared-unlock route", () => {
     expect((buildManifest("chromium") as unknown as Manifest).permissions).not.toContain("webNavigation");
     expect((buildManifest("chromium") as unknown as Manifest).externally_connectable).toBeUndefined();
   });
-  it.each(["firefox", "safari"] as const)("does not turn the Chromium route into claimed %s support", target => {
+  it("gives configured Firefox its own exact-host resource and private bridge route", () => {
+    const configured = buildManifest("firefox", pairs) as unknown as Manifest;
+    expect(configured.externally_connectable).toBeUndefined();
+    expect(configured.permissions).toContain("webNavigation");
+    expect(configured.web_accessible_resources).toEqual([{ resources: ["manifest.json", "src/shared-unlock-bridge/index.html"],
+      matches: ["https://app.example.test/*"] }]);
+    expect(configured.content_scripts?.at(-1)).toEqual({ matches: ["https://app.example.test/*"],
+      js: ["src/content/shared-unlock-firefox.ts"], run_at: "document_start", all_frames: false });
+    expect(manifests.firefox.web_accessible_resources).toBeUndefined();
+    expect(manifests.firefox.permissions).not.toContain("webNavigation");
+  });
+  it.each(["safari"] as const)("does not turn the Chromium route into claimed %s support", target => {
     const configured = buildManifest(target, pairs) as unknown as Manifest;
     expect(configured.permissions).not.toContain("webNavigation");
     expect(configured.externally_connectable).toBeUndefined();

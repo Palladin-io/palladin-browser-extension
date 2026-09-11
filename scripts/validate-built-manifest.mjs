@@ -49,7 +49,7 @@ export function validateBuiltManifest(
 
   validateSharedUnlockRouting(manifest, target, sharedUnlockEnvironments);
   if (target === "chromium") validateChromium(manifest, outputDirectory, channel, sharedUnlockEnvironments.length > 0);
-  if (target === "firefox") validateFirefox(manifest, outputDirectory);
+  if (target === "firefox") validateFirefox(manifest, outputDirectory, sharedUnlockEnvironments.length > 0);
   if (target === "safari") validateSafari(manifest, outputDirectory);
 }
 
@@ -129,9 +129,11 @@ function javascriptFiles(directory) {
   });
 }
 
-function validateFirefox(manifest, outputDirectory) {
+function validateFirefox(manifest, outputDirectory, sharedUnlockConfigured) {
   invariant(manifest.key === undefined, "firefox: Chromium key leaked into manifest");
-  invariant(sameSet(manifest.permissions, commonPermissions), "firefox: unexpected permissions");
+  invariant(sameSet(manifest.permissions, [...commonPermissions, ...(sharedUnlockConfigured ? ["webNavigation"] : [])]), "firefox: unexpected permissions");
+  invariant(existsSync(resolve(outputDirectory, "src/shared-unlock-bridge/index.html")) === sharedUnlockConfigured,
+    "firefox: bridge artifact differs from explicit configuration");
   invariant(
     manifest.optional_permissions === undefined,
     "firefox: installed-extension discovery permission leaked in",
@@ -208,15 +210,31 @@ function invariant(condition, message) {
 /** Validate routing against explicit build input, never infer authorization from the artifact. */
 export function validateSharedUnlockRouting(manifest, target, environments = []) {
   invariant(Array.isArray(environments), "shared unlock: invalid build configuration");
-  if (target !== "chromium" || environments.length === 0) {
+  const bridgePath = "src/shared-unlock-bridge/index.html";
+  const criticalResources = ["manifest.json", bridgePath];
+  const resourceRoutes = (manifest.web_accessible_resources ?? []).filter(entry =>
+    entry.resources?.some(pattern => criticalResources.some(resource =>
+      new RegExp("^" + pattern.split("*").map(part => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$").test(resource))));
+  if (target === "safari" || environments.length === 0) {
     invariant(manifest.externally_connectable === undefined, `${target}: unexpected external route`);
     invariant(!manifest.permissions?.includes("webNavigation"), `${target}: unexpected navigation permission`);
+    invariant(resourceRoutes.length === 0, `${target}: unexpected public bridge/manifest route`);
     return;
   }
   const expected = [...new Set(environments.map(({ webOrigin }) => {
     const url = new URL(webOrigin);
     return `${url.protocol}//${url.hostname}/*`;
   }))];
+  if (target === "firefox") {
+    invariant(manifest.externally_connectable === undefined, "firefox: Chromium external route leaked in");
+    invariant(manifest.permissions?.includes("webNavigation"), "firefox: missing navigation permission");
+    invariant(resourceRoutes.length === 1 && criticalResources.every(resource => resourceRoutes[0].resources.includes(resource))
+      && resourceRoutes[0].resources.every(resource => criticalResources.includes(resource) || /^assets\/[A-Za-z0-9._-]+\.js$/.test(resource))
+      && sameSet(resourceRoutes[0].matches, expected) && resourceRoutes[0].extension_ids === undefined,
+      "firefox: bridge/manifest resource route differs from configured hosts");
+    return;
+  }
+  invariant(resourceRoutes.length === 0, "chromium: Firefox bridge/manifest route leaked in");
   const route = manifest.externally_connectable;
   invariant(route && Object.keys(route).sort().join(",") === "accepts_tls_channel_id,ids,matches"
     && sameSet(route.ids, []) && sameSet(route.matches, expected) && route.accepts_tls_channel_id === false,

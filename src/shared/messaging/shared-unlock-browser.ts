@@ -1,5 +1,5 @@
 import { sharedUnlockOperationFrameSchema, type SharedUnlockOperationFrame } from "./shared-unlock-operation";
-/** Private first-party framing over a browser-authenticated external Port. */
+/** Private framing over an independently browser-authenticated route. */
 export const SHARED_UNLOCK_BROWSER_PORT = "palladin.shared-unlock.browser.v1";
 export interface SharedUnlockBrowserHello {
   readonly type: "hello";
@@ -31,6 +31,14 @@ export function isSharedUnlockBrowserMessage(value: unknown): value is SharedUnl
   if (row.type === "hello") return fields === "apiUrl,protocol,type,webNonce";
   if (row.type === "ready") return fields === "apiUrl,channelId,documentBinding,extensionId,protocol,type,webNonce,webOrigin"
     && nonce(row.channelId) && text(row.documentBinding, 256) && text(row.webOrigin, 2048)
-    && typeof row.extensionId === "string" && /^[a-p]{32}$/.test(row.extensionId);
+    && isSharedUnlockExtensionId(row.extensionId);
   return false;
+}
+
+/** Syntax only; each adapter must compare with its independent configured or
+ * browser-authored identity. Gecko also supports explicit UUID add-on IDs. */
+export function isSharedUnlockExtensionId(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 256 && (/^[a-p]{32}$/.test(value)
+    || /^[A-Za-z0-9._-]+@[A-Za-z0-9._-]+$/.test(value)
+    || /^\{[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\}$/.test(value));
 }
