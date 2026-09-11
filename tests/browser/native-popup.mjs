@@ -134,7 +134,7 @@ export async function openNativePopup(worker, profile, extensionId) {
     },
     async revealDeniedForOtherAccount(vaultId, entryId) {
       const { result, exceptionDetails } = await command('Runtime.evaluate', {
-        expression: `(async () => { const r = await chrome.runtime.sendMessage(${JSON.stringify({ type: 'vault/reveal', vaultId, entryId, field: 'password' })}); return r?.ok === false && typeof r.code === 'string' && r.code !== 'locked' && !('reveal' in r) })()`,
+        expression: `(async () => { const r = await chrome.runtime.sendMessage(${JSON.stringify({ type: 'vault/reveal', vaultId, entryId, field: 'password' })}); return r?.ok === false && r.code === 'decrypt-failed' && !('reveal' in r) })()`,
         awaitPromise: true, returnByValue: true,
       })
       return !exceptionDetails && result.value === true

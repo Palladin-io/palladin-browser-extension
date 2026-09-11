@@ -108,6 +108,7 @@ export async function verifySharedUnlockAccountIsolation({ page, popup, apiUrl,
   setStage('account-isolation-web-b-lock-and-reload')
   await page.getByRole('button', { name: 'Lock', exact: true }).click()
   await page.locator('#unlock-password').waitFor(); await page.reload()
+  await page.locator('#unlock-password').waitFor()
   await stable(async () => {
     assert(await page.locator('#unlock-password').isVisible(), 'Account A must not unlock account B Web')
     await revealA()
