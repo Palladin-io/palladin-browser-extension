@@ -219,7 +219,9 @@ replacement of the old Port in the same document; wrong-port and unlisted-origin
 rejection; rejection of a same-origin iframe without affecting the top frame;
 expanded/repeated framing and attempted API switching. It removes its previous
 report first and writes a new report only after all assertions pass. Temporary
-profiles and local servers are cleaned up. Artifact file hashes, browser version,
+profiles and local servers are cleaned up. The repository test workflow also runs
+this command after unit/build checks on its Linux runner and retains the report
+for seven days; it uses no secrets or user profile. Artifact file hashes, browser version,
 OS/architecture and timestamp are in ignored
 `test-results/shared-unlock-chromium-channel/report.json`.
 
