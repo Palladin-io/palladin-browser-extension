@@ -409,7 +409,9 @@ try {
   await page.locator('#login-email').waitFor()
   checks.push('extension-logout-propagated-to-web')
   if (accountIsolation) await verifySharedUnlockAccountIsolation({ page, popup, apiUrl, webOrigin,
-    email, password, vaultId, entryId, entryPassword, allowEmail: value => allowedEmails.add(value),
+    email, password, vaultId, entryId, entryPassword,
+    reopenPopup: async () => { popup?.close(); popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId); return popup },
+    allowEmail: value => allowedEmails.add(value),
     verificationFor: address => JSON.stringify(messages.filter(message => message.Destination.ToAddresses.includes(address)))
       .match(/http:\/\/127\.0\.0\.1:5173\/verify-email\?token=[^"\\\s<]+/)?.[0],
     setStage: value => { stage = value }, recordCheck: value => checks.push(value) })

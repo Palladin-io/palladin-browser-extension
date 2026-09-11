@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto'
 // Two accounts are created and authenticated through the real product UI.
 // Credentials and Entry values stay in memory; evidence contains booleans only.
 export async function verifySharedUnlockAccountIsolation({ page, popup, apiUrl,
-  webOrigin, email, password, vaultId, entryId, entryPassword, allowEmail,
+  webOrigin, email, password, vaultId, entryId, entryPassword, reopenPopup, allowEmail,
   verificationFor, setStage, recordCheck }) {
   const emailB = `cvt583-${randomBytes(8).toString('hex')}@example.test`
   const passwordB = 'Synthetic!' + randomBytes(24).toString('base64url')
@@ -127,14 +127,18 @@ export async function verifySharedUnlockAccountIsolation({ page, popup, apiUrl,
   recordCheck('manual-account-b-unlock-restores-only-its-own-entry')
 
   setStage('account-isolation-extension-a-lock')
+  popup = await reopenPopup()
   await popup.click('Lock'); await popup.waitButton('Unlock')
   await stable(async () => {
     await revealB()
     assert(await popup.revealDeniedWhileLocked(vaultId, entryId), 'Web account B must not unlock Extension account A')
   })
   recordCheck('account-a-extension-lock-leaves-web-b-unlocked-and-rejects-handoff')
+  setStage('account-isolation-manual-extension-a-unlock')
   await popup.fill('input[autocomplete="current-password"]', password)
-  await popup.click('Unlock'); await popup.waitText('Unlocked')
+  await popup.click('Unlock')
+  popup = await reopenPopup()
+  await popup.waitText('Unlocked')
   await stable(async () => { await revealA(); await revealB() })
   recordCheck('manual-account-a-unlock-preserves-both-account-identities')
 
