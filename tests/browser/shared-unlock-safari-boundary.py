@@ -34,7 +34,9 @@ if args.background_kind == 'module-worker':
 elif args.background_kind == 'document':
     background = {'scripts': ['background.js'], 'persistent': False}
 manifest = {'manifest_version': 3, 'name': 'Synthetic shared unlock boundary', 'version': '1.0.0',
-    'permissions': ['tabs', 'webNavigation', 'scripting'], 'host_permissions': [origin + '/*'],
+    # Safari rejects a port in a host permission (native run34631412243).
+    # The fixture binds only port55189; all sender assertions retain exact URLs.
+    'permissions': ['tabs', 'webNavigation', 'scripting'], 'host_permissions': ['http://127.0.0.1/*'],
     'externally_connectable': {'matches': ['http://127.0.0.1/*']},
     'background': background,
     'browser_specific_settings': {'safari': {'strict_min_version': '16.4'}}}
@@ -78,7 +80,7 @@ browser.runtime.onConnectExternal.addListener(port => {
 document.getElementById('grant').addEventListener('click', async () => {
   const result = {};
   try {
-    result.granted = await browser.permissions.request({ origins: ['http://127.0.0.1:55189/*'] });
+    result.granted = await browser.permissions.request({ origins: ['http://127.0.0.1/*'] });
     result.permissions = await browser.permissions.getAll();
   } catch (error) { result.error = String(error.message).slice(0, 500); }
   document.getElementById('grant-result').textContent = JSON.stringify(result);
@@ -187,7 +189,7 @@ try:
     observations['browserInstalledExtensionId'] = extension_id
     checks.append('browser-installed-synthetic-extension')
     stage = 'internal-fixture-diagnostics'
-    for attempt in range(20):
+    for attempt in range(100):
         handles = command('GET', '/window/handles')
         if len(handles) > 1:
             break
@@ -238,6 +240,7 @@ try:
             stage = 'fixture-page-access-permission'
             assert grant and json.loads(grant).get('granted') is True
             command('DELETE', '/window')
+    assert observations['internalDiagnostics'], 'Installed fixture did not become observable'
     command('POST', '/window', {'handle': initial_window})
     server = LoopbackServer(('127.0.0.1', 55189), Site)
     threading.Thread(target=server.serve_forever, daemon=True).start()
