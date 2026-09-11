@@ -1,3 +1,4 @@
+import type { SharedUnlockOperationFrame } from "../../shared/messaging/shared-unlock-operation";
 import { randomBytes, toBase64Url } from "@palladin/crypto";
 import { SHARED_UNLOCK_BROWSER_PORT, isSharedUnlockBrowserMessage, type SharedUnlockBrowserReady } from "../../shared/messaging/shared-unlock-browser";
 import type { SharedUnlockEnvironment } from "../../shared/config/shared-unlock-environments";
@@ -29,9 +30,11 @@ export function startChromiumSharedUnlockBrowser(environments: readonly SharedUn
     let helloStarted = false;
     let ready = false;
     let receiving = false;
+    const pendingOperations: SharedUnlockOperationFrame[] = [];
     const disconnect = () => {
       if (disconnected) return;
       disconnected = true;
+      pendingOperations.length = 0;
       clearTimeout(timeout);
       connections.delete(disconnect);
       port.onMessage.removeListener(message);
@@ -44,13 +47,20 @@ export function startChromiumSharedUnlockBrowser(environments: readonly SharedUn
     const message = (raw: unknown) => {
       if (!isSharedUnlockBrowserMessage(raw)) { disconnect(); return; }
       if (ready && route && raw.type === "operation") {
-        if (receiving) { disconnect(); return; }
-        receiving = true;
-        const current = route;
-        void current.verifyCurrent().then(() => {
-          if (disconnected || route !== current) return;
-          current.receiveOperation(raw);
-        }).catch(disconnect).finally(() => { receiving = false; });
+        if (pendingOperations.length >= 4) { disconnect(); return; }
+        pendingOperations.push(raw);
+        if (!receiving) {
+          receiving = true;
+          const current = route;
+          void (async () => {
+            while (!disconnected && pendingOperations.length) {
+              const frame = pendingOperations.shift()!;
+              await current.verifyCurrent();
+              if (disconnected || route !== current) return;
+              current.receiveOperation(frame);
+            }
+          })().catch(disconnect).finally(() => { receiving = false; });
+        }
         return;
       }
       if (helloStarted || raw.type !== "hello") { disconnect(); return; }

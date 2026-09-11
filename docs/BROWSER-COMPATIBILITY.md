@@ -64,8 +64,9 @@ clears the local encrypted cache.
   already-open top frame. It cannot widen host access and never injects secrets.
 - An explicitly configured shared-unlock Chromium build adds `webNavigation`
   and configured external Web hosts to bind the current top-level document. Empty
-  configuration adds neither. The production bootstrap currently exchanges hello/ready; operation frames and
-  source/receiver orchestration await account/link dispatch wiring;
+  configuration adds neither. The pre-release bootstrap exchanges hello/ready and account/link control frames,
+  and invokes source/receiver orchestration; shared closing/expiry barriers and
+  full Identity/Entry E2E remain release gates;
   full unlock and platform acceptance remain pending. See
   [shared-unlock evidence](SHARED-UNLOCK-PLATFORM-EVIDENCE.md#actual-chromium-product-channel---2026-09-11).
 - The artifact does not request `management` or inspect installed extensions.

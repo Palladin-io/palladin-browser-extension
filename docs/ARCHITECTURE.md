@@ -388,7 +388,7 @@ Release work must add, at minimum, locked dependencies, type checking, unit and
 integration tests, permission-diff review, artifact hashes, an SBOM, provenance
 attestation, and a documented browser-store signing process.
 
-## Shared unlock session components (CVT-583, runtime wiring pending)
+## Shared unlock session components (CVT-583, pre-release)
 
 `background/shared-unlock/api.ts` follows the Identity session contract with typed
 responses and generated consumer fixtures. Source requests use the source's own
@@ -418,9 +418,10 @@ synchronously when browser alarms are late, including a shorter local idle polic
 requires a new authorized operation or manual unlock. Turning sharing OFF must
 not alter these own-session limits.
 
-Verified browser transport, inherited-source coordination, closing/preference coordination
-and surfaces are not wired to these components yet. There is no new page command
-that can invoke the installer and no claim of end-to-end platform acceptance.
+The configured browser coordinator now invokes these components after native
+route/account/link selection and adopts verified own receiver authority. Shared
+closing/expiry/preference coordination and surfaces remain release gates; there
+is no claim of end-to-end platform acceptance.
 
 
 Manual login/password unlock now prepares its own Identity authority before
@@ -484,8 +485,8 @@ when commit transport is stalled. The receiver also applies the route signal and
 30-second attempt deadline. Installation owns its buffers through asynchronous
 storage rollback; it does not race cancellation against rollback completion.
 Real SDK/SessionManager tests cover these boundaries with mocked Identity and a
-synthetic Entry primitive. Browser operation dispatch and independent link/account/
-preference coordination are still not wired; these are not full browser E2E proofs.
+synthetic Entry primitive. The pre-release coordinator below now invokes the transactions after account/link
+selection. These isolated transaction tests are not full browser E2E proofs.
 
 
 `shared-unlock/source.ts` now creates an extension-to-Web operation using only
@@ -540,9 +541,9 @@ It uses the authenticated activate endpoint for fresh root binding; it does not
 reconstruct backend authorization rules. Preference refresh changes only the
 existing own generation's preference and cannot renew its root or deadlines.
 
-The runtime owns the durable store but browser operation dispatch does not yet
-invoke it. Closing-intent delivery/reconciliation, explicit reconnect and Web
-marker coordination remain to be wired with shared actions/settings. Tests prove
+The configured browser coordinator invokes the durable store; Web also has an
+origin-wide locked marker store. Closing-intent delivery/reconciliation and
+explicit reconnect remain to be wired with shared actions/settings. Tests prove
 storage/Identity preparation boundaries using mock Identity and real SessionManager,
 not automatic unlock or full browser lifecycle acceptance.
 
@@ -566,11 +567,11 @@ race storage work against transport cancellation. Lost or incorrect ACK does not
 resend the handoff or undo a completed own session. No token is sent to the peer.
 
 Extension verifies the browser's current top-frame document before dispatching
-each frame and rejects overlapping pending dispatch checks. Web verifies its own
+each frame, serializing dispatch with a bounded queue. Web verifies its own
 live document. Navigation, peer loss, malformed/mismatched frames or operation
 input without a coordinator retire the channel. The extension exposes a
-synchronous onReady registration hook, but production account/link coordination
-and automatic source/receiver dispatch are still pending in both applications.
+synchronous onReady registration hook. Both configured product bootstraps now
+register the pre-release coordinator described below.
 
 Focused tests compose the runner with real source encryption and real receiver
 consume/commit/session installation using mock Identity. Negative cases cover
@@ -580,3 +581,56 @@ are not actual browser Identity/MK handoff or full supported-platform evidence.
 The paired native Chromium probe was rerun at 2026-09-11T04:43:10.380Z: all 11
 hello/ready/document/bootstrap checks pass on Chromium 153.0.8010.12/macOS arm64
 under the actual Web CSP, without accounts or a cryptographic handoff.
+
+
+## Automatic browser coordinator — pre-release integration
+
+Configured Chromium/Web bootstraps now register the real account/link coordinator
+on each browser-confirmed route. Before any crypto offer, clients exchange a
+bounded state record containing status, account ID, a fresh state ID, the own
+source generation (or a new receiver generation), and source organization. The
+receiver must be locked/signed out and either have no account or the same account.
+A different signed-in account is never replaced. Two unlocked clients do not
+start a reverse handoff just because an earlier handoff completed.
+
+Extension allocates the scoped profile link ID; Web adopts exactly that ID and
+acknowledges successful persistence before an Extension source may prepare it.
+The source reads fresh Identity preference/link state and activates the selected
+link through its own tokens/root. The resulting epoch/preference agreement is
+sent before the crypto offer. Receiver expectations combine that explicit
+preparation contract with independently selected account/org/generations, the
+local link marker and native browser/document identity; they are not extracted
+from the operation or encrypted envelope being verified.
+
+One attempt and one link selection can be pending on a route. Async storage
+checks are bounded by the attempt cancellation/deadline. Extension dispatch
+serializes current-document verification, with at most four waiting operation
+frames plus one in flight; overflow/navigation retires the route. This permits
+adjacent link-selection/preparation or ACK/state messages without an unbounded
+queue. No keys or tokens are put into coordinator state or browser control frames.
+
+The actual receiver transaction now publishes verified own inherited authority
+to a local installation callback before its best-effort ACK. Its own key/session
+fence survives peer closure and rejects a later own lock/session replacement.
+Adoption retains original root sequence, generation and time ceilings, does not
+request a fresh password proof, and cannot overwrite a newer explicit OFF.
+Source-authority subscriptions trigger readiness after late manual preparation.
+Updates caused by the receiver's own installation are deferred until completion
+so the coordinator does not cancel its own successful install.
+
+Web persists only nonsensitive scoped link/revision/closing records, using an
+origin-wide Web Lock across documents. Missing Web Locks, corrupt bytes, a
+conflicting link, a pending closing intent or a disconnect latch prevent use.
+A failed local closing write remains blocked until repaired. The Web Identity
+adapter adds read/create/activate link and own-activity contract methods; actually
+feeding trusted activity into inherited roots is still pending.
+
+**Release gate:** manual lock/logout delivery and reconciliation, durable expiry
+barriers and settings/UI are not connected yet. In particular, the coordinator
+must not ship until tests prove that a peer with an old root cannot undo a manual
+lock/logout or an expired receiver. Runtime integration and successful synthetic
+selection tests do not establish that property. No merge/release acceptance is
+claimed. Full browser Identity/Entry E2E and the supported artifact matrix remain
+required. The actual paired Chromium probe also observes signed-out state sent
+and received by both product coordinators and detects local Port disconnects;
+it does not supply an account or perform an Identity/MK handoff.

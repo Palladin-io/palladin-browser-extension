@@ -1,3 +1,4 @@
+import { coordinateSharedUnlockBrowser } from "./shared-unlock/browser-runtime";
 /**
  * Service worker entry point (MV3). Bootstrap only: it wires the content Port,
  * the popup command channel, the session lifecycle, and the sync + auto-lock
@@ -187,7 +188,7 @@ void initializeServerConfig().then(() => {
 // Public build configuration is the only Web/API origin authority. No default
 // hosted route and no Firefox/Safari claim from Chromium's API contract.
 const sharedUnlockBrowser = __PALLADIN_TARGET__ === "chromium" && __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__.length > 0
-  ? startChromiumSharedUnlockBrowser(__PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__, () => serverConfig.apiUrl, initializeServerConfig)
+  ? startChromiumSharedUnlockBrowser(__PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
   : null;
 
 // Agent Inject is independent of popup lock, account, and profile state. Chrome

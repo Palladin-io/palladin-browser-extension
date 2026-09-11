@@ -122,10 +122,16 @@ try {
       runtime.connect = function (...args) {
         const port = original.apply(runtime, args)
         if (args[1]?.name === 'palladin.shared-unlock.browser.v1') {
-          const observed = { extensionId: args[0], closed: false, ready: null }
+          const observed = { extensionId: args[0], closed: false, ready: null, stateSent: false, stateReceived: false }
           globalThis.applicationChannelProbe.push(observed)
+          const send = port.postMessage.bind(port), disconnect = port.disconnect.bind(port)
+          const isSignedOutState = message => message?.type === 'operation' && message.payload?.kind === 'state'
+            && message.payload.status === 'signed-out' && message.payload.accountId === null && message.payload.source === null
+          port.postMessage = message => { if (isSignedOutState(message)) observed.stateSent = true; return send(message) }
+          port.disconnect = () => { observed.closed = true; return disconnect() }
           port.onMessage.addListener(message => {
             if (message?.type === 'ready') observed.ready = { extensionId: message.extensionId, documentBinding: message.documentBinding }
+            if (isSignedOutState(message)) observed.stateReceived = true
           })
           port.onDisconnect.addListener(() => { void runtime.lastError; observed.closed = true })
         }
@@ -139,13 +145,14 @@ try {
     const application = await context.newPage()
     const response = await application.goto(allowed + '/login')
     assert.equal(response.headers()['content-security-policy'], headers['Content-Security-Policy'])
-    await application.waitForFunction(() => globalThis.applicationChannelProbe.some(item => item.ready && !item.closed), { timeout: 15000 })
+    await application.waitForFunction(() => globalThis.applicationChannelProbe.some(item => item.ready && item.stateSent && item.stateReceived && !item.closed), { timeout: 15000 })
     const beforeReload = await application.evaluate(() => globalThis.applicationChannelProbe.find(item => item.ready && !item.closed))
     assert.equal(beforeReload.extensionId, extensionId)
     await application.reload()
-    await application.waitForFunction(() => globalThis.applicationChannelProbe.some(item => item.ready && !item.closed), { timeout: 15000 })
+    await application.waitForFunction(() => globalThis.applicationChannelProbe.some(item => item.ready && item.stateSent && item.stateReceived && !item.closed), { timeout: 15000 })
     const afterReload = await application.evaluate(() => globalThis.applicationChannelProbe.find(item => item.ready && !item.closed))
     assert.notEqual(afterReload.ready.documentBinding.split('/')[1], beforeReload.ready.documentBinding.split('/')[1])
+    checks.push('actual-product-coordinators-exchange-signed-out-state')
     checks.push('actual-web-application-bootstrap-under-delivered-csp')
     checks.push('actual-web-application-reload-establishes-new-document-channel')
     await writeFile(path.join(outputDirectory, 'web-artifact-hashes.json'), JSON.stringify(await hashes(webDirectory), null, 2) + '\n')

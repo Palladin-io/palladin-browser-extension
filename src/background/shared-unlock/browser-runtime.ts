@@ -1,0 +1,60 @@
+import { randomBytes, toBase64Url, wipe } from "@palladin/crypto";
+import { serverConfig } from "../config/server-runtime";
+import { sessionManager, sharedUnlockLinks, sharedUnlockSource } from "../session/runtime";
+import { SharedUnlockApi } from "./api";
+import { startSharedUnlockBrowserCoordinator } from "./browser-coordinator";
+import type { ChromiumSharedUnlockRoute } from "./chromium-route";
+import { prepareSharedUnlockLink } from "./prepare-link";
+import { beginSharedUnlockSource } from "./source";
+import { beginSharedUnlockReceiver } from "./receiver";
+
+/** Worker-only composition. Browser messages never gain a SessionManager or
+ * storage handle; the coordinator only receives scoped nonsensitive metadata. */
+export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) {
+  const api = new SharedUnlockApi((...args) => fetch(...args), () => serverConfig.apiUrl);
+  const scope = (accountId: string) => ({ accountId, apiUrl: route.apiUrl, webOrigin: route.webOrigin, extensionId: route.extensionId });
+  const admissible = async (accountId: string, linkId?: string) => {
+    route.assertCurrent();
+    const marker = await sharedUnlockLinks.ensure(scope(accountId));
+    route.assertCurrent();
+    if ((linkId && marker.linkId !== linkId) || marker.pending.length || marker.disconnectId || marker.observed?.state === "revoked") {
+      throw new Error("Shared unlock local link unavailable");
+    }
+    return marker;
+  };
+  return startSharedUnlockBrowserCoordinator(route, {
+    role: "extension",
+    nonce: async () => { const bytes = await randomBytes(32); try { return toBase64Url(bytes); } finally { wipe(bytes); } },
+    readState: async () => {
+      const accountId = await sessionManager.getUserId();
+      const status = await sessionManager.getStatus();
+      const state = sharedUnlockSource.snapshot();
+      const source = status === "unlocked" && state.authorization?.accountId === accountId
+        && state.sourceGeneration && state.preference?.sharedUnlockEnabled
+        ? { organizationId: state.authorization.organizationId, generation: state.sourceGeneration } : null;
+      return { accountId, status, source };
+    },
+    subscribe: changed => {
+      const listeners = [sessionManager.hooks.onLocked(changed), sessionManager.hooks.onUnlocked(changed), sharedUnlockSource.subscribe(changed)];
+      return () => { for (const remove of listeners) remove(); };
+    },
+    selectLink: async (accountId, proposed) => (await admissible(accountId, proposed)).linkId,
+    prepareSource: async (accountId, organizationId, linkId, signal, assertCurrent) => {
+      await admissible(accountId, linkId); assertCurrent();
+      const result = await prepareSharedUnlockLink({ scope: scope(accountId), organizationId, signal,
+        verifyBrowser: () => route.verifyCurrent(), assertCurrent }, sessionManager, sharedUnlockSource, api, sharedUnlockLinks);
+      assertCurrent(); if (result.link.linkId !== linkId) throw new Error("Shared unlock local link changed");
+      return { linkEpoch: result.link.epoch, preferenceRevision: result.preference.revision };
+    },
+    checkReceiver: async (binding, signal) => {
+      const marker = await admissible(binding.accountId, binding.linkId);
+      if (signal.aborted || (marker.observed && binding.linkEpoch < marker.observed.epoch)) throw new Error("Shared unlock receiver selection expired");
+    },
+    source: (binding, signal, assertCurrent) => beginSharedUnlockSource({ apiUrl: route.apiUrl, binding, signal, assertCurrent }, sessionManager, sharedUnlockSource, api),
+    receiver: (binding, signal, assertCurrent) => beginSharedUnlockReceiver({ apiUrl: route.apiUrl, binding, signal, assertCurrent }, sessionManager, api,
+      (authorization, generation, assertOwnCurrent) => sharedUnlockSource.adopt(authorization, generation,
+        { sharedUnlockEnabled: true, revision: binding.preferenceRevision }, () => {
+          assertOwnCurrent(); if (serverConfig.apiUrl !== route.apiUrl) throw new Error("Shared unlock own environment changed");
+        })),
+  });
+}

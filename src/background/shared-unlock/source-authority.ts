@@ -11,7 +11,7 @@ export interface SharedUnlockSourceState {
   readonly failure: SharedUnlockApiErrorCode | null;
 }
 
-/** Own fresh manual authority only. No peer can ask this class to derive a proof. */
+/** Own verified manual or inherited receiver authority. No peer can ask this class to derive a proof. */
 export class SharedUnlockSourceAuthority {
   private version = 0;
   private controller: AbortController | null = null;
@@ -21,6 +21,30 @@ export class SharedUnlockSourceAuthority {
 
   constructor(private readonly api: SharedUnlockApi, private readonly now: () => number = Date.now) {}
 
+  private readonly listeners = new Set<() => void>();
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  }
+  private notify(): void {
+    for (const listener of [...this.listeners]) {
+      try { listener(); } catch { /* Sharing observers cannot undo own login/unlock. */ }
+    }
+  }
+  /** Only the verified local receiver transaction supplies this own inherited
+   * root. This never derives a password proof or renews original ceilings. */
+  adopt(authorization: SharedUnlockAuthorization, generation: string, preference: SharedUnlockPreference,
+    assertOwnCurrent: () => void): void {
+    assertOwnCurrent();
+    const selectedPreference = this.state.preference && this.state.preference.revision > preference.revision
+      ? { ...this.state.preference } : { ...preference };
+    this.reset();
+    assertOwnCurrent();
+    this.checkSession = assertOwnCurrent;
+    this.state = { authorization: { ...authorization }, preference: selectedPreference, sourceGeneration: generation, failure: null };
+    this.notify();
+  }
+
   reset(): void {
     this.version += 1;
     this.controller?.abort();
@@ -29,6 +53,7 @@ export class SharedUnlockSourceAuthority {
     this.pendingProof = null;
     this.checkSession = null;
     this.state = { preference: null, authorization: null, sourceGeneration: null, failure: null };
+    this.notify();
   }
 
   snapshot(): SharedUnlockSourceState {
@@ -94,6 +119,7 @@ export class SharedUnlockSourceAuthority {
       wipe(context.authCredential);
       if (this.pendingProof === context.authCredential) this.pendingProof = null;
       if (this.controller === controller) this.controller = null;
+      this.notify();
     }
   }
 }

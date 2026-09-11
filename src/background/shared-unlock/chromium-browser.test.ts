@@ -36,6 +36,21 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("Chromium shared unlock runtime channel", () => {
+  it("preserves adjacent operation ordering while serializing browser verification", async () => {
+    const received = vi.fn(), f = fixture(undefined, route => { route.onOperation(received); }), p = f.port();
+    p.onMessage.emit(hello); await settle(); const route = f.controller.routes()[0];
+    const current = await f.api.webNavigation.getFrame();
+    let resolve!: (value: typeof current) => void;
+    f.api.webNavigation.getFrame.mockImplementationOnce(() => new Promise(r => { resolve = r; }));
+    const frame = { ...hello, type: "operation", channelId: route.channelId, documentBinding: route.documentBinding,
+      attemptId: "A".repeat(43), payload: { kind: "source-offer", publicKey: "A".repeat(43) } };
+    p.onMessage.emit(frame); p.onMessage.emit({ ...frame, payload: { kind: "cancel" } });
+    expect(received).not.toHaveBeenCalled(); expect(p.disconnect).not.toHaveBeenCalled();
+    resolve(current); await settle();
+    expect(received.mock.calls.map(call => call[0].payload.kind)).toEqual(["source-offer", "cancel"]);
+    expect(p.disconnect).not.toHaveBeenCalled(); f.controller.close();
+  });
+
   it("dispatches an operation only after rechecking the current browser document", async () => {
     const received = vi.fn();
     const ready = vi.fn((route: ChromiumSharedUnlockRoute) => { route.onOperation(received); });
@@ -57,7 +72,7 @@ describe("Chromium shared unlock runtime channel", () => {
       attemptId: "A".repeat(43), payload: { kind: "cancel" }, [field]: field === "apiUrl" ? "https://other.test" : "E".repeat(43) });
     await settle(); expect(received).not.toHaveBeenCalled(); expect(route.signal.aborted).toBe(true); f.controller.close();
   });
-  it.each(["navigation", "overlap"])("cancels a pending operation browser check on %s", async reason => {
+  it.each(["navigation", "overflow"])("cancels a pending operation browser check on %s", async reason => {
     const received = vi.fn(), f = fixture(undefined, route => { route.onOperation(received); }), p = f.port();
     p.onMessage.emit(hello); await settle(); const route = f.controller.routes()[0];
     const current = await f.api.webNavigation.getFrame();
@@ -67,7 +82,7 @@ describe("Chromium shared unlock runtime channel", () => {
       attemptId: "A".repeat(43), payload: { kind: "cancel" } };
     p.onMessage.emit(frame);
     if (reason === "navigation") f.api.webNavigation.onBeforeNavigate.emit(navigation);
-    else p.onMessage.emit(frame);
+    else for (let i = 0; i < 5; i++) p.onMessage.emit(frame);
     resolve(current); await settle(); expect(received).not.toHaveBeenCalled(); expect(route.signal.aborted).toBe(true); f.controller.close();
   });
   it("retires a channel when no coordinator accepts its operation", async () => {

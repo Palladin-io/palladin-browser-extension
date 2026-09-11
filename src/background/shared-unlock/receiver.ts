@@ -4,7 +4,7 @@ import type { SessionManager } from "../session/session-manager";
 import type { SharedUnlockInstaller } from "../session/shared-unlock-install";
 import type { SessionKeys } from "../session/types";
 import { SharedUnlockApi, SharedUnlockApiError } from "./api";
-import type { SharedUnlockCommit, SharedUnlockOperation } from "./api-types";
+import type { SharedUnlockAuthorization, SharedUnlockCommit, SharedUnlockOperation } from "./api-types";
 
 /** Browser/document + selected account and local-link authority, established
  * independently of the operation/envelope. OFF, revoke, navigation and peer
@@ -30,8 +30,10 @@ export interface SharedUnlockAcknowledgement {
   readonly extensionGeneration: string;
 }
 
+export type SharedUnlockInstalled = (authorization: SharedUnlockAuthorization, generation: string, assertOwnCurrent: () => void) => void;
+
 export async function beginSharedUnlockReceiver(route: SharedUnlockReceiverRoute,
-  manager: SessionManager, api: SharedUnlockApi) {
+  manager: SessionManager, api: SharedUnlockApi, onInstalled?: SharedUnlockInstalled) {
   const apiUrl = route.apiUrl;
   const binding = { ...route.binding };
   const abort = new AbortController();
@@ -147,6 +149,18 @@ export async function beginSharedUnlockReceiver(route: SharedUnlockReceiverRoute
         });
         const result = { operationId: commit.context.operationId,
           authorizationId: commit.authorizationId, authorizationSequence: commit.authorizationSequence };
+        // Verified own receiver root remains usable independently of the Port.
+
+        try {
+          onInstalled?.({ authorizationId: commit.authorizationId, sequence: commit.authorizationSequence,
+            accountId: binding.accountId, organizationId: binding.organizationId,
+            credentialRevision: consumed.keyContext.credentialRevision, privateKeyWrapRevision: consumed.keyContext.privateKeyWrapRevision,
+            authorizationVersion: commit.context.authorizationVersion, unlockedAtMs: commit.context.unlockedAtMs,
+            idleDeadlineMs: commit.context.idleDeadlineMs, absoluteDeadlineMs: commit.context.absoluteDeadlineMs,
+            offlineDeadlineMs: commit.context.offlineDeadlineMs }, binding.extensionGeneration, () => {
+            if (manager.getKeys() !== ownedKeys || !manager.getSharedUnlockLimits()) throw new SharedUnlockApiError("cancelled");
+          });
+        } catch { /* Failed sharing adoption does not revoke a completed own session. */ }
         // Installation already checked the final route and local generation.
         // Closing the peer afterwards cannot revoke this independent session.
         try { input.acknowledge({ operationId: result.operationId,

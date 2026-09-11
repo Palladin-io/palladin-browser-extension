@@ -109,3 +109,27 @@ it("cannot manufacture or replace own source authority by accepting a preference
   source.reset();
   expect(() => source.acceptPreference({ sharedUnlockEnabled: true, revision: 5 }, before.sourceGeneration!)).toThrow();
 });
+
+
+it("adopts only a still-current own verified receiver root without requesting a manual proof", () => {
+  const fetcher = vi.fn<typeof fetch>(); let current = true;
+  const source = new SharedUnlockSourceAuthority(new SharedUnlockApi(fetcher, () => apiUrl), () => authorization.unlockedAtMs + 1);
+  const changed = vi.fn(); const unsubscribe = source.subscribe(changed);
+  source.adopt(authorization, "A".repeat(43), { sharedUnlockEnabled: true, revision: 1 }, () => { if (!current) throw new Error("own session retired"); });
+  expect(source.snapshot().authorization).toEqual(authorization);
+  expect(source.snapshot().sourceGeneration).toBe("A".repeat(43));
+  expect(changed).toHaveBeenCalled(); expect(fetcher).not.toHaveBeenCalled();
+  current = false;
+  expect(source.snapshot().authorization).toBeNull();
+  expect(() => source.adopt(authorization, "E".repeat(43), { sharedUnlockEnabled: true, revision: 1 }, () => { throw new Error("new own session"); })).toThrow();
+  expect(source.snapshot().authorization).toBeNull(); unsubscribe();
+});
+
+
+it("does not overwrite a newer explicit OFF while adopting a completed own receiver root", () => {
+  const source = new SharedUnlockSourceAuthority(new SharedUnlockApi(vi.fn<typeof fetch>(), () => apiUrl), () => authorization.unlockedAtMs + 1);
+  source.adopt(authorization, "A".repeat(43), { sharedUnlockEnabled: true, revision: 1 }, () => {});
+  source.acceptPreference({ sharedUnlockEnabled: false, revision: 2 }, "A".repeat(43));
+  source.adopt(authorization, "E".repeat(43), { sharedUnlockEnabled: true, revision: 1 }, () => {});
+  expect(source.snapshot().preference).toEqual({ sharedUnlockEnabled: false, revision: 2 });
+});

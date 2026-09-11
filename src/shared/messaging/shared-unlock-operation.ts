@@ -23,6 +23,14 @@ const envelope = z.object({ protocol: z.literal("palladin.shared-unlock.v1"), su
 /** Independent browser input boundary. Identity REST remains typed; crypto
  * binding and commitments still belong to the source/receiver SDK transaction. */
 const payloadSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("state"), stateId: key, accountId: uuid.nullable(),
+    status: z.enum(["signed-out", "locked", "unlocked"]), generation: key,
+    source: z.object({ organizationId: uuid }).strict().nullable() }).strict(),
+  z.object({ kind: z.literal("link"), webStateId: key, extensionStateId: key, accountId: uuid, linkId: uuid }).strict(),
+  z.object({ kind: z.literal("link-selected"), webStateId: key, extensionStateId: key, accountId: uuid, linkId: uuid }).strict(),
+  z.object({ kind: z.literal("prepare"), webStateId: key, extensionStateId: key, accountId: uuid,
+    organizationId: uuid, linkId: uuid, linkEpoch: uint, preferenceRevision: uint }).strict(),
+  z.object({ kind: z.literal("prepared") }).strict(),
   z.object({ kind: z.literal("source-offer"), publicKey: key }).strict(),
   z.object({ kind: z.literal("receiver-offer"), publicKey: key, proofPublicKey: key }).strict(),
   z.object({ kind: z.literal("handoff"), operation, envelope }).strict(),
