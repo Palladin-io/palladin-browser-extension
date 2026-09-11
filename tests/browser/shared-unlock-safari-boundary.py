@@ -79,6 +79,8 @@ browser.runtime.onConnect.addListener(port => {
       errorOccurred: browser.webNavigation.onErrorOccurred, tabReplaced: browser.webNavigation.onTabReplaced,
       tabRemoved: browser.tabs.onRemoved };
     port.postMessage({ workerListenerReady: true, product: globalThis.syntheticProductDiagnostic,
+      sender: { id: port.sender?.id, url: port.sender?.url, frameId: port.sender?.frameId,
+        hasTab: port.sender?.tab !== undefined },
       lifecycleEvents: Object.fromEntries(Object.entries(events).map(([name, event]) =>
       [name, typeof event?.addListener === 'function' && typeof event?.removeListener === 'function'])) });
   }
@@ -342,6 +344,28 @@ def run_product_channel(extension_id, diagnostic_handle, web_handle):
     observations[stage] = wrong_port
     assert wrong_port['outcome'] == 'disconnected'
     checks.append(stage)
+    stage = 'product-popup-page-authority'
+    command('POST', '/window', {'handle': diagnostic_handle})
+    popup_url = command('POST', '/execute/sync', {'script': "return browser.runtime.getURL('src/popup/index.html')", 'args': []})
+    navigate(popup_url)
+    surface = command('POST', '/execute/async', {'script': '''
+      const done = arguments[arguments.length - 1];
+      (async () => {
+        const native = await new Promise((resolve, reject) => {
+          const port = browser.runtime.connect({ name: 'synthetic-internal-probe' });
+          const timer = setTimeout(() => { port.disconnect(); reject(new Error('Diagnostic timeout')); }, 2000);
+          port.onMessage.addListener(message => { clearTimeout(timer); resolve(message); port.disconnect(); });
+        });
+        const response = await browser.runtime.sendMessage({ type: 'session/status' });
+        done({ sender: native.sender, signedOut: response?.ok === true && response.status === 'signed-out',
+          actualPopupUrl: location.href === browser.runtime.getURL('src/popup/index.html') });
+      })().catch(() => done({ observationFailed: true }));
+    ''', 'args': []})
+    observations['productPopupPage'] = surface
+    assert surface.get('signedOut') is True and surface.get('actualPopupUrl') is True
+    assert surface['sender']['id'] == extension_id and surface['sender']['url'] == popup_url
+    assert surface['sender']['hasTab'] is False
+    checks.append('actual-popup-page-reaches-unchanged-private-command-guard')
     report = {'status': 'instrumented-product-channel-only', 'checks': checks, 'observations': observations,
         'fixtureSha256': fixture_hash, 'osVersion': platform.mac_ver()[0], 'architecture': platform.machine(),
         'observedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'identityOrKeysUsed': False, 'fullMatrix': False}
