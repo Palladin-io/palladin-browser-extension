@@ -1,6 +1,7 @@
 import { randomBytes, toBase64Url, wipe } from "@palladin/crypto";
 import { serverConfig } from "../config/server-runtime";
 import { sessionManager, sharedUnlockLinks, sharedUnlockSource } from "../session/runtime";
+import { startSharedUnlockLinkMonitor } from "./link-monitor";
 import { SharedUnlockApi } from "./api";
 import { startSharedUnlockBrowserCoordinator } from "./browser-coordinator";
 import type { ChromiumSharedUnlockRoute } from "./chromium-route";
@@ -22,9 +23,32 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
     }
     return marker;
   };
-  return startSharedUnlockBrowserCoordinator(route, {
+  const nonce = async () => { const bytes = await randomBytes(32); try { return toBase64Url(bytes); } finally { wipe(bytes); } };
+  const subscribe = (changed: () => void) => {
+    const listeners = [sessionManager.hooks.onLocked(changed), sessionManager.hooks.onUnlocked(changed), sharedUnlockSource.subscribe(changed)];
+    return () => { for (const remove of listeners) remove(); };
+  };
+  const monitor = startSharedUnlockLinkMonitor(route, {
+    nonce, subscribe,
+    capture: () => {
+      const state = sharedUnlockSource.snapshot();
+      if (!state.authorization || !state.sourceGeneration) return null;
+      const captured = sessionManager.captureSharedUnlockSource();
+      try {
+        const session = captured.read().tokens, root = state.authorization;
+        return { session, sequence: root.sequence, signal: captured.signal, dispose: () => captured.dispose(),
+          assertCurrent: () => {
+            captured.read();
+            const current = sharedUnlockSource.snapshot();
+            if (current.authorization?.authorizationId !== root.authorizationId || current.sourceGeneration !== state.sourceGeneration) throw new Error("Shared link own root changed");
+          } };
+      } catch (error) { captured.dispose(); throw error; }
+    },
+    closeSession: action => action === "logout" ? sessionManager.logout() : sessionManager.lock(),
+  }, sharedUnlockLinks, api);
+  const coordinator = startSharedUnlockBrowserCoordinator(route, {
     role: "extension",
-    nonce: async () => { const bytes = await randomBytes(32); try { return toBase64Url(bytes); } finally { wipe(bytes); } },
+    nonce,
     readState: async () => {
       const accountId = await sessionManager.getUserId();
       const status = await sessionManager.getStatus();
@@ -34,10 +58,7 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
         ? { organizationId: state.authorization.organizationId, generation: state.sourceGeneration } : null;
       return { accountId, status, source };
     },
-    subscribe: changed => {
-      const listeners = [sessionManager.hooks.onLocked(changed), sessionManager.hooks.onUnlocked(changed), sharedUnlockSource.subscribe(changed)];
-      return () => { for (const remove of listeners) remove(); };
-    },
+    subscribe,
     selectLink: async (accountId, proposed) => (await admissible(accountId, proposed)).linkId,
     prepareSource: async (accountId, organizationId, linkId, signal, assertCurrent) => {
       await admissible(accountId, linkId); assertCurrent();
@@ -57,4 +78,5 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
           assertOwnCurrent(); if (serverConfig.apiUrl !== route.apiUrl) throw new Error("Shared unlock own environment changed");
         })),
   });
+  return { close: () => { coordinator.close(); monitor.close(); } };
 }

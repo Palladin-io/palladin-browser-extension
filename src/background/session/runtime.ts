@@ -9,6 +9,7 @@ import { serverConfig } from "../config/server-runtime";
 import { AuthClient } from "./auth-client";
 import { AutoLock, type AlarmScheduler } from "./auto-lock";
 import { SessionManager } from "./session-manager";
+import { deliverSharedUnlockClosings, flushSharedUnlockClosings } from "../shared-unlock/closing";
 import { SharedUnlockApi } from "../shared-unlock/api";
 import { SharedUnlockLinkStore } from "../shared-unlock/link-store";
 import { SharedUnlockSourceAuthority } from "../shared-unlock/source-authority";
@@ -46,9 +47,16 @@ export const sessionAutoLock = new AutoLock(alarms, () => {
 
 export const sharedUnlockLinks = new SharedUnlockLinkStore(durableStorageArea);
 
-export const sharedUnlockSource = new SharedUnlockSourceAuthority(
-  new SharedUnlockApi((...args) => fetch(...args), () => serverConfig.apiUrl),
-);
+const sharingApi = new SharedUnlockApi((...args) => fetch(...args), () => serverConfig.apiUrl);
+const linkScopes = (accountId: string, apiUrl: string) => __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__
+  .filter(environment => environment.apiUrl === apiUrl)
+  .map(environment => ({ ...environment, accountId, extensionId: runtimeClientId }));
+export const sharedUnlockSource = new SharedUnlockSourceAuthority(sharingApi, Date.now,
+  async (session, signal, check) => {
+    for (const scope of linkScopes(session.userId, session.apiUrl)) {
+      await flushSharedUnlockClosings(scope, session, sharedUnlockLinks, sharingApi, signal, check);
+    }
+  });
 
 manager = new SessionManager({
   store: new SessionStore(durableStorageArea, legacySessionStorageArea),
@@ -56,10 +64,10 @@ manager = new SessionManager({
   autoLock: sessionAutoLock,
   clientId: runtimeClientId,
   prepareManualUnlock: context => sharedUnlockSource.prepare(context),
+  deliverManualClosing: (session, check) => deliverSharedUnlockClosings(linkScopes(session.userId, session.apiUrl),
+    session, sharedUnlockLinks, sharingApi, check),
   recordManualClosing: async (accountId, action) => {
-    const scopes = __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__
-      .filter(environment => environment.apiUrl === serverConfig.apiUrl)
-      .map(environment => ({ ...environment, accountId, extensionId: runtimeClientId }));
+    const scopes = linkScopes(accountId, serverConfig.apiUrl);
     const results = await Promise.allSettled(scopes.map(scope => sharedUnlockLinks.recordManualClosing(scope, action)));
     if (results.some(result => result.status === "rejected")) throw new Error("Shared unlock closing could not be saved");
   },

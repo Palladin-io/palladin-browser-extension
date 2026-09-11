@@ -19,7 +19,8 @@ export class SharedUnlockSourceAuthority {
   private state: SharedUnlockSourceState = { preference: null, authorization: null, sourceGeneration: null, failure: null };
   private checkSession: (() => void) | null = null;
 
-  constructor(private readonly api: SharedUnlockApi, private readonly now: () => number = Date.now) {}
+  constructor(private readonly api: SharedUnlockApi, private readonly now: () => number = Date.now,
+    private readonly beforeAuthorize?: (session: ManualUnlockContext["tokens"], signal: AbortSignal, check: () => void) => Promise<void>) {}
 
   private readonly listeners = new Set<() => void>();
   subscribe(listener: () => void): () => void {
@@ -82,11 +83,12 @@ export class SharedUnlockSourceAuthority {
     const version = this.version;
     const controller = new AbortController(); this.controller = controller;
     this.pendingProof = context.authCredential;
+    const deadline = Date.now() + 10_000;
     const timeout = setTimeout(() => { controller.abort(); wipe(context.authCredential); }, 10_000);
     const check = () => {
-      if (version !== this.version || controller.signal.aborted) throw new SharedUnlockApiError("cancelled");
+      if (version !== this.version || controller.signal.aborted || Date.now() >= deadline) throw new SharedUnlockApiError("cancelled");
       context.assertCurrent();
-      if (version !== this.version || controller.signal.aborted) throw new SharedUnlockApiError("cancelled");
+      if (version !== this.version || controller.signal.aborted || Date.now() >= deadline) throw new SharedUnlockApiError("cancelled");
     };
     try {
       check();
@@ -94,6 +96,8 @@ export class SharedUnlockSourceAuthority {
       if (account.userId !== context.tokens.userId || !account.kdf) throw new SharedUnlockApiError("unauthorized");
       const bytes = await randomBytes(32);
       const generation = toBase64Url(bytes); wipe(bytes);
+      check();
+      await this.beforeAuthorize?.(context.tokens, controller.signal, check);
       check();
       const preference = await this.api.readPreference(context.tokens, controller.signal);
       check();

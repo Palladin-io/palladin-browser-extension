@@ -666,3 +666,51 @@ pending actions deliberately keep sharing unavailable, including after a new
 manual unlock, until that reconciliation is implemented. No peer lock/logout
 has been delivered by this increment. Durable expiry barriers, OFF semantics,
 activity, settings/UI and the full browser/Identity/Entry matrix remain open.
+
+
+## Own closing delivery and active-root reconciliation — pre-release increment
+
+Manual Extension lock/logout now delivers the saved intent through its own
+captured Identity session before ordinary local logout revocation. Web captures
+only its own token fields, clears auth immediately, and delivers before reload.
+Network delivery is bounded to two seconds; timeout/conflict leaves the durable
+intent pending. A changed own session/environment cancels delivery, and an old
+Web logout no longer reloads over a newer login.
+
+The drain reads fresh own preference and link state, then submits the exact
+current CAS to the distinct lock/logout/disconnect endpoint. It acknowledges only
+the saved intent ID after a receipt. Newer logout decisions and the separate
+disconnect latch survive. A fresh authenticated OFF settles manual propagation
+without a lock/logout mutation; disconnect remains independent. Missing links,
+revoked-link conflicts and failed writes are not silently reset or relinked.
+There is no automatic mutation retry after 409.
+
+Both real manual-source compositions drain pending actions before reading the
+preference and authorizing a fresh password-derived root. The existing ten-second
+proof deadline and own lifecycle checks cover this work. The resulting root's
+server sequence therefore follows the completed closing barrier; an inherited
+root never performs this manual preparation.
+
+A committed receipt emits only a value-free browser link-invalidated hint.
+Active clients independently fetch their own stored link through their own
+Identity session and compare its invalidation/logout barriers with the sequence
+of their currently installed root. Logout is stronger than lock. Local key wipe
+starts before observing the receipt in storage; it invokes ordinary local cleanup
+and does not echo another shared mutation. Late responses lose to own account,
+token, root/generation and route changes. A peer hint alone never orders a logout.
+
+Repair runs when the route/source becomes available, on an invalidation hint and
+every fifteen seconds while the route lives; duplicates are coalesced with at
+most one read per second and a two-second pending request deadline. Route teardown
+retires subscriptions/timers and leaves a valid own session intact. Best-effort
+hint delivery is awaited within the sender's existing deadline before Web reload.
+
+**Remaining release gates:** this monitor requires an in-memory installed own
+root. Already-locked/restarted clients, expired own access tokens, local expiry
+barriers and key-use recovery still need completion and focused proofs. A pending
+logout against an already revoked link remains a conflict; it is not erased as
+if disconnect implied logout. Fresh manual authorization cannot revive a server-
+revoked old Identity lineage. Settings/OFF propagation/reconnect UX, own activity,
+canonical browser fixtures and real Identity/Entry E2E on the entire supported
+artifact matrix remain required. The current synthetic Identity tests and paired
+Chromium channel probe do not close those gates.

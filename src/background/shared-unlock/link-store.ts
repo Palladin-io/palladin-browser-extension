@@ -149,6 +149,18 @@ export class SharedUnlockLinkStore {
     });
   }
 
+  /** Only a fresh authenticated OFF observation may settle manual propagation
+   * without a link mutation. Disconnect is independent and is never removed. */
+  acknowledgeDisabledClosing(scope: SharedUnlockLinkScope, linkId: string, intentId: string): Promise<SharedUnlockLinkMarker> {
+    const selected = { ...scope };
+    return this.serial(async () => {
+      const marker = await this.require(selected, linkId);
+      const updated = { ...marker, pending: marker.pending.filter(intent => intent.id !== intentId || intent.action === "disconnect") };
+      await this.save(selected, updated);
+      return updated;
+    });
+  }
+
   /** Called only for the receipt of an explicit reconnect. A later disconnect
    * or closing action invalidates this receipt; a background read never clears it. */
   acknowledgeReconnect(scope: SharedUnlockLinkScope, linkId: string, disconnectId: string,

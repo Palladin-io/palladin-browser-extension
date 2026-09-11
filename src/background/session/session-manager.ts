@@ -82,6 +82,7 @@ export interface SessionManagerDeps {
   prepareManualUnlock?: PrepareManualUnlock;
   /** Explicit popup action only; expiry/security cleanup never invokes this. */
   recordManualClosing?: (accountId: string, action: "lock" | "logout") => Promise<void>;
+  deliverManualClosing?: (session: SessionTokens, assertCurrent: () => void) => Promise<void>;
 }
 
 export const PENDING_TOTP_TTL_MS = 5 * 60 * 1_000;
@@ -129,6 +130,7 @@ export class SessionManager {
   private readonly durableSessionTtlMs: number;
   private readonly prepareManualUnlock: PrepareManualUnlock | undefined;
   private readonly recordManualClosing: SessionManagerDeps["recordManualClosing"];
+  private readonly deliverManualClosing: SessionManagerDeps["deliverManualClosing"];
 
   readonly hooks: SessionHooks;
   private readonly sync: SyncTrigger;
@@ -167,6 +169,7 @@ export class SessionManager {
     this.durableSessionTtlMs = deps.durableSessionTtlMs ?? DURABLE_SESSION_TTL_MS;
     this.prepareManualUnlock = deps.prepareManualUnlock;
     this.recordManualClosing = deps.recordManualClosing;
+    this.deliverManualClosing = deps.deliverManualClosing;
     if (
       !Number.isSafeInteger(this.durableSessionTtlMs)
       || this.durableSessionTtlMs <= 0
@@ -957,6 +960,7 @@ export class SessionManager {
   /** Wipe key material and stop the idle timer; the sealed durable session survives. */
   async lock(reason?: "manual"): Promise<void> {
     this.beginLifecycleTermination();
+    const generation = this.lifecycleGeneration;
     try {
       const wasUnlocked = this.keys !== null;
       this.wipeKeys();
@@ -968,6 +972,7 @@ export class SessionManager {
       // surfaces must still observe the authoritative transition to locked.
       try {
         if (userId && reason === "manual") await this.recordManualClosing?.(userId, "lock");
+        if (tokens && reason === "manual") await this.deliverClosing(tokens, generation);
       } finally {
         if (userId) this.hooks.emitLocked({ userId });
       }
@@ -980,6 +985,7 @@ export class SessionManager {
   async logout(reason?: "manual"): Promise<void> {
     this.sessionClearGeneration += 1;
     this.beginLifecycleTermination();
+    const generation = this.lifecycleGeneration;
     try {
       this.wipeKeys();
       this.autoLock.disarm();
@@ -990,6 +996,7 @@ export class SessionManager {
       if (reason === "manual") this.tokens = null;
       try {
         if (durableUserId && reason === "manual") await this.recordManualClosing?.(durableUserId, "logout");
+        if (tokens && reason === "manual") await this.deliverClosing(tokens, generation);
       } finally {
         if (tokens) {
           // Remote revocation is best-effort and pinned to the issuing host. Do
@@ -1005,6 +1012,15 @@ export class SessionManager {
     } finally {
       this.endLifecycleTermination();
     }
+  }
+
+  private async deliverClosing(tokens: SessionTokens, generation: number): Promise<void> {
+    const check = () => {
+      if (this.lifecycleGeneration !== generation) throw new SessionLifecycleChangedError();
+      this.assertApiUrl(tokens.apiUrl);
+    };
+    check();
+    await this.deliverManualClosing?.(tokens, check);
   }
 
   private wipeKeys(): void {

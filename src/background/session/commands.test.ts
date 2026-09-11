@@ -13,13 +13,13 @@ import {
   type TestAccount,
 } from "./test-support";
 
-async function makeManager(account: TestAccount, recordManualClosing?: SessionManagerDeps["recordManualClosing"]): Promise<SessionManager> {
+async function makeManager(account: TestAccount, recordManualClosing?: SessionManagerDeps["recordManualClosing"], deliverManualClosing?: SessionManagerDeps["deliverManualClosing"]): Promise<SessionManager> {
   const storage = new FakeStorageArea();
   const alarms = new FakeAlarms();
   const authClient = new AuthClient(mockBackend(account).fetch, "https://api.test");
   let mgr: SessionManager;
   const autoLock = new AutoLock(alarms, () => void mgr.lock());
-  mgr = new SessionManager({ store: new SessionStore(storage), authClient, autoLock, ...(recordManualClosing ? { recordManualClosing } : {}) });
+  mgr = new SessionManager({ store: new SessionStore(storage), authClient, autoLock, ...(recordManualClosing ? { recordManualClosing } : {}), ...(deliverManualClosing ? { deliverManualClosing } : {}) });
   return mgr;
 }
 
@@ -179,4 +179,20 @@ describe("manual closing command boundary", () => {
     expect(keys.masterKey.every(byte => byte === 0)).toBe(true);
     expect(await manager.getStatus()).toBe("signed-out"); expect(await manager.getAccessToken()).toBeNull();
   });
+});
+
+
+it("delivers manual logout with the own captured session after persistence and published-token removal", async () => {
+  const account = await buildTestAccount(), events: string[] = [];
+  let manager!: SessionManager;
+  const record = vi.fn(async () => { events.push("persisted"); });
+  const deliver = vi.fn(async (session: import("./types").SessionTokens, check: () => void) => {
+    check(); events.push("delivery");
+    expect(session.userId).toBe(account.accountId); expect(session.apiUrl).toBe("https://api.test");
+    expect(manager.getKeys()).toBeNull(); expect(await manager.getAccessToken()).toBeNull();
+  });
+  manager = await makeManager(account, record, deliver); await manager.login(account.email, account.password);
+  expect(await dispatchSessionCommand(manager, { type: "session/logout" })).toMatchObject({ ok: true });
+  expect(events).toEqual(["persisted", "delivery"]); expect(deliver).toHaveBeenCalledOnce();
+  expect(await manager.getStatus()).toBe("signed-out");
 });

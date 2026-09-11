@@ -133,3 +133,42 @@ it("does not overwrite a newer explicit OFF while adopting a completed own recei
   source.adopt(authorization, "E".repeat(43), { sharedUnlockEnabled: true, revision: 1 }, () => {});
   expect(source.snapshot().preference).toEqual({ sharedUnlockEnabled: false, revision: 2 });
 });
+
+
+it("settles previous closings before reading fresh preference and authorizing a new root", async () => {
+  let finish!: () => void;
+  const beforeAuthorize = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ sharedUnlockEnabled: true, revision: 6 }))
+    .mockResolvedValueOnce(response({ ...authorization, sequence: authorization.sequence + 2 }));
+  const source = new SharedUnlockSourceAuthority(new SharedUnlockApi(fetcher, () => apiUrl), () => authorization.unlockedAtMs + 1, beforeAuthorize);
+  const own = makeContext(); const prepared = source.prepare(own);
+  await vi.waitFor(() => expect(beforeAuthorize).toHaveBeenCalledOnce());
+  expect(fetcher).not.toHaveBeenCalled();
+  finish(); await prepared;
+  expect(JSON.parse(String(fetcher.mock.calls[1][1]?.body)).expectedPreferenceRevision).toBe(6);
+  expect(source.snapshot().authorization?.sequence).toBe(authorization.sequence + 2);
+  expect(own.authCredential).toEqual(new Uint8Array(32));
+});
+it("never sends a fresh proof after closing repair completes for a superseded manual attempt", async () => {
+  let finish!: () => void;
+  const beforeAuthorize = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+  const fetcher = vi.fn<typeof fetch>();
+  const source = new SharedUnlockSourceAuthority(new SharedUnlockApi(fetcher, () => apiUrl), Date.now, beforeAuthorize);
+  const own = makeContext(); const prepared = source.prepare(own);
+  await vi.waitFor(() => expect(beforeAuthorize).toHaveBeenCalledOnce());
+  source.reset(); finish(); await prepared;
+  expect(fetcher).not.toHaveBeenCalled(); expect(own.authCredential).toEqual(new Uint8Array(32));
+});
+
+
+it("does not extend the manual proof deadline while a suspended closing repair resumes", async () => {
+  vi.useFakeTimers();
+  try {
+    const fetcher = vi.fn<typeof fetch>();
+    const beforeAuthorize = async () => { vi.setSystemTime(Date.now() + 10_001); };
+    const source = new SharedUnlockSourceAuthority(new SharedUnlockApi(fetcher, () => apiUrl), Date.now, beforeAuthorize);
+    const own = makeContext(); await source.prepare(own);
+    expect(fetcher).not.toHaveBeenCalled(); expect(own.authCredential).toEqual(new Uint8Array(32));
+    expect(vi.getTimerCount()).toBe(0);
+  } finally { vi.useRealTimers(); }
+});

@@ -23,6 +23,7 @@ const envelope = z.object({ protocol: z.literal("palladin.shared-unlock.v1"), su
 /** Independent browser input boundary. Identity REST remains typed; crypto
  * binding and commitments still belong to the source/receiver SDK transaction. */
 const payloadSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("link-invalidated") }).strict(),
   z.object({ kind: z.literal("state"), stateId: key, accountId: uuid.nullable(),
     status: z.enum(["signed-out", "locked", "unlocked"]), generation: key,
     source: z.object({ organizationId: uuid }).strict().nullable() }).strict(),
