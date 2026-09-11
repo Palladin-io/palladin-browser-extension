@@ -145,6 +145,50 @@ async function observeLocalContext() {
     if (url.origin === new URL(apiUrl).origin) requests.push({ stage, path: url.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id'), status: response.status() })
   })
 }
+async function interceptFreshManualUnlock() {
+  // Install only after both clients are locked, and retire after this one step.
+  // Earlier registration, email navigation and logout use the normal transport.
+  const targetPage = page, registrations = []
+  const register = async (pattern, handler) => {
+    await targetPage.route(pattern, handler); registrations.push([pattern, handler])
+  }
+  // Delay only transport, never the backend result or any session/key state.
+  // This exposes the interval after local password verification but before
+  // Identity replaces the previously locked logical session's authorization.
+  if (delayManualAuthorization) await register(apiUrl + '/api/account/shared-unlock/authorizations', async route => {
+    const started = performance.now()
+    const delayed = stage === 'web-fresh-manual-unlock'
+    if (delayed) {
+      requests.push({ check: 'manual-authorization-request-delayed', delayMs: 1500 })
+      await new Promise(resolve => setTimeout(resolve, 1500))
+    }
+    try {
+      await route.continue()
+      if (delayed) requests.push({ check: 'delayed-authorization-route-continued', elapsedMs: Math.round(performance.now() - started) })
+    } catch {
+      if (delayed) requests.push({ check: 'delayed-authorization-route-cancelled', elapsedMs: Math.round(performance.now() - started) })
+    }
+  })
+  if (ownActivityDuringPrepare) await register(apiUrl + '/api/account/shared-unlock/links/*/activate', async route => {
+    if (stage === 'web-fresh-manual-unlock' && !ownActivityRequested) {
+      ownActivityRequested = true
+      try {
+        const activity = targetPage.waitForResponse(response => response.url() === apiUrl + '/api/account/shared-unlock/authorizations/activity', { timeout: 1800 })
+        void activity.catch(() => {})
+        await targetPage.keyboard.press('Shift')
+        ownActivityObserved = (await activity).status() === 200
+        requests.push({ check: 'own-source-activity-while-activation-held', accepted: ownActivityObserved })
+        // Let the client apply its own response before releasing the older
+        // activation request; receipt of HTTP headers alone is not application.
+        await new Promise(resolve => setTimeout(resolve, 200))
+      } catch { requests.push({ check: 'own-source-activity-while-activation-held', accepted: false }) }
+    }
+    try { await route.continue() } catch { /* The cancelled original preparation may retire this request. */ }
+  })
+  return async () => {
+    for (const [pattern, handler] of registrations) await targetPage.unroute(pattern, handler)
+  }
+}
 const password = 'Synthetic!' + randomBytes(24).toString('base64url'), email = `cvt583-${randomBytes(8).toString('hex')}@example.test`
 const allowedEmails = new Set([email])
 try {
@@ -203,39 +247,6 @@ try {
   assert.equal(extensionId, expected)
   if (installViaCdp) assert.equal(extensionId, provenance.browserInstalledExtensionId)
   page = await context.newPage()
-  // Delay only transport, never the backend result or any session/key state.
-  // This exposes the interval after local password verification but before
-  // Identity replaces the previously locked logical session's authorization.
-  if (delayManualAuthorization) await page.route(apiUrl + '/api/account/shared-unlock/authorizations', async route => {
-    const started = performance.now()
-    const delayed = stage === 'web-fresh-manual-unlock'
-    if (delayed) {
-      requests.push({ check: 'manual-authorization-request-delayed', delayMs: 1500 })
-      await new Promise(resolve => setTimeout(resolve, 1500))
-    }
-    try {
-      await route.continue()
-      if (delayed) requests.push({ check: 'delayed-authorization-route-continued', elapsedMs: Math.round(performance.now() - started) })
-    } catch {
-      if (delayed) requests.push({ check: 'delayed-authorization-route-cancelled', elapsedMs: Math.round(performance.now() - started) })
-    }
-  })
-  if (ownActivityDuringPrepare) await page.route(apiUrl + '/api/account/shared-unlock/links/*/activate', async route => {
-    if (stage === 'web-fresh-manual-unlock' && !ownActivityRequested) {
-      ownActivityRequested = true
-      try {
-        const activity = page.waitForResponse(response => response.url() === apiUrl + '/api/account/shared-unlock/authorizations/activity', { timeout: 1800 })
-        void activity.catch(() => {})
-        await page.keyboard.press('Shift')
-        ownActivityObserved = (await activity).status() === 200
-        requests.push({ check: 'own-source-activity-while-activation-held', accepted: ownActivityObserved })
-        // Let the client apply its own response before releasing the older
-        // activation request; receipt of HTTP headers alone is not application.
-        await new Promise(resolve => setTimeout(resolve, 200))
-      } catch { requests.push({ check: 'own-source-activity-while-activation-held', accepted: false }) }
-    }
-    try { await route.continue() } catch { /* The cancelled original preparation may retire this request. */ }
-  })
   page.on('requestfailed', request => {
     const url = new URL(request.url())
     if (url.origin === new URL(apiUrl).origin) requests.push({ path: url.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id'), status: 'request-failed' })
@@ -339,11 +350,14 @@ try {
   await popup.waitButton('Unlock')
   checks.push('web-manual-lock-propagated-to-extension')
   stage = 'web-fresh-manual-unlock'
-  await page.locator('#unlock-password').click()
-  await page.locator('#unlock-password').pressSequentially(password, { delay: 5 })
-  await page.getByRole('button', { name: 'Unlock', exact: true }).click()
-  await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
-  await popup.waitText('Unlocked')
+  const releaseManualInterceptions = await interceptFreshManualUnlock()
+  try {
+    await page.locator('#unlock-password').click()
+    await page.locator('#unlock-password').pressSequentially(password, { delay: 5 })
+    await page.getByRole('button', { name: 'Unlock', exact: true }).click()
+    await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+    await popup.waitText('Unlocked')
+  } finally { await releaseManualInterceptions() }
   checks.push('extension-automatically-unlocked-after-new-manual-authorization')
   if (ownActivityDuringPrepare) {
     assert(ownActivityRequested && ownActivityObserved, 'The actual own activity must be accepted while source preparation is pending')
