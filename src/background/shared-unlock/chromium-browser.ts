@@ -5,7 +5,8 @@ import { ChromiumSharedUnlockRoute, type SharedUnlockBrowserApi } from "./chromi
 
 /** Runtime-owned routes. A source/receiver coordinator must add account/link authority. */
 export function startChromiumSharedUnlockBrowser(environments: readonly SharedUnlockEnvironment[],
-  currentApiUrl: () => string, initialize: () => Promise<unknown> = async () => undefined) {
+  currentApiUrl: () => string, initialize: () => Promise<unknown> = async () => undefined,
+  onReady?: (route: ChromiumSharedUnlockRoute) => void) {
   const active = new Map<number, ChromiumSharedUnlockRoute>();
   const connections = new Set<() => void>();
   const navigating = new Set<number>();
@@ -26,6 +27,8 @@ export function startChromiumSharedUnlockBrowser(environments: readonly SharedUn
     let route: ChromiumSharedUnlockRoute | null = null;
     let disconnected = false;
     let helloStarted = false;
+    let ready = false;
+    let receiving = false;
     const disconnect = () => {
       if (disconnected) return;
       disconnected = true;
@@ -39,7 +42,18 @@ export function startChromiumSharedUnlockBrowser(environments: readonly SharedUn
     };
     const timeout = setTimeout(disconnect, 5000);
     const message = (raw: unknown) => {
-      if (helloStarted || !isSharedUnlockBrowserMessage(raw) || raw.type !== "hello") { disconnect(); return; }
+      if (!isSharedUnlockBrowserMessage(raw)) { disconnect(); return; }
+      if (ready && route && raw.type === "operation") {
+        if (receiving) { disconnect(); return; }
+        receiving = true;
+        const current = route;
+        void current.verifyCurrent().then(() => {
+          if (disconnected || route !== current) return;
+          current.receiveOperation(raw);
+        }).catch(disconnect).finally(() => { receiving = false; });
+        return;
+      }
+      if (helloStarted || raw.type !== "hello") { disconnect(); return; }
       helloStarted = true;
       void (async () => {
         await initialize();
@@ -54,11 +68,14 @@ export function startChromiumSharedUnlockBrowser(environments: readonly SharedUn
         active.set(route.tabId, route);
         await route.verifyCurrent();
         if (disconnected) return;
-        const ready: SharedUnlockBrowserReady = { type: "ready", protocol: SHARED_UNLOCK_BROWSER_PORT,
+        const response: SharedUnlockBrowserReady = { type: "ready", protocol: SHARED_UNLOCK_BROWSER_PORT,
           apiUrl: route.apiUrl, webOrigin: route.webOrigin, extensionId: route.extensionId,
           webNonce: raw.webNonce, channelId, documentBinding: route.documentBinding };
-        route.post(ready);
+        route.openOperations(raw.webNonce);
+        ready = true;
+        route.post(response);
         clearTimeout(timeout);
+        onReady?.(route);
       })().catch(disconnect);
     };
     connections.add(disconnect);

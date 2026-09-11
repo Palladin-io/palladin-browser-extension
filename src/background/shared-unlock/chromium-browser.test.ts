@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ChromiumSharedUnlockRoute } from "./chromium-route";
 import { startChromiumSharedUnlockBrowser } from "./chromium-browser";
 import { SHARED_UNLOCK_BROWSER_PORT } from "../../shared/messaging/shared-unlock-browser";
 vi.mock("@palladin/crypto", () => ({ randomBytes: async () => new Uint8Array(32), toBase64Url: () => "A".repeat(43) }));
@@ -12,14 +13,14 @@ function event<T extends unknown[]>() {
 const environments = [{ apiUrl: "https://api.example.test", webOrigin: "https://app.example.test:8443" }];
 const hello = { type: "hello", protocol: SHARED_UNLOCK_BROWSER_PORT, apiUrl: environments[0].apiUrl, webNonce: "A".repeat(43) };
 const navigation = { tabId: 7, frameId: 0, documentId: "document-1", documentLifecycle: "active" };
-function fixture(initialize?: () => Promise<unknown>) {
+function fixture(initialize?: () => Promise<unknown>, onReady?: Parameters<typeof startChromiumSharedUnlockBrowser>[3]) {
   const api = { runtime: { id: "a".repeat(32), onConnectExternal: event<[chrome.runtime.Port]>() },
     tabs: { get: vi.fn(async (id: number) => ({ id, incognito: false })), onRemoved: event<[number]>() },
     webNavigation: { getFrame: vi.fn(async () => ({ documentId: "document-1", documentLifecycle: "active", frameType: "outermost_frame", parentFrameId: -1, errorOccurred: false, url: environments[0].webOrigin })),
       onBeforeNavigate: event<[typeof navigation]>(), onCommitted: event<[typeof navigation]>(), onErrorOccurred: event<[typeof navigation]>(),
       onTabReplaced: event<[{ replacedTabId: number; tabId: number }]>() } };
   vi.stubGlobal("chrome", api);
-  const controller = startChromiumSharedUnlockBrowser(environments, () => environments[0].apiUrl, initialize);
+  const controller = startChromiumSharedUnlockBrowser(environments, () => environments[0].apiUrl, initialize, onReady);
   const port = (tabId = 7) => {
     const connection = { name: SHARED_UNLOCK_BROWSER_PORT, sender: { tab: { id: tabId, incognito: false }, frameId: 0,
       documentId: "document-1", documentLifecycle: "active", origin: environments[0].webOrigin, url: environments[0].webOrigin },
@@ -35,6 +36,47 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("Chromium shared unlock runtime channel", () => {
+  it("dispatches an operation only after rechecking the current browser document", async () => {
+    const received = vi.fn();
+    const ready = vi.fn((route: ChromiumSharedUnlockRoute) => { route.onOperation(received); });
+    const f = fixture(undefined, ready), p = f.port(); p.onMessage.emit(hello); await settle();
+    const route = f.controller.routes()[0];
+    const payload = { kind: "source-offer" as const, publicKey: "E".repeat(43) };
+    const frame = { ...hello, type: "operation", channelId: route.channelId, documentBinding: route.documentBinding, attemptId: "A".repeat(43), payload };
+    p.onMessage.emit(frame); expect(received).not.toHaveBeenCalled(); await settle();
+    expect(received).toHaveBeenCalledExactlyOnceWith({ attemptId: frame.attemptId, payload });
+    expect(f.api.webNavigation.getFrame).toHaveBeenCalledTimes(2);
+    route.sendOperation({ attemptId: frame.attemptId, payload: { kind: "cancel" } });
+    expect(p.postMessage).toHaveBeenLastCalledWith({ ...frame, payload: { kind: "cancel" } });
+    f.controller.close(); expect(route.signal.aborted).toBe(true);
+  });
+  it.each(["webNonce", "channelId", "documentBinding", "apiUrl"])("rejects operation with substituted %s", async field => {
+    const received = vi.fn(), f = fixture(undefined, route => { route.onOperation(received); }), p = f.port();
+    p.onMessage.emit(hello); await settle(); const route = f.controller.routes()[0];
+    p.onMessage.emit({ ...hello, type: "operation", channelId: route.channelId, documentBinding: route.documentBinding,
+      attemptId: "A".repeat(43), payload: { kind: "cancel" }, [field]: field === "apiUrl" ? "https://other.test" : "E".repeat(43) });
+    await settle(); expect(received).not.toHaveBeenCalled(); expect(route.signal.aborted).toBe(true); f.controller.close();
+  });
+  it.each(["navigation", "overlap"])("cancels a pending operation browser check on %s", async reason => {
+    const received = vi.fn(), f = fixture(undefined, route => { route.onOperation(received); }), p = f.port();
+    p.onMessage.emit(hello); await settle(); const route = f.controller.routes()[0];
+    const current = await f.api.webNavigation.getFrame();
+    let resolve!: (value: typeof current) => void;
+    f.api.webNavigation.getFrame.mockImplementation(() => new Promise(r => { resolve = r; }));
+    const frame = { ...hello, type: "operation", channelId: route.channelId, documentBinding: route.documentBinding,
+      attemptId: "A".repeat(43), payload: { kind: "cancel" } };
+    p.onMessage.emit(frame);
+    if (reason === "navigation") f.api.webNavigation.onBeforeNavigate.emit(navigation);
+    else p.onMessage.emit(frame);
+    resolve(current); await settle(); expect(received).not.toHaveBeenCalled(); expect(route.signal.aborted).toBe(true); f.controller.close();
+  });
+  it("retires a channel when no coordinator accepts its operation", async () => {
+    const f = fixture(), p = f.port(); p.onMessage.emit(hello); await settle(); const route = f.controller.routes()[0];
+    p.onMessage.emit({ ...hello, type: "operation", channelId: route.channelId, documentBinding: route.documentBinding,
+      attemptId: "A".repeat(43), payload: { kind: "cancel" } });
+    await settle(); expect(route.signal.aborted).toBe(true); f.controller.close();
+  });
+
   it("uses current top-frame browser lookup and sends only the bounded ready frame", async () => {
     const f = fixture(); const p = f.port(); p.onMessage.emit(hello); await settle();
     expect(f.api.webNavigation.getFrame).toHaveBeenCalledWith({ tabId: 7, frameId: 0 });

@@ -545,3 +545,38 @@ invoke it. Closing-intent delivery/reconciliation, explicit reconnect and Web
 marker coordination remain to be wired with shared actions/settings. Tests prove
 storage/Identity preparation boundaries using mock Identity and real SessionManager,
 not automatic unlock or full browser lifecycle acceptance.
+
+
+## Browser operation transport (implementation increment)
+
+The established Chromium route now supports strict bounded operation frames:
+source offer, receiver DH/proof offer, encrypted handoff, ACK and cancellation.
+The outer attempt ID is separate from the ACK payload, which still contains only
+operation ID and Web/Extension generations. API, handshake nonce, channel ID and
+browser document binding must match the live route. Extra fields and oversized
+crypto encodings are rejected at this independent browser-input boundary; this
+does not add first-party REST response validation or replace SDK crypto binding.
+
+`browser-transfer.ts` composes the existing source/receiver transactions. The
+caller must supply independently selected account/org/link/preference/generation
+authority to their factories. Each attempt has a 30-second timer plus wall-clock
+checks, retires late factory results, and removes subscriptions on completion or
+failure. A receiver waits for its real install/rollback to finish; it does not
+race storage work against transport cancellation. Lost or incorrect ACK does not
+resend the handoff or undo a completed own session. No token is sent to the peer.
+
+Extension verifies the browser's current top-frame document before dispatching
+each frame and rejects overlapping pending dispatch checks. Web verifies its own
+live document. Navigation, peer loss, malformed/mismatched frames or operation
+input without a coordinator retire the channel. The extension exposes a
+synchronous onReady registration hook, but production account/link coordination
+and automatic source/receiver dispatch are still pending in both applications.
+
+Focused tests compose the runner with real source encryption and real receiver
+consume/commit/session installation using mock Identity. Negative cases cover
+stale attempts, order, substituted browser bindings, expanded payloads, late
+factories, wall-clock expiry, lost ACK and waiting for installer rollback. These
+are not actual browser Identity/MK handoff or full supported-platform evidence.
+The paired native Chromium probe was rerun at 2026-09-11T04:43:10.380Z: all 11
+hello/ready/document/bootstrap checks pass on Chromium 153.0.8010.12/macOS arm64
+under the actual Web CSP, without accounts or a cryptographic handoff.

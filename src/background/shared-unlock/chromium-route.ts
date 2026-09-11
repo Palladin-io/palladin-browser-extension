@@ -1,3 +1,5 @@
+import { SHARED_UNLOCK_BROWSER_PORT } from "../../shared/messaging/shared-unlock-browser";
+import type { SharedUnlockOperationFrame, SharedUnlockOperationMessage } from "../../shared/messaging/shared-unlock-operation";
 import { isSharedUnlockBrowserMessage, type SharedUnlockBrowserMessage } from "../../shared/messaging/shared-unlock-browser";
 import type { SharedUnlockEnvironment } from "../../shared/config/shared-unlock-environments";
 
@@ -16,6 +18,11 @@ export class ChromiumSharedUnlockRoute {
   readonly extensionId: string;
   readonly documentBinding: string;
   private closed = false;
+  private readonly abort = new AbortController();
+  private webNonce: string | null = null;
+  private readonly operationListeners = new Set<(message: SharedUnlockOperationMessage) => void>();
+  readonly channelId: string;
+  get signal(): AbortSignal { return this.abort.signal; }
   private readonly port: chrome.runtime.Port;
   private readonly browser: SharedUnlockBrowserApi;
   readonly tabId: number;
@@ -28,6 +35,7 @@ export class ChromiumSharedUnlockRoute {
     this.extensionId = browser.extensionId; this.tabId = tabId; this.documentId = documentId;
     this.documentBinding = `${tabId}/${documentId}/${channelId}`;
     this.onClosed = onClosed;
+    this.channelId = channelId;
   }
 
   static accept(port: chrome.runtime.Port, browser: SharedUnlockBrowserApi,
@@ -66,6 +74,30 @@ export class ChromiumSharedUnlockRoute {
     } catch (error) { this.close(); throw error; }
   }
 
+  openOperations(webNonce: string): void {
+    this.assertCurrent();
+    if (this.webNonce !== null) throw new Error("Shared unlock channel already ready");
+    this.webNonce = webNonce;
+  }
+  onOperation(listener: (message: SharedUnlockOperationMessage) => void): () => void {
+    this.assertCurrent();
+    this.operationListeners.add(listener);
+    return () => this.operationListeners.delete(listener);
+  }
+  sendOperation(payload: SharedUnlockOperationMessage): void {
+    if (!this.webNonce) throw new Error("Shared unlock channel not ready");
+    this.post({ type: "operation", protocol: SHARED_UNLOCK_BROWSER_PORT, apiUrl: this.apiUrl,
+      webNonce: this.webNonce, channelId: this.channelId, documentBinding: this.documentBinding, ...payload });
+  }
+  receiveOperation(frame: SharedUnlockOperationFrame): void {
+    this.assertCurrent();
+    if (frame.apiUrl !== this.apiUrl || frame.webNonce !== this.webNonce || frame.channelId !== this.channelId
+      || frame.documentBinding !== this.documentBinding || !this.operationListeners.size) {
+      this.close(); throw new Error("Shared unlock operation route mismatch");
+    }
+    for (const listener of [...this.operationListeners]) { this.assertCurrent(); listener({ attemptId: frame.attemptId, payload: frame.payload }); }
+  }
+
   /** Transport callers must finish verifyCurrent immediately before a sensitive send. */
   post(message: SharedUnlockBrowserMessage): void {
     this.assertCurrent();
@@ -75,6 +107,8 @@ export class ChromiumSharedUnlockRoute {
   close(): void {
     if (this.closed) return;
     this.closed = true;
+    this.abort.abort();
+    this.operationListeners.clear();
     try { this.port.disconnect(); } catch { /* already disconnected */ }
     this.onClosed();
   }
