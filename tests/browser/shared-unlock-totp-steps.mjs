@@ -3,14 +3,15 @@ import { generateTotp } from '@palladin/crypto'
 
 // Real account enrollment and login through Web UI. The test authenticator's
 // seed/codes stay in process memory; reports receive only fixed check labels.
-export async function verifyTotpSharedUnlock({ page, popup, apiUrl, webOrigin,
+export async function verifyTotpSharedUnlock({ page, popup, apiUrl,
   email, password, vaultId, entryId, entryPassword, setStage, recordCheck }) {
   let seed = '', enrollmentCode = ''
   let enrolledStep = 0
   const params = () => ({ secret: seed, algorithm: 'SHA1', digits: 6, period: 30 })
   try {
     setStage('totp-enrollment')
-    await page.goto(webOrigin + '/settings/security')
+    await page.getByRole('link', { name: 'Settings', exact: true }).click()
+    await page.getByRole('link', { name: 'Security', exact: true }).click()
     await page.getByRole('button', { name: 'Enable 2FA', exact: true }).click()
     const setup = page.getByRole('dialog', { name: 'Enable Two-Factor Authentication', exact: true })
     await setup.locator('#totp-secret').waitFor()
