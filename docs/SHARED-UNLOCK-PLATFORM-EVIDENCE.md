@@ -22,7 +22,7 @@ with a channel-only probe or a successful build.
 | Firefox140.0 | Temporary product XPI |16/16 PASS, new coordinator|18:01:57|
 | Firefox155.0.1 | Temporary product XPI |16/16 PASS, new coordinator|18:02:48|
 | Opera135.0.5973.133 / engine151.0.7922.176 | Unpacked, browser CDP; headless |16/16 PASS|17:03:15|
-| Safari26.6.2 / macOS26.6.2 arm64 | Synthetic WebDriver install in disposable CI |Installation confirmed; no external-Port reply or product adapter|18:01:15|
+| Safari26.6.2 / macOS26.6.2 arm64 | Synthetic module worker, native one-day loopback grant in disposable CI |9 native channel/document observations; no product Identity/MK adapter|18:17:51|
 
 The16 baseline checks cover real registration/email/password login, automatic unlock,
 live encrypted Entry/password decryption, continued operation after Web closure,
@@ -704,3 +704,12 @@ compare hashes within the corresponding harness, not across their algorithms.
 Earlier runtime810cf86 reports were preserved separately before these repeats.
 These Firefox runs do not add native trusted-input or full-browser-restart cases.
 The original intermittent Edge failure and the full acceptance matrix remain open.
+
+
+Safari42b3b89: workflow34632420779 passed all three synthetic background variants
+with9 observations each (18:17:49/51/55Z); generic CI34632420801 passed.
+The product-equivalent module worker confirms native external routing, normal
+tab context and document IDs checked against webNavigation, with a new ID after
+same-URL reload. This is still account/key-free; the product adapter, private-window
+rejection, full lifecycle and real Identity/Entry acceptance remain required.
+Details and the earlier setup failures are retained in the Safari probe note.

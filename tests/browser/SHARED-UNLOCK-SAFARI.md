@@ -151,3 +151,41 @@ Python. The literal loopback fixture now skips HTTPServer's reverse DNS and
 system-proxy discovery. The prompt disappeared in run34630632833, while external
 messaging still failed. This removes an unrelated test-environment dependency;
 it does not prove the cause of the Port failure or grant network privileges.
+
+
+### First native channel and document passes
+
+The exact native permission helper ran successfully in the disposable CI VM:
+it matched the fixture name and127.0.0.1 in Safari's native dialog and clicked
+`Allow for One Day`. `permissions.request` then returned true and `getAll`
+reported the declared loopback host. No TCC/permission database was modified.
+The helper is enabled only by `--ci-grant-fixture-access`, with a GitHub-hosted
+runner check. It never runs against a local user's Safari.
+
+Classic worker53461d6 passed6 observations in job103370591169/run34631933105
+at18:12:37Z. Module worker0e689d4, matching the product background type, passed9
+observations in run34632192940 at18:15:28Z. Native sender/frame0 and a separate
+`webNavigation.getFrame` returned equal document IDs; same-URL reload produced
+a different matching pair. Browser-owned senderTab/currentTab both reported
+incognito=false. The decoded installation ID received messages; raw percent-encoded
+ID and a nonexistent recipient disconnected. Unlisted localhost did not reply,
+but also lacked host permission, so this is not an isolated proof of the
+externally_connectable allowlist. Private-window rejection, complete old-Port
+retirement/replay and product MK/Identity/Entry remain untested here.
+
+Both workflows remained failed overall because other background variants did not
+expose the diagnostic page during setup. These are individual successful jobs,
+not a green full workflow. Waiting for a real fixture URL fixed an early
+about:blank navigation assumption; 42b3b89 further opens diagnostics from background
+startup rather than depending on the temporary install's onInstalled event.
+It reuses an existing fixture tab and does not focus it. Current setup stability
+has its own CI run, independent of the recorded9 observations.
+
+
+The startup correction42b3b89 subsequently passed the complete three-job workflow
+34632420779: classic worker9 checks at18:17:49Z, module worker9 at18:17:51Z and
+background document9 at18:17:55Z. Each used the exact native one-day grant,
+confirmed independent current-document IDs and normal-profile fields, and passed
+the stated negative observations. Generic Test CI34632420801 also passed.
+This proves the synthetic channel foundation on Safari26.6.2/macOS26.6.2 arm64,
+not the product adapter, Identity/MK/Entry, Safari16.4 or full distribution matrix.
