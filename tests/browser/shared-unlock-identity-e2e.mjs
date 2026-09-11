@@ -11,6 +11,7 @@ import { verifyTotpSharedUnlock } from './shared-unlock-totp-steps.mjs'
 import { verifySharedUnlockSettings } from './shared-unlock-settings-steps.mjs'
 import { verifySharedUnlockSettingsRaces } from './shared-unlock-settings-races.mjs'
 import { verifySharedUnlockAccountIsolation } from './shared-unlock-account-isolation.mjs'
+import { verifyAuthorizationRateLimitRetry } from './shared-unlock-rate-limit-steps.mjs'
 
 // Explicit, already built clients and isolated local Identity/SES test services.
 // No account credentials, recovery words, tokens or keys are written to reports.
@@ -26,6 +27,8 @@ assert(browserLabel === 'chromium' || browserExecutable, 'Branded browser requir
 const installViaCdp = process.argv.includes('--install-via-cdp')
 const headed = process.argv.includes('--headed')
 const fullBrowserRestart = process.argv.includes('--full-browser-restart')
+const authorizationRateLimitRetry = process.argv.includes('--authorization-rate-limit-retry')
+assert(!authorizationRateLimitRetry || fullBrowserRestart, 'Rate-limit scenario requires a full browser restart')
 const ownActivityDuringPrepare = process.argv.includes('--own-activity-during-prepare')
 const totp = process.argv.includes('--totp')
 const settings = process.argv.includes('--settings')
@@ -72,6 +75,7 @@ const provenance = {
   distribution: 'local-unpacked', emailDelivery: 'local-ses-v2-fixture',
   delayedManualAuthorization: delayManualAuthorization,
   fullBrowserRestart,
+  authorizationRateLimitRetry,
   ownActivityDuringPrepare,
   totp,
   settings,
@@ -408,14 +412,19 @@ try {
       await new Promise(resolve => setTimeout(resolve, 500))
     }
     checks.push('same-profile-restart-requires-manual-unlock-and-denies-entry-reveal')
-    stage = 'manual-unlock-after-full-browser-restart'
-    await page.locator('#unlock-password').fill(password)
-    await page.getByRole('button', { name: 'Unlock', exact: true }).click()
-    await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
-    await popup.waitText('Unlocked')
-    await popup.waitText('Synthetic shared unlock proof')
-    assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword), 'One manual unlock must restore the peer through a fresh handoff')
-    checks.push('one-manual-unlock-after-browser-restart-restores-peer-entry-decryption')
+    if (authorizationRateLimitRetry) {
+      await verifyAuthorizationRateLimitRetry({ page, popup, apiUrl, password, vaultId, entryId, entryPassword,
+        setStage: value => { stage = value }, recordCheck: value => checks.push(value), recordRequest: value => requests.push(value) })
+    } else {
+      stage = 'manual-unlock-after-full-browser-restart'
+      await page.locator('#unlock-password').fill(password)
+      await page.getByRole('button', { name: 'Unlock', exact: true }).click()
+      await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+      await popup.waitText('Unlocked')
+      await popup.waitText('Synthetic shared unlock proof')
+      assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword), 'One manual unlock must restore the peer through a fresh handoff')
+      checks.push('one-manual-unlock-after-browser-restart-restores-peer-entry-decryption')
+    }
   }
   stage = 'extension-manual-lock-propagates'
   popup.close(); popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId)
@@ -495,6 +504,6 @@ async function writeEvidence(kind, value) {
   const contents = JSON.stringify(value, null, 2)
   await writeFile(path.join(output, `${kind}.json`), contents)
   const version = String(provenance.browserVersion ?? 'launch').replace(/[^a-zA-Z0-9.-]/g, '_')
-  const scenario = (fullBrowserRestart ? '.full-browser-restart' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '') + (totp ? '.totp' : '') + (settings ? '.settings' : '') + (settingsRaces ? '.settings-races' : '') + (accountIsolation ? '.account-isolation' : '') + (accountUnlockCycles > 1 ? `.unlock-cycles-${accountUnlockCycles}` : '')
+  const scenario = (fullBrowserRestart ? '.full-browser-restart' : '') + (authorizationRateLimitRetry ? '.authorization-rate-limit-retry' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '') + (totp ? '.totp' : '') + (settings ? '.settings' : '') + (settingsRaces ? '.settings-races' : '') + (accountIsolation ? '.account-isolation' : '') + (accountUnlockCycles > 1 ? `.unlock-cycles-${accountUnlockCycles}` : '')
   await writeFile(path.join(output, `${kind}.${browserLabel}-${version}${scenario}.json`), contents)
 }
