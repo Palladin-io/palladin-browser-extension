@@ -506,4 +506,8 @@ temporary-XPI partial pass, not the full version/OS/distribution acceptance.
 Full local validation passes **1625 tests /138 files** with two workers, without
 changing timeouts. The initial default eleven-worker run overlapped a native
 browser test and failed39 tests, predominantly on timeouts; it is not a pass.
-Modern Firefox/Chromium regression and independent review are pending.
+Runtime commit810cf86 has **CI34619584185 PASS**. The same Firefox artifact
+again passed16/16 checks on155.0.1 at16:02:22Z. Chromium153/macOS arm64 passed
+16/16 Identity/Entry/worker-restart checks at16:03:03Z, including the1500ms
+manual-authorization delay. Independent review and the full acceptance matrix
+remain open. These local artifacts are not signed-distribution evidence.
