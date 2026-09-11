@@ -92,12 +92,17 @@ class SafariPopup(WebDriverActions):
         self.request = request
         self.diagnostic_handle = diagnostic_handle
         self.popup_url = popup_url
+        self.last_stage = 'idle'
 
     def show(self):
+        self.last_stage = 'activate-control-page'
         self.request('POST', '/window', {'handle': self.diagnostic_handle})
         if not self.read('return !!popup'):
+            self.last_stage = 'open-native-popup'
             self.click('#open-popup')
+            self.last_stage = 'observe-native-popup-open'
             self.wait(lambda: self.read('return !!popup'), 'native Safari Popup')
+        self.last_stage = 'native-popup-open'
 
     def read(self, script, *args):
         # Only access the real browser-owned Popup window. Its private APIs must
@@ -110,8 +115,12 @@ class SafariPopup(WebDriverActions):
         ''' + script, self.popup_url, *args)
 
     def fresh(self):
+        self.last_stage = 'activate-control-page-for-close'
         self.request('POST', '/window', {'handle': self.diagnostic_handle})
-        self.read('if (popup) popup.close(); return true')
+        if self.read('return !!popup'):
+            self.last_stage = 'dismiss-popup-with-native-page-click'
+            self.click('#focus-control-page')
+        self.last_stage = 'observe-native-popup-closed'
         self.wait(lambda: self.read('return !popup'), 'native Popup closed')
         self.show()
 
@@ -119,6 +128,7 @@ class SafariPopup(WebDriverActions):
         return self.read('return !!popup && popup.document.body.innerText.includes(values[0])', text)
 
     def wait_text(self, text):
+        self.last_stage = 'wait-native-popup-text'
         self.wait(lambda: self.has_text(text), 'native Popup text')
 
     def click_button(self, name):
@@ -133,6 +143,7 @@ class SafariPopup(WebDriverActions):
         ''', name), 'native Popup button')
 
     def wait_button(self, name):
+        self.last_stage = 'wait-native-popup-button'
         self.wait(lambda: self.read('''return !!popup && [...popup.document.querySelectorAll('button')]
           .some(button => button.getAttribute('aria-label') === values[0] || button.innerText.trim() === values[0])''', name), 'native Popup button')
 
@@ -150,3 +161,12 @@ class SafariPopup(WebDriverActions):
           return row.querySelector('.entry-name')?.textContent === values[0];
         ''', expected), 'actual Entry username decryption')
         return True
+
+    def snapshot(self):
+        return self.read('''
+          if (!popup) return {present:false};
+          const text=popup.document.body?.innerText || '';
+          return {present:true,closed:popup.closed,readyState:popup.document.readyState,
+            signIn:text.includes('Sign in'),unlocked:text.includes('Unlocked'),
+            onboarding:text.includes('Continue to Palladin')};
+        ''')

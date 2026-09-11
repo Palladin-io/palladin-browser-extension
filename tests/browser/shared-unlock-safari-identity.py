@@ -99,7 +99,9 @@ void (async () => {
 ''')
     (fixture / names[0]).write_text('''<!doctype html><title>Shared unlock test controls</title>
 <button id="grant">Grant loopback access</button><pre id="grant-result">pending</pre>
-<button id="open-popup">Open native Popup</button><script src="cvt583-identity.js"></script>''')
+<button id="open-popup">Open native Popup</button>
+<button id="focus-control-page" style="position:fixed;right:20px;bottom:20px">Focus test controls</button>
+<script src="cvt583-identity.js"></script>''')
     (fixture / names[1]).write_text('''
 document.getElementById('grant').addEventListener('click', async () => {
   let granted = false;
@@ -263,7 +265,8 @@ try:
     print('PARTIAL: ' + str(len(checks)) + ' Safari Identity/Entry checks PASS; full matrix remains required.')
 except Exception as error:
     write_evidence('failure', {'stage': stage, 'errorType': type(error).__name__,
-        'webdriverError': error.kind if isinstance(error, SafariDriverError) else None})
+        'webdriverError': error.kind if isinstance(error, SafariDriverError) else None,
+        'popupStage': popup.last_stage if popup else None})
     print('FAIL at ' + stage + '; value-free failure.json recorded.')
     raise SystemExit(1) from None
 finally:

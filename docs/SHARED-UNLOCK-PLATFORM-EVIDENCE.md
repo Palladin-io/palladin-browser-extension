@@ -22,6 +22,19 @@ The shared native Popup helper passed15 account-free checks in Safari
 CI34640667500 at19:48:09Z, including real onboarding completion and closing/reopening
 the Popup. Ordinary CI34640667407 passed1718 tests/141 files and all three builds.
 This validates the native UI mechanism, not the unexecuted Safari Identity flow.
+Repeat34641036018 stopped after14 checks at the combined close/reopen stage
+at19:52:10Z. Its screenshot still shows a signed-out Popup. The former coarse
+stage does not prove whether close, open or form observation timed out. The
+helper now records those stages separately and attempts dismissal through a
+native WebDriver click on an inert control-page button outside the Popup. It
+still requires no remaining Popup view before opening a new one. This candidate
+needs its own native result; the earlier15 PASS does not erase the repeat failure.
+
+Firefox155 regression after the optional encrypted username parameter passed16
+checks at19:51:03Z on clean Webc58ec2b/Extension7b89809, with the same artifacts
+listed below. Failure diagnostics now also read a bounded actual worker status
+through the real Popup's private command. The scenario's waits/order are unchanged;
+this successful run does not explain the earlier intermittent restart timeout.
 
 Earlier native Safari run34639004301 (7deb6c9, runtime16ab8ea) passed13
 instrumented product-channel/Popup checks at19:29:17Z. It proves that the native
@@ -100,7 +113,7 @@ with a channel-only probe or a successful build.
 | Brave1.95.101 / engine153.0.8010.37 | Unpacked, browser CDP; headless |16/16 PASS|16:25:33|
 | Edge153.0.4234.32 | Unpacked, browser CDP; headless |17/17 PASS, own activity|17:34:54|
 | Firefox140.0 | Temporary product XPI |16/16 PASS, new coordinator|18:01:57|
-| Firefox155.0.1 | Temporary product XPI |16/16 PASS, current runtime; earlier restart timeout remains open|19:29:14|
+| Firefox155.0.1 | Temporary product XPI |16/16 PASS, shared-step regression; earlier restart timeout remains open|19:51:03|
 | Opera135.0.5973.133 / engine151.0.7922.176 | Unpacked, browser CDP; headless |16/16 PASS|17:03:15|
 | Safari26.6.2 / macOS26.6.2 arm64 | Instrumented product worker/Popup, one-day loopback grant in disposable CI |15 channel/Popup authority/UI checks; Identity/MK/Entry unverified|19:48:09|
 
@@ -118,7 +131,7 @@ input evidence. Reproduction and limitations:
 The combined own-activity/full-browser-restart case passes20 checks on Chromium153.
 Current Chromium20 uses clean Webc58ec2b/Extensiond188270 (18:48:02Z).
 Edge/Firefox140 runs retain Web1314dec and Extension runtime3444a75;
-Firefox155 uses clean Webc58ec2b/Extension7deb6c9 (runtime16ab8ea).
+Firefox155 uses clean Webc58ec2b/Extension7b89809 (runtime16ab8ea).
 Chrome/Brave/Opera rows retain their earlier runtime810cf86 observations. Edge's CDP development installation does not survive browser
 restart, so that distribution path remains unverified. New delayed-authorization
 Edge failures are also retained below; earlier successful runs do not erase them.
