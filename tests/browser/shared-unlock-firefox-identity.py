@@ -6,6 +6,7 @@ import argparse, hashlib, json, mimetypes, pathlib, platform, re, secrets, subpr
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 from firefox_webdriver import FirefoxWebDriver
+from shared_unlock_identity_steps import register_and_login_web, create_encrypted_entry
 
 if not __debug__: raise RuntimeError('Evidence assertions require Python without optimization')
 parser = argparse.ArgumentParser(description=__doc__)
@@ -83,6 +84,10 @@ def write_evidence(name, value):
     version = re.sub(r'[^0-9A-Za-z._-]', '_', provenance.get('browserVersion', 'unknown'))
     (out / (name + '.firefox-' + version + '.json')).write_text(encoded)
 
+def set_stage(value):
+    global stage
+    stage = value
+
 def path(): return urlsplit(browser.request('GET', '/url')).path
 def web(): browser.content()
 def popup(): browser.native_popup(extension_id)
@@ -104,35 +109,7 @@ try:
     browser.start_login_fixture(extension_id)
     provenance['browserVersion'] = browser.capabilities['browserVersion']
     provenance['geckodriverVersion'] = browser.capabilities.get('moz:geckodriverVersion')
-    stage = 'registration-credentials'
-    browser.request('POST', '/url', {'url': web_origin + '/register'})
-    for selector, value in [('#register-email', email), ('#register-password', password), ('#register-password-confirm', password)]: browser.fill(selector, value)
-    browser.click_button('Continue')
-    stage = 'registration-recovery'
-    words = browser.wait(lambda: browser.script('const words=[...document.querySelectorAll("ol.ph-no-capture li span.font-mono")].map(e=>e.textContent);return words.length===24?words:null'), 'recovery words')
-    browser.click_button("I've Saved My Recovery Key")
-    fields = browser.wait(lambda: browser.script('return [...document.querySelectorAll("input[id^=recovery-word-]")].map(e=>e.id)'), 'recovery fields')
-    for field in fields: browser.fill('#' + field, words[int(field.split('-')[-1])])
-    words.clear()
-    stage = 'registration-commit'
-    browser.click_button('Verify & Complete Setup')
-    verification = browser.wait(verify_url, 'local SES verification', seconds=30)
-    checks.append('actual-web-registration-with-browser-crypto')
-    stage = 'local-email-verification'
-    browser.request('POST', '/url', {'url': verification}); verification = None
-    browser.wait(lambda: browser.script('return document.body.innerText.includes("Email Verified")'), 'verified email')
-    checks.append('actual-email-verification-through-local-ses')
-    browser.wait(lambda: path() != '/verify-email', 'verification navigation')
-    stage = 'manual-web-logout'
-    if path() != '/login': browser.click_button('Log out')
-    stage = 'manual-web-login-route'
-    browser.wait(lambda: path() == '/login', 'login page')
-    stage = 'manual-web-login-fields'
-    browser.fill('#login-email', email); browser.fill('#login-password', password)
-    stage = 'manual-web-login-submit'
-    browser.click_button('Sign in')
-    stage = 'manual-web-login-completion'
-    web_ready(); checks.append('actual-web-manual-password-login')
+    register_and_login_web(browser, web_origin, email, password, verify_url, set_stage, checks.append)
     stage = 'extension-native-popup'
     popup()
     stage = 'extension-onboarding'
@@ -140,14 +117,7 @@ try:
     stage = 'extension-automatic-unlock'
     browser.native_wait_text('Unlocked'); checks.append('actual-extension-automatic-unlock')
     browser.native_wait_text('No entries yet'); checks.append('extension-authoritative-empty-snapshot-before-entry-creation')
-    stage = 'web-create-entry'
-    web(); browser.click('//a[normalize-space(.)="Vaults"]', 'xpath')
-    browser.click('//*[normalize-space(.)="Personal" and not(.//*[normalize-space(.)="Personal"])]', 'xpath')
-    browser.click_button('Add Entry')
-    for selector, value in [('#entry-label', 'Synthetic shared unlock proof'), ('#entry-username', 'synthetic-entry-user'), ('#entry-password', entry_password), ('#entry-url', 'https://shared-unlock-login.example.test')]: browser.fill(selector, value)
-    browser.click_button('Save Entry')
-    browser.wait(lambda: re.fullmatch(r'/vaults/[^/]+/entries/[^/]+', path()), 'created Entry')
-    checks.append('actual-web-encrypted-entry-created')
+    web(); create_encrypted_entry(browser, entry_password, set_stage, checks.append)
     stage = 'live-entry-invalidation'
     popup(); browser.native_wait_text('Synthetic shared unlock proof')
     stage = 'live-entry-password-autofill'
