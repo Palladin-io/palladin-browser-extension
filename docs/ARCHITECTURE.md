@@ -836,3 +836,42 @@ reconnect/group closing, Extension Settings actions, trust/unlock presentation,
 independent multi-document limits and real Identity/MK/Entry E2E on the entire
 browser/OS/distributed-artifact matrix remain unfinished. This is not full native
 cross-client reconnect acceptance.
+
+## Extension local pairing settings
+
+The shared Popup/Side Panel Settings surface now displays the saved local pairing
+and requires an explicit confirmation for Disconnect/Reconnect. It reuses the
+existing buttons, settings styles and PL/EN catalogs. Inline confirmation focuses
+Cancel, supports Escape and restores focus. It never displays raw account/link IDs
+or claims that a saved marker proves current Web reachability. Both hosts refresh
+from one worker context; own-session or pairing changes discard an old confirmation.
+
+The separate strict `shared-unlock-link/get|disconnect|reconnect` commands accept
+only a worker-issued context ID. The trusted extension-page boundary and server
+operation lease precede dispatch. Account, API, Web origin, extension ID and link
+come from the own token lease, unique approved API/Web mapping and own marker,
+never from UI authority fields. A changed local disconnect rotates the context ID,
+so polling cannot retarget a confirmation to a newer decision.
+
+Disconnect starts the durable intent and synchronously wipes own keys before
+storage or network completion. A dedicated SessionManager transition captures only
+the exact original token pair and post-lock generation; a second lock, refresh,
+login or unlock cannot lend a new session to the old action. Own login survives.
+Fresh own Identity CAS delivery is independent of account OFF. Offline/failed
+storage retains local denial and pending repair; no automatic mutation retry.
+
+Explicit reconnect drains pending closing, performs own GET/CAS and clears only
+the displayed exact disconnect ID with lifecycle checks through storage. Success
+records the existing peer invitation and locks keys for a later fresh manual root.
+The ten-second timer and wall-clock fence also reject late transports and dispose
+late post-lock leases. Neither action changes the account preference. UI delivery
+failure/unmount does not undo the durable decision or cancel the worker's cleanup.
+
+Tests cover the real worker in both UI hosts, confirmations/cancel/focus/error,
+Polish copy, strict page-bridge rejection, own JWT with OFF, offline reconciliation,
+newer local disconnect and context rotation, stale sessions, deadlines, CAS and
+storage failure. Real SessionManager tests prove immediate key wipe and exact
+post-lock lineage. These are synthetic Identity tests. Own authentication is
+still required for Settings; rootless/tokenless repair, live trust and remaining
+unlock presentation, native visual/Identity/MK/Entry E2E and the full artifact
+matrix remain release gates.

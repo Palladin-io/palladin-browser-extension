@@ -6,7 +6,7 @@ import { Button } from '../components/Button'
 import { useI18n } from '../i18n'
 
 const sendCommand = (command: SharedUnlockSettingsCommand): Promise<SharedUnlockSettingsResult> => chrome.runtime.sendMessage(command)
-const subscribeChanges = (changed: (sessionChanged: boolean) => void) => {
+export const subscribeSharedUnlockSettingsChanges = (changed: (sessionChanged: boolean) => void) => {
   const listener = (raw: unknown) => {
     if (isSharedUnlockSettingsChanged(raw)) changed(false)
     else if (isSurfaceStateEvent(raw) && raw.type === 'surface/session-changed') changed(true)
@@ -15,8 +15,8 @@ const subscribeChanges = (changed: (sessionChanged: boolean) => void) => {
   return () => chrome.runtime.onMessage.removeListener(listener)
 }
 
-export function SharedUnlockSettings({ send = sendCommand, subscribe = subscribeChanges }: {
-  send?: typeof sendCommand; subscribe?: typeof subscribeChanges
+export function SharedUnlockSettings({ send = sendCommand, subscribe = subscribeSharedUnlockSettingsChanges }: {
+  send?: typeof sendCommand; subscribe?: typeof subscribeSharedUnlockSettingsChanges
 }): React.JSX.Element {
   const { t } = useI18n()
   const [settings, setSettings] = useState<Extract<SharedUnlockSettingsResult, { ok: true }> | null>(null)

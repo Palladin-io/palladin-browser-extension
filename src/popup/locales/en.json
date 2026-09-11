@@ -313,5 +313,19 @@
   "captureSettings.unmute": "Enable",
   "captureSettings.unmuteSite": "Enable save suggestions on {name}",
   "captureSettings.reload": "Reload settings",
-  "captureSettings.error": "Could not load or change settings. Unlock Palladin and try again."
+  "captureSettings.error": "Could not load or change settings. Unlock Palladin and try again.",
+  "sharedUnlockLink.title": "Local pairing",
+  "sharedUnlockLink.description": "This saved pairing concerns only this browser profile. It does not indicate whether the web panel is currently open.",
+  "sharedUnlockLink.connected": "Local pairing saved",
+  "sharedUnlockLink.disconnected": "Local pairing disconnected",
+  "sharedUnlockLink.missing": "No local pairing saved yet.",
+  "sharedUnlockLink.unavailable": "Shared unlock is not configured for this server.",
+  "sharedUnlockLink.authenticate": "Sign in or unlock to manage the local pairing.",
+  "sharedUnlockLink.error": "Could not finish this operation. Check the current pairing and try again.",
+  "sharedUnlockLink.disconnect": "Disconnect",
+  "sharedUnlockLink.reconnect": "Reconnect",
+  "sharedUnlockLink.confirm": "Confirm",
+  "sharedUnlockLink.cancel": "Cancel",
+  "sharedUnlockLink.confirmDisconnect": "Disconnect this browser profile? The extension will lock immediately. The account preference and other browser profiles are unchanged.",
+  "sharedUnlockLink.confirmReconnect": "Reconnect this browser profile? The extension will lock. Unlock it again with your password to start a fresh shared session. The account preference is unchanged."
 }

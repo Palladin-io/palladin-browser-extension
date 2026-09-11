@@ -1,3 +1,5 @@
+import { isSharedUnlockLinkSettingsCommand } from '../shared/messaging/shared-unlock-link-settings';
+import { handleSharedUnlockLinkSettings } from './shared-unlock/link-settings-runtime';
 import { isSurfaceActivity } from "../shared/messaging/surface-activity";
 import { isSharedUnlockSettingsCommand } from '../shared/messaging/shared-unlock-settings';
 import { handleSharedUnlockSettings } from './shared-unlock/settings-runtime';
@@ -329,6 +331,14 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 // to capture and then the vault command surface.
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isTrustedExtensionPage(sender, chrome.runtime.id, chrome.runtime.getURL(""))) return false;
+  if (isSharedUnlockLinkSettingsCommand(raw)) {
+    const lease = serverOperations.tryAcquire();
+    if (lease === null) { sendResponse({ ok: false, code: 'unavailable' }); return false; }
+    void handleSharedUnlockLinkSettings(raw)
+      .then(sendResponse, () => sendResponse({ ok: false, code: 'unavailable' }))
+      .finally(() => lease.release());
+    return true;
+  }
   if (isSharedUnlockSettingsCommand(raw)) {
     const lease = serverOperations.tryAcquire();
     if (lease === null) { sendResponse({ ok: false, code: 'unavailable', locallyPaused: false }); return false; }

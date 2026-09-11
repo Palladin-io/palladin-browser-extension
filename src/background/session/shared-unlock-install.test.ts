@@ -536,3 +536,22 @@ it("applies tighter key-use limits during a stalled policy write and does not re
   release(); await change;
   expect(h.alarms.whenFor(AUTO_LOCK_ALARM)).toBeUndefined();
 });
+
+it('captures the exact own login across a Settings lock while wiping keys before its first await', async () => {
+  const h = harness(), value = fresh(), install = await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})
+  await install.install(value)
+  const source = h.manager.captureSharedUnlockSettingsSession(), tokens = source.read(), keys = h.manager.getKeys()!
+  const pending = h.manager.lockSharedUnlockSettingsSession(source)
+  expect(keys.masterKey).toEqual(new Uint8Array(32)); expect(keys.privateKey).toEqual(new Uint8Array(32))
+  expect(source.signal.aborted).toBe(true)
+  const locked = await pending
+  expect(locked.read()).toBe(tokens); expect(h.manager.getKeys()).toBeNull(); locked.dispose()
+})
+it('a second lock defeats an old Settings post-lock capture instead of granting its new generation', async () => {
+  const h = harness(), value = fresh(), install = await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})
+  await install.install(value)
+  const pending = h.manager.lockSharedUnlockSettingsSession(h.manager.captureSharedUnlockSettingsSession())
+  const rejected = expect(pending).rejects.toThrow()
+  await h.manager.lock(); await rejected
+  expect(h.manager.getKeys()).toBeNull()
+})

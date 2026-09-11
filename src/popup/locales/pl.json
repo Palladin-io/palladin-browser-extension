@@ -313,5 +313,19 @@
   "captureSettings.unmute": "Włącz",
   "captureSettings.unmuteSite": "Włącz propozycje zapisu na {name}",
   "captureSettings.reload": "Wczytaj ponownie",
-  "captureSettings.error": "Nie udało się odczytać lub zmienić ustawień. Odblokuj Palladin i spróbuj ponownie."
+  "captureSettings.error": "Nie udało się odczytać lub zmienić ustawień. Odblokuj Palladin i spróbuj ponownie.",
+  "sharedUnlockLink.title": "Lokalne powiązanie",
+  "sharedUnlockLink.description": "To zapisane powiązanie dotyczy tylko tego profilu przeglądarki. Nie oznacza, że panel jest teraz otwarty.",
+  "sharedUnlockLink.connected": "Zapisano lokalne powiązanie",
+  "sharedUnlockLink.disconnected": "Lokalne powiązanie odłączone",
+  "sharedUnlockLink.missing": "Nie ma jeszcze zapisanego lokalnego powiązania.",
+  "sharedUnlockLink.unavailable": "Wspólne odblokowanie nie jest skonfigurowane dla tego serwera.",
+  "sharedUnlockLink.authenticate": "Zaloguj się lub odblokuj rozszerzenie, aby zarządzać lokalnym powiązaniem.",
+  "sharedUnlockLink.error": "Nie udało się ukończyć operacji. Sprawdź aktualne powiązanie i spróbuj ponownie.",
+  "sharedUnlockLink.disconnect": "Odłącz",
+  "sharedUnlockLink.reconnect": "Połącz ponownie",
+  "sharedUnlockLink.confirm": "Potwierdź",
+  "sharedUnlockLink.cancel": "Anuluj",
+  "sharedUnlockLink.confirmDisconnect": "Odłączyć ten profil przeglądarki? Rozszerzenie zostanie od razu zablokowane. Preferencja konta i inne profile pozostaną bez zmian.",
+  "sharedUnlockLink.confirmReconnect": "Połączyć ponownie ten profil przeglądarki? Rozszerzenie zostanie zablokowane. Odblokuj je ponownie hasłem, aby rozpocząć nową wspólną sesję. Preferencja konta pozostanie bez zmian."
 }

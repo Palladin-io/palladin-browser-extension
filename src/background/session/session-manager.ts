@@ -287,6 +287,17 @@ export class SessionManager {
     return { signal: controller.signal, read, dispose };
   }
 
+  /** Keep the exact own token lineage across the intentional key wipe. A
+   * later unlock/login must not become the authority of an old Settings action. */
+  async lockSharedUnlockSettingsSession(source: SharedUnlockSettingsSession): Promise<SharedUnlockSettingsSession> {
+    const tokens = source.read(), expectedGeneration = this.lifecycleGeneration + 1;
+    await this.lock();
+    this.assertLifecycleGeneration(expectedGeneration);
+    if (this.tokens !== tokens) throw new SessionLifecycleChangedError();
+    this.assertApiUrl(tokens.apiUrl);
+    return this.captureSharedUnlockSettingsSession();
+  }
+
   private invalidateSharedUnlockSettings(): void {
     const pending = [...this.sharedUnlockSettingsAborts];
     this.sharedUnlockSettingsAborts.clear();
