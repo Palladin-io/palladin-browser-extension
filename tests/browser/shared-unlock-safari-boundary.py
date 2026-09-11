@@ -44,9 +44,14 @@ manifest = {'manifest_version': 3, 'name': 'Synthetic shared unlock boundary', '
 (fixture / 'manifest.json').write_text(json.dumps(manifest, indent=2))
 (fixture / 'background.js').write_text('''
 let disconnected = 0;
-browser.runtime.onInstalled.addListener(() => {
-  void browser.tabs.create({ url: browser.runtime.getURL('diagnostics.html') });
-});
+// A temporary WebDriver installation did not reliably expose the onInstalled
+// page. Open this synthetic diagnostic from background startup instead, without
+// stealing focus or depending on a one-shot installation event.
+void (async () => {
+  const url = browser.runtime.getURL('diagnostics.html');
+  const tabs = await browser.tabs.query({});
+  if (!tabs.some(tab => tab.url === url)) await browser.tabs.create({ url, active: false });
+})();
 browser.runtime.onMessage.addListener((message, _sender, respond) => {
   if (message?.type === 'synthetic-internal-probe') respond({ workerListenerReady: true });
 });
