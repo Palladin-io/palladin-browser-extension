@@ -1,5 +1,53 @@
 # Safari recipient and document boundary
 
+## Real Identity scenario
+
+`shared-unlock-safari-identity.py` uses the real Web registration/password flow,
+the isolated backend and RAM-only SES delivery. It builds Web with the exact
+Safari identifier returned by native installation, explicitly disables optional
+cloud integrations, and serves the original generated CSP headers. Private Web
+bundles live in a temporary directory and are deleted during cleanup; never upload
+them to this public repository's CI artifacts.
+
+The scenario is implemented but has not yet passed. It requires Safari26's
+native resource installer and owner-enabled local remote automation. It does not
+enable that setting, modify a user profile, accept a local native permission
+dialog automatically or introduce a private-repository checkout in PR CI.
+During setup the owner grants only the already declared127.0.0.1 host through
+Safari's normal permission dialog. Backend and Web use distinct loopback ports;
+the product still checks exact configured origins.
+
+Prepare the isolated backend as in [Identity setup](SHARED-UNLOCK-IDENTITY.md),
+with API55083, verification links targeting127.0.0.1:5173 and SES delivery55084.
+Read the Web repository's instructions before invoking its build. Then run:
+
+```sh
+VITE_API_URL=http://127.0.0.1:55083 VITE_POSTHOG_KEY='' \
+VITE_SHARED_UNLOCK_ENVIRONMENTS='[{"apiUrl":"http://127.0.0.1:55083","webOrigin":"http://127.0.0.1:5173"}]' \
+npm run build:safari
+python3 tests/browser/shared-unlock-safari-identity.py --web-source /path/to/palladin-react-web-panel --prepare-only
+# After the local Safari automation prerequisite is satisfied:
+python3 tests/browser/shared-unlock-safari-identity.py --web-source /path/to/palladin-react-web-panel
+```
+
+The installed fixture copies the actual built extension, preserving permissions
+and all product modules. Instrumentation adds a synthetic display name, a private
+control page and a wrapper that statically imports the unchanged worker. Popup
+controls use native `extension.getViews` and the product's own React handlers;
+they never call privileged APIs through the control page. Native boundary CI
+separately tests this UI mechanism, including a fresh Popup after onboarding.
+
+The Entry has a new random encrypted username. Every extension decryption check
+closes and reopens the actual Popup first, so a retained React value cannot pass
+the check. Only equality booleans reach the test. The scenario covers Web→Extension
+unlock, fresh manual unlock, extension decryption after Web closure, reopened Web
+unlock plus decryption, both lock directions and Extension→Web logout. It does
+not claim password autofill, worker/full-browser restart, trusted input/idle,
+Safari16.4, signed distribution or the full matrix. Those gates remain required.
+Reports under ignored `test-results/shared-unlock-safari-identity/` contain only
+fixed stages/checks, provenance, hashes and bounded WebDriver error categories.
+Preparation or a failure before Identity is not an accepted E2E result.
+
 ## Installed product channel
 
 The latest product probe7deb6c9 passed13 checks in run34639004301 at19:29:17Z

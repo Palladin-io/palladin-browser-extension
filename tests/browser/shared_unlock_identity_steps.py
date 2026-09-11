@@ -46,12 +46,12 @@ def register_and_login_web(browser, web_origin, email, password, verify_url, set
     wait_web_unlocked(browser); record_check('actual-web-manual-password-login')
 
 
-def create_encrypted_entry(browser, entry_password, set_stage, record_check):
+def create_encrypted_entry(browser, entry_password, set_stage, record_check, *, username='synthetic-entry-user'):
     set_stage('web-create-entry')
     browser.click('//a[normalize-space(.)="Vaults"]', 'xpath')
     browser.click('//*[normalize-space(.)="Personal" and not(.//*[normalize-space(.)="Personal"])]', 'xpath')
     browser.click_button('Add Entry')
-    for selector, value in [('#entry-label', 'Synthetic shared unlock proof'), ('#entry-username', 'synthetic-entry-user'), ('#entry-password', entry_password), ('#entry-url', 'https://shared-unlock-login.example.test')]: browser.fill(selector, value)
+    for selector, value in [('#entry-label', 'Synthetic shared unlock proof'), ('#entry-username', username), ('#entry-password', entry_password), ('#entry-url', 'https://shared-unlock-login.example.test')]: browser.fill(selector, value)
     browser.click_button('Save Entry')
     browser.wait(lambda: re.fullmatch(r'/vaults/[^/]+/entries/[^/]+', current_path(browser)), 'created Entry')
     record_check('actual-web-encrypted-entry-created')

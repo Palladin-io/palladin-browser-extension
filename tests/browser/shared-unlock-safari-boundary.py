@@ -15,6 +15,7 @@ import time
 import urllib.error
 import urllib.request
 import urllib.parse
+from safari_webdriver import SafariPopup
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--driver-url', default='http://127.0.0.1:55187')
@@ -442,6 +443,18 @@ def run_product_channel(extension_id, diagnostic_handle, web_handle):
     assert own_realm['sender']['hasTab'] is False and own_realm['sender']['url'] == popup_url
     assert own_realm['sender']['id'] == extension_id
     checks.append('native-popup-reaches-unchanged-private-command-guard')
+    stage = 'native-popup-product-ui-callback'
+    popup = SafariPopup(command, diagnostic_handle, popup_url)
+    popup.show()
+    popup.wait_text('Continue to Palladin')
+    popup.click_button('Continue to Palladin')
+    popup.wait_button('Sign in')
+    checks.append('native-popup-product-onboarding-callback-completes')
+    stage = 'native-popup-reopen-preserves-onboarding-choice'
+    popup.fresh()
+    popup.wait_button('Sign in')
+    assert popup.has_text('Continue to Palladin') is False
+    checks.append('fresh-native-popup-preserves-completed-onboarding')
     report = {'status': 'instrumented-product-channel-only', 'checks': checks, 'observations': observations,
         'fixtureSha256': fixture_hash, 'osVersion': platform.mac_ver()[0], 'architecture': platform.machine(),
         'observedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'identityOrKeysUsed': False, 'fullMatrix': False}

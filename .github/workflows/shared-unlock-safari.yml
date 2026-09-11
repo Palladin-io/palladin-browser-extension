@@ -6,6 +6,8 @@ on:
     paths:
       - .github/workflows/shared-unlock-safari.yml
       - tests/browser/shared-unlock-safari-boundary.py
+      - tests/browser/safari_webdriver.py
+      - tests/browser/webdriver_actions.py
       - tests/browser/safari-ci-permission.applescript
       - src/**
       - manifest/**
