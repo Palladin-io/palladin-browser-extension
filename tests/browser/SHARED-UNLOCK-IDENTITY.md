@@ -116,6 +116,40 @@ The native rerun passed29 checks at2026-09-11T21:15:35Z on clean Web6dcb1db /
 Extension8f5df51 / Backenddde6bb96, Chromium153.0.8010.12/macOS26.4.1 arm64.
 It covers both disconnect/reconnect directions; it is local unpacked evidence.
 
+`--account-isolation` adds a separate password-only two-account scenario after
+shared logout. It signs back into A, switches A OFF through real settings, signs
+Web out, and registers/verifies/logs into B through the actual product UI. B has
+its own default-ON preference while Extension A remains OFF. A is then switched
+ON through the native popup. Both clients must decrypt different actual Entries;
+Extension A must reject B's Entry with `decrypt-failed` and no reveal payload.
+Lock/reload of Web B leaves A decrypting and B locked; manual B unlock restores
+only B. Lock of Extension A leaves Web B decrypting and A locked; manual A unlock
+preserves both identities. Finally, Web B logout must preserve A Entry access.
+No key/session/cache state is injected; SES verification is scoped to each of the
+two synthetic recipients and remains in memory. This option excludes `--totp`;
+MFA/account-change combinations and the inverse logout direction remain separate
+acceptance work. It does not claim an unbounded observation interval.
+
+Chromium153.0.8010.12/macOS26.4.1 arm64 passed25 checks at2026-09-11T21:38:16Z
+on clean Web6dcb1db / Extensiondb17016 / Backenddde6bb96;9 account-isolation checks
+plus the original16 lifecycle checks. Runtime artifacts are unchanged. The first
+run stopped after20 checks because the driver inspected the newly reloaded page
+before waiting for the unlock form to mount; the driver now waits for that form.
+The later successful run also requires the exact cross-account rejection code.
+The first failure remains in `failure.account-isolation-first.json`. Chrome's
+first attempt stopped at21 checks on the account B Entry list after manual unlock
+at21:39:54Z; the cause remains unresolved. A diagnostic rerun reached the independent
+Extension A lock/unlock at21:41:42Z but lost its native popup target. The driver now
+opens a fresh native popup before locking A and after its manual Unlock click;
+no sender guard or client state is changed. Both failures remain recorded.
+
+
+Google Chrome152.0.7977.84 passed25 checks at2026-09-11T21:44:04.138Z on Web6dcb1db /
+Extension79a0e20 / Backenddde6bb96. Only this documentation was pending in the
+Extension tree; runtime artifacts are unchanged. The native popup is reopened
+at explicit driver boundaries. The prior Entry-list timeout remains unresolved;
+this pass does not claim that intermittent behavior is fixed.
+
 `--settings-races` additionally aborts a real Web preference PUT and requires
 the visible local-pause error while the account remains ON. A new Web document
 must remain locked even while the existing Extension can decrypt the Entry;
