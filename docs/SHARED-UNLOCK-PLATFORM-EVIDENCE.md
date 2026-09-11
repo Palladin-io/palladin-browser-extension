@@ -346,3 +346,12 @@ Identity/MK/Entry flow, signed distribution, Firefox 140 floor, all OS versions,
 BFCache/update/disable-enable matrix or independent security approval. Those
 remain release gates. The earlier ten-case synthetic manifest identity probe now
 also records browser-owned sender and top/bridge/parent document identities.
+
+**Known compatibility gap:** Mozilla's [browser compatibility data for
+`webNavigation.getAllFrames`](https://github.com/mdn/browser-compat-data/blob/main/webextensions/api/webNavigation.json)
+records both `documentId` and `parentDocumentId` as added in Firefox **153**.
+Thus Firefox 140–152 is not merely untested: this document-ID adapter must reject
+those versions when the required authority is absent. The extension's general
+140 floor is unchanged. Completing the approved scope requires a separately
+verified older-version authority path; dropping these checks or raising the
+product floor would not satisfy the existing acceptance criteria.
