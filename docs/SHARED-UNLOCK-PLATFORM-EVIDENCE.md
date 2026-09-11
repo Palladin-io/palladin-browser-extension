@@ -350,11 +350,10 @@ also records browser-owned sender and top/bridge/parent document identities.
 **Known compatibility gap:** Mozilla's [browser compatibility data for
 `webNavigation.getAllFrames`](https://github.com/mdn/browser-compat-data/blob/main/webextensions/api/webNavigation.json)
 records both `documentId` and `parentDocumentId` as added in Firefox **153**.
-Thus Firefox 140–152 is not merely untested: this document-ID adapter must reject
-those versions when the required authority is absent. The extension's general
-140 floor is unchanged. Completing the approved scope requires a separately
-verified older-version authority path; dropping these checks or raising the
-product floor would not satisfy the existing acceptance criteria.
+The native-document-ID adapter must reject absent authority. The extension's
+general 140 floor is unchanged. The separate legacy implementation and its
+remaining real-browser gates are recorded below; dropping native checks or
+raising the product floor does not satisfy the existing acceptance criteria.
 
 ## Firefox real Identity/Entry and background restart — 2026-09-11
 
@@ -423,3 +422,45 @@ reads, stale messages/Ports, removal, BFCache, lifecycle, handshake/pre-key-use
 binding, actual 140 Identity/MK/Entry and independent security review remain
 required before this can replace missing document IDs. The product still fails
 closed on 140–152.
+
+## Legacy Firefox route implementation — 2026-09-11
+
+The extension now has a separate 140–152 route, selected only with Firefox's own
+`runtime.getBrowserInfo` result and absent native document IDs. A modern Firefox
+with missing document authority cannot take this route. The 153+ native-ID path
+retains all of its checks.
+
+The real own bridge sends its boot UUID on the private Port before hello. It
+never forwards that UUID to Web. The worker independently addresses the current
+bridge frame through `tabs.sendMessage` and compares the returned marker with
+the Port's initial value. A separate `scripting.executeScript` in top frame 0's
+ISOLATED world reads a document marker created by the extension's discovery
+script. Browser-owned sender ID/origin/URL/tab/frame and current direct-parent
+topology, exact Web origin/port and current API remain required. The top marker
+is cleared on pagehide and renewed on BFCache restoration. Public documentBinding
+contains only the tab, a legacy tag and random channel ID, never these markers.
+
+Acceptance and every current-document verification compare both private markers
+against fresh browser reads. Loading/discarded/frozen/incognito/pending tabs are
+denied. Browser reads have a two-second timer plus elapsed wall/monotonic checks;
+expired or failed reads close the route. Navigation/commit/error/tab loss retires
+pending as well as ready connections, so replies completed after retirement
+cannot install a route or dispatch a protocol operation. Bridge pagehide, Port
+loss or transport closure also removes the private marker responder.
+
+The initial real Firefox140.0/macOS arm64 Identity run passed registration,
+email verification, manual password login, automatic Extension unlock, empty
+Extension snapshot and Web Entry creation. It did **not** pass the full
+Identity/Entry/lifecycle scenario. The existing inline autofill code separately
+requires native sender.documentId, unavailable on 140; full actual password
+autofill and subsequent restart/close/reopen/lock/logout must still pass.
+This existing autofill compatibility gate must be addressed without removing its
+document/origin checks or treating MemberIndex display as password decryption.
+The legacy route is an implementation under review, not acceptance of the
+140–152 platform matrix. All other release and independent-review gates remain.
+
+On the new working-tree runtime build, Firefox155.0.1 again passed all16 native
+Identity/Entry/password/background-restart checks at15:22:41Z. The repeated140.0
+run at15:21:45Z pinpoints `live-entry-password-autofill`: native Popup remains
+unlocked and shows the created Entry, but password fill times out. The ignored
+versioned report/failure files preserve both outcomes and their artifact hashes.

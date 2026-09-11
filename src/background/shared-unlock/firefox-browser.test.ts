@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { FirefoxSharedUnlockRoute } from "./firefox-route";
+import type { FirefoxRuntimeRoute } from "./firefox-browser";
+import type { FirefoxNavigationFrame } from "./firefox-route";
+import { FIREFOX_DOCUMENT_BINDING } from "../../shared/messaging/shared-unlock-firefox-document";
 import { startFirefoxSharedUnlockBrowser } from "./firefox-browser";
 import { SHARED_UNLOCK_BROWSER_PORT } from "../../shared/messaging/shared-unlock-browser";
 vi.mock("@palladin/crypto", () => ({ randomBytes: async () => new Uint8Array(32), toBase64Url: () => "A".repeat(43) }));
@@ -17,9 +19,10 @@ const bridgeUrl = bridgeOrigin + "/src/shared-unlock-bridge/index.html";
 const bridgeFrame = { frameId: 15032385537, parentFrameId: 0, documentId: "bridge-1", parentDocumentId: "document-1", url: bridgeUrl };
 const navigation = { tabId: 7, frameId: 0, documentId: "document-1", documentLifecycle: "active" };
 function fixture(initialize?: () => Promise<unknown>, onReady?: Parameters<typeof startFirefoxSharedUnlockBrowser>[3]) {
-  const api = { runtime: { id: "browser-extension@palladin.io", getURL: (path: string) => bridgeOrigin + "/" + path, onConnect: event<[chrome.runtime.Port]>() },
-    tabs: { get: vi.fn(async (id: number) => ({ id, incognito: false })), onRemoved: event<[number]>() },
-    webNavigation: { getAllFrames: vi.fn(async () => [{ frameId: 0, documentId: "document-1", parentFrameId: -1, url: environments[0].webOrigin }, { ...bridgeFrame }]),
+  const api = { runtime: { getBrowserInfo: vi.fn(async () => ({ name: "Firefox", version: "155.0" })), id: "browser-extension@palladin.io", getURL: (path: string) => bridgeOrigin + "/" + path, onConnect: event<[chrome.runtime.Port]>() },
+    tabs: { sendMessage: vi.fn(async () => ({ marker: "ccccdddd-1234-4567-8abc-222222222222" })), get: vi.fn(async (id: number) => ({ id, incognito: false, status: "complete" })), onRemoved: event<[number]>() },
+    scripting: { executeScript: vi.fn(async () => [{ frameId: 0, result: "aaaabbbb-1234-4567-8abc-111111111111" }]) },
+    webNavigation: { getAllFrames: vi.fn(async (): Promise<FirefoxNavigationFrame[]> => [{ frameId: 0, documentId: "document-1", parentFrameId: -1, url: environments[0].webOrigin }, { ...bridgeFrame }]),
       onBeforeNavigate: event<[typeof navigation]>(), onCommitted: event<[typeof navigation]>(), onErrorOccurred: event<[typeof navigation]>(),
       onTabReplaced: event<[{ replacedTabId: number; tabId: number }]>() } };
   vi.stubGlobal("chrome", api);
@@ -39,6 +42,48 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("Firefox shared unlock runtime channel", () => {
+  it.each(["commit", "error", "removal", "replacement"])("retires a legacy route and its private markers on %s", async reason => {
+    const f = fixture();
+    f.api.runtime.getBrowserInfo.mockResolvedValue({ name: "Firefox", version: "140.0" });
+    f.api.webNavigation.getAllFrames.mockResolvedValue([
+      { frameId: 0, parentFrameId: -1, url: environments[0].webOrigin },
+      { frameId: bridgeFrame.frameId, parentFrameId: 0, url: bridgeUrl },
+    ]);
+    const p = f.port(); Object.assign(p.sender, { documentId: undefined });
+    p.onMessage.emit({ type: FIREFOX_DOCUMENT_BINDING, marker: "ccccdddd-1234-4567-8abc-222222222222" });
+    p.onMessage.emit(hello); await settle(); await settle();
+    expect(f.controller.routes()).toHaveLength(1);
+    expect(p.postMessage.mock.calls[0][0].documentBinding).toBe(`7/legacy/${"A".repeat(43)}`);
+    if (reason === "commit") f.api.webNavigation.onCommitted.emit({ ...navigation, documentId: undefined as unknown as string });
+    if (reason === "error") f.api.webNavigation.onErrorOccurred.emit(navigation);
+    if (reason === "removal") f.api.tabs.onRemoved.emit(7);
+    if (reason === "replacement") f.api.webNavigation.onTabReplaced.emit({ replacedTabId: 7, tabId: 9 });
+    expect(f.controller.routes()).toHaveLength(0); expect(p.disconnect).toHaveBeenCalled(); f.controller.close();
+  });
+  it.each(["commit", "error", "removal"])("rejects a pending legacy marker read completed after %s", async reason => {
+    const f = fixture();
+    f.api.runtime.getBrowserInfo.mockResolvedValue({ name: "Firefox", version: "140.0" });
+    f.api.webNavigation.getAllFrames.mockResolvedValue([
+      { frameId: 0, parentFrameId: -1, url: environments[0].webOrigin },
+      { frameId: bridgeFrame.frameId, parentFrameId: 0, url: bridgeUrl },
+    ]);
+    let finish!: (value: { marker: string }) => void;
+    f.api.tabs.sendMessage.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const p = f.port(); Object.assign(p.sender, { documentId: undefined });
+    p.onMessage.emit({ type: FIREFOX_DOCUMENT_BINDING, marker: "ccccdddd-1234-4567-8abc-222222222222" });
+    p.onMessage.emit(hello); await settle();
+    if (reason === "commit") f.api.webNavigation.onCommitted.emit(navigation);
+    if (reason === "error") f.api.webNavigation.onErrorOccurred.emit(navigation);
+    if (reason === "removal") f.api.tabs.onRemoved.emit(7);
+    finish({ marker: "ccccdddd-1234-4567-8abc-222222222222" }); await settle();
+    expect(p.postMessage).not.toHaveBeenCalled(); expect(f.controller.routes()).toHaveLength(0); f.controller.close();
+  });
+  it("rejects duplicate private document binding before a public hello", () => {
+    const f = fixture(), p = f.port();
+    const binding = { type: FIREFOX_DOCUMENT_BINDING, marker: "ccccdddd-1234-4567-8abc-222222222222" };
+    p.onMessage.emit(binding); p.onMessage.emit(binding);
+    expect(p.disconnect).toHaveBeenCalled(); f.controller.close();
+  });
   it.each(["navigation", "commit", "error"])("retires when the exact bridge has a new %s", async reason => {
     const f = fixture(), p = f.port(); p.onMessage.emit(hello); await settle();
     const bridgeNavigation = { ...navigation, frameId: bridgeFrame.frameId, documentId: "new-bridge" };
@@ -72,7 +117,7 @@ describe("Firefox shared unlock runtime channel", () => {
 
   it("dispatches an operation only after rechecking the current browser document", async () => {
     const received = vi.fn();
-    const ready = vi.fn((route: FirefoxSharedUnlockRoute) => { route.onOperation(received); });
+    const ready = vi.fn((route: FirefoxRuntimeRoute) => { route.onOperation(received); });
     const f = fixture(undefined, ready), p = f.port(); p.onMessage.emit(hello); await settle();
     const route = f.controller.routes()[0];
     const payload = { kind: "source-offer" as const, publicKey: "E".repeat(43) };

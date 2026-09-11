@@ -106,8 +106,19 @@ there is no clipboard write, screenshot, injected key or mocked Identity result.
 
 Reports under ignored `test-results/shared-unlock-firefox-identity/` record
 value-free checks, artifact hashes, source heads, version and these limitations.
+Versioned report/failure files retain results when another Firefox version runs;
+the main report/failure files describe only the latest run. Later harness runs
+also record whether each source working tree contains uncommitted changes.
 The 2026-09-11 14:53:07Z run passed all 16 steps on Firefox 155.0.1, geckodriver
 0.37.1, macOS 26.4.1 arm64 with a temporary product XPI. This is `partial-pass`:
-Firefox 140–152 still lacks the current adapter's required document authority;
-the older-version path, full OS/distribution matrix, other platforms, expiry,
+Firefox 140–152 still requires full Entry-password/lifecycle compatibility;
+the older-version acceptance, full OS/distribution matrix, other platforms, expiry,
 tokenless/resume/key-use, mismatch and independent review remain required.
+
+The new legacy-route build again passed all 16 steps on Firefox155 at15:22:41Z.
+Firefox140 at15:21:45Z completed six checks plus the visible live Entry update,
+then failed specifically at `live-entry-password-autofill`. The existing inline
+autofill source guard requires native sender.documentId; MemberIndex visibility
+is not treated as password proof. The subsequent lifecycle checks did not run
+on140. Keep that failure as an open compatibility gate while completing the
+legacy route and actual password/lifecycle acceptance.

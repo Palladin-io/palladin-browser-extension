@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startFirefoxSharedUnlockBridge } from "./transport";
 import { SHARED_UNLOCK_BROWSER_PORT } from "../shared/messaging/shared-unlock-browser";
 import { FIREFOX_SHARED_UNLOCK_CLOSED } from "../shared/messaging/shared-unlock-firefox";
+import { FIREFOX_CURRENT_DOCUMENT, FIREFOX_DOCUMENT_BINDING } from "../shared/messaging/shared-unlock-firefox-document";
 
 function event<T>() {
   const listeners = new Set<(value: T) => void>();
@@ -20,7 +21,7 @@ function fixture() {
   const target = new EventTarget();
   const owner = Object.assign(target, { parent, top: parent }) as unknown as Window;
   const port = { postMessage: vi.fn(), disconnect: vi.fn(), onMessage: event<unknown>(), onDisconnect: event<void>() };
-  const runtime = { id: ready.extensionId, connect: vi.fn(() => port as unknown as chrome.runtime.Port) };
+  const runtime = { onMessage: { addListener: vi.fn(), removeListener: vi.fn() }, id: ready.extensionId, connect: vi.fn(() => port as unknown as chrome.runtime.Port) };
   const bridge = startFirefoxSharedUnlockBridge(owner, environments, runtime as unknown as typeof chrome.runtime);
   const send = (data: unknown, patch = {}) => {
     const message = new Event("message");
@@ -32,6 +33,21 @@ function fixture() {
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); });
 describe("Firefox own-frame transport boundary", () => {
+  it("keeps the document binding on its private Port and answers only own browser messages", () => {
+    const f = fixture(); f.send(hello);
+    const binding = f.port.postMessage.mock.calls[0][0] as { type: string; marker: string };
+    expect(binding.type).toBe(FIREFOX_DOCUMENT_BINDING);
+    const listener = f.runtime.onMessage.addListener.mock.calls[0][0];
+    const reply = vi.fn(), query = { type: FIREFOX_CURRENT_DOCUMENT };
+    listener(query, { id: "other@example.test" }, reply);
+    listener(query, { id: ready.extensionId, tab: { id: 7 } }, reply);
+    listener({ ...query, marker: binding.marker }, { id: ready.extensionId }, reply);
+    expect(reply).not.toHaveBeenCalled();
+    listener(query, { id: ready.extensionId }, reply); expect(reply).toHaveBeenCalledExactlyOnceWith({ marker: binding.marker });
+    expect(f.parent.postMessage).not.toHaveBeenCalled();
+    f.bridge.close(); reply.mockClear(); listener(query, { id: ready.extensionId }, reply);
+    expect(reply).not.toHaveBeenCalled(); expect(f.runtime.onMessage.removeListener).toHaveBeenCalledWith(listener);
+  });
   it("forwards strict frames only between the exact top Web parent and own private runtime Port", () => {
     const f = fixture(); f.send(hello);
     expect(f.runtime.connect).toHaveBeenCalledExactlyOnceWith({ name: SHARED_UNLOCK_BROWSER_PORT });
@@ -70,7 +86,7 @@ describe("Firefox own-frame transport boundary", () => {
     if (reason === "timeout") vi.advanceTimersByTime(5000);
     if (reason === "port-loss") f.port.onDisconnect.emit();
     f.port.onMessage.emit(ready); f.send(operation);
-    expect(f.port.disconnect).toHaveBeenCalledOnce(); expect(f.port.postMessage).toHaveBeenCalledOnce();
+    expect(f.port.disconnect).toHaveBeenCalledOnce(); expect(f.port.postMessage).toHaveBeenCalledTimes(2);
     expect(f.parent.postMessage).toHaveBeenCalledExactlyOnceWith({ type: FIREFOX_SHARED_UNLOCK_CLOSED }, environments[0].webOrigin);
   });
 });

@@ -6,7 +6,7 @@ CDP's native-popup control on Chromium. It does not change product permissions,
 CSP, crypto, Identity responses or session state. The login fixture separately
 grants only its declared optional host through the browser permission store.
 """
-import base64, io, json, pathlib, re, socket, subprocess, tempfile, time, urllib.error, urllib.request, zipfile
+import json, pathlib, re, socket, subprocess, tempfile, time, urllib.error, urllib.request, zipfile
 
 
 class FirefoxWebDriver:
@@ -53,11 +53,12 @@ class FirefoxWebDriver:
             raise RuntimeError(kind) from None
 
     def install(self, directory):
-        archive = io.BytesIO()
+        # Keep the package available while older Firefox lazily loads scripts.
+        archive = pathlib.Path(self.profile.name) / f'addon-{time.monotonic_ns()}.xpi'
         with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as zipped:
             for path in sorted(pathlib.Path(directory).rglob('*')):
                 if path.is_file(): zipped.write(path, path.relative_to(directory))
-        return self.request('POST', '/moz/addon/install', {'addon': base64.b64encode(archive.getvalue()).decode(), 'temporary': True})
+        return self.request('POST', '/moz/addon/install', {'path': str(archive), 'temporary': True})
 
     def script(self, script, *args):
         return self.request('POST', '/execute/sync', {'script': script, 'args': args})

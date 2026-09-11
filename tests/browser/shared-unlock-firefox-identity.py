@@ -40,6 +40,8 @@ def artifact_hash(directory):
 
 provenance = {'webHead': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=web_source, text=True).strip(),
     'extensionHead': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip(),
+    'webWorkingTreeDirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=web_source, text=True).strip()),
+    'extensionWorkingTreeDirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=repo, text=True).strip()),
     'webArtifactSha256': artifact_hash(web_dist), 'extensionArtifactSha256': artifact_hash(extension),
     'osVersion': platform.mac_ver()[0] or platform.release(), 'architecture': platform.machine(),
     'distribution': 'temporary-product-xpi', 'emailDelivery': 'local-ses-v2-fixture',
@@ -74,6 +76,12 @@ class MailHandler(BaseHTTPRequestHandler):
         except Exception:
             self.send_response(400); self.end_headers()
     def log_message(self, *unused): pass
+
+def write_evidence(name, value):
+    encoded = json.dumps(value, indent=2) + '\n'
+    (out / (name + '.json')).write_text(encoded)
+    version = re.sub(r'[^0-9A-Za-z._-]', '_', provenance.get('browserVersion', 'unknown'))
+    (out / (name + '.firefox-' + version + '.json')).write_text(encoded)
 
 def path(): return urlsplit(browser.request('GET', '/url')).path
 def web(): browser.content()
@@ -140,8 +148,9 @@ try:
     browser.click_button('Save Entry')
     browser.wait(lambda: re.fullmatch(r'/vaults/[^/]+/entries/[^/]+', path()), 'created Entry')
     checks.append('actual-web-encrypted-entry-created')
-    stage = 'live-entry-invalidation-and-decryption'
+    stage = 'live-entry-invalidation'
     popup(); browser.native_wait_text('Synthetic shared unlock proof')
+    stage = 'live-entry-password-autofill'
     assert browser.autofill_matches('synthetic-entry-user', entry_password)
     checks.append('live-entry-invalidation-and-decryption-without-relocking')
     stage = 'web-manual-lock-propagates'
@@ -180,9 +189,9 @@ try:
     stage = 'extension-logout-propagates'
     browser.native_click('Sign out')
     web(); browser.element('#login-email'); checks.append('extension-logout-propagated-to-web')
-    (out / 'report.json').write_text(json.dumps({'status': 'partial-pass', 'checks': checks, 'provenance': provenance,
+    write_evidence('report', {'status': 'partial-pass', 'checks': checks, 'provenance': provenance,
         'observedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'entryDecryptionVerified': True,
-        'fullMatrix': False, 'backgroundRestartVerified': True}, indent=2) + '\n')
+        'fullMatrix': False, 'backgroundRestartVerified': True})
     print(f'PARTIAL: {len(checks)} real Firefox Identity/Entry checks PASS, including background restart. Full matrix remains required.')
 except Exception as error:
     state = None
@@ -193,7 +202,7 @@ except Exception as error:
                 popup_state = browser.native_evaluate('''(()=>{const t=document.body.innerText;return {
                   onboarding:t.includes('Continue to Palladin'),unlocked:t.includes('Unlocked'),
                   signIn:t.includes('Sign in'),unlock:t.includes('Unlock'),retry:t.includes('Try again'),
-                  empty:t.includes('No entries yet'),unreachable:t.includes("Couldn't reach Palladin"),
+                  empty:t.includes('No entries yet'),entryVisible:t.includes('Synthetic shared unlock proof'),unreachable:t.includes("Couldn't reach Palladin"),
                   changed:t.includes('Your session changed')};})()''')
             except Exception: pass
         try:
@@ -207,9 +216,9 @@ except Exception as error:
               rateLimited:document.body.innerText.includes('Too many'),
               apiUnavailable:document.body.innerText.includes('Unable to connect')};''')
         except Exception: pass
-    (out / 'failure.json').write_text(json.dumps({'stage': stage, 'checks': checks, 'errorType': type(error).__name__,
+    write_evidence('failure', {'stage': stage, 'checks': checks, 'errorType': type(error).__name__,
         'state': state, 'popupState': popup_state,
-        'provenance': provenance, 'observedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}, indent=2) + '\n')
+        'provenance': provenance, 'observedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())})
     print('FAIL at ' + stage + '; value-free failure.json recorded.')
     raise SystemExit(1) from None
 finally:
