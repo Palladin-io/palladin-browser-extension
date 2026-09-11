@@ -94,6 +94,29 @@ relaxes Web CSP. This is development-installation evidence, not store evidence.
 The option is independent of the browser label; engines that still support the
 original load flag can use the default installation path.
 
+`--full-browser-restart` adds a separate lifecycle case after both clients have
+successfully unlocked and the restarted worker has decrypted the Entry. It closes
+the entire browser, waits for disconnection, and reopens the same test profile
+with unchanged launch arguments. The browser wakes the known registered worker;
+its exact native target must exist. There is no second CDP installation command,
+lock/logout, storage edit or restored key. Both clients must require
+manual unlock; six actual private Entry reveal requests over three seconds must
+return the worker's `locked` error with no reveal payload. One normal Web password
+unlock must then automatically unlock the extension and decrypt the same Entry.
+This is graceful full-browser-close evidence, not crash, OS-lock, sleep or
+unbounded observation. Browser/profile closure and negative key-use assertions
+are recorded separately from the existing worker-only restart.
+Scenario-specific reports use the `.full-browser-restart.json` suffix so these
+results do not replace the original16-check reports.
+
+On Edge153.0.4234.32, the development `Extensions.loadUnpacked` installation was
+absent after browser restart. A separate account-free probe confirmed the native
+extension list contained the enabled artifact before closure and did not contain
+it after reopening the same profile. A browser `startWorker` acknowledgment alone
+is not evidence that the worker exists. This installation path cannot currently
+prove Edge's full-browser restart gate; do not silently reinstall and count it
+as persisted-installation acceptance.
+
 Runs are headless by default and record that fact. `--headed` selects a visible
 browser; neither mode by itself proves OS-lock/sleep, trusted idle renewal or
 distribution acceptance. Versioned `report.<label>-<version>.json` and failure

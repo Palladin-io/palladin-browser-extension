@@ -21,6 +21,7 @@ assert(!browserExecutable || process.argv.includes('--browser-label'), 'Explicit
 assert(browserLabel === 'chromium' || browserExecutable, 'Branded browser requires its explicit executable')
 const installViaCdp = process.argv.includes('--install-via-cdp')
 const headed = process.argv.includes('--headed')
+const fullBrowserRestart = process.argv.includes('--full-browser-restart')
 for (const url of [apiUrl, sesUrl]) assert(['localhost', '127.0.0.1'].includes(new URL(url).hostname), 'Isolated loopback services only')
 const webOrigin = 'http://127.0.0.1:5173', webDirectory = path.join(webSource, 'dist')
 const extension = path.resolve('dist/chromium'), output = path.resolve('test-results/shared-unlock-identity')
@@ -53,6 +54,25 @@ const provenance = {
   extensionInstallation: installViaCdp ? 'browser-owned-cdp-loadUnpacked' : 'command-line-load-extension',
   distribution: 'local-unpacked', emailDelivery: 'local-ses-v2-fixture',
   delayedManualAuthorization: delayManualAuthorization,
+  fullBrowserRestart,
+}
+const launchOptions = {
+  ...(browserExecutable ? { executablePath: browserExecutable } : { channel: 'chromium' }), headless: !headed,
+  ...(installViaCdp ? { ignoreDefaultArgs: ['--disable-extensions'] } : {}),
+  args: ['--remote-debugging-port=0', ...(installViaCdp ? ['--enable-unsafe-extension-debugging']
+    : [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`])],
+}
+async function observeLocalContext() {
+  context.setDefaultTimeout(20000)
+  await context.route('**/*', route => {
+    const url = new URL(route.request().url())
+    return [webOrigin, new URL(apiUrl).origin, new URL(sesUrl).origin, 'http://localhost:54583'].includes(url.origin)
+      || url.protocol === 'chrome-extension:' ? route.continue() : route.abort()
+  })
+  context.on('response', response => {
+    const url = new URL(response.url())
+    if (url.origin === new URL(apiUrl).origin) requests.push({ stage, path: url.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id'), status: response.status() })
+  })
 }
 const password = 'Synthetic!' + randomBytes(24).toString('base64url'), email = `cvt583-${randomBytes(8).toString('hex')}@example.test`
 try {
@@ -89,11 +109,7 @@ try {
   })
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(5173, '127.0.0.1', resolve) })
   stage = 'browser-launch'
-  context = await chromium.launchPersistentContext(path.join(temporary, 'profile'), {
-    ...(browserExecutable ? { executablePath: browserExecutable } : { channel: 'chromium' }), headless: !headed,
-    ...(installViaCdp ? { ignoreDefaultArgs: ['--disable-extensions'] } : {}),
-    args: ['--remote-debugging-port=0', ...(installViaCdp ? ['--enable-unsafe-extension-debugging']
-      : [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`])] })
+  context = await chromium.launchPersistentContext(path.join(temporary, 'profile'), launchOptions)
   provenance.browserVersion = context.browser().version()
   if (installViaCdp) {
     stage = 'browser-installs-unpacked-extension'
@@ -103,32 +119,30 @@ try {
       provenance.browserInstalledExtensionId = installed.id
     } finally { await browserCdp.detach() }
   }
-  context.setDefaultTimeout(20000)
+  await observeLocalContext()
   let worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker')
   const extensionId = new URL(worker.url()).host
   const manifest = JSON.parse(await readFile(path.join(extension, 'manifest.json'), 'utf8'))
   const expected = createHash('sha256').update(Buffer.from(manifest.key, 'base64')).digest('hex').slice(0,32).replace(/[0-9a-f]/g, c => String.fromCharCode(97 + parseInt(c,16)))
   assert.equal(extensionId, expected)
   if (installViaCdp) assert.equal(extensionId, provenance.browserInstalledExtensionId)
-  await context.route('**/*', route => {
-    const url = new URL(route.request().url())
-    return [webOrigin, new URL(apiUrl).origin, new URL(sesUrl).origin, 'http://localhost:54583'].includes(url.origin)
-      || url.protocol === 'chrome-extension:' ? route.continue() : route.abort()
-  })
-  context.on('response', response => {
-    const url = new URL(response.url())
-    if (url.origin === new URL(apiUrl).origin) requests.push({ stage, path: url.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id'), status: response.status() })
-  })
   page = await context.newPage()
   // Delay only transport, never the backend result or any session/key state.
   // This exposes the interval after local password verification but before
   // Identity replaces the previously locked logical session's authorization.
   if (delayManualAuthorization) await page.route(apiUrl + '/api/account/shared-unlock/authorizations', async route => {
-    if (stage === 'web-fresh-manual-unlock') {
+    const started = performance.now()
+    const delayed = stage === 'web-fresh-manual-unlock'
+    if (delayed) {
       requests.push({ check: 'manual-authorization-request-delayed', delayMs: 1500 })
       await new Promise(resolve => setTimeout(resolve, 1500))
     }
-    try { await route.continue() } catch { /* A superseding local lock may cancel it. */ }
+    try {
+      await route.continue()
+      if (delayed) requests.push({ check: 'delayed-authorization-route-continued', elapsedMs: Math.round(performance.now() - started) })
+    } catch {
+      if (delayed) requests.push({ check: 'delayed-authorization-route-cancelled', elapsedMs: Math.round(performance.now() - started) })
+    }
   })
   page.on('requestfailed', request => {
     const url = new URL(request.url())
@@ -281,6 +295,56 @@ try {
   await popup.waitText('Synthetic shared unlock proof')
   assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword), 'Restarted worker must freshly unlock and decrypt the actual Entry')
   checks.push('restarted-extension-automatically-unlocked-and-decrypted-entry')
+  if (fullBrowserRestart) {
+    stage = 'full-browser-close-while-both-unlocked'
+    const previousBrowser = context.browser()
+    popup.close(); popup = undefined
+    await context.close()
+    assert.equal(previousBrowser.isConnected(), false, 'Previous browser must finish closing')
+    page = undefined; worker = null
+    checks.push('browser-closed-with-both-clients-unlocked')
+    stage = 'full-browser-reopen-same-profile'
+    context = await chromium.launchPersistentContext(path.join(temporary, 'profile'), launchOptions)
+    assert.equal(context.browser().version(), provenance.browserVersion)
+    await observeLocalContext()
+    page = await context.newPage(); await page.goto(webOrigin + '/unlock')
+    stage = 'wake-persisted-extension-after-browser-restart'
+    const restartCdp = await context.newCDPSession(page)
+    try {
+      await restartCdp.send('ServiceWorker.enable')
+      await restartCdp.send('ServiceWorker.startWorker', { scopeURL: `chrome-extension://${extensionId}/` })
+      requests.push({ check: 'browser-woke-persisted-extension-after-full-restart' })
+      let nativeWorker
+      for (let attempt = 0; attempt < 100 && !nativeWorker; attempt++) {
+        nativeWorker = (await restartCdp.send('Target.getTargets')).targetInfos.find(info =>
+          info.type === 'service_worker' && info.url === `chrome-extension://${extensionId}/${manifest.background.service_worker}`)
+        if (!nativeWorker) await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      requests.push({ check: 'browser-observed-persisted-extension-worker', present: !!nativeWorker })
+      assert(nativeWorker, 'Browser must expose the actual persisted extension worker target')
+    } finally { await restartCdp.detach() }
+    worker = null // The native target is authoritative; Playwright may miss its attach event.
+    // Reuse the actual persisted installation and profile; no reinstall,
+    // storage edit, logout or lock command may cause this locked state.
+    await page.locator('#unlock-password').waitFor()
+    popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId)
+    await popup.waitButton('Unlock')
+    stage = 'full-browser-restart-rejects-key-use'
+    for (let attempt = 0; attempt < 6; attempt++) {
+      assert(await page.locator('#unlock-password').isVisible(), 'Web must not restore keys after browser closure')
+      assert(await popup.revealDeniedWhileLocked(vaultId, entryId), 'Actual Entry reveal must be denied by the locked worker')
+      await new Promise(resolve => setTimeout(resolve, 500))
+    }
+    checks.push('same-profile-restart-requires-manual-unlock-and-denies-entry-reveal')
+    stage = 'manual-unlock-after-full-browser-restart'
+    await page.locator('#unlock-password').fill(password)
+    await page.getByRole('button', { name: 'Unlock', exact: true }).click()
+    await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+    await popup.waitText('Unlocked')
+    await popup.waitText('Synthetic shared unlock proof')
+    assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword), 'One manual unlock must restore the peer through a fresh handoff')
+    checks.push('one-manual-unlock-after-browser-restart-restores-peer-entry-decryption')
+  }
   stage = 'extension-manual-lock-propagates'
   popup.close(); popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId)
   await popup.click('Lock')
@@ -325,5 +389,6 @@ async function writeEvidence(kind, value) {
   const contents = JSON.stringify(value, null, 2)
   await writeFile(path.join(output, `${kind}.json`), contents)
   const version = String(provenance.browserVersion ?? 'launch').replace(/[^a-zA-Z0-9.-]/g, '_')
-  await writeFile(path.join(output, `${kind}.${browserLabel}-${version}.json`), contents)
+  const scenario = fullBrowserRestart ? '.full-browser-restart' : ''
+  await writeFile(path.join(output, `${kind}.${browserLabel}-${version}${scenario}.json`), contents)
 }

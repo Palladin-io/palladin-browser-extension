@@ -35,6 +35,11 @@ input evidence. Reproduction and limitations:
 [Identity harness](../tests/browser/SHARED-UNLOCK-IDENTITY.md),
 [Safari probe](../tests/browser/SHARED-UNLOCK-SAFARI.md).
 
+The additional full-browser-restart case passes19 checks on Chromium153, as
+recorded below. Edge's CDP development installation does not survive browser
+restart, so that distribution path remains unverified. New delayed-authorization
+Edge failures are also retained below; earlier successful runs do not erase them.
+
 ## Required boundary
 
 The approved target is automatic Web <-> Extension login/unlock in one normal
@@ -624,3 +629,35 @@ Both identify Webb47aff9/Extensionfe58fca, runtime810cf86, and identical artifac
 hashes. Opera's dirty-tree flag records documentation edits only; harness and
 runtime bytes were unchanged. Extensionfe58fca CI34624193092 passed. Neither
 the browser results nor CI complete CVT-583 or authorize release by themselves.
+
+## Full browser closure and installation persistence — 2026-09-11
+
+The optional `--full-browser-restart` Identity case closes the browser while
+both clients are unlocked, confirms disconnection and reopens the same profile
+with unchanged launch arguments. It requires the exact native worker target,
+both locked clients and six actual Entry reveal denials (`code: locked`, no
+payload) over three seconds. One ordinary Web password unlock must then restore
+the peer's actual Entry decryption. No lock/logout, storage edit, key injection or
+second CDP installation command is used. This is graceful closure, not crash or
+OS-lock/sleep acceptance. Scenario-suffixed reports preserve the original16 checks.
+
+Chromium153.0.8010.12/macOS26.4.1 arm64/headless/load flag passed19 checks on the
+unchanged runtime810cf86/Webb47aff9 artifacts. This run does not add an artificial
+authorization delay; that independent stress case remains in the original suite.
+Its report is `report.chromium-153.0.8010.12.full-browser-restart.json`.
+
+Edge153's full-profile attempts reached15 checks but did not find the worker
+after restart. The browser accepted `ServiceWorker.startWorker`, but native
+`Target.getTargets` still had no exact worker. An independent account-free
+installation probe at17:12:41Z confirmed `Extensions.getExtensions` reported the
+enabled unpacked artifact initially and no such artifact after reopening the same
+profile. The closed profile retained extension metadata at location4; no values
+from product storage were read or edited. This is a development-installation
+limitation, not a passed Edge full-browser restart. A persisted installation path
+still needs its own actual test.
+
+Two other Edge attempts stopped earlier after8 checks, during the1500ms delayed
+manual authorization. One recorded authorization200 and activation200 while the
+extension stayed locked; its route continued after1502ms. The cause is not yet
+established. These failures remain open and are retained separately; no runtime
+timeout, assertion or cancellation boundary was weakened to obtain a pass.
