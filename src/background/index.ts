@@ -1,3 +1,4 @@
+import { isSurfaceActivity } from "../shared/messaging/surface-activity";
 import { coordinateSharedUnlockBrowser } from "./shared-unlock/browser-runtime";
 /**
  * Service worker entry point (MV3). Bootstrap only: it wires the content Port,
@@ -366,7 +367,11 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
       return;
     }
     try {
-      await sessionManager.touchActivity();
+      if (isSurfaceActivity(raw)) {
+        await sessionManager.touchActivity(raw.observedAt);
+        sendResponse({ ok: true });
+        return;
+      }
       if (isCaptureSettingsCommand(raw)) {
         sendResponse(await handleCaptureSettings(raw));
         return;

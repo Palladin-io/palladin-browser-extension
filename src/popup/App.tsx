@@ -18,6 +18,7 @@ import {
   type PasswordManagerOnboardingStatus,
 } from "./onboarding/client";
 import { createSessionClient, type SessionClient } from "./session/client";
+import { startSurfaceActivity } from "./session/surface-activity";
 import { startSurfaceSessionLiveness } from "./session/surface-liveness";
 import { useSession, type SessionPhase } from "./session/useSession";
 import { PasswordManagerIntro } from "./screens/PasswordManagerIntro";
@@ -80,6 +81,10 @@ export function App({
     [onboardingClient],
   );
   const session = useSession(sessionClient);
+  useEffect(() => {
+    if (session.phase !== "unlocked" || typeof chrome === "undefined") return;
+    return startSurfaceActivity(window, message => chrome.runtime.sendMessage(message));
+  }, [session.phase]);
   const [onboardingStatus, setOnboardingStatus] = useState<
     PasswordManagerOnboardingStatus | "loading"
   >("loading");

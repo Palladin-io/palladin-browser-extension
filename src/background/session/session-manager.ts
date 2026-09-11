@@ -140,6 +140,8 @@ export class SessionManager {
 
   /** In-memory keys — the authoritative live copy while unlocked. */
   private keys: SessionKeys | null = null;
+  private keyInstalledAt = Infinity;
+  private lastActivityAt = -Infinity;
   private keyScope: Pick<SessionTokens, "userId" | "apiUrl"> | null = null;
   private tokens: SessionTokens | null = null;
   private pendingTotp: PendingTotpContext | null = null;
@@ -959,6 +961,8 @@ export class SessionManager {
       this.sharedUnlockLocalDeadline = localDeadline;
       if (ownTokens) this.tokens = ownTokens;
       this.keyScope = { userId, apiUrl: (ownTokens ?? this.tokens)?.apiUrl ?? this.authClient.currentApiUrl() };
+      this.keyInstalledAt = this.now();
+      this.lastActivityAt = this.keyInstalledAt;
       this.keys = keys;
       published = true;
       this.autoLock.arm(policy, unlockedAt, inherited ? Math.min(unlockDeadline(inherited), localDeadline) : undefined);
@@ -1045,6 +1049,8 @@ export class SessionManager {
   }
 
   private wipeKeys(): void {
+    this.keyInstalledAt = Infinity;
+    this.lastActivityAt = -Infinity;
     this.keyScope = null;
     this.sharedUnlockLimits = null;
     this.sharedUnlockLocalDeadline = Infinity;
@@ -1319,15 +1325,20 @@ export class SessionManager {
   // ─── Auto-lock ────────────────────────────────────────────────────────────
 
   /** Record user activity and push the idle deadline out (no-op while locked). */
-  async touchActivity(): Promise<void> {
+  async touchActivity(observedAt?: number): Promise<void> {
     if (!this.getKeys()) return;
     const generation = this.captureLifecycleGeneration();
-    const at = this.now();
+    const now = this.now(), at = observedAt ?? now;
+    // A delayed popup event from before this key installation cannot renew a
+    // new login/bootstrap. Queueing/retry also cannot manufacture a later time.
+    if (!Number.isSafeInteger(at) || at > now || (observedAt !== undefined
+      && (now - at > 5_000 || at <= this.keyInstalledAt)) || at <= this.lastActivityAt) return;
+    this.lastActivityAt = at;
     const record = await this.store.getAutoLock();
-    if (!this.isLifecycleCurrent(generation) || !this.getKeys()) return;
+    if (!this.isLifecycleCurrent(generation) || at !== this.lastActivityAt || !this.getKeys()) return;
     const policy = record?.policy ?? DEFAULT_AUTO_LOCK_POLICY;
     await this.store.setAutoLock({ policy, lastActivityAt: at });
-    if (!this.isLifecycleCurrent(generation) || !this.getKeys()) return;
+    if (!this.isLifecycleCurrent(generation) || at !== this.lastActivityAt || !this.getKeys()) return;
     if (this.sharedUnlockLimits) {
       const idle = policyIdleMs(policy);
       this.sharedUnlockLimits = {

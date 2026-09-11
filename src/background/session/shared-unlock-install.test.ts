@@ -299,3 +299,62 @@ it('checkpoints effective local idle before publishing keys and arms the saved e
   h.now.value = savedDeadline;
   expect(h.manager.getKeys()).toBeNull(); erased(value);
 });
+
+it.each(["future", "too-old", "before-install", "at-install", "repeated", "out-of-order"] as const)("rejects %s popup input instead of renewing a session", async kind => {
+  const h = harness(), value = fresh();
+  await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install(value);
+  const installedAt = h.now.value;
+  h.now.value += kind === "too-old" ? 10_000 : 1_000;
+  let at = h.now.value;
+  if (kind === "future") at += 1;
+  if (kind === "too-old") at -= 5_001;
+  if (kind === "before-install") at = installedAt - 1;
+  if (kind === "at-install") at = installedAt;
+  if (kind === "repeated" || kind === "out-of-order") {
+    await h.manager.touchActivity(at);
+    if (kind === "out-of-order") at -= 1;
+  }
+  const before = h.manager.getSharedUnlockLimits();
+  const alarm = h.alarms.whenFor(AUTO_LOCK_ALARM);
+  await h.manager.touchActivity(at);
+  expect(h.manager.getSharedUnlockLimits()).toEqual(before);
+  expect(h.alarms.whenFor(AUTO_LOCK_ALARM)).toBe(alarm);
+  await h.manager.lock();
+});
+it("uses observed popup time rather than delayed worker handling time and preserves original ceilings", async () => {
+  const h = harness(), value = fresh();
+  await h.manager.setAutoLockPolicy("15m");
+  const limits = { ...value.limits, idleDeadlineMs: h.now.value + 50_000,
+    absoluteDeadlineMs: h.now.value + 5_000_000, offlineDeadlineMs: h.now.value + 4_000_000 };
+  await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install({ ...value, limits });
+  const observedAt = h.now.value + 100;
+  h.now.value = observedAt + 2_000;
+  await h.manager.touchActivity(observedAt);
+  expect(h.manager.getSharedUnlockLimits()).toEqual({ ...limits, idleDeadlineMs: observedAt + 15 * 60_000 });
+  expect(h.alarms.whenFor(AUTO_LOCK_ALARM)).toBe(observedAt + 15 * 60_000);
+  await h.manager.lock();
+});
+
+it("does not let a delayed older input overwrite a newer activity deadline", async () => {
+  const h = harness(), value = fresh();
+  await h.manager.setAutoLockPolicy("15m");
+  const limits = { ...value.limits, idleDeadlineMs: h.now.value + 50_000,
+    absoluteDeadlineMs: h.now.value + 5_000_000, offlineDeadlineMs: h.now.value + 4_000_000 };
+  await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install({ ...value, limits });
+  let release!: () => void;
+  const original = h.store.getAutoLock.bind(h.store);
+  vi.spyOn(h.store, "getAutoLock").mockImplementationOnce(async () => {
+    await new Promise<void>(resolve => { release = resolve; });
+    return original();
+  });
+  h.now.value += 100;
+  const older = h.manager.touchActivity(h.now.value);
+  await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+  h.now.value += 100;
+  await h.manager.touchActivity(h.now.value);
+  const latestDeadline = h.now.value + 15 * 60_000;
+  release(); await older;
+  expect(h.manager.getSharedUnlockLimits()?.idleDeadlineMs).toBe(latestDeadline);
+  expect(h.alarms.whenFor(AUTO_LOCK_ALARM)).toBe(latestDeadline);
+  await h.manager.lock();
+});
