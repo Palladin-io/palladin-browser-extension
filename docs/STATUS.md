@@ -177,3 +177,13 @@ application adapter. Other browser/OS/distributed-artifact acceptance remains op
 Until every release gate is complete, documentation and UI must continue to use
 experimental language and must not ask users to trust the extension with real
 credentials.
+
+### Shared-unlock late receiver response
+
+An available late successful commit can now reach the receiver's own-lineage
+cleanup observer before cancellation rejects it. The separate cleanup method
+revokes only that new own refresh lineage on its original API within two seconds;
+it never calls group logout or replaces the active client session. Focused negative
+tests reproduce the previous dropped-body behavior and cover abort/server changes,
+body loss, no retry and an unresponsive transport. Browser receiver wiring remains
+in progress, so this API support alone is not automatic session cleanup in the UI.

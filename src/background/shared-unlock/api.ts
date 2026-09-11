@@ -85,8 +85,26 @@ export class SharedUnlockApi {
     return this.request(expectedApiUrl, `${proofPath(operationId)}/consume`, "POST", { signature }, undefined, signal);
   }
 
-  commit(expectedApiUrl: string, operationId: string, signature: string, signal?: AbortSignal): Promise<SharedUnlockCommit> {
-    return this.request(expectedApiUrl, `${proofPath(operationId)}/commit`, "POST", { signature }, undefined, signal);
+  commit(expectedApiUrl: string, operationId: string, signature: string, signal?: AbortSignal,
+    onIssued?: (commit: SharedUnlockCommit) => void): Promise<SharedUnlockCommit> {
+    return this.request(expectedApiUrl, `${proofPath(operationId)}/commit`, "POST", { signature }, undefined, signal, onIssued);
+  }
+
+  /** Cleanup only: revoke the newly issued own lineage on its original Identity.
+   * No current-session mutation, peer/group logout, bearer forwarding or retry. */
+  async revokeIssuedSession(apiUrl: string, refreshToken: string): Promise<void> {
+    const abort = new AbortController();
+    let finishTimeout!: () => void;
+    const elapsed = new Promise<void>(resolve => { finishTimeout = resolve; });
+    const timeout = setTimeout(() => { abort.abort(); finishTimeout(); }, 2000);
+    try {
+      await Promise.race([this.doFetch(`${apiUrl.replace(/\/$/, "")}/api/auth/logout`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ refreshToken }), signal: abort.signal,
+        redirect: "error", cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer",
+      }), elapsed]);
+    } catch { /* Best-effort cleanup; local key disposal is unconditional. */ }
+    finally { clearTimeout(timeout); }
   }
 
   private closeLink(action: "lock" | "logout", session: SessionTokens, linkId: string, revision: number, preferenceRevision: number, signal?: AbortSignal): Promise<SharedUnlockLink> {
@@ -99,7 +117,7 @@ export class SharedUnlockApi {
   }
 
   private async request<T>(apiUrl: string, path: string, method: "GET" | "POST" | "PUT", body?: object,
-    session?: SessionTokens, signal?: AbortSignal): Promise<T> {
+    session?: SessionTokens, signal?: AbortSignal, onIssued?: (result: T) => void): Promise<T> {
     this.assertCurrent(apiUrl, signal);
     const headers: Record<string, string> = { accept: "application/json" };
     if (body !== undefined) headers["content-type"] = "application/json";
@@ -110,7 +128,9 @@ export class SharedUnlockApi {
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         ...(signal ? { signal } : {}),
       });
-      this.assertCurrent(apiUrl, signal);
+      // An available late commit body must reach own-lineage cleanup before
+      // cancellation rejects it. Other requests still fence before decoding.
+      if (!onIssued || !response.ok) this.assertCurrent(apiUrl, signal);
       if (!response.ok) {
         const code: SharedUnlockApiErrorCode = ({
           401: "unauthorized", 403: "forbidden", 404: "not-found", 409: "conflict",
@@ -119,6 +139,7 @@ export class SharedUnlockApi {
         throw new SharedUnlockApiError(code);
       }
       const result = await response.json() as T;
+      onIssued?.(result);
       this.assertCurrent(apiUrl, signal);
       return result;
     } catch (error) {

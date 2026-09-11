@@ -451,3 +451,14 @@ nonce is not a crypto/source generation. There is still no key/account/token
 message and no call from this channel to source/receiver session coordinators.
 See SHARED-UNLOCK-PLATFORM-EVIDENCE.md for permission justification, exact config,
 negative tests and the limited actual-product Chromium probe.
+
+The receiver Identity API now accepts an `onIssued` commit observer. An available
+successful response body reaches this observer before cancellation/environment
+fencing rejects the result. The coordinator must capture the newly issued lineage
+there and use `revokeIssuedSession` if installation fails or was cancelled. That
+cleanup uses only the captured receiver refresh token and original API URL, without
+bearer/cookies/redirects/retry, and has an independent two-second bound even if the
+transport ignores abort. It does not mutate the current local session or emit a
+peer/group logout. No observer fires for a failed response or unreadable/lost body;
+a consumed commit is never replayed to recover a missing token. These API mechanics
+still require the actual receiver transaction and browser coordinator to call them.
