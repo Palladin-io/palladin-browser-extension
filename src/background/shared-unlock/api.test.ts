@@ -19,11 +19,24 @@ const input: SharedUnlockOperationInput = {
   authorizationId: fixtures.operations[0].sourceAuthorization.authorizationId,
   linkId: context.linkId, linkEpoch: context.linkEpoch, expectedPreferenceRevision: context.preferenceRevision,
   recipientOrganizationId: context.organizationId, direction: context.direction,
+  idleDeadlineMs: context.idleDeadlineMs, absoluteDeadlineMs: context.absoluteDeadlineMs, offlineDeadlineMs: context.offlineDeadlineMs,
   apiOrigin: context.apiOrigin, webOrigin: context.webOrigin, extensionId: context.extensionId,
   documentBinding: context.documentBinding, webGeneration: context.webGeneration, extensionGeneration: context.extensionGeneration,
   sourcePublicKey: operation.sourcePublicKey, recipientPublicKey: operation.recipientPublicKey,
   recipientProofPublicKey: operation.recipientProofPublicKey,
 };
+
+for (const vector of fixtures.operations) {
+  it(`sends the provider request with all effective source ceilings: ${vector.direction}`, async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(json(vector.operation));
+    const client = new SharedUnlockApi(fetcher, () => apiUrl);
+    const { refreshToken, direction, ...fields } = vector.createRequest;
+    await client.createOperation({ ...session, refreshToken }, {
+      ...fields, direction: direction as SharedUnlockOperationInput["direction"],
+    });
+    expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body))).toEqual(vector.createRequest);
+  });
+}
 
 for (const vector of fixtures.responses) {
   it(`reads the provider response without stricter client business rules: ${vector.name}`, async () => {

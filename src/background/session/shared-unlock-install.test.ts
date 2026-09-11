@@ -135,7 +135,9 @@ describe("shared unlock receiver installation", () => {
       idleDeadlineMs: h.now.value + 3_600_000, absoluteDeadlineMs: h.now.value + 7_200_000,
       offlineDeadlineMs: h.now.value + 7_200_000 } };
     await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install(value);
+    expect(h.manager.getSharedUnlockLimits()).toEqual({ ...value.limits, idleDeadlineMs: h.now.value + 15 * 60_000 });
     h.now.value += 15 * 60_000;
+    expect(h.manager.getSharedUnlockLimits()).toBeNull();
     expect(h.manager.getKeys()).toBeNull(); erased(value);
   });
 

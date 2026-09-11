@@ -82,6 +82,9 @@ export interface SharedUnlockOperationInput {
   readonly linkEpoch: number;
   readonly expectedPreferenceRevision: number;
   readonly recipientOrganizationId: string;
+  readonly idleDeadlineMs: number;
+  readonly absoluteDeadlineMs: number;
+  readonly offlineDeadlineMs: number;
   readonly direction: SharedUnlockContext["direction"];
   readonly apiOrigin: string;
   readonly webOrigin: string;

@@ -202,7 +202,10 @@ export class SessionManager {
 
   /** Snapshot for an in-worker coordinator; contains no key or token. */
   getSharedUnlockLimits(): SessionUnlockLimits | null {
-    return this.getKeys() && this.sharedUnlockLimits ? { ...this.sharedUnlockLimits } : null;
+    return this.getKeys() && this.sharedUnlockLimits ? {
+      ...this.sharedUnlockLimits,
+      idleDeadlineMs: Math.min(this.sharedUnlockLimits.idleDeadlineMs, this.sharedUnlockLocalDeadline),
+    } : null;
   }
 
   /**

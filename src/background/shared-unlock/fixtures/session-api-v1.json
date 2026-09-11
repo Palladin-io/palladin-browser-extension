@@ -1592,6 +1592,27 @@
         "absoluteDeadlineMs": 1800000200000,
         "offlineDeadlineMs": 1800000300000
       },
+      "createRequest": {
+        "refreshToken": "synthetic-source-refresh-token-not-valid",
+        "authorizationId": "55555555-5555-4555-8555-555555555555",
+        "linkId": "44444444-4444-4444-8444-444444444444",
+        "linkEpoch": 2,
+        "expectedPreferenceRevision": 3,
+        "recipientOrganizationId": "33333333-3333-4333-8333-333333333333",
+        "idleDeadlineMs": 1800000100000,
+        "absoluteDeadlineMs": 1800000200000,
+        "offlineDeadlineMs": 1800000300000,
+        "direction": "web-to-extension",
+        "apiOrigin": "https://api.example.test",
+        "webOrigin": "https://app.example.test",
+        "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "documentBinding": "synthetic-tab-7-document-9",
+        "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+        "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+        "sourcePublicKey": "e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM",
+        "recipientPublicKey": "D6poTtKIZ7l_Smot7l34zpdOdrcBjj8iocTPJnhXDyA",
+        "recipientProofPublicKey": "skkdlQKuKGMKK6yy4MdFEP_N0yjDNP8-E5PnWy0x59w"
+      },
       "operation": {
         "context": {
           "protocol": "palladin.shared-unlock.v1",
@@ -1661,6 +1682,27 @@
         "idleDeadlineMs": 1800000100000,
         "absoluteDeadlineMs": 1800000200000,
         "offlineDeadlineMs": 1800000300000
+      },
+      "createRequest": {
+        "refreshToken": "synthetic-source-refresh-token-not-valid",
+        "authorizationId": "55555555-5555-4555-8555-555555555555",
+        "linkId": "44444444-4444-4444-8444-444444444444",
+        "linkEpoch": 2,
+        "expectedPreferenceRevision": 3,
+        "recipientOrganizationId": "33333333-3333-4333-8333-333333333333",
+        "idleDeadlineMs": 1800000100000,
+        "absoluteDeadlineMs": 1800000200000,
+        "offlineDeadlineMs": 1800000300000,
+        "direction": "extension-to-web",
+        "apiOrigin": "https://api.example.test",
+        "webOrigin": "https://app.example.test",
+        "extensionId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "documentBinding": "synthetic-tab-7-document-9",
+        "webGeneration": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM",
+        "extensionGeneration": "REREREREREREREREREREREREREREREREREREREREREQ",
+        "sourcePublicKey": "e06Qm75__kTEZaIgA31gjuNYl9Me-XLwf3SJLLD3PxM",
+        "recipientPublicKey": "D6poTtKIZ7l_Smot7l34zpdOdrcBjj8iocTPJnhXDyA",
+        "recipientProofPublicKey": "skkdlQKuKGMKK6yy4MdFEP_N0yjDNP8-E5PnWy0x59w"
       },
       "operation": {
         "context": {
