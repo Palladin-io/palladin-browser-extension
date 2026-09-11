@@ -109,6 +109,16 @@ are recorded separately from the existing worker-only restart.
 Scenario-specific reports use the `.full-browser-restart.json` suffix so these
 results do not replace the original16-check reports.
 
+`--own-activity-during-prepare` holds the first link activation during the fresh
+manual Web unlock, sends an ordinary browser keyboard event to that Web document,
+requires an accepted own activity API response and waits200ms before releasing
+the activation. The17-check scenario still requires the peer's actual unlock and
+Entry decryption. Only the response status is recorded; no auth/key state is
+injected. The `.own-activity-during-prepare.json` suffix separates these reports.
+An HTTP200 observation is not proof of the exact time the client applied the
+response. Deterministic coordinator tests separately pause preparation and crypto
+creation, notify own authority, and verify cancellation plus a fresh attempt.
+
 On Edge153.0.4234.32, the development `Extensions.loadUnpacked` installation was
 absent after browser restart. A separate account-free probe confirmed the native
 extension list contained the enabled artifact before closure and did not contain

@@ -22,11 +22,13 @@ assert(browserLabel === 'chromium' || browserExecutable, 'Branded browser requir
 const installViaCdp = process.argv.includes('--install-via-cdp')
 const headed = process.argv.includes('--headed')
 const fullBrowserRestart = process.argv.includes('--full-browser-restart')
+const ownActivityDuringPrepare = process.argv.includes('--own-activity-during-prepare')
 for (const url of [apiUrl, sesUrl]) assert(['localhost', '127.0.0.1'].includes(new URL(url).hostname), 'Isolated loopback services only')
 const webOrigin = 'http://127.0.0.1:5173', webDirectory = path.join(webSource, 'dist')
 const extension = path.resolve('dist/chromium'), output = path.resolve('test-results/shared-unlock-identity')
 const temporary = await mkdtemp(path.join(tmpdir(), 'palladin-identity-e2e-'))
 let context, server, mailServer, page, popup, stage = 'preflight'
+let ownActivityRequested = false, ownActivityObserved = false
 const checks = [], requests = []
 const progress = setInterval(() => console.log(`PROGRESS ${JSON.stringify({ stage, completedChecks: checks.length })}`), 10000)
 progress.unref()
@@ -55,6 +57,7 @@ const provenance = {
   distribution: 'local-unpacked', emailDelivery: 'local-ses-v2-fixture',
   delayedManualAuthorization: delayManualAuthorization,
   fullBrowserRestart,
+  ownActivityDuringPrepare,
 }
 const launchOptions = {
   ...(browserExecutable ? { executablePath: browserExecutable } : { channel: 'chromium' }), headless: !headed,
@@ -143,6 +146,22 @@ try {
     } catch {
       if (delayed) requests.push({ check: 'delayed-authorization-route-cancelled', elapsedMs: Math.round(performance.now() - started) })
     }
+  })
+  if (ownActivityDuringPrepare) await page.route(apiUrl + '/api/account/shared-unlock/links/*/activate', async route => {
+    if (stage === 'web-fresh-manual-unlock' && !ownActivityRequested) {
+      ownActivityRequested = true
+      try {
+        const activity = page.waitForResponse(response => response.url() === apiUrl + '/api/account/shared-unlock/authorizations/activity', { timeout: 1800 })
+        void activity.catch(() => {})
+        await page.keyboard.press('Shift')
+        ownActivityObserved = (await activity).status() === 200
+        requests.push({ check: 'own-source-activity-while-activation-held', accepted: ownActivityObserved })
+        // Let the client apply its own response before releasing the older
+        // activation request; receipt of HTTP headers alone is not application.
+        await new Promise(resolve => setTimeout(resolve, 200))
+      } catch { requests.push({ check: 'own-source-activity-while-activation-held', accepted: false }) }
+    }
+    try { await route.continue() } catch { /* The cancelled original preparation may retire this request. */ }
   })
   page.on('requestfailed', request => {
     const url = new URL(request.url())
@@ -244,6 +263,10 @@ try {
   await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
   await popup.waitText('Unlocked')
   checks.push('extension-automatically-unlocked-after-new-manual-authorization')
+  if (ownActivityDuringPrepare) {
+    assert(ownActivityRequested && ownActivityObserved, 'The actual own activity must be accepted while source preparation is pending')
+    checks.push('own-source-activity-does-not-strand-automatic-unlock')
+  }
   stage = 'extension-entry-list'
   await popup.waitText('Synthetic shared unlock proof')
   stage = 'extension-entry-decryption'
@@ -389,6 +412,6 @@ async function writeEvidence(kind, value) {
   const contents = JSON.stringify(value, null, 2)
   await writeFile(path.join(output, `${kind}.json`), contents)
   const version = String(provenance.browserVersion ?? 'launch').replace(/[^a-zA-Z0-9.-]/g, '_')
-  const scenario = fullBrowserRestart ? '.full-browser-restart' : ''
+  const scenario = (fullBrowserRestart ? '.full-browser-restart' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '')
   await writeFile(path.join(output, `${kind}.${browserLabel}-${version}${scenario}.json`), contents)
 }

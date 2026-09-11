@@ -661,3 +661,23 @@ manual authorization. One recorded authorization200 and activation200 while the
 extension stayed locked; its route continued after1502ms. The cause is not yet
 established. These failures remain open and are retained separately; no runtime
 timeout, assertion or cancellation boundary was weakened to obtain a pass.
+
+## Own source notifications and interrupted preparation — 2026-09-11
+
+Paired coordinator tests reproduce a separate deterministic failure: notifying
+own authority cancels an active source, but an unchanged account/key generation
+caused the subsequent state read to return without advertising a fresh selection.
+The consumed attempt could not resume. Both Web and Extension now force a fresh
+state/attempt after that cancellation. They still reject late work from the old
+attempt and do not create a source if the new authoritative state is locked,
+signed out or unavailable. Receiver publication and its single completion callback
+retain their existing fences. No crypto format, API or session limit changed.
+
+The new preparation regressions failed on both old coordinators before the fix.
+Each repository's21 coordinator cases now cover both directions, interrupted
+crypto creation, fresh attempt IDs, single handoff/completion and negative states.
+The optional native own-activity scenario also completed17 Edge checks on a new
+build, but both baseline comparisons subsequently completed17 checks too. Native
+HTTP response timing does not by itself prove when the client applied a renewal.
+Consequently this fix is not presented as conclusive resolution of the earlier
+intermittent Edge failure; the original reports and that investigation remain open.

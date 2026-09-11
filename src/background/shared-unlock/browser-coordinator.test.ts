@@ -100,6 +100,78 @@ describe("automatic browser account/link selection", () => {
     f.web.setState({ accountId, status: "unlocked", source: { organizationId, generation: operation.context.webGeneration } });
     await settle(); expect(f.extension.installed()).toBe(true); close();
   });
+  it.each(["web", "extension"] as const)("renegotiates after own %s authority notification cancels pending preparation", async role => {
+    const f = pair(role), source = f[role], recipient = f[role === "web" ? "extension" : "web"];
+    let release!: () => void;
+    let previousSignal!: AbortSignal;
+    vi.mocked(source.client.prepareSource).mockImplementationOnce(async (_account, _organization, _link, signal) => {
+      previousSignal = signal;
+      await new Promise<void>(resolve => { release = resolve; });
+      return { linkEpoch: operation.context.linkEpoch, preferenceRevision: operation.context.preferenceRevision };
+    });
+    const close = f.start();
+    try {
+      await settle(); expect(source.client.prepareSource).toHaveBeenCalledOnce();
+      for (const changed of source.watchers) changed();
+      expect(previousSignal.aborted).toBe(true);
+      release(); await settle();
+      expect(recipient.installed()).toBe(true);
+      expect(source.client.prepareSource).toHaveBeenCalledTimes(2);
+      expect(source.client.source).toHaveBeenCalledOnce();
+      expect(recipient.client.received).toHaveBeenCalledOnce();
+    } finally { close(); }
+  });
+  it.each(["web", "extension"] as const)("replaces an interrupted %s crypto offer with a fresh attempt", async role => {
+    const f = pair(role), source = f[role], recipient = f[role === "web" ? "extension" : "web"];
+    const original = source.client.source;
+    let release!: () => void;
+    let previousCheck!: () => void;
+    vi.mocked(source.client.source).mockImplementationOnce(async (...args) => {
+      previousCheck = args[2];
+      await new Promise<void>(resolve => { release = resolve; });
+      previousCheck(); return original(...args);
+    });
+    const close = f.start();
+    try {
+      await settle(); expect(source.client.source).toHaveBeenCalledOnce();
+      const oldPrepare = source.messages.find(message => message.payload.kind === "prepare")!;
+      for (const changed of source.watchers) changed();
+      expect(previousCheck).toThrow();
+      release(); await settle();
+      expect(recipient.installed()).toBe(true);
+      expect(recipient.client.received).toHaveBeenCalledOnce();
+      const prepares = source.messages.filter(message => message.payload.kind === "prepare");
+      expect(prepares).toHaveLength(2);
+      expect(prepares[1]!.attemptId).not.toBe(oldPrepare.attemptId);
+      expect(source.messages.filter(message => message.payload.kind === "handoff")).toHaveLength(1);
+    } finally { close(); }
+  });
+  it.each([
+    ["web", "locked"], ["extension", "locked"],
+    ["web", "signed-out"], ["extension", "signed-out"],
+    ["web", "unavailable"], ["extension", "unavailable"],
+  ] as const)("does not revive %s source preparation after authority becomes %s", async (role, status) => {
+    const f = pair(role), source = f[role], recipient = f[role === "web" ? "extension" : "web"];
+    let release!: () => void;
+    let previousSignal!: AbortSignal;
+    vi.mocked(source.client.prepareSource).mockImplementationOnce(async (_account, _organization, _link, signal) => {
+      previousSignal = signal;
+      await new Promise<void>(resolve => { release = resolve; });
+      return { linkEpoch: operation.context.linkEpoch, preferenceRevision: operation.context.preferenceRevision };
+    });
+    const close = f.start();
+    try {
+      await settle();
+      source.setState({ accountId: status === "signed-out" ? null : accountId,
+        status: status === "unavailable" ? "unlocked" : status, source: null });
+      expect(previousSignal.aborted).toBe(true);
+      release(); await settle();
+      expect(recipient.installed()).toBe(false);
+      expect(source.client.source).not.toHaveBeenCalled();
+      expect(source.client.prepareSource).toHaveBeenCalledOnce();
+      expect(recipient.client.received).not.toHaveBeenCalled();
+    } finally { close(); }
+  });
   it("does not start crypto while Web is still persisting its selected link", async () => {
     const f = pair("extension"); let resolve!: (id: string) => void;
     vi.mocked(f.web.client.selectLink).mockImplementation(() => new Promise(r => { resolve = r; }));

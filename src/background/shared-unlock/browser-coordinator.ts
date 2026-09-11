@@ -44,7 +44,7 @@ export function startSharedUnlockBrowserCoordinator(route: SharedUnlockCoordinat
   let stopped = false;
   let own: State | null = null, peer: State | null = null, selected: Link | null = null;
   let version = 0, ownRevision = 0;
-  let selectionRunning = false, refreshRunning = false, refreshAgain = false;
+  let selectionRunning = false, refreshRunning = false, refreshAgain = false, sourceRefreshNeeded = false;
   let attempted: string | null = null;
   let active: { id: string; direction: "source" | "receiver"; abort: AbortController;
     timer: ReturnType<typeof setTimeout>; binding: SharedUnlockSelectedBinding | null; prepared: (() => void) | null } | null = null;
@@ -158,10 +158,11 @@ export function startSharedUnlockBrowserCoordinator(route: SharedUnlockCoordinat
     try {
       const state = await client.readState(); assertCurrent();
       if (revision !== ownRevision) { refreshAgain = true; return; }
-      if (own && own.accountId === state.accountId && own.status === state.status
+      if (!sourceRefreshNeeded && own && own.accountId === state.accountId && own.status === state.status
         && own.source?.organizationId === state.source?.organizationId && (!state.source || own.generation === state.source.generation)) return;
       const stateId = await client.nonce(), generation = state.source?.generation ?? await client.nonce(); assertCurrent();
       if (revision !== ownRevision) { refreshAgain = true; return; }
+      sourceRefreshNeeded = false;
       version++; cancel(); selected = null; attempted = null;
       own = { kind: "state", stateId, generation, accountId: state.accountId, status: state.status,
         source: state.source ? { organizationId: state.source.organizationId } : null };
@@ -231,7 +232,16 @@ export function startSharedUnlockBrowserCoordinator(route: SharedUnlockCoordinat
     // Crypto offer/handoff/ACK frames belong to the one-shot transfer subscriber.
   };
   const unsubscribe = route.onOperation(message => { void receive(message).catch(fail); });
-  const unwatch = client.subscribe(() => { ownRevision++; if (active?.direction !== "receiver") cancel(); void refresh(); });
+  const unwatch = client.subscribe(() => {
+    ownRevision++;
+    if (active?.direction === "source") {
+      // Cancellation consumes the old selection; advertise a fresh state even
+      // when an own authority update keeps the same account/key generation.
+      sourceRefreshNeeded = true;
+      cancel();
+    }
+    void refresh();
+  });
   route.signal.addEventListener("abort", close, { once: true });
   void refresh();
   return { close, cancelPending: (accountId: string) => {
