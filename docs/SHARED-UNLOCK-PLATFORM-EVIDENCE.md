@@ -387,3 +387,39 @@ This extends the earlier channel proof to real Identity/MK/Entry and controlled
 background restart, not whole-browser shutdown. Firefox 140–152 compatibility,
 all OS/distribution/lifecycle variants, other platforms, expiry/tokenless/resume/
 key-use/mismatch and final review remain open. No full-matrix acceptance is claimed.
+
+## Firefox 140 document-marker candidate — 2026-09-11
+
+`tests/browser/shared-unlock-firefox-legacy-document.py` is a separate synthetic
+probe, with no Palladin account, keys, handoff or product adapter. Run with explicit
+`--firefox /path/to/firefox --geckodriver /path/to/geckodriver`; it accepts versions
+140–152 only, installs its temporary XPI from a retained file, owns a disposable
+profile and writes value-free evidence under ignored
+`test-results/shared-unlock-firefox-legacy-document/`.
+
+On Firefox **140.0 / geckodriver 0.37.1 / macOS 26.4.1 arm64**, seven observations
+passed. A browser-directed `tabs.sendMessage` to the current extension iframe
+returns its own RAM marker. Reloading that iframe at the same URL retains its
+frameId but changes its marker, so the previous marker no longer matches the
+current browser response. `scripting.executeScript` in the top document's
+ISOLATED world reads an extension-created RAM marker: child reload preserves it,
+top reload changes it, and setting the same global property in the page world
+does not replace it. Browser sender/frame parent/URL checks also run. Native
+document IDs are unavailable, confirming the current product adapter's gap.
+
+The earlier `runtime.getContexts` candidate does **not** cover this iframe:
+the API is unavailable in the unprivileged Web-accessible frame and the background
+query does not enumerate it. Mozilla's [Firefox 140 ExtensionParent source](https://github.com/mozilla-firefox/firefox/blob/FIREFOX_140_0_RELEASE/toolkit/components/extensions/ExtensionParent.sys.mjs)
+likewise leaves ContentScriptContextParent without a toExtensionContext mapping.
+Do not use a claimed context ID as authority for this route.
+
+The installed 140.0 archive was checked against Mozilla's published SHA512SUMS
+and its code signature verified (Mozilla team 43AQ936H96), BuildID20250616215311,
+source687d5aa108e077ad34dae793afa0c698c5767e30. These marker observations only
+establish a candidate primitive. The probe deliberately exposes synthetic
+observations to its test page; production document markers must stay private.
+No production fallback is added or approved here. Navigation during asynchronous
+reads, stale messages/Ports, removal, BFCache, lifecycle, handshake/pre-key-use
+binding, actual 140 Identity/MK/Entry and independent security review remain
+required before this can replace missing document IDs. The product still fails
+closed on 140–152.
