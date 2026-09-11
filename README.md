@@ -118,3 +118,8 @@ through a pull request to `main` with security-boundary tests.
 Licensed under [Apache-2.0](LICENSE). The license does not grant rights to
 Palladin names, logos, or browser-store identity; see
 [`TRADEMARKS.md`](TRADEMARKS.md).
+
+## Telemetry
+
+The extension ships without active analytics. Setting a project key or attaching
+a transport does not enable capture, identifiers or an event queue. See [telemetry policy](docs/TELEMETRY.md).

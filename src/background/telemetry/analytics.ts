@@ -1,20 +1,9 @@
 /**
- * Extension analytics — the `ex:` component of the Palladin
- * `{component}:{module}:{event}` convention (see root AGENTS.md → Analytics).
- *
- * `capture(module, event, props?)` builds `ex:{module}:{event}` and forwards it
- * to the active transport. Two hard rules, both enforced here:
- *   1. **UI-only, never `*-viewed`.** Screen/tab views are covered generically;
- *      the type makes an event name ending in `-viewed` a compile error.
- *   2. **No-op without a PostHog key.** With no key configured the call is a
- *      pure no-op — no network, no queue — so a dev build never phones home.
- *
- * The wire transport (HTTP capture) lands with the popup/analytics wiring
- * (CVT-375/376); today the default transport is a no-op and `capture` is a
- * typed, tested seam that other modules can already call.
+ * Reserved value-free analytics vocabulary. Extension telemetry is disabled.
+ * Neither a project key nor an injected transport can enable capture. A future
+ * release must implement an independently reviewed consent and withdrawal
+ * contract before changing this gate (see docs/TELEMETRY.md).
  */
-
-import { env } from "../config/env";
 
 export const ANALYTICS_COMPONENT = "ex" as const;
 
@@ -33,23 +22,20 @@ export interface AnalyticsEvent {
 
 export type AnalyticsTransport = (event: AnalyticsEvent) => void;
 
-let transport: AnalyticsTransport | null = null;
+export const EXTENSION_TELEMETRY_RELEASED = false as const;
 
-/**
- * Install the transport that actually delivers events (wired once the PostHog
- * capture client exists). Injectable so tests can observe emitted events.
- */
+/** Reserved compatibility seam: deliberately does not retain a transport. */
 export function setAnalyticsTransport(next: AnalyticsTransport | null): void {
-  transport = next;
+  void next;
 }
 
 export function buildEventName(module: string, event: string): string {
   return `${ANALYTICS_COMPONENT}:${module}:${event}`;
 }
 
-/** True when analytics can emit (a PostHog key is configured). */
+/** A key is configuration, never consent or release authorization. */
 export function isAnalyticsEnabled(): boolean {
-  return env.posthogKey.length > 0;
+  return EXTENSION_TELEMETRY_RELEASED;
 }
 
 export function capture<E extends string>(
@@ -57,6 +43,8 @@ export function capture<E extends string>(
   event: E & NonViewedEvent<E>,
   props?: AnalyticsProps,
 ): void {
-  if (!isAnalyticsEnabled() || transport === null) return;
-  transport(props ? { name: buildEventName(module, event), props } : { name: buildEventName(module, event) });
+  // No event object, identifiers, queue, storage access or network side effect.
+  void module;
+  void event;
+  void props;
 }

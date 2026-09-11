@@ -160,6 +160,11 @@ src/
 
 ## Analytics
 
+Extension telemetry is disabled at a hard release gate. A project key or
+injected transport never enables it. Future enablement requires an explicit
+consent/withdrawal contract and store declaration review; see
+`docs/TELEMETRY.md`. Autofill and synchronization remain independent.
+
 Follow the Palladin convention `{component}:{module}:{event}` with the extension
 component prefix **`ex`** (e.g. `ex:vault:autofill-used`,
 `ex:vault:credential-captured`). UI-only events; business logic is tracked by the

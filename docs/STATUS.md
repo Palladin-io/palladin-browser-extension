@@ -156,3 +156,8 @@ release candidates.
 Until every release gate is complete, documentation and UI must continue to use
 experimental language and must not ask users to trust the extension with real
 credentials.
+
+## Telemetry
+
+The extension ships without active analytics. Setting a project key or attaching
+a transport does not enable capture, identifiers or an event queue. See [telemetry policy](TELEMETRY.md).
