@@ -42,6 +42,15 @@ export class SharedUnlockSourceAuthority {
       authorization: this.state.authorization ? { ...this.state.authorization } : null };
   }
 
+  /** Fresh authenticated preference for this existing own generation. This
+   * cannot manufacture a root, re-enable an older revision or renew its limits. */
+  acceptPreference(preference: SharedUnlockPreference, sourceGeneration: string): void {
+    const current = this.snapshot();
+    if (!current.authorization || current.sourceGeneration !== sourceGeneration) throw new SharedUnlockApiError("cancelled");
+    if (current.preference && preference.revision < current.preference.revision) return;
+    this.state = { ...this.state, preference: { sharedUnlockEnabled: preference.sharedUnlockEnabled, revision: preference.revision } };
+  }
+
   /** Failed preparation disables sharing, while SessionManager may unlock itself. */
   async prepare(context: ManualUnlockContext): Promise<SharedUnlockAuthorization | null> {
     this.reset();

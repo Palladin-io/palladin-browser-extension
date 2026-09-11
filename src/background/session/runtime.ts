@@ -10,6 +10,7 @@ import { AuthClient } from "./auth-client";
 import { AutoLock, type AlarmScheduler } from "./auto-lock";
 import { SessionManager } from "./session-manager";
 import { SharedUnlockApi } from "../shared-unlock/api";
+import { SharedUnlockLinkStore } from "../shared-unlock/link-store";
 import { SharedUnlockSourceAuthority } from "../shared-unlock/source-authority";
 import { SessionStore, type StorageArea } from "./session-store";
 
@@ -42,6 +43,8 @@ const runtimeClientId = typeof chrome === "undefined"
 export const sessionAutoLock = new AutoLock(alarms, () => {
   void manager.lock();
 });
+
+export const sharedUnlockLinks = new SharedUnlockLinkStore(durableStorageArea);
 
 export const sharedUnlockSource = new SharedUnlockSourceAuthority(
   new SharedUnlockApi((...args) => fetch(...args), () => serverConfig.apiUrl),

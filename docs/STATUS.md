@@ -30,6 +30,12 @@ its own live session and authority, verifies the receiver immediately before
 synchronous send, and cancels on local lifecycle or token rotation. It does not
 renew activity or persist keys.
 
+A worker-owned nonsensitive link store now retains one exact scoped ID, known
+barriers and pending closing decisions through session logout/restart. Source
+preparation rechecks current Identity preference and link before activation;
+local pending actions/revocation stop it. Browser dispatch, delivery of closing
+intents and explicit reconnect are still pending integration.
+
 Manual login/password unlock now prepares fresh own Identity authority, including
 TOTP proof cleanup and failure fallback. These components are not yet connected to
 the browser messaging runtime. Verified Web/Extension routing, inherited source/own activity handling, durable link/preference

@@ -82,3 +82,30 @@ describe("manual authority cancellation", () => {
     expect(source.snapshot().authorization).toBeNull();
   });
 });
+
+it("accepts a fresh own preference without changing root, generation or deadlines", async () => {
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ sharedUnlockEnabled: false, revision: 3 }))
+    .mockResolvedValueOnce(response(authorization));
+  const source = new SharedUnlockSourceAuthority(new SharedUnlockApi(fetcher, () => apiUrl), () => authorization.unlockedAtMs + 1);
+  await source.prepare(makeContext());
+  const before = source.snapshot();
+  source.acceptPreference({ sharedUnlockEnabled: true, revision: 4 }, before.sourceGeneration!);
+  expect(source.snapshot()).toEqual({ ...before, preference: { sharedUnlockEnabled: true, revision: 4 } });
+  source.acceptPreference({ sharedUnlockEnabled: false, revision: 5 }, before.sourceGeneration!);
+  source.acceptPreference({ sharedUnlockEnabled: true, revision: 4 }, before.sourceGeneration!);
+  expect(source.snapshot()).toEqual({ ...before, preference: { sharedUnlockEnabled: false, revision: 5 } });
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});
+
+it("cannot manufacture or replace own source authority by accepting a preference", async () => {
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ sharedUnlockEnabled: true, revision: 3 }))
+    .mockResolvedValueOnce(response(authorization));
+  const source = new SharedUnlockSourceAuthority(new SharedUnlockApi(fetcher, () => apiUrl), () => authorization.unlockedAtMs + 1);
+  expect(() => source.acceptPreference({ sharedUnlockEnabled: true, revision: 3 }, "other")).toThrow();
+  await source.prepare(makeContext());
+  const before = source.snapshot();
+  expect(() => source.acceptPreference({ sharedUnlockEnabled: false, revision: 4 }, "other")).toThrow();
+  expect(source.snapshot()).toEqual(before);
+  source.reset();
+  expect(() => source.acceptPreference({ sharedUnlockEnabled: true, revision: 5 }, before.sourceGeneration!)).toThrow();
+});

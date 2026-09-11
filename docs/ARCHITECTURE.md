@@ -507,3 +507,41 @@ Source tests use real SDK and SessionManager with mocked Identity/root preparati
 including actual token rotation cancelling an already pending operation. They
 recover Member/Vault keys and decrypt a synthetic Entry primitive; they do not
 wire browser dispatch or establish inherited-source/link/preference authority.
+
+
+`shared-unlock/link-store.ts` persists one nonsensitive marker per exact API/Web
+origin/extension ID/account in worker-owned local storage. It allocates the link
+ID before Identity creation and reuses it after failure/restart. Existing different
+IDs and malformed persisted records are unavailable, never new first use. Ordinary
+session logout does not erase these markers. Backend response projection writes
+only known link fields; structural validation applies to persisted bytes, not to
+authenticated first-party response business rules.
+
+The marker retains last observed Identity link state plus at most two pending
+closing intents: lock or the stronger logout, and an independent disconnect.
+Disconnect cannot replace logout. A separate local disconnect ID survives newer
+active server observations; only the exact explicit reconnect receipt may clear
+it, provided no newer closing decision invalidated the attempt. A receipt clears only its exact intent ID;
+older observations cannot regress a previously accepted revision or clear newer
+pending actions. Writes are serialized by the one worker. The caller must cancel
+local work before awaiting persistence/network. A failed write remains retained
+in worker memory and blocks all normal reads/activation until the exact write
+is repaired; stronger closing actions can still be retained during that repair.
+Only successful persistence proves survival across worker termination. These records contain no keys, token,
+password proof, operation envelope, source generation or deadlines.
+
+`shared-unlock/prepare-link.ts` uses an existing own source session/root, verifies
+the browser, fetches the current preference and reads or creates the same Identity
+link before activation. Pending closing intent, retained revocation and disappearance
+of an already known link prevent automatic activation. Each asynchronous boundary
+checks the own session/root, current preference, route and 30-second deadline;
+final browser verification also rechecks locally accepted link revision/intents.
+It uses the authenticated activate endpoint for fresh root binding; it does not
+reconstruct backend authorization rules. Preference refresh changes only the
+existing own generation's preference and cannot renew its root or deadlines.
+
+The runtime owns the durable store but browser operation dispatch does not yet
+invoke it. Closing-intent delivery/reconciliation, explicit reconnect and Web
+marker coordination remain to be wired with shared actions/settings. Tests prove
+storage/Identity preparation boundaries using mock Identity and real SessionManager,
+not automatic unlock or full browser lifecycle acceptance.
