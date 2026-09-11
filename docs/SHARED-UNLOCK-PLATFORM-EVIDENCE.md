@@ -105,3 +105,64 @@ must verify the source/recipient generations, account/environment, one-time
 Identity operation and current link/limits. A stable marker or a peer's payload
 cannot replace those checks. Actual handoff, Identity bootstrap, cancellation,
 lifecycle, settings and all supported browser/OS artifact tests remain outstanding.
+
+## Firefox manifest-resource candidate - 2026-09-11
+
+A new **research probe**, not an approved runtime adapter, tests whether the Web
+can relate a Firefox-generated resource origin to the configured Gecko ID by
+fetching the canonical `/manifest.json` directly from that `moz-extension:` origin.
+Candidate URLs/claimed IDs and `runtime.getManifest()` relayed by the peer are
+not authority. The tested Web fixes the resource path itself, uses no cookies,
+rejects redirects and compares the retrieved Gecko ID with an independent fixed
+expected ID; it also records the browser-authored origin/source of an extension
+iframe. The product manifest, permissions and shared-unlock routes are unchanged.
+
+Run with Python 3 (standard library only), an official Firefox binary and a
+matching Mozilla geckodriver supplied explicitly:
+
+```sh
+npm run test:browser:shared-unlock-firefox-boundary -- \
+  --firefox /path/to/firefox --geckodriver /path/to/geckodriver
+```
+
+The command starts its own localhost WebDriver and disposable headless profile,
+installs two synthetic temporary add-ons, and cleans up the browser/driver. It
+never connects to Palladin or opens a user's existing browser profile. Fixtures,
+hashes, observations and browser/driver/platform versions are recorded under
+ignored `test-results/shared-unlock-firefox-boundary/`. A new run first removes
+the previous success report; assertions must pass before a new report is written.
+
+The other add-on claims the expected ID and supplies a URL to a fake manifest.
+The Web instead fetches the canonical root manifest, sees the browser-installed
+other ID and rejects it. Both add-ons attempt webRequest/DNR interception of their
+own manifest; a second direct fetch checks the result after those attempts. An
+extension-page service-worker attempt and an unlisted Web origin are also checked.
+These narrow cases do not prove every possible resource substitution or package
+loading edge case.
+
+The first local observation used **Firefox 155.0.1 / geckodriver 0.37.1 on macOS
+arm64**, with Mozilla's archive SHA-512 and the app's Apple Developer ID signature
+verified before execution. The standalone pre-harness observation accepted the
+expected-ID add-on and rejected the wrong-ID add-on; both interception APIs
+registered but observed no manifest request, and the extension page had no
+service-worker API. The checked-in harness adds wrong-resource and unlisted-origin
+assertions; the final checked-in harness also passed both IDs, wrong-resource,
+interception and unlisted-origin checks on that same browser/OS. The ignored
+report records the exact fixture hashes and versions; no runtime gate is enabled.
+
+**Open security question:** establish that the browser's install-time ID and the
+canonical resource manifest cannot diverge through supported extension mechanisms
+in every supported Firefox version/distribution. Direct resource loading is a
+candidate independent browser boundary, not an assumption that package metadata
+is trustworthy. Unpacked filesystem tampering, alias/duplicate manifest parsing,
+packaged-resource resolution and lifecycle changes require explicit assessment.
+No MK, backend session, production allow-list, trust-contract change or Firefox
+feature acceptance follows from this probe. The accepted no-native-broker scope
+and same-ID/profile-compromise exclusion remain unchanged.
+
+Primary references checked for this candidate:
+
+- [Mozilla web-accessible resources](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/web_accessible_resources): browser resource schemes, per-instance UUIDs and explicit resource exposure.
+- [Mozilla browser-specific settings](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/browser_specific_settings): Gecko ID in the extension manifest.
+- [Firefox ExtensionProtocolHandler](https://github.com/mozilla-firefox/firefox/blob/88fa72d2f463129e64c2eb5c5227ef20b5c08574/netwerk/protocol/res/ExtensionProtocolHandler.cpp): browser-side extension resource resolution; inference about this candidate still needs installed-artifact proof.
+- [Firefox WebRequest](https://github.com/mozilla-firefox/firefox/blob/88fa72d2f463129e64c2eb5c5227ef20b5c08574/toolkit/components/extensions/webrequest/WebRequest.sys.mjs): request interception implementation; does not by itself prove the absence of every alternate modification path.
