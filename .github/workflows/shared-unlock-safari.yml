@@ -12,6 +12,7 @@ on:
       - scripts/**
       - package.json
       - package-lock.json
+      - vite.config.ts
   workflow_dispatch:
 
 permissions:
