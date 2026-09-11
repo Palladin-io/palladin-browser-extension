@@ -19,6 +19,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--driver-url', default='http://127.0.0.1:55187')
 parser.add_argument('--prepare-only', action='store_true')
 parser.add_argument('--ci-screenshot-on-failure', action='store_true')
+parser.add_argument('--background-kind', choices=['classic-worker', 'module-worker', 'document'], default='module-worker')
 args = parser.parse_args()
 if args.ci_screenshot_on_failure:
     assert os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted', 'Screenshots only on disposable GitHub-hosted runners'
@@ -27,10 +28,15 @@ out = Path('test-results/shared-unlock-safari-boundary').resolve()
 fixture = out / 'fixture'
 fixture.mkdir(parents=True, exist_ok=True)
 origin = 'http://127.0.0.1:55189'
+background = {'service_worker': 'background.js'}
+if args.background_kind == 'module-worker':
+    background['type'] = 'module'
+elif args.background_kind == 'document':
+    background = {'scripts': ['background.js'], 'persistent': False}
 manifest = {'manifest_version': 3, 'name': 'Synthetic shared unlock boundary', 'version': '1.0.0',
     'permissions': ['tabs', 'webNavigation', 'scripting'], 'host_permissions': [origin + '/*'],
     'externally_connectable': {'matches': ['http://127.0.0.1/*']},
-    'background': {'service_worker': 'background.js'},
+    'background': background,
     'browser_specific_settings': {'safari': {'strict_min_version': '16.4'}}}
 (fixture / 'manifest.json').write_text(json.dumps(manifest, indent=2))
 (fixture / 'background.js').write_text('''
@@ -118,7 +124,7 @@ def request(method, path, body=None):
 session = None
 server = None
 checks = []
-observations = {}
+observations = {'backgroundKind': args.background_kind}
 stage = 'session'
 for name in ['report.json', 'failure.json']:
     (out / name).unlink(missing_ok=True)

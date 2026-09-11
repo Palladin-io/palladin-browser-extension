@@ -15,12 +15,18 @@ jobs:
   safari-boundary:
     runs-on: macos-26
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        background: [classic-worker, module-worker, document]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
       - name: Observe native Safari extension boundary
         shell: bash
+        env:
+          SAFARI_FIXTURE_BACKGROUND: ${{ matrix.background }}
         run: |
           set -euo pipefail
           mkdir -p test-results/shared-unlock-safari-boundary
@@ -41,12 +47,12 @@ jobs:
           else:
               raise SystemExit('SafariDriver did not start')
           PY
-          python3 tests/browser/shared-unlock-safari-boundary.py --ci-screenshot-on-failure
+          python3 tests/browser/shared-unlock-safari-boundary.py --ci-screenshot-on-failure --background-kind "$SAFARI_FIXTURE_BACKGROUND"
       - name: Retain synthetic Safari observations
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: shared-unlock-safari-boundary
+          name: shared-unlock-safari-boundary-${{ matrix.background }}
           path: test-results/shared-unlock-safari-boundary/
           if-no-files-found: error
           retention-days: 7
