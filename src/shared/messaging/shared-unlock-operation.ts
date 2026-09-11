@@ -25,6 +25,8 @@ const envelope = z.object({ protocol: z.literal("palladin.shared-unlock.v1"), su
 const payloadSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("link-invalidated") }).strict(),
   z.object({ kind: z.literal("preference-invalidated") }).strict(),
+  z.object({ kind: z.literal("link-reconnect"), accountId: uuid, linkId: uuid, reconnectRevision: uint }).strict(),
+  z.object({ kind: z.literal("link-reconnect-ack"), accountId: uuid, linkId: uuid, reconnectRevision: uint }).strict(),
   z.object({ kind: z.literal("state"), stateId: key, accountId: uuid.nullable(),
     status: z.enum(["signed-out", "locked", "unlocked"]), generation: key,
     source: z.object({ organizationId: uuid }).strict().nullable() }).strict(),

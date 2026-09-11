@@ -1,5 +1,6 @@
 import { sharedUnlockPreferences } from './preference-state-runtime'
-import { startSharedUnlockPreferenceMonitor } from './preference-monitor'
+import { startSharedUnlockPreferenceMonitor, type SharedUnlockPreferenceMonitorClient } from './preference-monitor'
+import { startSharedUnlockReconnectMonitor } from './reconnect-monitor'
 import { randomBytes, toBase64Url, wipe } from "@palladin/crypto";
 import { serverConfig } from "../config/server-runtime";
 import { sessionManager, sharedUnlockLinks, sharedUnlockSource, sharedUnlockExpiry, sharedUnlockPreferenceGate } from "../session/runtime";
@@ -101,7 +102,7 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
       }
     } finally { coordinator.cancelPending(change.scope.accountId) }
   });
-  const preferenceMonitor = startSharedUnlockPreferenceMonitor(route, {
+  const preferenceClient: SharedUnlockPreferenceMonitorClient = {
     nonce,
     subscribe: changed => {
       const removers = [sessionManager.hooks.onLocked(changed), sessionManager.hooks.onUnlocked(changed)];
@@ -114,6 +115,8 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
           assertCurrent: () => { captured.read(); }, dispose: () => captured.dispose() };
       } catch (error) { captured.dispose(); throw error; }
     },
-  }, sharedUnlockPreferences, api);
-  return { close: () => { unsubscribeGate(); unsubscribePreferences(); preferenceMonitor.close(); coordinator.close(); monitor.close(); } };
+  }
+  const preferenceMonitor = startSharedUnlockPreferenceMonitor(route, preferenceClient, sharedUnlockPreferences, api)
+  const reconnectMonitor = startSharedUnlockReconnectMonitor(route, preferenceClient, sharedUnlockLinks, api, accountId => coordinator.cancelPending(accountId));
+  return { close: () => { unsubscribeGate(); unsubscribePreferences(); preferenceMonitor.close(); reconnectMonitor.close(); coordinator.close(); monitor.close(); } };
 }
