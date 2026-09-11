@@ -56,17 +56,17 @@ export async function verifyAuthorizationRateLimitRetry({ page, popup, apiUrl,
     setStage('authorization-rate-limit-server-cooldown')
     const retryAt = deniedAt + seconds * 1000 + 1000
     while (Date.now() < retryAt) {
+      assert.equal(await page.locator('#unlock-password').isVisible(), false,
+        'A fresh 15-minute own Web session must not relock during a <=60-second limiter window')
+      await waitForWebEntryPassword(page, entryPassword)
       assert(await popup.revealDeniedWhileLocked(vaultId, entryId), 'Peer must stay locked throughout the server cooldown')
       await new Promise(resolve => setTimeout(resolve, Math.min(500, retryAt - Date.now())))
     }
     assert.equal(authorizationRequests, requestCountAtDenial, 'No automatic replay of the rejected password proof')
-    recordCheck('server-retry-after-elapses-without-proof-replay-or-peer-key-use')
+    await waitForWebEntryPassword(page, entryPassword)
+    recordCheck('server-retry-after-preserves-web-decryption-without-proof-replay-or-peer-key-use')
     setStage('authorization-rate-limit-prepare-fresh-retry')
-    // The server cooldown can exceed this client's own idle timeout. Honor
-    // that lock instead of attempting to click a now-absent Lock control.
-    const alreadyLocked = await page.locator('#unlock-password').isVisible()
-    recordRequest({ check: 'web-own-idle-lock-before-rate-limit-retry', alreadyLocked })
-    if (!alreadyLocked) await lock()
+    await lock()
     await popup.waitButton('Unlock')
     assert(await popup.revealDeniedWhileLocked(vaultId, entryId), 'Peer must remain locked before the fresh retry')
     setStage('authorization-rate-limit-submit-fresh-retry')

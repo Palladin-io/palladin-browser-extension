@@ -1,3 +1,4 @@
+import type { SharedUnlockManualLockCheckpoint } from './manual-lock-checkpoint';
 import { SharedUnlockSourceAuthority } from "./source-authority";
 import fixtures from "./fixtures/session-api-v1.json";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,7 +17,7 @@ async function setup(authority?: SharedUnlockSourceAuthority, rootless = false) 
   const store = new SharedUnlockLinkStore(storage, () => crypto.randomUUID());
   const scope = { accountId, apiUrl: "https://api.test", webOrigin: "https://web.test", extensionId: "a".repeat(32) };
   await store.adopt(scope, linkId);
-  const state = { unlocked: !rootless, authenticated: true, action: "none" as "none" | "lock" | "logout", generation: 1, sequence: 7,
+  const state = { unlocked: !rootless, authenticated: true, action: "none" as "none" | "lock" | "logout", generation: 1, sequence: 7, manualLockCheckpoints: null as readonly SharedUnlockManualLockCheckpoint[] | null,
     link: { linkId, revision: 2, epoch: 2, state: "active", lastInvalidationSequence: 0, lastLogoutSequence: 0 } as SharedUnlockLink };
   const listeners = new Set<(message: SharedUnlockOperationMessage) => void>(), watchers = new Set<() => void>();
   const routeAbort = new AbortController();
@@ -34,7 +35,7 @@ async function setup(authority?: SharedUnlockSourceAuthority, rootless = false) 
       if (authority && !witness) return null;
       const generation = state.generation, abort = new AbortController();
       return { session: { apiUrl: scope.apiUrl, userId: accountId, accessToken: "own-access", refreshToken: "own-refresh" },
-        sequence: rootless ? undefined : witness?.sequence ?? state.sequence, signal: abort.signal, dispose: () => { disposed(); abort.abort(); },
+        manualLockCheckpoints: state.manualLockCheckpoints, sequence: rootless ? undefined : witness?.sequence ?? state.sequence, signal: abort.signal, dispose: () => { disposed(); abort.abort(); },
         assertCurrent: () => { if ((authority && authority.closingWitness()?.authorizationId !== witness?.authorizationId) || !state.authenticated || (!rootless && !state.unlocked) || state.generation !== generation) throw new Error("own changed"); } };
     }, closeSession,
   }, store, new SharedUnlockApi(fetcher, () => scope.apiUrl));
@@ -162,3 +163,26 @@ describe("own Identity session repair without a local root", () => {
     expect(f.fetcher).not.toHaveBeenCalled(); expect(f.closeSession).not.toHaveBeenCalled(); f.close();
   });
 });
+
+
+it.each(['newer-lock', 'logout', 'different-link', 'missing-link'] as const)(
+  'acknowledges only the prior own manual lock through polling and still applies %s', async change => {
+    const f = await setup(undefined, true)
+    try {
+      await tick()
+      f.state.unlocked = true
+      f.state.action = 'lock'
+      f.state.link = { ...f.state.link, lastInvalidationSequence: 3 }
+      f.state.manualLockCheckpoints = [{ linkId, lastInvalidationSequence: 3 }]
+      f.emit()
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(f.closeSession).not.toHaveBeenCalled()
+      expect(f.state.unlocked).toBe(true)
+      if (change === 'newer-lock') f.state.link = { ...f.state.link, lastInvalidationSequence: 4 }
+      else if (change === 'logout') f.state.action = 'logout'
+      else if (change === 'different-link') f.state.link = { ...f.state.link, linkId: '33333333-3333-4333-8333-333333333333' }
+      else f.fetcher.mockImplementation(async () => new Response(JSON.stringify({ action: 'lock', link: null })))
+      f.emit(); await vi.advanceTimersByTimeAsync(1000)
+      expect(f.closeSession).toHaveBeenCalledExactlyOnceWith(change === 'logout' ? 'logout' : 'lock')
+    } finally { f.close() }
+  })

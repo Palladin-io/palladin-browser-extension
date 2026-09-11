@@ -3,6 +3,7 @@ import type { ManualUnlockContext } from "../session/manual-unlock";
 import type { SharedUnlockApiErrorCode } from "./api";
 import { SharedUnlockApi, SharedUnlockApiError } from "./api";
 import type { SharedUnlockAuthorization, SharedUnlockPreference } from "./api-types";
+import type { SharedUnlockManualLockCheckpoint } from './manual-lock-checkpoint';
 
 export interface SharedUnlockSourceState {
   readonly preference: SharedUnlockPreference | null;
@@ -20,10 +21,15 @@ export class SharedUnlockSourceAuthority {
   private checkSession: (() => void) | null = null;
 
   constructor(private readonly api: SharedUnlockApi, private readonly now: () => number = Date.now,
-    private readonly beforeAuthorize?: (session: ManualUnlockContext["tokens"], signal: AbortSignal, check: () => void) => Promise<void>,
+    private readonly beforeAuthorize?: (session: ManualUnlockContext["tokens"], signal: AbortSignal, check: () => void) => Promise<readonly SharedUnlockManualLockCheckpoint[] | void>,
     private readonly onAuthorized?: (authorization: SharedUnlockAuthorization, session: ManualUnlockContext["tokens"]) => void | number | Promise<number>) {}
 
   private closingRoot: { authorizationId: string; sequence: number; sourceGeneration: string } | null = null;
+  private manualLocks: readonly SharedUnlockManualLockCheckpoint[] | null = null;
+  manualLockCheckpoints(): readonly SharedUnlockManualLockCheckpoint[] | null {
+    try { this.checkSession?.(); } catch { this.reset(); }
+    return this.manualLocks;
+  }
   /** RAM-only closing witness for this own key generation. Expiry removes sharing
    * authority, but must not disable authenticated lock/logout repair. */
   closingWitness() {
@@ -96,6 +102,7 @@ export class SharedUnlockSourceAuthority {
 
   reset(): void {
     this.closingRoot = null;
+    this.manualLocks = null;
     this.activities.clear();
     this.version += 1;
     this.controller?.abort();
@@ -152,8 +159,12 @@ export class SharedUnlockSourceAuthority {
       const bytes = await randomBytes(32);
       const generation = toBase64Url(bytes); wipe(bytes);
       check();
-      await this.beforeAuthorize?.(context.tokens, controller.signal, check);
+      const priorLocks = await this.beforeAuthorize?.(context.tokens, controller.signal, check);
       check();
+      // Authenticated closing boundary of this verified manual attempt. A later
+      // lock still wins even if sharing authorization fails or remains pending.
+      this.manualLocks = Object.freeze((priorLocks ?? []).map(lock => Object.freeze({ ...lock })));
+      this.checkSession = context.assertCurrent;
       const preference = await this.api.readPreference(context.tokens, controller.signal);
       check();
       this.state = { preference, authorization: null, sourceGeneration: null, failure: null };
@@ -176,6 +187,7 @@ export class SharedUnlockSourceAuthority {
       if (persistedDeadline !== undefined) authorization = { ...authorization, idleDeadlineMs: Math.min(authorization.idleDeadlineMs, persistedDeadline) };
       check();
       this.closingRoot = { authorizationId: authorization.authorizationId, sequence: authorization.sequence, sourceGeneration: generation };
+      this.manualLocks = null;
       this.checkSession = context.assertCurrent;
       this.state = { preference, authorization, sourceGeneration: generation, failure: null };
       return authorization;

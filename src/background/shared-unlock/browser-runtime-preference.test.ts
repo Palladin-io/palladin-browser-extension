@@ -17,7 +17,7 @@ vi.mock('../session/runtime', async () => {
     captureSharedUnlockSettingsSession: vi.fn(), captureSharedUnlockSource: vi.fn(), lock: vi.fn(), logout: vi.fn(),
   },
   sharedUnlockSource: { snapshot: () => ({ authorization: null, preference: null, sourceGeneration: null }),
-    closingWitness: () => null, subscribe: () => () => {} },
+    closingWitness: () => null, manualLockCheckpoints: () => null, subscribe: () => () => {} },
   sharedUnlockLinks: new SharedUnlockLinkStore({ get: async () => structuredClone(values), set: async items => { Object.assign(values, structuredClone(items)) }, remove: async () => {} }), sharedUnlockExpiry: {}, sharedUnlockPreferenceGate: { subscribe: () => () => {}, isAllowed: async () => true, assertAllowed: () => {} },
 }) })
 const scope = { apiUrl: 'https://api.test', accountId: '11111111-1111-4111-8111-111111111111' }

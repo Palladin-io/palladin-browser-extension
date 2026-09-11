@@ -277,3 +277,44 @@ it("rejects in-flight activity after a local restriction and retains closing rep
   expect(() => source.captureActivity()).toThrow();
   expect(source.closingWitness()).toEqual(witness);
 });
+
+
+it('keeps only the authenticated prior lock checkpoint after 429 and retires it with the own key generation', async () => {
+  const prior = { linkId: '22222222-2222-4222-8222-222222222222', lastInvalidationSequence: 3 }
+  const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ sharedUnlockEnabled: true, revision: 1 }))
+    .mockResolvedValueOnce(response({}, 429))
+  let current = true
+  const own = makeContext()
+  own.assertCurrent = () => { if (!current) throw new Error('own generation retired') }
+  const source = new SharedUnlockSourceAuthority(new SharedUnlockApi(fetcher, () => apiUrl),
+    () => authorization.unlockedAtMs + 1, async () => [prior])
+  await source.prepare(own)
+  expect(source.manualLockCheckpoints()).toEqual([prior])
+  expect(source.manualLockCheckpoints()?.[0]).not.toBe(prior)
+  expect(source.closingWitness()).toBeNull()
+  expect(source.snapshot()).toMatchObject({ authorization: null, sourceGeneration: null })
+  expect(() => source.captureActivity()).toThrow()
+  expect(own.authCredential).toEqual(new Uint8Array(32))
+  expect(fetcher).toHaveBeenCalledTimes(2)
+  current = false
+  expect(source.manualLockCheckpoints()).toBeNull()
+})
+
+it('does not retain a checkpoint when its authenticated read fails or the own generation changes during the read', async () => {
+  for (const reason of ['read-failed', 'generation-changed'] as const) {
+    let current = true
+    const own = makeContext()
+    own.assertCurrent = () => { if (!current) throw new Error('own generation retired') }
+    const fetcher = vi.fn<typeof fetch>()
+    const source = new SharedUnlockSourceAuthority(new SharedUnlockApi(fetcher, () => apiUrl), Date.now, async () => {
+      if (reason === 'read-failed') throw new Error('offline')
+      current = false
+      return [{ linkId: '22222222-2222-4222-8222-222222222222', lastInvalidationSequence: 3 }]
+    })
+    await source.prepare(own)
+    expect(source.manualLockCheckpoints()).toBeNull()
+    expect(source.closingWitness()).toBeNull()
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(own.authCredential).toEqual(new Uint8Array(32))
+  }
+})

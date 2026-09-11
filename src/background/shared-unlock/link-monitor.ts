@@ -2,11 +2,13 @@ import type { SharedUnlockCoordinatorRoute } from "./browser-coordinator";
 import { SharedUnlockApi } from "./api";
 import { subscribeSharedUnlockLinkChanges, type SharedUnlockClosingSession } from "./closing";
 import { SharedUnlockLinkStore } from "./link-store";
+import type { SharedUnlockManualLockCheckpoint } from './manual-lock-checkpoint';
 
 export interface SharedUnlockLinkMonitorClient {
   nonce(): Promise<string>;
   subscribe(changed: () => void): () => void;
   capture(): { session: SharedUnlockClosingSession; sequence: number | undefined; signal: AbortSignal;
+    manualLockCheckpoints?: readonly SharedUnlockManualLockCheckpoint[] | null;
     assertCurrent(): void; dispose(): void } | null;
   closeSession(action: "lock" | "logout"): Promise<void>;
 }
@@ -56,7 +58,11 @@ export function startSharedUnlockLinkMonitor(route: SharedUnlockCoordinatorRoute
           action: sequence <= link.lastLogoutSequence ? "logout" as const
             : sequence <= link.lastInvalidationSequence ? "lock" as const : "none" as const }));
       check();
-      const { link } = state, action = state.action === "none" ? null : state.action;
+      const { link } = state;
+      const acknowledgedManualLock = sequence === undefined && state.action === 'lock' && link
+        && captured.manualLockCheckpoints?.some(prior => prior.linkId === marker.linkId && prior.linkId === link.linkId
+          && link.lastInvalidationSequence <= prior.lastInvalidationSequence);
+      const action = state.action === "none" || acknowledgedManualLock ? null : state.action;
       if (action) {
         // Invoke the synchronous local wipe before any durable observation wait.
         const closed = client.closeSession(action);

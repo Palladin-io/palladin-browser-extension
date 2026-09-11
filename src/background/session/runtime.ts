@@ -20,6 +20,7 @@ import { deliverSharedUnlockClosings, flushSharedUnlockClosings } from "../share
 import { SharedUnlockApi } from "../shared-unlock/api";
 import { SharedUnlockLinkStore } from "../shared-unlock/link-store";
 import { SharedUnlockSourceAuthority } from "../shared-unlock/source-authority";
+import { readManualLockCheckpoint, type SharedUnlockManualLockCheckpoint } from '../shared-unlock/manual-lock-checkpoint';
 import { SessionStore, type StorageArea } from "./session-store";
 
 // Only the password-sealed session envelope and policy metadata are durable.
@@ -63,9 +64,12 @@ const linkScopes = (accountId: string, apiUrl: string) => __PALLADIN_SHARED_UNLO
 export const sharedUnlockSource = new SharedUnlockSourceAuthority(sharingApi, Date.now,
   async (session, signal, check) => {
     if (!await sharedUnlockPreferenceGate.isAllowed({ accountId: session.userId, apiUrl: session.apiUrl })) return;
+    const checkpoints: SharedUnlockManualLockCheckpoint[] = [];
     for (const scope of linkScopes(session.userId, session.apiUrl)) {
       await flushSharedUnlockClosings(scope, session, sharedUnlockLinks, sharingApi, signal, () => { check(); sharedUnlockPreferenceGate.assertAllowed(scope); });
+      checkpoints.push(...await readManualLockCheckpoint(scope, session, sharedUnlockLinks, sharingApi, signal, check));
     }
+    return checkpoints;
   }, (root, session) => {
     const scope = { accountId: session.userId, apiUrl: session.apiUrl };
     sharedUnlockExpiry.remember(scope, root.sequence);
