@@ -27,7 +27,8 @@
     "test:watch": "vitest",
     "test:browser:capture": "node tests/browser/credential-capture.mjs",
     "test:browser:shared-unlock-platform": "node tests/browser/shared-unlock-platform-probe.mjs",
-    "test:browser:shared-unlock-firefox-boundary": "python3 tests/browser/shared-unlock-firefox-boundary.py"
+    "test:browser:shared-unlock-firefox-boundary": "python3 tests/browser/shared-unlock-firefox-boundary.py",
+    "test:browser:shared-unlock-chromium-channel": "node tests/browser/shared-unlock-chromium-channel.mjs"
   },
   "dependencies": {
     "@microsoft/signalr": "10.0.0",

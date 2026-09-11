@@ -20,6 +20,7 @@ interface Manifest {
     scripts?: string[];
     type?: string;
   };
+  externally_connectable?: { ids: string[]; matches: string[]; accepts_tls_channel_id: boolean };
   permissions?: string[];
   optional_permissions?: string[];
   host_permissions?: string[];
@@ -198,5 +199,21 @@ describe("buildManifest (safari)", () => {
 
   it("does not expose installed-extension discovery on Safari", () => {
     expect(manifest.optional_permissions).toBeUndefined();
+  });
+});
+
+describe("configured Chromium shared-unlock route", () => {
+  const pairs = [{ apiUrl: "https://api.example.test", webOrigin: "https://app.example.test:8443" }];
+  it("adds the browser-document capability only to an explicitly configured Chromium artifact", () => {
+    const configured = buildManifest("chromium", pairs) as unknown as Manifest;
+    expect(configured.permissions).toContain("webNavigation");
+    expect(configured.externally_connectable).toEqual({ ids: [], matches: ["https://app.example.test/*"], accepts_tls_channel_id: false });
+    expect((buildManifest("chromium") as unknown as Manifest).permissions).not.toContain("webNavigation");
+    expect((buildManifest("chromium") as unknown as Manifest).externally_connectable).toBeUndefined();
+  });
+  it.each(["firefox", "safari"] as const)("does not turn the Chromium route into claimed %s support", target => {
+    const configured = buildManifest(target, pairs) as unknown as Manifest;
+    expect(configured.permissions).not.toContain("webNavigation");
+    expect(configured.externally_connectable).toBeUndefined();
   });
 });

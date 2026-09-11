@@ -25,6 +25,7 @@ import { isCaptureSettingsCommand } from "@shared/messaging/capture-settings";
 import { handleCaptureSettings } from "./capture/settings-runtime";
 import { credentialCaptureCoordinator, credentialCaptureSource } from "./capture/credential-runtime";
 
+import { startChromiumSharedUnlockBrowser } from "./shared-unlock/chromium-browser";
 import { startNativeAgentBridge } from "./agent/bootstrap";
 import { handleNativeAgentAlarm } from "./agent/runtime";
 import { applyBadge } from "./badge";
@@ -183,6 +184,12 @@ void initializeServerConfig().then(() => {
   }, "session init failed");
 });
 
+// Public build configuration is the only Web/API origin authority. No default
+// hosted route and no Firefox/Safari claim from Chromium's API contract.
+const sharedUnlockBrowser = __PALLADIN_TARGET__ === "chromium" && __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__.length > 0
+  ? startChromiumSharedUnlockBrowser(__PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__, () => serverConfig.apiUrl, initializeServerConfig)
+  : null;
+
 // Agent Inject is independent of popup lock, account, and profile state. Chrome
 // authorizes the official extension through the exact Native Messaging origin.
 startNativeAgentBridge();
@@ -337,6 +344,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
         afterFailedChange: (attemptedApiUrl, activeApiUrl) =>
           removeUnusedServerPermission(attemptedApiUrl, activeApiUrl),
       }, raw);
+      const resumeSharedUnlock = raw.type === "config/server/set" ? sharedUnlockBrowser?.suspend() : undefined;
       try {
         const result = raw.type === "config/server/set"
           ? await serverOperations.mutate(() => execute())
@@ -344,6 +352,8 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
         sendResponse(result);
       } catch {
         sendResponse({ ok: false, code: "unavailable" });
+      } finally {
+        resumeSharedUnlock?.();
       }
       return;
     }

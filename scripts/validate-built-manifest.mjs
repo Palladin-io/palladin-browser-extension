@@ -9,6 +9,7 @@ export function validateBuiltManifest(
   target,
   outputName = target,
   channel = "production",
+  sharedUnlockEnvironments = [],
 ) {
   const outputDirectory = resolve(root, "dist", outputName);
   const manifestPath = resolve(outputDirectory, "manifest.json");
@@ -46,7 +47,8 @@ export function validateBuiltManifest(
   );
   validateContentLoaders(manifest, outputDirectory, target);
 
-  if (target === "chromium") validateChromium(manifest, outputDirectory, channel);
+  validateSharedUnlockRouting(manifest, target, sharedUnlockEnvironments);
+  if (target === "chromium") validateChromium(manifest, outputDirectory, channel, sharedUnlockEnvironments.length > 0);
   if (target === "firefox") validateFirefox(manifest, outputDirectory);
   if (target === "safari") validateSafari(manifest, outputDirectory);
 }
@@ -68,7 +70,7 @@ function validateContentLoaders(manifest, outputDirectory, target) {
   }
 }
 
-function validateChromium(manifest, outputDirectory, channel) {
+function validateChromium(manifest, outputDirectory, channel, sharedUnlockConfigured) {
   invariant(typeof manifest.key === "string", "chromium: missing stable extension key");
   invariant(manifest.minimum_chrome_version === "116", "chromium: wrong version floor");
   invariant(
@@ -77,6 +79,7 @@ function validateChromium(manifest, outputDirectory, channel) {
       "offscreen",
       "nativeMessaging",
       "sidePanel",
+      ...(sharedUnlockConfigured ? ["webNavigation"] : []),
     ]),
     "chromium: unexpected permissions",
   );
@@ -200,4 +203,23 @@ function sameSet(actual, expected) {
 
 function invariant(condition, message) {
   if (!condition) throw new Error(`Built manifest validation failed: ${message}`);
+}
+
+/** Validate routing against explicit build input, never infer authorization from the artifact. */
+export function validateSharedUnlockRouting(manifest, target, environments = []) {
+  invariant(Array.isArray(environments), "shared unlock: invalid build configuration");
+  if (target !== "chromium" || environments.length === 0) {
+    invariant(manifest.externally_connectable === undefined, `${target}: unexpected external route`);
+    invariant(!manifest.permissions?.includes("webNavigation"), `${target}: unexpected navigation permission`);
+    return;
+  }
+  const expected = [...new Set(environments.map(({ webOrigin }) => {
+    const url = new URL(webOrigin);
+    return `${url.protocol}//${url.hostname}/*`;
+  }))];
+  const route = manifest.externally_connectable;
+  invariant(route && Object.keys(route).sort().join(",") === "accepts_tls_channel_id,ids,matches"
+    && sameSet(route.ids, []) && sameSet(route.matches, expected) && route.accepts_tls_channel_id === false,
+    "chromium: shared unlock route differs from configured hosts");
+  invariant(manifest.permissions?.includes("webNavigation"), "chromium: missing navigation permission");
 }

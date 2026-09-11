@@ -62,6 +62,11 @@ clears the local encrypted cache.
 - The shared `scripting` permission is used only with `activeTab`, after explicit
   popup unlock, to install the fixed value-free liveness bootstrap into an
   already-open top frame. It cannot widen host access and never injects secrets.
+- An explicitly configured shared-unlock Chromium build adds `webNavigation`
+  and configured external Web hosts to bind the current top-level document. Empty
+  configuration adds neither. The current channel only exchanges hello/ready;
+  full unlock and platform acceptance remain pending. See
+  [shared-unlock evidence](SHARED-UNLOCK-PLATFORM-EVIDENCE.md#actual-chromium-product-channel---2026-09-11).
 - The artifact does not request `management` or inspect installed extensions.
   First-run password-manager guidance opens Chrome-owned settings only after an
   explicit click.

@@ -439,3 +439,15 @@ ceilings use the existing durable-session expiry plus the actual local idle poli
 these are not Vault access leases. Signed per-Vault offline authorization remains
 independent. New handoffs, inherited roots and own activity still need the browser
 coordinator; no shared key route is exposed by this preparatory hook.
+
+
+`shared-unlock/chromium-browser.ts` now registers a strict external hello/ready
+Port when explicit public build configuration is present. `chromium-route.ts`
+binds browser-authored top-frame tab/document/origin to the configured API/Web
+pair, rechecks the current frame and permanently retires on navigation or teardown.
+Server-setting changes suspend admission and retire pending/live routes before
+mutation; completion resumes admission without reviving any old route. The channel
+nonce is not a crypto/source generation. There is still no key/account/token
+message and no call from this channel to source/receiver session coordinators.
+See SHARED-UNLOCK-PLATFORM-EVIDENCE.md for permission justification, exact config,
+negative tests and the limited actual-product Chromium probe.

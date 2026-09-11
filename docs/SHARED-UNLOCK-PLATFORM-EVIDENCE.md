@@ -1,8 +1,9 @@
 # Shared unlock platform evidence
 
-CVT-587, part of CVT-583. This is a synthetic browser capability probe, not an
-implementation of shared unlock or evidence of production support. No Member
-key, account, credential, backend session or Palladin environment is used.
+CVT-587/CVT-592, part of CVT-583. This note separates synthetic capability
+probes from a limited actual-product Chromium channel test. Neither proves a
+complete shared unlock or production support. No Member key, account, credential,
+backend session or Palladin environment is used by these browser probes.
 
 ## Required boundary
 
@@ -115,7 +116,7 @@ Candidate URLs/claimed IDs and `runtime.getManifest()` relayed by the peer are
 not authority. The tested Web fixes the resource path itself, uses no cookies,
 rejects redirects and compares the retrieved Gecko ID with an independent fixed
 expected ID; it also records the browser-authored origin/source of an extension
-iframe. The product manifest, permissions and shared-unlock routes are unchanged.
+iframe. This Firefox probe does not change product manifest permissions or enable a Firefox route.
 
 Run with Python 3 (standard library only), an official Firefox binary and a
 matching Mozilla geckodriver supplied explicitly:
@@ -166,3 +167,69 @@ Primary references checked for this candidate:
 - [Mozilla browser-specific settings](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/browser_specific_settings): Gecko ID in the extension manifest.
 - [Firefox ExtensionProtocolHandler](https://github.com/mozilla-firefox/firefox/blob/88fa72d2f463129e64c2eb5c5227ef20b5c08574/netwerk/protocol/res/ExtensionProtocolHandler.cpp): browser-side extension resource resolution; inference about this candidate still needs installed-artifact proof.
 - [Firefox WebRequest](https://github.com/mozilla-firefox/firefox/blob/88fa72d2f463129e64c2eb5c5227ef20b5c08574/toolkit/components/extensions/webrequest/WebRequest.sys.mjs): request interception implementation; does not by itself prove the absence of every alternate modification path.
+
+
+## Actual Chromium product channel - 2026-09-11
+
+The configured Chromium worker now receives `palladin.shared-unlock.browser.v1`
+external Ports. It accepts only the configured exact Web/API pair, a normal-profile
+active top-level Web sender and browser-authored tab/document identity. It rejects
+extension/native senders and checks the **current** frame using
+`webNavigation.getFrame({tabId, frameId: 0})`, including lifecycle and exact origin
+with its port. Sender lifecycle alone is a creation-time snapshot, not current
+authority. Navigation, replacement, removal, disconnect and server changes retire
+a route permanently. Pending initialization/read results cannot revive it.
+
+Public `VITE_SHARED_UNLOCK_ENVIRONMENTS` is an explicit JSON array of
+`{"apiUrl":"https://api.example.test","webOrigin":"https://app.example.test"}`
+pairs. Blank configuration disables the route. No hosted pairing default is added.
+Configuration belongs in ignored `.env.local` or deployment input. Each API and
+Web origin occurs once, at most 16 pairs; Web paths/wildcards are rejected. Only a
+configured Chromium artifact adds `manifest.chromium.shared-unlock.json`:
+`webNavigation` and exact-host `externally_connectable` with `ids: []`. Manifest
+patterns intentionally route by host; the worker independently enforces the exact
+port and configured API. Build validation compares the artifact to explicit build
+configuration and rejects extra origins/extension IDs or unexpected permission.
+Firefox/Safari do not receive this route or permission from the Chromium setting.
+
+The permission is needed to distinguish successive documents in the same tab and
+retire routes at navigation start. Handlers act only on bound tab IDs, with
+transient memory state; no navigation history is stored, logged or analyzed.
+This permission change still requires the ordinary component PR security review.
+
+The first implementation exchanges only strict `hello`/`ready` frames. Web nonce
+and channel ID correlate this connection; **neither replaces a crypto-session or
+source-authorization generation**. There are no account claims, tokens or keys in
+these frames. The channel does not yet call source/receiver crypto coordinators.
+Up to 64 pending/live connections and a 5-second handshake deadline bound its
+memory; local teardown removes listeners even when local `Port.disconnect()`
+does not emit `onDisconnect`. Server mutations synchronously suspend admission
+and retire pending/live routes, including when overlapping mutations occur.
+
+```sh
+npm run test:browser:shared-unlock-chromium-channel
+```
+
+This builds the actual product Chromium artifact, with explicit ephemeral loopback
+Web configuration, local API selection and analytics disabled, then loads its
+unchanged bytes into a disposable Playwright Chromium profile. It starts no API
+server and performs no login. The test checks browser-derived extension ID and
+current document binding; same-document history; new document/channel after reload;
+replacement of the old Port in the same document; wrong-port and unlisted-origin
+rejection; rejection of a same-origin iframe without affecting the top frame;
+expanded/repeated framing and attempted API switching. It removes its previous
+report first and writes a new report only after all assertions pass. Temporary
+profiles and local servers are cleaned up. Artifact file hashes, browser version,
+OS/architecture and timestamp are in ignored
+`test-results/shared-unlock-chromium-channel/report.json`.
+
+**Nine checks PASS on Chromium 153.0.8010.12 / macOS arm64.** This is an actual
+configured product channel with a synthetic page, not the application Web adapter,
+Identity/MK handoff, a store-distributed artifact, the Chrome 116 floor or the full
+supported browser/OS matrix. Those acceptance gates remain open.
+
+Primary browser contracts used:
+
+- [Chrome Runtime MessageSender and Port](https://developer.chrome.com/docs/extensions/reference/api/runtime)
+- [Chrome Web Navigation](https://developer.chrome.com/docs/extensions/reference/api/webNavigation)
+- [Chrome externally connectable](https://developer.chrome.com/docs/extensions/reference/manifest/externally-connectable)

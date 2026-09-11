@@ -1,0 +1,8 @@
+{
+  "permissions": ["webNavigation"],
+  "externally_connectable": {
+    "ids": [],
+    "matches": [],
+    "accepts_tls_channel_id": false
+  }
+}

@@ -1,3 +1,6 @@
+import { sharedUnlockWebMatches, type SharedUnlockEnvironment } from "../src/shared/config/shared-unlock-environments";
+import sharedUnlock from "./manifest.chromium.shared-unlock.json" with { type: "json" };
+
 import type { ManifestV3Export } from "@crxjs/vite-plugin";
 
 import base from "./manifest.base.json" with { type: "json" };
@@ -55,10 +58,16 @@ function isPlainObject(value: unknown): value is Json {
   );
 }
 
-export function buildManifest(target: BuildTarget = "chromium"): ManifestV3Export {
+export function buildManifest(target: BuildTarget = "chromium", sharedUnlockEnvironments: readonly SharedUnlockEnvironment[] = []): ManifestV3Export {
   const overlay = overlays[target];
   if (!overlay) {
     throw new Error(`Unknown build target: ${target}`);
   }
-  return deepMerge(base as unknown as Json, overlay) as unknown as ManifestV3Export;
+  const manifest = deepMerge(base as unknown as Json, overlay);
+  if (target === "chromium" && sharedUnlockEnvironments.length > 0) {
+    manifest.permissions = [...new Set([...(manifest.permissions as string[]), ...sharedUnlock.permissions])];
+    manifest.externally_connectable = { ...sharedUnlock.externally_connectable,
+      matches: sharedUnlockWebMatches(sharedUnlockEnvironments) };
+  }
+  return manifest as unknown as ManifestV3Export;
 }

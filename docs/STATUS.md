@@ -25,7 +25,13 @@ Manual login/password unlock now prepares fresh own Identity authority, includin
 TOTP proof cleanup and failure fallback. These components are not yet connected to
 the browser messaging runtime. Verified Web/Extension routing, inherited source/own activity handling, durable link/preference
 coordination, UI and the full platform matrix remain open release gates. The
-platform probe proves only its recorded browser signals, not the feature.
+platform probes prove only their recorded browser signals, not the feature.
+
+An explicitly configured Chromium worker now has a browser-authenticated
+hello/ready channel with exact environment/document gates, navigation retirement
+and server-change suspension. Nine local actual-product Chromium checks passed;
+this channel does not yet invoke the session/crypto components or supply the Web
+application adapter. Other browser/OS/distributed-artifact acceptance remains open.
 
 ## Development baseline
 
