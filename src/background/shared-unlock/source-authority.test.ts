@@ -243,3 +243,20 @@ it("retains only a closing witness after sharing expires, then clears it with th
   source.reset();
   expect(source.closingWitness()).toBeNull();
 });
+
+
+it("rejects in-flight activity after a local restriction and retains closing repair if persistence fails", () => {
+  const source = new SharedUnlockSourceAuthority(new SharedUnlockApi(vi.fn<typeof fetch>(), () => apiUrl), () => authorization.unlockedAtMs + 1);
+  source.adopt(authorization, "A".repeat(43), { sharedUnlockEnabled: true, revision: 1 }, () => {});
+  const pending = source.captureActivity(), witness = source.closingWitness();
+  const deadline = authorization.unlockedAtMs + 100;
+  source.restrictIdleDeadline(deadline);
+  expect(() => pending.apply(authorization)).toThrow(); pending.dispose();
+  expect(source.snapshot().authorization?.idleDeadlineMs).toBe(deadline);
+  source.restrictIdleDeadline(authorization.idleDeadlineMs);
+  expect(source.snapshot().authorization?.idleDeadlineMs).toBe(deadline);
+  source.suspendSharing();
+  expect(source.snapshot().authorization).toBeNull();
+  expect(() => source.captureActivity()).toThrow();
+  expect(source.closingWitness()).toEqual(witness);
+});

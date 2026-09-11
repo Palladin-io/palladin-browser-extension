@@ -1,3 +1,4 @@
+import { recordExtensionOwnPolicy } from "../shared-unlock/own-policy-runtime";
 import { recordExtensionOwnActivity } from "../shared-unlock/own-activity-runtime";
 import { OwnSharedUnlockActivityRecorder } from "../shared-unlock/own-activity";
 import { persistManualSharedUnlockDeadline } from "../shared-unlock/manual-checkpoint";
@@ -75,6 +76,7 @@ manager = new SessionManager({
   autoLock: sessionAutoLock,
   clientId: runtimeClientId,
   onOwnActivity: () => recordExtensionOwnActivity(manager, sharedUnlockSource, activityRecorder),
+  onOwnPolicyChanged: () => recordExtensionOwnPolicy(manager, sharedUnlockSource, sharedUnlockExpiry),
   retireSharedUnlock: scope => sharedUnlockExpiry.retire({ accountId: scope.userId, apiUrl: scope.apiUrl }),
   prepareManualUnlock: async context => {
     const root = await sharedUnlockSource.prepare(context);

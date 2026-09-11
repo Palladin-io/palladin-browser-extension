@@ -1,3 +1,4 @@
+import { recordExtensionOwnPolicy } from "../shared-unlock/own-policy-runtime";
 import { SharedUnlockApi } from "../shared-unlock/api";
 import { SharedUnlockSourceAuthority } from "../shared-unlock/source-authority";
 import { OwnSharedUnlockActivityRecorder } from "../shared-unlock/own-activity";
@@ -32,7 +33,7 @@ beforeAll(async () => {
 const fresh = (): SharedUnlockInstallation => ({
   ...installation, keys: { masterKey: installation.keys.masterKey.slice(), privateKey: installation.keys.privateKey.slice() },
 });
-function harness(storage = new FakeStorageArea(), retireSharedUnlock?: (scope: { userId: string; apiUrl: string }) => void, onOwnActivity?: () => void) {
+function harness(storage = new FakeStorageArea(), retireSharedUnlock?: (scope: { userId: string; apiUrl: string }) => void, onOwnActivity?: () => void, onOwnPolicyChanged?: () => Promise<void>) {
   const now = { value: 1_000_000 };
   const environment = { value: apiUrl };
   const alarms = new FakeAlarms();
@@ -42,7 +43,7 @@ function harness(storage = new FakeStorageArea(), retireSharedUnlock?: (scope: {
   const hooks = new SessionHooks();
   let manager: SessionManager;
   const autoLock = new AutoLock(alarms, () => { void manager.lock(); });
-  manager = new SessionManager({ store, authClient: auth, autoLock, hooks, ...(onOwnActivity ? { onOwnActivity } : {}), ...(retireSharedUnlock ? { retireSharedUnlock } : {}), now: () => now.value });
+  manager = new SessionManager({ store, authClient: auth, autoLock, hooks, ...(onOwnActivity ? { onOwnActivity } : {}), ...(onOwnPolicyChanged ? { onOwnPolicyChanged } : {}), ...(retireSharedUnlock ? { retireSharedUnlock } : {}), now: () => now.value });
   return { manager, store, storage, alarms, environment, now, hooks, auth };
 }
 const erased = (value: SharedUnlockInstallation) => {
@@ -392,4 +393,79 @@ it("connects admitted real SessionManager input to only its own Identity root an
     expect(h.manager.getSharedUnlockLimits()?.absoluteDeadlineMs).toBe(value.limits.absoluteDeadlineMs);
     expect(await expiry.checkpoint({ apiUrl, accountId: account.accountId }, root.sequence, value.limits.absoluteDeadlineMs, value.limits.offlineDeadlineMs)).toBe(value.limits.offlineDeadlineMs);
   } finally { await h.manager.lock(); authority.reset(); now.mockRestore(); }
+});
+
+
+it("persists a shorter live policy before reopening and never treats settings as activity", async () => {
+  let changed!: () => Promise<void>;
+  const activity = vi.fn();
+  const h = harness(undefined, undefined, activity, () => changed());
+  const value = { ...fresh() };
+  value.limits = { unlockedAtMs: h.now.value, idleDeadlineMs: h.now.value + 4 * 3_600_000,
+    absoluteDeadlineMs: h.now.value + 8 * 3_600_000, offlineDeadlineMs: h.now.value + 6 * 3_600_000 };
+  const root = { ...sharedUnlockFixtures.operations[0].sourceAuthorization, ...value.limits, accountId: account.accountId };
+  const authority = new SharedUnlockSourceAuthority(new SharedUnlockApi(vi.fn<typeof fetch>(), () => apiUrl), () => h.now.value);
+  const storage = new FakeStorageArea(), expiry = new SharedUnlockExpiryStore(storage, action => action(), () => h.now.value);
+  const scope = { apiUrl, accountId: account.accountId };
+  changed = () => recordExtensionOwnPolicy(h.manager, authority, expiry);
+  await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install(value);
+  authority.adopt(root, "A".repeat(43), { sharedUnlockEnabled: true, revision: 1 }, () => { if (!h.manager.getKeys()) throw new Error("locked"); });
+  await expiry.checkpoint(scope, root.sequence, root.idleDeadlineMs, root.offlineDeadlineMs);
+  const source = h.manager.captureSharedUnlockSource();
+  h.now.value += 60_000;
+  await h.manager.setAutoLockPolicy("15m");
+  const deadline = value.limits.unlockedAtMs + 15 * 60_000;
+  expect(source.signal.aborted).toBe(true);
+  expect(h.manager.getSharedUnlockLimits()?.idleDeadlineMs).toBe(deadline);
+  expect(authority.snapshot().authorization?.idleDeadlineMs).toBe(deadline);
+  expect(h.alarms.whenFor(AUTO_LOCK_ALARM)).toBe(deadline);
+  expect(activity).not.toHaveBeenCalled();
+  await h.manager.setAutoLockPolicy("on-close");
+  expect(h.manager.getSharedUnlockLimits()?.idleDeadlineMs).toBe(deadline);
+  expect(activity).not.toHaveBeenCalled();
+  h.now.value = deadline;
+  const restarted = new SharedUnlockExpiryStore(storage, action => action(), () => h.now.value);
+  await expect(restarted.checkpoint(scope, root.sequence, root.idleDeadlineMs, root.offlineDeadlineMs)).rejects.toThrow();
+  expect(h.manager.getKeys()).toBeNull();
+  erased(value);
+});
+
+it("does not let a stale input policy read undo a newly selected shorter policy", async () => {
+  const h = harness(), value = { ...fresh() };
+  value.limits = { ...value.limits, idleDeadlineMs: h.now.value + 14_400_000,
+    absoluteDeadlineMs: h.now.value + 28_800_000, offlineDeadlineMs: h.now.value + 21_600_000 };
+  await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install(value);
+  let release!: () => void;
+  const original = h.store.getAutoLock.bind(h.store);
+  vi.spyOn(h.store, "getAutoLock").mockImplementationOnce(async () => {
+    const old = await original(); await new Promise<void>(resolve => { release = resolve; }); return old;
+  });
+  h.now.value += 100;
+  const input = h.manager.touchActivity(h.now.value);
+  await vi.waitFor(() => expect(release).toBeDefined());
+  await h.manager.setAutoLockPolicy("15m");
+  const deadline = h.manager.getSharedUnlockLimits()!.idleDeadlineMs;
+  release(); await input;
+  expect(await h.manager.getAutoLockPolicy()).toBe("15m");
+  expect(h.manager.getSharedUnlockLimits()?.idleDeadlineMs).toBe(deadline);
+  await h.manager.lock();
+});
+
+it("applies tighter key-use limits during a stalled policy write and does not rearm after lock", async () => {
+  const h = harness(), value = { ...fresh() };
+  value.limits = { ...value.limits, idleDeadlineMs: h.now.value + 14_400_000,
+    absoluteDeadlineMs: h.now.value + 28_800_000, offlineDeadlineMs: h.now.value + 21_600_000 };
+  await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install(value);
+  let release!: () => void;
+  const original = h.store.setAutoLock.bind(h.store);
+  vi.spyOn(h.store, "setAutoLock").mockImplementationOnce(async record => {
+    await new Promise<void>(resolve => { release = resolve; }); await original(record);
+  });
+  const change = h.manager.setAutoLockPolicy("15m");
+  await vi.waitFor(() => expect(release).toBeDefined());
+  expect(h.manager.getSharedUnlockLimits()?.idleDeadlineMs).toBe(h.now.value + 900_000);
+  h.now.value += 900_000;
+  expect(h.manager.getKeys()).toBeNull(); erased(value);
+  release(); await change;
+  expect(h.alarms.whenFor(AUTO_LOCK_ALARM)).toBeUndefined();
 });

@@ -82,6 +82,8 @@ export interface SessionManagerDeps {
   prepareManualUnlock?: PrepareManualUnlock;
   /** Only after successfully admitted own input updates the live local limits. */
   onOwnActivity?: () => void;
+  /** Persist a shorter live local limit; never an activity/renewal event. */
+  onOwnPolicyChanged?: () => Promise<void>;
   /** Explicit popup action only; expiry/security cleanup never invokes this. */
   recordManualClosing?: (accountId: string, action: "lock" | "logout") => Promise<void>;
   retireSharedUnlock?: (scope: Pick<SessionTokens, "userId" | "apiUrl">) => void;
@@ -133,6 +135,9 @@ export class SessionManager {
   private readonly durableSessionTtlMs: number;
   private readonly prepareManualUnlock: PrepareManualUnlock | undefined;
   private readonly onOwnActivity: SessionManagerDeps["onOwnActivity"];
+  private readonly onOwnPolicyChanged: SessionManagerDeps["onOwnPolicyChanged"];
+  private policyRevision = 0;
+  private autoLockTail: Promise<void> = Promise.resolve();
   private readonly recordManualClosing: SessionManagerDeps["recordManualClosing"];
   private readonly retireSharedUnlock: SessionManagerDeps["retireSharedUnlock"];
   private readonly deliverManualClosing: SessionManagerDeps["deliverManualClosing"];
@@ -177,6 +182,7 @@ export class SessionManager {
     this.durableSessionTtlMs = deps.durableSessionTtlMs ?? DURABLE_SESSION_TTL_MS;
     this.prepareManualUnlock = deps.prepareManualUnlock;
     this.onOwnActivity = deps.onOwnActivity;
+    this.onOwnPolicyChanged = deps.onOwnPolicyChanged;
     this.recordManualClosing = deps.recordManualClosing;
     this.retireSharedUnlock = deps.retireSharedUnlock;
     this.deliverManualClosing = deps.deliverManualClosing;
@@ -939,14 +945,19 @@ export class SessionManager {
     try {
       this.assertLifecycleGeneration(generation);
       assertCurrent?.();
-      const record = await this.store.getAutoLock();
-      this.assertLifecycleGeneration(generation);
-      assertCurrent?.();
-      const policy = record?.policy ?? DEFAULT_AUTO_LOCK_POLICY;
-      const unlockedAt = this.now();
-      await this.store.setAutoLock({ policy, lastActivityAt: unlockedAt });
-      this.assertLifecycleGeneration(generation);
-      assertCurrent?.();
+      const revision = this.policyRevision;
+      const checkPolicy = () => {
+        this.assertLifecycleGeneration(generation); assertCurrent?.();
+        if (revision !== this.policyRevision) throw new SessionLifecycleChangedError();
+      };
+      await this.autoLockTail; checkPolicy();
+      const record = await this.store.getAutoLock(); checkPolicy();
+      const policy = record?.policy ?? DEFAULT_AUTO_LOCK_POLICY, unlockedAt = this.now();
+      await this.serializeAutoLock(async () => {
+        checkPolicy();
+        await this.store.setAutoLock({ policy, lastActivityAt: unlockedAt }); checkPolicy();
+      });
+      checkPolicy();
 
       const localIdle = policyIdleMs(policy);
       let localDeadline = localIdle === null ? Infinity : unlockedAt + localIdle;
@@ -956,6 +967,7 @@ export class SessionManager {
         assertCurrent?.();
         if (this.now() >= Math.min(localDeadline, unlockDeadline(inherited))) throw new SessionLifecycleChangedError();
       }
+      checkPolicy();
       if (inherited && this.now() >= Math.min(localDeadline, unlockDeadline(inherited))) throw new SessionLifecycleChangedError();
       this.wipeKeys();
       this.sharedUnlockLimits = inherited ? {
@@ -1338,11 +1350,17 @@ export class SessionManager {
     if (!Number.isSafeInteger(at) || at > now || (observedAt !== undefined
       && (now - at > 5_000 || at <= this.keyInstalledAt)) || at <= this.lastActivityAt) return;
     this.lastActivityAt = at;
+    const revision = this.policyRevision;
+    const current = () => this.isLifecycleCurrent(generation) && revision === this.policyRevision && at === this.lastActivityAt && this.getKeys();
+    await this.autoLockTail;
+    if (!current()) return;
     const record = await this.store.getAutoLock();
-    if (!this.isLifecycleCurrent(generation) || at !== this.lastActivityAt || !this.getKeys()) return;
+    if (!current()) return;
     const policy = record?.policy ?? DEFAULT_AUTO_LOCK_POLICY;
-    await this.store.setAutoLock({ policy, lastActivityAt: at });
-    if (!this.isLifecycleCurrent(generation) || at !== this.lastActivityAt || !this.getKeys()) return;
+    await this.serializeAutoLock(async () => {
+      if (current()) await this.store.setAutoLock({ policy, lastActivityAt: at });
+    });
+    if (!current()) return;
     if (this.sharedUnlockLimits) {
       const idle = policyIdleMs(policy);
       this.sharedUnlockLimits = {
@@ -1358,19 +1376,40 @@ export class SessionManager {
   }
 
   async getAutoLockPolicy(): Promise<AutoLockPolicy> {
+    await this.autoLockTail;
     const record = await this.store.getAutoLock();
     return record?.policy ?? DEFAULT_AUTO_LOCK_POLICY;
   }
 
-  /** Change the idle policy (settings UI is CVT-370); re-arms immediately. */
+  private serializeAutoLock<T>(action: () => Promise<T>): Promise<T> {
+    const result = this.autoLockTail.then(action);
+    this.autoLockTail = result.then(() => {}, () => {});
+    return result;
+  }
+
+  /** Changing settings may shorten current idle, but is not fresh activity. */
   async setAutoLockPolicy(policy: AutoLockPolicy): Promise<void> {
-    const at = this.now();
-    await this.store.setAutoLock({ policy, lastActivityAt: at });
+    this.policyRevision += 1;
+    const at = Number.isFinite(this.lastActivityAt) ? this.lastActivityAt : this.now();
+    let checkpoint: Promise<void> | undefined;
     if (this.getKeys()) {
-      this.autoLock.arm(policy, at,
-        this.sharedUnlockLimits ? unlockDeadline(this.sharedUnlockLimits) : undefined);
+      this.invalidateSharedUnlockSources();
       const idle = policyIdleMs(policy);
-      this.sharedUnlockLocalDeadline = idle === null ? Infinity : at + idle;
+      this.sharedUnlockLocalDeadline = Math.min(this.sharedUnlockLocalDeadline, idle === null ? Infinity : at + idle);
+      this.autoLock.arm(policy, at, Math.min(this.sharedUnlockLocalDeadline,
+        this.sharedUnlockLimits ? unlockDeadline(this.sharedUnlockLimits) : Infinity));
+      // Apply the tighter key-use limit and enqueue its denial before storage.
+      // A later own input may renew idle under the newly persisted policy.
+      if (this.getKeys()) {
+        try { checkpoint = this.onOwnPolicyChanged?.(); } catch { /* Local limits already apply. */ }
+      }
     }
+    // Observe both failures immediately; metadata writes remain ordered across
+    // input, settings and key installation without allowing stale policy writes.
+    const results = await Promise.allSettled([
+      this.serializeAutoLock(() => this.store.setAutoLock({ policy, lastActivityAt: at })),
+      checkpoint ?? Promise.resolve(),
+    ]);
+    for (const result of results) if (result.status === "rejected") throw result.reason;
   }
 }

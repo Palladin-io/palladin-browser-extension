@@ -31,6 +31,21 @@ export class SharedUnlockSourceAuthority {
     return this.closingRoot ? { ...this.closingRoot } : null;
   }
 
+  /** Local policy may only restrict sharing; it cannot manufacture activity. */
+  restrictIdleDeadline(deadlineMs: number): void {
+    if (this.state.authorization) {
+      this.activities.clear(); this.version += 1;
+      this.state = { ...this.state, authorization: { ...this.state.authorization,
+        idleDeadlineMs: Math.min(this.state.authorization.idleDeadlineMs, deadlineMs) } };
+      this.notify();
+    }
+  }
+  suspendSharing(): void {
+    this.activities.clear(); this.version += 1;
+    this.state = { ...this.state, authorization: null, sourceGeneration: null };
+    this.notify();
+  }
+
   private readonly activities = new Set<symbol>();
   /** Borrowed own RAM authority for input already admitted by the local key
    * session. A pending own renewal never advertises an expired source to peers. */
