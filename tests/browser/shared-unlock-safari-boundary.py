@@ -51,6 +51,7 @@ manifest = {'manifest_version': 3, 'name': 'Synthetic shared unlock boundary', '
 (fixture / 'manifest.json').write_text(json.dumps(manifest, indent=2))
 (fixture / 'background.js').write_text('''
 let disconnected = 0;
+globalThis.syntheticProductDiagnostic = { importState: 'not-instrumented', external: [] };
 // A temporary WebDriver installation did not reliably expose the onInstalled
 // page. Open this synthetic diagnostic from background startup instead, without
 // stealing focus or depending on a one-shot installation event.
@@ -65,7 +66,9 @@ browser.runtime.onConnect.addListener(port => {
       beforeNavigate: browser.webNavigation.onBeforeNavigate, committed: browser.webNavigation.onCommitted,
       errorOccurred: browser.webNavigation.onErrorOccurred, tabReplaced: browser.webNavigation.onTabReplaced,
       tabRemoved: browser.tabs.onRemoved };
-    port.postMessage({ workerListenerReady: true, lifecycleEvents: Object.fromEntries(Object.entries(events).map(([name, event]) =>
+    port.postMessage({ workerListenerReady: true, product: globalThis.syntheticProductDiagnostic,
+      productListenerPresent: browser.runtime.onConnectExternal.hasListeners(),
+      lifecycleEvents: Object.fromEntries(Object.entries(events).map(([name, event]) =>
       [name, typeof event?.addListener === 'function' && typeof event?.removeListener === 'function'])) });
   }
 });
@@ -110,7 +113,13 @@ if args.product_extension:
         'diagnosticInstrumentation': ['test display name', 'diagnostic extension page', 'background wrapper imports unchanged product worker']}
     diagnostics = (fixture / 'background.js').read_text().split('function scope(value)', 1)[0]
     (fixture / 'diagnostic-background.js').write_text(diagnostics)
-    (fixture / 'background.js').write_text('import "./diagnostic-background.js";\nimport ' + json.dumps('./' + original_worker) + ';\n')
+    (fixture / 'background.js').write_text('import "./diagnostic-background.js";\n'
+        + 'globalThis.syntheticProductDiagnostic.importState = "pending";\n'
+        + 'import(' + json.dumps('./' + original_worker) + ').then(() => { globalThis.syntheticProductDiagnostic.importState = "loaded"; }, error => {\n'
+        + 'globalThis.syntheticProductDiagnostic.importState = "failed";\n'
+        + 'globalThis.syntheticProductDiagnostic.errorName = ["Error", "TypeError", "SyntaxError", "ReferenceError"].includes(error?.name) ? error.name : "other";\n'
+        + 'globalThis.syntheticProductDiagnostic.frames = (String(error?.stack || "").match(/[A-Za-z0-9._-]+\\.js:\\d+:\\d+/g) || []).slice(0, 5);\n'
+        + '});\n')
     product_manifest['name'] = manifest['name']
     product_manifest['background']['service_worker'] = 'background.js'
     (fixture / 'manifest.json').write_text(json.dumps(product_manifest, indent=2))
@@ -266,12 +275,17 @@ def current_product_document(diagnostic_handle, web_handle):
     result = command('POST', '/execute/async', {'script': '''
       const done = arguments[arguments.length - 1];
       (async () => {
+        const worker = await new Promise((resolve, reject) => {
+          const port = browser.runtime.connect({ name: 'synthetic-internal-probe' });
+          const timer = setTimeout(() => { port.disconnect(); reject(new Error('Diagnostic timeout')); }, 2000);
+          port.onMessage.addListener(message => { clearTimeout(timer); resolve(message); port.disconnect(); });
+        });
         const tabs = await browser.tabs.query({});
         const tab = tabs.find(tab => tab.url === 'http://127.0.0.1:55189/allowed');
-        if (!tab) { done({ missingTab: true }); return; }
+        if (!tab) { done({ missingTab: true, worker }); return; }
         const frame = await browser.webNavigation.getFrame({ tabId: tab.id, frameId: 0 });
         done({ tabId: tab.id, incognito: tab.incognito, url: tab.url, status: tab.status,
-          documentId: frame.documentId, frameUrl: frame.url, parentFrameId: frame.parentFrameId });
+          documentId: frame.documentId, frameUrl: frame.url, parentFrameId: frame.parentFrameId, worker });
       })().catch(() => done({ nativeReadFailed: true }));
     ''', 'args': []})
     command('POST', '/window', {'handle': web_handle})
@@ -283,10 +297,10 @@ def run_product_channel(extension_id, diagnostic_handle, web_handle):
     stage = 'product-channel-ready'
     first = product_probe(extension_id)
     observations['productFirst'] = first
-    assert first['outcome'] == 'ready'
-    checks.append('actual-product-bootstrap-and-native-ready')
     native = current_product_document(diagnostic_handle, web_handle)
     observations['productNativeDocument'] = native
+    assert first['outcome'] == 'ready'
+    checks.append('actual-product-bootstrap-and-native-ready')
     assert native['incognito'] is False and native['status'] == 'complete' and native['parentFrameId'] == -1
     assert native['url'] == native['frameUrl'] == origin + '/allowed'
     assert first['ready']['documentBinding'] == str(native['tabId']) + '/' + native['documentId'] + '/' + first['ready']['channelId']
