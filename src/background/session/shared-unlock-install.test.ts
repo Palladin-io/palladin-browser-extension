@@ -1,3 +1,4 @@
+import { SharedUnlockExpiryStore } from '../shared-unlock/expiry-store';
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { fromBase64, openBrowserSessionEnvelope, toBase64Url, wipe } from "@palladin/crypto";
 import { AutoLock, AUTO_LOCK_ALARM } from "./auto-lock";
@@ -26,7 +27,7 @@ beforeAll(async () => {
 const fresh = (): SharedUnlockInstallation => ({
   ...installation, keys: { masterKey: installation.keys.masterKey.slice(), privateKey: installation.keys.privateKey.slice() },
 });
-function harness(storage = new FakeStorageArea()) {
+function harness(storage = new FakeStorageArea(), retireSharedUnlock?: (scope: { userId: string; apiUrl: string }) => void) {
   const now = { value: 1_000_000 };
   const environment = { value: apiUrl };
   const alarms = new FakeAlarms();
@@ -36,7 +37,7 @@ function harness(storage = new FakeStorageArea()) {
   const hooks = new SessionHooks();
   let manager: SessionManager;
   const autoLock = new AutoLock(alarms, () => { void manager.lock(); });
-  manager = new SessionManager({ store, authClient: auth, autoLock, hooks, now: () => now.value });
+  manager = new SessionManager({ store, authClient: auth, autoLock, hooks, ...(retireSharedUnlock ? { retireSharedUnlock } : {}), now: () => now.value });
   return { manager, store, storage, alarms, environment, now, hooks, auth };
 }
 const erased = (value: SharedUnlockInstallation) => {
@@ -255,4 +256,27 @@ describe("shared unlock receiver installation", () => {
       });
     }
   }
+});
+
+it('retires the verified own authorization at the exact key-use deadline and preserves the barrier after restart', async () => {
+  const storage = new FakeStorageArea();
+  const expiry = new SharedUnlockExpiryStore(storage);
+  const scope = { accountId: account.accountId, apiUrl };
+  expiry.remember(scope, 5);
+  const h = harness(storage, own => expiry.retire({ accountId: own.userId, apiUrl: own.apiUrl }));
+  const value = fresh();
+  await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install(value);
+  h.now.value = value.limits.idleDeadlineMs;
+  expect(h.manager.getKeys()).toBeNull();
+  erased(value);
+  await expect(expiry.assertFresh(scope, 5)).rejects.toThrow('retired locally');
+  await expect(new SharedUnlockExpiryStore(storage).assertFresh(scope, 5)).rejects.toThrow('retired locally');
+  await expect(expiry.assertFresh(scope, 6)).resolves.toBeUndefined();
+});
+it('destroys keys even when the local retirement callback fails', async () => {
+  const h = harness(new FakeStorageArea(), () => { throw new Error('unavailable'); });
+  const value = fresh();
+  await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install(value);
+  await h.manager.lock();
+  erased(value); expect(h.manager.getKeys()).toBeNull();
 });

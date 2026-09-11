@@ -20,7 +20,8 @@ export class SharedUnlockSourceAuthority {
   private checkSession: (() => void) | null = null;
 
   constructor(private readonly api: SharedUnlockApi, private readonly now: () => number = Date.now,
-    private readonly beforeAuthorize?: (session: ManualUnlockContext["tokens"], signal: AbortSignal, check: () => void) => Promise<void>) {}
+    private readonly beforeAuthorize?: (session: ManualUnlockContext["tokens"], signal: AbortSignal, check: () => void) => Promise<void>,
+    private readonly onAuthorized?: (authorization: SharedUnlockAuthorization, session: ManualUnlockContext["tokens"]) => void) {}
 
   private readonly listeners = new Set<() => void>();
   subscribe(listener: () => void): () => void {
@@ -110,6 +111,8 @@ export class SharedUnlockSourceAuthority {
         idleDeadlineMs: context.limits.idleDeadlineMs, absoluteDeadlineMs: context.limits.absoluteDeadlineMs,
         offlineDeadlineMs: context.limits.offlineDeadlineMs,
       }, controller.signal);
+      check();
+      this.onAuthorized?.(authorization, context.tokens);
       check();
       this.checkSession = context.assertCurrent;
       this.state = { preference, authorization, sourceGeneration: generation, failure: null };

@@ -82,6 +82,7 @@ export interface SessionManagerDeps {
   prepareManualUnlock?: PrepareManualUnlock;
   /** Explicit popup action only; expiry/security cleanup never invokes this. */
   recordManualClosing?: (accountId: string, action: "lock" | "logout") => Promise<void>;
+  retireSharedUnlock?: (scope: Pick<SessionTokens, "userId" | "apiUrl">) => void;
   deliverManualClosing?: (session: SessionTokens, assertCurrent: () => void) => Promise<void>;
 }
 
@@ -130,6 +131,7 @@ export class SessionManager {
   private readonly durableSessionTtlMs: number;
   private readonly prepareManualUnlock: PrepareManualUnlock | undefined;
   private readonly recordManualClosing: SessionManagerDeps["recordManualClosing"];
+  private readonly retireSharedUnlock: SessionManagerDeps["retireSharedUnlock"];
   private readonly deliverManualClosing: SessionManagerDeps["deliverManualClosing"];
 
   readonly hooks: SessionHooks;
@@ -138,6 +140,7 @@ export class SessionManager {
 
   /** In-memory keys — the authoritative live copy while unlocked. */
   private keys: SessionKeys | null = null;
+  private keyScope: Pick<SessionTokens, "userId" | "apiUrl"> | null = null;
   private tokens: SessionTokens | null = null;
   private pendingTotp: PendingTotpContext | null = null;
   private pendingTotpTimer: unknown | null = null;
@@ -169,6 +172,7 @@ export class SessionManager {
     this.durableSessionTtlMs = deps.durableSessionTtlMs ?? DURABLE_SESSION_TTL_MS;
     this.prepareManualUnlock = deps.prepareManualUnlock;
     this.recordManualClosing = deps.recordManualClosing;
+    this.retireSharedUnlock = deps.retireSharedUnlock;
     this.deliverManualClosing = deps.deliverManualClosing;
     if (
       !Number.isSafeInteger(this.durableSessionTtlMs)
@@ -942,6 +946,7 @@ export class SessionManager {
       const localIdle = policyIdleMs(policy);
       this.sharedUnlockLocalDeadline = localIdle === null ? Infinity : unlockedAt + localIdle;
       if (ownTokens) this.tokens = ownTokens;
+      this.keyScope = { userId, apiUrl: (ownTokens ?? this.tokens)?.apiUrl ?? this.authClient.currentApiUrl() };
       this.keys = keys;
       published = true;
       this.autoLock.arm(policy, unlockedAt, inherited ? unlockDeadline(inherited) : undefined);
@@ -959,6 +964,10 @@ export class SessionManager {
 
   /** Wipe key material and stop the idle timer; the sealed durable session survives. */
   async lock(reason?: "manual"): Promise<void> {
+    if (this.keys && this.keyScope) {
+      try { this.retireSharedUnlock?.({ ...this.keyScope }); }
+      catch { /* Retirement observers cannot prevent key destruction. */ }
+    }
     this.beginLifecycleTermination();
     const generation = this.lifecycleGeneration;
     try {
@@ -1024,6 +1033,7 @@ export class SessionManager {
   }
 
   private wipeKeys(): void {
+    this.keyScope = null;
     this.sharedUnlockLimits = null;
     this.sharedUnlockLocalDeadline = Infinity;
     if (!this.keys) return;

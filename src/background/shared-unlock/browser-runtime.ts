@@ -1,6 +1,6 @@
 import { randomBytes, toBase64Url, wipe } from "@palladin/crypto";
 import { serverConfig } from "../config/server-runtime";
-import { sessionManager, sharedUnlockLinks, sharedUnlockSource } from "../session/runtime";
+import { sessionManager, sharedUnlockLinks, sharedUnlockSource, sharedUnlockExpiry } from "../session/runtime";
 import { startSharedUnlockLinkMonitor } from "./link-monitor";
 import { SharedUnlockApi } from "./api";
 import { startSharedUnlockBrowserCoordinator } from "./browser-coordinator";
@@ -72,11 +72,15 @@ export function coordinateSharedUnlockBrowser(route: ChromiumSharedUnlockRoute) 
       if (signal.aborted || (marker.observed && binding.linkEpoch < marker.observed.epoch)) throw new Error("Shared unlock receiver selection expired");
     },
     source: (binding, signal, assertCurrent) => beginSharedUnlockSource({ apiUrl: route.apiUrl, binding, signal, assertCurrent }, sessionManager, sharedUnlockSource, api),
-    receiver: (binding, signal, assertCurrent) => beginSharedUnlockReceiver({ apiUrl: route.apiUrl, binding, signal, assertCurrent }, sessionManager, api,
-      (authorization, generation, assertOwnCurrent) => sharedUnlockSource.adopt(authorization, generation,
+    receiver: (binding, signal, assertCurrent) => beginSharedUnlockReceiver({ apiUrl: route.apiUrl, binding, signal, assertCurrent,
+      assertFreshAuthorization: sequence => sharedUnlockExpiry.assertFresh(scope(binding.accountId), sequence) }, sessionManager, api,
+      (authorization, generation, assertOwnCurrent) => {
+        assertOwnCurrent();
+        sharedUnlockExpiry.remember(scope(binding.accountId), authorization.sequence);
+        sharedUnlockSource.adopt(authorization, generation,
         { sharedUnlockEnabled: true, revision: binding.preferenceRevision }, () => {
           assertOwnCurrent(); if (serverConfig.apiUrl !== route.apiUrl) throw new Error("Shared unlock own environment changed");
-        })),
+        }); }),
   });
   return { close: () => { coordinator.close(); monitor.close(); } };
 }

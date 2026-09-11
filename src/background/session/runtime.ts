@@ -5,6 +5,7 @@
  * unit-testable. Imported solely by the worker bootstrap — never by tests.
  */
 
+import { SharedUnlockExpiryStore } from "../shared-unlock/expiry-store";
 import { serverConfig } from "../config/server-runtime";
 import { AuthClient } from "./auth-client";
 import { AutoLock, type AlarmScheduler } from "./auto-lock";
@@ -45,6 +46,7 @@ export const sessionAutoLock = new AutoLock(alarms, () => {
   void manager.lock();
 });
 
+export const sharedUnlockExpiry = new SharedUnlockExpiryStore(durableStorageArea);
 export const sharedUnlockLinks = new SharedUnlockLinkStore(durableStorageArea);
 
 const sharingApi = new SharedUnlockApi((...args) => fetch(...args), () => serverConfig.apiUrl);
@@ -56,13 +58,14 @@ export const sharedUnlockSource = new SharedUnlockSourceAuthority(sharingApi, Da
     for (const scope of linkScopes(session.userId, session.apiUrl)) {
       await flushSharedUnlockClosings(scope, session, sharedUnlockLinks, sharingApi, signal, check);
     }
-  });
+  }, (root, session) => sharedUnlockExpiry.remember({ accountId: session.userId, apiUrl: session.apiUrl }, root.sequence));
 
 manager = new SessionManager({
   store: new SessionStore(durableStorageArea, legacySessionStorageArea),
   authClient: new AuthClient((...args) => fetch(...args), () => serverConfig.apiUrl),
   autoLock: sessionAutoLock,
   clientId: runtimeClientId,
+  retireSharedUnlock: scope => sharedUnlockExpiry.retire({ accountId: scope.userId, apiUrl: scope.apiUrl }),
   prepareManualUnlock: context => sharedUnlockSource.prepare(context),
   deliverManualClosing: (session, check) => deliverSharedUnlockClosings(linkScopes(session.userId, session.apiUrl),
     session, sharedUnlockLinks, sharingApi, check),

@@ -22,10 +22,12 @@ for (const enabled of [false, true]) {
   it(`prepares an own manual root while preference is ${enabled} without changing it`, async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValueOnce(response({ sharedUnlockEnabled: enabled, revision: 3 }))
       .mockResolvedValueOnce(response(authorization));
-    const source = new SharedUnlockSourceAuthority(new SharedUnlockApi(fetcher, () => apiUrl), () => authorization.unlockedAtMs + 1);
+    const remembered = vi.fn()
+      const source = new SharedUnlockSourceAuthority(new SharedUnlockApi(fetcher, () => apiUrl), () => authorization.unlockedAtMs + 1, undefined, remembered);
     const context = makeContext();
     const prepared = await source.prepare(context);
     expect(prepared).toEqual(authorization);
+      expect(remembered).toHaveBeenCalledExactlyOnceWith(authorization, context.tokens)
     expect(source.snapshot().preference).toEqual({ sharedUnlockEnabled: enabled, revision: 3 });
     expect(source.snapshot().sourceGeneration).toMatch(/^[A-Za-z0-9_-]{43}$/);
     const body = JSON.parse(String(fetcher.mock.calls[1][1]?.body));
