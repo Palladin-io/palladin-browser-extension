@@ -1066,3 +1066,106 @@ Identity test results. The earlier zero-check registration failure used mismatch
 localhost/127.0.0.1 harness origins, so the network allowlist blocked requests;
 that separate failure is also retained. Earlier 41/38 and account-isolation passes
 remain evidence only for their own recorded artifacts and scopes.
+
+## Real independent idle, rejected-session cleanup and native panel — 2026-09-12
+
+The real Chrome152/macOS26.4.1 arm64 test uses the ordinary 15-minute Web idle
+policy. Browser-generated trusted mouse movements keep only the Extension
+active. At10:45:51Z, all21 checks passed: Web expired after916784ms with184
+Extension movements, removed its decrypted Entry form and remained locked
+through repair and reload. Extension Entry decryption continued. Initial
+operation counts before/after reload were0/2; each subsequent32-second repair
+window created zero operations. Both rejected issued-session cleanups received
+Identity204. New manual Web unlock restored Entry access; baseline worker restart,
+Web closure/reopening and shared lock/logout also passed.
+
+Source at start: Web4928cba, Extension91eb8af, Backenddde6bb96, all clean.
+Report: `report.chrome-real-idle-cleanup-final.json`. This proves real own Web
+idle independence, not Extension's longer idle policy, absolute/offline limits,
+OS suspend/lock or the complete browser/version/distribution matrix.
+
+Two failures are retained. The original real idle run expired correctly after
+912784ms but repeated denied handoffs exhausted the operation limiter (29
+successful creations in two16-second windows). Web281c288/Extension6c59108 keep
+the verified channel and end only the denied attempt; fresh manual generations
+can retry. The next run expired after912708ms but failed its overly strict
+one-operation-after-reload assertion: the first authenticated preference read
+can reset selection once. Coordinator regressions cover that bounded second
+attempt and unchanged subsequent repair. Neither failed run is relabeled PASS.
+
+That second run also exposed401 during rejected own-session cleanup. Web4928cba
+and Extensionf07c2f4 authenticate the existing Logout endpoint with the newly
+issued own access token and matching refresh token at its captured API. Cleanup
+does not use peer/current replacement session tokens, and local wiping remains
+unconditional. Focused API/receiver regressions failed before the fix and pass
+afterward. A separate27-check Chrome run at02:16:10Z confirms three cleanup204s,
+quiet denied-receiver repair, four same-account Web documents, shared lock,
+late-document denial and restoration after one fresh manual unlock. Report:
+`report.chrome-retired-cleanup-multiple-documents.json`.
+
+The native panel scenario opens the actual product surface through a trusted
+click on the popup button, then observes the browser target and the browser's
+[`SIDE_PANEL` context](https://developer.chrome.com/docs/extensions/reference/api/runtime#type-ContextType).
+It never opens the extension page in an ordinary tab. It requires real Entry
+decryption, Web→panel Lock, panel password unlock→Web, panel→Web Lock,
+Web manual unlock→panel, and final panel logout→Web. The normal popup/worker
+lifecycle steps execute before the panel opens. Harness2e0be0e; Web/Backend
+unchanged, all sources clean at start. Panel results are listed below.
+
+Configured runtime artifact SHA-256:
+- Web: `d6ff5291…9fddd3` (full digest in the reports)
+- Chromium Extension: `198e143d…e8cf5` (full digest in the reports)
+
+CI Web34667078239 passes2078 tests/282 files; Extension34667077893 passes1738/143.
+The harness-only2e0be0e also passes normal CI34688891711. Safari boundary
+34688891710 fails; Safari remains last, with its review finding and acceptance
+open. No local Safari settings changed. Earlier browser results retain their
+own artifact scope. No final review, merge, deployment or full acceptance is
+claimed by these tests.
+
+| Browser on macOS26.4.1 arm64 | Observed UTC | Checks | Scope |
+|---|---|---|---|
+| Chrome152.0.7977.84 | 10:46:25 | 21 PASS | Native panel and preceding popup/worker lifecycle |
+| Edge153.0.4234.32 | 10:47:26 | 21 PASS | Same native panel scenario |
+| Brave1.95.101 / Chromium153.0.8010.37 | 10:47:59 | 21 PASS | Same native panel scenario |
+
+Opera135.0.5973.133 / Chromium151.0.7922.176 failed after14 baseline checks at
+10:48:42Z when the native panel did not open. An account-free observation in a
+fresh Opera profile found `chrome.sidePanel`, its `open`, `chrome.sidebarAction`
+and its `open` all absent; `runtime.getContexts` was present. The shared target
+alone incorrectly advertised the panel action. This does not establish a general
+absence of Opera sidebar extension capabilities: Opera documents a separate
+[sidebar action API](https://help.opera.com/en/extensions/sidebar-action-api/).
+The current artifact has no such adapter. The failed native panel report is
+retained as `failure.opera-native-side-panel.json`.
+
+Extension4850198…aa63a9 checks actual native API availability before showing the
+panel button and otherwise keeps the existing Web-panel action. Two regressions
+failed before the fix;27 focused tests and1740 tests/143 files pass afterward,
+with typecheck, all three configured builds and secret scan. No new manifest,
+permission, browser fork or substitute panel was introduced.
+
+On this new artifact, Opera17 checks PASS at10:52:49Z confirm the unavailable-API
+fallback plus actual Identity/Entry/popup/worker lifecycle. Chrome21 checks PASS
+at10:53:27Z retain the real native panel and its shared session actions. Sources
+were clean at start: Web4928cba…3909f6, Extension4850198…aa63a9, Backenddde6bb96…aac65.
+New Chromium artifact: `9a25efcb…2aee9d`; Web artifact unchanged. Reports:
+`report.opera-panel-capability-fixed.json`, `report.chrome-panel-capability-fixed.json`.
+The earlier Opera popup reopening failure in the larger settings/restart scenario
+remains unresolved;17 passing basic checks do not erase it or count as panel support.
+
+Firefox140 regression at10:54:29Z failed after13 checks, during real password
+fill after a browser-observed background restart. Earlier fill, peer closure and
+reopening, and restarted Unlocked presentation passed; final post-restart Entry
+use did not. Report: `failure.firefox-140.0.panel-capability-regression.json`.
+This failure is not resolved by the passing Chromium-family tests. Diagnostic
+harness8477626…73555a awaits asynchronous native observations before JSON encoding
+(previously an async diagnostic could serialize as `{}`), and preserves only
+boolean fixture field comparisons before closing a failed fill tab. The diagnostic repeat failed again after13 checks at10:58:14Z: the HTTPS form was
+complete with both fields empty, own runtime status was locked while the popup
+still displayed Unlocked and the synthetic Entry. Web remained available. The
+missing post-restart handoff and stale surface still require diagnosis; no
+product behavior or acceptance assertion changed. Report:
+`failure.firefox-140.0.post-restart-diagnostic.json`.
+
+The capability-fix CI34689580040 passed. No native process is left running.
