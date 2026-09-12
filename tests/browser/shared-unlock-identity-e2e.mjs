@@ -380,6 +380,14 @@ try {
   checks.push('actual-extension-entry-password-decrypted')
   stage = 'extension-survives-web-close'
   await page.close(); page = undefined
+  requests.push({ check: 'native-popup-targets-after-web-close', ...await popup.inspectTargets() })
+  // Closing a tab may close Chrome's action popup as well. Reopen the native UI
+  // through the current worker; never keep using a detached popup document or
+  // unlock/reinstall the extension to make the survival assertion succeed.
+  popup.close(); popup = undefined
+  stage = 'extension-reopens-native-popup-after-web-close'
+  popup = await openNativePopup(null, path.join(temporary, 'profile'), extensionId)
+  stage = 'extension-entry-decryption-after-web-close'
   assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword), 'Completed extension session must survive Web closure')
   checks.push('extension-entry-decryption-after-web-close')
   stage = 'reopened-web-automatic-unlock'

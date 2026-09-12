@@ -95,6 +95,14 @@ export async function openNativePopup(worker, profile, extensionId) {
     }
   }
   return {
+    async inspectTargets() {
+      const targets = (await send('Target.getTargets')).targetInfos
+      return {
+        attachedPopupPresent: targets.some(info => info.targetId === target.targetId),
+        popupPresent: targets.some(info => info.url === popupUrl),
+        ownWorkerPresent: targets.some(info => info.type === 'service_worker' && info.url.startsWith(`chrome-extension://${extensionId}/`)),
+      }
+    },
     async click(name, role = 'button') {
       let attempts = 0
       await wait(async () => {
