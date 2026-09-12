@@ -127,8 +127,13 @@ only B. Lock of Extension A leaves Web B decrypting and A locked; manual A unloc
 preserves both identities. Finally, Web B logout must preserve A Entry access.
 No key/session/cache state is injected; SES verification is scoped to each of the
 two synthetic recipients and remains in memory. This option excludes `--totp`;
-MFA/account-change combinations and the inverse logout direction remain separate
-acceptance work. It does not claim an unbounded observation interval.
+MFA/account-change combinations remain separate acceptance work.
+`--account-logout-direction extension` selects the inverse final operation:
+Extension A signs out, while Web B must keep decrypting its Entry and retain the
+exact Entry route for 32 observations at 500ms intervals. A main-frame navigation
+listener also rejects a transient logout followed by automatic unlock. This
+covers the 15-second closing repair interval, not unbounded observation. The
+default direction is `web`; inverse reports add `.extension-logout`.
 
 Chromium153.0.8010.12/macOS26.4.1 arm64 passed25 checks at2026-09-11T21:38:16Z
 on clean Web6dcb1db / Extensiondb17016 / Backenddde6bb96;9 account-isolation checks
@@ -220,6 +225,16 @@ PR56 subsequently passed independent review without findings and merged as29c7d4
 This is partial native evidence; factor-age expiry, recovery codes and the full
 platform/settings/account/lifecycle matrix remain required. Pass `--backend-source`
 to record that isolated running API checkout alongside both client source hashes.
+
+For Chrome installed through CDP, full restart also requires
+`--persist-via-browser-ui`. Before creating any account, this uses Chrome's own
+Reload button on the exact installed extension card in `chrome://extensions`.
+An account-free probe confirms this normal unpacked installation survives full
+closure; CDP-only installations are removed by Chrome on restart. The harness
+checks the browser registry for the original ID and enabled state after restart,
+without reinstalling or changing storage. Provenance records
+`browser-owned-cdp-bootstrap-and-extensions-ui-reload`; report names add
+`.browser-ui-persisted`. This remains local-unpacked evidence.
 
 `--full-browser-restart` adds a separate lifecycle case after both clients have
 successfully unlocked and the restarted worker has decrypted the Entry. It closes

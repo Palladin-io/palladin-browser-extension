@@ -8,6 +8,33 @@ matrix or production support.
 
 ## Current acceptance status — 2026-09-12
 
+Chrome 152.0.7977.84 / macOS 26.4.1 arm64 / local-unpacked passed **43 checks**
+at 2026-09-12T00:13:14.916Z on clean Web 2cacf2d…27bd98e, Extension
+ec13e04…10e8187 and Backend dde6bb96…aac65. The same profile retained its
+installed extension across full browser closure. Both clients denied Entry
+decryption until one manual unlock restored the peer. Real 429 / Retry-After
+45s preserved Web Entry access throughout cooldown, denied peer access without
+replay, and a fresh manual retry restored handoff. TOTP, settings/save races,
+own activity, Web close/reopen and worker restart also passed.
+
+A second clean run at 2026-09-12T00:18:43.454Z passed **36 checks**, with the same
+Web/Backend and Extension 9a7365d…b05c18. It includes full browser restart,
+five Web B lock/reload/manual-unlock cycles alongside Extension A, and the inverse
+logout: Extension A signs out while Web B continuously decrypts its own Entry and
+stays on the exact Entry route for 16 seconds, spanning the 15-second closing
+repair interval. No transient navigation may be hidden by a later unlock.
+This does not cover MFA/account-change combinations or unbounded observation.
+
+Reports: report.chrome-persisted-full-restart.json and
+report.chrome-inverse-account-logout.json (ignored local artifacts). Both retain
+Web SHA-256 4a869906…44720f and Extension 82992f42…6df753. Runtime is unchanged
+from Web e1c8d6e…aa64af2 / Extension beab24e…d21a5ac; changes are in the harness.
+Extension Test CI34661199720 and Web CI34659568339 PASS. Safari boundary
+34661199794 FAIL; the earlier isolated PASS does not establish stable Safari
+support, Identity or minimum 16.4. Safari stays last; full acceptance stays open.
+
+### Earlier manual-lock fallback evidence
+
 Chrome152.0.7977.84/macOS26.4.1 arm64/local-unpacked/CDP passed41 actual
 Identity/Entry checks at2026-09-11T23:42:44.577Z, with clean-at-start
 Web e1c8d6e…aa64af2, Extension beab24e…d21a5ac and Backend dde6bb96…aac65.
@@ -48,9 +75,23 @@ is absent after closing and relaunching the same profile. Chromium's
 marks that installation as CDP-owned and
 [extension preferences initialization](https://github.com/chromium/chromium/blob/main/extensions/browser/extension_prefs.cc)
 cleans it up. Reinstallation after restart is not evidence of persistent-session
-survival. Full Chrome restart needs a persistently installed artifact. The
-headed/native installation approach is not yet proven; no user profile was
-edited. Earlier bootstrap/navigation failures remain archived; scoped request
+survival. The new `--persist-via-browser-ui` harness step follows initial CDP
+installation with Chrome's normal Reload button on the exact extension card,
+before creating any account. Chrome's
+[reload delegate](https://github.com/chromium/chromium/blob/main/chrome/browser/extensions/chrome_extension_registrar_delegate.cc)
+uses the ordinary unpacked installer. Account-free probes and the two full
+Identity runs above confirm the same installation survives. After restart the
+browser independently reports the original ID present and enabled. There is no
+second installation, reload or profile/storage edit after restart. Native folder
+picker attempts remain unsuccessful; they created no accounts or acceptance.
+
+The first persisted-installation run stopped after 32 checks at Web closure,
+before browser restart (2026-09-12T00:08:40.931Z); its report remains
+failure.chrome-ui-persisted-web-close.json. The next run records popup absent,
+worker present. The harness closes only the old popup debugging socket and
+reopens the real native popup before checking actual decryption. It never
+unlocks or changes the worker session. Earlier bootstrap/navigation failures
+remain archived; scoped request
 interception and waiting for completed field decryption improve the harness,
 but a later pass does not explain every historical timeout.
 
