@@ -6,14 +6,14 @@ import { waitForWebEntryPassword } from './native-web-entry.mjs'
 // Credentials and Entry values stay in memory; evidence contains booleans only.
 export async function verifySharedUnlockAccountIsolation({ page, popup, apiUrl,
   webOrigin, email, password, vaultId, entryId, entryPassword, reopenPopup, allowEmail,
-  verificationFor, unlockCycles = 1, setStage, recordCheck }) {
+  verificationFor, unlockCycles = 1, logoutDirection = 'web', setStage, recordCheck }) {
   const emailB = `cvt583-${randomBytes(8).toString('hex')}@example.test`
   const passwordB = 'Synthetic!' + randomBytes(24).toString('base64url')
   const entryPasswordB = 'Entry!' + randomBytes(24).toString('base64url')
   const revealA = async () => assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword),
     'Extension must retain access to its own account A Entry')
-  const stable = async check => {
-    for (let attempt = 0; attempt < 6; attempt++) {
+  const stable = async (check, iterations = 6) => {
+    for (let attempt = 0; attempt < iterations; attempt++) {
       await check(); await new Promise(resolve => setTimeout(resolve, 500))
     }
   }
@@ -141,8 +141,31 @@ export async function verifySharedUnlockAccountIsolation({ page, popup, apiUrl,
   await stable(async () => { await revealA(); await revealB() })
   recordCheck('manual-account-a-unlock-preserves-both-account-identities')
 
-  setStage('account-isolation-web-b-logout')
-  await logout()
-  await stable(revealA)
-  recordCheck('account-b-web-logout-preserves-account-a-extension-entry')
+  if (logoutDirection === 'extension') {
+    setStage('account-isolation-extension-a-logout')
+    const entryPath = `/vaults/${vaultB}/entries/${entryB}`
+    assert.equal(new URL(page.url()).pathname, entryPath)
+    let leftOwnEntry = false
+    const observe = frame => {
+      if (frame === page.mainFrame() && new URL(frame.url()).pathname !== entryPath) leftOwnEntry = true
+    }
+    page.on('framenavigated', observe)
+    try {
+      await popup.click('Sign out')
+      // Cover a full 15-second closing-repair interval, not only the peer hint.
+      // Navigation capture also rejects a transient logout/lock followed by
+      // another automatic unlock that would otherwise hide the wrong close.
+      await stable(async () => {
+        assert.equal(leftOwnEntry, false, 'Account A logout must not navigate the independent account B session')
+        await revealB()
+        assert.equal(new URL(page.url()).pathname, entryPath)
+      }, 32)
+      recordCheck('account-a-extension-logout-preserves-account-b-web-entry-through-closing-repair')
+    } finally { page.off('framenavigated', observe) }
+  } else {
+    setStage('account-isolation-web-b-logout')
+    await logout()
+    await stable(revealA)
+    recordCheck('account-b-web-logout-preserves-account-a-extension-entry')
+  }
 }

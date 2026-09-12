@@ -38,6 +38,9 @@ const totp = process.argv.includes('--totp')
 const settings = process.argv.includes('--settings')
 const settingsRaces = process.argv.includes('--settings-races')
 const accountIsolation = process.argv.includes('--account-isolation')
+const accountLogoutDirection = process.argv.includes('--account-logout-direction') ? argument('--account-logout-direction') : 'web'
+assert(['web', 'extension'].includes(accountLogoutDirection), 'Account logout direction must be web or extension')
+assert(accountIsolation || !process.argv.includes('--account-logout-direction'), 'Account logout direction requires account isolation')
 const accountUnlockCycles = process.argv.includes('--account-unlock-cycles') ? Number(argument('--account-unlock-cycles')) : 1
 assert(Number.isInteger(accountUnlockCycles) && accountUnlockCycles >= 1 && accountUnlockCycles <= 5, 'Account unlock cycles must be between 1 and 5')
 assert(accountIsolation || accountUnlockCycles === 1, 'Repeated account unlock requires account isolation')
@@ -93,6 +96,7 @@ const provenance = {
   settings,
   settingsRaces,
   accountIsolation,
+  accountLogoutDirection: accountIsolation ? accountLogoutDirection : null,
   accountUnlockCycles,
 }
 const launchOptions = {
@@ -520,7 +524,7 @@ try {
   await page.locator('#login-email').waitFor()
   checks.push('extension-logout-propagated-to-web')
   if (accountIsolation) await verifySharedUnlockAccountIsolation({ page, popup, apiUrl, webOrigin,
-    email, password, vaultId, entryId, entryPassword, unlockCycles: accountUnlockCycles,
+    email, password, vaultId, entryId, entryPassword, unlockCycles: accountUnlockCycles, logoutDirection: accountLogoutDirection,
     reopenPopup: async () => { popup?.close(); popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId); return popup },
     allowEmail: value => allowedEmails.add(value),
     verificationFor: address => JSON.stringify(messages.filter(message => message.Destination.ToAddresses.includes(address)))
@@ -596,6 +600,6 @@ async function writeEvidence(kind, value) {
   const contents = JSON.stringify(value, null, 2)
   await writeFile(path.join(output, `${kind}.json`), contents)
   const version = String(provenance.browserVersion ?? 'launch').replace(/[^a-zA-Z0-9.-]/g, '_')
-  const scenario = (persistViaBrowserUi ? '.browser-ui-persisted' : '') + (fullBrowserRestart ? '.full-browser-restart' : '') + (authorizationRateLimitRetry ? '.authorization-rate-limit-retry' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '') + (totp ? '.totp' : '') + (settings ? '.settings' : '') + (settingsRaces ? '.settings-races' : '') + (accountIsolation ? '.account-isolation' : '') + (accountUnlockCycles > 1 ? `.unlock-cycles-${accountUnlockCycles}` : '')
+  const scenario = (persistViaBrowserUi ? '.browser-ui-persisted' : '') + (fullBrowserRestart ? '.full-browser-restart' : '') + (authorizationRateLimitRetry ? '.authorization-rate-limit-retry' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '') + (totp ? '.totp' : '') + (settings ? '.settings' : '') + (settingsRaces ? '.settings-races' : '') + (accountIsolation ? '.account-isolation' : '') + (accountIsolation && accountLogoutDirection === 'extension' ? '.extension-logout' : '') + (accountUnlockCycles > 1 ? `.unlock-cycles-${accountUnlockCycles}` : '')
   await writeFile(path.join(output, `${kind}.${browserLabel}-${version}${scenario}.json`), contents)
 }
