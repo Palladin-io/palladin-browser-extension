@@ -8,6 +8,58 @@ matrix or production support.
 
 ## Current acceptance status — 2026-09-12
 
+Edge 153.0.4234.32 and Brave 1.95.101 / Chromium 153.0.8010.37 each passed
+**43 actual Identity/Entry checks** on macOS 26.4.1 arm64: Edge 2026-09-12T00:33:05.224Z,
+Brave 2026-09-12T00:47:20.585Z. Both used clean Web 2cacf2d…27bd98e and Backend
+dde6bb96…aac65, with Extension db13cab…f03cc52 and 055c25d…8300a38, respectively.
+Runtime remains Web e1c8d6e…aa64af2 / Extension beab24e…d21a5ac; artifact hashes
+remain Web 4a869906…44720f / Extension 82992f42…6df753.
+
+Both cover full browser restart with the same persisted extension, Entry denial
+before manual unlock and restored peer decryption after one manual unlock.
+TOTP, both account-setting/disconnect/reconnect paths, failed save/CAS, own
+activity, Web closure/reopening, worker restart and shared lock/logout pass.
+Real 429 / Retry-After 36s (Edge) and 49s (Brave) preserve Web Entry access
+for the entire cooldown, deny peer access without replay and restore handoff
+on a fresh explicit retry. Reports: report.edge-persisted-full-restart.json and
+report.brave-persisted-full-restart.json. These are headless local-unpacked
+observations, not full OS/version/distribution acceptance.
+
+The initial CDP install is reloaded through the browser's ordinary Extensions UI
+before account creation. Edge reads only its browser-owned exact card ID and
+clicks its Reload control; Chrome/Brave/Opera use their normal Chromium card UI.
+After restart the harness independently checks the original ID is installed and
+enabled. It never reinstalls or edits extension/profile storage after restart.
+
+Opera 135.0.5973.133 / engine151.0.7922.176 remains open: runs at
+00:37:05.402Z (Extension19acc20) and 00:42:35.471Z (Extensioncabd0a6) both
+stop after24 checks, before full restart. The second identifies reopening the
+native popup after closing the paused-unlock probe. The probe itself denied
+unlock while the extension still decrypted the Entry. Account-free reproduction
+also times out opening a later popup; polling the actual target or supplying an
+explicit window ID did not resolve it. Its persistent installation passed a
+separate account-free probe only. Reports are retained as
+failure.opera-new-document-initialization.json (initial broad stage) and
+failure.opera-popup-after-probe-close.json. No final root cause or Opera full
+acceptance is claimed. Reopening now binds to the current browser worker;
+closed debug sockets reject immediately instead of waiting on stale commands.
+
+Extension Test CI34662674564 PASS. The shared native-popup capture regression
+passed24 encrypted writes and inspected chrome.storage/IndexedDB for synthetic
+plaintext passwords and Vault keys. Safari boundary34662674604 PASS, but earlier
+34662327084/34662027436 FAIL remain; this is not stable Identity/16.4 acceptance.
+
+The [official Chrome for Testing archive index](https://github.com/GoogleChromeLabs/chrome-for-testing#json-api-endpoints)
+provided116.0.5845.96/mac-arm64. The downloaded archive matches Google's object
+MD5; SHA-256 is5d1ed2c8…f853e69. Its ad-hoc signature fails strict verification
+with missing signature resources, so it has not been executed and the116 floor
+remains unverified. This is not evidence of archive modification.
+
+Safari stays last, with no local settings changes. The complete platform and
+remaining limits/MFA/multiple-document/release/review gates remain open.
+
+### Earlier Chrome restart and isolation evidence
+
 Chrome 152.0.7977.84 / macOS 26.4.1 arm64 / local-unpacked passed **43 checks**
 at 2026-09-12T00:13:14.916Z on clean Web 2cacf2d…27bd98e, Extension
 ec13e04…10e8187 and Backend dde6bb96…aac65. The same profile retained its
@@ -240,10 +292,10 @@ with a channel-only probe or a successful build.
 
 | Browser / version | Installation | Identity/Entry/lifecycle | UTC observation |
 |---|---|---|---|
-| Chrome152.0.7977.84 | Unpacked, browser CDP; headless |16/16 PASS|16:28:18|
+| Chrome152.0.7977.84 | Unpacked, browser UI persisted; headless |43 PASS full restart/TOTP/settings/429; separate36 isolation PASS|12 Sep 00:13:14 / 00:18:43|
 | Chromium153.0.8010.12 | Unpacked, load flag; headless |20/20 PASS, current Safari-adapter increment + own activity/full restart|18:48:02|
-| Brave1.95.101 / engine153.0.8010.37 | Unpacked, browser CDP; headless |16/16 PASS|16:25:33|
-| Edge153.0.4234.32 | Unpacked, browser CDP; headless |17/17 PASS, own activity|17:34:54|
+| Brave1.95.101 / engine153.0.8010.37 | Unpacked, browser UI persisted; headless |43 PASS full restart/TOTP/settings/429|12 Sep 00:47:20|
+| Edge153.0.4234.32 | Unpacked, browser UI persisted; headless |43 PASS full restart/TOTP/settings/429|12 Sep 00:33:05|
 | Firefox140.0 | Temporary product XPI |16/16 PASS, new coordinator|18:01:57|
 | Firefox155.0.1 | Temporary product XPI |16/16 PASS, shared-step regression; earlier restart timeout remains open|19:51:03|
 | Opera135.0.5973.133 / engine151.0.7922.176 | Unpacked, browser CDP; headless |16/16 PASS|17:03:15|
@@ -262,10 +314,12 @@ input evidence. Reproduction and limitations:
 
 The combined own-activity/full-browser-restart case passes20 checks on Chromium153.
 Current Chromium20 uses clean Webc58ec2b/Extensiond188270 (18:48:02Z).
-Edge/Firefox140 runs retain Web1314dec and Extension runtime3444a75;
+Earlier Edge17 and current Firefox140 runs retain Web1314dec and Extension runtime3444a75;
 Firefox155 uses clean Webc58ec2b/Extension7b89809 (runtime16ab8ea).
-Chrome/Brave/Opera rows retain their earlier runtime810cf86 observations. Edge's CDP development installation does not survive browser
-restart, so that distribution path remains unverified. New delayed-authorization
+Opera's baseline16 row retains runtime810cf86; its new extended run remains failed.
+Chrome/Brave/Edge use the newer clean native provenance above. CDP-only Edge
+installation does not survive restart; browser-UI persistence and full Identity
+restart now pass on the specifically tested local-unpacked artifact. New delayed-authorization
 Edge failures are also retained below; earlier successful runs do not erase them.
 
 ## Required boundary
@@ -881,8 +935,8 @@ installation probe at17:12:41Z confirmed `Extensions.getExtensions` reported the
 enabled unpacked artifact initially and no such artifact after reopening the same
 profile. The closed profile retained extension metadata at location4; no values
 from product storage were read or edited. This is a development-installation
-limitation, not a passed Edge full-browser restart. A persisted installation path
-still needs its own actual test.
+limitation of that CDP-only path. The newer browser-UI-persisted43-check Edge
+run above supplies the actual full-restart test on its own recorded version.
 
 Two other Edge attempts stopped earlier after8 checks, during the1500ms delayed
 manual authorization. One recorded authorization200 and activation200 while the
