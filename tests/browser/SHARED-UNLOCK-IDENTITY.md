@@ -111,6 +111,11 @@ This scenario currently requires a password-only account and cannot be combined
 with `--totp` or `--account-isolation`. It does not prove every panel setting,
 completion-toast presentation or supported browser's panel implementation.
 
+`--side-panel-unavailable` separately verifies a Chromium-family browser with no
+native `sidePanel.open` API: the popup must offer the normal Web-panel action and
+no dead "Open side panel" button. Basic actual Identity/Entry and popup lifecycle
+checks still run. This does not count as native side-panel acceptance.
+
 ### Branded Chromium-family browsers
 
 Use an explicit browser executable and label to run the same Identity/Entry

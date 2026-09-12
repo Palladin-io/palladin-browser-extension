@@ -42,6 +42,8 @@ const independentIdleExpiry = process.argv.includes('--independent-idle-expiry')
 const multipleWebDocuments = process.argv.includes('--multiple-web-documents')
 const retiredWebReceiver = process.argv.includes('--retired-web-receiver')
 const sidePanel = process.argv.includes('--side-panel')
+const sidePanelUnavailable = process.argv.includes('--side-panel-unavailable')
+assert(!(sidePanel && sidePanelUnavailable), 'Panel availability scenarios are mutually exclusive')
 const totp = process.argv.includes('--totp')
 const settings = process.argv.includes('--settings')
 const settingsRaces = process.argv.includes('--settings-races')
@@ -106,6 +108,7 @@ const provenance = {
   multipleWebDocuments,
   retiredWebReceiver,
   sidePanel,
+  sidePanelUnavailable,
   totp,
   settings,
   settingsRaces,
@@ -554,6 +557,13 @@ try {
     setStage: value => { stage = value }, recordCheck: value => checks.push(value) })
   stage = 'extension-manual-lock-propagates'
   popup.close(); popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId)
+  if (sidePanelUnavailable) {
+    stage = 'browser-without-panel-api-has-no-dead-panel-action'
+    assert.equal(await popup.hasNativeSidePanelApi(), false, 'Browser must actually lack the panel API')
+    assert.equal(await popup.hasButton('Open side panel'), false, 'Unavailable native action must not be offered')
+    assert(await popup.hasButton('Open Palladin'), 'The normal Web-panel action remains available')
+    checks.push('browser-without-side-panel-api-shows-supported-web-action')
+  }
   if (sidePanel) {
     const sourcePopup = popup
     popup = await verifySharedUnlockSidePanel({ page, popup: sourcePopup, password,
@@ -656,6 +666,6 @@ async function writeEvidence(kind, value) {
   await writeFile(path.join(output, `${kind}.json`), contents)
   const version = String(provenance.browserVersion ?? 'launch').replace(/[^a-zA-Z0-9.-]/g, '_')
   const scenario = (persistViaBrowserUi ? '.browser-ui-persisted' : '') + (fullBrowserRestart ? '.full-browser-restart' : '') + (authorizationRateLimitRetry ? '.authorization-rate-limit-retry' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '') + (totp ? '.totp' : '') + (settings ? '.settings' : '') + (settingsRaces ? '.settings-races' : '') + (accountIsolation ? '.account-isolation' : '') + (accountIsolation && accountLogoutDirection === 'extension' ? '.extension-logout' : '') + (accountUnlockCycles > 1 ? `.unlock-cycles-${accountUnlockCycles}` : '')
-  const sessionScenario = (independentIdleExpiry ? '.independent-idle-expiry' : '') + (multipleWebDocuments ? '.multiple-web-documents' : '') + (retiredWebReceiver ? '.retired-web-receiver' : '') + (sidePanel ? '.side-panel' : '')
+  const sessionScenario = (independentIdleExpiry ? '.independent-idle-expiry' : '') + (multipleWebDocuments ? '.multiple-web-documents' : '') + (retiredWebReceiver ? '.retired-web-receiver' : '') + (sidePanel ? '.side-panel' : '') + (sidePanelUnavailable ? '.side-panel-unavailable' : '')
   await writeFile(path.join(output, `${kind}.${browserLabel}-${version}${scenario}${sessionScenario}.json`), contents)
 }

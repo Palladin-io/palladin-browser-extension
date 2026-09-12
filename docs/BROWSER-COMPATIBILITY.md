@@ -108,6 +108,14 @@ clears the local encrypted cache.
 
 ## Known runtime gaps
 
+- Panel availability is checked against the browser's actual native opening API,
+  not the build target alone. Opera135.0.5973.133/Chromium151.0.7922.176 with the
+  current Chromium artifact exposes neither `chrome.sidePanel.open` nor
+  `chrome.sidebarAction.open` in the native observation. Its popup offers the
+  ordinary Web-panel action instead of a dead side-panel button. This is not
+  an Opera native-sidebar adapter or native-panel acceptance. Chrome152,
+  Edge153 and Brave1.95.101 passed the actual native-panel scenario separately.
+
 - Firefox and Safari do not yet have a replacement for Chromium's offscreen
   clipboard-clear path. Copy controls are therefore not rendered on those
   targets, and the worker rejects copy reveal/arm commands before decryption.

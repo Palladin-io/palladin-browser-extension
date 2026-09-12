@@ -200,6 +200,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
       })
       return !exceptionDetails && result.value === true
     },
+    async hasNativeSidePanelApi() { return evaluate('typeof chrome.sidePanel?.open === \'function\'') },
     async hasButton(name) { return (await command('Accessibility.getFullAXTree')).nodes.some((node) =>
       !node.ignored && node.role?.value === 'button' && node.name?.value === name) },
     async waitButton(name) { await wait(() => this.hasButton(name), name) },
