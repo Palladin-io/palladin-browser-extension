@@ -617,5 +617,6 @@ async function writeEvidence(kind, value) {
   await writeFile(path.join(output, `${kind}.json`), contents)
   const version = String(provenance.browserVersion ?? 'launch').replace(/[^a-zA-Z0-9.-]/g, '_')
   const scenario = (persistViaBrowserUi ? '.browser-ui-persisted' : '') + (fullBrowserRestart ? '.full-browser-restart' : '') + (authorizationRateLimitRetry ? '.authorization-rate-limit-retry' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '') + (totp ? '.totp' : '') + (settings ? '.settings' : '') + (settingsRaces ? '.settings-races' : '') + (accountIsolation ? '.account-isolation' : '') + (accountIsolation && accountLogoutDirection === 'extension' ? '.extension-logout' : '') + (accountUnlockCycles > 1 ? `.unlock-cycles-${accountUnlockCycles}` : '')
-  await writeFile(path.join(output, `${kind}.${browserLabel}-${version}${scenario}.json`), contents)
+  const sessionScenario = (independentIdleExpiry ? '.independent-idle-expiry' : '') + (multipleWebDocuments ? '.multiple-web-documents' : '')
+  await writeFile(path.join(output, `${kind}.${browserLabel}-${version}${scenario}${sessionScenario}.json`), contents)
 }
