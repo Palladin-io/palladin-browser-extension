@@ -25,16 +25,20 @@ export async function verifySharedUnlockSettingsRaces({ page, popup, reopenPopup
   await waitWeb(true); await popup.waitSwitch('Shared unlock', true); await reveal()
   setStage('settings-failed-off-new-document-cannot-unlock')
   const probe = await page.context().newPage()
+  setStage('settings-failed-off-probe-navigation')
   try {
     await probe.goto(webOrigin + '/unlock')
     await probe.locator('#unlock-password').waitFor()
+    setStage('settings-failed-off-reopen-popup-with-probe')
     popup = await reopenPopup()
+    setStage('settings-failed-off-verify-probe-and-entry')
     for (let attempt = 0; attempt < 6; attempt++) {
       assert(await probe.locator('#unlock-password').isVisible(), 'Persisted local pause must deny a new document while Identity remains ON')
       await reveal()
       await new Promise(resolve => setTimeout(resolve, 500))
     }
-  } finally { await probe.close() }
+  } finally { setStage('settings-failed-off-close-probe'); await probe.close() }
+  setStage('settings-failed-off-reopen-popup-after-probe')
   popup = await reopenPopup()
   await popup.click('Settings'); await popup.click('Shared unlock')
   recordCheck('failed-web-off-preserves-account-on-but-blocks-new-document-unlock')

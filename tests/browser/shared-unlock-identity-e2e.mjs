@@ -356,7 +356,7 @@ try {
   if (settings) await verifySharedUnlockSettings({ page, popup, apiUrl, webOrigin, password,
     vaultId, entryId, entryPassword, setStage: value => { stage = value }, recordCheck: value => checks.push(value) })
   if (settingsRaces) await verifySharedUnlockSettingsRaces({ page, popup, apiUrl, webOrigin,
-    reopenPopup: async () => { popup?.close(); popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId); return popup },
+    reopenPopup: async () => { popup?.close(); popup = await openNativePopup(null, path.join(temporary, 'profile'), extensionId); return popup },
     vaultId, entryId, entryPassword, setStage: value => { stage = value }, recordCheck: value => checks.push(value) })
   // A new manual authorization also exercises shared lock and unlock snapshot.
   stage = 'web-manual-lock-propagates'
@@ -525,7 +525,7 @@ try {
   checks.push('extension-logout-propagated-to-web')
   if (accountIsolation) await verifySharedUnlockAccountIsolation({ page, popup, apiUrl, webOrigin,
     email, password, vaultId, entryId, entryPassword, unlockCycles: accountUnlockCycles, logoutDirection: accountLogoutDirection,
-    reopenPopup: async () => { popup?.close(); popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId); return popup },
+    reopenPopup: async () => { popup?.close(); popup = await openNativePopup(null, path.join(temporary, 'profile'), extensionId); return popup },
     allowEmail: value => allowedEmails.add(value),
     verificationFor: address => JSON.stringify(messages.filter(message => message.Destination.ToAddresses.includes(address)))
       .match(/http:\/\/127\.0\.0\.1:5173\/verify-email\?token=[^"\\\s<]+/)?.[0],
@@ -584,6 +584,7 @@ try {
     requests.push({ check: 'native-popup-error-presentation', flags })
   }
   await writeEvidence('failure', { stage, checks, requests, errorType: error.name,
+    nativeProtocolFailure: /^Browser protocol (timeout: [A-Za-z.]+|error: -?\d+)$/.test(error.message) ? error.message : undefined,
     timeout: error.name === 'TimeoutError' ? error.message.split('\n')[0] : undefined,
     pagePath: page ? new URL(page.url()).pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id') : null, provenance, observedAt: new Date().toISOString() })
   console.error(`FAIL at ${stage}; value-free failure.json recorded.`); process.exitCode = 1
