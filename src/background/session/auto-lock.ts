@@ -59,14 +59,16 @@ export class AutoLock {
   ) {}
 
   /** (Re)arm the idle alarm for the given policy relative to `lastActivityAt`. */
-  arm(policy: AutoLockPolicy, lastActivityAt: number): void {
+  arm(policy: AutoLockPolicy, lastActivityAt: number, inheritedDeadline?: number): void {
     const idle = policyIdleMs(policy);
-    if (idle === null) {
+    if (idle === null && inheritedDeadline === undefined) {
       // `on-close`: nothing to schedule; worker/browser shutdown drops keys.
       void this.alarms.clear(AUTO_LOCK_ALARM);
       return;
     }
-    this.alarms.create(AUTO_LOCK_ALARM, { when: lastActivityAt + idle });
+    this.alarms.create(AUTO_LOCK_ALARM, {
+      when: Math.min(idle === null ? Infinity : lastActivityAt + idle, inheritedDeadline ?? Infinity),
+    });
   }
 
   /** Cancel the idle alarm (on lock / logout). */

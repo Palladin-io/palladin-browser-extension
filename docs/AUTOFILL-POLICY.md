@@ -11,6 +11,12 @@ Credential without requiring focus, a click, or browser user activation. This is
 the chosen password-manager UX, not a missing authorization check. Automatic
 fill is always fill-only and never submits the form.
 
+A content-script fill request never renews the session's idle deadline or its
+shared-unlock authorization. The same channel includes passive automatic fills,
+so it is not evidence of trusted user activity. The native extension surface's
+separate trusted activity channel records own input with its original timestamp.
+This preserves automatic exact-host autofill without adding a gesture gate.
+
 A standard login form must expose both a usable username/email control and a
 usable password control associated with the same `form`. A standalone email or
 username form never receives the inline launcher, suggestions, or automatic

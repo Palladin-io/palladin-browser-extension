@@ -1,0 +1,85 @@
+name: Safari shared-unlock boundary
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/shared-unlock-safari.yml
+      - tests/browser/shared-unlock-safari-boundary.py
+      - tests/browser/safari_webdriver.py
+      - tests/browser/webdriver_actions.py
+      - tests/browser/safari-ci-permission.applescript
+      - src/**
+      - manifest/**
+      - scripts/**
+      - package.json
+      - package-lock.json
+      - vite.config.ts
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  safari-boundary:
+    runs-on: macos-26
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        background: [classic-worker, module-worker, document, product]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        if: matrix.background == 'product'
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build the configured Safari product
+        if: matrix.background == 'product'
+        env:
+          VITE_API_URL: http://localhost:55083
+          VITE_POSTHOG_KEY: ''
+          VITE_SHARED_UNLOCK_ENVIRONMENTS: '[{"apiUrl":"http://localhost:55083","webOrigin":"http://127.0.0.1:55189"}]'
+        run: |
+          npm ci
+          npm run build:safari
+      - name: Observe native Safari extension boundary
+        shell: bash
+        env:
+          SAFARI_FIXTURE_BACKGROUND: ${{ matrix.background }}
+        run: |
+          set -euo pipefail
+          mkdir -p test-results/shared-unlock-safari-boundary
+          # Only the disposable GitHub-hosted VM changes this setting.
+          sudo /usr/bin/safaridriver --enable
+          /usr/bin/safaridriver -p 55187 > test-results/shared-unlock-safari-boundary/driver.log 2>&1 &
+          safari_driver_pid=$!
+          trap 'kill "$safari_driver_pid" 2>/dev/null || true; wait "$safari_driver_pid" 2>/dev/null || true' EXIT
+          python3 - <<'PY'
+          import socket
+          import time
+          for attempt in range(50):
+              try:
+                  with socket.create_connection(('127.0.0.1', 55187), timeout=1):
+                      break
+              except OSError:
+                  time.sleep(0.2)
+          else:
+              raise SystemExit('SafariDriver did not start')
+          PY
+          if [ "$SAFARI_FIXTURE_BACKGROUND" = product ]; then
+            python3 tests/browser/shared-unlock-safari-boundary.py --ci-screenshot-on-failure --ci-grant-fixture-access --product-extension dist/safari
+          else
+            python3 tests/browser/shared-unlock-safari-boundary.py --ci-screenshot-on-failure --ci-grant-fixture-access --background-kind "$SAFARI_FIXTURE_BACKGROUND"
+          fi
+      - name: Retain synthetic Safari observations
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: shared-unlock-safari-boundary-${{ matrix.background }}
+          path: test-results/shared-unlock-safari-*/
+          if-no-files-found: error
+          retention-days: 7

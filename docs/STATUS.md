@@ -12,11 +12,57 @@ release gate below is complete.
 `main` and arrives through normal review; historical prototype branches are not
 release candidates.
 
+## Shared unlock implementation in progress (CVT-583)
+
+The common Popup/Side Panel Settings surface now reads/writes the one Identity
+account preference through the worker. It supports ON/OFF, explicit retry after
+failed/CAS writes and authenticated settings while keys are locked. The worker
+uses a token-only own-session lease and immediately pauses pending handoffs on
+set; late results cannot escape a local pause or change the next account. Live
+Settings and the verified Web/Extension route refresh preferences through their
+own Identity session, value-free hints and bounded polling outside Settings.
+Trust status, disconnect/reconnect UI and full browser acceptance remain
+incomplete; this is not release acceptance for shared unlock.
+
+The worker has a typed Identity API client, generated provider/consumer fixtures,
+cryptographic member-key recovery and a one-shot receiver transaction using the
+real session installer. It consumes and commits its own Identity session, rejects
+substituted crypto/route bindings, cleans incomplete late issuance and preserves
+a completed session after peer/ACK loss. Lock/logout/manual/new receiver cancel
+pending work and wipe temporary keys synchronously.
+Installation owns only the receiver's tokens, retains inherited idle/absolute/
+offline ceilings and rejects lock/logout, cancellation, environment/account
+changes and stale asynchronous results. Durable storage contains the ordinary
+password-sealed own-session envelope; MK and recovered private keys stay in RAM.
+
+The source transaction now creates a one-shot extension-to-Web operation from
+its own live session and authority, verifies the receiver immediately before
+synchronous send, and cancels on local lifecycle or token rotation. It does not
+renew activity or persist keys.
+
+A worker-owned nonsensitive link store now retains one exact scoped ID, known
+barriers and pending closing decisions through session logout/restart. Source
+preparation rechecks current Identity preference and link before activation;
+local pending actions/revocation stop it. Browser dispatch, delivery of closing
+intents and explicit reconnect are still pending integration.
+
+Manual login/password unlock now prepares fresh own Identity authority, including
+TOTP proof cleanup and failure fallback. These components are not yet connected to
+the browser messaging runtime. Verified Web/Extension routing, inherited source/own activity handling, durable link/preference
+coordination, UI and the full platform matrix remain open release gates. The
+platform probes prove only their recorded browser signals, not the feature.
+
+An explicitly configured Chromium worker now has a browser-authenticated
+hello/ready channel with exact environment/document gates, navigation retirement
+and server-change suspension. Nine local actual-product Chromium checks passed;
+this channel does not yet invoke the session/crypto components or supply the Web
+application adapter. Other browser/OS/distributed-artifact acceptance remains open.
+
 ## Development baseline
 
 - One buildable source tree with a locked dependency graph.
 - The shared cryptographic dependency is the exact public registry release
-  `@palladin/crypto@0.4.0`, published from signed tag `v0.4.0` with npm/Sigstore
+  `@palladin/crypto@0.7.0`, published from signed tag `v0.7.0` with npm/Sigstore
   provenance. No temporary Git SHA or extension-local crypto wire remains.
 - CI and local tests cover messaging, session lock/wipe, ciphertext-only cache,
   canonical writes for credentials, keys, scripts and cards, domain matching,
@@ -156,3 +202,13 @@ release candidates.
 Until every release gate is complete, documentation and UI must continue to use
 experimental language and must not ask users to trust the extension with real
 credentials.
+
+### Shared-unlock late receiver response
+
+An available late successful commit can now reach the receiver's own-lineage
+cleanup observer before cancellation rejects it. The separate cleanup method
+revokes only that new own refresh lineage on its original API within two seconds;
+it never calls group logout or replaces the active client session. Focused negative
+tests reproduce the previous dropped-body behavior and cover abort/server changes,
+body loss, no retry and an unresponsive transport. Browser receiver wiring remains
+in progress, so this API support alone is not automatic session cleanup in the UI.

@@ -34,7 +34,7 @@ export interface UnlockSource {
    * {@link SessionError} the caller can localise. Returned buffers are owned by
    * the caller.
    */
-  deriveKeys(material: AccountMaterial): Promise<SessionKeys>;
+  deriveKeys(material: AccountMaterial, onManualProof?: (authCredential: Uint8Array) => void): Promise<SessionKeys>;
 }
 
 /**
@@ -47,7 +47,7 @@ export class MasterPasswordUnlock implements UnlockSource {
 
   constructor(private readonly password: string) {}
 
-  async deriveKeys(material: AccountMaterial): Promise<SessionKeys> {
+  async deriveKeys(material: AccountMaterial, onManualProof?: (authCredential: Uint8Array) => void): Promise<SessionKeys> {
     try {
       assertIdentityKdfProfile({
         profileId: material.kdf.profileId,
@@ -73,6 +73,12 @@ export class MasterPasswordUnlock implements UnlockSource {
         encryptedPrivateKey,
         identity.masterKey,
       );
+      try {
+        onManualProof?.(identity.authCredential);
+      } catch (error) {
+        wipe(privateKey);
+        throw error;
+      }
       return { masterKey: identity.masterKey, privateKey };
     } catch {
       // Unwrap failed the MAC check: wrong password. Wipe the derived key so no

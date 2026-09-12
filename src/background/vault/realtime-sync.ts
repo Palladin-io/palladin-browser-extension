@@ -13,7 +13,6 @@ export interface VaultSyncInvalidation {
   readonly removed: boolean;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const CANONICAL_U64 = /^(0|[1-9][0-9]{0,19})$/;
 const MAX_U64 = 18_446_744_073_709_551_615n;
 
@@ -34,9 +33,10 @@ export function parseVaultSyncInvalidation(raw: unknown): VaultSyncInvalidation 
     || typeof record.memberSequence !== "string"
     || typeof record.mutationVersion !== "string"
     || typeof record.removed !== "boolean"
-    || !UUID.test(record.vaultId)
     || !canonicalU64(record.memberSequence)
     || !canonicalU64(record.mutationVersion)) return null;
+  // Vault identity belongs to the authenticated first-party contract. Do not
+  // reject server-issued IDs by a client-owned UUID-version restriction.
   return record as unknown as VaultSyncInvalidation;
 }
 

@@ -55,10 +55,14 @@ export function useSession(client: SessionClient): UseSession {
   const [phase, setPhase] = useState<SessionPhase>("loading");
   const [capabilities, setCapabilities] = useState<SessionCapabilities | null>(null);
   const pendingTotp = useRef<PendingTotp | null>(null);
+  // Worker events and newer user actions supersede every in-flight UI result.
+  // A slow initial status read must never undo a later committed unlock/lock.
+  const revision = useRef(0);
   const [initNonce, setInitNonce] = useState(0);
 
   useEffect(() => {
     let active = true;
+    const ownRevision = ++revision.current;
     setPhase("loading");
     void (async () => {
       try {
@@ -66,21 +70,24 @@ export function useSession(client: SessionClient): UseSession {
           client.getStatus(),
           client.getCapabilities().catch(() => null),
         ]);
-        if (!active) return;
+        if (!active || revision.current !== ownRevision) return;
         setCapabilities(caps);
         setPhase(phaseFor(status));
       } catch {
-        if (active) setPhase("unavailable");
+        if (active && revision.current === ownRevision) setPhase("unavailable");
       }
     })();
     return () => {
       active = false;
+      if (revision.current === ownRevision) revision.current += 1;
     };
   }, [client, initNonce]);
 
   const signIn = useCallback(
     async (email: string, password: string) => {
+      const ownRevision = ++revision.current;
       const result = await client.login(email, password);
+      if (revision.current !== ownRevision) return;
       if (result.status === "totp-required") {
         pendingTotp.current = { challengeToken: result.challengeToken };
         setPhase("totp");
@@ -93,12 +100,14 @@ export function useSession(client: SessionClient): UseSession {
 
   const submitTotp = useCallback(
     async (code: string) => {
+      const ownRevision = ++revision.current;
       const pending = pendingTotp.current;
       if (!pending) {
         setPhase("signed-out");
         return;
       }
       const status = await client.completeTotp(pending.challengeToken, code);
+      if (revision.current !== ownRevision) return;
       pendingTotp.current = null;
       setPhase(phaseFor(status));
     },
@@ -106,6 +115,7 @@ export function useSession(client: SessionClient): UseSession {
   );
 
   const cancelTotp = useCallback(() => {
+    revision.current += 1;
     void client.cancelTotp();
     pendingTotp.current = null;
     setPhase("signed-out");
@@ -113,29 +123,37 @@ export function useSession(client: SessionClient): UseSession {
 
   const unlock = useCallback(
     async (password: string) => {
+      const ownRevision = ++revision.current;
       const status = await client.unlock(password);
+      if (revision.current !== ownRevision) return;
       setPhase(phaseFor(status));
     },
     [client],
   );
 
   const lock = useCallback(async () => {
+    const ownRevision = ++revision.current;
     await client.lock();
+    if (revision.current !== ownRevision) return;
     setPhase("locked");
   }, [client]);
 
   const signOut = useCallback(async () => {
+    const ownRevision = ++revision.current;
     await client.logout();
+    if (revision.current !== ownRevision) return;
     pendingTotp.current = null;
     setPhase("signed-out");
   }, [client]);
 
   const retryInit = useCallback(() => {
+    revision.current += 1;
     pendingTotp.current = null;
     setInitNonce((n) => n + 1);
   }, []);
 
   const synchronize = useCallback((status: SessionStatus) => {
+    revision.current += 1;
     pendingTotp.current = null;
     setPhase(phaseFor(status));
   }, []);

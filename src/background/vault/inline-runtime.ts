@@ -15,6 +15,7 @@ import {
 } from "./entry-metadata";
 
 export interface InlineAutofillDeps {
+  resolveLegacySource?(documentId: string, sender: chrome.runtime.MessageSender): Promise<ActiveTab | null>;
   getStatus(): Promise<SessionStatus>;
   getMetadata(): Promise<EntryMetadata[]>;
   fill(
@@ -63,10 +64,10 @@ export async function handleInlineAutofillContentMessage(
 ): Promise<InlineAutofillResult | null> {
   if (!isInlineAutofillCommand(raw)) return null;
   if (raw.type === "inline/open-palladin") return null;
-  const source = inlineAutofillSource(raw, sender, extensionId);
-  if (source === null) return { ok: false, code: "unavailable" };
-
   try {
+    const source = inlineAutofillSource(raw, sender, extensionId)
+      ?? (sender.documentId == null ? await deps.resolveLegacySource?.(raw.documentId, sender) : null);
+    if (!source) return { ok: false, code: "unavailable" };
     const status = await deps.getStatus();
     if (raw.type === "inline/list") {
       if (status !== "unlocked") {

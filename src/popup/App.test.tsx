@@ -48,6 +48,23 @@ function makeOnboardingClient(
 beforeEach(() => vi.clearAllMocks());
 
 describe("popup state machine", () => {
+  it.each(['popup', 'side-panel'] as const)('opens shared-unlock account settings through the real %s host', async surface => {
+    const sendMessage = vi.fn(async (raw: { type: string }) => raw.type === 'shared-unlock-settings/get'
+      ? { ok: true, contextId: '11111111-1111-4111-8111-111111111111', sharedUnlockEnabled: true, revision: 1, locallyPaused: false }
+      : { ok: false, code: 'unavailable' })
+    vi.stubGlobal('chrome', { runtime: { sendMessage, onMessage: { addListener: vi.fn(), removeListener: vi.fn() } },
+      tabs: { onActivated: { addListener: vi.fn(), removeListener: vi.fn() }, onUpdated: { addListener: vi.fn(), removeListener: vi.fn() } } })
+    try {
+      const view = render(<App surface={surface} client={makeClient()} serverConfigClient={makeServerConfigClient()}
+        onboardingClient={makeOnboardingClient()} />)
+      const user = userEvent.setup()
+      await user.click(await screen.findByRole('button', { name: 'Settings' }))
+      await user.click(screen.getByRole('button', { name: 'Shared unlock' }))
+      expect(await screen.findByRole('switch', { name: 'Shared unlock' })).toHaveAttribute('aria-checked', 'true')
+      expect(sendMessage).toHaveBeenCalledWith({ type: 'shared-unlock-settings/get' })
+      view.unmount()
+    } finally { vi.unstubAllGlobals() }
+  })
   it("lands on Sign in when signed-out", async () => {
     render(<App client={makeClient()} />);
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();

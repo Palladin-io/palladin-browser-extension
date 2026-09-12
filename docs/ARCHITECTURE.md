@@ -28,6 +28,34 @@ copy comes from exact-parity locale catalogs, while manifest/store-facing copy
 uses MV3 `_locales`. Theme tokens mirror the web panel and never alter the
 worker's session, key, or authorization state.
 
+### Shared unlock completion in Popup and Side Panel
+
+The single-use automatic receiver emits a completion only after its own committed
+installation, while its own installed keys/limits still match. The worker selects
+at most one already connected, visible Popup/Side Panel over the private
+`palladin.shared-unlock.notice.v1` Port. Registration requires the browser sender's
+own extension ID, no content tab and an exact product surface URL. It accepts only
+strict visibility messages; it never receives session state or key material.
+There are at most32 registrations and no stored completion, operation identifier,
+delivery retry or later replay. Failed delivery does not select a second surface.
+Generic unlock/lock hooks clear presentation; only the automatic receiver emits
+success. No message calls activity/refresh or renews session limits.
+
+The shared React App displays the exact PL/EN text in a polite status region for
+four seconds without moving focus. Hidden surfaces, delivery at least two seconds
+late, worker disconnect and a newer lock discard it. Remount/reconnect never
+replays an old notification. A private Port reconnects after worker loss without
+sending keepalive or activity traffic. Popup and Side Panel reuse this component;
+no additional Safari surface is introduced. Worker restart loses all notice state.
+
+The surface session hook also fences initial reads and manual login/unlock/TOTP/
+lock/logout results against newer worker events and newer local actions. A late
+result cannot change a newly locked/signed-out screen back to unlocked. This UI
+ordering is not key custody or an authorization boundary; the worker remains
+authoritative. Tests use real receiver crypto and SessionManager, and the shared
+App in both hosts with a real notice distributor over synthetic browser Ports.
+They do not replace native Identity/MK/Entry or browser-matrix acceptance.
+
 - The page main world is controlled by the visited site. It is never a trust
   anchor, even if a message contains a nonce that page scripts can observe.
 - The isolated-world script validates shape, direction, frame, origin, and
@@ -335,7 +363,9 @@ SignalR
 `ReceiveVaultSyncInvalidation` is the primary live path while the worker is
 unlocked: its strict value-free payload identifies one Vault and monotonic
 structural version, and the worker fetches only that Vault's authenticated
-detail/delta. Duplicate and out-of-order hints are coalesced; a removal
+detail/delta. Vault IDs are opaque server-owned strings; the receiver does not
+impose its own UUID-version restriction (the backend currently issues UUIDv7).
+Duplicate and out-of-order hints are coalesced; a removal
 tombstone wins over an update at the same mutation version. Unlock and SignalR
 reconnect perform a full all-Vault repair. Popup/side-panel mounts, active-tab
 changes and page reloads rebuild presentation from encrypted local cache
@@ -396,3 +426,589 @@ autofill heuristic.
 Release work must add, at minimum, locked dependencies, type checking, unit and
 integration tests, permission-diff review, artifact hashes, an SBOM, provenance
 attestation, and a documented browser-store signing process.
+
+## Shared unlock session components (CVT-583, pre-release)
+
+`background/shared-unlock/api.ts` follows the Identity session contract with typed
+responses and generated consumer fixtures. Source requests use the source's own
+session; consume/commit run as receiver requests with one-shot proofs. No source
+token crosses the peer channel. Requests reject environment changes/cancellation
+before and after asynchronous boundaries and never retry a consumed operation.
+
+`shared/crypto/shared-unlock-keys.ts` composes only the published crypto package:
+verify Identity's key-context commitment against the authorized operation, unwrap
+the private key with the recovered MK and derive/compare its public key against
+Identity's independent descriptor. It owns temporary buffers and wipes failures.
+This cryptographic boundary does not duplicate backend business invariants.
+
+The SessionManager installer is captured before receiver proofs. It refuses an
+account switch and fences local lock/logout, a newer manual/automatic attempt,
+route changes and expiry during sealing, storage and publication. A failed
+installation removes only its own envelope and leaves any newer session alone.
+A concurrent lock preserves a prior own sealed session; logout/environment
+revocation prevents its restoration;
+the receiver transaction revokes the newly committed receiver lineage separately.
+Duplicate installation cannot replace or wipe the successful independent session.
+
+The receiver preserves original unlockedAt and idle/absolute/offline deadlines.
+Actual own activity may move idle only within original ceilings; policy changes
+and on-close do not remove inherited deadlines. Key reads enforce those deadlines
+synchronously when browser alarms are late, including a shorter local idle policy. Worker restart retains no keys and
+requires a new authorized operation or manual unlock. Turning sharing OFF must
+not alter these own-session limits.
+
+The configured browser coordinator now invokes these components after native
+route/account/link selection and adopts verified own receiver authority. Shared
+closing/expiry/preference coordination and surfaces remain release gates; there
+is no claim of end-to-end platform acceptance.
+
+
+Manual login/password unlock now prepares its own Identity authority before
+publishing keys. The password-derived AuthCredential goes only to Identity,
+never to a peer or durable storage. TOTP retains it only for the pending manual
+challenge; expiry/cancel/lock/logout erases it. The password source exposes a
+synchronous borrowed-proof callback, so inherited MK installation cannot derive
+or manufacture this proof. Failed/offline/step-up preparation leaves sharing
+unavailable and permits the ordinary own password unlock.
+
+`shared-unlock/source-authority.ts` reads current account preference and authorizes
+one fresh RAM generation with current credential/wrapper revisions. OFF can
+prepare an own root but remains OFF; there is no preference write or automatic
+retry. Reset/timeouts wipe pending proof and reject late success. The own Identity
+ceilings use the existing durable-session expiry plus the actual local idle policy;
+these are not Vault access leases. Signed per-Vault offline authorization remains
+independent. New handoffs, inherited roots and own activity still need the browser
+coordinator; no shared key route is exposed by this preparatory hook.
+
+
+`shared-unlock/chromium-browser.ts` now registers a strict external hello/ready
+Port when explicit public build configuration is present. `chromium-route.ts`
+binds browser-authored top-frame tab/document/origin to the configured API/Web
+pair, rechecks the current frame and permanently retires on navigation or teardown.
+Server-setting changes suspend admission and retire pending/live routes before
+mutation; completion resumes admission without reviving any old route. The channel
+nonce is not a crypto/source generation. There is still no key/account/token
+message and no call from this channel to source/receiver session coordinators.
+See SHARED-UNLOCK-PLATFORM-EVIDENCE.md for permission justification, exact config,
+negative tests and the limited actual-product Chromium probe.
+
+The receiver Identity API now accepts an `onIssued` commit observer. An available
+successful response body reaches this observer before cancellation/environment
+fencing rejects the result. The coordinator must capture the newly issued lineage
+there and use `revokeIssuedSession` if installation fails or was cancelled. That
+cleanup uses only the captured receiver refresh token and original API URL, without
+bearer/cookies/redirects/retry, and has an independent two-second bound even if the
+transport ignores abort. It does not mutate the current local session or emit a
+peer/group logout. No observer fires for a failed response or unreadable/lost body;
+a consumed commit is never replayed to recover a missing token. These API mechanics
+still require the actual receiver transaction and browser coordinator to call them.
+
+
+`shared-unlock/receiver.ts` now composes the published SDK proof/DH receiver,
+Identity consume/commit, key recovery and SessionManager installation. The browser
+coordinator must supply account/org/link/preference and exact document/generation
+bindings independently of the offered operation. Both signed proofs bind the
+operation; the consumed Identity descriptor supplies member-key authority; the
+committed transcript must match before installing only the receiver's own tokens.
+
+The installer exposes a monotonic completion fact at its final synchronous route/
+local-generation check. A disconnect queued before the install promise resumes
+cannot revoke an already completed own session. ACK carries only operation ID
+and Web/Extension generations; loss never retries the operation or logs out a
+completed receiver. An incomplete available late commit body triggers bounded
+own-lineage cleanup on the original Identity. Lost bodies are never replayed.
+
+A synchronous installer AbortSignal cancels pending receiver work on local lock,
+logout, manual work or a newer receiver. It wipes recovered temporary keys even
+when commit transport is stalled. The receiver also applies the route signal and
+30-second attempt deadline. Installation owns its buffers through asynchronous
+storage rollback; it does not race cancellation against rollback completion.
+Real SDK/SessionManager tests cover these boundaries with mocked Identity and a
+synthetic Entry primitive. The pre-release coordinator below now invokes the transactions after account/link
+selection. These isolated transaction tests are not full browser E2E proofs.
+
+
+`shared-unlock/source.ts` now creates an extension-to-Web operation using only
+its own SessionManager session and current source authority. A worker-only source
+capture borrows existing keys/tokens, reads effective limits synchronously and
+invalidates on lock/logout, manual work, a newer receiver or token rotation.
+Disposal drops references and stops that operation without changing the own
+session. It performs no storage write, activity update or implicit token refresh.
+
+The source compares account/org/link/preference and exact browser document/
+generations to independent authority, plus its own root/key revisions. Published
+SDK crypto validates participant keys/transcript and the descriptor commitment;
+recovered private key must equal the independently held own Member private key.
+Outgoing projection includes only protocol fields, including nested context and
+descriptor. A final asynchronous browser verification and synchronous send remain
+inside the own-session/route/30-second fence. Send failure is not retried.
+
+Source tests use real SDK and SessionManager with mocked Identity/root preparation,
+including actual token rotation cancelling an already pending operation. They
+recover Member/Vault keys and decrypt a synthetic Entry primitive; they do not
+wire browser dispatch or establish inherited-source/link/preference authority.
+
+
+`shared-unlock/link-store.ts` persists one nonsensitive marker per exact API/Web
+origin/extension ID/account in worker-owned local storage. It allocates the link
+ID before Identity creation and reuses it after failure/restart. Existing different
+IDs and malformed persisted records are unavailable, never new first use. Ordinary
+session logout does not erase these markers. Backend response projection writes
+only known link fields; structural validation applies to persisted bytes, not to
+authenticated first-party response business rules.
+
+The marker retains last observed Identity link state plus at most two pending
+closing intents: lock or the stronger logout, and an independent disconnect.
+Disconnect cannot replace logout. A separate local disconnect ID survives newer
+active server observations; only the exact explicit reconnect receipt may clear
+it, provided no newer closing decision invalidated the attempt. A receipt clears only its exact intent ID;
+older observations cannot regress a previously accepted revision or clear newer
+pending actions. Writes are serialized by the one worker. The caller must cancel
+local work before awaiting persistence/network. A failed write remains retained
+in worker memory and blocks all normal reads/activation until the exact write
+is repaired; stronger closing actions can still be retained during that repair.
+Only successful persistence proves survival across worker termination. These records contain no keys, token,
+password proof, operation envelope, source generation or deadlines.
+
+`shared-unlock/prepare-link.ts` uses an existing own source session/root, verifies
+the browser, fetches the current preference and reads or creates the same Identity
+link before activation. Pending closing intent, retained revocation and disappearance
+of an already known link prevent automatic activation. Each asynchronous boundary
+checks the own session/root, current preference, route and 30-second deadline;
+final browser verification also rechecks locally accepted link revision/intents.
+It uses the authenticated activate endpoint for fresh root binding; it does not
+reconstruct backend authorization rules. Preference refresh changes only the
+existing own generation's preference and cannot renew its root or deadlines.
+
+The configured browser coordinator invokes the durable store; Web also has an
+origin-wide locked marker store. Closing-intent delivery/reconciliation and
+explicit reconnect remain to be wired with shared actions/settings. Tests prove
+storage/Identity preparation boundaries using mock Identity and real SessionManager,
+not automatic unlock or full browser lifecycle acceptance.
+
+
+## Browser operation transport (implementation increment)
+
+The established Chromium route now supports strict bounded operation frames:
+source offer, receiver DH/proof offer, encrypted handoff, ACK and cancellation.
+The outer attempt ID is separate from the ACK payload, which still contains only
+operation ID and Web/Extension generations. API, handshake nonce, channel ID and
+browser document binding must match the live route. Extra fields and oversized
+crypto encodings are rejected at this independent browser-input boundary; this
+does not add first-party REST response validation or replace SDK crypto binding.
+
+`browser-transfer.ts` composes the existing source/receiver transactions. The
+caller must supply independently selected account/org/link/preference/generation
+authority to their factories. Each attempt has a 30-second timer plus wall-clock
+checks, retires late factory results, and removes subscriptions on completion or
+failure. A receiver waits for its real install/rollback to finish; it does not
+race storage work against transport cancellation. Lost or incorrect ACK does not
+resend the handoff or undo a completed own session. No token is sent to the peer.
+
+Extension verifies the browser's current top-frame document before dispatching
+each frame, serializing dispatch with a bounded queue. Web verifies its own
+live document. Navigation, peer loss, malformed/mismatched frames or operation
+input without a coordinator retire the channel. The extension exposes a
+synchronous onReady registration hook. Both configured product bootstraps now
+register the pre-release coordinator described below.
+
+Focused tests compose the runner with real source encryption and real receiver
+consume/commit/session installation using mock Identity. Negative cases cover
+stale attempts, order, substituted browser bindings, expanded payloads, late
+factories, wall-clock expiry, lost ACK and waiting for installer rollback. These
+are not actual browser Identity/MK handoff or full supported-platform evidence.
+The paired native Chromium probe was rerun at 2026-09-11T04:43:10.380Z: all 11
+hello/ready/document/bootstrap checks pass on Chromium 153.0.8010.12/macOS arm64
+under the actual Web CSP, without accounts or a cryptographic handoff.
+
+
+## Automatic browser coordinator — pre-release integration
+
+Configured Chromium/Web bootstraps now register the real account/link coordinator
+on each browser-confirmed route. Before any crypto offer, clients exchange a
+bounded state record containing status, account ID, a fresh state ID, the own
+source generation (or a new receiver generation), and source organization. The
+receiver must be locked/signed out and either have no account or the same account.
+A different signed-in account is never replaced. Two unlocked clients do not
+start a reverse handoff just because an earlier handoff completed.
+
+Extension allocates the scoped profile link ID; Web adopts exactly that ID and
+acknowledges successful persistence before an Extension source may prepare it.
+The source reads fresh Identity preference/link state and activates the selected
+link through its own tokens/root. The resulting epoch/preference agreement is
+sent before the crypto offer. Receiver expectations combine that explicit
+preparation contract with independently selected account/org/generations, the
+local link marker and native browser/document identity; they are not extracted
+from the operation or encrypted envelope being verified.
+
+One attempt and one link selection can be pending on a route. Async storage
+checks are bounded by the attempt cancellation/deadline. Extension dispatch
+serializes current-document verification, with at most four waiting operation
+frames plus one in flight; overflow/navigation retires the route. This permits
+adjacent link-selection/preparation or ACK/state messages without an unbounded
+queue. No keys or tokens are put into coordinator state or browser control frames.
+
+The actual receiver transaction now publishes verified own inherited authority
+to a local installation callback before its best-effort ACK. Its own key/session
+fence survives peer closure and rejects a later own lock/session replacement.
+Adoption retains original root sequence, generation and time ceilings, does not
+request a fresh password proof, and cannot overwrite a newer explicit OFF.
+Source-authority subscriptions trigger readiness after late manual preparation.
+Updates caused by the receiver's own installation are deferred until completion
+so the coordinator does not cancel its own successful install.
+
+Web persists only nonsensitive scoped link/revision/closing records, using an
+origin-wide Web Lock across documents. Missing Web Locks, corrupt bytes, a
+conflicting link, a pending closing intent or a disconnect latch prevent use.
+A failed local closing write remains blocked until repaired. The Web Identity
+adapter adds read/create/activate link and own-activity contract methods; actually
+feeding trusted activity into inherited roots is still pending.
+
+**Release gate:** manual lock/logout delivery and reconciliation, durable expiry
+barriers and settings/UI are not connected yet. In particular, the coordinator
+must not ship until tests prove that a peer with an old root cannot undo a manual
+lock/logout or an expired receiver. Runtime integration and successful synthetic
+selection tests do not establish that property. No merge/release acceptance is
+claimed. Full browser Identity/Entry E2E and the supported artifact matrix remain
+required. The actual paired Chromium probe also observes signed-out state sent
+and received by both product coordinators and detects local Port disconnects;
+it does not supply an account or perform an Identity/MK handoff.
+
+
+## Explicit manual closing persistence — pre-release increment
+
+The popup's explicit lock/logout commands now pass a manual reason to
+SessionManager. Keys are wiped and in-flight session work is cancelled before
+waiting for storage; manual logout also removes published memory tokens before
+that wait. The worker records closing against existing links for the current
+account/API and configured Web origins, even if the peer is closed or the own
+client is already locked. Internal security/expiry lock and cleanup do not emit
+this manual action. Failed persistence still leaves local keys erased and
+returns a failure; it does not claim a durable closing receipt.
+
+Web logoutAndReload records the existing account's pending logout before reload,
+using the same origin-wide marker store as the coordinator. It clears own auth
+synchronously. A failed marker write prevents reload, and generic auth-failure
+clearClientSession does not create shared logout intent. A throwing secondary
+cleanup cannot prevent the own auth wipe or the closing record.
+
+The store never creates a link while closing. Logout remains stronger than lock,
+disconnect remains a separate latch, and failed writes retain the existing RAM
+admission gate until repaired. Receiver-only markers may lack an observed server
+revision; revision zero/null preference is a repair hint, not authority for a
+mutation. Restart durability is proven only after a successful write.
+
+**Still required before merge:** deliver these intents through own Identity and
+the linked peer, reconcile stale CAS receipts and missed actions, and flush old
+closings before preparing a fresh manual source authorization. At this increment
+pending actions deliberately keep sharing unavailable, including after a new
+manual unlock, until that reconciliation is implemented. No peer lock/logout
+has been delivered by this increment. Durable expiry barriers, OFF semantics,
+activity, settings/UI and the full browser/Identity/Entry matrix remain open.
+
+
+## Own closing delivery and active-root reconciliation — pre-release increment
+
+Manual Extension lock/logout now delivers the saved intent through its own
+captured Identity session before ordinary local logout revocation. Web captures
+only its own token fields, clears auth immediately, and delivers before reload.
+Network delivery is bounded to two seconds; timeout/conflict leaves the durable
+intent pending. A changed own session/environment cancels delivery, and an old
+Web logout no longer reloads over a newer login.
+
+The drain reads fresh own preference and link state, then submits the exact
+current CAS to the distinct lock/logout/disconnect endpoint. It acknowledges only
+the saved intent ID after a receipt. Newer logout decisions and the separate
+disconnect latch survive. A fresh authenticated OFF settles manual propagation
+without a lock/logout mutation; disconnect remains independent. Missing links,
+revoked-link conflicts and failed writes are not silently reset or relinked.
+There is no automatic mutation retry after 409.
+
+Both real manual-source compositions drain pending actions before reading the
+preference and authorizing a fresh password-derived root. The existing ten-second
+proof deadline and own lifecycle checks cover this work. The resulting root's
+server sequence therefore follows the completed closing barrier; an inherited
+root never performs this manual preparation.
+
+A committed receipt emits only a value-free browser link-invalidated hint.
+Active clients independently fetch their own stored link through their own
+Identity session and compare its invalidation/logout barriers with the sequence
+of their currently installed root. Logout is stronger than lock. Local key wipe
+starts before observing the receipt in storage; it invokes ordinary local cleanup
+and does not echo another shared mutation. Late responses lose to own account,
+token, root/generation and route changes. A peer hint alone never orders a logout.
+
+Repair runs when the route/source becomes available, on an invalidation hint and
+every fifteen seconds while the route lives; duplicates are coalesced with at
+most one read per second and a two-second pending request deadline. Route teardown
+retires subscriptions/timers and leaves a valid own session intact. Best-effort
+hint delivery is awaited within the sender's existing deadline before Web reload.
+
+**Remaining release gates:** this monitor requires an in-memory installed own
+root. Already-locked/restarted clients, expired own access tokens and independent
+multi-document activity/expiry still need completion and focused proofs. Backend
+PR #54 supports logout on a revoked link while preserving disconnect and revoking
+old linked refresh lineages; client receipt tests retain the local disconnect.
+Own input now updates only its own Identity idle authority and durable checkpoint,
+with the original absolute/offline ceilings. Full settings/OFF propagation,
+disconnect/reconnect UX, canonical browser fixtures and real Identity/Entry E2E on
+the entire supported artifact matrix remain required. Synthetic Identity tests
+and the paired Chromium channel probe do not close those gates.
+
+
+## Local preference pause (implementation increment)
+
+The worker's account/API-scoped preference gate fences source admission, receiver
+installation and future manual closing delivery. Pausing synchronously cancels
+both pending directions; completed own keys and deadlines remain unchanged. Only
+a nonsensitive pause ID and its scope are durable. Failed writes retain RAM denial;
+late cancellation after a clear restores the persisted denial where storage works.
+
+Local OFF/disconnect admission rejection leaves the browser route available for
+an explicit later resumption with fresh state/attempt IDs. Tests cover paused Web
+and Extension receivers, late crypto results and unrelated accounts. The shared
+Settings surface now calls this gate through the trusted worker command boundary.
+Background account-preference repair is connected below; disconnect/reconnect
+and the artifact matrix remain release gates.
+
+## Shared account preference settings
+
+Popup and Side Panel mount the same Settings section. The worker reads/writes
+Identity's account preference with own JWT, revision CAS and a ten-second budget.
+It issues one RAM-only context nonce for the current own settings session; stale
+screens cannot mutate a later account/session. UI receives only the preference,
+local pause state and that opaque context, never keys or credentials. Command
+shapes are strict at the browser messaging boundary. A trusted extension page and
+a server-operation lease are checked before dispatch; a set pauses synchronously
+before storage or API waits. Page/content bridge messages cannot use this channel.
+
+SessionManager's settings lease borrows only current own tokens, not MK/private
+keys. It supports an already locked session that still has its own JWT in RAM.
+Lock/logout, login/unlock, refresh and installation of a new own session retire
+old leases; a pending browser receiver does not disable Settings, so OFF can
+cancel that receiver before key publication. A restarted worker with only the
+sealed session must authenticate/unlock before changing the account preference.
+
+Successful ON and OFF settle only their exact local pending-write marker.
+Network/storage/CAS/authentication failure or a late cancelled result retains
+denial; there is no automatic mutation retry. Boolean preference changes notify
+source selection without changing its authority or deadlines. Settings surfaces
+refresh on value-free worker hints, focus and a fifteen-second interval; session
+hints invalidate old screen results. PL/EN, keyboard switching, two-host state,
+signed-out guidance, CAS/retry and real SessionManager lock/receiver races have
+focused tests. Local trust display, disconnect/reconnect, native visual acceptance
+and the artifact matrix remain open.
+
+## Background account preference repair
+
+Each verified browser route reads the account preference through its own current
+Identity tokens on connection, own lifecycle changes and a fifteen-second repair
+interval. Only a successful own settings write sends a strict value-free
+`preference-invalidated` hint. The recipient performs its own GET; a peer never
+supplies an enabled value, account selector or bearer. Observations do not echo
+hints. Pending reads and outgoing verification have a two-second budget; reads
+coalesce to one in flight plus one pending refresh, at most one start per second.
+
+Account/API-scoped RAM observations reject older revisions. Observed OFF cancels
+source and receiver attempts and fences admission and final key installation.
+ON can wake a still-valid source, but cannot renew its root, keys or deadlines or
+clear a failed-save pause. Existing own sessions stay intact. Own lock/unlock
+clears observations; a rejected own JWT forgets only its transient observation,
+so it cannot permanently block a later independently authorized receiver.
+Network failure retains known OFF. Fresh Identity consume/commit authority and
+the durable local pause/link/expiry barriers remain required for any handoff.
+
+Worker reads use the token-only settings lease even while keys are locked, and
+dispose it on every completion or failed initial read. A restarted worker with
+no own JWT cannot use a peer hint as authority. Locked/restarted closing repair,
+real Identity/MK/Entry E2E and the complete browser artifact matrix remain gates.
+
+## Explicit reconnect storage fence
+
+The local reconnect receipt accepts an own-session fence before and after its
+asynchronous write. A failed or cancelled clear restores the exact disconnect
+ID while retaining the latest nonsensitive receipt. If restoration also fails,
+RAM admission stays denied; later repair writes the denial, never a previously
+failed successful clear. A new closing decision still defeats the old receipt.
+Only completed storage is evidence of persistence across worker loss.
+
+Focused tests cover cancellation during storage, failure of the clear and its
+restoration, restart and repair. The authenticated peer notification/acknowledgement
+path is connected below; Extension Settings disconnect/reconnect controls and
+rootless/restarted peer repair remain unfinished.
+
+## Explicit reconnect delivery between authenticated peers
+
+The strict private browser vocabulary now has `link-reconnect` and
+`link-reconnect-ack`, carrying only opaque account/link IDs and a reconnect
+revision. An optional nonsensitive `reconnectRevision` on the existing local
+marker records an own successful explicit reconnect that still needs delivery.
+Old version-one markers default to no invitation. New disconnect or observed
+revocation removes the invitation; failed/cancelled clear never publishes it.
+
+`reconnect-monitor` sends that outbox through the verified browser route on own
+lifecycle changes, a local explicit-action notification and fifteen-second
+repair. Matching ACK settles only that exact outbox entry. The peer compares
+account/link with its independently captured own session and local pairing, then
+fetches the link through its own Identity JWT. Only a current non-revoked response,
+an invitation newer than its observed revocation, no pending closing, and the
+exact captured disconnect ID may clear its latch. A peer observation does not
+create another invitation. Late own-session/storage cancellation restores denial.
+
+Work coalesces to one run plus one queued request, at most one start per second,
+with a two-second timer and wall-clock deadline for storage, REST and route
+verification. Incoming invitation and ACK each occupy at most one RAM slot.
+Retries use fresh control nonces, never replay crypto handoffs. Route closure
+disposes leases/subscriptions/timers. No key, token, root age or account preference
+is copied or changed, and a failed preference-save pause remains intact.
+
+Both production route compositions use their own token-only lifecycle capture;
+locked keys with a current own JWT can acknowledge. Tests cover a two-monitor
+pair with distinct JWTs, outbox restart/ACK/no echo, old/new disconnect races,
+account/link mismatch, no own auth, offline/timeout and cancelled storage. Runtime
+composition tests use actual markers and the Web auth store or the worker's own
+session boundary with synthetic Identity responses.
+
+**Remaining release gates:** a restarted/tokenless peer cannot use a hint as
+Identity authority, so this path waits for its own authentication. Rootless
+reconnect/group closing, Extension Settings actions, trust/unlock presentation,
+independent multi-document limits and real Identity/MK/Entry E2E on the entire
+browser/OS/distributed-artifact matrix remain unfinished. This is not full native
+cross-client reconnect acceptance.
+
+## Extension local pairing settings
+
+The shared Popup/Side Panel Settings surface now displays the saved local pairing
+and requires an explicit confirmation for Disconnect/Reconnect. It reuses the
+existing buttons, settings styles and PL/EN catalogs. Inline confirmation focuses
+Cancel, supports Escape and restores focus. It never displays raw account/link IDs
+or claims that a saved marker proves current Web reachability. Both hosts refresh
+from one worker context; own-session or pairing changes discard an old confirmation.
+
+The separate strict `shared-unlock-link/get|disconnect|reconnect` commands accept
+only a worker-issued context ID. The trusted extension-page boundary and server
+operation lease precede dispatch. Account, API, Web origin, extension ID and link
+come from the own token lease, unique approved API/Web mapping and own marker,
+never from UI authority fields. A changed local disconnect rotates the context ID,
+so polling cannot retarget a confirmation to a newer decision.
+
+Disconnect starts the durable intent and synchronously wipes own keys before
+storage or network completion. A dedicated SessionManager transition captures only
+the exact original token pair and post-lock generation; a second lock, refresh,
+login or unlock cannot lend a new session to the old action. Own login survives.
+Fresh own Identity CAS delivery is independent of account OFF. Offline/failed
+storage retains local denial and pending repair; no automatic mutation retry.
+
+Explicit reconnect drains pending closing, performs own GET/CAS and clears only
+the displayed exact disconnect ID with lifecycle checks through storage. Success
+records the existing peer invitation and locks keys for a later fresh manual root.
+The ten-second timer and wall-clock fence also reject late transports and dispose
+late post-lock leases. Neither action changes the account preference. UI delivery
+failure/unmount does not undo the durable decision or cancel the worker's cleanup.
+
+Tests cover the real worker in both UI hosts, confirmations/cancel/focus/error,
+Polish copy, strict page-bridge rejection, own JWT with OFF, offline reconciliation,
+newer local disconnect and context rotation, stale sessions, deadlines, CAS and
+storage failure. Real SessionManager tests prove immediate key wipe and exact
+post-lock lineage. These are synthetic Identity tests. Own authentication is
+still required for Settings; rootless/tokenless repair, live trust and remaining
+unlock presentation, native visual/Identity/MK/Entry E2E and the full artifact
+matrix remain release gates.
+
+## Reconnect after a client restart
+
+A verified `link-reconnect` hint now permits bounded receiver staging even when
+that client has no own JWT. The coordinator supplies the local source/receiver
+role independently of the frame: only receiver selection may defer a retained
+revocation. Sources remain denied. Staging requires the exact scoped stored link,
+a known observation, no pending closing, and an invitation newer than any currently
+observed revocation. The proposed epoch must not reuse the revoked epoch. Account
+mismatch and failed preference-save pause remain hard denials.
+
+The hint does not clear the marker, authorize key publication or renew a root.
+The ordinary one-shot consume/crypto-open/commit transaction first obtains the
+receiver's own newly issued Identity session. Immediately before publishing keys,
+`confirmLocalLink` reads the exact selected link with that own JWT. Its current
+active epoch must match the independently selected and committed operation; its
+invalidation barrier must precede the own authorization sequence. This catches a
+lock/logout/disconnect after commit. Browser revision hints are checked against
+that fresh own response. Only then may the exact captured disconnect latch clear.
+The existing storage cancellation rollback remains in force, followed by a final
+local pending/revocation/epoch read. There is no new reconnect invitation or
+account preference write; the existing authenticated monitor later acknowledges
+the original invitation.
+
+The extension performs this check inside the install checkpoint, after durable
+preparation and before synchronous token/key publication. Web checks after its
+expiry checkpoint and before the atomic auth-store install. A failed, timed-out
+or cancelled confirmation wipes temporary recovered keys and revokes only the
+incomplete new receiver session. A completed own session still survives peer loss.
+Normal receivers also recheck local closing immediately before installation.
+No existing client token is borrowed or persisted in new metadata.
+
+The staging notice is one route-bound RAM item; duplicates/older same-link hints
+do not renew attempts. Its delivery uses the existing monitor's one-start/second
+bound. New notice/account or route retirement invalidates pending staging. Own
+link confirmation has a two-second timer and wall-clock bound inside the existing
+thirty-second receiver attempt. Original unlockedAt, authorization sequence and
+idle/absolute/offline/MFA limits remain inherited, never restarted.
+
+Tests cover runtime selection without an own JWT, a real crypto receiver and real
+Web store/SessionManager, unpublished keys while own GET waits, own-JWT-only
+confirmation, cancellation/revocation cleanup, stale/foreign/pending scope,
+newer local closing, current Identity barrier/epoch rejection and storage/timeouts.
+Identity responses remain synthetic: full native two-client Identity/MK/Entry E2E
+and the complete browser/OS/distributed-artifact matrix remain release gates.
+Already-locked/restarted group-closing repair, live trust/unlock presentation and
+independent multi-document limits remain separate unfinished requirements.
+
+
+### Closing repair without a local unlock root
+
+The browser link monitor now also captures an own token-only session while keys
+are locked. With a live RAM closing witness it retains the existing own GET-link
+comparison. Without that witness it uses `POST /api/account/shared-unlock/session-state`
+with the exact own refresh token and locally selected link ID; Identity resolves
+that logical session and returns `none`, `lock` or `logout` with nullable link
+metadata. Client code does not infer a replacement sequence from durable account
+checkpoints or peer frames. This path requires the coordinated Identity API change
+in backend PR55.
+
+Replies remain tied to the own account, token pair, generation, document and
+route. The existing 2-second timer/wall-clock, 1 start/second coalescing and
+15-second repair bound apply. A late reply cannot close a replacement session.
+Logout clears an already-locked own login; a lock response does not repeatedly
+retire an already-locked generation. Neither action echoes a group mutation.
+`none` never unlocks keys or restores source authority. OFF does not erase an
+already committed closing barrier.401/network failure invents no peer action;
+normal own-session authentication/refresh and pre-key-use repair still need their
+full lifecycle acceptance.
+
+Focused tests cover the rootless own POST, already-locked logout, missing bound
+link, own token/document changes, cancellation, no own JWT and late timeout.
+Production composition tests use the real Web auth store or worker token-lease
+boundary; the worker transport test still substitutes SessionManager. They do not
+prove real browser restart/MK/Entry behavior. A worker restart can remove access
+to its own sealed tokens as well as its keys; without own authentication this
+monitor cannot query Identity. The separate newly authenticated receiver and
+remaining expired-access/resume/key-use acceptance must retain that boundary.
+
+
+### Fresh link authority before every receiver installation
+
+Every receiver now performs a bounded fresh link GET using its own newly committed
+Identity session before publishing keys, including an ordinary receiver with no
+old JWT and no reconnect notice. The response must still match the selected
+link/epoch and precede no newer closing barrier relative to the cryptographically
+verified own authorization sequence. An explicit reconnect notice is needed only
+to clear the exact local disconnect latch; it is not needed to enforce this read.
+The local marker is read again after the GET, so a disconnect delivered while
+Identity was pending also wins. Existing 2-second and operation deadline fences,
+key wipe and cleanup of only the incomplete newly issued session remain in force.
+
+Regression tests fail against the previous normal-receiver path and pass with
+this check. Real crypto plus the client's own installation store/SessionManager
+prove that a normal receiver keeps keys/tokens unpublished while the own GET is
+pending, and rejects a server lock occurring after commit even before the local
+invalidation arrives. This is a pre-install freshness check; it does not establish
+all later resume/key-use behavior or native browser acceptance.

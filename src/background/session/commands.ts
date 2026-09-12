@@ -85,10 +85,10 @@ export async function dispatchSessionCommand(
         await manager.unlockWithPassword(command.password);
         return { ok: true, status: "unlocked" };
       case "session/lock":
-        await manager.lock();
+        await manager.lock("manual");
         return { ok: true, status: "locked" };
       case "session/logout":
-        await manager.logout();
+        await manager.logout("manual");
         return { ok: true, status: "signed-out" };
       case "session/getAutoLock":
         return { ok: true, policy: await manager.getAutoLockPolicy() };

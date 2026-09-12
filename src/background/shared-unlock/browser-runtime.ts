@@ -1,0 +1,131 @@
+import { SharedUnlockReconnectStaging } from './reconnect-staging'
+import { sharedUnlockPreferences } from './preference-state-runtime'
+import { startSharedUnlockPreferenceMonitor, type SharedUnlockPreferenceMonitorClient } from './preference-monitor'
+import { startSharedUnlockReconnectMonitor } from './reconnect-monitor'
+import { randomBytes, toBase64Url, wipe } from "@palladin/crypto";
+import { serverConfig } from "../config/server-runtime";
+import { sessionManager, sharedUnlockLinks, sharedUnlockSource, sharedUnlockExpiry, sharedUnlockPreferenceGate } from "../session/runtime";
+import { startSharedUnlockLinkMonitor } from "./link-monitor";
+import { SharedUnlockApi } from "./api";
+import { startSharedUnlockBrowserCoordinator } from "./browser-coordinator";
+import type { SharedUnlockBrowserRoute } from "./browser-route";
+import { prepareSharedUnlockLink } from "./prepare-link";
+import { beginSharedUnlockSource } from "./source";
+import { beginSharedUnlockReceiver } from "./receiver";
+
+/** Worker-only composition. Browser messages never gain a SessionManager or
+ * storage handle; the coordinator only receives scoped nonsensitive metadata. */
+export function coordinateSharedUnlockBrowser(route: SharedUnlockBrowserRoute) {
+  const api = new SharedUnlockApi((...args) => fetch(...args), () => serverConfig.apiUrl);
+  const scope = (accountId: string) => ({ accountId, apiUrl: route.apiUrl, webOrigin: route.webOrigin, extensionId: route.extensionId });
+  const staging = new SharedUnlockReconnectStaging(route, accountId => coordinator.cancelPending(accountId))
+  const admissible = async (accountId: string, linkId?: string, receiving = false, linkEpoch?: number) => {
+    route.assertCurrent();
+    if (sharedUnlockPreferences.isDisabled(scope(accountId)) || !await sharedUnlockPreferenceGate.isAllowed(scope(accountId))) throw new Error("Shared unlock is locally paused");
+    route.assertCurrent();
+    const marker = await sharedUnlockLinks.ensure(scope(accountId));
+    route.assertCurrent();
+    if ((linkId && marker.linkId !== linkId) || marker.pending.length
+      || ((marker.disconnectId || marker.observed?.state === "revoked") && !(receiving && staging.canStage(marker, linkEpoch)))) {
+      throw new Error("Shared unlock local link unavailable");
+    }
+    return marker;
+  };
+  const nonce = async () => { const bytes = await randomBytes(32); try { return toBase64Url(bytes); } finally { wipe(bytes); } };
+  const subscribe = (changed: () => void) => {
+    const listeners = [sessionManager.hooks.onLocked(changed), sessionManager.hooks.onUnlocked(changed), sharedUnlockSource.subscribe(changed)];
+    return () => { for (const remove of listeners) remove(); };
+  };
+  const monitor = startSharedUnlockLinkMonitor(route, {
+    nonce, subscribe,
+    capture: () => {
+      const root = sharedUnlockSource.closingWitness();
+      const manualLockCheckpoints = sharedUnlockSource.manualLockCheckpoints();
+      const captured = sessionManager.captureSharedUnlockSettingsSession();
+      try {
+        const session = captured.read();
+        return { session, sequence: root?.sequence, manualLockCheckpoints, signal: captured.signal, dispose: () => captured.dispose(),
+          assertCurrent: () => {
+            captured.read();
+            const current = sharedUnlockSource.closingWitness();
+            if (current?.authorizationId !== root?.authorizationId || current?.sourceGeneration !== root?.sourceGeneration
+              || sharedUnlockSource.manualLockCheckpoints() !== manualLockCheckpoints) throw new Error("Shared link own root changed");
+          } };
+      } catch (error) { captured.dispose(); throw error; }
+    },
+    closeSession: action => action === "logout" ? sessionManager.logout() : sessionManager.getKeys() ? sessionManager.lock() : Promise.resolve(),
+  }, sharedUnlockLinks, api);
+  const coordinator = startSharedUnlockBrowserCoordinator(route, {
+    role: "extension",
+    nonce,
+    readState: async () => {
+      const accountId = await sessionManager.getUserId();
+      const status = await sessionManager.getStatus();
+      const state = sharedUnlockSource.snapshot();
+      const source = status === "unlocked" && accountId && !sharedUnlockPreferences.isDisabled(scope(accountId)) && await sharedUnlockPreferenceGate.isAllowed(scope(accountId)) && state.authorization?.accountId === accountId
+        && state.sourceGeneration && state.preference?.sharedUnlockEnabled
+        ? { organizationId: state.authorization.organizationId, generation: state.sourceGeneration } : null;
+      return { accountId, status, source };
+    },
+    subscribe,
+    selectLink: async (accountId, proposed, direction) => (await admissible(accountId, proposed, direction === "receiver")).linkId,
+    prepareSource: async (accountId, organizationId, linkId, signal, assertAttempt) => {
+      const assertCurrent = () => { assertAttempt(); sharedUnlockPreferenceGate.assertAllowed(scope(accountId)); sharedUnlockPreferences.assertNotDisabled(scope(accountId)); };
+      await admissible(accountId, linkId); assertCurrent();
+      const result = await prepareSharedUnlockLink({ scope: scope(accountId), organizationId, signal,
+        verifyBrowser: () => route.verifyCurrent(), assertCurrent }, sessionManager, sharedUnlockSource, api, sharedUnlockLinks);
+      assertCurrent(); if (result.link.linkId !== linkId) throw new Error("Shared unlock local link changed");
+      return { linkEpoch: result.link.epoch, preferenceRevision: result.preference.revision };
+    },
+    checkReceiver: async (binding, signal) => {
+      const marker = await admissible(binding.accountId, binding.linkId, true, binding.linkEpoch);
+      if (signal.aborted || (marker.observed && binding.linkEpoch < marker.observed.epoch)) throw new Error("Shared unlock receiver selection expired");
+    },
+    source: (binding, signal, assertCurrent) => beginSharedUnlockSource({ apiUrl: route.apiUrl, binding, signal,
+      assertCurrent: () => { assertCurrent(); sharedUnlockPreferenceGate.assertAllowed(scope(binding.accountId)); sharedUnlockPreferences.assertNotDisabled(scope(binding.accountId)); } }, sessionManager, sharedUnlockSource, api),
+    receiver: async (binding, signal, assertCurrent) => {
+      const marker = await admissible(binding.accountId, binding.linkId, true, binding.linkEpoch); assertCurrent();
+      const localLink = staging.capture(marker, binding, sharedUnlockLinks, api);
+      return beginSharedUnlockReceiver({ apiUrl: route.apiUrl, binding, signal,
+        confirmLocalLink: localLink.confirm,
+        assertCurrent: () => { assertCurrent(); localLink.assertCurrent(); sharedUnlockPreferenceGate.assertAllowed(scope(binding.accountId)); sharedUnlockPreferences.assertNotDisabled(scope(binding.accountId)); },
+        assertFreshAuthorization: (sequence, deadlineMs, hardDeadlineMs) => sharedUnlockExpiry.checkpoint(scope(binding.accountId), sequence, deadlineMs, hardDeadlineMs) }, sessionManager, api,
+        (authorization, generation, assertOwnCurrent) => {
+          assertOwnCurrent();
+          sharedUnlockExpiry.remember(scope(binding.accountId), authorization.sequence);
+          sharedUnlockSource.adopt(authorization, generation,
+          { sharedUnlockEnabled: true, revision: binding.preferenceRevision }, () => {
+            assertOwnCurrent(); if (serverConfig.apiUrl !== route.apiUrl) throw new Error("Shared unlock own environment changed");
+          }); });
+    },
+  });
+  const unsubscribeGate = sharedUnlockPreferenceGate.subscribe(changed => {
+    if (changed.apiUrl === route.apiUrl) coordinator.cancelPending(changed.accountId);
+  });
+  const unsubscribePreferences = sharedUnlockPreferences.subscribe(change => {
+    if (change.scope.apiUrl !== route.apiUrl) return;
+    try {
+      const current = sharedUnlockSource.snapshot();
+      if (change.preference && current.authorization?.accountId === change.scope.accountId && current.sourceGeneration) {
+        sharedUnlockSource.acceptPreference(change.preference, current.sourceGeneration);
+      }
+    } finally { coordinator.cancelPending(change.scope.accountId) }
+  });
+  const preferenceClient: SharedUnlockPreferenceMonitorClient = {
+    nonce,
+    subscribe: changed => {
+      const removers = [sessionManager.hooks.onLocked(changed), sessionManager.hooks.onUnlocked(changed)];
+      return () => { for (const remove of removers) remove(); };
+    },
+    capture: () => {
+      const captured = sessionManager.captureSharedUnlockSettingsSession();
+      try {
+        return { session: captured.read(), signal: captured.signal,
+          assertCurrent: () => { captured.read(); }, dispose: () => captured.dispose() };
+      } catch (error) { captured.dispose(); throw error; }
+    },
+  }
+  const preferenceMonitor = startSharedUnlockPreferenceMonitor(route, preferenceClient, sharedUnlockPreferences, api)
+  const reconnectMonitor = startSharedUnlockReconnectMonitor(route, preferenceClient, sharedUnlockLinks, api, accountId => coordinator.cancelPending(accountId), staging);
+  return { close: () => { unsubscribeGate(); unsubscribePreferences(); preferenceMonitor.close(); reconnectMonitor.close(); coordinator.close(); monitor.close(); } };
+}

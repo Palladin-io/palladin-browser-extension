@@ -20,12 +20,14 @@ interface Manifest {
     scripts?: string[];
     type?: string;
   };
+  externally_connectable?: { ids: string[]; matches: string[]; accepts_tls_channel_id: boolean };
   permissions?: string[];
   optional_permissions?: string[];
   host_permissions?: string[];
   optional_host_permissions?: string[];
   content_security_policy?: { extension_pages?: string };
   content_scripts?: Array<{ matches: string[]; js: string[]; world?: string }>;
+  web_accessible_resources?: Array<{ resources: string[]; matches: string[] }>;
   minimum_chrome_version?: string;
   side_panel?: { default_path?: string };
   sidebar_action?: {
@@ -56,7 +58,7 @@ describe("buildManifest (shared)", () => {
     expect(manifest.background?.service_worker).toBeTruthy();
     expect(manifest.background?.type).toBe("module");
     expect(manifest.host_permissions).toEqual([
-      "http://localhost:5000/*",
+      target === "safari" ? "http://localhost/*" : "http://localhost:5000/*",
       "https://api.stage.palladin.io/*",
       "https://api.palladin.io/*",
     ]);
@@ -198,5 +200,47 @@ describe("buildManifest (safari)", () => {
 
   it("does not expose installed-extension discovery on Safari", () => {
     expect(manifest.optional_permissions).toBeUndefined();
+  });
+});
+
+describe("configured Chromium shared-unlock route", () => {
+  const pairs = [{ apiUrl: "https://api.example.test", webOrigin: "https://app.example.test:8443" }];
+  it("adds the browser-document capability only to an explicitly configured Chromium artifact", () => {
+    const configured = buildManifest("chromium", pairs) as unknown as Manifest;
+    expect(configured.permissions).toContain("webNavigation");
+    expect(configured.externally_connectable).toEqual({ ids: [], matches: ["https://app.example.test/*"], accepts_tls_channel_id: false });
+    expect((buildManifest("chromium") as unknown as Manifest).permissions).not.toContain("webNavigation");
+    expect((buildManifest("chromium") as unknown as Manifest).externally_connectable).toBeUndefined();
+  });
+  it("gives configured Firefox its own exact-host resource and private bridge route", () => {
+    const configured = buildManifest("firefox", pairs) as unknown as Manifest;
+    expect(configured.externally_connectable).toBeUndefined();
+    expect(configured.permissions).toContain("webNavigation");
+    expect(configured.web_accessible_resources).toEqual([{ resources: ["manifest.json", "src/shared-unlock-bridge/index.html"],
+      matches: ["https://app.example.test/*"] }]);
+    expect(configured.content_scripts?.at(-1)).toEqual({ matches: ["https://app.example.test/*"],
+      js: ["src/content/shared-unlock-firefox.ts"], run_at: "document_start", all_frames: false });
+    expect(manifests.firefox.web_accessible_resources).toBeUndefined();
+    expect(manifests.firefox.permissions).not.toContain("webNavigation");
+  });
+  it("gives configured Safari native external messaging and exact Web host access", () => {
+    const configured = buildManifest("safari", pairs) as unknown as Manifest;
+    expect(configured.permissions).toContain("webNavigation");
+    expect(configured.permissions).not.toContain("tabs");
+    expect(configured.permissions).not.toContain("nativeMessaging");
+    expect(configured.permissions).not.toContain("offscreen");
+    expect(configured.key).toBeUndefined();
+    expect(configured.externally_connectable).toEqual({ matches: ["https://app.example.test/*"] });
+    expect(configured.host_permissions).toContain("https://app.example.test/*");
+    expect(configured.web_accessible_resources).toBeUndefined();
+    expect(manifests.safari.permissions).not.toContain("webNavigation");
+    expect(manifests.safari.externally_connectable).toBeUndefined();
+    expect(manifests.safari.host_permissions).not.toContain("https://app.example.test/*");
+  });
+  it("normalizes Safari host-pattern ports without changing other platforms", () => {
+    expect(manifests.safari.host_permissions).toContain("http://localhost/*");
+    expect(manifests.safari.host_permissions).not.toContain("http://localhost:5000/*");
+    expect(manifests.chromium.host_permissions).toContain("http://localhost:5000/*");
+    expect(manifests.firefox.host_permissions).toContain("http://localhost:5000/*");
   });
 });
