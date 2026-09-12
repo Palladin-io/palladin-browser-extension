@@ -72,10 +72,11 @@ Add `--independent-idle-expiry` for the real 15-minute Web idle limit. The Web
 receives no input while browser-generated, trusted mouse movements in the native
 popup keep the extension active. The test requires Web expiry near its normal
 deadline, removal of its decrypted Entry form, and continued extension Entry
-decryption. It observes another repair interval, reloads Web, and observes a
-second repair interval to reject automatic revival of an expired own session.
-Both intervals also bound operation creation to one new-channel attempt, so a
-denied expired receiver cannot repeatedly reconnect and exhaust the server limit.
+decryption. Before and after reload, it allows up to two initial operations over
+16 seconds: the first authenticated preference observation can reset selection
+once. It then requires zero new operations over 32 seconds of unchanged repair
+and trusted peer activity. Web must remain locked throughout, and rejected issued
+sessions must receive Identity logout 204 while the extension keeps decrypting.
 Finally a new manual password unlock must restore Web Entry decryption. The
 scenario takes at least 15 minutes; it does not shorten a policy, change clocks,
 inject activity messages or mutate authentication/key state. This tests one

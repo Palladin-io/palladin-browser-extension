@@ -7,7 +7,7 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms))
 // Real production idle duration. No fake clocks, policy changes, key-store
 // writes, direct activity messages or synthetic DOM input events.
 export async function verifyIndependentIdleExpiry({ page, popup, reopenPopup, password,
-  vaultId, entryId, entryPassword, countOperationResponses, setStage, recordCheck, recordRequest }) {
+  vaultId, entryId, entryPassword, countOperationResponses, cleanupStatuses, setStage, recordCheck, recordRequest }) {
   setStage('independent-idle-fresh-manual-session')
   await page.getByRole('button', { name: 'Lock', exact: true }).click()
   await popup.waitButton('Unlock')
@@ -42,36 +42,47 @@ export async function verifyIndependentIdleExpiry({ page, popup, reopenPopup, pa
   recordRequest({ check: 'independent-real-idle-duration', elapsedMs: expiredAt - beganAt,
     policyMs: idleMs, trustedExtensionMovements: moves })
   recordCheck('real-15-minute-web-idle-expires-while-active-extension-decrypts')
-  setStage('independent-idle-expired-web-cannot-revive-from-active-peer')
-  const beforeRepair = countOperationResponses()
-  // Span the 15-second repair interval with no manual proof or new Web input.
-  const repairUntil = Date.now() + 16_000
-  while (Date.now() < repairUntil) {
-    await popup.trustedMouseMove()
-    assert(await page.locator('#unlock-password').isVisible(), 'Peer activity cannot revive an expired Web session')
-    assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword),
-      'Independent own Web expiry must not close the active extension')
-    await pause(1000)
+  const observe = async duration => {
+    const until = Date.now() + duration
+    let nextMovement = 0
+    while (Date.now() < until) {
+      if (Date.now() >= nextMovement) { await popup.trustedMouseMove(); nextMovement = Date.now() + 5000 }
+      assert(await page.locator('#unlock-password').isVisible(), 'Peer activity cannot revive an expired Web session')
+      assert.equal(await page.locator('#entry-detail-password').count(), 0)
+      assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword),
+        'Independent own Web expiry and cleanup must preserve the active extension')
+      await pause(1000)
+    }
   }
-  const repairOperations = countOperationResponses() - beforeRepair
-  recordRequest({ check: 'retired-web-operation-attempts-through-repair', responses: repairOperations })
-  assert(repairOperations <= 1, 'A retired own authorization must not create a repeated handoff loop')
-  recordCheck('own-idle-expiry-keeps-peer-usable-and-web-locked-through-repair')
+  const stableDenial = async (label, before) => {
+    setStage(label + '-initial-observation')
+    // The first authenticated preference observation can reset selection once.
+    // Later unchanged preference repair must never retry this denied handoff.
+    await observe(16_000)
+    const initialized = countOperationResponses()
+    recordRequest({ check: label + '-initial-operations', responses: initialized - before })
+    assert(initialized - before <= 2, 'Initial admission cannot create a handoff storm')
+    setStage(label + '-steady-repair')
+    await observe(32_000)
+    recordRequest({ check: label + '-steady-operations', responses: countOperationResponses() - initialized })
+    assert.equal(countOperationResponses(), initialized,
+      'Unchanged repair and peer activity must not restart a denied expired receiver')
+  }
+  const cleanupBefore = cleanupStatuses().length
+  await stableDenial('independent-idle-expired-web', countOperationResponses())
+  recordCheck('own-idle-expiry-keeps-peer-usable-and-web-locked-with-no-steady-retry')
   setStage('independent-idle-reloaded-web-remains-locked')
   const beforeReload = countOperationResponses()
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.locator('#unlock-password').waitFor()
   popup = await reopenPopup()
-  const reloadUntil = Date.now() + 16_000
-  while (Date.now() < reloadUntil) {
-    assert(await page.locator('#unlock-password').isVisible(), 'Reload must not bypass the retired own idle checkpoint')
-    assert.equal(await page.locator('#entry-detail-password').count(), 0)
-    await pause(1000)
-  }
-  const reloadOperations = countOperationResponses() - beforeReload
-  recordRequest({ check: 'retired-web-operation-attempts-after-reload', responses: reloadOperations })
-  assert(reloadOperations <= 1, 'Reload may check a fresh channel once, not loop on the retired own authorization')
-  recordCheck('reload-cannot-bypass-real-own-idle-expiry')
+  await stableDenial('independent-idle-reloaded-web', beforeReload)
+  recordCheck('reload-cannot-bypass-real-own-idle-expiry-or-retry-through-repair')
+  const cleanup = cleanupStatuses().slice(cleanupBefore)
+  recordRequest({ check: 'real-idle-rejected-issued-session-cleanup', statuses: cleanup })
+  assert(cleanup.length > 0, 'A rejected expired receiver session must reach real cleanup')
+  assert(cleanup.every(status => status === 204), 'Identity must authorize and finish rejected own-session cleanup')
+  recordCheck('real-idle-rejected-own-sessions-revoked-without-closing-peer')
   setStage('independent-idle-fresh-manual-proof-restores-web')
   await page.locator('#unlock-password').fill(password)
   await page.getByRole('button', { name: 'Unlock', exact: true }).click()

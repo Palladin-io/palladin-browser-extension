@@ -383,6 +383,7 @@ try {
     cleanupStatuses: () => requests.filter(value => value.path === '/api/auth/logout' && typeof value.status === 'number').map(value => value.status),
     setStage: value => { stage = value }, recordCheck: value => checks.push(value), recordRequest: value => requests.push(value) })
   if (independentIdleExpiry) await verifyIndependentIdleExpiry({ page, popup, password,
+    cleanupStatuses: () => requests.filter(value => value.path === '/api/auth/logout' && typeof value.status === 'number').map(value => value.status),
     countOperationResponses: () => requests.filter(value => value.path === '/api/account/shared-unlock/operations' && typeof value.status === 'number').length,
     reopenPopup: async () => { popup?.close(); popup = await openNativePopup(null, path.join(temporary, 'profile'), extensionId); return popup },
     vaultId, entryId, entryPassword, setStage: value => { stage = value },
