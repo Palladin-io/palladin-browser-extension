@@ -12,6 +12,7 @@ import { verifySharedUnlockSettings } from './shared-unlock-settings-steps.mjs'
 import { verifySharedUnlockSettingsRaces } from './shared-unlock-settings-races.mjs'
 import { verifySharedUnlockAccountIsolation } from './shared-unlock-account-isolation.mjs'
 import { verifyAuthorizationRateLimitRetry } from './shared-unlock-rate-limit-steps.mjs'
+import { persistChromeTestInstallation } from './chrome-persist-test-installation.mjs'
 
 // Explicit, already built clients and isolated local Identity/SES test services.
 // No account credentials, recovery words, tokens or keys are written to reports.
@@ -25,8 +26,12 @@ assert(['chrome', 'chromium', 'brave', 'edge', 'opera'].includes(browserLabel), 
 assert(!browserExecutable || process.argv.includes('--browser-label'), 'Explicit executable requires an explicit browser label')
 assert(browserLabel === 'chromium' || browserExecutable, 'Branded browser requires its explicit executable')
 const installViaCdp = process.argv.includes('--install-via-cdp')
+const persistViaBrowserUi = process.argv.includes('--persist-via-browser-ui')
+assert(!persistViaBrowserUi || (installViaCdp && browserLabel === 'chrome'), 'Browser UI persistence requires the explicit Chrome CDP installation')
 const headed = process.argv.includes('--headed')
 const fullBrowserRestart = process.argv.includes('--full-browser-restart')
+assert(!(fullBrowserRestart && installViaCdp && browserLabel === 'chrome') || persistViaBrowserUi,
+  'Full Chrome restart requires --persist-via-browser-ui; a CDP-only installation is removed on restart')
 const authorizationRateLimitRetry = process.argv.includes('--authorization-rate-limit-retry')
 const ownActivityDuringPrepare = process.argv.includes('--own-activity-during-prepare')
 const totp = process.argv.includes('--totp')
@@ -77,7 +82,8 @@ const provenance = {
   platform: platform(), architecture: arch(), apiOrigin: new URL(apiUrl).origin, webOrigin,
   osRelease: release(), osVersion: platform() === 'darwin' ? execFileSync('sw_vers', ['-productVersion'], { encoding: 'utf8' }).trim() : release(), browserLabel, headed,
   browserExecutableSha256: browserExecutable ? createHash('sha256').update(await readFile(browserExecutable)).digest('hex') : null,
-  extensionInstallation: installViaCdp ? 'browser-owned-cdp-loadUnpacked' : 'command-line-load-extension',
+  extensionInstallation: persistViaBrowserUi ? 'browser-owned-cdp-bootstrap-and-extensions-ui-reload'
+    : installViaCdp ? 'browser-owned-cdp-loadUnpacked' : 'command-line-load-extension',
   distribution: 'local-unpacked', emailDelivery: 'local-ses-v2-fixture',
   delayedManualAuthorization: delayManualAuthorization,
   fullBrowserRestart,
@@ -236,6 +242,11 @@ try {
     try {
       const installed = await browserCdp.send('Extensions.loadUnpacked', { path: extension })
       provenance.browserInstalledExtensionId = installed.id
+      if (persistViaBrowserUi) {
+        stage = 'browser-ui-persists-test-installation-before-account'
+        await persistChromeTestInstallation(context, installed.id)
+        requests.push({ check: 'browser-ui-reloaded-test-artifact-before-account', storageEdited: false })
+      }
     } finally { await browserCdp.detach() }
   }
   await observeLocalContext()
@@ -432,6 +443,14 @@ try {
     stage = 'full-browser-reopen-same-profile'
     context = await chromium.launchPersistentContext(path.join(temporary, 'profile'), launchOptions)
     assert.equal(context.browser().version(), provenance.browserVersion)
+    if (persistViaBrowserUi) {
+      const browserCdp = await context.browser().newBrowserCDPSession()
+      try {
+        const installed = (await browserCdp.send('Extensions.getExtensions')).extensions.find(value => value.id === extensionId)
+        requests.push({ check: 'browser-confirmed-original-installation-after-full-restart', present: !!installed, enabled: installed?.enabled ?? false })
+        assert(installed?.enabled, 'The original browser installation must survive restart without reinstallation')
+      } finally { await browserCdp.detach() }
+    }
     await observeLocalContext()
     page = await context.newPage(); await page.goto(webOrigin + '/unlock')
     stage = 'wake-persisted-extension-after-browser-restart'
@@ -569,6 +588,6 @@ async function writeEvidence(kind, value) {
   const contents = JSON.stringify(value, null, 2)
   await writeFile(path.join(output, `${kind}.json`), contents)
   const version = String(provenance.browserVersion ?? 'launch').replace(/[^a-zA-Z0-9.-]/g, '_')
-  const scenario = (fullBrowserRestart ? '.full-browser-restart' : '') + (authorizationRateLimitRetry ? '.authorization-rate-limit-retry' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '') + (totp ? '.totp' : '') + (settings ? '.settings' : '') + (settingsRaces ? '.settings-races' : '') + (accountIsolation ? '.account-isolation' : '') + (accountUnlockCycles > 1 ? `.unlock-cycles-${accountUnlockCycles}` : '')
+  const scenario = (persistViaBrowserUi ? '.browser-ui-persisted' : '') + (fullBrowserRestart ? '.full-browser-restart' : '') + (authorizationRateLimitRetry ? '.authorization-rate-limit-retry' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '') + (totp ? '.totp' : '') + (settings ? '.settings' : '') + (settingsRaces ? '.settings-races' : '') + (accountIsolation ? '.account-isolation' : '') + (accountUnlockCycles > 1 ? `.unlock-cycles-${accountUnlockCycles}` : '')
   await writeFile(path.join(output, `${kind}.${browserLabel}-${version}${scenario}.json`), contents)
 }
