@@ -101,6 +101,16 @@ Rejected issued sessions must receive real Identity logout 204 responses while
 the Extension retains Entry access; a new manual Web generation must recover.
 This is an actual local retirement/cleanup test, not evidence of clock expiry.
 
+`--side-panel` opens the product's native panel with a trusted click on the
+popup's "Open side panel" button. The harness attaches its actual browser target
+and requires `runtime.getContexts` to identify a `SIDE_PANEL` context; it never
+opens the extension page in an ordinary tab. Actual Entry decryption, Web Lock,
+manual password unlock from the panel, panel Lock and automatic restore from Web
+are checked. The final native Lock/logout use the panel and must reach Web.
+This scenario currently requires a password-only account and cannot be combined
+with `--totp` or `--account-isolation`. It does not prove every panel setting,
+completion-toast presentation or supported browser's panel implementation.
+
 ### Branded Chromium-family browsers
 
 Use an explicit browser executable and label to run the same Identity/Entry

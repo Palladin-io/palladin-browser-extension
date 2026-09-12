@@ -6,7 +6,8 @@ import { tmpdir, platform, arch, release } from 'node:os'
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import { chromium } from 'playwright'
-import { openNativePopup } from './native-popup.mjs'
+import { openNativePopup, attachNativeSidePanel } from './native-popup.mjs'
+import { verifySharedUnlockSidePanel } from './shared-unlock-side-panel.mjs'
 import { verifyTotpSharedUnlock } from './shared-unlock-totp-steps.mjs'
 import { verifySharedUnlockSettings } from './shared-unlock-settings-steps.mjs'
 import { verifySharedUnlockSettingsRaces } from './shared-unlock-settings-races.mjs'
@@ -40,6 +41,7 @@ const ownActivityDuringPrepare = process.argv.includes('--own-activity-during-pr
 const independentIdleExpiry = process.argv.includes('--independent-idle-expiry')
 const multipleWebDocuments = process.argv.includes('--multiple-web-documents')
 const retiredWebReceiver = process.argv.includes('--retired-web-receiver')
+const sidePanel = process.argv.includes('--side-panel')
 const totp = process.argv.includes('--totp')
 const settings = process.argv.includes('--settings')
 const settingsRaces = process.argv.includes('--settings-races')
@@ -50,6 +52,7 @@ assert(accountIsolation || !process.argv.includes('--account-logout-direction'),
 const accountUnlockCycles = process.argv.includes('--account-unlock-cycles') ? Number(argument('--account-unlock-cycles')) : 1
 assert(Number.isInteger(accountUnlockCycles) && accountUnlockCycles >= 1 && accountUnlockCycles <= 5, 'Account unlock cycles must be between 1 and 5')
 assert(accountIsolation || accountUnlockCycles === 1, 'Repeated account unlock requires account isolation')
+assert(!(sidePanel && (accountIsolation || totp)), 'Side-panel scenario currently requires the same password-only synthetic account')
 assert(!(accountIsolation && totp), 'Account isolation currently requires password-only synthetic accounts')
 const backendSource = process.argv.includes('--backend-source') ? path.resolve(argument('--backend-source')) : undefined
 for (const url of [apiUrl, sesUrl]) assert(['localhost', '127.0.0.1'].includes(new URL(url).hostname), 'Isolated loopback services only')
@@ -102,6 +105,7 @@ const provenance = {
   independentIdleExpiry,
   multipleWebDocuments,
   retiredWebReceiver,
+  sidePanel,
   totp,
   settings,
   settingsRaces,
@@ -550,20 +554,29 @@ try {
     setStage: value => { stage = value }, recordCheck: value => checks.push(value) })
   stage = 'extension-manual-lock-propagates'
   popup.close(); popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId)
+  if (sidePanel) {
+    const sourcePopup = popup
+    popup = await verifySharedUnlockSidePanel({ page, popup: sourcePopup, password,
+      vaultId, entryId, entryPassword,
+      attachPanel: () => attachNativeSidePanel(path.join(temporary, 'profile'), extensionId),
+      setStage: value => { stage = value }, recordCheck: value => checks.push(value) })
+    sourcePopup.close()
+    stage = 'native-side-panel-final-lock-propagates'
+  }
   await popup.click('Lock')
   await page.locator('#unlock-password').waitFor()
-  checks.push('extension-manual-lock-propagated-to-web')
+  checks.push(sidePanel ? 'native-side-panel-final-lock-propagated-to-web' : 'extension-manual-lock-propagated-to-web')
   stage = 'manual-unlock-before-shared-logout'
   await page.locator('#unlock-password').click()
   await page.locator('#unlock-password').pressSequentially(password, { delay: 5 })
   await page.getByRole('button', { name: 'Unlock', exact: true }).click()
   await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
   await popup.waitText('Unlocked')
-  stage = 'extension-logout-propagates'
+  stage = sidePanel ? 'native-side-panel-logout-propagates' : 'extension-logout-propagates'
   const signoutClick = await popup.click('Sign out')
-  requests.push({ check: 'native-popup-signout-click-observed', attempts: signoutClick.attempts })
+  requests.push({ check: sidePanel ? 'native-side-panel-signout-click-observed' : 'native-popup-signout-click-observed', attempts: signoutClick.attempts })
   await page.locator('#login-email').waitFor()
-  checks.push('extension-logout-propagated-to-web')
+  checks.push(sidePanel ? 'native-side-panel-logout-propagated-to-web' : 'extension-logout-propagated-to-web')
   if (accountIsolation) await verifySharedUnlockAccountIsolation({ page, popup, apiUrl, webOrigin,
     email, password, vaultId, entryId, entryPassword, unlockCycles: accountUnlockCycles, logoutDirection: accountLogoutDirection,
     reopenPopup: async () => { popup?.close(); popup = await openNativePopup(null, path.join(temporary, 'profile'), extensionId); return popup },
@@ -643,6 +656,6 @@ async function writeEvidence(kind, value) {
   await writeFile(path.join(output, `${kind}.json`), contents)
   const version = String(provenance.browserVersion ?? 'launch').replace(/[^a-zA-Z0-9.-]/g, '_')
   const scenario = (persistViaBrowserUi ? '.browser-ui-persisted' : '') + (fullBrowserRestart ? '.full-browser-restart' : '') + (authorizationRateLimitRetry ? '.authorization-rate-limit-retry' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '') + (totp ? '.totp' : '') + (settings ? '.settings' : '') + (settingsRaces ? '.settings-races' : '') + (accountIsolation ? '.account-isolation' : '') + (accountIsolation && accountLogoutDirection === 'extension' ? '.extension-logout' : '') + (accountUnlockCycles > 1 ? `.unlock-cycles-${accountUnlockCycles}` : '')
-  const sessionScenario = (independentIdleExpiry ? '.independent-idle-expiry' : '') + (multipleWebDocuments ? '.multiple-web-documents' : '') + (retiredWebReceiver ? '.retired-web-receiver' : '')
+  const sessionScenario = (independentIdleExpiry ? '.independent-idle-expiry' : '') + (multipleWebDocuments ? '.multiple-web-documents' : '') + (retiredWebReceiver ? '.retired-web-receiver' : '') + (sidePanel ? '.side-panel' : '')
   await writeFile(path.join(output, `${kind}.${browserLabel}-${version}${scenario}${sessionScenario}.json`), contents)
 }

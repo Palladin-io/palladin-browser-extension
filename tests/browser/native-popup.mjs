@@ -1,8 +1,18 @@
+import assert from 'node:assert/strict'
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 // Chrome's real action popup is not exposed as a Playwright Page. Drive its native CDP target.
-export async function openNativePopup(worker, profile, extensionId) {
+export function openNativePopup(worker, profile, extensionId) {
+  return connectNativeSurface(worker, profile, extensionId, 'popup')
+}
+
+// Attach only after the actual popup button has opened the browser-owned panel.
+export function attachNativeSidePanel(profile, extensionId) {
+  return connectNativeSurface(null, profile, extensionId, 'side-panel')
+}
+
+async function connectNativeSurface(worker, profile, extensionId, surface) {
   const [port, endpoint] = (await readFile(path.join(profile, 'DevToolsActivePort'), 'utf8')).trim().split('\n')
   const socket = new WebSocket(`ws://127.0.0.1:${port}${endpoint}`)
   await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject })
@@ -31,9 +41,17 @@ export async function openNativePopup(worker, profile, extensionId) {
     calls.set(id, { resolve, reject, timer })
     socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }))
   })
-  const popupUrl = `chrome-extension://${extensionId}/src/popup/index.html`
+  const popupUrl = `chrome-extension://${extensionId}/src/${surface}/index.html`
   let target = (await send('Target.getTargets')).targetInfos.find((target) => target.url === popupUrl)
-  if (!target) {
+  if (!target && surface === 'side-panel') {
+    // The UI action is asynchronous; observe its target without replaying it.
+    const deadline = Date.now() + 10_000
+    while (!target && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+      target = (await send('Target.getTargets')).targetInfos.find(info => info.url === popupUrl)
+    }
+  }
+  if (!target && surface === 'popup') {
     try {
       if (worker) await worker.evaluate(() => chrome.action.openPopup())
       else {
@@ -52,7 +70,7 @@ export async function openNativePopup(worker, profile, extensionId) {
     catch (error) { socket.close(); throw error }
     target = (await send('Target.getTargets')).targetInfos.find((target) => target.url === popupUrl)
   }
-  if (!target) { socket.close(); throw new Error('Native extension popup did not open') }
+  if (!target) { socket.close(); throw new Error('Native extension surface did not open') }
   const { sessionId } = await send('Target.attachToTarget', { targetId: target.targetId, flatten: true })
   const command = (method, params) => send(method, params, sessionId)
   const wait = async (read, label) => {
@@ -65,6 +83,16 @@ export async function openNativePopup(worker, profile, extensionId) {
     throw new Error(`Native popup timeout: ${label}`)
   }
   const evaluate = async (expression) => (await command('Runtime.evaluate', { expression, returnByValue: true })).result.value
+  if (surface === 'side-panel') {
+    try {
+      const { result, exceptionDetails } = await command('Runtime.evaluate', {
+        expression: `(async () => (await chrome.runtime.getContexts({ contextTypes: ['SIDE_PANEL'] }))
+          .some(context => context.documentUrl === location.href && context.documentUrl === ${JSON.stringify(popupUrl)}))()`,
+        awaitPromise: true, returnByValue: true,
+      })
+      assert(!exceptionDetails && result.value === true, 'Browser must identify the actual native side-panel context')
+    } catch (error) { socket.close(); throw error }
+  }
   const clickNode = async (backendNodeId) => {
     await command('DOM.scrollIntoViewIfNeeded', { backendNodeId })
     const { model } = await command('DOM.getBoxModel', { backendNodeId })
