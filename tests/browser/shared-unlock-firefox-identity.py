@@ -197,6 +197,7 @@ except Exception as error:
         except Exception: pass
     write_evidence('failure', {'stage': stage, 'checks': checks, 'errorType': type(error).__name__,
         'state': state, 'popupState': popup_state,
+        'autofillObservation': getattr(browser, 'autofill_failure', None),
         'provenance': provenance, 'observedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())})
     print('FAIL at ' + stage + '; value-free failure.json recorded.')
     raise SystemExit(1) from None

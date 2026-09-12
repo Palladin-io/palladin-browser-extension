@@ -94,7 +94,7 @@ class FirefoxWebDriver(WebDriverActions):
               await commands.targetCommand.startListening();
               const targets=commands.targetCommand.getAllTargets(commands.targetCommand.ALL_TYPES).filter(t=>t.url===url);
               if(targets.length!==1) throw Error('Native popup target unavailable');
-              const packet=await commands.scriptCommand.execute('(async()=>JSON.stringify('+expression+'))()',
+              const packet=await commands.scriptCommand.execute('(async()=>JSON.stringify(await ('+expression+')))()',
                 {selectedTargetFront:targets[0],mapped:{await:true}});
               if(packet.hasException || packet.exception || typeof packet.result!=='string') throw Error('Native observation failed');
               return JSON.parse(packet.result);
@@ -177,6 +177,22 @@ class FirefoxWebDriver(WebDriverActions):
               && document.querySelector('input[name=username]')?.value===arguments[0]
               && document.querySelector('input[name=password]')?.value===arguments[1]
               && window.submitted===false''', username, password), 'actual password autofill') is True
+        except Exception:
+            # Observe only fixture shape and boolean comparisons before its tab
+            # is closed. Never record input values, lengths, keys or messages.
+            try:
+                self.autofill_failure = self.script("""return {
+                  https:location.protocol==='https:', readyState:document.readyState,
+                  usernamePresent:!!document.querySelector('input[name=username]'),
+                  passwordPresent:!!document.querySelector('input[name=password]'),
+                  usernameMatches:document.querySelector('input[name=username]')?.value===arguments[0],
+                  passwordMatches:document.querySelector('input[name=password]')?.value===arguments[1],
+                  usernameEmpty:document.querySelector('input[name=username]')?.value==='',
+                  passwordEmpty:document.querySelector('input[name=password]')?.value==='',
+                  submitted:window.submitted===true};""", username, password)
+            except Exception:
+                self.autofill_failure = {'observationUnavailable': True}
+            raise
         finally:
             self.request('DELETE', '/window')
             self.request('POST', '/window', {'handle': original})
