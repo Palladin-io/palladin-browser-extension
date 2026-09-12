@@ -8,6 +8,45 @@ matrix or production support.
 
 ## Current acceptance status — 2026-09-12
 
+Linux arm64 / Chromium153.0.8010.12 passed **43 native Identity/Entry checks**
+at2026-09-12T01:01:36.051Z and a separate **36 isolation checks** at01:05:28.287Z.
+The environment is Ubuntu24.04.4 in the pinned Playwright1.63.0 Docker image,
+Docker Desktop Linux VM kernel6.12.67-linuxkit, headless/local-unpacked. Both
+start from clean Web2cacf2d…27bd98e/Backenddde6bb96…aac65; Extension heads are
+d7f3c5c…aef35ad and74d4750…2a6940e. Runtime e1c8d6e…aa64af2/beab24e…d21a5ac
+and artifacts4a869906…44720f/82992f42…6df753 are unchanged.
+
+The43-check run covers full restart and actual locked Entry denial before one
+manual unlock restores the peer, TOTP, ON/OFF, both Disconnect/Reconnect paths,
+failed save/CAS, own activity and Web/worker lifecycle. Real429/Retry-After12s
+preserves Web Entry decryption throughout cooldown, denies peer access without
+replay, then a fresh explicit retry restores handoff. The36-check run covers
+full restart, two real accounts/distinct Entries, five Web B lock/reload/manual
+unlock cycles, and Extension A logout while Web B retains Entry decryption and
+its exact route for16s spanning closing repair.
+
+Reports: report.chromium-linux-arm64-full-restart.json and
+report.chromium-linux-arm64-account-isolation.json, with separate environment
+and host-observed Docker image/event receipts. Image digest is
+sha256:a0f44989…b7bd5717; the full pinned reference and reproduction instructions
+are in [the Identity harness](../tests/browser/SHARED-UNLOCK-IDENTITY.md#linux-container-reproduction).
+The checked-in fixture74d4750 forwards opaque TCP bytes to isolated local API,
+asset and RAM-only SES services. No auth/key/clock/response substitution occurs.
+The completed containers were removed; local disposable clones/reports remain.
+Test CI34663664343 PASS. This is not Linux desktop OS-lock/sleep, x64, Windows,
+other browsers or store-artifact acceptance.
+
+Opera's later-popup failure also reproduces account-free with a visible window.
+Bounded UI-only retries, Runtime.enable/runIfWaitingForDebugger and an experimental
+userGesture did not resolve it. A short wait plus context inspection allowed one
+opening beside the new tab, but reopening after closing it still failed. Those
+experimental adapters remain local diagnostics, not product/harness fixes.
+Opera and Chromium116 acceptance remain open. Safari boundary34663664469 FAIL;
+Safari stays last with local settings unchanged. Full matrix and remaining
+limits/MFA/multiple-document/release/review/merge gates remain open.
+
+### Earlier Edge and Brave acceptance
+
 Edge 153.0.4234.32 and Brave 1.95.101 / Chromium 153.0.8010.37 each passed
 **43 actual Identity/Entry checks** on macOS 26.4.1 arm64: Edge 2026-09-12T00:33:05.224Z,
 Brave 2026-09-12T00:47:20.585Z. Both used clean Web 2cacf2d…27bd98e and Backend
@@ -285,7 +324,8 @@ run34635229213 (classic18:47:47Z, module18:47:43Z, document18:47:31Z), including
 exact tab URL/status/current document without global `tabs`. Real product
 Identity/MK/Entry tests remain pending.
 
-All completed Identity runs below used macOS26.4.1 arm64 and disposable profiles.
+All rows use disposable profiles. Unless marked Linux, Identity rows below use
+macOS26.4.1 arm64; the Safari channel row declares its own OS.
 The historical sections retain earlier failures and narrower observations; this
 table identifies the latest successful product runs rather than replacing them
 with a channel-only probe or a successful build.
@@ -294,6 +334,7 @@ with a channel-only probe or a successful build.
 |---|---|---|---|
 | Chrome152.0.7977.84 | Unpacked, browser UI persisted; headless |43 PASS full restart/TOTP/settings/429; separate36 isolation PASS|12 Sep 00:13:14 / 00:18:43|
 | Chromium153.0.8010.12 | Unpacked, load flag; headless |20/20 PASS, current Safari-adapter increment + own activity/full restart|18:48:02|
+| Chromium153.0.8010.12 / Linux arm64 VM | Unpacked, load flag; headless |43 PASS restart/TOTP/settings/429; separate36 isolation PASS|12 Sep 01:01:36 / 01:05:28|
 | Brave1.95.101 / engine153.0.8010.37 | Unpacked, browser UI persisted; headless |43 PASS full restart/TOTP/settings/429|12 Sep 00:47:20|
 | Edge153.0.4234.32 | Unpacked, browser UI persisted; headless |43 PASS full restart/TOTP/settings/429|12 Sep 00:33:05|
 | Firefox140.0 | Temporary product XPI |16/16 PASS, new coordinator|18:01:57|
@@ -305,7 +346,7 @@ The16 baseline checks cover real registration/email/password login, automatic un
 live encrypted Entry/password decryption, continued operation after Web closure,
 reopened Web, browser-controlled background restart and shared manual lock/logout.
 They do not cover all settings, account-isolation, expiry, offline, multi-document,
-OS-lock/sleep/resume or distribution cases. Windows/Linux, other required
+OS-lock/sleep/resume or distribution cases. Windows, remaining Linux combinations, other required
 versions (including the Chromium116 and Safari16.4 floors), the full matrix and
 independent final review remain open. Firefox popup DOM activation is not trusted
 input evidence. Reproduction and limitations:

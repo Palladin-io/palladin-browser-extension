@@ -1,6 +1,6 @@
 import net from 'node:net'
 import {spawn,execFileSync} from 'node:child_process'
-import {readFile,writeFile} from 'node:fs/promises'
+import {access,readFile,writeFile} from 'node:fs/promises'
 // Run inside the documented disposable Linux container with clean cloned
 // checkouts and already-built local artifacts under /work. These byte-preserving
 // proxies change only loopback reachability; no request/auth/key state is edited.
@@ -17,6 +17,8 @@ const proxy=async(listenPort,destinationPort,destinationHost,listenHost='127.0.0
 }
 let child
 try{
+ if (process.platform !== 'linux') throw Error('Linux test container required')
+ try { await access('/.dockerenv') } catch { throw Error('Linux test container required') }
  for(const dir of ['/work/extension','/work/web','/work/backend'])execFileSync('git',['config','--global','--add','safe.directory',dir])
  await proxy(55083,55083,'host.docker.internal')
  await proxy(54583,54583,'host.docker.internal')
@@ -27,5 +29,5 @@ try{
  console.log('PRECHECK: isolated API health200; Linux browser, loopback TCP forwarding, unchanged built artifacts.')
  child=spawn(process.execPath,['tests/browser/shared-unlock-identity-e2e.mjs','--web-source','/work/web','--backend-source','/work/backend','--api-url','http://localhost:55083','--ses-url','http://127.0.0.1:55084',...process.argv.slice(2)],{cwd:'/work/extension',stdio:'inherit'})
  process.exitCode=await new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',(code)=>resolve(code??1))})
-}catch(error){console.log(JSON.stringify({fixtureFailed:true,errorType:error.name,reason:error.message==='Own fixture API not healthy'?error.message:'fixture startup/child failure'}));process.exitCode=1}
+}catch(error){console.log(JSON.stringify({fixtureFailed:true,errorType:error.name,reason:['Own fixture API not healthy','Linux test container required'].includes(error.message)?error.message:'fixture startup/child failure'}));process.exitCode=1}
 finally{for(const server of servers)server.close();}
