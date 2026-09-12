@@ -12,7 +12,7 @@ import { verifySharedUnlockSettings } from './shared-unlock-settings-steps.mjs'
 import { verifySharedUnlockSettingsRaces } from './shared-unlock-settings-races.mjs'
 import { verifySharedUnlockAccountIsolation } from './shared-unlock-account-isolation.mjs'
 import { verifyAuthorizationRateLimitRetry } from './shared-unlock-rate-limit-steps.mjs'
-import { persistChromeTestInstallation } from './chrome-persist-test-installation.mjs'
+import { persistChromiumTestInstallation } from './chromium-persist-test-installation.mjs'
 
 // Explicit, already built clients and isolated local Identity/SES test services.
 // No account credentials, recovery words, tokens or keys are written to reports.
@@ -27,11 +27,11 @@ assert(!browserExecutable || process.argv.includes('--browser-label'), 'Explicit
 assert(browserLabel === 'chromium' || browserExecutable, 'Branded browser requires its explicit executable')
 const installViaCdp = process.argv.includes('--install-via-cdp')
 const persistViaBrowserUi = process.argv.includes('--persist-via-browser-ui')
-assert(!persistViaBrowserUi || (installViaCdp && browserLabel === 'chrome'), 'Browser UI persistence requires the explicit Chrome CDP installation')
+assert(!persistViaBrowserUi || (installViaCdp && ['chrome', 'edge'].includes(browserLabel)), 'Browser UI persistence requires the explicit Chrome/Edge CDP installation')
 const headed = process.argv.includes('--headed')
 const fullBrowserRestart = process.argv.includes('--full-browser-restart')
-assert(!(fullBrowserRestart && installViaCdp && browserLabel === 'chrome') || persistViaBrowserUi,
-  'Full Chrome restart requires --persist-via-browser-ui; a CDP-only installation is removed on restart')
+assert(!(fullBrowserRestart && installViaCdp && ['chrome', 'edge'].includes(browserLabel)) || persistViaBrowserUi,
+  'Full Chrome/Edge restart requires --persist-via-browser-ui; a CDP-only installation is removed on restart')
 const authorizationRateLimitRetry = process.argv.includes('--authorization-rate-limit-retry')
 const ownActivityDuringPrepare = process.argv.includes('--own-activity-during-prepare')
 const totp = process.argv.includes('--totp')
@@ -248,7 +248,7 @@ try {
       provenance.browserInstalledExtensionId = installed.id
       if (persistViaBrowserUi) {
         stage = 'browser-ui-persists-test-installation-before-account'
-        await persistChromeTestInstallation(context, installed.id)
+        await persistChromiumTestInstallation(context, installed.id, browserLabel)
         requests.push({ check: 'browser-ui-reloaded-test-artifact-before-account', storageEdited: false })
       }
     } finally { await browserCdp.detach() }
