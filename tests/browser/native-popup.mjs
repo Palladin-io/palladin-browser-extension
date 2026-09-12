@@ -102,7 +102,24 @@ export async function openNativePopup(worker, profile, extensionId) {
       try { await command('Runtime.releaseObject', { objectId }) } catch { /* target closed */ }
     }
   }
+  let movement = 0
   return {
+    async trustedMouseMove() {
+      // Observe a browser-generated input event without invoking the product's
+      // activity command or touching its session store/clock.
+      await evaluate(`(() => {
+        const state = { observed: false, trusted: false };
+        globalThis.__palladinTestMovement = state;
+        window.addEventListener('mousemove', event => {
+          state.observed = true; state.trusted = event.isTrusted;
+        }, { once: true });
+      })()`)
+      await command('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 8 + (++movement % 2), y: 8 })
+      await wait(() => evaluate('globalThis.__palladinTestMovement?.observed === true'), 'native mouse movement')
+      const trusted = await evaluate('globalThis.__palladinTestMovement?.trusted === true')
+      await evaluate('delete globalThis.__palladinTestMovement')
+      if (!trusted) throw new Error('Untrusted native popup mouse movement')
+    },
     async inspectTargets() {
       const targets = (await send('Target.getTargets')).targetInfos
       return {

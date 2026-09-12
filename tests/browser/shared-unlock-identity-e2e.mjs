@@ -13,6 +13,7 @@ import { verifySharedUnlockSettingsRaces } from './shared-unlock-settings-races.
 import { verifySharedUnlockAccountIsolation } from './shared-unlock-account-isolation.mjs'
 import { verifyAuthorizationRateLimitRetry } from './shared-unlock-rate-limit-steps.mjs'
 import { persistChromiumTestInstallation } from './chromium-persist-test-installation.mjs'
+import { verifyIndependentIdleExpiry } from './shared-unlock-idle-steps.mjs'
 
 // Explicit, already built clients and isolated local Identity/SES test services.
 // No account credentials, recovery words, tokens or keys are written to reports.
@@ -34,6 +35,7 @@ assert(!(fullBrowserRestart && installViaCdp && ['chrome', 'edge', 'brave', 'ope
   'Full branded Chromium restart requires --persist-via-browser-ui; a CDP-only installation is removed on restart')
 const authorizationRateLimitRetry = process.argv.includes('--authorization-rate-limit-retry')
 const ownActivityDuringPrepare = process.argv.includes('--own-activity-during-prepare')
+const independentIdleExpiry = process.argv.includes('--independent-idle-expiry')
 const totp = process.argv.includes('--totp')
 const settings = process.argv.includes('--settings')
 const settingsRaces = process.argv.includes('--settings-races')
@@ -92,6 +94,7 @@ const provenance = {
   fullBrowserRestart,
   authorizationRateLimitRetry,
   ownActivityDuringPrepare,
+  independentIdleExpiry,
   totp,
   settings,
   settingsRaces,
@@ -351,6 +354,10 @@ try {
   await popup.waitText('Synthetic shared unlock proof')
   assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword), 'Live Entry invalidation must make the real Entry decryptable without relocking')
   checks.push('live-entry-invalidation-and-decryption-without-relocking')
+  if (independentIdleExpiry) await verifyIndependentIdleExpiry({ page, popup, password,
+    reopenPopup: async () => { popup?.close(); popup = await openNativePopup(null, path.join(temporary, 'profile'), extensionId); return popup },
+    vaultId, entryId, entryPassword, setStage: value => { stage = value },
+    recordCheck: value => checks.push(value), recordRequest: value => requests.push(value) })
   if (totp) await verifyTotpSharedUnlock({ page, popup, apiUrl, webOrigin, email, password,
     vaultId, entryId, entryPassword, setStage: value => { stage = value }, recordCheck: value => checks.push(value) })
   if (settings) await verifySharedUnlockSettings({ page, popup, apiUrl, webOrigin, password,

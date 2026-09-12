@@ -68,6 +68,17 @@ timing only and exposes repair reads of the previous locked root while the new
 password unlock is preparing. The report records this option and the actual
 delay. No API response, key state, clock, lock result, or token is substituted.
 
+Add `--independent-idle-expiry` for the real 15-minute Web idle limit. The Web
+receives no input while browser-generated, trusted mouse movements in the native
+popup keep the extension active. The test requires Web expiry near its normal
+deadline, removal of its decrypted Entry form, and continued extension Entry
+decryption. It observes another repair interval, reloads Web, and observes a
+second repair interval to reject automatic revival of an expired own session.
+Finally a new manual password unlock must restore Web Entry decryption. The
+scenario takes at least 15 minutes; it does not shorten a policy, change clocks,
+inject activity messages or mutate authentication/key state. This tests one
+direction of idle independence, not absolute/offline expiry or OS sleep/lock.
+
 ### Branded Chromium-family browsers
 
 Use an explicit browser executable and label to run the same Identity/Entry
