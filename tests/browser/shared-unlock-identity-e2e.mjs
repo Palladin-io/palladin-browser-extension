@@ -27,11 +27,11 @@ assert(!browserExecutable || process.argv.includes('--browser-label'), 'Explicit
 assert(browserLabel === 'chromium' || browserExecutable, 'Branded browser requires its explicit executable')
 const installViaCdp = process.argv.includes('--install-via-cdp')
 const persistViaBrowserUi = process.argv.includes('--persist-via-browser-ui')
-assert(!persistViaBrowserUi || (installViaCdp && ['chrome', 'edge'].includes(browserLabel)), 'Browser UI persistence requires the explicit Chrome/Edge CDP installation')
+assert(!persistViaBrowserUi || (installViaCdp && ['chrome', 'edge', 'brave', 'opera'].includes(browserLabel)), 'Browser UI persistence requires the explicit branded Chromium CDP installation')
 const headed = process.argv.includes('--headed')
 const fullBrowserRestart = process.argv.includes('--full-browser-restart')
-assert(!(fullBrowserRestart && installViaCdp && ['chrome', 'edge'].includes(browserLabel)) || persistViaBrowserUi,
-  'Full Chrome/Edge restart requires --persist-via-browser-ui; a CDP-only installation is removed on restart')
+assert(!(fullBrowserRestart && installViaCdp && ['chrome', 'edge', 'brave', 'opera'].includes(browserLabel)) || persistViaBrowserUi,
+  'Full branded Chromium restart requires --persist-via-browser-ui; a CDP-only installation is removed on restart')
 const authorizationRateLimitRetry = process.argv.includes('--authorization-rate-limit-retry')
 const ownActivityDuringPrepare = process.argv.includes('--own-activity-during-prepare')
 const totp = process.argv.includes('--totp')
