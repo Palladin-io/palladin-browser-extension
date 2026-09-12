@@ -81,6 +81,16 @@ scenario takes at least 15 minutes; it does not shorten a policy, change clocks,
 inject activity messages or mutate authentication/key state. This tests one
 direction of idle independence, not absolute/offline expiry or OS sleep/lock.
 
+`--multiple-web-documents` opens three Web documents for the same real account
+and requires actual Entry decryption in each. Locking a secondary tab must lock
+every Web document and deny native-popup Entry access. A fourth, late tab must
+remain locked through a 16-second repair interval. One fresh manual unlock must
+restore all four documents; closing that manual source must preserve the other
+completed sessions. Extension Lock must then reach all remaining Web documents.
+All tabs share the disposable browser profile and use normal UI/Identity/crypto;
+the scenario does not inject auth state or keys. It does not cover other accounts,
+OS resume or every multi-document race.
+
 ### Branded Chromium-family browsers
 
 Use an explicit browser executable and label to run the same Identity/Entry

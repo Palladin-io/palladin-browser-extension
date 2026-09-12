@@ -14,6 +14,7 @@ import { verifySharedUnlockAccountIsolation } from './shared-unlock-account-isol
 import { verifyAuthorizationRateLimitRetry } from './shared-unlock-rate-limit-steps.mjs'
 import { persistChromiumTestInstallation } from './chromium-persist-test-installation.mjs'
 import { verifyIndependentIdleExpiry } from './shared-unlock-idle-steps.mjs'
+import { verifyMultipleWebDocuments } from './shared-unlock-multiple-documents.mjs'
 
 // Explicit, already built clients and isolated local Identity/SES test services.
 // No account credentials, recovery words, tokens or keys are written to reports.
@@ -36,6 +37,7 @@ assert(!(fullBrowserRestart && installViaCdp && ['chrome', 'edge', 'brave', 'ope
 const authorizationRateLimitRetry = process.argv.includes('--authorization-rate-limit-retry')
 const ownActivityDuringPrepare = process.argv.includes('--own-activity-during-prepare')
 const independentIdleExpiry = process.argv.includes('--independent-idle-expiry')
+const multipleWebDocuments = process.argv.includes('--multiple-web-documents')
 const totp = process.argv.includes('--totp')
 const settings = process.argv.includes('--settings')
 const settingsRaces = process.argv.includes('--settings-races')
@@ -95,6 +97,7 @@ const provenance = {
   authorizationRateLimitRetry,
   ownActivityDuringPrepare,
   independentIdleExpiry,
+  multipleWebDocuments,
   totp,
   settings,
   settingsRaces,
@@ -515,6 +518,10 @@ try {
       checks.push('one-manual-unlock-after-browser-restart-restores-peer-entry-decryption')
     }
   }
+  if (multipleWebDocuments) await verifyMultipleWebDocuments({ page, popup, webOrigin,
+    password, vaultId, entryId, entryPassword,
+    reopenPopup: async () => { popup?.close(); popup = await openNativePopup(null, path.join(temporary, 'profile'), extensionId); return popup },
+    setStage: value => { stage = value }, recordCheck: value => checks.push(value) })
   stage = 'extension-manual-lock-propagates'
   popup.close(); popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId)
   await popup.click('Lock')
