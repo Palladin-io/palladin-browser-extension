@@ -226,11 +226,14 @@ This is partial native evidence; factor-age expiry, recovery codes and the full
 platform/settings/account/lifecycle matrix remain required. Pass `--backend-source`
 to record that isolated running API checkout alongside both client source hashes.
 
-For Chrome installed through CDP, full restart also requires
-`--persist-via-browser-ui`. Before creating any account, this uses Chrome's own
-Reload button on the exact installed extension card in `chrome://extensions`.
+For Chrome, Edge, Brave and Opera installed through CDP, full restart requires
+`--persist-via-browser-ui`. Before creating any account, this uses the browser's own
+Reload button on the exact installed extension card. Chrome, Brave and Opera
+use `chrome://extensions`; Edge uses `edge://extensions` and its own custom
+card UI. The Edge adapter reads the browser-owned card ID and clicks the native
+Reload control; it does not mutate card data or call internal installer methods.
 An account-free probe confirms this normal unpacked installation survives full
-closure; CDP-only installations are removed by Chrome on restart. The harness
+closure in all four tested browsers; CDP-only installation is not persistent. The harness
 checks the browser registry for the original ID and enabled state after restart,
 without reinstalling or changing storage. Provenance records
 `browser-owned-cdp-bootstrap-and-extensions-ui-reload`; report names add
@@ -265,9 +268,11 @@ On Edge153.0.4234.32, the development `Extensions.loadUnpacked` installation was
 absent after browser restart. A separate account-free probe confirmed the native
 extension list contained the enabled artifact before closure and did not contain
 it after reopening the same profile. A browser `startWorker` acknowledgment alone
-is not evidence that the worker exists. This installation path cannot currently
-prove Edge's full-browser restart gate; do not silently reinstall and count it
-as persisted-installation acceptance.
+is not evidence that the worker exists. The CDP-only path does not prove
+persistence. The optional pre-account browser-UI Reload above supplies the
+persistent installation; after restart the test independently checks the same
+registered ID and native worker. Never silently reinstall and count it as
+persisted-installation acceptance.
 
 Runs are headless by default and record that fact. `--headed` selects a visible
 browser; neither mode by itself proves OS-lock/sleep, trusted idle renewal or
