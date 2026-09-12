@@ -376,3 +376,45 @@ whether the verification-token parameter remains present. They never include
 console/error text, token/query values, request bodies, screenshots or DOM dumps.
 These observations diagnose load/navigation failures before a handoff is reached;
 a later passing retry does not close an unexplained earlier failure.
+
+## Linux container reproduction
+
+`shared-unlock-linux-fixture.mjs` runs the same Identity harness and forwards its
+scenario flags. Prepare **disposable clean Git clones** named `extension`, `web`
+and `backend` under a fixture directory, plus `reports/`. Copy only the already
+configured local `dist/` artifacts into the two client clones. Do not mount
+personal profiles, local credentials/configuration, the Docker socket, or the
+original working repositories. The backend clone supplies provenance for the
+isolated host API actually running on55083; it does not start a different API.
+
+Inside the container, `/work/extension`, `/work/web`, `/work/backend` refer to
+those clones. The fixture forwards loopback55083 and54583 byte-for-byte to the
+host's isolated API and LocalStack. Port55085 forwards to the harness's RAM-only
+SES server on127.0.0.1:55084; publish it **only** on host127.0.0.1:55084, which the
+isolated backend already uses. It never rewrites requests or substitutes auth,
+keys, signatures, clocks or responses. The normal Web CSP and extension allowlist
+remain unchanged, with Web at127.0.0.1:5173 inside the container.
+
+Use a Playwright image matching the locked package version. The observed run used
+`mcr.microsoft.com/playwright@sha256:a0f4498920a5dbac63196d9140ed738ef00470f27e2e74029abd8850b7bd5717`
+(Playwright1.63.0, Ubuntu24.04.4, linux/arm64), `--init --shm-size=1g --cpus=2
+--memory=3g`, a bind mount of the disposable fixture directory at`/work`, and
+`--publish 127.0.0.1:55084:55085`. Install dependencies in the extension clone with
+`npm ci --ignore-scripts --no-audit --no-fund`, then run from that clone:
+
+```sh
+node tests/browser/shared-unlock-linux-fixture.mjs \
+  --full-browser-restart --delay-manual-authorization \
+  --own-activity-during-prepare --totp --settings --settings-races \
+  --authorization-rate-limit-retry
+```
+
+Retain the ordinary value-free report, `/work/reports/container-environment.json`,
+and the **host-observed** Docker image/digest/events separately. A value declared
+inside the fixture is not independent image provenance. The successful initial
+run used the equivalent temporary wrapper on clean Extensiond7f3c5c, Web2cacf2d
+and Backenddde6bb96; it passed43 checks at2026-09-12T01:01:36.051Z, including
+real429/Retry-After12s. Report: `report.chromium-linux-arm64-full-restart.json`.
+The container was removed after completion; its cloned source/artifacts/reports
+remain local and ignored. This is headless Linux arm64 browser/lifecycle evidence
+in a Docker Desktop VM, not desktop OS-lock/sleep, x64, Windows or store evidence.
