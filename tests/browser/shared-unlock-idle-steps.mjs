@@ -7,7 +7,7 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms))
 // Real production idle duration. No fake clocks, policy changes, key-store
 // writes, direct activity messages or synthetic DOM input events.
 export async function verifyIndependentIdleExpiry({ page, popup, reopenPopup, password,
-  vaultId, entryId, entryPassword, setStage, recordCheck, recordRequest }) {
+  vaultId, entryId, entryPassword, countOperationResponses, setStage, recordCheck, recordRequest }) {
   setStage('independent-idle-fresh-manual-session')
   await page.getByRole('button', { name: 'Lock', exact: true }).click()
   await popup.waitButton('Unlock')
@@ -43,6 +43,7 @@ export async function verifyIndependentIdleExpiry({ page, popup, reopenPopup, pa
     policyMs: idleMs, trustedExtensionMovements: moves })
   recordCheck('real-15-minute-web-idle-expires-while-active-extension-decrypts')
   setStage('independent-idle-expired-web-cannot-revive-from-active-peer')
+  const beforeRepair = countOperationResponses()
   // Span the 15-second repair interval with no manual proof or new Web input.
   const repairUntil = Date.now() + 16_000
   while (Date.now() < repairUntil) {
@@ -52,8 +53,12 @@ export async function verifyIndependentIdleExpiry({ page, popup, reopenPopup, pa
       'Independent own Web expiry must not close the active extension')
     await pause(1000)
   }
+  const repairOperations = countOperationResponses() - beforeRepair
+  recordRequest({ check: 'retired-web-operation-attempts-through-repair', responses: repairOperations })
+  assert(repairOperations <= 1, 'A retired own authorization must not create a repeated handoff loop')
   recordCheck('own-idle-expiry-keeps-peer-usable-and-web-locked-through-repair')
   setStage('independent-idle-reloaded-web-remains-locked')
+  const beforeReload = countOperationResponses()
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.locator('#unlock-password').waitFor()
   popup = await reopenPopup()
@@ -63,6 +68,9 @@ export async function verifyIndependentIdleExpiry({ page, popup, reopenPopup, pa
     assert.equal(await page.locator('#entry-detail-password').count(), 0)
     await pause(1000)
   }
+  const reloadOperations = countOperationResponses() - beforeReload
+  recordRequest({ check: 'retired-web-operation-attempts-after-reload', responses: reloadOperations })
+  assert(reloadOperations <= 1, 'Reload may check a fresh channel once, not loop on the retired own authorization')
   recordCheck('reload-cannot-bypass-real-own-idle-expiry')
   setStage('independent-idle-fresh-manual-proof-restores-web')
   await page.locator('#unlock-password').fill(password)

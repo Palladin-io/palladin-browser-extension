@@ -355,6 +355,7 @@ try {
   assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword), 'Live Entry invalidation must make the real Entry decryptable without relocking')
   checks.push('live-entry-invalidation-and-decryption-without-relocking')
   if (independentIdleExpiry) await verifyIndependentIdleExpiry({ page, popup, password,
+    countOperationResponses: () => requests.filter(value => value.path === '/api/account/shared-unlock/operations' && typeof value.status === 'number').length,
     reopenPopup: async () => { popup?.close(); popup = await openNativePopup(null, path.join(temporary, 'profile'), extensionId); return popup },
     vaultId, entryId, entryPassword, setStage: value => { stage = value },
     recordCheck: value => checks.push(value), recordRequest: value => requests.push(value) })

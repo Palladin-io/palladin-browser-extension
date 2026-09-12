@@ -4,6 +4,7 @@ import { sharedUnlockOperationSchema, type SharedUnlockOperationMessage } from "
 import type { SharedUnlockOperation } from "./api-types";
 import type { SharedUnlockEnvelope } from "@palladin/crypto";
 import fixtures from "./fixtures/session-api-v1.json";
+import { SharedUnlockAuthorizationRetiredError } from "./expiry-store";
 
 const operation = fixtures.responses.find(r => r.type === "operation")!.body as SharedUnlockOperation;
 const accountId = operation.context.accountId, organizationId = operation.context.organizationId, linkId = operation.context.linkId;
@@ -72,6 +73,53 @@ beforeEach(() => { vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Da
 afterEach(() => { expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); });
 
 describe("automatic browser account/link selection", () => {
+  it.each(["web", "extension"] as const)("still closes the channel for an unrelated %s receiver failure", async role => {
+    const f = pair(role === "web" ? "extension" : "web"), recipient = f[role];
+    const normal = vi.mocked(recipient.client.receiver).getMockImplementation()!;
+    vi.mocked(recipient.client.receiver).mockImplementationOnce(async (...args) => ({
+      ...await normal(...args), receive: async () => { throw new Error("cryptographic verification failed"); },
+    }));
+    const close = f.start();
+    try {
+      await settle();
+      expect(recipient.route.signal.aborted).toBe(true);
+      expect(recipient.installed()).toBe(false);
+      expect(recipient.client.received).not.toHaveBeenCalled();
+    } finally { close(); }
+  });
+  it.each(["web", "extension"] as const)("keeps the verified channel after %s denies a retired own authorization", async role => {
+    const sourceRole = role === "web" ? "extension" : "web";
+    const f = pair(sourceRole), source = f[sourceRole], recipient = f[role];
+    const normal = vi.mocked(recipient.client.receiver).getMockImplementation()!;
+    vi.mocked(recipient.client.receiver).mockImplementationOnce(async (...args) => ({
+      ...await normal(...args), receive: async () => { throw new SharedUnlockAuthorizationRetiredError(); },
+    }));
+    const close = f.start();
+    try {
+      await settle();
+      expect(recipient.route.signal.aborted).toBe(false);
+      expect(source.route.signal.aborted).toBe(false);
+      expect(recipient.installed()).toBe(false);
+      expect(recipient.messages.filter(message => message.payload.kind === "cancel")).toHaveLength(1);
+      // Ordinary own-activity notifications must not manufacture new attempts
+      // after the receiver has definitively denied this own authorization.
+      for (let index = 0; index < 10; index++) {
+        for (const changed of source.watchers) changed();
+        for (const changed of recipient.watchers) changed();
+        await settle();
+      }
+      await vi.advanceTimersByTimeAsync(30_000); await settle();
+      expect(source.client.source).toHaveBeenCalledOnce();
+      expect(recipient.client.receiver).toHaveBeenCalledOnce();
+      expect(recipient.client.received).not.toHaveBeenCalled();
+      // A genuinely new manual source generation may make a fresh attempt.
+      source.setState({ accountId, status: "unlocked", source: { organizationId, generation: await nonce() } });
+      await settle();
+      expect(recipient.installed()).toBe(true);
+      expect(recipient.client.received).toHaveBeenCalledOnce();
+      expect(source.client.source).toHaveBeenCalledTimes(2);
+    } finally { close(); }
+  });
   it.each(["web", "extension"] as const)("automatically runs %s source and selects all expected scope before crypto", async role => {
     const f = pair(role), close = f.start(); await settle();
     const source = f[role], recipient = f[role === "web" ? "extension" : "web"];

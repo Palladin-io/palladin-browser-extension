@@ -1,4 +1,5 @@
 import type { SharedUnlockContext } from "@palladin/crypto";
+import { SharedUnlockAuthorizationRetiredError } from "./expiry-store";
 import type { SharedUnlockOperationMessage } from "../../shared/messaging/shared-unlock-operation";
 import { receiveSharedUnlockBrowserTransfer, sendSharedUnlockBrowserTransfer, type SharedUnlockOperationTransport } from "./browser-transfer";
 
@@ -224,7 +225,16 @@ export function startSharedUnlockBrowserCoordinator(route: SharedUnlockCoordinat
         // not prevent local adoption of an independently valid receiver root.
         client.received?.(result, chosen);
       } catch (error) {
-        if (!attempt.abort.signal.aborted) throw error;
+        if (!attempt.abort.signal.aborted) {
+          if (!(error instanceof SharedUnlockAuthorizationRetiredError)) throw error;
+          // This own expiry is a terminal admission denial for the selected
+          // authority. Keep the verified channel: reconnecting would reset its
+          // attempt fence and create an endless consume/commit/revoke loop.
+          // Cancel only this exact operation; a new manual generation can still
+          // negotiate a fresh selection and must pass the same expiry guard.
+          await route.verifyCurrent(); check();
+          send(attempt.id, { kind: "cancel" });
+        }
       } finally { refreshAgain = true; finish(attempt); }
       return;
     }

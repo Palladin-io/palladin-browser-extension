@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { SharedUnlockExpiryStore } from './expiry-store'
+import { SharedUnlockAuthorizationRetiredError, SharedUnlockExpiryStore } from './expiry-store'
 
 const scope = { accountId: '11111111-1111-4111-8111-111111111111', apiUrl: 'https://api.example.test' }
 function storage() {
@@ -14,6 +14,7 @@ describe('own retired authorization sequence', () => {
     await Promise.all([store.advance(scope, 9), store.advance(scope, 4)])
     const restarted = make(s)
     await expect(restarted.assertFresh(scope, 9)).rejects.toThrow('retired locally')
+    await expect(restarted.assertFresh(scope, 9)).rejects.toBeInstanceOf(SharedUnlockAuthorizationRetiredError)
     await expect(restarted.assertFresh(scope, 10)).resolves.toBeUndefined()
     expect(Object.values(s.values)).toEqual([{ version: 3, ...scope, throughSequence: 9, checkpoint: null }])
   })

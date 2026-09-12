@@ -74,6 +74,8 @@ popup keep the extension active. The test requires Web expiry near its normal
 deadline, removal of its decrypted Entry form, and continued extension Entry
 decryption. It observes another repair interval, reloads Web, and observes a
 second repair interval to reject automatic revival of an expired own session.
+Both intervals also bound operation creation to one new-channel attempt, so a
+denied expired receiver cannot repeatedly reconnect and exhaust the server limit.
 Finally a new manual password unlock must restore Web Entry decryption. The
 scenario takes at least 15 minutes; it does not shorten a policy, change clocks,
 inject activity messages or mutate authentication/key state. This tests one

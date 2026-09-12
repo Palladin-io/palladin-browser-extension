@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+/** Local denial of a previously retired own authorization. It cannot be repaired
+ * by reconnecting the same peer or replaying a handoff from that authority. */
+export class SharedUnlockAuthorizationRetiredError extends Error {
+  constructor() { super("Shared unlock authorization was retired locally"); }
+}
+
 export interface SharedUnlockExpiryScope { readonly apiUrl: string; readonly accountId: string }
 interface ExpiryStorage {
   get(keys: string[]): Promise<Record<string, unknown>>;
@@ -89,7 +95,7 @@ export class SharedUnlockExpiryStore {
   }
   private assertSequence(record: RecordState, sequence: number): void {
     if (sequence <= record.throughSequence || (record.checkpoint && sequence < record.checkpoint.sequence)) {
-      throw new Error("Shared unlock authorization was retired locally");
+      throw new SharedUnlockAuthorizationRetiredError();
     }
   }
   private key(scope: SharedUnlockExpiryScope): string {
