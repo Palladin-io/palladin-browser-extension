@@ -62,7 +62,7 @@ export async function beginSharedUnlockReceiver(route: SharedUnlockReceiverRoute
     for (const key of Object.keys(binding) as (keyof typeof binding)[]) if (context[key] !== binding[key]) reject();
   };
   const revoke = () => {
-    if (issued && !installer?.completed && !cleanup) cleanup = api.revokeIssuedSession(apiUrl, issued.session.refreshToken);
+    if (issued && !installer?.completed && !cleanup) cleanup = api.revokeIssuedSession(apiUrl, issued.session);
     return cleanup ?? Promise.resolve();
   };
   let release = () => {};

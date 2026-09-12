@@ -97,15 +97,17 @@ export class SharedUnlockApi {
   }
 
   /** Cleanup only: revoke the newly issued own lineage on its original Identity.
-   * No current-session mutation, peer/group logout, bearer forwarding or retry. */
-  async revokeIssuedSession(apiUrl: string, refreshToken: string): Promise<void> {
+   * Authenticate with that issued own session, never the peer/current session.
+   * No current-session mutation, peer/group logout or retry. */
+  async revokeIssuedSession(apiUrl: string, issuedSession: Pick<SharedUnlockCommit['session'], 'accessToken' | 'refreshToken'>): Promise<void> {
+    const { accessToken, refreshToken } = issuedSession;
     const abort = new AbortController();
     let finishTimeout!: () => void;
     const elapsed = new Promise<void>(resolve => { finishTimeout = resolve; });
     const timeout = setTimeout(() => { abort.abort(); finishTimeout(); }, 2000);
     try {
       await Promise.race([this.doFetch(`${apiUrl.replace(/\/$/, "")}/api/auth/logout`, {
-        method: "POST", headers: { "content-type": "application/json" },
+        method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ refreshToken }), signal: abort.signal,
         redirect: "error", cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer",
       }), elapsed]);

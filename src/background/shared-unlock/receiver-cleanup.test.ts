@@ -43,24 +43,24 @@ describe('receiver own-lineage cleanup boundary', () => {
   it('revokes only the captured new refresh lineage at the old origin after a server change', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }));
     const api = new SharedUnlockApi(fetcher, () => 'https://other.example.test');
-    await api.revokeIssuedSession(apiUrl, 'synthetic-new-own-refresh');
+    await api.revokeIssuedSession(apiUrl, { accessToken: 'synthetic-new-own-access', refreshToken: 'synthetic-new-own-refresh' });
     expect(fetcher).toHaveBeenCalledOnce(); const [url, init] = fetcher.mock.lastCall!;
     expect(url).toBe(apiUrl + '/api/auth/logout');
     expect(init).toMatchObject({ method: 'POST', redirect: 'error', credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer' });
-    expect(new Headers(init?.headers).has('authorization')).toBe(false);
+    expect(new Headers(init?.headers).get('authorization')).toBe('Bearer synthetic-new-own-access');
     expect(JSON.parse(String(init?.body))).toEqual({ refreshToken: 'synthetic-new-own-refresh' });
   });
   it('bounds cleanup to two seconds even if transport ignores abort', async () => {
     vi.useFakeTimers(); const fetcher = vi.fn<typeof fetch>().mockReturnValue(new Promise(() => {}));
     const api = new SharedUnlockApi(fetcher, () => apiUrl);
-    const cleanup = api.revokeIssuedSession(apiUrl, 'synthetic-new-own-refresh');
+    const cleanup = api.revokeIssuedSession(apiUrl, { accessToken: 'synthetic-new-own-access', refreshToken: 'synthetic-new-own-refresh' });
     await vi.advanceTimersByTimeAsync(2000); await cleanup;
     expect(fetcher.mock.lastCall![1]?.signal?.aborted).toBe(true); expect(fetcher).toHaveBeenCalledOnce();
   });
   it('keeps cleanup best effort and does not retry a failed revocation', async () => {
     const fetcher = vi.fn<typeof fetch>().mockRejectedValue(new Error('synthetic-internal-error'));
     const api = new SharedUnlockApi(fetcher, () => apiUrl);
-    await expect(api.revokeIssuedSession(apiUrl, 'synthetic-new-own-refresh')).resolves.toBeUndefined();
+    await expect(api.revokeIssuedSession(apiUrl, { accessToken: 'synthetic-new-own-access', refreshToken: 'synthetic-new-own-refresh' })).resolves.toBeUndefined();
     expect(fetcher).toHaveBeenCalledOnce();
   });
 });

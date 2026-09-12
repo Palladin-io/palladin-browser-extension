@@ -59,7 +59,7 @@ async function setup(options: { confirmLocalLink?: SharedUnlockReceiverRoute["co
     const action = String(url).split("/").at(-1)!;
     events.push(action);
     expect(init).toMatchObject({ credentials: "omit", redirect: "error", cache: "no-store" });
-    expect(new Headers(init?.headers).has("authorization")).toBe(false);
+    expect(new Headers(init?.headers).get("authorization")).toBe(action === "logout" ? `Bearer ${newSession.accessToken}` : null);
     if (action === "logout") {
       expect(String(url)).toBe(`${apiUrl}/api/auth/logout`);
       expect(JSON.parse(String(init?.body))).toEqual({ refreshToken: newSession.refreshToken });
@@ -104,6 +104,15 @@ async function setup(options: { confirmLocalLink?: SharedUnlockReceiverRoute["co
 }
 
 describe("Extension own receiver transaction with real crypto and session installation", () => {
+  it('authenticates denied-install cleanup using the issued own session', async () => {
+    const f = await setup({ assertFreshAuthorization: async () => { throw new Error('local admission denied'); } });
+    await expect(f.receiver.receive(f.input)).rejects.toThrow('local admission denied');
+    const calls = f.fetcher.mock.calls.filter(([url]) => String(url).endsWith('/api/auth/logout'));
+    expect(calls).toHaveLength(1);
+    expect(new Headers(calls[0][1]?.headers).get('authorization')).toBe(`Bearer ${newSession.accessToken}`);
+    expect(JSON.parse(String(calls[0][1]?.body))).toEqual({ refreshToken: newSession.refreshToken });
+    expect(f.ack).not.toHaveBeenCalled();
+  });
   it('announces only a completed own install once even when ACK delivery fails', async () => {
     const f = await setup({ pause: 'commit' });
     const input = { ...f.input, acknowledge: () => { throw new Error('peer closed'); } };

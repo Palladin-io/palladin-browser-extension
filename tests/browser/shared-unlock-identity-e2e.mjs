@@ -15,6 +15,7 @@ import { verifyAuthorizationRateLimitRetry } from './shared-unlock-rate-limit-st
 import { persistChromiumTestInstallation } from './chromium-persist-test-installation.mjs'
 import { verifyIndependentIdleExpiry } from './shared-unlock-idle-steps.mjs'
 import { verifyMultipleWebDocuments } from './shared-unlock-multiple-documents.mjs'
+import { verifyRetiredWebReceiver } from './shared-unlock-retired-receiver.mjs'
 
 // Explicit, already built clients and isolated local Identity/SES test services.
 // No account credentials, recovery words, tokens or keys are written to reports.
@@ -38,6 +39,7 @@ const authorizationRateLimitRetry = process.argv.includes('--authorization-rate-
 const ownActivityDuringPrepare = process.argv.includes('--own-activity-during-prepare')
 const independentIdleExpiry = process.argv.includes('--independent-idle-expiry')
 const multipleWebDocuments = process.argv.includes('--multiple-web-documents')
+const retiredWebReceiver = process.argv.includes('--retired-web-receiver')
 const totp = process.argv.includes('--totp')
 const settings = process.argv.includes('--settings')
 const settingsRaces = process.argv.includes('--settings-races')
@@ -57,6 +59,7 @@ const temporary = await mkdtemp(path.join(tmpdir(), 'palladin-identity-e2e-'))
 let context, server, mailServer, page, popup, stage = 'preflight'
 let ownActivityRequested = false, ownActivityObserved = false
 const checks = [], requests = []
+const operationDocuments = new Map(), observationBeganAt = Date.now()
 const pendingRequests = new Map()
 const routedRequests = new Map()
 const servedResources = new Map()
@@ -98,6 +101,7 @@ const provenance = {
   ownActivityDuringPrepare,
   independentIdleExpiry,
   multipleWebDocuments,
+  retiredWebReceiver,
   totp,
   settings,
   settingsRaces,
@@ -157,7 +161,22 @@ async function observeLocalContext() {
   })
   context.on('response', response => {
     const url = new URL(response.url())
-    if (url.origin === new URL(apiUrl).origin) requests.push({ stage, path: url.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id'), status: response.status() })
+    if (url.origin === new URL(apiUrl).origin) {
+      const observation = { stage, path: url.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id'), status: response.status() }
+      if (url.pathname === '/api/account/shared-unlock/operations') {
+        // Only an ordinal and timing leave the process; never record a request
+        // body, token, public key or raw browser/document binding.
+        try {
+          const binding = response.request().postDataJSON()?.documentBinding
+          if (typeof binding === 'string') {
+            if (!operationDocuments.has(binding)) operationDocuments.set(binding, operationDocuments.size + 1)
+            observation.documentOrdinal = operationDocuments.get(binding)
+          }
+        } catch { /* Diagnostics cannot change the observed request. */ }
+        observation.elapsedMs = Date.now() - observationBeganAt
+      }
+      requests.push(observation)
+    }
   })
 }
 async function interceptFreshManualUnlock() {
@@ -357,6 +376,12 @@ try {
   await popup.waitText('Synthetic shared unlock proof')
   assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword), 'Live Entry invalidation must make the real Entry decryptable without relocking')
   checks.push('live-entry-invalidation-and-decryption-without-relocking')
+  if (retiredWebReceiver) await verifyRetiredWebReceiver({ page, popup, apiUrl, password,
+    vaultId, entryId, entryPassword,
+    reopenPopup: async () => { popup?.close(); popup = await openNativePopup(null, path.join(temporary, 'profile'), extensionId); return popup },
+    countOperations: () => requests.filter(value => value.path === '/api/account/shared-unlock/operations' && typeof value.status === 'number').length,
+    cleanupStatuses: () => requests.filter(value => value.path === '/api/auth/logout' && typeof value.status === 'number').map(value => value.status),
+    setStage: value => { stage = value }, recordCheck: value => checks.push(value), recordRequest: value => requests.push(value) })
   if (independentIdleExpiry) await verifyIndependentIdleExpiry({ page, popup, password,
     countOperationResponses: () => requests.filter(value => value.path === '/api/account/shared-unlock/operations' && typeof value.status === 'number').length,
     reopenPopup: async () => { popup?.close(); popup = await openNativePopup(null, path.join(temporary, 'profile'), extensionId); return popup },
@@ -617,6 +642,6 @@ async function writeEvidence(kind, value) {
   await writeFile(path.join(output, `${kind}.json`), contents)
   const version = String(provenance.browserVersion ?? 'launch').replace(/[^a-zA-Z0-9.-]/g, '_')
   const scenario = (persistViaBrowserUi ? '.browser-ui-persisted' : '') + (fullBrowserRestart ? '.full-browser-restart' : '') + (authorizationRateLimitRetry ? '.authorization-rate-limit-retry' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '') + (totp ? '.totp' : '') + (settings ? '.settings' : '') + (settingsRaces ? '.settings-races' : '') + (accountIsolation ? '.account-isolation' : '') + (accountIsolation && accountLogoutDirection === 'extension' ? '.extension-logout' : '') + (accountUnlockCycles > 1 ? `.unlock-cycles-${accountUnlockCycles}` : '')
-  const sessionScenario = (independentIdleExpiry ? '.independent-idle-expiry' : '') + (multipleWebDocuments ? '.multiple-web-documents' : '')
+  const sessionScenario = (independentIdleExpiry ? '.independent-idle-expiry' : '') + (multipleWebDocuments ? '.multiple-web-documents' : '') + (retiredWebReceiver ? '.retired-web-receiver' : '')
   await writeFile(path.join(output, `${kind}.${browserLabel}-${version}${scenario}${sessionScenario}.json`), contents)
 }

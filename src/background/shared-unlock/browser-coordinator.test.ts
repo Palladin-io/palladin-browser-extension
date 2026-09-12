@@ -5,6 +5,7 @@ import type { SharedUnlockOperation } from "./api-types";
 import type { SharedUnlockEnvelope } from "@palladin/crypto";
 import fixtures from "./fixtures/session-api-v1.json";
 import { SharedUnlockAuthorizationRetiredError } from "./expiry-store";
+import { SharedUnlockPreferenceState } from "./preference-state";
 
 const operation = fixtures.responses.find(r => r.type === "operation")!.body as SharedUnlockOperation;
 const accountId = operation.context.accountId, organizationId = operation.context.organizationId, linkId = operation.context.linkId;
@@ -73,6 +74,32 @@ beforeEach(() => { vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Da
 afterEach(() => { expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); });
 
 describe("automatic browser account/link selection", () => {
+  it.each(["web", "extension"] as const)("bounds %s retirement retries across initial authenticated preference observation", async role => {
+    const f = pair(role === "web" ? "extension" : "web"), recipient = f[role];
+    const source = f[role === "web" ? "extension" : "web"];
+    const normal = vi.mocked(recipient.client.receiver).getMockImplementation()!;
+    vi.mocked(recipient.client.receiver).mockImplementation(async (...args) => ({
+      ...await normal(...args), receive: async () => { throw new SharedUnlockAuthorizationRetiredError(); },
+    }));
+    const preferences = new SharedUnlockPreferenceState(), close = f.start();
+    const scope = { apiUrl: operation.context.apiOrigin, accountId };
+    const unwatch = preferences.subscribe(() => close[role].cancelPending(accountId));
+    try {
+      await settle(); expect(source.client.source).toHaveBeenCalledOnce();
+      // Production refresh invalidates selection when its previously unknown
+      // own preference is first observed. Repeated identical reads do not.
+      preferences.observe(scope, { sharedUnlockEnabled: true, revision: operation.context.preferenceRevision });
+      await settle(); expect(source.client.source).toHaveBeenCalledTimes(2);
+      for (let index = 0; index < 10; index++) {
+        preferences.observe(scope, { sharedUnlockEnabled: true, revision: operation.context.preferenceRevision });
+        for (const changed of source.watchers) changed();
+        await vi.advanceTimersByTimeAsync(5000); await settle();
+      }
+      expect(source.client.source).toHaveBeenCalledTimes(2);
+      expect(recipient.client.received).not.toHaveBeenCalled();
+      expect(recipient.route.signal.aborted).toBe(false);
+    } finally { unwatch(); close(); }
+  });
   it.each(["web", "extension"] as const)("still closes the channel for an unrelated %s receiver failure", async role => {
     const f = pair(role === "web" ? "extension" : "web"), recipient = f[role];
     const normal = vi.mocked(recipient.client.receiver).getMockImplementation()!;

@@ -91,6 +91,15 @@ All tabs share the disposable browser profile and use normal UI/Identity/crypto;
 the scenario does not inject auth state or keys. It does not cover other accounts,
 OS resume or every multi-document race.
 
+`--retired-web-receiver` exercises local retirement without waiting for idle:
+Web turns sharing OFF, locks itself, and the still-unlocked Extension turns
+sharing ON. The Web must reject its retired authority. The test observes initial
+preference/bootstrap work for 16 seconds, then demands no new operations during
+32 seconds of unchanged repair and real peer activity, before and after reload.
+Rejected issued sessions must receive real Identity logout 204 responses while
+the Extension retains Entry access; a new manual Web generation must recover.
+This is an actual local retirement/cleanup test, not evidence of clock expiry.
+
 ### Branded Chromium-family browsers
 
 Use an explicit browser executable and label to run the same Identity/Entry
