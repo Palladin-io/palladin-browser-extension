@@ -8,6 +8,13 @@ export async function openNativePopup(worker, profile, extensionId) {
   await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject })
   let serial = 0
   const calls = new Map()
+  socket.onclose = () => {
+    for (const call of calls.values()) {
+      clearTimeout(call.timer)
+      call.reject(new Error('Browser protocol socket closed'))
+    }
+    calls.clear()
+  }
   socket.onmessage = (event) => {
     const message = JSON.parse(event.data)
     const call = calls.get(message.id)
@@ -18,6 +25,7 @@ export async function openNativePopup(worker, profile, extensionId) {
     else call.resolve(message.result)
   }
   const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
+    if (socket.readyState !== WebSocket.OPEN) { reject(new Error('Browser protocol socket closed')); return }
     const id = ++serial
     const timer = setTimeout(() => { calls.delete(id); reject(new Error(`Browser protocol timeout: ${method}`)) }, 15000)
     calls.set(id, { resolve, reject, timer })

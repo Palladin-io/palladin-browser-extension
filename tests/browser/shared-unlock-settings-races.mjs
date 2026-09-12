@@ -37,7 +37,8 @@ export async function verifySharedUnlockSettingsRaces({ page, popup, reopenPopup
       await reveal()
       await new Promise(resolve => setTimeout(resolve, 500))
     }
-  } finally { setStage('settings-failed-off-close-probe'); await probe.close() }
+    setStage('settings-failed-off-close-probe')
+  } finally { await probe.close() }
   setStage('settings-failed-off-reopen-popup-after-probe')
   popup = await reopenPopup()
   await popup.click('Settings'); await popup.click('Shared unlock')

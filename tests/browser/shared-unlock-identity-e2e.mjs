@@ -584,7 +584,7 @@ try {
     requests.push({ check: 'native-popup-error-presentation', flags })
   }
   await writeEvidence('failure', { stage, checks, requests, errorType: error.name,
-    nativeProtocolFailure: /^Browser protocol (timeout: [A-Za-z.]+|error: -?\d+)$/.test(error.message) ? error.message : undefined,
+    nativeProtocolFailure: /^Browser protocol (timeout: [A-Za-z.]+|error: -?\d+|socket closed)$/.test(error.message) ? error.message : undefined,
     timeout: error.name === 'TimeoutError' ? error.message.split('\n')[0] : undefined,
     pagePath: page ? new URL(page.url()).pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id') : null, provenance, observedAt: new Date().toISOString() })
   console.error(`FAIL at ${stage}; value-free failure.json recorded.`); process.exitCode = 1
