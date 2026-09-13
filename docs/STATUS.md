@@ -212,3 +212,8 @@ it never calls group logout or replaces the active client session. Focused negat
 tests reproduce the previous dropped-body behavior and cover abort/server changes,
 body loss, no retry and an unresponsive transport. Browser receiver wiring remains
 in progress, so this API support alone is not automatic session cleanup in the UI.
+
+## Telemetry
+
+The extension ships without active analytics. Setting a project key or attaching
+a transport does not enable capture, identifiers or an event queue. See [telemetry policy](TELEMETRY.md).

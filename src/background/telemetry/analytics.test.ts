@@ -24,7 +24,7 @@ describe("capture — enablement", () => {
     vi.doUnmock("../config/env");
   });
 
-  it("forwards ex:-prefixed events to the transport when a key is configured", async () => {
+  it("remains disabled when both a project key and transport are configured", async () => {
     vi.resetModules();
     vi.doMock("../config/env", () => ({
       env: { apiUrl: "", posthogKey: "phc_test", posthogHost: "" },
@@ -35,8 +35,8 @@ describe("capture — enablement", () => {
 
     mod.capture("vault", "autofill-used", { count: 1 });
 
-    expect(mod.isAnalyticsEnabled()).toBe(true);
-    expect(events).toEqual([{ name: "ex:vault:autofill-used", props: { count: 1 } }]);
+    expect(mod.isAnalyticsEnabled()).toBe(false);
+    expect(events).toEqual([]);
   });
 
   it("is a pure no-op when no PostHog key is configured", async () => {

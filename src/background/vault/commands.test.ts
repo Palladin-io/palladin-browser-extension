@@ -19,7 +19,7 @@ interface Harness {
   deps: VaultCommandDeps;
   sendFill: ReturnType<typeof vi.fn>;
   openLoginTab: ReturnType<typeof vi.fn>;
-  arm: ReturnType<typeof vi.fn>;
+  arm: ReturnType<typeof vi.fn<() => void>>;
   revealEntry: ReturnType<typeof vi.fn>;
 }
 
@@ -107,7 +107,7 @@ async function makeHarness(
     (_target: ActiveTab, _expectedDomain: string | null, _fields: readonly FillField[]): Promise<FillOutcome> =>
       Promise.resolve(fillOutcome),
   );
-  const arm = vi.fn();
+  const arm = vi.fn<() => void>();
   const resolvedTab = tab === null
     ? null
     : {

@@ -16,7 +16,7 @@ The popup settings reuse the existing SettingsSection and Button controls.
 
 Design direction follows the existing extension: system font, 14px primary
 copy/12px secondary copy, left-aligned content, brand red primary action, existing
-light/dark palette (#EB4747, #F3F5F8, #FFFFFF, #0C0E12, #16161A, #E8EAED).
+light/dark palette (#E54645, #F3F5F8, #FFFFFF, #0C0E12, #16161A, #E8EAED).
 The only prominent action is the named write target; selectors are deferred.
 
 ```text

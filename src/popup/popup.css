@@ -5,9 +5,9 @@
  */
 
 :root {
-  --cv-primary: #eb4747;
+  --cv-primary: #E54645;
   --cv-primary-hover: #d43e3e;
-  --cv-primary-rgb: 235 71 71;
+  --cv-primary-rgb: 229 70 69;
   --cv-success: #10b981;
   --cv-app-background: linear-gradient(160deg, #f7f9fb 0%, #e8ecf1 100%);
 

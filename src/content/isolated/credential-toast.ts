@@ -245,7 +245,7 @@ export class CredentialCaptureToast {
 }
 
 const STYLES = `
-  :host { color-scheme:light; --cv-primary:#eb4747; --cv-primary-hover:#d43e3e;
+  :host { color-scheme:light; --cv-primary:#E54645; --cv-primary-hover:#d43e3e;
     --cv-bg:#f3f5f8; --cv-surface:#fff; --cv-t1:#0c0e12; --cv-t2:#3d4e66;
     --cv-border:rgba(12,14,18,.1); --cv-subtle:rgba(12,14,18,.05); }
   :host([data-theme="dark"]) { color-scheme:dark; --cv-bg:#16161a; --cv-surface:#1f232b;

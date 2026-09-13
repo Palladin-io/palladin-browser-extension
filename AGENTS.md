@@ -160,6 +160,11 @@ src/
 
 ## Analytics
 
+Extension telemetry is disabled at a hard release gate. A project key or
+injected transport never enables it. Future enablement requires an explicit
+consent/withdrawal contract and store declaration review; see
+`docs/TELEMETRY.md`. Autofill and synchronization remain independent.
+
 Follow the Palladin convention `{component}:{module}:{event}` with the extension
 component prefix **`ex`** (e.g. `ex:vault:autofill-used`,
 `ex:vault:credential-captured`). UI-only events; business logic is tracked by the
@@ -173,7 +178,7 @@ backend. **No `*-viewed` events** - screen/tab views are covered generically.
 - **Copy uses a plain hyphen `-`,** never an em dash or en dash. No all-caps in UI
   (no `text-transform: uppercase`) - render strings in the case written.
 - **Colors** mirror the web panel `--cv-*` tokens; do not invent brand hexes
-  (brand red is `#EB4747`).
+  (brand red is `#E54645`).
 - **Every user-facing string is localized.** English and Polish catalogs are
   required from the first implementation; never add literal UI copy in a React
   component. Keep popup catalogs and manifest `_locales` in exact key parity,
