@@ -1169,3 +1169,45 @@ product behavior or acceptance assertion changed. Report:
 `failure.firefox-140.0.post-restart-diagnostic.json`.
 
 The capability-fix CI34689580040 passed. No native process is left running.
+
+## Firefox worker restart and hidden Web repair — 2026-09-13
+
+The earlier Firefox failures exposed a stale native surface: `Unlocked` remained
+visible while `session/status` returned locked. Waiting for authoritative worker
+status on the unchanged product passed 16 steps. That diagnostic did not by itself
+fix the stale UI. Popup and Side Panel now discard the old projection on private
+worker Port loss and reread status. Web reconnects from a live hidden tab using
+the existing bounded backoff. Neither path counts as activity or renews deadlines;
+pagehide/prerender and ordinary Identity/crypto/expiry denials remain enforced.
+Two UI regressions and the hidden-document regression failed before the changes
+and passed afterward. The native harness now requires actual worker unlock before
+trying the real Entry and separately restarts while another browser tab is active.
+
+Final clean sources: Web `5604623…0aa1c0`, Extension `322c80a…0ac954`, local
+Identity source `dde6bb96…aac65`. The branches include current main privacy,
+telemetry and branding changes, with login ownership and narrow CSP preserved.
+
+| Browser / macOS 26.4.1 arm64 | UTC result | Evidence |
+| --- | --- | --- |
+| Chrome 152.0.7977.84 | 19:23:06, 21 PASS | `report.chrome-merged-hidden-restart-fix.json` |
+| Firefox 140.0 | 19:23:50, 17 PASS | `report.firefox-140.0.merged-restart-fixed.json` |
+| Firefox 155.0.1 | 19:24:45, 17 PASS | `report.firefox-155.0.1.merged-restart-fixed.json` |
+
+Firefox verifies real Identity and Entry decryption, peer close/reopen, worker
+restart with visible and hidden Web, and shared lock/logout. Its temporary product
+XPI and BiDi-served exact-host HTTPS form do not prove store distribution, TLS,
+trusted-input idle, OS lock/sleep or the remaining matrix. Chrome uses the actual
+native SIDE_PANEL and tests both unlock/lock directions and baseline lifecycle.
+
+Artifact fingerprints (prefix/suffix): Chromium harness Web `1dcb3053…9a46e1` /
+Extension `d64df0eb…e1cb02`; Firefox harness Web `fefab576…cee901` / Extension
+`490b04d8…307271`. Full digests are in the value-free local reports. The two harnesses
+use different deterministic traversal ordering for Web; the underlying build is
+the same. Earlier pre-main Firefox 140/155 runs also passed 17 checks each on
+Web `575130c…1ccb68` / Extension `5c928b5…3a7867`.
+
+Extension CI `34777481332` passed 1742 tests in 143 files and browser gates; Web
+CI `34777481852` is recorded in the root checkpoint. Safari boundary `34777481313`
+failed; Safari remains last and local settings were not changed. Full matrix,
+remaining lifecycle/limits/MFA, release configuration, review and merges remain
+open. No new review round was triggered (Web 2/3; Extension 1/3).
