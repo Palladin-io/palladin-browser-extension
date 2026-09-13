@@ -10,12 +10,12 @@ function deferred<T>(): { readonly promise: Promise<T>; readonly resolve: (value
 
 function fakePort(): SessionLivenessPort & {
   readonly disconnect: () => void;
-  readonly postMessage: ReturnType<typeof vi.fn>;
+  readonly postMessage: ReturnType<typeof vi.fn<SessionLivenessPort["postMessage"]>>;
 } {
   let onDisconnect = (): void => undefined;
   return {
     onDisconnect: { addListener: (listener) => { onDisconnect = listener; } },
-    postMessage: vi.fn(),
+    postMessage: vi.fn<SessionLivenessPort["postMessage"]>(),
     disconnect: () => onDisconnect(),
   };
 }
