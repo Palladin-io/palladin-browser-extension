@@ -147,11 +147,27 @@ try:
     stage = 'background-restart-and-fresh-handoff'
     popup(); browser.wait_background_running(extension_id)
     checks.append('browser-owned-background-restarted-observed')
+    stage = 'restarted-extension-authoritative-status'
+    browser.wait(lambda: browser.native_evaluate("(async()=>{const r=await chrome.runtime.sendMessage({type:'session/status'});return r?.ok===true && r.status==='unlocked';})()"), 'restarted worker unlocked')
     stage = 'restarted-extension-unlocked-surface'
     browser.native_wait_text('Unlocked')
     stage = 'restarted-extension-password-autofill'
     assert browser.autofill_matches('synthetic-entry-user', entry_password)
     checks.append('restarted-extension-automatically-unlocked-and-entry-decrypted')
+    stage = 'hidden-web-background-restart'
+    web(); source_tab = browser.request('GET', '/window')
+    hidden_peer_tab = browser.request('POST', '/window/new', {'type': 'tab'})['handle']
+    browser.request('POST', '/window', {'handle': hidden_peer_tab})
+    browser.request('POST', '/url', {'url': 'about:blank'})
+    browser.context('chrome')
+    assert browser.script("return gBrowser.selectedBrowser.currentURI.spec === 'about:blank'")
+    browser.stop_background(extension_id)
+    popup(); browser.wait_background_running(extension_id)
+    browser.wait(lambda: browser.native_evaluate("(async()=>{const r=await chrome.runtime.sendMessage({type:'session/status'});return r?.ok===true && r.status==='unlocked';})()"), 'hidden Web restored worker')
+    assert browser.autofill_matches('synthetic-entry-user', entry_password)
+    checks.append('hidden-web-restores-restarted-extension-and-entry-decryption')
+    web(); browser.request('DELETE', '/window')
+    browser.request('POST', '/window', {'handle': source_tab})
     stage = 'extension-manual-lock-propagates'
     popup(); browser.native_click('Lock')
     web(); browser.element('#unlock-password'); checks.append('extension-manual-lock-propagated-to-web')
@@ -186,7 +202,7 @@ except Exception as error:
             except Exception: pass
         try:
             web()
-            state = browser.script('''return {path:location.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi,':id'),
+            state = browser.script('''return {visibility:document.visibilityState,bridgeFrames:document.querySelectorAll('iframe[src^="moz-extension:"]').length,path:location.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi,':id'),
               login:!!document.querySelector('#login-email'),unlock:!!document.querySelector('#unlock-password'),
               vaults:[...document.querySelectorAll('a')].some(e=>e.innerText.trim()==='Vaults'),
               signIn:[...document.querySelectorAll('button')].some(e=>e.innerText.trim()==='Sign in'),

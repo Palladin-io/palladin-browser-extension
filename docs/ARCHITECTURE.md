@@ -56,6 +56,13 @@ authoritative. Tests use real receiver crypto and SessionManager, and the shared
 App in both hosts with a real notice distributor over synthetic browser Ports.
 They do not replace native Identity/MK/Entry or browser-matrix acceptance.
 
+Both unlocked native surfaces observe worker loss through the existing private
+liveness Port. Disconnect discards their old vault projection and pending UI
+challenge, then rereads authoritative `session/status`; it does not infer a session
+state from the liveness control or call lock/logout. The UI revision fence rejects
+late results from the old worker. Reconnection and value-free pings never renew
+idle/absolute limits. Invalidated extension contexts do not reconnect.
+
 - The page main world is controlled by the visited site. It is never a trust
   anchor, even if a message contains a nonce that page scripts can observe.
 - The isolated-world script validates shape, direction, frame, origin, and
@@ -147,7 +154,7 @@ They do not replace native Identity/MK/Entry or browser-matrix acceptance.
 2. Keep cryptographic keys only in service-worker JavaScript memory. A worker
    restart loses them and restores a compatible account only as locked; explicit
    lock and logout wipe them immediately. While the
-   session is unlocked, isolated content scripts and the persistent side panel
+   session is unlocked, isolated content scripts and open native popup/side-panel surfaces
    send a private, value-free liveness ping every 20 seconds. After explicit popup unlock, a fixed
    `activeTab`/`scripting` bootstrap installs that same heartbeat in the current
    top frame if it was already open before an unpacked install/reload. It has no

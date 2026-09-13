@@ -151,15 +151,16 @@ export function App({
   }, [surface]);
 
   useEffect(() => {
-    if (surface !== "side-panel" || session.phase !== "unlocked"
+    if (session.phase !== "unlocked"
       || typeof chrome === "undefined" || !chrome.runtime?.connect) return;
     const liveness = startSurfaceSessionLiveness(
       chrome.runtime,
       undefined,
       () => Boolean(chrome.runtime.id),
+      session.retryInit,
     );
     return () => liveness.stop();
-  }, [session.phase, surface]);
+  }, [session.phase, session.retryInit]);
 
   return (
     <main className="popup" data-surface={surface}>

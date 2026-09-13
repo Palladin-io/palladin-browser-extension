@@ -31,7 +31,7 @@ const defaultTimers: SurfaceLivenessTimers = {
 };
 
 /**
- * Keep the unlocked worker alive while the browser-owned side panel is open.
+ * Keep the unlocked worker alive while a browser-owned surface is open.
  * The channel is value-free and never counts as user activity, so it cannot
  * extend the configured idle deadline. It only prevents Chrome's
  * routine MV3 retirement from destroying memory-only keys mid-session.
@@ -40,6 +40,7 @@ export function startSurfaceSessionLiveness(
   runtime: SurfaceLivenessRuntime,
   timers: SurfaceLivenessTimers = defaultTimers,
   contextIsValid: () => boolean = () => true,
+  onWorkerLost: () => void = () => {},
 ): { stop(): void } {
   let alive = true;
   let port: SurfaceLivenessPort | null = null;
@@ -93,9 +94,12 @@ export function startSurfaceSessionLiveness(
         if (isSessionLivenessControl(message)) setEnabled(message.enabled);
       });
       next.onDisconnect.addListener(() => {
-        if (port !== next) return;
+        if (!alive || port !== next) return;
         port = null;
         stopInterval();
+        // Port loss invalidates the displayed projection, not the user session.
+        // The surface must read authoritative status from the new worker.
+        onWorkerLost();
         if (!hasValidContext()) {
           invalidate();
           return;

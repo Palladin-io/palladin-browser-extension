@@ -41,7 +41,7 @@ export interface UseSession {
   unlock(password: string): Promise<void>;
   lock(): Promise<void>;
   signOut(): Promise<void>;
-  /** Re-read status after an initial load failure (worker asleep). */
+  /** Discard the surface projection and read authoritative worker status again. */
   retryInit(): void;
   /** Apply a value-free worker lifecycle event to every open extension surface. */
   synchronize(status: SessionStatus): void;
@@ -149,6 +149,7 @@ export function useSession(client: SessionClient): UseSession {
   const retryInit = useCallback(() => {
     revision.current += 1;
     pendingTotp.current = null;
+    setPhase("loading");
     setInitNonce((n) => n + 1);
   }, []);
 
