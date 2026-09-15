@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { isSurfaceStateEvent } from '../../shared/messaging/surface-state'
 import { isSharedUnlockSettingsChanged, type SharedUnlockSettingsCommand,
   type SharedUnlockSettingsResult, type SharedUnlockSettingsError } from '../../shared/messaging/shared-unlock-settings'
@@ -15,8 +15,8 @@ export const subscribeSharedUnlockSettingsChanges = (changed: (sessionChanged: b
   return () => chrome.runtime.onMessage.removeListener(listener)
 }
 
-export function SharedUnlockSettings({ send = sendCommand, subscribe = subscribeSharedUnlockSettingsChanges }: {
-  send?: typeof sendCommand; subscribe?: typeof subscribeSharedUnlockSettingsChanges
+export function SharedUnlockSettings({ send = sendCommand, subscribe = subscribeSharedUnlockSettingsChanges, children }: {
+  send?: typeof sendCommand; subscribe?: typeof subscribeSharedUnlockSettingsChanges; children?: ReactNode
 }): React.JSX.Element {
   const { t } = useI18n()
   const [settings, setSettings] = useState<Extract<SharedUnlockSettingsResult, { ok: true }> | null>(null)
@@ -88,16 +88,17 @@ export function SharedUnlockSettings({ send = sendCommand, subscribe = subscribe
         {t(settings.sharedUnlockEnabled ? 'sharedUnlockSettings.on' : 'sharedUnlockSettings.off')}
       </Button>
     </div>}
-    {(busy || error || paused || !settings) && <p role={error ? 'alert' : 'status'} className="settings-warning">
+    {(busy || error || paused || !settings) && <p role={error && !authenticationRequired ? 'alert' : 'status'} className="settings-warning">
       {busy ? t('sharedUnlockSettings.saving')
         : authenticationRequired ? t('sharedUnlockSettings.authenticate')
           : error ? t(error.code === 'conflict' ? 'sharedUnlockSettings.conflict' : paused ? 'sharedUnlockSettings.saveFailed' : 'sharedUnlockSettings.loadFailed')
             : paused ? t('sharedUnlockSettings.paused')
               : t('sharedUnlockSettings.loading')}
     </p>}
-    {(error || paused) && <Button variant="subtle" disabled={busy} onClick={() => {
+    {!authenticationRequired && (error || paused) && <Button variant="subtle" disabled={busy} onClick={() => {
       if (settings && paused) void change(lastChoice.current ?? settings.sharedUnlockEnabled)
       else reload.current()
     }}>{t('sharedUnlockSettings.retry')}</Button>}
+    {!authenticationRequired && children}
   </div>
 }

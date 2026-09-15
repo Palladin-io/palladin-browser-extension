@@ -45,8 +45,9 @@ export function SettingsScreen({
       </SettingsSection>
       <SettingsSection id="shared-unlock-settings" title={t('sharedUnlockSettings.title')}
         open={openSection === 'shared-unlock'} onToggle={() => toggle('shared-unlock')}>
-        <SharedUnlockSettings />
-        <SharedUnlockLinkSettings />
+        <SharedUnlockSettings>
+          <SharedUnlockLinkSettings />
+        </SharedUnlockSettings>
       </SettingsSection>
     </div>
   );

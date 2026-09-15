@@ -76,3 +76,14 @@ it('confirmed reconnect clears the real worker marker and returns to saved pairi
   await screen.findByRole('button', { name: 'Disconnect' }); expect(f.lock).toHaveBeenCalledOnce()
   expect(f.fetcher.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
 })
+
+
+it('does not report an authentication requirement as a failed pairing operation', async () => {
+  const send = vi.fn(async () => ({ ok: false as const, code: 'authentication-required' as const }))
+  const subscribe = () => () => {}
+  const view = render(<SharedUnlockLinkSettings send={send} subscribe={subscribe} />)
+  await waitFor(() => expect(send).toHaveBeenCalledOnce())
+  expect(view.container).toBeEmptyDOMElement()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button')).not.toBeInTheDocument()
+})

@@ -8,7 +8,7 @@ const sendCommand = (command: SharedUnlockLinkSettingsCommand): Promise<SharedUn
 type Saved = Extract<SharedUnlockLinkSettingsResult, { ok: true }>
 export function SharedUnlockLinkSettings({ send = sendCommand, subscribe = subscribeSharedUnlockSettingsChanges }: {
   send?: typeof sendCommand; subscribe?: typeof subscribeSharedUnlockSettingsChanges
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const { t } = useI18n()
   const [saved, setSaved] = useState<Saved | null>(null), [error, setError] = useState(false), [busy, setBusy] = useState(false)
   const [confirm, setConfirm] = useState<Saved | null>(null)
@@ -27,13 +27,13 @@ export function SharedUnlockLinkSettings({ send = sendCommand, subscribe = subsc
       void send({ type: 'shared-unlock-link/get' }).then(result => {
         if (!active || request !== version.current) return
         setSaved(result.ok ? result : null)
-        if (!result.ok) setError(true)
+        if (!result.ok) setError(result.code !== 'authentication-required' && result.code !== 'cancelled')
         setConfirm(previous => previous && result.ok && previous.contextId === result.contextId && previous.state === result.state ? previous : null)
       }).catch(() => { if (active && request === version.current) { setSaved(null); setError(true); setConfirm(null) } })
     }
     reload.current = load
     const remove = subscribe(sessionChanged => {
-      if (sessionChanged) { version.current++; setSaved(null); setConfirm(null) }
+      if (sessionChanged) { version.current++; setSaved(null); setConfirm(null); setError(false) }
       load()
     })
     const timer = setInterval(load, 15_000); window.addEventListener('focus', load); load()
@@ -46,14 +46,14 @@ export function SharedUnlockLinkSettings({ send = sendCommand, subscribe = subsc
     running.current = true; setBusy(true); setError(false)
     try {
       const result = await send({ type: captured.state === 'disconnected' ? 'shared-unlock-link/reconnect' : 'shared-unlock-link/disconnect', contextId: captured.contextId })
-      if (version.current === request && !result.ok) setError(true)
+      if (version.current === request && !result.ok) setError(result.code !== 'authentication-required' && result.code !== 'cancelled')
     } catch { if (version.current === request) setError(true) }
     finally { running.current = false; setBusy(false); setConfirm(null); reload.current() }
   }
+  if (!saved && !error) return null
   return <section className="capture-settings" aria-label={t('sharedUnlockLink.title')} aria-busy={busy}>
-    <p role="status" className="settings-warning">{t(!saved ? 'sharedUnlockLink.authenticate'
-      : saved.state === 'connected' ? 'sharedUnlockLink.connected' : saved.state === 'disconnected' ? 'sharedUnlockLink.disconnected'
-        : saved.state === 'missing' ? 'sharedUnlockLink.missing' : 'sharedUnlockLink.unavailable')}</p>
+    {saved && <p role="status" className="settings-warning">{t(saved.state === 'connected' ? 'sharedUnlockLink.connected' : saved.state === 'disconnected' ? 'sharedUnlockLink.disconnected'
+        : saved.state === 'missing' ? 'sharedUnlockLink.missing' : 'sharedUnlockLink.unavailable')}</p>}
     {error && <p role="alert" className="settings-warning">{t('sharedUnlockLink.error')}</p>}
     {!confirm && saved && (saved.state === 'connected' || saved.state === 'disconnected') && <div ref={trigger}>
       <Button variant="subtle" disabled={busy} onClick={() => { setError(false); setConfirm(saved) }}>
