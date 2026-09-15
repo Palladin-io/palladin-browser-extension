@@ -1,3 +1,4 @@
+import { combineAbortSignals } from "../../shared/browser/combine-abort-signals";
 import type { SharedUnlockReconnectStaging } from './reconnect-staging'
 import type { SharedUnlockCoordinatorRoute } from './browser-coordinator'
 import type { SharedUnlockApi } from './api'
@@ -33,7 +34,7 @@ export function startSharedUnlockReconnectMonitor(route: SharedUnlockCoordinator
     try {
       route.assertCurrent(); if (invitation) staging?.observe(invitation); own = client.capture(); if (!own) return
       const captured = own, session = own.session
-      const signal = AbortSignal.any([abort.signal, captured.signal, route.signal])
+      const signal = combineAbortSignals([abort.signal, captured.signal, route.signal])
       const check = () => {
         if (stopped || signal.aborted || Date.now() >= deadline) throw new Error('Shared reconnect cancelled')
         route.assertCurrent(); captured.assertCurrent()

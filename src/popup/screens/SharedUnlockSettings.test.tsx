@@ -13,17 +13,8 @@ const root = fixtures.operations[0].sourceAuthorization
 const tokens = { apiUrl: 'https://api.test', userId: root.accountId, accessToken: 'synthetic-access', refreshToken: 'synthetic-refresh' }
 const scope = { accountId: tokens.userId, apiUrl: tokens.apiUrl }
 const originalAny = Object.getOwnPropertyDescriptor(AbortSignal, 'any')
-// jsdom25 lacks the worker's native AbortSignal.any. Keep the substitute local
-// to this component/worker integration test; native browser proof is separate.
-beforeAll(() => { Object.defineProperty(AbortSignal, 'any', { configurable: true, value: (signals: AbortSignal[]) => {
-  const abort = new AbortController(), cancel = () => abort.abort()
-  abort.signal.addEventListener('abort', () => { for (const signal of signals) signal.removeEventListener('abort', cancel) }, { once: true })
-  for (const signal of signals) {
-    if (signal.aborted) { cancel(); break }
-    signal.addEventListener('abort', cancel, { once: true })
-  }
-  return abort.signal
-} }) })
+// Use the product compatibility path; do not polyfill missing browser APIs in tests.
+beforeAll(() => { Object.defineProperty(AbortSignal, 'any', { configurable: true, value: undefined }) })
 afterAll(() => { if (originalAny) Object.defineProperty(AbortSignal, 'any', originalAny); else Reflect.deleteProperty(AbortSignal, 'any') })
 function setup() {
   let preference = { sharedUnlockEnabled: true, revision: 3 }

@@ -1,3 +1,4 @@
+import { combineAbortSignals } from "../../shared/browser/combine-abort-signals";
 import type { SharedUnlockSettingsCommand, SharedUnlockSettingsResult } from '../../shared/messaging/shared-unlock-settings'
 import type { SharedUnlockSettingsSession } from '../session/shared-unlock-settings'
 import type { SessionTokens } from '../session/types'
@@ -45,7 +46,7 @@ export class SharedUnlockSettings {
     } catch { return { ok: false, code: 'authentication-required', locallyPaused: false } }
 
     const scope = { apiUrl: session.apiUrl, accountId: session.userId }
-    const abort = new AbortController(), signal = AbortSignal.any([abort.signal, context.source.signal])
+    const abort = new AbortController(), signal = combineAbortSignals([abort.signal, context.source.signal])
     const deadline = Date.now() + 10_000, timer = setTimeout(() => abort.abort(), 10_000)
     let locallyPaused = false
     const check = () => {

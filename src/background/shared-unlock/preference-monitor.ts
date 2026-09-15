@@ -1,3 +1,4 @@
+import { combineAbortSignals } from "../../shared/browser/combine-abort-signals";
 import type { SharedUnlockCoordinatorRoute } from './browser-coordinator'
 import { SharedUnlockApiError, type SharedUnlockApi } from './api'
 import type { SharedUnlockPreferenceState } from './preference-state'
@@ -31,7 +32,7 @@ export function startSharedUnlockPreferenceMonitor(route: SharedUnlockCoordinato
     let own: ReturnType<typeof client.capture> = null
     try {
       route.assertCurrent(); own = client.capture(); if (!own) return
-      const captured = own, signal = AbortSignal.any([controller.signal, captured.signal, route.signal])
+      const captured = own, signal = combineAbortSignals([controller.signal, captured.signal, route.signal])
       const check = () => {
         if (stopped || signal.aborted || Date.now() >= deadline) throw new Error('Shared preference refresh cancelled')
         route.assertCurrent(); captured.assertCurrent()

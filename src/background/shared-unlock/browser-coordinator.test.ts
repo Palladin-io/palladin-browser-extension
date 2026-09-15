@@ -7,6 +7,14 @@ import fixtures from "./fixtures/session-api-v1.json";
 import { SharedUnlockAuthorizationRetiredError } from "./expiry-store";
 import { SharedUnlockPreferenceState } from "./preference-state";
 
+// Exercise both transfer directions without the optional native composition API.
+const nativeAny = Object.getOwnPropertyDescriptor(AbortSignal, 'any');
+beforeEach(() => { Object.defineProperty(AbortSignal, 'any', { configurable: true, value: undefined }); });
+afterEach(() => {
+  if (nativeAny) Object.defineProperty(AbortSignal, 'any', nativeAny);
+  else Reflect.deleteProperty(AbortSignal, 'any');
+});
+
 const operation = fixtures.responses.find(r => r.type === "operation")!.body as SharedUnlockOperation;
 const accountId = operation.context.accountId, organizationId = operation.context.organizationId, linkId = operation.context.linkId;
 const settle = async () => { for (let i = 0; i < 160; i++) await Promise.resolve(); };

@@ -1,3 +1,4 @@
+import { combineAbortSignals } from "../../shared/browser/combine-abort-signals";
 import type { SharedUnlockContext } from "@palladin/crypto";
 import { SharedUnlockAuthorizationRetiredError } from "./expiry-store";
 import type { SharedUnlockOperationMessage } from "../../shared/messaging/shared-unlock-operation";
@@ -102,7 +103,7 @@ export function startSharedUnlockBrowserCoordinator(route: SharedUnlockCoordinat
     promise.then(resolve, reject).finally(() => attempt.abort.signal.removeEventListener("abort", cancelled));
   });
   const transport = (attempt: NonNullable<typeof active>, check: () => void): SharedUnlockOperationTransport => ({
-    signal: AbortSignal.any([route.signal, attempt.abort.signal]), assertCurrent: check,
+    signal: combineAbortSignals([route.signal, attempt.abort.signal]), assertCurrent: check,
     verifyCurrent: async () => { await route.verifyCurrent(); check(); },
     sendOperation: message => { check(); route.sendOperation(message); },
     onOperation: listener => route.onOperation(listener),
@@ -133,7 +134,7 @@ export function startSharedUnlockBrowserCoordinator(route: SharedUnlockCoordinat
       attempt.binding = binding(offer);
       await route.verifyCurrent(); check(); send(id, offer);
       await prepared; check();
-      await sendSharedUnlockBrowserTransfer(transport(attempt, check), id, signal => client.source(attempt.binding!, AbortSignal.any([signal, attempt.abort.signal]), check));
+      await sendSharedUnlockBrowserTransfer(transport(attempt, check), id, signal => client.source(attempt.binding!, combineAbortSignals([signal, attempt.abort.signal]), check));
     } catch { /* Ordinary own session remains intact; no automatic repeat of this attempt. */ }
     finally { finish(attempt); }
   };
@@ -216,7 +217,7 @@ export function startSharedUnlockBrowserCoordinator(route: SharedUnlockCoordinat
         await waitAttempt(attempt, client.checkReceiver(chosen, attempt.abort.signal)); check();
         // Subscribe before announcing readiness; the runner waits for source offer.
         const transfer = receiveSharedUnlockBrowserTransfer(transport(attempt, check), attempt.id,
-          signal => client.receiver(chosen, AbortSignal.any([signal, attempt.abort.signal]), check));
+          signal => client.receiver(chosen, combineAbortSignals([signal, attempt.abort.signal]), check));
         void transfer.catch(() => {});
         try { await route.verifyCurrent(); check(); send(attempt.id, { kind: "prepared" }); }
         catch { attempt.abort.abort(); }

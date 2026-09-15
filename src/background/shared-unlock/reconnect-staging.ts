@@ -1,3 +1,4 @@
+import { combineAbortSignals } from "../../shared/browser/combine-abort-signals";
 import type { SharedUnlockCoordinatorRoute, SharedUnlockSelectedBinding } from './browser-coordinator'
 import type { SharedUnlockApi } from './api'
 import type { SharedUnlockLinkMarker, SharedUnlockLinkScope, SharedUnlockLinkStore } from './link-store'
@@ -51,7 +52,7 @@ export class SharedUnlockReconnectStaging {
       assertCurrent,
       confirm: async (session: OwnSession, authorizationSequence: number, ownSignal: AbortSignal, assertOwnCurrent: () => void): Promise<void> => {
         const abort = new AbortController(), deadline = Date.now() + 2000, timer = setTimeout(() => abort.abort(), 2000)
-        const signal = AbortSignal.any([abort.signal, ownSignal, this.route.signal])
+        const signal = combineAbortSignals([abort.signal, ownSignal, this.route.signal])
         const check = () => {
           assertCurrent(); assertOwnCurrent()
           if (signal.aborted || Date.now() >= deadline || session.apiUrl !== scope.apiUrl || session.userId !== scope.accountId) throw new Error('Own reconnect confirmation cancelled')

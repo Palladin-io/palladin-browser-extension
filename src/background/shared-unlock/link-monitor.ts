@@ -1,3 +1,4 @@
+import { combineAbortSignals } from "../../shared/browser/combine-abort-signals";
 import type { SharedUnlockCoordinatorRoute } from "./browser-coordinator";
 import { SharedUnlockApi } from "./api";
 import { subscribeSharedUnlockLinkChanges, type SharedUnlockClosingSession } from "./closing";
@@ -39,7 +40,7 @@ export function startSharedUnlockLinkMonitor(route: SharedUnlockCoordinatorRoute
     try {
       route.assertCurrent(); own = client.capture(); if (!own) return;
       const captured = own;
-      const signal = AbortSignal.any([route.signal, captured.signal, controller.signal]);
+      const signal = combineAbortSignals([route.signal, captured.signal, controller.signal]);
       const check = () => { if (stopped || signal.aborted || Date.now() >= deadline) throw new Error("Shared link repair cancelled"); route.assertCurrent(); captured.assertCurrent(); };
       const wait = <T>(promise: Promise<T>): Promise<T> => new Promise((resolve, reject) => {
         const cancel = () => reject(new Error("Shared link repair cancelled"));
