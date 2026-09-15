@@ -885,12 +885,12 @@ cross-client reconnect acceptance.
 
 ## Extension local pairing settings
 
-The shared Popup/Side Panel Settings surface now displays the saved local pairing
-and requires an explicit confirmation for Disconnect/Reconnect. It reuses the
-existing buttons, settings styles and PL/EN catalogs. Inline confirmation focuses
-Cancel, supports Escape and restores focus. It never displays raw account/link IDs
-or claims that a saved marker proves current Web reachability. Both hosts refresh
-from one worker context; own-session or pairing changes discard an old confirmation.
+Product update, 2026-09-15: the owner removed local pairing status and
+Disconnect/Reconnect controls from Settings. Both Popup and Side Panel now expose
+a compact Shared unlock row with one account toggle and short PL/EN description,
+without an accordion. Signed-out state has one neutral message. Settings sections
+retain their height inside the scroll container rather than clipping their content.
+The operations below remain protocol infrastructure, not settings UI actions.
 
 The separate strict `shared-unlock-link/get|disconnect|reconnect` commands accept
 only a worker-issued context ID. The trusted extension-page boundary and server

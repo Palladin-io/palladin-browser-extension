@@ -9,8 +9,6 @@
   "sharedUnlockSettings.loadFailed": "Could not load the account preference. Retry to check its current state.",
   "sharedUnlockSettings.conflict": "The account preference changed elsewhere. Check the current setting and retry your choice. Synchronization remains locally paused.",
   "sharedUnlockSettings.retry": "Retry",
-  "sharedUnlockSettings.on": "On",
-  "sharedUnlockSettings.off": "Off",
   "sharedUnlockSettings.authenticate": "Sign in or unlock the extension to change this setting.",
   "common.back": "Back",
   "common.settings": "Settings",
@@ -310,17 +308,5 @@
   "captureSettings.unmute": "Enable",
   "captureSettings.unmuteSite": "Enable save suggestions on {name}",
   "captureSettings.reload": "Reload settings",
-  "captureSettings.error": "Could not load or change settings. Unlock Palladin and try again.",
-  "sharedUnlockLink.title": "Local pairing",
-  "sharedUnlockLink.connected": "Local pairing saved",
-  "sharedUnlockLink.disconnected": "Local pairing disconnected",
-  "sharedUnlockLink.missing": "No local pairing saved yet.",
-  "sharedUnlockLink.unavailable": "Shared unlock is not configured for this server.",
-  "sharedUnlockLink.error": "Could not finish this operation. Check the current pairing and try again.",
-  "sharedUnlockLink.disconnect": "Disconnect",
-  "sharedUnlockLink.reconnect": "Reconnect",
-  "sharedUnlockLink.confirm": "Confirm",
-  "sharedUnlockLink.cancel": "Cancel",
-  "sharedUnlockLink.confirmDisconnect": "Disconnect this browser profile? The extension will lock immediately. The account preference and other browser profiles are unchanged.",
-  "sharedUnlockLink.confirmReconnect": "Reconnect this browser profile? The extension will lock. Unlock it again with your password to start a fresh shared session. The account preference is unchanged."
+  "captureSettings.error": "Could not load or change settings. Unlock Palladin and try again."
 }

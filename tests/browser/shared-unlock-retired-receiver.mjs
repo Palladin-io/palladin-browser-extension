@@ -12,7 +12,7 @@ export async function verifyRetiredWebReceiver({ page, popup, reopenPopup, apiUr
   setStage('retired-receiver-web-off-and-own-manual-lock')
   await page.getByRole('link', { name: 'Settings', exact: true }).click()
   await page.getByRole('link', { name: 'Security', exact: true }).click()
-  await popup.click('Settings'); await popup.click('Shared unlock')
+  await popup.click('Settings')
   const off = page.waitForResponse(r => r.url() === apiUrl + '/api/account/shared-unlock' && r.request().method() === 'PUT')
   await page.getByRole('switch', { ...switchName, checked: true }).click()
   assert.equal((await off).status(), 200)

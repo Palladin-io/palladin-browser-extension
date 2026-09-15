@@ -12,7 +12,7 @@ export async function verifySharedUnlockSettingsRaces({ page, popup, reopenPopup
     'A paused preference write must preserve the existing independent Entry session')
   await page.getByRole('link', { name: 'Settings', exact: true }).click()
   await page.getByRole('link', { name: 'Security', exact: true }).click()
-  await popup.click('Settings'); await popup.click('Shared unlock')
+  await popup.click('Settings')
   await waitWeb(true); await popup.waitSwitch('Shared unlock', true)
 
   setStage('settings-failed-off-keeps-account-on-and-local-pause')
@@ -41,7 +41,7 @@ export async function verifySharedUnlockSettingsRaces({ page, popup, reopenPopup
   } finally { await probe.close() }
   setStage('settings-failed-off-reopen-popup-after-probe')
   popup = await reopenPopup()
-  await popup.click('Settings'); await popup.click('Shared unlock')
+  await popup.click('Settings')
   recordCheck('failed-web-off-preserves-account-on-but-blocks-new-document-unlock')
 
   setStage('settings-failed-off-explicit-retry-persists-original-choice')

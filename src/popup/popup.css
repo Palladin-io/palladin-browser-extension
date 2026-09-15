@@ -8,6 +8,7 @@
   --cv-primary: #E54645;
   --cv-primary-hover: #d43e3e;
   --cv-primary-rgb: 229 70 69;
+  --cv-toggle-thumb: #ffffff;
   --cv-success: #10b981;
   --cv-app-background: linear-gradient(160deg, #f7f9fb 0%, #e8ecf1 100%);
 
@@ -424,6 +425,18 @@ body {
   scrollbar-gutter: stable;
   padding-right: 3px;
 }
+
+.shared-unlock-settings { padding: 12px; }
+.shared-unlock-setting-row { display: flex; align-items: center; gap: 12px; }
+.shared-unlock-setting-copy { flex: 1; min-width: 0; }
+.shared-unlock-setting-copy h2 { margin: 0; font-size: 13px; font-weight: 600; }
+.shared-unlock-setting-copy p { margin: 4px 0 0; color: var(--cv-t3); font-size: 12px; line-height: 1.45; }
+.shared-unlock-toggle { position: relative; flex-shrink: 0; width: 32px; height: 20px; padding: 0; border: 0; border-radius: 10px; background: var(--cv-input-border); cursor: pointer; transition: background-color .15s; }
+.shared-unlock-toggle span { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--cv-toggle-thumb); transition: transform .15s; }
+.shared-unlock-toggle[aria-checked="true"] { background: var(--cv-primary); }
+.shared-unlock-toggle[aria-checked="true"] span { transform: translateX(12px); }
+.shared-unlock-toggle:disabled { opacity: .4; cursor: not-allowed; }
+.shared-unlock-toggle:focus-visible { outline: 2px solid var(--cv-primary); outline-offset: 3px; }
 
 .capture-settings { display:flex; flex-direction:column; gap:8px; }
 .capture-setting-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; }

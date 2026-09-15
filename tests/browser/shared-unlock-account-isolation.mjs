@@ -41,7 +41,7 @@ export async function verifySharedUnlockAccountIsolation({ page, popup, apiUrl,
   const off = page.waitForResponse(r => r.url() === apiUrl + '/api/account/shared-unlock' && r.request().method() === 'PUT')
   await page.getByRole('switch', { name: 'Shared unlock', exact: true, checked: true }).click()
   assert.equal((await off).status(), 200)
-  await popup.click('Settings'); await popup.click('Shared unlock')
+  await popup.click('Settings')
   await popup.waitSwitch('Shared unlock', false)
   await logout(); await revealA()
   recordCheck('account-a-web-logout-with-off-preserves-own-extension-entry')

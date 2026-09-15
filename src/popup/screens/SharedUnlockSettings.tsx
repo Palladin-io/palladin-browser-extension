@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { isSurfaceStateEvent } from '../../shared/messaging/surface-state'
 import { isSharedUnlockSettingsChanged, type SharedUnlockSettingsCommand,
   type SharedUnlockSettingsResult, type SharedUnlockSettingsError } from '../../shared/messaging/shared-unlock-settings'
@@ -15,8 +15,8 @@ export const subscribeSharedUnlockSettingsChanges = (changed: (sessionChanged: b
   return () => chrome.runtime.onMessage.removeListener(listener)
 }
 
-export function SharedUnlockSettings({ send = sendCommand, subscribe = subscribeSharedUnlockSettingsChanges, children }: {
-  send?: typeof sendCommand; subscribe?: typeof subscribeSharedUnlockSettingsChanges; children?: ReactNode
+export function SharedUnlockSettings({ send = sendCommand, subscribe = subscribeSharedUnlockSettingsChanges }: {
+  send?: typeof sendCommand; subscribe?: typeof subscribeSharedUnlockSettingsChanges
 }): React.JSX.Element {
   const { t } = useI18n()
   const [settings, setSettings] = useState<Extract<SharedUnlockSettingsResult, { ok: true }> | null>(null)
@@ -79,15 +79,18 @@ export function SharedUnlockSettings({ send = sendCommand, subscribe = subscribe
   }
   const paused = settings?.locallyPaused || error?.locallyPaused
   const authenticationRequired = error?.code === 'authentication-required' || error?.code === 'cancelled'
-  return <div className="capture-settings" aria-busy={busy}>
-    <p className="screen-subtitle">{t('sharedUnlockSettings.description')}</p>
-    {settings && <div className="capture-setting-row">
-      <span>{t('sharedUnlockSettings.title')}</span>
-      <Button variant="subtle" role="switch" aria-checked={settings.sharedUnlockEnabled}
-        aria-label={t('sharedUnlockSettings.title')} disabled={busy} onClick={() => void change(!settings.sharedUnlockEnabled)}>
-        {t(settings.sharedUnlockEnabled ? 'sharedUnlockSettings.on' : 'sharedUnlockSettings.off')}
-      </Button>
-    </div>}
+  return <section className="settings-section shared-unlock-settings" aria-busy={busy} aria-label={t('sharedUnlockSettings.title')}>
+    <div className="shared-unlock-setting-row">
+      <div className="shared-unlock-setting-copy">
+        <h2>{t('sharedUnlockSettings.title')}</h2>
+        <p>{t('sharedUnlockSettings.description')}</p>
+      </div>
+      {settings && <button type="button" className="shared-unlock-toggle" role="switch"
+        aria-checked={settings.sharedUnlockEnabled} aria-label={t('sharedUnlockSettings.title')}
+        disabled={busy} onClick={() => void change(!settings.sharedUnlockEnabled)}>
+        <span aria-hidden="true" />
+      </button>}
+    </div>
     {(busy || error || paused || !settings) && <p role={error && !authenticationRequired ? 'alert' : 'status'} className="settings-warning">
       {busy ? t('sharedUnlockSettings.saving')
         : authenticationRequired ? t('sharedUnlockSettings.authenticate')
@@ -99,6 +102,5 @@ export function SharedUnlockSettings({ send = sendCommand, subscribe = subscribe
       if (settings && paused) void change(lastChoice.current ?? settings.sharedUnlockEnabled)
       else reload.current()
     }}>{t('sharedUnlockSettings.retry')}</Button>}
-    {!authenticationRequired && children}
-  </div>
+  </section>
 }

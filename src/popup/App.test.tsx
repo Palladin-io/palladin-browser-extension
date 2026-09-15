@@ -45,7 +45,19 @@ function makeOnboardingClient(
   };
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.stubGlobal('chrome', {
+    runtime: {
+      sendMessage: vi.fn(async () => ({ ok: false, code: 'authentication-required', locallyPaused: false })),
+      onMessage: { addListener: vi.fn(), removeListener: vi.fn() },
+    },
+    tabs: {
+      onActivated: { addListener: vi.fn(), removeListener: vi.fn() },
+      onUpdated: { addListener: vi.fn(), removeListener: vi.fn() },
+    },
+  });
+});
 
 describe("popup state machine", () => {
   it.each(['popup', 'side-panel'] as const)('opens shared-unlock account settings through the real %s host', async surface => {
@@ -59,7 +71,6 @@ describe("popup state machine", () => {
         onboardingClient={makeOnboardingClient()} />)
       const user = userEvent.setup()
       await user.click(await screen.findByRole('button', { name: 'Settings' }))
-      await user.click(screen.getByRole('button', { name: 'Shared unlock' }))
       expect(await screen.findByRole('switch', { name: 'Shared unlock' })).toHaveAttribute('aria-checked', 'true')
       expect(sendMessage).toHaveBeenCalledWith({ type: 'shared-unlock-settings/get' })
       view.unmount()

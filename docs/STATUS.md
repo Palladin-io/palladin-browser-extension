@@ -21,8 +21,11 @@ uses a token-only own-session lease and immediately pauses pending handoffs on
 set; late results cannot escape a local pause or change the next account. Live
 Settings and the verified Web/Extension route refresh preferences through their
 own Identity session, value-free hints and bounded polling outside Settings.
-Trust status, disconnect/reconnect UI and full browser acceptance remain
-incomplete; this is not release acceptance for shared unlock.
+As of 2026-09-15, the owner chose a compact, always-visible Shared unlock row:
+name, short description and a centered toggle. Local pairing status and
+Disconnect/Reconnect controls were removed from Settings. Signed-out state is
+neutral, with no Retry action. Full browser acceptance remains incomplete;
+this is not release acceptance for shared unlock.
 
 The worker has a typed Identity API client, generated provider/consumer fixtures,
 cryptographic member-key recovery and a one-shot receiver transaction using the
