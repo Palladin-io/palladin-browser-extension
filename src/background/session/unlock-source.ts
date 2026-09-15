@@ -68,11 +68,14 @@ export class MasterPasswordUnlock implements UnlockSource {
     const identity = await deriveIdentityV1(this.password, material.accountId, salt);
     let encryptedPrivateKey: Uint8Array | null = null;
     try {
-      encryptedPrivateKey = fromBase64Url(material.encryptedPrivateKey, 4_096);
-      const privateKey = await decryptWithKey(
-        encryptedPrivateKey,
-        identity.masterKey,
-      );
+      let privateKey: Uint8Array;
+      try {
+        encryptedPrivateKey = fromBase64Url(material.encryptedPrivateKey, 4_096);
+        privateKey = await decryptWithKey(encryptedPrivateKey, identity.masterKey);
+      } catch {
+        // Translate only private-key unwrap failures, never lifecycle cancellation.
+        throw new SessionError("incorrect-password", "Master password is incorrect");
+      }
       try {
         onManualProof?.(identity.authCredential);
       } catch (error) {
@@ -80,11 +83,9 @@ export class MasterPasswordUnlock implements UnlockSource {
         throw error;
       }
       return { masterKey: identity.masterKey, privateKey };
-    } catch {
-      // Unwrap failed the MAC check: wrong password. Wipe the derived key so no
-      // material lingers, and translate into a typed, value-free error.
+    } catch (error) {
       wipe(identity.masterKey);
-      throw new SessionError("incorrect-password", "Master password is incorrect");
+      throw error;
     } finally {
       wipe(salt);
       wipe(identity.authCredential);
