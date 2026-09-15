@@ -81,8 +81,6 @@ export function SharedUnlockSettings({ send = sendCommand, subscribe = subscribe
   const authenticationRequired = error?.code === 'authentication-required' || error?.code === 'cancelled'
   return <div className="capture-settings" aria-busy={busy}>
     <p className="screen-subtitle">{t('sharedUnlockSettings.description')}</p>
-    <p className="screen-subtitle">{t('sharedUnlockSettings.behavior')}</p>
-    <p className="screen-subtitle">{t('sharedUnlockSettings.offEffect')}</p>
     {settings && <div className="capture-setting-row">
       <span>{t('sharedUnlockSettings.title')}</span>
       <Button variant="subtle" role="switch" aria-checked={settings.sharedUnlockEnabled}
@@ -90,14 +88,13 @@ export function SharedUnlockSettings({ send = sendCommand, subscribe = subscribe
         {t(settings.sharedUnlockEnabled ? 'sharedUnlockSettings.on' : 'sharedUnlockSettings.off')}
       </Button>
     </div>}
-    <p role={error ? 'alert' : 'status'} className="settings-warning">
+    {(busy || error || paused || !settings) && <p role={error ? 'alert' : 'status'} className="settings-warning">
       {busy ? t('sharedUnlockSettings.saving')
         : authenticationRequired ? t('sharedUnlockSettings.authenticate')
           : error ? t(error.code === 'conflict' ? 'sharedUnlockSettings.conflict' : paused ? 'sharedUnlockSettings.saveFailed' : 'sharedUnlockSettings.loadFailed')
             : paused ? t('sharedUnlockSettings.paused')
-              : !settings ? t('sharedUnlockSettings.loading')
-                : t(settings.sharedUnlockEnabled ? 'sharedUnlockSettings.enabled' : 'sharedUnlockSettings.disabled')}
-    </p>
+              : t('sharedUnlockSettings.loading')}
+    </p>}
     {(error || paused) && <Button variant="subtle" disabled={busy} onClick={() => {
       if (settings && paused) void change(lastChoice.current ?? settings.sharedUnlockEnabled)
       else reload.current()

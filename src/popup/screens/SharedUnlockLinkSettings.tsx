@@ -51,7 +51,6 @@ export function SharedUnlockLinkSettings({ send = sendCommand, subscribe = subsc
     finally { running.current = false; setBusy(false); setConfirm(null); reload.current() }
   }
   return <section className="capture-settings" aria-label={t('sharedUnlockLink.title')} aria-busy={busy}>
-    <p className="screen-subtitle">{t('sharedUnlockLink.description')}</p>
     <p role="status" className="settings-warning">{t(!saved ? 'sharedUnlockLink.authenticate'
       : saved.state === 'connected' ? 'sharedUnlockLink.connected' : saved.state === 'disconnected' ? 'sharedUnlockLink.disconnected'
         : saved.state === 'missing' ? 'sharedUnlockLink.missing' : 'sharedUnlockLink.unavailable')}</p>

@@ -405,7 +405,18 @@ body {
   flex-direction: column;
 }
 
+.popup-settings {
+  display: flex;
+  flex-direction: column;
+}
+
+.popup-settings > .popup-header,
+.popup-settings > .shared-unlock-notice {
+  flex-shrink: 0;
+}
+
 .settings-screen {
+  min-height: 0;
   gap: 8px;
   max-height: 500px;
   overflow-x: hidden;
@@ -420,6 +431,7 @@ body {
 .capture-setting-row small { display:block; color:var(--cv-t2); font-size:12px; }
 
 .settings-section {
+  flex-shrink: 0;
   overflow: hidden;
   border: 1px solid var(--cv-border);
   border-radius: 10px;
