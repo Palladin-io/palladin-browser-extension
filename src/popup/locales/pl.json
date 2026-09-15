@@ -1,7 +1,7 @@
 {
   "unlock.sharedUnlockCompleted": "Rozszerzenie odblokowane przez panel Palladin.",
   "sharedUnlockSettings.title": "Wspólne odblokowanie",
-  "sharedUnlockSettings.description": "Panel i rozszerzenie odblokowują się razem dla tego samego konta w tej przeglądarce. Blokada i wylogowanie też działają wspólnie.",
+  "sharedUnlockSettings.description": "Wspólne odblokowanie, blokada i wylogowanie panelu oraz rozszerzenia na tym samym koncie.",
   "sharedUnlockSettings.loading": "Wczytywanie ustawienia konta…",
   "sharedUnlockSettings.saving": "Zapisywanie ustawienia konta; synchronizacja jest lokalnie wstrzymana…",
   "sharedUnlockSettings.paused": "Synchronizacja jest lokalnie wstrzymana. Ponów zapis, aby zastosować ustawienie konta.",

@@ -1,7 +1,7 @@
 {
   "unlock.sharedUnlockCompleted": "Extension unlocked by the Palladin panel.",
   "sharedUnlockSettings.title": "Shared unlock",
-  "sharedUnlockSettings.description": "The web panel and extension unlock together for the same account in this browser. Locking and signing out also apply to both.",
+  "sharedUnlockSettings.description": "Unlock, lock and sign out of the web panel and extension together on the same account.",
   "sharedUnlockSettings.loading": "Loading account preference…",
   "sharedUnlockSettings.saving": "Saving account preference; synchronization is locally paused…",
   "sharedUnlockSettings.paused": "Synchronization is locally paused. Retry to apply your account preference.",

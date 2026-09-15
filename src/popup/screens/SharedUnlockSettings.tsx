@@ -81,16 +81,14 @@ export function SharedUnlockSettings({ send = sendCommand, subscribe = subscribe
   const authenticationRequired = error?.code === 'authentication-required' || error?.code === 'cancelled'
   return <section className="settings-section shared-unlock-settings" aria-busy={busy} aria-label={t('sharedUnlockSettings.title')}>
     <div className="shared-unlock-setting-row">
-      <div className="shared-unlock-setting-copy">
-        <h2>{t('sharedUnlockSettings.title')}</h2>
-        <p>{t('sharedUnlockSettings.description')}</p>
-      </div>
+      <h2>{t('sharedUnlockSettings.title')}</h2>
       {settings && <button type="button" className="shared-unlock-toggle" role="switch"
         aria-checked={settings.sharedUnlockEnabled} aria-label={t('sharedUnlockSettings.title')}
         disabled={busy} onClick={() => void change(!settings.sharedUnlockEnabled)}>
         <span aria-hidden="true" />
       </button>}
     </div>
+    <p className="shared-unlock-description">{t('sharedUnlockSettings.description')}</p>
     {(busy || error || paused || !settings) && <p role={error && !authenticationRequired ? 'alert' : 'status'} className="settings-warning">
       {busy ? t('sharedUnlockSettings.saving')
         : authenticationRequired ? t('sharedUnlockSettings.authenticate')
