@@ -125,16 +125,16 @@ export type VaultCommandResult =
 
 // ─── Injected effects ─────────────────────────────────────────────────────────
 
-export interface ActiveTab {
+export type ActiveTab = {
   readonly id: number;
   readonly url: string;
   /** Isolated page-load id, checked again inside that document. */
   readonly documentId: string;
-  /** Browser-issued target used by tabs.sendMessage routing. */
-  readonly browserDocumentId: string;
-}
+} & ({ readonly documentTransport?: "native-document"; readonly browserDocumentId: string; readonly legacyFirefoxRouteId?: never }
+  | { readonly documentTransport: "legacy-firefox-port"; readonly legacyFirefoxRouteId: string; readonly browserDocumentId?: never });
 
 export interface VaultCommandDeps {
+  captureFillSession?(): () => void;
   data: VaultDataSource;
   entryWriter?: { saveEntry(input: ManualEntrySaveInput): Promise<ManualEntrySaveResult> };
   /** Resolve the active tab (activeTab permission grants URL access on invocation). */
@@ -148,6 +148,7 @@ export interface VaultCommandDeps {
     fields: readonly FillField[],
     submit: boolean,
     loginTargetId?: string,
+    assertSessionCurrent?: () => void,
   ): Promise<FillOutcome>;
   /** Schedule the clipboard wipe after a value was copied. */
   clipboard: { readonly available: boolean; arm(): void };
@@ -374,8 +375,14 @@ async function fillPreparedEntry(
   }
 
   let plaintext: MemberSecretV1;
+  let assertSessionCurrent: (() => void) | undefined;
   try {
+    if (tab.documentTransport === "legacy-firefox-port") {
+      assertSessionCurrent = deps.captureFillSession?.();
+      if (!assertSessionCurrent) throw new VaultDataError("locked", "Fill session unavailable");
+    }
     plaintext = await deps.data.revealEntry(meta.vaultId, meta.id);
+    assertSessionCurrent?.();
   } catch (error) {
     return { status: "blocked", reason: fillReasonFor(error) };
   }
@@ -393,7 +400,9 @@ async function fillPreparedEntry(
     ];
     // Cards do not carry a persistent website association. The explicit popup
     // action is therefore bound to this one exact, live HTTPS host and document.
-    const outcome = await deps.sendFill(tab, cardTargetHost, fields, false);
+    const outcome = assertSessionCurrent
+      ? await deps.sendFill(tab, cardTargetHost, fields, false, undefined, assertSessionCurrent)
+      : await deps.sendFill(tab, cardTargetHost, fields, false);
     return fillResult(outcome);
   }
   if (!isCredential(plaintext)) return { status: "blocked", reason: "not-fillable" };
@@ -416,7 +425,9 @@ async function fillPreparedEntry(
   // broader registrable domain.
   const expectedDomain = allowRelatedDomain ? exactHttpsHost(tab.url) : currentDomain;
   if (expectedDomain === null) return { status: "blocked", reason: "domain-mismatch" };
-  const outcome = loginTargetId === undefined
+  const outcome = assertSessionCurrent
+    ? await deps.sendFill(tab, expectedDomain, fields, submit, loginTargetId, assertSessionCurrent)
+    : loginTargetId === undefined
     ? await deps.sendFill(tab, expectedDomain, fields, submit)
     : await deps.sendFill(tab, expectedDomain, fields, submit, loginTargetId);
   return fillResult(outcome);

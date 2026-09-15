@@ -22,6 +22,8 @@ import { hasVaultManagePermission } from "../capture/permissions";
 import type { AlarmScheduler } from "../session/auto-lock";
 import { sessionManager } from "../session/runtime";
 import { browserDocumentIdForTab } from "../tab-documents";
+import { legacyFirefoxDocuments } from "./firefox-legacy-runtime";
+import { VaultDataError } from "./errors";
 import { ClipboardGuard } from "./clipboard-guard";
 import { clearClipboard } from "./clipboard-runtime";
 import type { ActiveTab, VaultCommandDeps } from "./commands";
@@ -70,7 +72,7 @@ async function getActiveTab(): Promise<ActiveTab | null> {
 
 async function resolveTabDocument(tabId: number): Promise<ActiveTab | null> {
   const browserDocumentId = browserDocumentIdForTab(tabId);
-  if (browserDocumentId === null) return null;
+  if (browserDocumentId === null) return legacyFirefoxDocuments?.resolve(tabId) ?? null;
   try {
     const response = await chrome.tabs.sendMessage(
       tabId,
@@ -129,9 +131,15 @@ async function sendFill(
   fields: readonly FillField[],
   submit: boolean,
   loginTargetId?: string,
+  assertSessionCurrent?: () => void,
 ): Promise<FillOutcome> {
   const expectedOrigin = httpsOrigin(target.url);
   if (expectedOrigin === null) return { ok: false, reason: "target-changed" };
+  if (target.documentTransport === "legacy-firefox-port") {
+    const assertSession = assertSessionCurrent ?? captureFillSession();
+    return legacyFirefoxDocuments?.send(target, { channel: FILL_REQUEST_CHANNEL, documentId: target.documentId,
+      expectedOrigin, expectedDomain, submit, loginTargetId: loginTargetId ?? null, fields }, assertSession) ?? { ok: false, reason: "target-changed" };
+  }
   try {
     const outcome = await chrome.tabs.sendMessage(
       target.id,
@@ -163,6 +171,7 @@ function httpsOrigin(url: string): string | null {
 }
 
 export const vaultCommandDeps: VaultCommandDeps = {
+  captureFillSession,
   data: vaultData,
   entryWriter: vaultData,
   getActiveTab,
@@ -170,3 +179,11 @@ export const vaultCommandDeps: VaultCommandDeps = {
   sendFill,
   clipboard: { available: clipboardCopyAvailable, arm: () => clipboardGuard.arm() },
 };
+
+function captureFillSession(): () => void {
+  const keys = sessionManager.getKeys(), apiUrl = serverConfig.apiUrl;
+  const assertCurrent = () => {
+    if (!keys || sessionManager.getKeys() !== keys || serverConfig.apiUrl !== apiUrl) throw new VaultDataError("locked", "Fill session changed");
+  };
+  assertCurrent(); return assertCurrent;
+}

@@ -1,3 +1,4 @@
+import { loadEnv } from "vite";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -37,7 +38,8 @@ for (const target of selected) {
   if (mode === "build") {
     const outputName = channel === "debug" ? `${target}-debug` : target;
     cacheBustContentLoaders(root, outputName);
-    validateBuiltManifest(root, target, outputName, channel);
+    const configured = loadEnv("production", root, "VITE_SHARED_UNLOCK_").VITE_SHARED_UNLOCK_ENVIRONMENTS;
+    validateBuiltManifest(root, target, outputName, channel, JSON.parse(configured?.trim() || "[]"));
   }
 }
 

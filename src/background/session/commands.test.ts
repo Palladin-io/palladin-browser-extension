@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AuthClient } from "./auth-client";
 import { AutoLock } from "./auto-lock";
 import { dispatchSessionCommand, handleRuntimeMessage } from "./commands";
-import { SessionManager } from "./session-manager";
+import { SessionManager, type SessionManagerDeps } from "./session-manager";
 import { SessionStore } from "./session-store";
 import {
   buildTestAccount,
@@ -13,13 +13,13 @@ import {
   type TestAccount,
 } from "./test-support";
 
-async function makeManager(account: TestAccount): Promise<SessionManager> {
+async function makeManager(account: TestAccount, recordManualClosing?: SessionManagerDeps["recordManualClosing"], deliverManualClosing?: SessionManagerDeps["deliverManualClosing"]): Promise<SessionManager> {
   const storage = new FakeStorageArea();
   const alarms = new FakeAlarms();
   const authClient = new AuthClient(mockBackend(account).fetch, "https://api.test");
   let mgr: SessionManager;
   const autoLock = new AutoLock(alarms, () => void mgr.lock());
-  mgr = new SessionManager({ store: new SessionStore(storage), authClient, autoLock });
+  mgr = new SessionManager({ store: new SessionStore(storage), authClient, autoLock, ...(recordManualClosing ? { recordManualClosing } : {}), ...(deliverManualClosing ? { deliverManualClosing } : {}) });
   return mgr;
 }
 
@@ -147,4 +147,52 @@ describe("handleRuntimeMessage", () => {
     const result = await handleRuntimeMessage(mgr, { type: "session/status" });
     expect(result).toEqual({ ok: true, status: "signed-out" });
   });
+});
+
+
+describe("manual closing command boundary", () => {
+  it("keeps internal lock local and records explicit lock even when already locked", async () => {
+    const account = await buildTestAccount(), record = vi.fn(async () => {});
+    const manager = await makeManager(account, record);
+    await manager.login(account.email, account.password);
+    await manager.lock(); expect(record).not.toHaveBeenCalled();
+    expect(await dispatchSessionCommand(manager, { type: "session/lock" })).toMatchObject({ ok: true });
+    expect(record).toHaveBeenCalledWith(account.accountId, "lock");
+    await manager.logout(); expect(record).toHaveBeenCalledTimes(1);
+  });
+  it("wipes keys before awaiting a durable manual lock and does not report success early", async () => {
+    const account = await buildTestAccount(); let finish!: () => void;
+    const record = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+    const manager = await makeManager(account, record); await manager.login(account.email, account.password);
+    const keys = manager.getKeys()!; let completed = false;
+    const result = dispatchSessionCommand(manager, { type: "session/lock" }).then(value => { completed = true; return value; });
+    expect(manager.getKeys()).toBeNull(); expect(keys.masterKey.every(byte => byte === 0)).toBe(true);
+    await vi.waitFor(() => expect(record).toHaveBeenCalledOnce()); expect(completed).toBe(false);
+    finish(); expect(await result).toMatchObject({ ok: true, status: "locked" }); await manager.logout();
+  });
+  it("finishes local logout when saving shared closing fails and reports the failure", async () => {
+    const account = await buildTestAccount(), record = vi.fn(async () => { throw new Error("disk"); });
+    const manager = await makeManager(account, record); await manager.login(account.email, account.password);
+    const keys = manager.getKeys()!;
+    expect(await dispatchSessionCommand(manager, { type: "session/logout" })).toMatchObject({ ok: false, code: "network" });
+    expect(record).toHaveBeenCalledWith(account.accountId, "logout");
+    expect(keys.masterKey.every(byte => byte === 0)).toBe(true);
+    expect(await manager.getStatus()).toBe("signed-out"); expect(await manager.getAccessToken()).toBeNull();
+  });
+});
+
+
+it("delivers manual logout with the own captured session after persistence and published-token removal", async () => {
+  const account = await buildTestAccount(), events: string[] = [];
+  let manager!: SessionManager;
+  const record = vi.fn(async () => { events.push("persisted"); });
+  const deliver = vi.fn(async (session: import("./types").SessionTokens, check: () => void) => {
+    check(); events.push("delivery");
+    expect(session.userId).toBe(account.accountId); expect(session.apiUrl).toBe("https://api.test");
+    expect(manager.getKeys()).toBeNull(); expect(await manager.getAccessToken()).toBeNull();
+  });
+  manager = await makeManager(account, record, deliver); await manager.login(account.email, account.password);
+  expect(await dispatchSessionCommand(manager, { type: "session/logout" })).toMatchObject({ ok: true });
+  expect(events).toEqual(["persisted", "delivery"]); expect(deliver).toHaveBeenCalledOnce();
+  expect(await manager.getStatus()).toBe("signed-out");
 });

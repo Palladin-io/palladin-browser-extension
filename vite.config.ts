@@ -2,73 +2,84 @@ import { fileURLToPath, URL } from "node:url";
 
 import { crx } from "@crxjs/vite-plugin";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
+import { parseSharedUnlockEnvironments } from "./src/shared/config/shared-unlock-environments";
 
 import { buildManifest, resolveBuildTarget } from "./manifest/build-manifest";
 import { resolveExtensionBuildChannel } from "./src/shared/config/build-channel";
+import { firefoxCanonicalManifestResource } from "./manifest/firefox-canonical-resource";
 
 const target = resolveBuildTarget(process.env.PALLADIN_TARGET);
 const channel = resolveExtensionBuildChannel(process.env.PALLADIN_CHANNEL);
 const outputName = channel === "debug" ? `${target}-debug` : target;
 
-export default defineConfig({
-  define: {
-    __PALLADIN_TARGET__: JSON.stringify(target),
-    __PALLADIN_CHANNEL__: JSON.stringify(channel),
-  },
-  resolve: {
-    alias: {
-      "@shared": fileURLToPath(new URL("./src/shared", import.meta.url)),
+export default defineConfig(({ mode }) => {
+  const configured = loadEnv(mode, process.cwd(), "VITE_SHARED_UNLOCK_");
+  const sharedUnlockEnvironments = parseSharedUnlockEnvironments(configured.VITE_SHARED_UNLOCK_ENVIRONMENTS);
+  return {
+    define: {
+      __PALLADIN_TARGET__: JSON.stringify(target),
+      __PALLADIN_CHANNEL__: JSON.stringify(channel),
+      __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__: JSON.stringify(sharedUnlockEnvironments),
     },
-  },
-  plugins: [
-    react(),
-    crx({
-      manifest: buildManifest(target),
-      // CRXJS needs its Firefox mode to retain and bundle background.scripts;
-      // Safari consumes the same service-worker packaging shape as Chromium.
-      browser: target === "firefox" ? "firefox" : "chrome",
-    }),
-  ],
-  build: {
-    outDir: `dist/${outputName}`,
-    emptyOutDir: true,
-    // MV3 forbids remote code; everything must be bundled locally.
-    target: "esnext",
-    rollupOptions: {
-      // The install-time onboarding page is opened at runtime and must be an
-      // explicit input on every target. Chromium also creates its offscreen
-      // clipboard document at runtime; Firefox needs the sidebar input.
-      ...(target === "chromium"
-        ? {
-            input: {
-              onboarding: fileURLToPath(new URL("./src/onboarding/index.html", import.meta.url)),
-              offscreen: fileURLToPath(new URL("./src/offscreen/index.html", import.meta.url)),
-            },
-          }
-        : target === "firefox"
-          ? {
-              // CRXJS recognises Chromium's `side_panel` entry automatically,
-              // while Firefox's `sidebar_action.default_panel` needs an
-              // explicit HTML build input. Both still compile the same app.
-              input: {
-                onboarding: fileURLToPath(new URL("./src/onboarding/index.html", import.meta.url)),
-                sidePanel: fileURLToPath(new URL("./src/side-panel/index.html", import.meta.url)),
-              },
-            }
-          : {
-              input: {
-                onboarding: fileURLToPath(new URL("./src/onboarding/index.html", import.meta.url)),
-              },
-            }),
-      output: {
-        // Deterministic asset names keep the least-privilege review diff-able.
-        chunkFileNames: "assets/[name]-[hash].js",
+    resolve: {
+      alias: {
+        "@shared": fileURLToPath(new URL("./src/shared", import.meta.url)),
       },
     },
-  },
-  server: {
-    port: 5180,
-    strictPort: true,
-  },
+    plugins: [
+      react(),
+      ...(target === "firefox" && sharedUnlockEnvironments.length > 0 ? [firefoxCanonicalManifestResource()] : []),
+      crx({
+        manifest: buildManifest(target, sharedUnlockEnvironments),
+        // CRXJS needs its Firefox mode to retain and bundle background.scripts;
+        // Safari consumes the same service-worker packaging shape as Chromium.
+        browser: target === "firefox" ? "firefox" : "chrome",
+      }),
+    ],
+    build: {
+      outDir: `dist/${outputName}`,
+      emptyOutDir: true,
+      // MV3 forbids remote code; everything must be bundled locally.
+      target: "esnext",
+      rollupOptions: {
+        // The install-time onboarding page is opened at runtime and must be an
+        // explicit input on every target. Chromium also creates its offscreen
+        // clipboard document at runtime; Firefox needs the sidebar input.
+        ...(target === "chromium"
+          ? {
+              input: {
+                onboarding: fileURLToPath(new URL("./src/onboarding/index.html", import.meta.url)),
+                offscreen: fileURLToPath(new URL("./src/offscreen/index.html", import.meta.url)),
+              },
+            }
+          : target === "firefox"
+            ? {
+                // CRXJS recognises Chromium's `side_panel` entry automatically,
+                // while Firefox's `sidebar_action.default_panel` needs an
+                // explicit HTML build input. Both still compile the same app.
+                input: {
+                  onboarding: fileURLToPath(new URL("./src/onboarding/index.html", import.meta.url)),
+                  sidePanel: fileURLToPath(new URL("./src/side-panel/index.html", import.meta.url)),
+                  ...(sharedUnlockEnvironments.length > 0 ? {
+                    sharedUnlockBridge: fileURLToPath(new URL("./src/shared-unlock-bridge/index.html", import.meta.url)),
+                  } : {}),
+                },
+              }
+            : {
+                input: {
+                  onboarding: fileURLToPath(new URL("./src/onboarding/index.html", import.meta.url)),
+                },
+              }),
+        output: {
+          // Deterministic asset names keep the least-privilege review diff-able.
+          chunkFileNames: "assets/[name]-[hash].js",
+        },
+      },
+    },
+    server: {
+      port: 5180,
+      strictPort: true,
+    },
+  };
 });

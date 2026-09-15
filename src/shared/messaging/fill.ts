@@ -2,8 +2,10 @@
  * The fill request contract between the service worker and the isolated-world
  * content script.
  *
- * This is a `chrome.runtime` request/response message addressed to a specific
- * tab (`chrome.tabs.sendMessage`), NOT a bridge Port broadcast — deliberately.
+ * Native document-ID delivery uses chrome.tabs.sendMessage. Firefox 140–152
+ * uses a separate private fill Port pinned to the original isolated document;
+ * a secret-free browser-addressed probe verifies that document is still current.
+ * Neither transport uses the CONTENT_PORT/main-world bridge or a broadcast.
  * A fill carries a decrypted secret; it must reach only the isolated world of
  * the target tab and MUST NEVER be relayed to the page's main world. Keeping it
  * on the direct request channel (which a web page cannot originate or observe)

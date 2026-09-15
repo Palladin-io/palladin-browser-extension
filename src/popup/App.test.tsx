@@ -45,9 +45,37 @@ function makeOnboardingClient(
   };
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.stubGlobal('chrome', {
+    runtime: {
+      sendMessage: vi.fn(async () => ({ ok: false, code: 'authentication-required', locallyPaused: false })),
+      onMessage: { addListener: vi.fn(), removeListener: vi.fn() },
+    },
+    tabs: {
+      onActivated: { addListener: vi.fn(), removeListener: vi.fn() },
+      onUpdated: { addListener: vi.fn(), removeListener: vi.fn() },
+    },
+  });
+});
 
 describe("popup state machine", () => {
+  it.each(['popup', 'side-panel'] as const)('opens shared-unlock account settings through the real %s host', async surface => {
+    const sendMessage = vi.fn(async (raw: { type: string }) => raw.type === 'shared-unlock-settings/get'
+      ? { ok: true, contextId: '11111111-1111-4111-8111-111111111111', sharedUnlockEnabled: true, revision: 1, locallyPaused: false }
+      : { ok: false, code: 'unavailable' })
+    vi.stubGlobal('chrome', { runtime: { sendMessage, onMessage: { addListener: vi.fn(), removeListener: vi.fn() } },
+      tabs: { onActivated: { addListener: vi.fn(), removeListener: vi.fn() }, onUpdated: { addListener: vi.fn(), removeListener: vi.fn() } } })
+    try {
+      const view = render(<App surface={surface} client={makeClient()} serverConfigClient={makeServerConfigClient()}
+        onboardingClient={makeOnboardingClient()} />)
+      const user = userEvent.setup()
+      await user.click(await screen.findByRole('button', { name: 'Settings' }))
+      expect(await screen.findByRole('switch', { name: 'Shared unlock' })).toHaveAttribute('aria-checked', 'true')
+      expect(sendMessage).toHaveBeenCalledWith({ type: 'shared-unlock-settings/get' })
+      view.unmount()
+    } finally { vi.unstubAllGlobals() }
+  })
   it("lands on Sign in when signed-out", async () => {
     render(<App client={makeClient()} />);
     expect(await screen.findByRole("heading", { name: "Sign in" })).toBeInTheDocument();
@@ -347,6 +375,35 @@ describe("popup state machine", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it.each(["popup", "side-panel"] as const)("clears stale %s contents on worker loss and reads the new worker", async surface => {
+    let disconnected: (() => void) | undefined;
+    let resolveStatus!: (status: "locked") => void;
+    const nextStatus = new Promise<"locked">(resolve => { resolveStatus = resolve; });
+    const getStatus = vi.fn().mockResolvedValueOnce("unlocked").mockImplementation(() => nextStatus);
+    vi.stubGlobal("chrome", {
+      runtime: {
+        id: "synthetic-extension-id",
+        connect: vi.fn((options: { name: string }) => ({
+          onMessage: { addListener: vi.fn() },
+          onDisconnect: { addListener: (listener: () => void) => { if (options.name === "palladin.session-liveness") disconnected = listener; } },
+          postMessage: vi.fn(), disconnect: vi.fn(),
+        })),
+        onMessage: { addListener: vi.fn(), removeListener: vi.fn() },
+      },
+    });
+    try {
+      const view = render(<App surface={surface} client={makeClient({ getStatus })} />);
+      expect(await screen.findByRole("heading", { name: "Your vault" })).toBeInTheDocument();
+      expect(disconnected).toBeTypeOf("function");
+      act(() => disconnected?.());
+      expect(screen.queryByRole("heading", { name: "Your vault" })).not.toBeInTheDocument();
+      await waitFor(() => expect(getStatus).toHaveBeenCalledTimes(2));
+      await act(async () => resolveStatus("locked"));
+      expect(await screen.findByRole("heading", { name: "Unlock" })).toBeInTheDocument();
+      view.unmount();
+    } finally { vi.unstubAllGlobals(); }
   });
 
   it("refreshes the side-panel projection only for the active tab", async () => {

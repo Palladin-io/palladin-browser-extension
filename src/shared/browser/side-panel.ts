@@ -23,9 +23,15 @@ export interface SidePanelHost {
   readonly browser?: FirefoxSidebarApi;
 }
 
-/** Safari has no WebExtensions side-panel foundation equivalent to these APIs. */
-export function supportsSidePanel(target: ExtensionBuildTarget): boolean {
-  return target === "chromium" || target === "firefox";
+/** A shared build target does not guarantee that the browser implements its panel API. */
+export function supportsSidePanel(
+  target: ExtensionBuildTarget,
+  host: SidePanelHost = defaultHost(),
+): boolean {
+  if (target === "chromium") {
+    return Boolean(host.chrome?.windows) && typeof host.chrome?.sidePanel?.open === "function";
+  }
+  return target === "firefox" && typeof host.browser?.sidebarAction?.open === "function";
 }
 
 function defaultHost(): SidePanelHost {

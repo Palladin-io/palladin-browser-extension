@@ -18,6 +18,19 @@ function invalidation(version: string, removed = false): unknown {
 }
 
 describe("Vault realtime invalidation", () => {
+  it("refreshes a backend-created UUIDv7 Vault instead of dropping its invalidation", async () => {
+    // The backend creates Vault IDs with Guid.CreateVersion7(). Their version
+    // is not a client-owned rule or a reason to reject an authenticated event.
+    const vaultId = "01900000-0000-7000-8000-000000000001";
+    const apply = vi.fn().mockResolvedValue(undefined);
+    const changed = vi.fn();
+    new VaultInvalidationCoordinator({ apply, changed }).accept({
+      ...(invalidation("1") as object), vaultId,
+    });
+    await vi.waitFor(() => expect(apply).toHaveBeenCalledWith(vaultId, false));
+    expect(changed).toHaveBeenCalledOnce();
+  });
+
   it("accepts only the exact canonical value-free contract", () => {
     expect(parseVaultSyncInvalidation(invalidation("24"))).toEqual(invalidation("24"));
     expect(parseVaultSyncInvalidation({ ...(invalidation("24") as object), label: "secret" })).toBeNull();

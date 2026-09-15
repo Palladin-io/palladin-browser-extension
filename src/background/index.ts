@@ -1,3 +1,11 @@
+import { isSharedUnlockLinkSettingsCommand } from '../shared/messaging/shared-unlock-link-settings';
+import { handleSharedUnlockLinkSettings } from './shared-unlock/link-settings-runtime';
+import { isSurfaceActivity } from "../shared/messaging/surface-activity";
+import { isSharedUnlockSettingsCommand } from '../shared/messaging/shared-unlock-settings';
+import { handleSharedUnlockSettings } from './shared-unlock/settings-runtime';
+import { coordinateSharedUnlockBrowser } from "./shared-unlock/browser-runtime";
+import { sharedUnlockCompletionNotice } from './shared-unlock/completion-notice';
+import { SHARED_UNLOCK_NOTICE_PORT } from '../shared/messaging/shared-unlock-notice';
 /**
  * Service worker entry point (MV3). Bootstrap only: it wires the content Port,
  * the popup command channel, the session lifecycle, and the sync + auto-lock
@@ -25,6 +33,9 @@ import { isCaptureSettingsCommand } from "@shared/messaging/capture-settings";
 import { handleCaptureSettings } from "./capture/settings-runtime";
 import { credentialCaptureCoordinator, credentialCaptureSource } from "./capture/credential-runtime";
 
+import { startChromiumSharedUnlockBrowser } from "./shared-unlock/chromium-browser";
+import { startFirefoxSharedUnlockBrowser } from "./shared-unlock/firefox-browser";
+import { startSafariSharedUnlockBrowser } from "./shared-unlock/safari-browser";
 import { startNativeAgentBridge } from "./agent/bootstrap";
 import { handleNativeAgentAlarm } from "./agent/runtime";
 import { applyBadge } from "./badge";
@@ -54,6 +65,8 @@ import {
   inlineAutofillSource,
 } from "./vault/inline-runtime";
 import { clipboardGuard, vaultCommandDeps, vaultData } from "./vault/runtime";
+import { legacyFirefoxDocuments } from "./vault/firefox-legacy-runtime";
+import { FIREFOX_LEGACY_FILL_PORT } from "../shared/messaging/firefox-legacy-fill";
 import {
   VaultInvalidationCoordinator,
   VaultRealtimeConnection,
@@ -141,6 +154,8 @@ function unavailableDuringServerChange(raw: unknown): unknown {
 // Clear legacy badge text after each committed session transition.
 sessionManager.hooks.onUnlocked(() => refreshBadge());
 sessionManager.hooks.onLocked(() => refreshBadge());
+sessionManager.hooks.onUnlocked(() => sharedUnlockCompletionNotice.clear());
+sessionManager.hooks.onLocked(() => sharedUnlockCompletionNotice.clear());
 sessionManager.hooks.onUnlocked(() => publishSurfaceState(sessionChanged("unlocked")));
 sessionManager.hooks.onLocked(() => {
   void sessionManager.getStatus()
@@ -183,11 +198,30 @@ void initializeServerConfig().then(() => {
   }, "session init failed");
 });
 
+// Public build configuration is the only Web/API origin authority. No default
+// hosted route. Each platform adapter supplies its own browser authority.
+const sharedUnlockBrowser = __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__.length === 0 ? null
+  : __PALLADIN_TARGET__ === "chromium"
+    ? startChromiumSharedUnlockBrowser(__PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
+    : __PALLADIN_TARGET__ === "firefox"
+      ? startFirefoxSharedUnlockBrowser(__PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
+      : __PALLADIN_TARGET__ === "safari"
+        ? startSafariSharedUnlockBrowser(__PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
+        : null;
+
 // Agent Inject is independent of popup lock, account, and profile state. Chrome
 // authorizes the official extension through the exact Native Messaging origin.
 startNativeAgentBridge();
 
 chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === FIREFOX_LEGACY_FILL_PORT) {
+    if (legacyFirefoxDocuments) legacyFirefoxDocuments.register(port); else port.disconnect();
+    return;
+  }
+  if (port.name === SHARED_UNLOCK_NOTICE_PORT) {
+    sharedUnlockCompletionNotice.register(port, chrome.runtime.id, chrome.runtime.getURL(''));
+    return;
+  }
   if (port.name !== CONTENT_PORT && port.name !== SESSION_LIVENESS_PORT) return;
 
   sessionLiveness.register(
@@ -290,11 +324,13 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
     }
     try {
       const result = await handleInlineAutofillContentMessage({
+        resolveLegacySource: (documentId, sender) => legacyFirefoxDocuments?.resolveSource(documentId, sender) ?? Promise.resolve(null),
         getStatus: () => sessionManager.getStatus(),
         getMetadata: () => vaultData.getMetadata(),
         recency: inlineAutofillRecency,
         fill: async (source, vaultId, entryId, scope, loginTargetId) => {
-          await sessionManager.touchActivity();
+          // This channel includes passive exact-host autofill. A fill request
+          // is not trusted own activity and must never renew session deadlines.
           return fillInlineSelectedEntry(
             vaultCommandDeps,
             source,
@@ -318,6 +354,22 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 // to capture and then the vault command surface.
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isTrustedExtensionPage(sender, chrome.runtime.id, chrome.runtime.getURL(""))) return false;
+  if (isSharedUnlockLinkSettingsCommand(raw)) {
+    const lease = serverOperations.tryAcquire();
+    if (lease === null) { sendResponse({ ok: false, code: 'unavailable' }); return false; }
+    void handleSharedUnlockLinkSettings(raw)
+      .then(sendResponse, () => sendResponse({ ok: false, code: 'unavailable' }))
+      .finally(() => lease.release());
+    return true;
+  }
+  if (isSharedUnlockSettingsCommand(raw)) {
+    const lease = serverOperations.tryAcquire();
+    if (lease === null) { sendResponse({ ok: false, code: 'unavailable', locallyPaused: false }); return false; }
+    void handleSharedUnlockSettings(raw)
+      .then(sendResponse, () => sendResponse({ ok: false, code: 'unavailable', locallyPaused: false }))
+      .finally(() => lease.release());
+    return true;
+  }
   void (async () => {
     await initializeServerConfig();
     if (isServerConfigCommand(raw)) {
@@ -337,6 +389,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
         afterFailedChange: (attemptedApiUrl, activeApiUrl) =>
           removeUnusedServerPermission(attemptedApiUrl, activeApiUrl),
       }, raw);
+      const resumeSharedUnlock = raw.type === "config/server/set" ? sharedUnlockBrowser?.suspend() : undefined;
       try {
         const result = raw.type === "config/server/set"
           ? await serverOperations.mutate(() => execute())
@@ -344,6 +397,8 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
         sendResponse(result);
       } catch {
         sendResponse({ ok: false, code: "unavailable" });
+      } finally {
+        resumeSharedUnlock?.();
       }
       return;
     }
@@ -355,7 +410,11 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
       return;
     }
     try {
-      await sessionManager.touchActivity();
+      if (isSurfaceActivity(raw)) {
+        await sessionManager.touchActivity(raw.observedAt);
+        sendResponse({ ok: true });
+        return;
+      }
       if (isCaptureSettingsCommand(raw)) {
         sendResponse(await handleCaptureSettings(raw));
         return;

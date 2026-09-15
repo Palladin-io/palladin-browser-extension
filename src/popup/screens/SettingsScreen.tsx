@@ -6,6 +6,7 @@ import { useI18n } from "../i18n";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { ServerSettings } from "./ServerSettings";
 import { CaptureSettings } from "./CaptureSettings";
+import { SharedUnlockSettings } from './SharedUnlockSettings';
 
 export interface SettingsScreenProps {
   serverClient: ServerConfigClient;
@@ -41,6 +42,7 @@ export function SettingsScreen({
         open={openSection === "capture"} onToggle={() => toggle("capture")}>
         <CaptureSettings />
       </SettingsSection>
+      <SharedUnlockSettings />
     </div>
   );
 

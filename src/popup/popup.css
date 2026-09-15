@@ -8,6 +8,7 @@
   --cv-primary: #E54645;
   --cv-primary-hover: #d43e3e;
   --cv-primary-rgb: 229 70 69;
+  --cv-toggle-thumb: #ffffff;
   --cv-success: #10b981;
   --cv-app-background: linear-gradient(160deg, #f7f9fb 0%, #e8ecf1 100%);
 
@@ -405,7 +406,18 @@ body {
   flex-direction: column;
 }
 
+.popup-settings {
+  display: flex;
+  flex-direction: column;
+}
+
+.popup-settings > .popup-header,
+.popup-settings > .shared-unlock-notice {
+  flex-shrink: 0;
+}
+
 .settings-screen {
+  min-height: 0;
   gap: 8px;
   max-height: 500px;
   overflow-x: hidden;
@@ -414,12 +426,24 @@ body {
   padding-right: 3px;
 }
 
+.shared-unlock-settings { padding: 14px; }
+.shared-unlock-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 24px; }
+.shared-unlock-setting-row h2 { min-width: 0; margin: 0; font-size: 13px; font-weight: 600; }
+.shared-unlock-description { margin: 8px 0 0; color: var(--cv-t2); font-size: 12px; line-height: 1.5; }
+.shared-unlock-toggle { position: relative; flex-shrink: 0; width: 32px; height: 20px; padding: 0; border: 0; border-radius: 10px; background: var(--cv-input-border); cursor: pointer; transition: background-color .15s; }
+.shared-unlock-toggle span { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--cv-toggle-thumb); transition: transform .15s; }
+.shared-unlock-toggle[aria-checked="true"] { background: var(--cv-primary); }
+.shared-unlock-toggle[aria-checked="true"] span { transform: translateX(12px); }
+.shared-unlock-toggle:disabled { opacity: .4; cursor: not-allowed; }
+.shared-unlock-toggle:focus-visible { outline: 2px solid var(--cv-primary); outline-offset: 3px; }
+
 .capture-settings { display:flex; flex-direction:column; gap:8px; }
 .capture-setting-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; }
 .capture-setting-row > span { min-width:0; overflow-wrap:anywhere; font-size:13px; }
 .capture-setting-row small { display:block; color:var(--cv-t2); font-size:12px; }
 
 .settings-section {
+  flex-shrink: 0;
   overflow: hidden;
   border: 1px solid var(--cv-border);
   border-radius: 10px;
@@ -507,6 +531,13 @@ body {
 }
 
 .settings-notice {
+  color: var(--cv-success);
+}
+
+.shared-unlock-notice:not(:empty) {
+  padding: 10px 14px;
+  font-size: 12px;
+  line-height: 1.4;
   color: var(--cv-success);
 }
 

@@ -10,7 +10,7 @@ credentials.
 | Target | Development floor | Artifact | Current status |
 |--------|-------------------|----------|----------------|
 | Chromium | Chrome 116-compatible MV3 | `dist/chromium/` | Development baseline for Chrome, Chromium, Brave, Edge, and Opera |
-| Firefox | Firefox desktop 140 | `dist/firefox/` | Manifest and bundle foundation; installed-browser validation is pending |
+| Firefox | Firefox desktop 140 | `dist/firefox/` | Shared-unlock Identity/Entry/lifecycle tests pass on140/155 on macOS arm64; full platform/distribution acceptance is pending |
 | Safari | Safari 16.4 | `dist/safari/` | Web-extension resources only; Xcode conversion, containing app, and installed-browser validation are pending |
 
 Chrome, Chromium, Brave, Edge, and Opera intentionally share one artifact. Do
@@ -62,6 +62,14 @@ clears the local encrypted cache.
 - The shared `scripting` permission is used only with `activeTab`, after explicit
   popup unlock, to install the fixed value-free liveness bootstrap into an
   already-open top frame. It cannot widen host access and never injects secrets.
+- An explicitly configured shared-unlock Chromium build adds `webNavigation`
+  and configured external Web hosts to bind the current top-level document. Empty
+  configuration adds neither. The pre-release bootstrap exchanges hello/ready and account/link control frames,
+  and invokes source/receiver orchestration; shared closing/expiry barriers and
+  full Identity/Entry E2E remain release gates;
+  full acceptance remains pending; actual Identity/Entry/lifecycle results for
+  Chrome, Chromium, Brave and Edge are recorded separately. See
+  [shared-unlock evidence](SHARED-UNLOCK-PLATFORM-EVIDENCE.md#actual-chromium-product-channel---2026-09-11).
 - The artifact does not request `management` or inspect installed extensions.
   First-run password-manager guidance opens Chrome-owned settings only after an
   explicit click.
@@ -99,6 +107,14 @@ clears the local encrypted cache.
   claims installed-extension detection.
 
 ## Known runtime gaps
+
+- Panel availability is checked against the browser's actual native opening API,
+  not the build target alone. Opera135.0.5973.133/Chromium151.0.7922.176 with the
+  current Chromium artifact exposes neither `chrome.sidePanel.open` nor
+  `chrome.sidebarAction.open` in the native observation. Its popup offers the
+  ordinary Web-panel action instead of a dead side-panel button. This is not
+  an Opera native-sidebar adapter or native-panel acceptance. Chrome152,
+  Edge153 and Brave1.95.101 passed the actual native-panel scenario separately.
 
 - Firefox and Safari do not yet have a replacement for Chromium's offscreen
   clipboard-clear path. Copy controls are therefore not rendered on those

@@ -5,6 +5,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   define: {
+    __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__: "[]",
     __PALLADIN_TARGET__: JSON.stringify("chromium"),
     __PALLADIN_CHANNEL__: JSON.stringify("production"),
   },

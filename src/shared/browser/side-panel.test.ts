@@ -39,9 +39,13 @@ describe("side-panel target adapter", () => {
     expect(open).toHaveBeenCalledOnce();
   });
 
+  it.each(["chromium", "firefox"] as const)("does not advertise %s without its browser panel API", target => {
+    expect(supportsSidePanel(target, {})).toBe(false);
+  });
+
   it("fails honestly when a target or runtime API has no side panel", async () => {
-    expect(supportsSidePanel("chromium")).toBe(true);
-    expect(supportsSidePanel("firefox")).toBe(true);
+    expect(supportsSidePanel("chromium", { chrome: { windows: { WINDOW_ID_CURRENT: -2 }, sidePanel: { open: vi.fn() } } })).toBe(true);
+    expect(supportsSidePanel("firefox", { browser: { sidebarAction: { open: vi.fn() } } })).toBe(true);
     expect(supportsSidePanel("safari")).toBe(false);
     await expect(openSidePanel("safari", {})).resolves.toBe(false);
     await expect(openSidePanel("chromium", {})).resolves.toBe(false);
