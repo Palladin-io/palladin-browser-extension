@@ -1,7 +1,11 @@
+import { sameLiveForm } from '@shared/messaging/agent-live';
+import type { LiveLoginProbe, LiveContinuation } from '@shared/messaging/agent-live';
+import { bindLiveChain, advanceLiveChain, type LiveChain } from './native-live';
 import { nativeHostNameForChannel } from "@shared/config/build-channel";
 import {
   AGENT_INJECT_PROTOCOL,
   parseAgentInjectionRequest,
+  type AgentInjectForm,
   parseAgentPrepareRequest,
   valuesForAgentInjectStep,
   type AgentInjectFailure,
@@ -12,7 +16,6 @@ import {
   type AgentInjectWaitFor,
 } from "@shared/messaging";
 import { isSecurePage, matchesAgentInjectionTarget } from "@shared/security/domain";
-
 export const NATIVE_HOST_NAME = nativeHostNameForChannel(__PALLADIN_CHANNEL__);
 
 const TRANSITION_POLL_MS = 100;
@@ -31,6 +34,8 @@ export interface AgentTabState {
 }
 
 export interface AgentFillDeps {
+  probeLiveLogin?(tabId: number, documentId: string, targetUrl: string): Promise<LiveLoginProbe | null>;
+  inspectLiveLogin?(tabId: number, documentId: string, targetUrl: string): Promise<AgentInjectForm | null>;
   getActivePage(): Promise<AgentTabState | null>;
   getPageById(tabId: number): Promise<AgentTabState | null>;
   sendStep(
@@ -49,11 +54,15 @@ export interface AgentFillDeps {
 }
 
 export interface PreparedAgentPage {
+  readonly liveOrigin?: string;
+  readonly liveExpiresAt?: number;
+  readonly liveForm?: AgentInjectForm;
   readonly tabId: number;
   readonly documentId: string;
 }
 
 export interface AgentProviderSession {
+  liveChain?: LiveChain | null;
   prepared: PreparedAgentPage | null;
 }
 
@@ -67,6 +76,7 @@ export type AgentInjectionOutcome =
   | AgentInjectFailure;
 
 export interface AgentInjectionResult {
+  readonly continuation?: LiveContinuation;
   readonly protocol: typeof AGENT_INJECT_PROTOCOL;
   readonly type: "inject.result";
   readonly transactionId: string | null;
@@ -74,6 +84,7 @@ export interface AgentInjectionResult {
 }
 
 export interface AgentPrepareResult {
+  readonly liveForm?: AgentInjectForm;
   readonly protocol: typeof AGENT_INJECT_PROTOCOL;
   readonly type: "prepare.result";
   readonly nonce: string | null;
@@ -97,6 +108,7 @@ export async function handleNativeAgentMessage(
 ): Promise<AgentInjectionResult | AgentPrepareResult> {
   const prepare = parseAgentPrepareRequest(raw);
   if (prepare !== null) {
+    session.liveChain = null;
     const tab = prepare.targetTabId === undefined
       ? await deps.getActivePage()
       : await deps.getPageById(prepare.targetTabId);
@@ -112,11 +124,23 @@ export async function handleNativeAgentMessage(
       session.prepared = null;
       return prepareResult(prepare.nonce, null, "target-url-mismatch");
     }
+    if (prepare.liveDetection === true) {
+      const form = await deps.inspectLiveLogin?.(tab.id, tab.page.documentId, tab.page.url);
+      const after = await deps.getPageById(tab.id);
+      if (!form || !after?.page || after.id !== tab.id || after.page.documentId !== tab.page.documentId || after.page.url !== tab.page.url) {
+        session.prepared = null;
+        return prepareResult(prepare.nonce, null, 'provider-unavailable');
+      }
+      session.prepared = { tabId: tab.id, documentId: tab.page.documentId, liveForm: form, liveOrigin: new URL(tab.page.url).origin };
+      return { ...prepareResult(prepare.nonce, tab.page.url, 'ready'), liveForm: form };
+    }
     session.prepared = { tabId: tab.id, documentId: tab.page.documentId };
     return prepareResult(prepare.nonce, tab.page.url, "ready");
   }
 
   const prepared = session.prepared;
+  const priorChain = session.liveChain;
+  session.liveChain = null;
   session.prepared = null;
   const request = parseAgentInjectionRequest(raw);
   if (request === null) {
@@ -127,6 +151,20 @@ export async function handleNativeAgentMessage(
     wipeValues(request.values);
     return result(request.transactionId, "provider-unavailable");
   }
+  const usesLiveRefs = request.form.steps.some(step => step.fields.some(field => field.selector.startsWith('palladin-live:')));
+  if ((prepared.liveForm && !sameLiveForm(prepared.liveForm, request.form))
+    || (usesLiveRefs && !prepared.liveForm)) {
+    wipeValues(request.values);
+    return result(request.transactionId, 'rejected');
+  }
+  if (request.continueLive === true) {
+    const chain = bindLiveChain(prepared, priorChain, request);
+    if (!chain) { wipeValues(request.values); return result(request.transactionId, 'rejected'); }
+    const injected = await handleAgentInjection(deps, replay, { ...prepared, liveExpiresAt: chain.expiresAt }, request);
+    if (injected.outcome !== 'injected') return injected;
+    return { ...injected, continuation: await advanceLiveChain(deps, session, chain, request) };
+  }
+  if (priorChain) { wipeValues(request.values); return result(request.transactionId, 'rejected'); }
   return handleAgentInjection(deps, replay, prepared, request);
 }
 
@@ -157,6 +195,8 @@ export async function handleAgentInjection(
       }
       const origin = originFailure(current.page.url, request.expectedDomain);
       if (origin !== null) return result(request.transactionId, origin);
+      if ((prepared.liveOrigin && new URL(current.page.url).origin !== prepared.liveOrigin)
+        || (prepared.liveExpiresAt !== undefined && Date.now() >= prepared.liveExpiresAt)) return result(request.transactionId, 'rejected');
 
       const stepValues = valuesForAgentInjectStep(request.values, step);
       let outcome: AgentInjectStepOutcome | null;

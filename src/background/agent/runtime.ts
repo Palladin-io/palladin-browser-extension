@@ -1,3 +1,5 @@
+import { AGENT_LIVE_INSPECT_CHANNEL, AGENT_LIVE_PROBE_CHANNEL, parseLiveLoginProbe, type LiveLoginProbe } from '@shared/messaging/agent-live';
+import { parseAgentInjectForm, type AgentInjectForm } from '@shared/messaging';
 import {
   INJECT_PROVIDER_PROTOCOL,
   createInjectClientSession,
@@ -77,6 +79,8 @@ let reconnectDelayMinutes = INITIAL_RECONNECT_DELAY_MINUTES;
 let reconnectDelayLoad: Promise<void> | null = null;
 
 const agentFillDeps: AgentFillDeps = {
+  inspectLiveLogin,
+  probeLiveLogin,
   getActivePage,
   getPageById,
   sendStep,
@@ -89,6 +93,17 @@ export function gateAgentFillDeps(
   isActive: () => boolean,
 ): AgentFillDeps {
   return {
+    async probeLiveLogin(tabId, documentId, targetUrl) {
+      if (!isActive() || !deps.probeLiveLogin) return null;
+      const result = await deps.probeLiveLogin(tabId, documentId, targetUrl);
+      return isActive() ? result : null;
+    },
+    async inspectLiveLogin(tabId, documentId, targetUrl) {
+      if (!isActive() || !deps.inspectLiveLogin) return null;
+      const result = await deps.inspectLiveLogin(tabId, documentId, targetUrl);
+      return isActive() ? result : null;
+    },
+
     async getActivePage() {
       if (!isActive()) return null;
       const page = await deps.getActivePage();
@@ -198,6 +213,7 @@ async function openNativeAgentProvider(expectedLifecycle: number): Promise<void>
       // cannot resurrect the old channel through the reconnect alarm.
       if (nativePort !== port) return;
       providerSession.prepared = null;
+      providerSession.liveChain = null;
       disposeSecureSession(port);
       scheduleNativeAgentReconnect(expectedLifecycle);
     });
@@ -541,4 +557,20 @@ function unavailableResponse(raw: unknown): Record<string, unknown> {
     transactionId: null,
     outcome: "provider-unavailable",
   };
+}
+
+async function inspectLiveLogin(tabId: number, documentId: string, targetUrl: string): Promise<AgentInjectForm | null> {
+  try {
+    const response = await settleWithin(chrome.tabs.sendMessage(tabId,
+      { channel: AGENT_LIVE_INSPECT_CHANNEL, documentId, targetUrl }, { frameId: 0 }), TAB_PROBE_TIMEOUT_MS);
+    return parseAgentInjectForm(response);
+  } catch { return null; }
+}
+
+async function probeLiveLogin(tabId: number, documentId: string, targetUrl: string): Promise<LiveLoginProbe | null> {
+  try {
+    const response = await settleWithin(chrome.tabs.sendMessage(tabId,
+      { channel: AGENT_LIVE_PROBE_CHANNEL, documentId, targetUrl }, { frameId: 0 }), TAB_PROBE_TIMEOUT_MS);
+    return parseLiveLoginProbe(response);
+  } catch { return null; }
 }

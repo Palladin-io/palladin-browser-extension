@@ -1,0 +1,51 @@
+{
+  "id": "aws-root-identifier-2026-09-18",
+  "service": "aws",
+  "flow": "login",
+  "stage": "identifier",
+  "source": {
+    "url": "https://signin.aws.amazon.com/signin",
+    "observedAt": "2026-09-18",
+    "locale": "en",
+    "method": "Playwright read-only DOM inspection in separate fresh unauthenticated context",
+    "state": "Clicked public IAM Sign in using root user email: root/IAM choice and Email address Next. Root password step not observed.",
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "fidelity": {
+    "structure": "Observed native form subtree; synthetic node attributes attach recorded CSS.",
+    "styles": "Computed layout and visibility frozen per element.",
+    "behavior": "Public IAM to root navigation observed. Submission, authentication and root password step not observed.",
+    "redactions": [
+      "All editable/hidden values, URLs, handlers, scripts, iframe content and SVG paths omitted.",
+      "Surrounding site shell omitted; native form, labels, account field, radio and checkbox controls retained."
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#resolving_input",
+      "username": "#resolving_input",
+      "password": null,
+      "prefilled": true
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#resolving_input",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported",
+    "syntheticLiveLogin": "unit-and-built-chromium-pass; root identifier only; later password/TOTP transitions explicitly synthetic"
+  }
+}

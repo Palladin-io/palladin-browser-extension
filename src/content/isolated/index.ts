@@ -1,3 +1,5 @@
+import { LiveLogin, LIVE_SELECTOR_PREFIX } from './agent-live-login';
+import { isLiveInspectMessage, isLiveProbeMessage } from '@shared/messaging/agent-live';
 /**
  * Isolated-world content script. It is the enforcement point of the bridge:
  *
@@ -107,6 +109,8 @@ const agentInjectDom = createAgentInjectDomAccess(
     || (credentialCapture?.isOwnedSurface(element) ?? false),
 );
 
+const liveLogin = new LiveLogin(document, documentId, () => window.location.href, () => window.top === window, agentInjectDom);
+
 if (extensionBuildTarget === "firefox" && window === window.top && location.protocol === "https:") {
   startLegacyFirefoxFill(window, documentId, () => chrome.runtime.connect({ name: FIREFOX_LEGACY_FILL_PORT }),
     () => { void chrome.runtime.lastError; }, request => {
@@ -121,6 +125,19 @@ if (extensionBuildTarget === "firefox" && window === window.top && location.prot
 // written into the page's inputs but is NEVER forwarded to the main-world script
 // (see the Port relay below, which explicitly excludes fill traffic).
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (isLiveProbeMessage(message)) {
+    if (_sender.id !== chrome.runtime.id || _sender.tab !== undefined || message.documentId !== documentId) { sendResponse(null); return undefined; }
+    try { sendResponse(liveLogin.probe(message.targetUrl)); }
+    catch { liveLogin.clear(); sendResponse(null); }
+    return undefined;
+  }
+  if (isLiveInspectMessage(message)) {
+    if (_sender.id !== chrome.runtime.id || _sender.tab !== undefined || message.documentId !== documentId) { sendResponse(null); return undefined; }
+    try { sendResponse(liveLogin.inspect(message.targetUrl)); }
+    catch { liveLogin.clear(); sendResponse(null); }
+    return undefined;
+  }
+
   if (isSurfaceStateEvent(message)) {
     if (message.type === "surface/vault-changed") {
       inlineAutofill?.handleVaultChanged();
@@ -154,6 +171,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (isAgentInjectStepMessage(message)) {
     try {
+      if (message.step.fields.some(field => field.selector.startsWith(LIVE_SELECTOR_PREFIX))) {
+        sendResponse(liveLogin.fill(message));
+        return undefined;
+      }
       sendResponse(performAgentInjectStep(
         document,
         message,

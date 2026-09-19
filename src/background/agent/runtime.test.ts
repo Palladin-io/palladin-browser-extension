@@ -484,6 +484,16 @@ describe("secure Native Messaging frame boundary", () => {
     expect(base.sendStep).not.toHaveBeenCalled();
     expect(base.probeTransition).not.toHaveBeenCalled();
   });
+  it('discards a continuation probe when the native lifecycle ends while awaiting it', async () => {
+    let active = true;
+    const probeLiveLogin = vi.fn(async () => { active = false; return { outcome: 'no-form' } as const; });
+    const base: AgentFillDeps = { getActivePage: async () => null, getPageById: async () => null,
+      sendStep: async () => null, probeTransition: async () => null, probeLiveLogin };
+    const gated = gateAgentFillDeps(base, () => active);
+    expect(await gated.probeLiveLogin!(7, 'd'.repeat(32), 'https://login.example.test/')).toBeNull();
+    expect(await gated.probeLiveLogin!(7, 'd'.repeat(32), 'https://login.example.test/')).toBeNull();
+    expect(probeLiveLogin).toHaveBeenCalledTimes(1);
+  });
 
   it("accepts only the frozen session.ready shape", () => {
     const ready = {

@@ -42,6 +42,40 @@ function combined(overrides: Partial<AgentInjectStepMessage> = {}): AgentInjectS
 }
 
 describe("declarative Agent Inject step", () => {
+  it("checks occlusion inside an open shadow root before considering its field visible", () => {
+    const doc = mount('<div id="host"></div>');
+    const host = doc.getElementById("host")!;
+    const shadow = host.attachShadow({ mode: "open" });
+    shadow.innerHTML = '<input type="password"><div id="overlay"></div>';
+    const input = shadow.querySelector("input")!;
+    vi.spyOn(input, "getBoundingClientRect").mockReturnValue({
+      x: 10, y: 10, left: 10, top: 10, right: 110, bottom: 30, width: 100, height: 20,
+      toJSON: () => ({}),
+    });
+    Object.defineProperties(doc.documentElement, {
+      clientHeight: { configurable: true, value: 800 }, clientWidth: { configurable: true, value: 1200 },
+    });
+    Object.defineProperties(doc, {
+      elementFromPoint: { configurable: true, value: () => host },
+      elementsFromPoint: { configurable: true, value: () => [host] },
+    });
+    const innerHit = vi.fn((): Element => input);
+    Object.defineProperty(shadow, "elementFromPoint", { configurable: true, value: innerHit });
+    expect(createAgentInjectDomAccess(doc).isVisible(input)).toBe(true);
+    innerHit.mockReturnValue(shadow.getElementById("overlay")!);
+    expect(createAgentInjectDomAccess(doc).isVisible(input)).toBe(false);
+    const owned = doc.createElement('palladin-autofill');
+    const impostor = doc.createElement('palladin-autofill');
+    doc.body.append(owned, impostor);
+    const innerHits = vi.fn((): Element[] => [owned, input]);
+    Object.defineProperty(shadow, 'elementsFromPoint', { configurable: true, value: innerHits });
+    const access = createAgentInjectDomAccess(doc, candidate => candidate === owned);
+    expect(access.isVisible(input)).toBe(true);
+    innerHits.mockReturnValue([owned, impostor, input]);
+    expect(access.isVisible(input)).toBe(false);
+    innerHits.mockReturnValue([owned, shadow.getElementById('overlay')!, input]);
+    expect(access.isVisible(input)).toBe(false);
+  });
   it("ignores only the registered Palladin overlay during visibility checks", () => {
     const doc = mount('<input id="user" type="text" />');
     const input = doc.getElementById("user") as HTMLInputElement;
