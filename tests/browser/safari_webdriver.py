@@ -101,11 +101,10 @@ class SafariWebDriver(WebDriverActions):
 
 
 class SafariPopup(WebDriverActions):
-    def __init__(self, request, diagnostic_handle, popup_url, dismiss_popup=None):
+    def __init__(self, request, diagnostic_handle, popup_url):
         self.request = request
         self.diagnostic_handle = diagnostic_handle
         self.popup_url = popup_url
-        self.dismiss_popup = dismiss_popup
         self.last_stage = 'idle'
         self.last_dismissal = None
 
@@ -133,13 +132,14 @@ class SafariPopup(WebDriverActions):
         self.last_stage = 'activate-control-page-for-close'
         self.request('POST', '/window', {'handle': self.diagnostic_handle})
         if self.read('return !!popup'):
-            self.last_stage = 'dismiss-native-popup'
-            if self.dismiss_popup:
-                self.dismiss_popup()
-                self.last_dismissal = 'native-escape-requested'
-            else:
-                self.read('popup.syntheticClosePopup(); return true')
-                self.last_dismissal = 'popup-close-requested'
+            self.last_stage = 'dismiss-native-popup-with-escape'
+            self.request('POST', '/actions', {'actions': [{
+                'type': 'key', 'id': 'popup-dismiss', 'actions': [
+                    {'type': 'keyDown', 'value': '\ue00c'},
+                    {'type': 'keyUp', 'value': '\ue00c'},
+                ],
+            }]})
+            self.last_dismissal = 'webdriver-escape-requested'
         self.last_stage = 'observe-native-popup-closed'
         self.wait(lambda: self.read('return !popup'), 'native Popup closed')
         self.show()

@@ -23,10 +23,9 @@ parser.add_argument('--prepare-only', action='store_true')
 parser.add_argument('--product-extension', type=Path)
 parser.add_argument('--ci-screenshot-on-failure', action='store_true')
 parser.add_argument('--ci-grant-fixture-access', action='store_true')
-parser.add_argument('--ci-dismiss-fixture-popup', action='store_true')
 parser.add_argument('--background-kind', choices=['classic-worker', 'module-worker', 'document'], default='module-worker')
 args = parser.parse_args()
-if args.ci_screenshot_on_failure or args.ci_grant_fixture_access or args.ci_dismiss_fixture_popup:
+if args.ci_screenshot_on_failure or args.ci_grant_fixture_access:
     assert os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted', 'Native CI diagnostics only on disposable GitHub-hosted runners'
 assert args.driver_url == 'http://127.0.0.1:55187', 'Task-owned local SafariDriver only'
 out = Path('test-results/shared-unlock-safari-product-channel' if args.product_extension else 'test-results/shared-unlock-safari-boundary').resolve()
@@ -243,15 +242,6 @@ def grant_ci_fixture_access():
 def command(method, path, body=None):
     return request(method, '/session/' + session + path, body)
 
-def dismiss_ci_fixture_popup():
-    # WebDriver key actions target page content, not Safari's native popover.
-    assert args.ci_dismiss_fixture_popup
-    assert os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted'
-    result = subprocess.run(['/usr/bin/osascript', str(Path(__file__).with_name('safari-ci-dismiss-popup.applescript'))],
-        capture_output=True, text=True, timeout=10)
-    if result.returncode != 0:
-        raise RuntimeError('Native fixture popup dismissal failed')
-
 def navigate(url):
     command('POST', '/url', {'url': url})
 
@@ -455,8 +445,7 @@ def run_product_channel(extension_id, diagnostic_handle, web_handle):
     assert own_realm['sender']['id'] == extension_id
     checks.append('native-popup-reaches-unchanged-private-command-guard')
     stage = 'native-popup-product-ui-callback'
-    popup = SafariPopup(command, diagnostic_handle, popup_url,
-        dismiss_ci_fixture_popup if args.ci_dismiss_fixture_popup else None)
+    popup = SafariPopup(command, diagnostic_handle, popup_url)
     popup.show()
     popup.wait_text('Continue to Palladin')
     popup.click_button('Continue to Palladin')
