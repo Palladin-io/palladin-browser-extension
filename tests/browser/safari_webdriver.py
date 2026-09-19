@@ -132,14 +132,17 @@ class SafariPopup(WebDriverActions):
         self.last_stage = 'activate-control-page-for-close'
         self.request('POST', '/window', {'handle': self.diagnostic_handle})
         if self.read('return !!popup'):
-            self.last_stage = 'dismiss-native-popup-with-escape'
-            self.request('POST', '/actions', {'actions': [{
-                'type': 'key', 'id': 'popup-dismiss', 'actions': [
-                    {'type': 'keyDown', 'value': '\ue00c'},
-                    {'type': 'keyUp', 'value': '\ue00c'},
-                ],
-            }]})
-            self.last_dismissal = 'webdriver-escape-requested'
+            self.last_stage = 'dismiss-native-popup-by-window-switch'
+            # Native input interrupts Safari automation; focus another task-owned
+            # browser window through WebDriver to dismiss the browser popover.
+            transient = self.request('POST', '/window/new', {'type': 'window'})
+            try:
+                self.request('POST', '/window', {'handle': transient['handle']})
+                self.last_dismissal = 'webdriver-window-switch'
+            finally:
+                self.request('POST', '/window', {'handle': transient['handle']})
+                self.request('DELETE', '/window')
+                self.request('POST', '/window', {'handle': self.diagnostic_handle})
         self.last_stage = 'observe-native-popup-closed'
         self.wait(lambda: self.read('return !popup'), 'native Popup closed')
         self.show()
