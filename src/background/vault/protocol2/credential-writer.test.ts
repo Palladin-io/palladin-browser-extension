@@ -121,6 +121,24 @@ describe('captured Credential canonical writer', () => {
     }))
     expect(client.updateEntry.mock.calls[0]![1].grantEnvelopes).toEqual([{ ciphertext: 'grant-envelope' }])
   })
+  it.each(['all', 'selected', undefined])('refreshes captured credentials respecting field selection: %s', async (mode) => {
+    cryptoMocks.openCurrentMemberSecret.mockResolvedValue({ ...secret, agentFieldAccess: {
+      ...secret.agentFieldAccess, 'credential.username': 'onGrantValue',
+    } })
+    client.getActiveGrants.mockResolvedValue([{ ...grant, entryScopes: [{ ...grant.entryScopes[0]!,
+      fieldSelectionMode: mode, fieldIds: ['credential.password'],
+      selectedFieldIds: mode === 'selected' ? ['credential.password', 'credential.username'] : [],
+    }] }])
+    await writer.save(credential, url, target, authorized)
+    const ids = cryptoMocks.buildCanonicalGrantEnvelope.mock.calls[0]![0].approvedFieldIds
+    expect(ids).toContain('credential.password')
+    if (mode === undefined) expect(ids).toEqual(['credential.password'])
+    else expect(ids).toContain('credential.username')
+    if (mode === 'selected') expect(ids).toHaveLength(2)
+    expect(cryptoMocks.buildCanonicalGrantEnvelope).toHaveBeenCalledWith(expect.objectContaining({
+      approvedMethods: 6, remainingUses: 17, expiresAt: grant.expiresAt,
+    }))
+  })
   it('rebuilds a complete dependent ScriptExecution package with the updated Credential revision', async () => {
     client.getActiveGrants.mockResolvedValue([{ ...grant, type: 'scriptExecution', scriptPackageRevision: '3',
       scriptScopes: [{ entryId: SCRIPT, entryRevision: '1', isScript: true }, { entryId: ENTRY, entryRevision: '4', isScript: false }] }])

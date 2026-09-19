@@ -124,7 +124,7 @@ class SafariPopup(WebDriverActions):
         return self.script('''
           const expected = arguments[0];
           const popup = browser.extension.getViews({ type: 'popup' })
-            .find(view => view.location.href === expected);
+            .find(view => !view.closed && view.location.href === expected);
           const values = Array.prototype.slice.call(arguments, 1);
         ''' + script, self.popup_url, *args)
 
@@ -132,13 +132,12 @@ class SafariPopup(WebDriverActions):
         self.last_stage = 'activate-control-page-for-close'
         self.request('POST', '/window', {'handle': self.diagnostic_handle})
         if self.read('return !!popup'):
-            self.last_stage = 'dismiss-popup-in-own-realm'
-            invoked = self.read('''
-              if (typeof popup?.syntheticClosePopup !== 'function') return false;
-              popup.syntheticClosePopup(); return true;
-            ''')
-            self.last_dismissal = 'own-realm-close-requested' if invoked else 'own-realm-close-unavailable'
-            if not invoked: raise RuntimeError('Popup close test helper unavailable')
+            self.last_stage = 'observe-native-popup-focus'
+            # The Popup document can finish rendering before Safari presents it.
+            self.wait(lambda: self.read('return !!popup && popup.document.hasFocus()'), 'native Popup focus')
+            self.last_stage = 'dismiss-native-popup'
+            self.read('popup.syntheticClosePopup(); return true')
+            self.last_dismissal = 'focused-popup-close-requested'
         self.last_stage = 'observe-native-popup-closed'
         self.wait(lambda: self.read('return !popup'), 'native Popup closed')
         self.show()
@@ -185,7 +184,7 @@ class SafariPopup(WebDriverActions):
         return self.read('''
           if (!popup) return {present:false};
           const text=popup.document.body?.innerText || '';
-          return {present:true,closed:popup.closed,readyState:popup.document.readyState,
+          return {present:true,closed:popup.closed,readyState:popup.document.readyState,focused:popup.document.hasFocus(),
             signIn:text.includes('Sign in'),unlocked:text.includes('Unlocked'),
             onboarding:text.includes('Continue to Palladin')};
         ''')

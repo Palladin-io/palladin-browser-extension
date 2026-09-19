@@ -11,6 +11,8 @@ export interface EntryGrantContext {
   readonly entryScopes: readonly {
     readonly entryId: string;
     readonly fieldIds: readonly string[];
+    readonly fieldSelectionMode?: string;
+    readonly selectedFieldIds?: readonly string[] | null;
     readonly grantEnvelopeRevision: string | null;
     readonly grantKeyVersion: number | null;
   }[];
