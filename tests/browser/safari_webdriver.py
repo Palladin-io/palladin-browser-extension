@@ -124,7 +124,7 @@ class SafariPopup(WebDriverActions):
         return self.script('''
           const expected = arguments[0];
           const popup = browser.extension.getViews({ type: 'popup' })
-            .find(view => !view.closed && view.location.href === expected);
+            .find(view => view.location.href === expected);
           const values = Array.prototype.slice.call(arguments, 1);
         ''' + script, self.popup_url, *args)
 
