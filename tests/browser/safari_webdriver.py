@@ -124,7 +124,7 @@ class SafariPopup(WebDriverActions):
         return self.script('''
           const expected = arguments[0];
           const popup = browser.extension.getViews({ type: 'popup' })
-            .find(view => view.location.href === expected);
+            .find(view => !view.closed && view.location.href === expected);
           const values = Array.prototype.slice.call(arguments, 1);
         ''' + script, self.popup_url, *args)
 
@@ -132,13 +132,14 @@ class SafariPopup(WebDriverActions):
         self.last_stage = 'activate-control-page-for-close'
         self.request('POST', '/window', {'handle': self.diagnostic_handle})
         if self.read('return !!popup'):
-            self.last_stage = 'dismiss-popup-in-own-realm'
-            invoked = self.read('''
-              if (typeof popup?.syntheticClosePopup !== 'function') return false;
-              popup.syntheticClosePopup(); return true;
-            ''')
-            self.last_dismissal = 'own-realm-close-requested' if invoked else 'own-realm-close-unavailable'
-            if not invoked: raise RuntimeError('Popup close test helper unavailable')
+            self.last_stage = 'dismiss-native-popup-with-escape'
+            self.request('POST', '/actions', {'actions': [{
+                'type': 'key', 'id': 'popup-dismiss', 'actions': [
+                    {'type': 'keyDown', 'value': '\ue00c'},
+                    {'type': 'keyUp', 'value': '\ue00c'},
+                ],
+            }]})
+            self.last_dismissal = 'webdriver-escape-requested'
         self.last_stage = 'observe-native-popup-closed'
         self.wait(lambda: self.read('return !popup'), 'native Popup closed')
         self.show()
