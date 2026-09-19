@@ -22,6 +22,14 @@ framed forms and unsupported widgets are not automated. A cross-origin redirect,
 including a sibling host after login, stops continuation and releases no further
 values. The caller may separately verify its public destination.
 
+After posting its own encrypted terminal injection result, the extension permits
+one immediate connection to a fresh idle native host when that session closes.
+The old prepared operation and channel material are discarded first. A new frame
+invalidates this permission; a new host starts without it. Failed posts, unknown
+disconnects and subsequent connection failures keep the existing alarm backoff.
+No old injection or value is replayed. This removes the normal 30-second host
+reconnect delay between completed CLI operations without creating a retry loop.
+
 The chain binds the original exact HTTPS origin, tab, grant, Entry and runtime
 domain. It expires 60 seconds after the first authorized injection and permits
 at most eight physical steps. Each transition waits at most ten seconds.

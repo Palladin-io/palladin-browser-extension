@@ -56,7 +56,10 @@ try {
       const message = { channel: 'palladin.agent-inject/step', documentId: target.documentId, expectedDomain: 'login.example.test', step: probe.form.steps[0],
         values: fields.map(entryFieldId => ({ entryFieldId, value: entryFieldId === 'credential.username' ? 'synthetic@example.test' : entryFieldId === 'credential.password' ? 'Synthetic-password!42' : '123456' })) };
       assert.deepEqual(await send(target, message), { ok: true });
-      if (scenario === 'navigation') await page.waitForLoadState('domcontentloaded');
+      if (scenario === 'navigation') {
+        const nextPath = fields.includes('credential.username') ? '/password' : fields.includes('credential.password') ? '/otp' : '/done';
+        await page.waitForURL(url => url.pathname === nextPath, { waitUntil: 'domcontentloaded' });
+      }
       assert.equal((await send(await binding(), message)).ok, false, 'A consumed or old-document step cannot repeat');
     }
     const target = await binding();

@@ -196,7 +196,11 @@ async function openNativeAgentProvider(expectedLifecycle: number): Promise<void>
       && lifecycleVersion === expectedLifecycle;
     const lifecycleDeps = gateAgentFillDeps(agentFillDeps, isActive);
     let queue = Promise.resolve();
+    let terminalSent = false;
+    let receivedFrames = 0;
     port.onMessage.addListener((raw) => {
+      terminalSent = false;
+      const frameNumber = ++receivedFrames;
       queue = queue
         .then(() => handleSecureNativeMessage(
           port,
@@ -204,6 +208,7 @@ async function openNativeAgentProvider(expectedLifecycle: number): Promise<void>
           lifecycleDeps,
           expectedLifecycle,
           raw,
+          () => { if (frameNumber === receivedFrames) terminalSent = true; },
         ))
         .catch(() => disconnectSecurePort(port));
     });
@@ -214,8 +219,14 @@ async function openNativeAgentProvider(expectedLifecycle: number): Promise<void>
       if (nativePort !== port) return;
       providerSession.prepared = null;
       providerSession.liveChain = null;
+      const immediateHandoff = terminalSent;
+      terminalSent = false;
       disposeSecureSession(port);
-      scheduleNativeAgentReconnect(expectedLifecycle);
+      if (immediateHandoff) {
+        // One fresh idle host after our terminal response. It has no prepared
+        // operation or handoff credit, so failure falls back to the usual alarm.
+        void Promise.resolve(connectionAttempt).then(() => connectNativeAgentProviderForLifecycle(expectedLifecycle));
+      } else scheduleNativeAgentReconnect(expectedLifecycle);
     });
     armHandshakeTimeout(port, expectedLifecycle);
   } catch {
@@ -255,6 +266,7 @@ async function handleSecureNativeMessage(
   deps: AgentFillDeps,
   expectedLifecycle: number,
   raw: unknown,
+  terminalDelivered: () => void,
 ): Promise<void> {
   const isActive = () => nativePort === port
     && lifecycleVersion === expectedLifecycle;
@@ -313,10 +325,18 @@ async function handleSecureNativeMessage(
   if (!isActive()) return;
   const responseBytes = new TextEncoder().encode(JSON.stringify(response));
   try {
-    postIfConnected(port, await channel.seal(responseBytes));
+    const posted = postIfConnected(port, await channel.seal(responseBytes));
+    if (posted && isTerminalCompletion(response)) terminalDelivered();
   } finally {
     responseBytes.fill(0);
   }
+}
+
+function isTerminalCompletion(response: { readonly type?: unknown; readonly outcome?: unknown; readonly continuation?: unknown }): boolean {
+  if (response.type !== 'inject.result' || response.outcome !== 'injected') return false;
+  const continuation = response.continuation;
+  return continuation === undefined || (typeof continuation === 'object' && continuation !== null && 'outcome' in continuation
+    && ['challenge', 'no-form', 'timeout', 'origin-mismatch', 'insecure-origin', 'provider-unavailable'].includes(String(continuation.outcome)));
 }
 
 function scheduleNativeAgentReconnect(expectedLifecycle: number): void {
@@ -523,12 +543,14 @@ async function probeTransition(
   }
 }
 
-function postIfConnected(port: chrome.runtime.Port, response: unknown): void {
-  if (nativePort !== port) return;
+function postIfConnected(port: chrome.runtime.Port, response: unknown): boolean {
+  if (nativePort !== port) return false;
   try {
     port.postMessage(response);
+    return true;
   } catch {
     // The disconnect listener owns reconnection. Never log the secret-bearing frame.
+    return false;
   }
 }
 
