@@ -120,9 +120,13 @@ export class LiveLogin {
       const action = resolve(message.step.submit.selector);
       if (!(action instanceof HTMLButtonElement || action instanceof HTMLInputElement)) return fail();
       const owner = composedForm(action);
-      if (owner && action.type === 'submit') {
-        const destination = new URL(action.getAttribute('formaction') ?? owner.getAttribute('action') ?? this.targetUrl, this.doc.baseURI);
-        const target = action.getAttribute('formtarget') ?? owner.getAttribute('target') ?? '_self';
+      if (owner) {
+        // A plain button may submit its owner through a page handler. Its
+        // submitter-only overrides are inert and cannot mask that destination.
+        const destination = new URL((action.type === 'submit' ? action.getAttribute('formaction') : null)
+          ?? owner.getAttribute('action') ?? this.targetUrl, this.doc.baseURI);
+        const target = (action.type === 'submit' ? action.getAttribute('formtarget') : null)
+          ?? owner.getAttribute('target') ?? '_self';
         if (destination.origin !== new URL(this.targetUrl).origin || destination.username || destination.password
           || !['', '_self'].includes(target)) return fail();
       }

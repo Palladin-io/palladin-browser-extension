@@ -131,11 +131,11 @@ it.each(['matching', 'empty', 'foreign', 'changed during password input'])('pres
     expect(formContainsAgentManagedControl(document.querySelector('form')!)).toBe(false);
   }
 });
-it.each(['cross-origin action', 'foreign target', 'action changed during input'])('binds an open shadow login to its composed owner: %s', state => {
+it.each(['submit', 'button'].flatMap(type => ['cross-origin action', 'foreign target', 'action changed during input'].map(state => ({ type, state }))))('binds an open shadow $type login to its composed owner: $state', ({ type, state }) => {
   const instance = setup('<form><div id="host"></div></form>');
   const owner = document.querySelector('form')!;
   const shadow = document.querySelector('#host')!.attachShadow({ mode: 'open' });
-  shadow.innerHTML = '<input type="password" autocomplete="current-password"><button type="submit">Sign in</button>';
+  shadow.innerHTML = `<input type="password" autocomplete="current-password"><button type="${type}">Sign in</button>`;
   if (state === 'cross-origin action') owner.action = 'https://foreign.example.test/';
   if (state === 'foreign target') owner.target = '_blank';
   const input = shadow.querySelector('input')!;
@@ -147,4 +147,15 @@ it.each(['cross-origin action', 'foreign target', 'action changed during input']
     values: [{ entryFieldId: 'credential.password', value: 'synthetic-password' }] }).ok).toBe(false);
   expect(clicked).not.toHaveBeenCalled();
   expect(input.value).toBe('');
+});
+
+it('does not let inert button overrides hide its owner destination', () => {
+  const instance = setup('<form action="https://foreign.example.test/"><input type="password" autocomplete="current-password"><button type="button" formaction="/local">Sign in</button></form>');
+  const clicked = vi.fn(); document.querySelector('button')!.addEventListener('click', clicked);
+  const plan = instance.inspect(url)!;
+  expect(plan).not.toBeNull();
+  expect(instance.fill({ channel: AGENT_INJECT_STEP_CHANNEL, documentId, expectedDomain: 'signin.aws.amazon.com', step: plan.steps[0]!,
+    values: [{ entryFieldId: 'credential.password', value: 'synthetic-password' }] }).ok).toBe(false);
+  expect(clicked).not.toHaveBeenCalled();
+  expect(document.querySelector<HTMLInputElement>('input')!.value).toBe('');
 });
