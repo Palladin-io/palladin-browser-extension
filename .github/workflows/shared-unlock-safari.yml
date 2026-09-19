@@ -9,6 +9,7 @@ on:
       - tests/browser/safari_webdriver.py
       - tests/browser/webdriver_actions.py
       - tests/browser/safari-ci-permission.applescript
+      - tests/browser/safari-ci-dismiss-popup.applescript
       - src/**
       - manifest/**
       - scripts/**
@@ -71,7 +72,7 @@ jobs:
               raise SystemExit('SafariDriver did not start')
           PY
           if [ "$SAFARI_FIXTURE_BACKGROUND" = product ]; then
-            python3 tests/browser/shared-unlock-safari-boundary.py --ci-screenshot-on-failure --ci-grant-fixture-access --product-extension dist/safari
+            python3 tests/browser/shared-unlock-safari-boundary.py --ci-screenshot-on-failure --ci-grant-fixture-access --ci-dismiss-fixture-popup --product-extension dist/safari
           else
             python3 tests/browser/shared-unlock-safari-boundary.py --ci-screenshot-on-failure --ci-grant-fixture-access --background-kind "$SAFARI_FIXTURE_BACKGROUND"
           fi
