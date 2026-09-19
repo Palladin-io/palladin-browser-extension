@@ -78,6 +78,25 @@ async function preparedInject(
 }
 
 describe("authenticated native Agent provider", () => {
+  it('uses live inspection only when requested, binds its plan and rejects substitution', async () => {
+    const fill = deps();
+    const form = request().form;
+    const inspection = vi.fn(async () => form);
+    const liveDeps = { ...fill, inspectLiveLogin: inspection };
+    const session: AgentProviderSession = { prepared: null };
+    const prepare = { protocol: 'palladin.inject-provider.v1', type: 'prepare', nonce: 'a'.repeat(64), targetTabId: 7, targetUrl: PAGE_A.page!.url };
+    await handleNativeAgentMessage(liveDeps, replay(), session, prepare);
+    expect(inspection).not.toHaveBeenCalled();
+    expect(await handleNativeAgentMessage(liveDeps, replay(), session, { ...prepare, liveDetection: true })).toMatchObject({ outcome: 'ready', liveForm: form });
+    expect(inspection).toHaveBeenCalledWith(7, DOC_A, PAGE_A.page!.url);
+    const changed = request();
+    const modified = { ...changed, form: { ...changed.form, steps: [{ ...changed.form.steps[0]!, submit: { action: 'click', selector: '#other-action' } }] } };
+    expect(await handleNativeAgentMessage(liveDeps, replay(), session, modified)).toMatchObject({ outcome: 'rejected' });
+    expect(fill.sendStep).not.toHaveBeenCalled();
+    expect(await handleNativeAgentMessage(liveDeps, replay(), session, { ...prepare, liveDetection: true })).toMatchObject({ outcome: 'ready' });
+    expect(await handleNativeAgentMessage(liveDeps, replay(), session, request())).toMatchObject({ outcome: 'injected' });
+  });
+
   it("returns only the public top-frame URL and binds the prepared document internally", async () => {
     const session: AgentProviderSession = { prepared: null };
     const response = await handleNativeAgentMessage(deps(), replay(), session, {

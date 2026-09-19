@@ -1,3 +1,5 @@
+import { AGENT_LIVE_INSPECT_CHANNEL, AGENT_LIVE_PROBE_CHANNEL, parseLiveLoginProbe, type LiveLoginProbe } from '@shared/messaging/agent-live';
+import { parseAgentInjectForm, type AgentInjectForm } from '@shared/messaging';
 import {
   INJECT_PROVIDER_PROTOCOL,
   createInjectClientSession,
@@ -77,6 +79,8 @@ let reconnectDelayMinutes = INITIAL_RECONNECT_DELAY_MINUTES;
 let reconnectDelayLoad: Promise<void> | null = null;
 
 const agentFillDeps: AgentFillDeps = {
+  inspectLiveLogin,
+  probeLiveLogin,
   getActivePage,
   getPageById,
   sendStep,
@@ -89,6 +93,17 @@ export function gateAgentFillDeps(
   isActive: () => boolean,
 ): AgentFillDeps {
   return {
+    async probeLiveLogin(tabId, documentId, targetUrl) {
+      if (!isActive() || !deps.probeLiveLogin) return null;
+      const result = await deps.probeLiveLogin(tabId, documentId, targetUrl);
+      return isActive() ? result : null;
+    },
+    async inspectLiveLogin(tabId, documentId, targetUrl) {
+      if (!isActive() || !deps.inspectLiveLogin) return null;
+      const result = await deps.inspectLiveLogin(tabId, documentId, targetUrl);
+      return isActive() ? result : null;
+    },
+
     async getActivePage() {
       if (!isActive()) return null;
       const page = await deps.getActivePage();
@@ -99,9 +114,9 @@ export function gateAgentFillDeps(
       const page = await deps.getPageById(tabId);
       return isActive() ? page : null;
     },
-    async sendStep(tabId, expectedDomain, documentId, step, values) {
+    async sendStep(tabId, expectedDomain, documentId, step, values, requireExistingUsername) {
       if (!isActive()) return null;
-      const outcome = await deps.sendStep(tabId, expectedDomain, documentId, step, values);
+      const outcome = await deps.sendStep(tabId, expectedDomain, documentId, step, values, ...(requireExistingUsername ? [true] : []));
       return isActive() ? outcome : null;
     },
     async probeTransition(tabId, expectedDomain, selector) {
@@ -181,7 +196,11 @@ async function openNativeAgentProvider(expectedLifecycle: number): Promise<void>
       && lifecycleVersion === expectedLifecycle;
     const lifecycleDeps = gateAgentFillDeps(agentFillDeps, isActive);
     let queue = Promise.resolve();
+    let terminalSent = false;
+    let receivedFrames = 0;
     port.onMessage.addListener((raw) => {
+      terminalSent = false;
+      const frameNumber = ++receivedFrames;
       queue = queue
         .then(() => handleSecureNativeMessage(
           port,
@@ -189,6 +208,7 @@ async function openNativeAgentProvider(expectedLifecycle: number): Promise<void>
           lifecycleDeps,
           expectedLifecycle,
           raw,
+          () => { if (frameNumber === receivedFrames) terminalSent = true; },
         ))
         .catch(() => disconnectSecurePort(port));
     });
@@ -198,8 +218,15 @@ async function openNativeAgentProvider(expectedLifecycle: number): Promise<void>
       // cannot resurrect the old channel through the reconnect alarm.
       if (nativePort !== port) return;
       providerSession.prepared = null;
+      providerSession.liveChain = null;
+      const immediateHandoff = terminalSent;
+      terminalSent = false;
       disposeSecureSession(port);
-      scheduleNativeAgentReconnect(expectedLifecycle);
+      if (immediateHandoff) {
+        // One fresh idle host after our terminal response. It has no prepared
+        // operation or handoff credit, so failure falls back to the usual alarm.
+        void Promise.resolve(connectionAttempt).then(() => connectNativeAgentProviderForLifecycle(expectedLifecycle));
+      } else scheduleNativeAgentReconnect(expectedLifecycle);
     });
     armHandshakeTimeout(port, expectedLifecycle);
   } catch {
@@ -239,6 +266,7 @@ async function handleSecureNativeMessage(
   deps: AgentFillDeps,
   expectedLifecycle: number,
   raw: unknown,
+  terminalDelivered: () => void,
 ): Promise<void> {
   const isActive = () => nativePort === port
     && lifecycleVersion === expectedLifecycle;
@@ -297,10 +325,18 @@ async function handleSecureNativeMessage(
   if (!isActive()) return;
   const responseBytes = new TextEncoder().encode(JSON.stringify(response));
   try {
-    postIfConnected(port, await channel.seal(responseBytes));
+    const posted = postIfConnected(port, await channel.seal(responseBytes));
+    if (posted && isTerminalCompletion(response)) terminalDelivered();
   } finally {
     responseBytes.fill(0);
   }
+}
+
+function isTerminalCompletion(response: { readonly type?: unknown; readonly outcome?: unknown; readonly continuation?: unknown }): boolean {
+  if (response.type !== 'inject.result' || response.outcome !== 'injected') return false;
+  const continuation = response.continuation;
+  return continuation === undefined || (typeof continuation === 'object' && continuation !== null && 'outcome' in continuation
+    && ['challenge', 'no-form', 'timeout', 'origin-mismatch', 'insecure-origin', 'provider-unavailable'].includes(String(continuation.outcome)));
 }
 
 function scheduleNativeAgentReconnect(expectedLifecycle: number): void {
@@ -477,11 +513,12 @@ async function sendStep(
   documentId: string,
   step: AgentInjectFormStep,
   values: readonly AgentInjectFieldValue[],
+  requireExistingUsername?: boolean,
 ): Promise<AgentInjectStepOutcome | null> {
   try {
     const response = await chrome.tabs.sendMessage(
       tabId,
-      { channel: AGENT_INJECT_STEP_CHANNEL, expectedDomain, documentId, step, values },
+      { channel: AGENT_INJECT_STEP_CHANNEL, expectedDomain, documentId, step, values, ...(requireExistingUsername ? { requireExistingUsername: true } : {}) },
       { frameId: 0 },
     );
     return isAgentInjectStepOutcome(response) ? response : null;
@@ -507,12 +544,14 @@ async function probeTransition(
   }
 }
 
-function postIfConnected(port: chrome.runtime.Port, response: unknown): void {
-  if (nativePort !== port) return;
+function postIfConnected(port: chrome.runtime.Port, response: unknown): boolean {
+  if (nativePort !== port) return false;
   try {
     port.postMessage(response);
+    return true;
   } catch {
     // The disconnect listener owns reconnection. Never log the secret-bearing frame.
+    return false;
   }
 }
 
@@ -541,4 +580,20 @@ function unavailableResponse(raw: unknown): Record<string, unknown> {
     transactionId: null,
     outcome: "provider-unavailable",
   };
+}
+
+async function inspectLiveLogin(tabId: number, documentId: string, targetUrl: string): Promise<AgentInjectForm | null> {
+  try {
+    const response = await settleWithin(chrome.tabs.sendMessage(tabId,
+      { channel: AGENT_LIVE_INSPECT_CHANNEL, documentId, targetUrl }, { frameId: 0 }), TAB_PROBE_TIMEOUT_MS);
+    return parseAgentInjectForm(response);
+  } catch { return null; }
+}
+
+async function probeLiveLogin(tabId: number, documentId: string, targetUrl: string): Promise<LiveLoginProbe | null> {
+  try {
+    const response = await settleWithin(chrome.tabs.sendMessage(tabId,
+      { channel: AGENT_LIVE_PROBE_CHANNEL, documentId, targetUrl }, { frameId: 0 }), TAB_PROBE_TIMEOUT_MS);
+    return parseLiveLoginProbe(response);
+  } catch { return null; }
 }

@@ -28,6 +28,8 @@ jobs:
       - run: npm test
       - name: Install Chromium for shared-unlock browser checks
         run: npx playwright install --with-deps chromium
+      - name: Verify bound live login stages
+        run: npm run test:browser:agent-live
       - name: Probe shared-unlock platform trust signals
         run: npm run test:browser:shared-unlock-platform
       - name: Retain synthetic platform evidence

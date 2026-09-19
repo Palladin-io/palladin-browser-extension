@@ -16,6 +16,8 @@ interface WrittenControl {
 
 export interface AgentInjectDomAccess {
   isVisible(element: HTMLElement): boolean;
+  readonly preserveMatchingValues?: boolean;
+  resolveLiveControl?(selector: string): HTMLElement | null;
 }
 
 export function createAgentInjectDomAccess(
@@ -37,7 +39,23 @@ export function createAgentInjectDomAccess(
       const hits = typeof doc.elementsFromPoint === "function"
         ? doc.elementsFromPoint(centerX, centerY)
         : [doc.elementFromPoint(centerX, centerY)].filter((hit): hit is Element => hit !== null);
-      const hit = hits.find((candidate) => !isTrustedOverlay(candidate)) ?? null;
+      let hit = hits.find((candidate) => !isTrustedOverlay(candidate)) ?? null;
+      const visited = new Set<Element>();
+      while (hit?.shadowRoot !== null && hit?.shadowRoot !== undefined && hit !== element) {
+        if (visited.has(hit)) return false;
+        visited.add(hit);
+        const shadow = hit.shadowRoot;
+        if (typeof shadow.elementFromPoint !== "function") return false;
+        // ShadowRoot hit-testing can also return a covering element outside
+        // that root. Apply the same exact extension-owned overlay exemption at
+        // each boundary; arbitrary page overlays still block the write.
+        const innerHits = typeof shadow.elementsFromPoint === 'function'
+          ? shadow.elementsFromPoint(centerX, centerY)
+          : [shadow.elementFromPoint(centerX, centerY)].filter((candidate): candidate is Element => candidate !== null);
+        const inner = innerHits.find(candidate => !isTrustedOverlay(candidate)) ?? null;
+        if (inner === null || inner === hit) return false;
+        hit = inner;
+      }
       return style.display !== "none"
         && style.visibility !== "hidden"
         && Number.parseFloat(style.opacity || "1") > 0.01
@@ -86,8 +104,10 @@ export function performAgentInjectStep(
     if (beforeWrite !== null) return failWithCleanup(written, beforeWrite);
     const value = values.get(field.entryFieldId);
     if (value === undefined) return failWithCleanup(written, "ambiguous-form");
-    writeControlValue(selected.target, value, true);
-    written.push({ target: selected.target, field });
+    if (!dom.preserveMatchingValues || selected.target.value !== value) {
+      writeControlValue(selected.target, value, true);
+      written.push({ target: selected.target, field });
+    }
     resolvedBySelector.set(field.selector, selected.target);
     const afterWrite = checkOrigin(currentUrl(), message.expectedDomain);
     if (afterWrite !== null) return failWithCleanup(written, afterWrite);
@@ -112,7 +132,7 @@ export function inspectAgentInjectTransition(
 ): AgentInjectTransitionOutcome {
   const origin = checkOrigin(currentUrl(), expectedDomain);
   if (origin !== null) return { status: origin };
-  const candidates = query(doc, selector);
+  const candidates = query(doc, selector, dom);
   if (candidates === null) return { status: "ambiguous" };
   const inputCandidates = candidates.filter(isWritableControl);
   if (inputCandidates.length > 0) {
@@ -133,7 +153,7 @@ function resolveField(
   dom: AgentInjectDomAccess,
 ): { readonly status: "ready"; readonly target: WritableControl }
   | { readonly status: "missing" | "ambiguous" } {
-  const selected = query(doc, field.selector);
+  const selected = query(doc, field.selector, dom);
   if (selected === null) return { status: "ambiguous" };
   const usable = selected.filter(isWritableControl)
     .filter((candidate) => isUsableInput(candidate, dom));
@@ -164,7 +184,7 @@ function submitStep(
     target.dispatchEvent(new view.KeyboardEvent("keyup", { key: "Enter", bubbles: true }));
     return true;
   }
-  const selected = query(doc, submit.selector);
+  const selected = query(doc, submit.selector, dom);
   if (selected === null) return false;
   const usable = selected.filter((element): element is HTMLElement =>
     element instanceof HTMLElement && isEnabled(element) && dom.isVisible(element));
@@ -200,7 +220,11 @@ function checkOrigin(
   return matchesAgentInjectionTarget(url, expectedDomain) ? null : "origin-mismatch";
 }
 
-function query(doc: Document, selector: string): Element[] | null {
+function query(doc: Document, selector: string, dom: AgentInjectDomAccess): Element[] | null {
+  if (selector.startsWith('palladin-live:')) {
+    const bound = dom.resolveLiveControl?.(selector);
+    return bound ? [bound] : null;
+  }
   try {
     return [...doc.querySelectorAll(selector)];
   } catch {

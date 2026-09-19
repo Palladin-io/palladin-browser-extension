@@ -150,3 +150,15 @@ describe("submission outcome observation", () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 });
+
+// Native-authorized live login must not stage values for the ordinary save flow.
+it('excludes Agent-managed login credentials from user capture', async () => {
+  const { markAgentManagedControl } = await import('./agent-managed-controls');
+  document.body.innerHTML = '<form><input autocomplete="username"><input type="password"></form>';
+  const form = document.querySelector('form')!;
+  const identity = form.querySelector<HTMLInputElement>('input')!;
+  identity.value = 'synthetic@example.test';
+  form.querySelector<HTMLInputElement>('input[type=password]')!.value = 'synthetic-password';
+  markAgentManagedControl(identity);
+  expect(readSubmittedCredential(form)).toBeNull();
+});

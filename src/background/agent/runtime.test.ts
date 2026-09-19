@@ -7,6 +7,11 @@ import {
   type InjectSecureChannel,
 } from "@palladin/crypto";
 import sodium from "libsodium-wrappers";
+import * as palladinCrypto from '@palladin/crypto';
+vi.mock('@palladin/crypto', async importOriginal => {
+  const actual = await importOriginal<typeof import('@palladin/crypto')>();
+  return { ...actual, createInjectClientSession: vi.fn(actual.createInjectClientSession) };
+});
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentInjectionRequest } from "@shared/messaging";
@@ -211,6 +216,46 @@ describe("secure Native Messaging frame boundary", () => {
       protocol: INJECT_PROVIDER_PROTOCOL,
       type: "session.open",
     }));
+  });
+  it.each([true, false])('prepares the next CLI only after a posted terminal result (%s), then backs off a new failure', async delivered => {
+    const { native, connectNative, alarmsCreate } = stubChrome();
+    const next = fakeNativePort();
+    connectNative.mockReturnValueOnce(native.port).mockReturnValue(next.port);
+    chrome.tabs = { sendMessage: vi.fn(async (_id, message) => message.channel === 'palladin.tab/current-url'
+      ? { url: 'https://login.example.com', documentId: 'd'.repeat(32) } : { ok: true }) } as unknown as typeof chrome.tabs;
+    const requests = [
+      { protocol: 'palladin.inject-provider.v1', type: 'prepare', nonce: 'a'.repeat(64), targetTabId: 7, targetUrl: 'https://login.example.com' },
+      { protocol: 'palladin.inject-provider.v1', type: 'inject', transactionId: 'handoff-test', grantId: 'grant1', entryId: 'entry1', expectedDomain: 'login.example.com',
+        form: { version: 1, steps: [{ fields: [{ entryFieldId: 'credential.password', selector: '#password', control: 'password' }], submit: { action: 'click', selector: '#submit' } }] },
+        values: [{ entryFieldId: 'credential.password', value: 'synthetic-password' }] },
+    ];
+    const seal = vi.fn(async () => secureSessionContract.firstExtensionFrame);
+    const channel = { open: async () => new TextEncoder().encode(JSON.stringify(requests.shift())), seal, dispose: vi.fn() } as unknown as InjectSecureChannel;
+    const mocked = vi.spyOn(palladinCrypto, 'createInjectClientSession').mockResolvedValue({ openFrame: secureSessionContract.open,
+      acceptReady: async () => channel, dispose: vi.fn() } as unknown as InjectClientSession);
+    try {
+      await connectNativeAgentProviderNow();
+      native.emitMessage(secureSessionContract.offer);
+      await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledTimes(1));
+      native.emitMessage(secureSessionContract.ready);
+      native.emitMessage(secureSessionContract.firstHostFrame);
+      await vi.waitFor(() => expect(seal).toHaveBeenCalledTimes(1));
+      if (!delivered) native.postMessage.mockImplementationOnce(() => { throw new Error('Synthetic closed port'); });
+      native.emitMessage(secureSessionContract.firstHostFrame);
+      await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledTimes(3));
+      native.emitDisconnect();
+      if (!delivered) {
+        await Promise.resolve();
+        expect(connectNative).toHaveBeenCalledTimes(1);
+        expect(alarmsCreate).toHaveBeenCalledWith('palladin.native-agent.reconnect', { delayInMinutes: 0.5 });
+        return;
+      }
+      await vi.waitFor(() => expect(connectNative).toHaveBeenCalledTimes(2), { timeout: 500 });
+      expect(alarmsCreate).not.toHaveBeenCalled();
+      next.emitDisconnect();
+      expect(alarmsCreate).toHaveBeenCalledWith('palladin.native-agent.reconnect', { delayInMinutes: 0.5 });
+      expect(connectNative).toHaveBeenCalledTimes(2);
+    } finally { mocked.mockRestore(); }
   });
 
   it("retries when the native host never sends a session offer", async () => {
@@ -483,6 +528,16 @@ describe("secure Native Messaging frame boundary", () => {
       .resolves.toBeNull();
     expect(base.sendStep).not.toHaveBeenCalled();
     expect(base.probeTransition).not.toHaveBeenCalled();
+  });
+  it('discards a continuation probe when the native lifecycle ends while awaiting it', async () => {
+    let active = true;
+    const probeLiveLogin = vi.fn(async () => { active = false; return { outcome: 'no-form' } as const; });
+    const base: AgentFillDeps = { getActivePage: async () => null, getPageById: async () => null,
+      sendStep: async () => null, probeTransition: async () => null, probeLiveLogin };
+    const gated = gateAgentFillDeps(base, () => active);
+    expect(await gated.probeLiveLogin!(7, 'd'.repeat(32), 'https://login.example.test/')).toBeNull();
+    expect(await gated.probeLiveLogin!(7, 'd'.repeat(32), 'https://login.example.test/')).toBeNull();
+    expect(probeLiveLogin).toHaveBeenCalledTimes(1);
   });
 
   it("accepts only the frozen session.ready shape", () => {

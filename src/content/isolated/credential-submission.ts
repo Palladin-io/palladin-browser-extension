@@ -1,3 +1,4 @@
+import { formContainsAgentManagedControl } from './agent-managed-controls';
 import {
   CREDENTIAL_CAPTURE_CHANNEL,
   isSubmittedCredential,
@@ -29,6 +30,7 @@ function inputs(form: HTMLFormElement): HTMLInputElement[] {
 }
 
 export function readSubmittedCredential(form: HTMLFormElement, allowMissingUsername = false): SubmittedCredential | null {
+  if (formContainsAgentManagedControl(form)) return null;
   const fields = inputs(form);
   const passwords = fields.filter((field) => field.type === "password" && !field.disabled && isCaptureVisible(field));
   if (passwords.length < 1 || passwords.length > 3 || passwords.some((field) => field.value.length === 0)) return null;
@@ -72,6 +74,7 @@ export function readSubmittedCredential(form: HTMLFormElement, allowMissingUsern
 }
 
 function readSubmittedIdentifier(form: HTMLFormElement): string | null {
+  if (formContainsAgentManagedControl(form)) return null;
   const fields = inputs(form);
   if (fields.some((field) => field.type === "password" || purpose(field).includes("one-time-code"))) return null;
   const candidates = fields.filter((field) => !field.disabled && isCaptureVisible(field)

@@ -63,9 +63,11 @@ export interface AgentPrepareRequest {
   readonly nonce: string;
   readonly targetTabId?: number;
   readonly targetUrl?: string;
+  readonly liveDetection?: boolean;
 }
 
 export interface AgentInjectionRequest {
+  readonly continueLive?: boolean;
   readonly protocol: typeof AGENT_INJECT_PROTOCOL;
   readonly type: "inject";
   readonly transactionId: string;
@@ -77,6 +79,7 @@ export interface AgentInjectionRequest {
 }
 
 export interface AgentInjectStepMessage {
+  readonly requireExistingUsername?: boolean;
   readonly channel: typeof AGENT_INJECT_STEP_CHANNEL;
   readonly expectedDomain: string;
   readonly documentId: string;
@@ -112,11 +115,13 @@ export type AgentInjectTransitionOutcome =
 
 export function parseAgentPrepareRequest(value: unknown): AgentPrepareRequest | null {
   if (!isRecord(value)
-    || !onlyKeys(value, ["protocol", "type", "nonce", "targetTabId", "targetUrl"])) return null;
+    || !onlyKeys(value, ["protocol", "type", "nonce", "targetTabId", "targetUrl", "liveDetection"])) return null;
   if (value.protocol !== AGENT_INJECT_PROTOCOL
     || value.type !== "prepare"
     || typeof value.nonce !== "string"
     || !/^[A-Za-z0-9]{32,128}$/.test(value.nonce)) return null;
+  if (value.liveDetection !== undefined && typeof value.liveDetection !== 'boolean') return null;
+  if (value.liveDetection === true && value.targetTabId === undefined) return null;
   const hasTabId = value.targetTabId !== undefined;
   const hasUrl = value.targetUrl !== undefined;
   if (hasTabId !== hasUrl) return null;
@@ -136,7 +141,9 @@ export function parseAgentInjectionRequest(value: unknown): AgentInjectionReques
     "expectedDomain",
     "form",
     "values",
+    "continueLive",
   ])) return null;
+  if (value.continueLive !== undefined && typeof value.continueLive !== 'boolean') return null;
   if (value.protocol !== AGENT_INJECT_PROTOCOL
     || value.type !== "inject"
     || !validIdentifier(value.transactionId)
@@ -190,14 +197,15 @@ export function parseAgentInjectValues(
 
 export function isAgentInjectStepMessage(value: unknown): value is AgentInjectStepMessage {
   if (!isRecord(value)
-    || !onlyKeys(value, ["channel", "expectedDomain", "documentId", "step", "values"])
+    || !onlyKeys(value, ["channel", "expectedDomain", "documentId", "step", "values", "requireExistingUsername"])
     || value.channel !== AGENT_INJECT_STEP_CHANNEL
     || !validExpectedDomain(value.expectedDomain)
     || typeof value.documentId !== "string"
     || !/^[a-f0-9]{32}$/.test(value.documentId)) return false;
   const step = parseStep(value.step);
   if (step === null) return false;
-  return parseAgentInjectValues(value.values, { version: 1, steps: [step] }) !== null;
+  return (value.requireExistingUsername === undefined || typeof value.requireExistingUsername === 'boolean')
+    && parseAgentInjectValues(value.values, { version: 1, steps: [step] }) !== null;
 }
 
 export function isAgentInjectTransitionMessage(
