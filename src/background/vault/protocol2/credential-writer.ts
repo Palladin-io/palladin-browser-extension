@@ -153,8 +153,10 @@ export class Protocol2CredentialWriter {
         const scope = grant.entryScopes.find((scope) => scope.entryId === detail.id)
         if (!scope?.grantEnvelopeRevision || !scope.grantKeyVersion || !scope.fieldIds.length
           || !grant.agentId || !grant.agentPublicKey || !grant.recipientAgentKeyVersion) throw new Error('Incomplete grant context')
-        const approvedFieldIds = scope.fieldIds.map((id) => canonicalGrantPolicyFieldId(secret.entryType, id))
-        if (approvedFieldIds.some((id) => !grantable.has(id))) throw new Error('Grant field policy changed')
+        const approvedFieldIds = (scope.fieldSelectionMode === 'all'
+          ? [...grantable] : scope.selectedFieldIds ?? scope.fieldIds)
+          .map((id) => canonicalGrantPolicyFieldId(secret.entryType, id)).filter((id) => grantable.has(id))
+        if (approvedFieldIds.length === 0) throw new Error('Grant field policy changed')
         grantEnvelopes.push(await buildCanonicalGrantEnvelope({
           secret, organizationId: vault.organizationId, vaultId: vault.id, entryId: detail.id,
           grantId: grant.id, agentId: grant.agentId, agentPublicKey: grant.agentPublicKey,

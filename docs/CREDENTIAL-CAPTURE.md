@@ -175,3 +175,12 @@ passwords. This reproduces the documented Coinbase flow structure; it is not
 evidence of testing a real Coinbase account or every site-specific DOM variant.
 The correction changes the extension head after the earlier clean cloud review;
 that review is not a verdict on this new diff.
+
+### Grant field selection during captured updates
+
+The canonical writer consumes the Member API's per-grant `fieldSelectionMode`
+and `selectedFieldIds`. All-grants are rebuilt from the current grantable Entry
+fields. Selected-grants retain the original choice, intersected with the current
+policy; absent metadata preserves the previously delivered field list. Empty
+remaining scope blocks the update. Methods, expiry, remaining uses and recipient
+remain unchanged. No new field value travels outside the encrypted envelopes.
