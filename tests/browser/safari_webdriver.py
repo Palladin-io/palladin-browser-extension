@@ -132,17 +132,12 @@ class SafariPopup(WebDriverActions):
         self.last_stage = 'activate-control-page-for-close'
         self.request('POST', '/window', {'handle': self.diagnostic_handle})
         if self.read('return !!popup'):
-            self.last_stage = 'dismiss-native-popup-by-window-switch'
-            # Native input interrupts Safari automation; focus another task-owned
-            # browser window through WebDriver to dismiss the browser popover.
-            transient = self.request('POST', '/window/new', {'type': 'window'})
-            try:
-                self.request('POST', '/window', {'handle': transient['handle']})
-                self.last_dismissal = 'webdriver-window-switch'
-            finally:
-                self.request('POST', '/window', {'handle': transient['handle']})
-                self.request('DELETE', '/window')
-                self.request('POST', '/window', {'handle': self.diagnostic_handle})
+            self.last_stage = 'observe-native-popup-focus'
+            # The Popup document can finish rendering before Safari presents it.
+            self.wait(lambda: self.read('return !!popup && popup.document.hasFocus()'), 'native Popup focus')
+            self.last_stage = 'dismiss-native-popup'
+            self.read('popup.syntheticClosePopup(); return true')
+            self.last_dismissal = 'focused-popup-close-requested'
         self.last_stage = 'observe-native-popup-closed'
         self.wait(lambda: self.read('return !popup'), 'native Popup closed')
         self.show()
@@ -189,7 +184,7 @@ class SafariPopup(WebDriverActions):
         return self.read('''
           if (!popup) return {present:false};
           const text=popup.document.body?.innerText || '';
-          return {present:true,closed:popup.closed,readyState:popup.document.readyState,
+          return {present:true,closed:popup.closed,readyState:popup.document.readyState,focused:popup.document.hasFocus(),
             signIn:text.includes('Sign in'),unlocked:text.includes('Unlocked'),
             onboarding:text.includes('Continue to Palladin')};
         ''')
