@@ -126,7 +126,7 @@ export class LiveLogin {
         const destination = new URL((action.type === 'submit' ? action.getAttribute('formaction') : null)
           ?? owner.getAttribute('action') ?? this.targetUrl, this.doc.baseURI);
         const target = (action.type === 'submit' ? action.getAttribute('formtarget') : null)
-          ?? owner.getAttribute('target') ?? '_self';
+          ?? owner.getAttribute('target') ?? this.doc.querySelector('base[target]')?.getAttribute('target') ?? '_self';
         if (destination.origin !== new URL(this.targetUrl).origin || destination.username || destination.password
           || !['', '_self'].includes(target)) return fail();
       }
@@ -177,6 +177,8 @@ function liveControlSignature(element: HTMLInputElement | HTMLButtonElement): st
       'aria-labelledby'].map(attribute => element.getAttribute(attribute)),
     owner?.getAttribute('action'), owner?.getAttribute('target'),
     owner?.getAttribute('method'),
+    element.ownerDocument.baseURI,
+    element.ownerDocument.querySelector('base[target]')?.getAttribute('target'),
     element instanceof HTMLButtonElement ? actionCaption(element) : null,
   ]);
 }

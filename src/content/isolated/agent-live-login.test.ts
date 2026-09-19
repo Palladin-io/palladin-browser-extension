@@ -159,3 +159,17 @@ it('does not let inert button overrides hide its owner destination', () => {
   expect(clicked).not.toHaveBeenCalled();
   expect(document.querySelector<HTMLInputElement>('input')!.value).toBe('');
 });
+it.each(['href', 'target'])('rejects a changed document base %s before submitting relative actions', attribute => {
+  const base = document.createElement('base'); base.href = url; document.head.append(base);
+  try {
+    const instance = setup('<form action="/login"><input type="password" autocomplete="current-password"><button>Sign in</button></form>');
+    const input = document.querySelector<HTMLInputElement>('input')!;
+    input.addEventListener('input', () => { base.setAttribute(attribute, attribute === 'href' ? 'https://foreign.example.test/' : '_blank'); });
+    const submit = vi.fn((event: Event) => event.preventDefault()); document.querySelector('form')!.addEventListener('submit', submit);
+    const plan = instance.inspect(url)!;
+    expect(instance.fill({ channel: AGENT_INJECT_STEP_CHANNEL, documentId, expectedDomain: 'signin.aws.amazon.com', step: plan.steps[0]!,
+      values: [{ entryFieldId: 'credential.password', value: 'synthetic-password' }] }).ok).toBe(false);
+    expect(submit).not.toHaveBeenCalled();
+    expect(input.value).toBe('');
+  } finally { base.remove(); }
+});
