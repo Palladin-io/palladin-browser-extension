@@ -127,7 +127,7 @@ describe('captured Credential canonical writer', () => {
     } })
     client.getActiveGrants.mockResolvedValue([{ ...grant, entryScopes: [{ ...grant.entryScopes[0]!,
       fieldSelectionMode: mode, fieldIds: ['credential.password'],
-      ...(mode === 'selected' ? { selectedFieldIds: ['credential.password', 'credential.username'] } : {}),
+      selectedFieldIds: mode === 'selected' ? ['credential.password', 'credential.username'] : [],
     }] }])
     await writer.save(credential, url, target, authorized)
     const ids = cryptoMocks.buildCanonicalGrantEnvelope.mock.calls[0]![0].approvedFieldIds
