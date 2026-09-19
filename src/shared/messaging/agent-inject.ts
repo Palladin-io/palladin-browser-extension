@@ -79,6 +79,7 @@ export interface AgentInjectionRequest {
 }
 
 export interface AgentInjectStepMessage {
+  readonly requireExistingUsername?: boolean;
   readonly channel: typeof AGENT_INJECT_STEP_CHANNEL;
   readonly expectedDomain: string;
   readonly documentId: string;
@@ -196,14 +197,15 @@ export function parseAgentInjectValues(
 
 export function isAgentInjectStepMessage(value: unknown): value is AgentInjectStepMessage {
   if (!isRecord(value)
-    || !onlyKeys(value, ["channel", "expectedDomain", "documentId", "step", "values"])
+    || !onlyKeys(value, ["channel", "expectedDomain", "documentId", "step", "values", "requireExistingUsername"])
     || value.channel !== AGENT_INJECT_STEP_CHANNEL
     || !validExpectedDomain(value.expectedDomain)
     || typeof value.documentId !== "string"
     || !/^[a-f0-9]{32}$/.test(value.documentId)) return false;
   const step = parseStep(value.step);
   if (step === null) return false;
-  return parseAgentInjectValues(value.values, { version: 1, steps: [step] }) !== null;
+  return (value.requireExistingUsername === undefined || typeof value.requireExistingUsername === 'boolean')
+    && parseAgentInjectValues(value.values, { version: 1, steps: [step] }) !== null;
 }
 
 export function isAgentInjectTransitionMessage(

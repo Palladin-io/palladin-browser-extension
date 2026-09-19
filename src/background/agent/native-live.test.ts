@@ -116,9 +116,11 @@ describe('one-session live continuation', () => {
     const combined: AgentInjectForm = { version: 1, steps: [{ fields: [...form('username', '2').steps[0]!.fields, ...form('password', '2').steps[0]!.fields.map(field => ({ ...field, selector: field.selector + '-password' }))], submit: form('password', '2').steps[0]!.submit }] };
     f.next({ outcome: 'ready', form: combined });
     expect(await f.inject().result).toMatchObject({ continuation: { outcome: 'ready', liveForm: combined } });
+    expect(f.session.prepared?.requireExistingUsername).toBe(true);
     f.next({ outcome: 'ready', form: combined });
     expect(await f.inject(combined, 'tx-2').result).toMatchObject({ outcome: 'injected', continuation: { outcome: 'timeout' } });
     expect(f.provider.sendStep).toHaveBeenCalledTimes(2);
+    expect(f.provider.sendStep.mock.calls[1]).toEqual([7, 'example.test', doc, combined.steps[0], expect.any(Array), true]);
   });
   it('runs observed AWS identifier then synthetic password and authenticator stages under one session', async () => {
     document.body.innerHTML = readFileSync('tests/fixtures/forms/aws-root-identifier-2026-09-18/page.html', 'utf8');

@@ -54,6 +54,7 @@ try {
       assert.equal(probe.outcome, 'ready');
       assert.deepEqual(probe.form.steps[0].fields.map(field => field.entryFieldId), fields);
       const message = { channel: 'palladin.agent-inject/step', documentId: target.documentId, expectedDomain: 'login.example.test', step: probe.form.steps[0],
+        ...(scenario === 'carry' && fields.includes('credential.password') ? { requireExistingUsername: true } : {}),
         values: fields.map(entryFieldId => ({ entryFieldId, value: entryFieldId === 'credential.username' ? 'synthetic@example.test' : entryFieldId === 'credential.password' ? 'Synthetic-password!42' : '123456' })) };
       assert.deepEqual(await send(target, message), { ok: true });
       if (scenario === 'navigation') {

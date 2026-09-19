@@ -7,8 +7,8 @@ import { AgentFormRegistry } from './agent-form';
 import { performAgentInjectStep, type AgentInjectDomAccess } from './agent-inject';
 import { loginTargetFor, isFillable } from './credential-form-analysis';
 import { credentialScopeFor, isOneTimeCodeControl, scopeInputs } from './login-controls';
-import { actionCaption } from './open-dom';
-import { markAgentManagedControl } from './agent-managed-controls';
+import { actionCaption, composedForm } from './open-dom';
+import { markAgentManagedControl, isAgentManagedControl, unmarkAgentManagedControl } from './agent-managed-controls';
 
 export const LIVE_SELECTOR_PREFIX = 'palladin-live:';
 const ACTION = /^(?:log\s*in|sign\s*in|continue|next|submit|verify|verify code|authenticate|zaloguj(?:\s+się)?|dalej|kontynuuj|potwierdź|zweryfikuj|anmelden|weiter)$/i;
@@ -74,7 +74,7 @@ export class LiveLogin {
     this.bindings = [...planned.map(field => field.selector), ref(actions[0]!.control.ref)].map(selector => {
       const node = nodes.find(item => ref(item.control.ref) === selector)!;
       const element = node.element as HTMLInputElement | HTMLButtonElement;
-      return { selector, element, signature: liveControlSignature(element), owner: element.form };
+      return { selector, element, signature: liveControlSignature(element), owner: composedForm(element) };
     });
     // Live login re-discovers and compares the actual bound controls before each
     // operation. A document-wide dirty bit rejects normal framework input updates.
@@ -91,6 +91,8 @@ export class LiveLogin {
   }
   fill(message: AgentInjectStepMessage): AgentInjectStepOutcome {
     const fail = (): AgentInjectStepOutcome => ({ ok: false, outcome: 'stale-form-map' });
+    const newlyManaged: HTMLInputElement[] = [];
+    let completed = false;
     try {
       if (!this.top() || this.url() !== this.targetUrl || message.documentId !== this.documentId
         || !this.plan || !sameLiveStep(message.step, this.plan.steps[0]!)) return fail();
@@ -110,22 +112,31 @@ export class LiveLogin {
         const input = resolve(field.selector);
         const value = message.values.find(item => item.entryFieldId === field.entryFieldId)?.value;
         if (!(input instanceof HTMLInputElement) || value === undefined
+          || (message.requireExistingUsername && field.entryFieldId === 'credential.username' && input.value !== value)
           || (input.value !== '' && input.value !== value)) return fail();
         initialValues.set(input, input.value);
         expectedValues.set(input, value);
-        markAgentManagedControl(input);
       }
       const action = resolve(message.step.submit.selector);
       if (!(action instanceof HTMLButtonElement || action instanceof HTMLInputElement)) return fail();
-      if (action.form && action.type === 'submit') {
-        const destination = new URL(action.getAttribute('formaction') ?? action.form.getAttribute('action') ?? this.targetUrl, this.doc.baseURI);
-        const target = action.getAttribute('formtarget') ?? action.form.getAttribute('target') ?? '_self';
+      const owner = composedForm(action);
+      if (owner && action.type === 'submit') {
+        const destination = new URL(action.getAttribute('formaction') ?? owner.getAttribute('action') ?? this.targetUrl, this.doc.baseURI);
+        const target = action.getAttribute('formtarget') ?? owner.getAttribute('target') ?? '_self';
         if (destination.origin !== new URL(this.targetUrl).origin || destination.username || destination.password
           || !['', '_self'].includes(target)) return fail();
       }
+      for (const input of initialValues.keys()) {
+        if (!isAgentManagedControl(input)) { newlyManaged.push(input); markAgentManagedControl(input); }
+      }
       executing = true;
-      return performAgentInjectStep(this.doc, message, this.documentId, this.url, { ...this.dom, preserveMatchingValues: true, resolveLiveControl: resolve });
-    } finally { this.clear(); }
+      const outcome = performAgentInjectStep(this.doc, message, this.documentId, this.url, { ...this.dom, preserveMatchingValues: true, resolveLiveControl: resolve });
+      completed = outcome.ok;
+      return outcome;
+    } finally {
+      if (!completed) for (const input of newlyManaged) unmarkAgentManagedControl(input);
+      this.clear();
+    }
   }
   private hasCurrentBindings(): boolean {
     if (!this.plan || Date.now() >= this.expiresAt) return false;
@@ -154,13 +165,14 @@ export class LiveLogin {
 /** No values: input/change may reflect a controlled input into its value attribute.
  * Identity, meaning, constraints and submission destination must still match. */
 function liveControlSignature(element: HTMLInputElement | HTMLButtonElement): string {
+  const owner = composedForm(element);
   return JSON.stringify([
     element.tagName,
     ...['id', 'type', 'name', 'autocomplete', 'pattern', 'minlength', 'maxlength',
       'required', 'form', 'formaction', 'formtarget', 'formmethod', 'aria-label',
       'aria-labelledby'].map(attribute => element.getAttribute(attribute)),
-    element.form?.getAttribute('action'), element.form?.getAttribute('target'),
-    element.form?.getAttribute('method'),
+    owner?.getAttribute('action'), owner?.getAttribute('target'),
+    owner?.getAttribute('method'),
     element instanceof HTMLButtonElement ? actionCaption(element) : null,
   ]);
 }

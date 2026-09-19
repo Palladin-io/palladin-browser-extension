@@ -44,6 +44,7 @@ export interface AgentFillDeps {
     documentId: string,
     step: AgentInjectFormStep,
     values: readonly AgentInjectFieldValue[],
+    requireExistingUsername?: boolean,
   ): Promise<AgentInjectStepOutcome | null>;
   probeTransition(
     tabId: number,
@@ -54,6 +55,7 @@ export interface AgentFillDeps {
 }
 
 export interface PreparedAgentPage {
+  readonly requireExistingUsername?: boolean;
   readonly liveOrigin?: string;
   readonly liveExpiresAt?: number;
   readonly liveForm?: AgentInjectForm;
@@ -207,6 +209,7 @@ export async function handleAgentInjection(
           current.page.documentId,
           step,
           stepValues,
+          ...(prepared.requireExistingUsername ? [true] : []),
         );
       } finally {
         wipeValues(stepValues);

@@ -40,7 +40,7 @@ are wiped after injection and never persisted.
 A next stage must request a new field. A repeated username is accepted only
 alongside a new password: the runtime supplies the same approved username for
 local equality checking. A matching populated identity is preserved without
-input/change events; another identity blocks submission. The equality is checked
+input/change events; an empty or different identity blocks submission. The equality is checked
 again immediately before submit, including changes made by page input handlers.
 Password and authenticator-code stages cannot be repeated within one chain.
 The runtime owns grant authorization and fresh TOTP generation; the extension
@@ -50,7 +50,9 @@ Form references bind actual controls, field meaning, constraints and submission
 destination. Replacement, covering, meaning changes, expiry or another document
 invalidate them. React-style value reflection and unrelated DOM updates do not
 invalidate unchanged controls. Agent-managed fields are excluded from ordinary
-credential capture.
+credential capture. Failed attempts remove only their newly added Agent marks,
+so later manual input remains eligible for capture. Controls in open shadow roots
+also bind the composed form owner and its submission destination and target.
 
 ## Evidence
 

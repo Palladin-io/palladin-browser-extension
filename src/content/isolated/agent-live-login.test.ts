@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, expect, it, vi } from 'vitest';
 import { LiveLogin } from './agent-live-login';
 import { AGENT_INJECT_STEP_CHANNEL } from '@shared/messaging';
+import { formContainsAgentManagedControl } from './agent-managed-controls';
 const documentId = 'd'.repeat(32);
 const url = 'https://signin.aws.amazon.com/signin';
 const dom = { isVisible: (element: HTMLElement) => !element.hidden && !element.closest('[hidden]') };
@@ -110,19 +111,40 @@ it('reports supported AWS, CAPTCHA-only, SMS and absent controls without authent
   document.body.innerHTML = '<p>Neutral destination with no supported login controls</p>';
   expect(instance.probe(url)).toEqual({ outcome: 'no-form' });
 });
-it.each(['matching', 'foreign', 'changed during password input'])('preserves a carried-forward %s username and binds submit to approved identity', state => {
+it.each(['matching', 'empty', 'foreign', 'changed during password input'])('preserves a carried-forward %s username and binds submit to approved identity', state => {
   const instance = setup('<form><input autocomplete="username"><input type="password" autocomplete="current-password"><button>Sign in</button></form>');
   const identity = document.querySelector<HTMLInputElement>('input')!;
   const password = document.querySelector<HTMLInputElement>('input[type=password]')!;
-  identity.value = state === 'foreign' ? 'other@example.test' : 'approved@example.test';
+  identity.value = state === 'empty' ? '' : state === 'foreign' ? 'other@example.test' : 'approved@example.test';
   const events = vi.fn(); identity.addEventListener('input', events); identity.addEventListener('change', events);
   if (state === 'changed during password input') password.addEventListener('input', () => { identity.value = 'other@example.test'; });
   const submit = vi.fn((event: Event) => event.preventDefault()); document.querySelector('form')!.addEventListener('submit', submit);
   const plan = instance.inspect(url)!;
   const outcome = instance.fill({ channel: AGENT_INJECT_STEP_CHANNEL, documentId, expectedDomain: 'signin.aws.amazon.com', step: plan.steps[0]!,
+    requireExistingUsername: true,
     values: [{ entryFieldId: 'credential.username', value: 'approved@example.test' }, { entryFieldId: 'credential.password', value: 'synthetic-password' }] });
   expect(outcome.ok).toBe(state === 'matching');
   expect(events).not.toHaveBeenCalled();
   expect(submit).toHaveBeenCalledTimes(state === 'matching' ? 1 : 0);
-  if (state !== 'matching') expect(password.value).toBe('');
+  if (state !== 'matching') {
+    expect(password.value).toBe('');
+    expect(formContainsAgentManagedControl(document.querySelector('form')!)).toBe(false);
+  }
+});
+it.each(['cross-origin action', 'foreign target', 'action changed during input'])('binds an open shadow login to its composed owner: %s', state => {
+  const instance = setup('<form><div id="host"></div></form>');
+  const owner = document.querySelector('form')!;
+  const shadow = document.querySelector('#host')!.attachShadow({ mode: 'open' });
+  shadow.innerHTML = '<input type="password" autocomplete="current-password"><button type="submit">Sign in</button>';
+  if (state === 'cross-origin action') owner.action = 'https://foreign.example.test/';
+  if (state === 'foreign target') owner.target = '_blank';
+  const input = shadow.querySelector('input')!;
+  if (state === 'action changed during input') input.addEventListener('input', () => { owner.action = 'https://foreign.example.test/'; });
+  const clicked = vi.fn(); shadow.querySelector('button')!.addEventListener('click', clicked);
+  const plan = instance.inspect(url)!;
+  expect(plan).not.toBeNull();
+  expect(instance.fill({ channel: AGENT_INJECT_STEP_CHANNEL, documentId, expectedDomain: 'signin.aws.amazon.com', step: plan.steps[0]!,
+    values: [{ entryFieldId: 'credential.password', value: 'synthetic-password' }] }).ok).toBe(false);
+  expect(clicked).not.toHaveBeenCalled();
+  expect(input.value).toBe('');
 });

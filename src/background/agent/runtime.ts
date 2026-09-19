@@ -114,9 +114,9 @@ export function gateAgentFillDeps(
       const page = await deps.getPageById(tabId);
       return isActive() ? page : null;
     },
-    async sendStep(tabId, expectedDomain, documentId, step, values) {
+    async sendStep(tabId, expectedDomain, documentId, step, values, requireExistingUsername) {
       if (!isActive()) return null;
-      const outcome = await deps.sendStep(tabId, expectedDomain, documentId, step, values);
+      const outcome = await deps.sendStep(tabId, expectedDomain, documentId, step, values, ...(requireExistingUsername ? [true] : []));
       return isActive() ? outcome : null;
     },
     async probeTransition(tabId, expectedDomain, selector) {
@@ -513,11 +513,12 @@ async function sendStep(
   documentId: string,
   step: AgentInjectFormStep,
   values: readonly AgentInjectFieldValue[],
+  requireExistingUsername?: boolean,
 ): Promise<AgentInjectStepOutcome | null> {
   try {
     const response = await chrome.tabs.sendMessage(
       tabId,
-      { channel: AGENT_INJECT_STEP_CHANNEL, expectedDomain, documentId, step, values },
+      { channel: AGENT_INJECT_STEP_CHANNEL, expectedDomain, documentId, step, values, ...(requireExistingUsername ? { requireExistingUsername: true } : {}) },
       { frameId: 0 },
     );
     return isAgentInjectStepOutcome(response) ? response : null;

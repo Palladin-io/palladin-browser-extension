@@ -70,6 +70,7 @@ export async function advanceLiveChain(deps: AgentFillDeps, session: AgentProvid
       if (Date.now() >= chain.expiresAt) return stop('timeout');
       session.liveChain = chain;
       session.prepared = { tabId: chain.tabId, documentId: tab.page.documentId, liveForm: report.form,
+        requireExistingUsername: chain.submitted.has('credential.username') && fields.some(field => field.entryFieldId === 'credential.username'),
         liveOrigin: chain.origin, liveExpiresAt: chain.expiresAt };
       return { outcome: 'ready', currentUrl: tab.page.url, documentId: tab.page.documentId, liveForm: report.form };
     }
