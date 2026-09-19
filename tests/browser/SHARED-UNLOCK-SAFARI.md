@@ -1,5 +1,19 @@
 # Safari recipient and document boundary
 
+## Native Popup dismissal regression (2026-09-19)
+
+The Popup helper waits for `document.hasFocus()` before its Popup-owned close
+callback, then requires the live native view to disappear before reopening.
+Closed views are excluded from lookup. Product boundary run35458788121 passed
+all15 checks with this change, including onboarding persistence in a reopened
+Popup; the other three background variants also passed. A repeat is pending.
+This is account-free UI/channel evidence, not Identity or full Safari acceptance.
+
+The earlier attempts using WebDriver Escape, OS Escape and switching browser
+windows did not pass. OS Escape raised Safari's automation glass pane; that
+helper was removed. No input bypass, lifecycle assertion removal or private
+command guard change is retained.
+
 ## Real Identity scenario
 
 The owner moved remaining Safari acceptance to the end of CVT-583 on2026-09-11.
