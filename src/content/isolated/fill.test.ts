@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { FillField, FillRequestMessage } from "@shared/messaging";
-import { loginTargetFor, performBoundFill, performFill } from "./fill";
+import { loginTargetFor, performBoundFill, performFill, performLoginTargetFill, submitFilledLoginTarget } from "./fill";
 
 const CREDS: FillField[] = [
   { kind: "username", value: "ada@example.com" },
@@ -423,5 +423,31 @@ describe("performBoundFill", () => {
       "document-1",
     )).toEqual({ ok: false, reason: "target-changed" });
     expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("");
+  });
+});
+
+
+describe('one-use isolated manual submit receipt', () => {
+  it('allows only one submit after the successful fill', async () => {
+    mount('<form><input autocomplete="username"><input type="password" autocomplete="current-password"><button type="submit">Sign in</button></form>');
+    const target = loginTargetFor(document.querySelector('input')! )!;
+    const submit = vi.spyOn(document.querySelector('form')!, 'requestSubmit').mockImplementation(() => {});
+    expect(performLoginTargetFill(target, CREDS)).toEqual({ ok: true });
+    expect(await submitFilledLoginTarget(target, () => true)).toBe(true);
+    expect(await submitFilledLoginTarget(target, () => true)).toBe(false);
+    expect(submit).toHaveBeenCalledTimes(1);
+  });
+
+  it('expires a receipt even when the worker reply is delayed', async () => {
+    vi.useFakeTimers();
+    try {
+      mount('<form><input autocomplete="username"><input type="password" autocomplete="current-password"><button type="submit">Sign in</button></form>');
+      const target = loginTargetFor(document.querySelector('input')!)!;
+      const submit = vi.spyOn(document.querySelector('form')!, 'requestSubmit').mockImplementation(() => {});
+      expect(performLoginTargetFill(target, CREDS)).toEqual({ ok: true });
+      await vi.advanceTimersByTimeAsync(5_001);
+      expect(await submitFilledLoginTarget(target, () => true)).toBe(false);
+      expect(submit).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
   });
 });

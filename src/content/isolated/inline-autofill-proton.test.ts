@@ -17,7 +17,7 @@ beforeEach(() => {
 });
 afterEach(() => { stop?.(); stop = undefined; document.body.replaceChildren(); vi.restoreAllMocks(); });
 
-function fixture(automatic = true) {
+function fixture(automatic = true, replyDelay = false) {
   const username = document.querySelector<HTMLInputElement>('#username')!;
   const password = document.querySelector<HTMLInputElement>('#password')!;
   const form = document.querySelector('form')!;
@@ -33,6 +33,7 @@ function fixture(automatic = true) {
       expectedOrigin: 'https://account.proton.me', expectedDomain: 'account.proton.me', submit: false,
       loginTargetId: command.loginTargetId, fields: [{ kind: 'username', value: 'synthetic@example.test' }, { kind: 'password', value: 'Synthetic-password!42' }] },
     'https://account.proton.me/login', 'fixture-document', controller.resolveLoginTarget(command.loginTargetId));
+    if (replyDelay) await new Promise(resolve => setTimeout(resolve, 10));
     return { ok: true, kind: 'fill', status: outcome.ok ? 'filled' : 'no-form' };
   });
   controller = startInlineAutofill(document, 'a'.repeat(32), send);
@@ -89,5 +90,13 @@ it.each(['value', 'owner'] as const)('does not submit if a queued framework chan
   }, 0); });
   await f.clickLogin();
   await new Promise(resolve => setTimeout(resolve, 20));
+  expect(f.submit).not.toHaveBeenCalled();
+});
+
+it('rejects a page mutation after the bound fill but before the worker reply', async () => {
+  const f = fixture(false, true);
+  f.password.addEventListener('input', () => { queueMicrotask(() => { f.password.value = 'changed-before-reply'; }); });
+  await f.clickLogin();
+  await new Promise(resolve => setTimeout(resolve, 40));
   expect(f.submit).not.toHaveBeenCalled();
 });

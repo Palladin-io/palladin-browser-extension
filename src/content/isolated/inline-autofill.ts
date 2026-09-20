@@ -19,7 +19,7 @@ import {
 import {
   isCurrentLoginTarget,
   loginTargetFor,
-  submitLoginForm,
+  submitFilledLoginTarget,
   type LoginTarget,
 } from "./fill";
 
@@ -461,7 +461,8 @@ class InlineWidget {
       return;
     }
     const initialValues = loginValueSnapshot(this.options.loginTarget);
-    if (initialValues !== "\u0000") return;
+    if ([this.options.loginTarget.username, this.options.loginTarget.password]
+      .some(input => input !== null && input.value !== "")) return;
     this.automaticFillInFlight = true;
     try {
       const raw = await this.loadSuggestions();
@@ -683,13 +684,8 @@ class InlineWidget {
       return false;
     }
     if (raw.status === "filled" && submitAfterFill) {
-      const filledValues = loginValueSnapshot(this.options.loginTarget);
-      // Allow queued framework input handlers to settle, then revalidate the exact pair.
-      await new Promise<void>(resolve => setTimeout(resolve, 0));
-      if (this.destroyed || this.options.doc.location.href !== originalUrl
-        || !isCurrentLoginTarget(this.options.loginTarget)
-        || loginValueSnapshot(this.options.loginTarget) !== filledValues
-        || !submitLoginForm(this.options.loginTarget.password)) {
+      if (!await submitFilledLoginTarget(this.options.loginTarget,
+        () => !this.destroyed && this.options.doc.location.href === originalUrl)) {
         if (!silent && !this.destroyed) this.renderStatus("inline.noForm");
         return false;
       }
@@ -722,7 +718,7 @@ class InlineWidget {
 }
 
 function loginValueSnapshot(target: LoginTarget): string {
-  return `${target.username.value}\u0000${target.password.value}`;
+  return JSON.stringify([target.username?.value ?? null, target.password?.value ?? null]);
 }
 
 function message(locale: UiLocale, key: InlineKey): string {

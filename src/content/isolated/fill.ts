@@ -1,18 +1,6 @@
-/**
- * The minimal, fallback fill for CVT-368 (plan §1 user autofill).
- *
- * This is deliberately the simplest heuristic that works for a standard login
- * form: find the first fillable `input[type=password]`, and the nearest fillable
- * text/email field associated with the same form. Full field detection
- * — richer heuristics, multi-step logins, an inline menu — is CVT-371/372; this
- * only has to cover the common case and fail cleanly ("No login form found")
- * otherwise.
- *
- * It runs in the isolated world after the worker has cleared every gate, so the
- * incoming values are already authorised. Nothing here decides whether to fill.
- * The React-compatible value setter mirrors how password managers drive
- * controlled inputs so frameworks observe the change.
- */
+/** Isolated-world user fills. Inline targets use the same credential analysis as
+ * native live login; popup/generator/card fills preserve their existing contract.
+ * The worker authorizes delivery. This module rechecks the live DOM binding. */
 
 import type { FillField, FillOutcome, FillRequestMessage } from "@shared/messaging";
 import { matchesTab } from "@shared/security/domain";
@@ -20,11 +8,10 @@ import { matchesTab } from "@shared/security/domain";
 type TextLikeInput = HTMLInputElement;
 type FillControl = HTMLInputElement | HTMLTextAreaElement;
 
-export interface LoginTarget {
-  readonly username: HTMLInputElement;
-  readonly password: HTMLInputElement;
-  readonly form: HTMLFormElement;
-}
+import { isFillable, isCurrentLoginTarget, type LoginTarget } from './credential-form-analysis';
+import { credentialScopeFor, isCredentialAction } from './login-controls';
+import { queryOpenElements } from './open-dom';
+export { isFillable, isCurrentLoginTarget, loginTargetFor, type LoginTarget } from './credential-form-analysis';
 
 const USERNAME_TYPES = new Set(["text", "email", "tel", ""]);
 const CARD_AUTOCOMPLETE_KIND: Readonly<Record<string, FillField["kind"]>> = {
@@ -34,73 +21,6 @@ const CARD_AUTOCOMPLETE_KIND: Readonly<Record<string, FillField["kind"]>> = {
   "cc-exp-year": "card-expiry-year",
   "cc-exp": "card-expiry",
 };
-
-/** Fail closed for disabled, hidden, or page-CSS-hidden controls. */
-export function isFillable(input: FillControl): boolean {
-  if (input.disabled || input.matches(":disabled") || input.readOnly) return false;
-  if (input.hidden || (input instanceof HTMLInputElement && input.type === "hidden")) return false;
-  if (input.getAttribute("aria-hidden") === "true") return false;
-  const style = input.getAttribute("style") ?? "";
-  if (/display\s*:\s*none/i.test(style) || /visibility\s*:\s*hidden/i.test(style)) {
-    return false;
-  }
-  if (/opacity\s*:\s*0(?:\D|$)/i.test(style) || /pointer-events\s*:\s*none/i.test(style)) {
-    return false;
-  }
-  const view = input.ownerDocument.defaultView;
-  if (view === null) return false;
-  for (let element: HTMLElement | null = input; element !== null; element = element.parentElement) {
-    if (element.hidden
-      || element.hasAttribute("inert")
-      || element.getAttribute("aria-hidden") === "true"
-      || (element.tagName === "DIALOG" && !element.hasAttribute("open"))) {
-      return false;
-    }
-    const computed = view.getComputedStyle(element);
-    if (computed.display === "none"
-      || computed.visibility === "hidden"
-      || computed.visibility === "collapse"
-      || Number.parseFloat(computed.opacity) === 0
-      || computed.pointerEvents === "none"
-      || computed.getPropertyValue("content-visibility") === "hidden") {
-      return false;
-    }
-  }
-  const clientRects = input.getClientRects();
-  if (clientRects.length > 0) {
-    const bounds = input.getBoundingClientRect();
-    if (bounds.width <= 0 || bounds.height <= 0) return false;
-  }
-  return true;
-}
-
-/** Resolve the exact standard-login pair owned by a username control. */
-export function loginTargetFor(input: HTMLInputElement): LoginTarget | null {
-  if (!isFillable(input)) return null;
-  const type = input.type.toLowerCase();
-  if (type !== "email" && type !== "text" && type !== "tel") return null;
-  const form = input.form;
-  if (form === null) return null;
-  for (const control of form.elements) {
-    if (control instanceof HTMLInputElement
-      && control.type.toLowerCase() === "password"
-      && isFillable(control)) {
-      return { username: input, password: control, form };
-    }
-  }
-  return null;
-}
-
-/** Revalidate the same controls and form identity immediately before a DOM write. */
-export function isCurrentLoginTarget(target: LoginTarget): boolean {
-  if (!target.username.isConnected || !target.password.isConnected || !target.form.isConnected) {
-    return false;
-  }
-  const current = loginTargetFor(target.username);
-  return current !== null
-    && current.form === target.form
-    && current.password === target.password;
-}
 
 function firstFillablePassword(doc: Document): HTMLInputElement | null {
   for (const input of doc.querySelectorAll<HTMLInputElement>("input[type=password]")) {
@@ -192,13 +112,14 @@ export function performLoginTargetFill(
   target: LoginTarget,
   fields: readonly FillField[],
 ): FillOutcome {
-  const controls = fields.flatMap(field => field.kind === "username"
+  const controls = fields.flatMap(field => field.kind === "username" && target.username !== null
     ? [{ input: target.username, value: field.value }]
-    : field.kind === "password" ? [{ input: target.password, value: field.value }] : []);
+    : field.kind === "password" && target.password !== null ? [{ input: target.password, value: field.value }] : []);
   const expected = (input: HTMLInputElement) => controls.find(control => control.input === input)?.value;
   const compatible = () => isCurrentLoginTarget(target)
-    && [target.username, target.password].every(input => input.value === "" || input.value === expected(input));
-  if (!compatible()) return { ok: false, reason: "no-form" };
+    && [target.username, target.password].every(input => input === null || input.value === "" || input.value === expected(input));
+  clearFillReceipt(target);
+  if (controls.length === 0 || !compatible()) return { ok: false, reason: "no-form" };
   const completed: typeof controls = [];
   for (const control of controls) {
     if (!compatible() || completed.some(done => done.input.value !== done.value)) {
@@ -208,9 +129,45 @@ export function performLoginTargetFill(
     if (control.input.value !== control.value) setFieldValue(control.input, control.value);
     completed.push(control);
   }
-  return compatible() && completed.every(control => control.input.value === control.value)
-    ? { ok: true }
-    : { ok: false, reason: "no-form" };
+  if (!compatible() || !completed.every(control => control.input.value === control.value)) {
+    return { ok: false, reason: "no-form" };
+  }
+  rememberFill(target);
+  return { ok: true };
+}
+
+interface FillReceipt {
+  readonly snapshot: string;
+  readonly url: string;
+  readonly expiresAt: number;
+  readonly timer: ReturnType<typeof setTimeout>;
+}
+const fillReceipts = new WeakMap<LoginTarget, FillReceipt>();
+const FILL_RECEIPT_TTL_MS = 5_000;
+
+function targetValues(target: LoginTarget): string {
+  return JSON.stringify([target.username?.value ?? null, target.password?.value ?? null]);
+}
+function clearFillReceipt(target: LoginTarget): void {
+  const receipt = fillReceipts.get(target);
+  if (receipt) clearTimeout(receipt.timer);
+  fillReceipts.delete(target);
+}
+function rememberFill(target: LoginTarget): void {
+  const timer = setTimeout(() => fillReceipts.delete(target), FILL_RECEIPT_TTL_MS);
+  fillReceipts.set(target, { snapshot: targetValues(target), url: target.form.ownerDocument.location.href,
+    expiresAt: performance.now() + FILL_RECEIPT_TTL_MS, timer });
+}
+/** One-use local receipt from the actual approved DOM write, never a worker-reply snapshot. */
+export async function submitFilledLoginTarget(target: LoginTarget, stillCurrent: () => boolean): Promise<boolean> {
+  const receipt = fillReceipts.get(target);
+  clearFillReceipt(target);
+  if (!receipt) return false;
+  await new Promise<void>(resolve => setTimeout(resolve, 0));
+  const anchor = target.username ?? target.password;
+  return anchor !== null && performance.now() < receipt.expiresAt && stillCurrent()
+    && target.form.ownerDocument.location.href === receipt.url && isCurrentLoginTarget(target)
+    && targetValues(target) === receipt.snapshot && submitLoginForm(anchor, target);
 }
 
 /** Final isolated-world binding check immediately before any DOM write. */
@@ -244,15 +201,26 @@ export function performBoundFill(
 
   const password = message.loginTargetId === null
     ? firstFillablePassword(doc)
-    : loginTarget?.password ?? null;
-  if (password === null || !submitLoginForm(password)) {
+    : loginTarget?.username ?? loginTarget?.password ?? null;
+  if (password === null || !submitLoginForm(password, loginTarget ?? undefined)) {
     return { ok: false, reason: "no-form" };
   }
   return { ok: true };
 }
 
 /** Submit only the exact form that owns the filled login field. */
-export function submitLoginForm(input: HTMLInputElement): boolean {
+export function submitLoginForm(input: HTMLInputElement, target?: LoginTarget): boolean {
+  if (target !== undefined && (!isCurrentLoginTarget(target)
+    || (input !== target.username && input !== target.password))) return false;
+  if (target !== undefined && !(target.form instanceof HTMLFormElement)) {
+    const actions = queryOpenElements(target.form, 'button, input[type="submit"], input[type="button"]')
+      .filter((action): action is HTMLButtonElement | HTMLInputElement =>
+        (action instanceof HTMLButtonElement || action instanceof HTMLInputElement)
+        && (action.type === 'submit' || action.type === 'button')
+        && isCredentialAction(action) && credentialScopeFor(action) === target.form);
+    if (actions.length !== 1) return false;
+    try { actions[0]?.click(); return true; } catch { return false; }
+  }
   const form = input.isConnected ? input.form : null;
   if (form === null) return false;
   const submitter = form.querySelector<HTMLButtonElement | HTMLInputElement>(
