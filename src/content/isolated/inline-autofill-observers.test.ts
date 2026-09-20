@@ -41,3 +41,51 @@ it('cancels a scheduled scan when the controller stops', async () => {
   await vi.advanceTimersByTimeAsync(200);
   expect(document.querySelector('palladin-autofill')).toBeNull();
 });
+
+// Synthetic component lifecycle: the host is already connected at startup.
+// attachShadow and shadow-internal mutations produce no light-DOM records.
+it.each(['late-login-fields', 'div'])('discovers an open root attached later to an existing %s host without unrelated mutations', async tag => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  const host = document.createElement(tag); document.body.append(host); start();
+  await vi.advanceTimersByTimeAsync(200);
+  host.attachShadow({ mode: 'open' }).innerHTML = form;
+  await vi.advanceTimersByTimeAsync(700);
+  expect(document.querySelectorAll('palladin-autofill')).toHaveLength(1);
+});
+it('does not rescan the idle document while probing future open hosts, and releases probes on stop', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  document.body.innerHTML = '<late-empty-fields></late-empty-fields>';
+  start(); await vi.advanceTimersByTimeAsync(200);
+  const queries = vi.spyOn(document, 'querySelectorAll');
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(queries).not.toHaveBeenCalled();
+  controller!.stop();
+  document.querySelector('late-empty-fields')!.attachShadow({ mode: 'open' }).innerHTML = form;
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(queries).not.toHaveBeenCalled();
+  expect(document.querySelector('palladin-autofill')).toBeNull();
+});
+it('never enters a later closed shadow root', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  const host = document.createElement('private-login-fields'); document.body.append(host); start();
+  await vi.advanceTimersByTimeAsync(200);
+  host.attachShadow({ mode: 'closed' }).innerHTML = form;
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(document.querySelector('palladin-autofill')).toBeNull();
+});
+it('caps host probes per tick and rotates past early hosts across unrelated scans', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  const hosts = Array.from({ length: 600 }, () => document.createElement('late-rotating-fields'));
+  document.body.append(...hosts); start();
+  const probes = hosts.map(host => vi.spyOn(host, 'shadowRoot', 'get'));
+  await vi.advanceTimersByTimeAsync(250);
+  expect(probes.reduce((sum, probe) => sum + probe.mock.calls.length, 0)).toBeLessThanOrEqual(256);
+  probes.forEach(probe => probe.mockRestore());
+  hosts[599]!.attachShadow({ mode: 'open' }).innerHTML = form;
+  // These scans must not keep resetting the probe cursor to the first host.
+  for (let tick = 0; tick < 10; tick++) {
+    document.body.className = `synthetic-${tick}`;
+    await vi.advanceTimersByTimeAsync(100);
+  }
+  expect(document.querySelectorAll('palladin-autofill')).toHaveLength(1);
+});

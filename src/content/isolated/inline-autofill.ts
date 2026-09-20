@@ -92,6 +92,14 @@ function mutationAffectsLoginDiscovery(record: MutationRecord): boolean {
   return target instanceof HTMLInputElement;
 }
 
+// Native attachShadow does not emit a document MutationRecord. Probe only
+// eligible, already-seen hosts; never patch page prototypes or enter closed roots.
+// Native host names: https://dom.spec.whatwg.org/#valid-shadow-host-name
+const SHADOW_HOST_TAGS = new Set(['article', 'aside', 'blockquote', 'body', 'div', 'footer',
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'main', 'nav', 'p', 'section', 'span']);
+const SHADOW_PROBE_INTERVAL_MS = 250;
+const SHADOW_PROBE_BATCH = 256;
+
 class InlineAutofillController {
   private readonly widgets = new Map<HTMLInputElement, InlineWidget>();
   private observer: MutationObserver | null = null;
@@ -100,6 +108,9 @@ class InlineAutofillController {
   private positionFrame: number | null = null;
   private readonly layoutRoots = new Set<ShadowRoot>();
   private scanTimer: ReturnType<typeof setTimeout> | null = null;
+  private shadowProbeTimer: ReturnType<typeof setTimeout> | null = null;
+  private shadowCandidates: WeakRef<Element>[] = [];
+  private shadowCursor = 0;
   private locale: UiLocale = "en";
   private theme: ThemePreference = "system";
   private stopped = false;
@@ -168,9 +179,16 @@ class InlineAutofillController {
     };
     this.observer.observe(this.doc.documentElement, options);
     const roots = new Set<ShadowRoot>();
+    const candidates: WeakRef<Element>[] = [];
     for (const element of queryOpenElements(this.doc, '*')) {
-      if (!element.shadowRoot || this.isOwnedSurface(element)) continue;
+      if (this.isOwnedSurface(element)) continue;
       const root = element.shadowRoot;
+      if (!root) {
+        if (element instanceof HTMLElement && (element.localName.includes('-') || SHADOW_HOST_TAGS.has(element.localName))) {
+          candidates.push(new WeakRef(element));
+        }
+        continue;
+      }
       roots.add(root);
       this.observer.observe(root, options);
       if (!this.layoutRoots.has(root)) {
@@ -180,6 +198,11 @@ class InlineAutofillController {
         this.layoutRoots.add(root);
       }
     }
+    this.shadowCandidates = candidates;
+    // Retain the rotating cursor across unrelated scans, avoiding starvation of
+    // later hosts on a busy SPA. The normal scan removes disconnected hosts.
+    this.shadowCursor %= Math.max(1, candidates.length);
+    this.scheduleShadowProbe();
     for (const root of this.layoutRoots) {
       if (roots.has(root)) continue;
       root.removeEventListener("transitionend", this.handleLayoutEnd, true);
@@ -188,11 +211,31 @@ class InlineAutofillController {
     }
   }
 
+  private scheduleShadowProbe(): void {
+    if (this.stopped || this.shadowProbeTimer !== null || this.shadowCandidates.length === 0) return;
+    this.shadowProbeTimer = setTimeout(() => {
+      this.shadowProbeTimer = null;
+      if (this.stopped) return;
+      const count = Math.min(SHADOW_PROBE_BATCH, this.shadowCandidates.length);
+      for (let index = 0; index < count; index++) {
+        const host = this.shadowCandidates[this.shadowCursor]?.deref();
+        this.shadowCursor = (this.shadowCursor + 1) % this.shadowCandidates.length;
+        // Cheap native property checks only: no DOM traversal or layout reads.
+        if (host?.isConnected && host.ownerDocument === this.doc && host.shadowRoot) this.scheduleScan();
+      }
+      this.scheduleShadowProbe();
+    }, SHADOW_PROBE_INTERVAL_MS);
+  }
+
   stop(): void {
     this.stopped = true;
     this.observer?.disconnect();
     if (this.scanTimer !== null) clearTimeout(this.scanTimer);
     this.scanTimer = null;
+    if (this.shadowProbeTimer !== null) clearTimeout(this.shadowProbeTimer);
+    this.shadowProbeTimer = null;
+    this.shadowCandidates = [];
+    this.shadowCursor = 0;
     this.resizeObserver?.disconnect();
     this.observedInputs.clear();
     const view = this.doc.defaultView;

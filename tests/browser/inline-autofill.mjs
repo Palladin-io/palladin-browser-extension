@@ -147,6 +147,26 @@ try {
   await page.waitForTimeout(400);
   await aligned('[id="«r3»"]');
   console.log('PASS: synthetic host removal and completed transform transition recover one aligned shield');
+  // Synthetic upgrade of a pre-existing host: no light-DOM mutation, resize,
+  // focus or unrelated interaction may be needed to discover its open root.
+  await page.route('https://proton.example.test/late-shadow', route => route.fulfill({
+    contentType: 'text/html; charset=utf-8', body: '<style>body{margin:60px}</style><late-login-fields id="component"></late-login-fields>',
+  }));
+  await page.goto('https://proton.example.test/late-shadow');
+  await page.waitForTimeout(400);
+  await page.evaluate(markup => {
+    customElements.define('late-login-fields', class extends HTMLElement {
+      constructor() {
+        super();
+        this.attachShadow({ mode: 'open' }).innerHTML = '<style>input{display:block;width:400px;height:40px;margin:12px}</style>' + markup;
+      }
+    });
+  }, proton);
+  await page.waitForTimeout(750);
+  assert.equal(await page.locator('palladin-autofill').count(), 1, 'late attached open root must receive one shield');
+  await wait(async () => await page.locator('late-login-fields #password').inputValue() === password, 'late shadow exact-host fill');
+  await aligned('#username');
+  console.log('PASS: synthetic late custom-element upgrade discovers the observed Proton controls without another page mutation');
   assert.deepEqual(api.errors, []);
 } finally {
   popup?.close(); await context?.close(); await api.close(); await rm(profile, { recursive: true, force: true });

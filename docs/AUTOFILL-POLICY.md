@@ -23,6 +23,12 @@ combined login stage, bound to one native form or one bounded credential scope.
 An unrelated standalone email field is not a login stage. Registration, password
 change, ambiguous actions and hidden or readonly controls remain excluded.
 
+Open shadow roots attached after startup are discovered through bounded probes of
+previously observed eligible hosts (at most 256 native property checks per 250 ms).
+Idle probes do not traverse the document or read layout. A newly found root schedules
+the normal throttled scan; closed roots stay inaccessible. Host references are weak,
+and stopping the controller cancels its probes and clears the candidate list.
+
 Requiring a blanket user gesture before every automatic exact-host fill changes
 the product behavior and must not be introduced as a security fix without a new
 explicit product decision.
