@@ -12,6 +12,7 @@ import { cacheBustContentLoaders } from '../../scripts/cache-bust-content-loader
 const directory = 'tests/fixtures/forms/aws-root-identifier-2026-09-18';
 const html = await readFile(`${directory}/page.html`, 'utf8');
 const css = await readFile(`${directory}/page.css`, 'utf8');
+const allegro = await readFile('tests/fixtures/forms/allegro-login-ad-2026-09-20/page.html', 'utf8');
 const profile = await mkdtemp(path.join(tmpdir(), 'palladin-live-'));
 let context;
 try {
@@ -24,7 +25,7 @@ try {
     viewport: { width: 1280, height: 2000 }, args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
   await context.route(/^https?:/, route => {
     const url = new URL(route.request().url());
-    return url.hostname === 'login.example.test' ? route.fulfill({ contentType: 'text/html', body: fixture(url.pathname) }) : route.abort();
+    return url.hostname === 'login.example.test' ? route.fulfill({ contentType: 'text/html; charset=utf-8', body: fixture(url.pathname) }) : route.abort();
   });
   const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
   const page = await context.newPage();
@@ -70,9 +71,34 @@ try {
     assert.deepEqual(await send(target, { channel: 'palladin.agent-live/probe', documentId: target.documentId, targetUrl: target.url }), { outcome: 'challenge' });
     console.log(`PASS ${scenario}: fresh bound stages, replay denial, no-form and challenge`);
   }
+  await page.goto('https://login.example.test/allegro-observed');
+  const target = await binding();
+  const probe = () => send(target, { channel: 'palladin.agent-live/probe', documentId: target.documentId, targetUrl: target.url });
+  let observed = await probe();
+  assert.equal(observed.outcome, 'ready');
+  assert.deepEqual(observed.form.steps[0].fields.map(field => field.entryFieldId), ['credential.username', 'credential.password']);
+  // Synthetic obstacles verify geometry against the observed form. No production
+  // handlers, account values, or iframe contents are replayed.
+  await page.evaluate(() => {
+    const rect = document.querySelector('#password').getBoundingClientRect();
+    const cover = document.createElement('div'); cover.id = 'synthetic-overlay';
+    Object.assign(cover.style, { position: 'fixed', left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`, background: 'white', zIndex: '9999999' });
+    document.body.append(cover);
+  });
+  assert.notEqual((await probe()).outcome, 'ready');
+  await page.evaluate(() => { document.querySelector('#synthetic-overlay').remove(); const captcha = document.createElement('div'); captcha.dataset.sitekey = 'synthetic'; captcha.style.cssText = 'width:200px;height:50px'; document.querySelector('form').append(captcha); });
+  assert.equal((await probe()).outcome, 'challenge');
+  await page.evaluate(() => { document.querySelector('[data-sitekey]').remove(); document.querySelector('form').addEventListener('submit', event => { event.preventDefault(); globalThis.syntheticSubmitted = true; }); });
+  observed = await probe();
+  assert.equal(observed.outcome, 'ready');
+  assert.deepEqual(await send(target, { channel: 'palladin.agent-inject/step', documentId: target.documentId, expectedDomain: 'login.example.test', step: observed.form.steps[0],
+    values: [{ entryFieldId: 'credential.username', value: 'synthetic@example.test' }, { entryFieldId: 'credential.password', value: 'Synthetic-password!42' }] }), { ok: true });
+  assert.equal(await page.evaluate(() => globalThis.syntheticSubmitted), true);
+  console.log('PASS observed-allegro: unrelated ad frame, overlay/CAPTCHA rejection, native fill/submit');
 } finally { await context?.close(); await rm(profile, { recursive: true, force: true }); }
 
 function fixture(route) {
+  if (route === '/allegro-observed') return `<!doctype html><html><body>${allegro}</body></html>`;
   const password = '<label>Password<input type="password" autocomplete="current-password"></label><button>Sign in</button>';
   const identity = '<label>Email<input autocomplete="username" type="email"></label>';
   const otp = '<label>Authenticator code<input autocomplete="one-time-code"></label><button>Verify</button>';

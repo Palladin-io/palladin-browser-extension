@@ -9,6 +9,7 @@ import { loginTargetFor, isFillable } from './credential-form-analysis';
 import { credentialScopeFor, isOneTimeCodeControl, scopeInputs } from './login-controls';
 import { actionCaption, composedForm } from './open-dom';
 import { markAgentManagedControl, isAgentManagedControl, unmarkAgentManagedControl } from './agent-managed-controls';
+import { hasLiveLoginObstacle } from './agent-live-obstacles';
 
 export const LIVE_SELECTOR_PREFIX = 'palladin-live:';
 const ACTION = /^(?:log\s*in|sign\s*in|continue|next|submit|verify|verify code|authenticate|zaloguj(?:\s+się)?|dalej|kontynuuj|potwierdź|zweryfikuj|anmelden|weiter)$/i;
@@ -27,8 +28,7 @@ export class LiveLogin {
     this.clear();
     this.inspectionOutcome = 'no-form';
     const inspected = this.registry.inspect({ channel: AGENT_FORM_INSPECT_CHANNEL, documentId: this.documentId, targetUrl });
-    if (inspected.outcome !== 'ready' || inspected.snapshot.obstacles.length) {
-      if (inspected.outcome === 'ready' && inspected.snapshot.obstacles.length) this.inspectionOutcome = 'challenge';
+    if (inspected.outcome !== 'ready') {
       // A CAPTCHA-only or framed screen may contain no supported controls at all.
       if (inspected.outcome === 'form-too-large' || (inspected.outcome === 'no-controls'
         && [...this.doc.querySelectorAll<HTMLElement>('iframe, [data-sitekey], [id*="captcha" i], [class*="captcha" i], [contenteditable="true"], [role="textbox"], [role="combobox"]')]
@@ -60,6 +60,9 @@ export class LiveLogin {
     if (!scope || scopeInputs(scope).filter(isFillable).some(input =>
       !['hidden', 'checkbox', 'radio', 'button', 'submit'].includes(input.type)
       && !fields.some(field => field.input === input))) { this.clear(); return null; }
+    if (hasLiveLoginObstacle(this.doc, scope, this.dom)) {
+      this.inspectionOutcome = 'challenge'; this.clear(); return null;
+    }
     const actions = nodes.filter(({ element }) => element instanceof HTMLElement
       && credentialScopeFor(element) === scope && ACTION.test((actionCaption(element) ?? '').trim())
       && ((element instanceof HTMLButtonElement || element instanceof HTMLInputElement) && ['submit', 'button'].includes(element.type)));

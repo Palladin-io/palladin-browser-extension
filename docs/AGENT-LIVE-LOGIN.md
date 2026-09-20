@@ -22,6 +22,15 @@ framed forms and unsupported widgets are not automated. A cross-origin redirect,
 including a sibling host after login, stops continuation and releases no further
 values. The caller may separately verify its public destination.
 
+Live login evaluates unsupported editable widgets within its selected native
+credential scope. Advertising frames and unrelated custom controls elsewhere do
+not invalidate a complete, unambiguous top-frame plan. An alternative iframe
+beside native login controls is never inspected, filled or clicked. Recognizable
+CAPTCHA/challenge markers remain blocking, as do covered controls, an incomplete
+plan or competing native credential forms. This is not a claim about opaque
+frame contents; a required verification step remains the website's responsibility
+and is not bypassed. The generic registry retains its global obstacle report.
+
 After posting its own encrypted terminal injection result, the extension permits
 one immediate connection to a fresh idle native host when that session closes.
 The old prepared operation and channel material are discarded first. A new frame
@@ -59,6 +68,13 @@ also bind the composed form owner and its submission destination and target.
 The shared AWS root identifier fixture preserves the observed public native form
 and recorded visibility CSS. Its later password/TOTP transitions in tests are
 explicitly synthetic, not reconstructed AWS account screens.
+
+The Allegro regression preserves a sanitized observed auth-form subtree plus a
+separately observed advertising frame outside it. Its omitted ancestor layout
+and production handlers are documented with the fixture. Submission handlers
+and overlay/CAPTCHA tests are synthetic. The currently observed X flow with a
+plain unannotated DIV action remains unsupported; this change does not invent
+native-button or disabled-button semantics for it.
 
 Unit tests cover SPA and document changes, one native session, value-free
 inspection, grant/Entry/domain changes, expiry, replay, tab replacement,
