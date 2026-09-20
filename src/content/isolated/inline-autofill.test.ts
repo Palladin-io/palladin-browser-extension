@@ -336,7 +336,7 @@ describe("inline autofill field discovery", () => {
       type: "inline/fill",
       vaultId: "v1",
       entryId: "e1",
-      loginTargetId: expect.stringMatching(/^login-\d+$/),
+      loginTargetId: expect.any(String),
     })));
     subject.stop();
   });

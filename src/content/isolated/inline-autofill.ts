@@ -18,6 +18,7 @@ import {
 } from "@shared/messaging";
 import { queryOpenElements } from "./open-dom";
 import {
+  discardLoginTargetFill,
   isCurrentLoginTarget,
   loginTargetFor,
   submitFilledLoginTarget,
@@ -216,7 +217,8 @@ class InlineAutofillController {
 
   resolveLoginTarget(loginTargetId: string): LoginTarget | null {
     for (const widget of this.widgets.values()) {
-      if (widget.loginTargetId === loginTargetId) return widget.loginTarget;
+      const target = widget.takeFillTarget(loginTargetId);
+      if (target !== null) return target;
     }
     return null;
   }
@@ -326,6 +328,14 @@ interface InlineWidgetOptions {
   readonly closeOthers: () => void;
 }
 
+interface PendingInlineFill {
+  readonly id: string;
+  readonly target: LoginTarget;
+  readonly url: string;
+  readonly manual: boolean;
+  initialValues: string | null;
+}
+
 class InlineWidget {
   readonly host: HTMLElement;
   private readonly shadow: ShadowRoot;
@@ -339,6 +349,8 @@ class InlineWidget {
   private suggestionsInFlight: Promise<unknown> | null = null;
   private lastFilled: Pick<InlineAutofillSuggestion, "vaultId" | "entryId" | "name" | "updatedAt"> | null = null;
   private destroyed = false;
+  private nextFillOperation = 0;
+  private pendingFill: PendingInlineFill | null = null;
 
   constructor(private readonly options: InlineWidgetOptions) {
     const surface = createClosedSurface(options.doc, "palladin-autofill");
@@ -360,12 +372,23 @@ class InlineWidget {
     this.shadow.append(this.button, this.panel);
   }
 
-  get loginTarget(): LoginTarget {
-    return this.options.loginTarget;
+  /** A browser-bound delivery can consume only the exact locally initiated operation. */
+  takeFillTarget(id: string): LoginTarget | null {
+    const pending = this.pendingFill;
+    if (!pending || pending.id !== id || pending.initialValues === null) return null;
+    const initialValues = pending.initialValues;
+    pending.initialValues = null;
+    if (this.destroyed || this.options.doc.location.href !== pending.url
+      || !isCurrentLoginTarget(pending.target) || loginValueSnapshot(pending.target) !== initialValues) return null;
+    return pending.target;
   }
 
-  get loginTargetId(): string {
-    return this.options.loginTargetId;
+  private invalidatePendingFill(): void {
+    if (this.pendingFill) {
+      this.pendingFill.initialValues = null;
+      discardLoginTargetFill(this.pendingFill.target);
+    }
+    this.pendingFill = null;
   }
 
   matchesLoginTarget(target: LoginTarget): boolean {
@@ -390,6 +413,7 @@ class InlineWidget {
 
   destroy(): void {
     this.destroyed = true;
+    this.invalidatePendingFill();
     this.invalidateSuggestions();
     this.options.input.removeEventListener("focus", this.handleFocus);
     this.host.remove();
@@ -415,6 +439,7 @@ class InlineWidget {
   }
 
   clearSessionState(): void {
+    this.invalidatePendingFill();
     this.lastFilled = null;
     this.automaticFillRetryRequested = false;
   }
@@ -717,51 +742,67 @@ class InlineWidget {
       if (!silent) this.renderStatus("inline.noForm");
       return false;
     }
-    const originalUrl = this.options.doc.location.href;
-    if (!silent) this.renderStatus("inline.filling");
-    let raw: unknown;
+    // The latest explicit choice supersedes a pending passive/explicit request.
+    // A passive retry cannot displace the user's outstanding choice.
+    if (silent && this.pendingFill?.manual) return false;
+    this.invalidatePendingFill();
+    const operation: PendingInlineFill = {
+      id: `${this.options.loginTargetId}:fill-${++this.nextFillOperation}`,
+      target: { ...this.options.loginTarget },
+      url: this.options.doc.location.href,
+      manual: !silent,
+      initialValues: loginValueSnapshot(this.options.loginTarget),
+    };
+    this.pendingFill = operation;
     try {
-      raw = await this.options.send({
-        channel: INLINE_AUTOFILL_CHANNEL,
-        type: "inline/fill",
-        intent: silent ? "automatic" : "manual",
-        documentId: this.options.documentId,
-        vaultId: entry.vaultId,
-        entryId: entry.entryId,
-        scope: entry.match,
-        loginTargetId: this.options.loginTargetId,
-      });
-    } catch {
-      raw = null;
-    }
-    if (!isInlineAutofillResult(raw) || !raw.ok || raw.kind !== "fill") {
-      if (!silent) this.renderStatus("inline.unavailable");
-      return false;
-    }
-    if (raw.status === "filled" && submitAfterFill) {
-      if (!await submitFilledLoginTarget(this.options.loginTarget,
-        () => !this.destroyed && this.options.doc.location.href === originalUrl)) {
-        if (!silent && !this.destroyed) this.renderStatus("inline.noForm");
+      if (!silent) this.renderStatus("inline.filling");
+      let raw: unknown;
+      try {
+        raw = await this.options.send({
+          channel: INLINE_AUTOFILL_CHANNEL,
+          type: "inline/fill",
+          intent: silent ? "automatic" : "manual",
+          documentId: this.options.documentId,
+          vaultId: entry.vaultId,
+          entryId: entry.entryId,
+          scope: entry.match,
+          loginTargetId: operation.id,
+        });
+      } catch {
+        raw = null;
+      }
+      if (this.pendingFill !== operation || this.destroyed) return false;
+      if (!isInlineAutofillResult(raw) || !raw.ok || raw.kind !== "fill") {
+        if (!silent) this.renderStatus("inline.unavailable");
         return false;
       }
+      if (raw.status === "filled" && submitAfterFill) {
+        if (!await submitFilledLoginTarget(operation.target,
+          () => !this.destroyed && this.pendingFill === operation && this.options.doc.location.href === operation.url)) {
+          if (!silent && !this.destroyed && this.pendingFill === operation) this.renderStatus("inline.noForm");
+          return false;
+        }
+      }
+      if (raw.status === "filled") {
+        this.lastFilled = {
+          vaultId: entry.vaultId,
+          entryId: entry.entryId,
+          name: entry.name,
+          updatedAt: entry.updatedAt,
+        };
+      }
+      if (!silent) {
+        this.renderStatus(raw.status === "filled"
+          ? "inline.filled"
+          : raw.status === "no-form"
+            ? "inline.noForm"
+            : raw.status === "unavailable" ? "inline.unavailable" : "inline.blocked");
+        if (raw.status === "filled") setTimeout(() => this.close(), 700);
+      }
+      return raw.status === "filled";
+    } finally {
+      if (this.pendingFill === operation) this.invalidatePendingFill();
     }
-    if (raw.status === "filled") {
-      this.lastFilled = {
-        vaultId: entry.vaultId,
-        entryId: entry.entryId,
-        name: entry.name,
-        updatedAt: entry.updatedAt,
-      };
-    }
-    if (!silent) {
-      this.renderStatus(raw.status === "filled"
-        ? "inline.filled"
-        : raw.status === "no-form"
-          ? "inline.noForm"
-          : raw.status === "unavailable" ? "inline.unavailable" : "inline.blocked");
-      if (raw.status === "filled") setTimeout(() => this.close(), 700);
-    }
-    return raw.status === "filled";
   }
 
   private renderStatus(key: InlineKey): void {

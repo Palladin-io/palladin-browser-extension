@@ -129,7 +129,7 @@ export function performLoginTargetFill(
         && (expected(input) !== undefined || input.value === '');
       return input.value === '' || input.value === expected(input);
     });
-  clearFillReceipt(target);
+  discardLoginTargetFill(target);
   if (controls.length === 0 || !compatible()) return { ok: false, reason: "no-form" };
   for (const control of controls) {
     if (!compatible() || completed.some(done => done.input.value !== done.value)) {
@@ -158,7 +158,7 @@ const FILL_RECEIPT_TTL_MS = 5_000;
 function targetValues(target: LoginTarget): string {
   return JSON.stringify([target.username?.value ?? null, target.password?.value ?? null]);
 }
-function clearFillReceipt(target: LoginTarget): void {
+export function discardLoginTargetFill(target: LoginTarget): void {
   const receipt = fillReceipts.get(target);
   if (receipt) clearTimeout(receipt.timer);
   fillReceipts.delete(target);
@@ -171,7 +171,7 @@ function rememberFill(target: LoginTarget): void {
 /** One-use local receipt from the actual approved DOM write, never a worker-reply snapshot. */
 export async function submitFilledLoginTarget(target: LoginTarget, stillCurrent: () => boolean): Promise<boolean> {
   const receipt = fillReceipts.get(target);
-  clearFillReceipt(target);
+  discardLoginTargetFill(target);
   if (!receipt) return false;
   await new Promise<void>(resolve => setTimeout(resolve, 0));
   const anchor = target.username ?? target.password;

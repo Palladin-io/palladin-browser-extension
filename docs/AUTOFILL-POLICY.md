@@ -77,7 +77,10 @@ Matching values are preserved without replaying input events. After each DOM wri
 control ownership and both completed and not-yet-written values are rechecked.
 Explicit “Fill and log in” consumes a one-use isolated-world receipt from that
 approved fill, waits one task for framework state, then rechecks URL, scope, control
-identity and approved values before submit. The receipt is memory-only and expires
+identity and approved values before submit. Each request has a one-use local
+operation identity and a value snapshot captured before contacting the worker.
+A new manual choice, session lock or widget removal invalidates earlier deliveries
+and pending submits; a passive retry cannot replace an outstanding manual choice. The receipt is memory-only and expires
 after five seconds. A formless scope requires exactly one enabled native credential
 button; arbitrary page DIV actions are not clicked. Submission is not proof of
 successful authentication.
