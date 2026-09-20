@@ -163,6 +163,25 @@ try {
       console.log(`PASS: ${mode} password change, default-off opt-in, subsequent automatic update`)
     }
   }
+  // Synthetic regional-host mechanism regression, not live AWS acceptance.
+  // Reuse an Entry created through real encrypted writes above. Related-host
+  // equality must suppress both duplicate creation and an old regional update.
+  const beforeRegional = api.writes.length
+  await submit({ host: 'regional.spa-login', kind: 'login', mode: 'spa', username: 'alice', password: 'Synthetic-spa-login-third!' })
+  await absent()
+  assert.equal(api.writes.length, beforeRegional, 'Identical related-host login must not offer a duplicate save')
+  await submit({ host: 'regional.spa-login', kind: 'login', mode: 'spa', username: 'alice', password: 'Synthetic-regional-old!42' })
+  await click('button', 'Save in Personal')
+  await wait(() => api.writes.length === beforeRegional + 1, 'stale regional fixture credential saved')
+  await wait(() => ax().then(nodes => nodes.some(node => node.name?.value === 'Login saved')), 'regional save acknowledgement')
+  const regionalWrite = api.writes.at(-1)
+  assert.equal((await api.decrypt(regionalWrite)).content.password, 'Synthetic-regional-old!42')
+  await submit({ host: 'regional.spa-login', kind: 'login', mode: 'classic', username: 'alice', password: 'Synthetic-spa-login-third!' })
+  await absent()
+  assert.equal(api.writes.length, beforeRegional + 1, 'An identical related Entry must suppress a stale exact-host update prompt')
+  assert.equal((await api.decrypt(regionalWrite)).content.password, 'Synthetic-regional-old!42', 'Suppression never updates the regional Entry')
+  console.log('PASS: identical related-host logins suppress Save/Update without mutations, including a stale exact-host copy')
+
   let before = api.writes.length
   await submit({ host: 'team-registration', kind: 'registration', mode: 'spa', username: 'team-user', password: 'Synthetic-team-account!' })
   await click('button', 'Change...')
