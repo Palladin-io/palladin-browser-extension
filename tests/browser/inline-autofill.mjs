@@ -21,10 +21,11 @@ const username = 'synthetic@example.test';
 const password = 'Synthetic-inline-password!42';
 const proton = await readFile('tests/fixtures/forms/proton-login-2026-09-20/page.html', 'utf8');
 const linkedin = await readFile('tests/fixtures/forms/linkedin-login-2026-09-20/page.html', 'utf8');
+const aws = await readFile('tests/fixtures/forms/aws-root-identifier-2026-09-20/page.html', 'utf8');
 const jetbrains = await readFile('tests/fixtures/forms/jetbrains-identifier-2026-09-20/page.html', 'utf8');
 try {
   const vault = api.vaults[0];
-  for (const host of ['proton.example.test', 'jetbrains.example.test', 'linkedin.example.test']) {
+  for (const host of ['proton.example.test', 'jetbrains.example.test', 'linkedin.example.test', 'aws.example.test']) {
     const entryId = randomUUID();
     const secret = { schema: 'palladin.member-secret.v1', entryType: 'credential', memberLabel: host,
       agentLabel: null, discoverable: false, description: null, icon: null, color: null, agentFieldAccess: { memberLabel: 'never', agentLabel: 'never', description: 'never', icon: 'never', color: 'never',
@@ -39,7 +40,7 @@ try {
       agentDiscoveryRevision: null, agentDiscoveryRevisionHighWatermark: '0', deliveryPolicy: 'standard',
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
   }
-  vault.detail.memberSequence = '4'; vault.detail.entryCount = 3;
+  vault.detail.memberSequence = '5'; vault.detail.entryCount = 4;
   const extension = path.join(profile, 'dist/chromium');
   await promisify(execFile)(process.execPath, ['node_modules/vite/bin/vite.js', 'build', '--outDir', extension], {
     env: { ...process.env, PALLADIN_TARGET: 'chromium', PALLADIN_CHANNEL: 'production', VITE_API_URL: api.url, VITE_POSTHOG_KEY: '' }, maxBuffer: 4 * 1024 * 1024,
@@ -87,6 +88,37 @@ try {
         && shield.right < field.right && shield.left > field.left;
     }, selector), `shield aligned to ${selector}`);
   };
+  // Observed AWS structure, synthetic framework handlers. Real AWS uses a
+  // type=submit Next with a click handler; requestSubmit skips that handler.
+  const awsRequests = [];
+  await page.route('https://aws.example.test/**', route => {
+    const url = new URL(route.request().url());
+    awsRequests.push({ method: route.request().method(), hasQuery: url.search !== '' });
+    const unsafe = url.pathname === '/unsafe';
+    const markup = unsafe ? '<form><input id="username" name="username" autocomplete="username"><input id="password" name="password" type="password" autocomplete="current-password"><button type="submit">Sign in</button></form>' : aws;
+    return route.fulfill({ contentType: 'text/html; charset=utf-8', body:
+      `<style>body{margin:40px}form{width:450px}input:not([type=radio]){display:block;width:400px;height:40px;margin:12px}button{min-height:35px}</style>${markup}<script>
+      globalThis.nextClicks=0;globalThis.submitEvents=0;globalThis.blockedDefault=false;
+      document.querySelector('form').addEventListener('submit',event=>{globalThis.submitEvents++;globalThis.blockedDefault=event.defaultPrevented});
+      ${unsafe ? '' : "document.querySelector('#next_button').addEventListener('click',event=>{event.preventDefault();globalThis.nextClicks++;document.querySelector('#resolving_input').form.innerHTML='<input id=next-password type=password autocomplete=current-password><button type=submit>Sign in</button>'})"}
+      </script>` });
+  });
+  await page.goto('https://aws.example.test/login');
+  await wait(async () => await page.locator('#resolving_input').inputValue() === username, 'AWS observed identifier automatic fill');
+  await click('Open Palladin suggestions'); await click(`Fill and log in: ${username}`);
+  await wait(() => page.evaluate(() => globalThis.nextClicks === 1), 'AWS native Next click handler');
+  assert.equal(await page.evaluate(() => globalThis.submitEvents), 0);
+  assert.equal(new URL(page.url()).pathname, '/login');
+  assert.deepEqual(awsRequests, [{ method: 'GET', hasQuery: false }]);
+  await page.goto('https://aws.example.test/unsafe');
+  await wait(async () => await page.locator('#password').inputValue() === password, 'synthetic default GET password form fill');
+  await click('Open Palladin suggestions'); await click(`Fill and log in: ${username}`);
+  await wait(() => page.evaluate(() => globalThis.submitEvents === 1), 'native GET submit event');
+  assert.equal(await page.evaluate(() => globalThis.blockedDefault), true);
+  await page.waitForTimeout(150);
+  assert.equal(new URL(page.url()).pathname, '/unsafe');
+  assert.deepEqual(awsRequests, [{ method: 'GET', hasQuery: false }, { method: 'GET', hasQuery: false }]);
+  console.log('PASS: observed AWS native Next click and synthetic default-GET credential protection');
   await page.goto('https://proton.example.test/login');
   await wait(async () => await page.locator('#password').inputValue() === password, 'automatic exact-host fill');
   assert.equal(await page.evaluate(() => globalThis.submissions), 0);

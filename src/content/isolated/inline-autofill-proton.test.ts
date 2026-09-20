@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { observeNativeSubmit } from './manual-submit.test-helper';
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { InlineAutofillCommand } from '@shared/messaging';
@@ -21,7 +22,7 @@ function fixture(automatic = true, replyDelay = false) {
   const username = document.querySelector<HTMLInputElement>('#username')!;
   const password = document.querySelector<HTMLInputElement>('#password')!;
   const form = document.querySelector('form')!;
-  const submit = vi.spyOn(form, 'requestSubmit').mockImplementation(() => {});
+  const submit = observeNativeSubmit(form);
   let controller: ReturnType<typeof startInlineAutofill>;
   let lists = 0;
   const send = vi.fn(async (command: InlineAutofillCommand) => {

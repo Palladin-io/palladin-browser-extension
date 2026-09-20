@@ -91,6 +91,22 @@ after five seconds. A formless scope requires exactly one enabled native credent
 button; arbitrary page DIV actions are not clicked. Submission is not proof of
 successful authentication.
 
+### Native manual action
+
+Explicit “Fill and log in” clicks one enabled, visible native action owned by the
+same detected credential scope. A native form uses its unique submit control;
+otherwise a unique native login/Continue/Next button is required. Ambiguous,
+hidden, disabled, foreign-form and arbitrary DIV actions are rejected. The manual
+adapter does not call bare `requestSubmit()`: that skips click handlers and can
+accidentally use a form's default GET behavior.
+
+During that synchronous click, a one-operation submit listener cancels default
+GET serialization, including omitted/invalid methods and a submitter's
+`formmethod` override, without stopping framework click or submit handlers. POST
+and native validation are preserved. The result means that the native action was
+dispatched, not that authentication succeeded. This is not a sandbox against
+scripts on the approved origin, which already observe the filled DOM values.
+
 ## Accepted trust boundary
 
 Filling a password into a page intentionally releases that value to the exact

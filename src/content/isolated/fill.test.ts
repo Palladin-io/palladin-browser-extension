@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { observeNativeSubmit } from './manual-submit.test-helper';
 import { describe, expect, it, vi } from "vitest";
 
 import type { FillField, FillRequestMessage } from "@shared/messaging";
@@ -360,10 +361,8 @@ describe("performBoundFill", () => {
     const login = doc.getElementById("login") as HTMLFormElement;
     const other = doc.getElementById("other") as HTMLFormElement;
     const loginSubmit = doc.getElementById("login-submit") as HTMLButtonElement;
-    const requestLogin = vi.fn();
-    const requestOther = vi.fn();
-    login.requestSubmit = requestLogin;
-    other.requestSubmit = requestOther;
+    const requestLogin = observeNativeSubmit(login);
+    const requestOther = observeNativeSubmit(other);
 
     expect(performBoundFill(
       doc,
@@ -378,8 +377,7 @@ describe("performBoundFill", () => {
   it("does not submit during an ordinary fill", () => {
     const doc = mount(`<form id="login"><input id="pass" type="password"></form>`);
     const form = doc.getElementById("login") as HTMLFormElement;
-    const requestSubmit = vi.fn();
-    form.requestSubmit = requestSubmit;
+    const requestSubmit = observeNativeSubmit(form);
 
     expect(performBoundFill(
       doc,
@@ -431,7 +429,7 @@ describe('one-use isolated manual submit receipt', () => {
   it('allows only one submit after the successful fill', async () => {
     mount('<form><input autocomplete="username"><input type="password" autocomplete="current-password"><button type="submit">Sign in</button></form>');
     const target = loginTargetFor(document.querySelector('input')! )!;
-    const submit = vi.spyOn(document.querySelector('form')!, 'requestSubmit').mockImplementation(() => {});
+    const submit = observeNativeSubmit(document.querySelector('form')!);
     expect(performLoginTargetFill(target, CREDS)).toEqual({ ok: true });
     expect(await submitFilledLoginTarget(target, () => true)).toBe(true);
     expect(await submitFilledLoginTarget(target, () => true)).toBe(false);
@@ -443,7 +441,7 @@ describe('one-use isolated manual submit receipt', () => {
     try {
       mount('<form><input autocomplete="username"><input type="password" autocomplete="current-password"><button type="submit">Sign in</button></form>');
       const target = loginTargetFor(document.querySelector('input')!)!;
-      const submit = vi.spyOn(document.querySelector('form')!, 'requestSubmit').mockImplementation(() => {});
+      const submit = observeNativeSubmit(document.querySelector('form')!);
       expect(performLoginTargetFill(target, CREDS)).toEqual({ ok: true });
       await vi.advanceTimersByTimeAsync(5_001);
       expect(await submitFilledLoginTarget(target, () => true)).toBe(false);

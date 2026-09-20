@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { observeNativeSubmit } from './manual-submit.test-helper';
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { InlineAutofillCommand } from '@shared/messaging';
@@ -20,7 +21,7 @@ it('mounts a shield on the observed JetBrains identifier and rebinds a synthetic
   document.body.innerHTML = readFileSync('tests/fixtures/forms/jetbrains-identifier-2026-09-20/page.html', 'utf8');
   const form = document.querySelector('form')!;
   const identifier = document.querySelector<HTMLInputElement>('#email')!;
-  const submit = vi.spyOn(form, 'requestSubmit').mockImplementation(() => {});
+  const submit = observeNativeSubmit(form);
   let controller: ReturnType<typeof startInlineAutofill>;
   const targetIds: string[] = [];
   const fill = (loginTargetId: string) => performBoundFill(document, { channel: 'palladin.fill/request', documentId: 'fixture-document',

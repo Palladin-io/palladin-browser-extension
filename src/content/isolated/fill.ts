@@ -9,8 +9,8 @@ type TextLikeInput = HTMLInputElement;
 type FillControl = HTMLInputElement | HTMLTextAreaElement;
 
 import { isFillable, isCurrentLoginTarget, type LoginTarget } from './credential-form-analysis';
-import { credentialScopeFor, isCredentialAction } from './login-controls';
-import { queryOpenElements } from './open-dom';
+import { credentialScopeFor, isVisibleScopeHint } from './login-controls';
+import { actionCaption, queryOpenElements } from './open-dom';
 export { isFillable, isCurrentLoginTarget, loginTargetFor, type LoginTarget } from './credential-form-analysis';
 
 const USERNAME_TYPES = new Set(["text", "email", "tel", ""]);
@@ -218,31 +218,47 @@ export function performBoundFill(
   return { ok: true };
 }
 
-/** Submit only the exact form that owns the filled login field. */
+const LOGIN_ACTION = /^(?:log\s*in|sign\s*in|continue|next|submit|zaloguj(?:\s+się)?|dalej|kontynuuj|anmelden|weiter)$/i;
+
+/** Dispatch the exact native action, not proof of authentication or navigation.
+ * Native click preserves framework click handlers and browser form validation.
+ * Never synthesize a bare form submission when no unambiguous action exists.
+ */
 export function submitLoginForm(input: HTMLInputElement, target?: LoginTarget): boolean {
-  if (target !== undefined && (!isCurrentLoginTarget(target)
-    || (input !== target.username && input !== target.password))) return false;
-  if (target !== undefined && !(target.form instanceof HTMLFormElement)) {
-    const actions = queryOpenElements(target.form, 'button, input[type="submit"], input[type="button"]')
-      .filter((action): action is HTMLButtonElement | HTMLInputElement =>
-        (action instanceof HTMLButtonElement || action instanceof HTMLInputElement)
-        && (action.type === 'submit' || action.type === 'button')
-        && isCredentialAction(action) && credentialScopeFor(action) === target.form);
-    if (actions.length !== 1) return false;
-    try { actions[0]?.click(); return true; } catch { return false; }
-  }
-  const form = input.isConnected ? input.form : null;
-  if (form === null) return false;
-  const submitter = form.querySelector<HTMLButtonElement | HTMLInputElement>(
-    'button[type="submit"]:not([disabled]), input[type="submit"]:not([disabled])',
-  );
-  try {
-    if (submitter !== null) form.requestSubmit(submitter);
-    else form.requestSubmit();
-    return true;
-  } catch {
-    return false;
-  }
+  if (!input.isConnected || (target !== undefined && (!isCurrentLoginTarget(target)
+    || (input !== target.username && input !== target.password)))) return false;
+  const scope = target?.form ?? input.form;
+  if (scope === null) return false;
+  const nativeForm = scope instanceof HTMLFormElement ? scope : null;
+  const candidates = new Set<Element>(queryOpenElements(scope, 'button, input[type="submit"], input[type="button"]'));
+  // Include controls explicitly associated with this form outside its subtree.
+  if (nativeForm !== null) for (const control of Array.from(nativeForm.elements)) candidates.add(control);
+  const actions = Array.from(candidates).filter((action): action is HTMLButtonElement | HTMLInputElement =>
+    (action instanceof HTMLButtonElement || action instanceof HTMLInputElement)
+    && (action.type === 'submit' || action.type === 'button')
+    && !action.matches(':disabled, [aria-disabled="true"]') && isVisibleScopeHint(action)
+    && credentialScopeFor(action) === scope);
+  const submits = nativeForm === null ? [] : actions.filter(action => action.type === 'submit');
+  const eligible = submits.length > 0 ? submits : actions.filter(action => LOGIN_ACTION.test(
+    (action instanceof HTMLInputElement ? action.value : actionCaption(action) ?? '').trim()));
+  if (eligible.length !== 1) return false;
+  const action = eligible[0]!;
+  // A framework may intercept click OR submit. Cancel unsafe browser-default GET
+  // without stopping either handler; omitted/invalid method means GET. The page
+  // already has DOM access to filled values; this guards our default navigation,
+  // not deliberate exfiltration by an origin script.
+  const guardGet = (event: Event) => {
+    if (nativeForm === null || event.target !== nativeForm) return;
+    const submitter = (event as SubmitEvent).submitter;
+    const override = submitter?.getAttribute('formmethod');
+    const method = (override ?? nativeForm.getAttribute('method') ?? 'get').toLowerCase();
+    if (method !== 'post' && method !== 'dialog') event.preventDefault();
+  };
+  const eventRoot = scope.getRootNode();
+  eventRoot.addEventListener('submit', guardGet, true);
+  try { action.click(); return true; }
+  catch { return false; }
+  finally { eventRoot.removeEventListener('submit', guardGet, true); }
 }
 
 function performCardFill(doc: Document, fields: readonly FillField[]): FillOutcome {

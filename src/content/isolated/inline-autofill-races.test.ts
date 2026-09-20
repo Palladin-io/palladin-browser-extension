@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { observeNativeSubmit } from './manual-submit.test-helper';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { InlineAutofillCommand } from '@shared/messaging';
 import { performBoundFill } from './fill';
@@ -16,7 +17,7 @@ afterEach(() => { controller?.stop(); controller = undefined; document.body.repl
 function fixture(automatic = false) {
   const username = document.querySelector<HTMLInputElement>('#username')!;
   const password = document.querySelector<HTMLInputElement>('#password')!;
-  const submit = vi.spyOn(document.querySelector('form')!, 'requestSubmit').mockImplementation(() => {});
+  const submit = observeNativeSubmit(document.querySelector('form')!);
   const pending: { apply(): boolean; reply(): void; id: string }[] = [];
   let initialList = true;
   const send = async (command: InlineAutofillCommand): Promise<unknown> => {
