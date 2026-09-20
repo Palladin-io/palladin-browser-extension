@@ -24,6 +24,16 @@ the exact host. Registration and password-change comparisons remain exact-host.
 The capture currently has no binding to the Entry selected during autofill, so
 the equality check considers eligible saved Credentials within that domain.
 
+An ambiguous registration may supply two identity alternatives: email and
+nickname. The closed save surface asks which field is the login, with neither
+preselected and no Save/Update target before the choice. The alternatives stay
+in the existing bounded worker-memory capture; the surface receives only the
+selected field name, never the alternative values. Choosing a field resolves
+fresh write targets but does not save. Changing that choice invalidates the
+previous target handles. Saving remains a separate explicit action, with the
+same document, origin, profile, session and expiry checks. Locked prompts expose
+neither alternatives nor a selection. Both choices have English and Polish copy.
+
 The regional regression uses synthetic credentials and origins; it does not
 establish live AWS acceptance. A manual acceptance check must observe a fresh
 user-controlled submission, no Save/Update proposal after the outcome settles,

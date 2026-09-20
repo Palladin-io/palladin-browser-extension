@@ -3,6 +3,7 @@ import {
   type CredentialCapturePrompt,
   type CredentialCaptureResult,
   type SubmittedCredential,
+  type UsernameChoice,
 } from "@shared/messaging/credential-capture";
 import { registrableDomain } from "@shared/security/domain";
 
@@ -75,7 +76,9 @@ interface PendingCredential {
   readonly id: string;
   readonly submissionId: string;
   profileId: string | null;
-  readonly credential: SubmittedCredential | null;
+  credential: SubmittedCredential | null;
+  readonly usernameOptions: Readonly<Record<UsernameChoice, string>> | null;
+  usernameChoice: UsernameChoice | null;
   readonly identifier: string | null;
   readonly origin: string;
   readonly site: string;
@@ -255,6 +258,15 @@ export class CredentialCaptureCoordinator {
       return { status: "dismissed" };
     }
     if (!session.unlocked || pending.sessionGeneration !== session.generation) return { status: "stale" };
+    if (command.type === 'choose-username') {
+      if (!pending.usernameOptions || !pending.credential || !(await this.stillAuthorized(pending, session))) return { status: 'stale' };
+      pending.credential = { ...pending.credential, username: pending.usernameOptions[command.choice] };
+      pending.usernameChoice = command.choice;
+      pending.choices.clear();
+      pending.defaultTargetId = null;
+      return this.present(pending, session, true);
+    }
+    if (pending.usernameOptions && pending.usernameChoice === null) return { status: 'stale' };
     const target = pending.choices.get(command.targetId);
     if (!target) return { status: "stale" };
     return this.save(pending, session, target, command.autoUpdate);
@@ -265,8 +277,13 @@ export class CredentialCaptureCoordinator {
     source: CredentialCaptureSource,
   ): PendingCredential | null {
     const previous = this.pending.get(source.tabId);
-    let credential = command.type === "submitted" ? { ...command.credential } : null;
-    const inherit = credential !== null && !credential.username && credential.kind !== "password-change";
+    const usernameOptions = command.type === 'submitted' && command.credential.usernameOptions
+      ? { ...command.credential.usernameOptions } : null;
+    let credential: SubmittedCredential | null = command.type === "submitted" ? {
+      kind: command.credential.kind, username: command.credential.username,
+      password: command.credential.password, previousPassword: command.credential.previousPassword,
+    } : null;
+    const inherit = credential !== null && !usernameOptions && !credential.username && credential.kind !== "password-change";
     if (inherit) {
       if (!previous || previous.credential !== null || previous.profileId === null
         || previous.origin !== origin(source.url) || this.now() - previous.submittedAt >= PENDING_TTL_MS
@@ -282,7 +299,8 @@ export class CredentialCaptureCoordinator {
     if (this.pending.size >= MAX_PENDING_TABS) this.clearTab(this.pending.keys().next().value!);
     const pending: PendingCredential = {
       id: this.createId(), submissionId: command.submissionId, profileId: inherit ? previous!.profileId : null,
-      credential, identifier: command.type === "identifier" ? command.username : null, origin: origin(source.url)!, site,
+      credential, usernameOptions, usernameChoice: null,
+      identifier: command.type === "identifier" ? command.username : null, origin: origin(source.url)!, site,
       submittedAt: inherit ? previous!.submittedAt : this.now(), sourceDocumentId: source.browserDocumentId, source,
       outcome: "waiting", choices: new Map(), defaultTargetId: null, sessionGeneration: inherit ? previous!.sessionGeneration : null,
       navigationStarted: false, loading: false, successorDocumentId: null,
@@ -296,6 +314,11 @@ export class CredentialCaptureCoordinator {
   private async present(pending: PendingCredential, session: CaptureSession, refresh = false): Promise<CredentialCaptureResult> {
     if (pending.credential === null) return { status: "prompt", prompt: null };
     if (!session.unlocked) return { status: "prompt", prompt: this.view(pending, "locked") };
+    if (pending.usernameOptions && pending.usernameChoice === null) {
+      if (!(await this.stillAuthorized(pending, session))) return { status: 'stale' };
+      pending.sessionGeneration = session.generation;
+      return { status: 'prompt', prompt: this.view(pending, 'ready') };
+    }
     if (refresh || pending.sessionGeneration !== session.generation || pending.choices.size === 0) {
       const choices = await this.deps.choices(pending.credential, pending.source.url);
       if (!(await this.stillAuthorized(pending, session))) return { status: "stale" };
@@ -322,7 +345,7 @@ export class CredentialCaptureCoordinator {
     target: CredentialWriteTarget,
     autoUpdate: boolean,
   ): Promise<CredentialCaptureResult> {
-    if (pending.credential === null) return { status: "stale" };
+    if (pending.credential === null || (pending.usernameOptions && pending.usernameChoice === null)) return { status: "stale" };
     const stillAuthorized = () => this.stillAuthorized(pending, session);
     if (!(await stillAuthorized())) return { status: "stale" };
     let result: Awaited<ReturnType<CredentialCaptureCoordinatorDeps["save"]>>;
@@ -377,6 +400,7 @@ export class CredentialCaptureCoordinator {
         id, action: target.action, label: target.label, vaultLabel: target.vaultLabel,
       })),
       defaultTargetId: state === "locked" ? null : pending.defaultTargetId,
+      ...(state === 'ready' && pending.usernameOptions ? { usernameSelection: { selected: pending.usernameChoice } } : {}),
     };
   }
 }

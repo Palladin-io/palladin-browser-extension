@@ -43,6 +43,35 @@ describe("credential capture toast", () => {
     await vi.advanceTimersByTimeAsync(0);
   }
 
+  it('asks for email or nickname without a default or a save button until selection', async () => {
+    const initial = { ...view, targets: [], defaultTargetId: null, usernameSelection: { selected: null } };
+    send.mockResolvedValue({ status: 'prompt', prompt: { ...view, usernameSelection: { selected: 'email' } } });
+    toast.show({ status: 'prompt', prompt: initial });
+    expect(ui().queryByRole('button', { name: /^Save|^Update/ })).toBeNull();
+    const email = ui().queryByRole('radio', { name: 'Email' });
+    expect(email, 'Ambiguous registration must offer the email choice').not.toBeNull();
+    expect(email).toHaveAttribute('aria-checked', 'false');
+    expect(ui().getByRole('radio', { name: 'Nickname' })).toHaveAttribute('aria-checked', 'false');
+    email!.click(); await vi.advanceTimersByTimeAsync(0);
+    expect(send).toHaveBeenCalledExactlyOnceWith({ channel: 'palladin.credential-capture', documentId: 'document-123456789',
+      type: 'choose-username', promptId: view.id, choice: 'email' });
+    expect(ui().getByRole('radio', { name: 'Email' })).toHaveAttribute('aria-checked', 'true');
+    expect(shadow.querySelector('input')).toBeNull();
+  });
+
+  it('localizes both identity choices and uses the protected action boundary', async () => {
+    toast.setAppearance('pl', 'dark');
+    toast.show({ status: 'prompt', prompt: { ...view, targets: [], defaultTargetId: null,
+      usernameSelection: { selected: null } } });
+    expect(ui().getByRole('radiogroup', { name: 'Którego pola używasz jako loginu?' })).toBeVisible();
+    expect(ui().getByRole('radio', { name: 'E-mail' })).toHaveAttribute('aria-checked', 'false');
+    acceptsAction.mockReturnValue(false);
+    ui().getByRole('radio', { name: 'Pseudonim' }).click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(send).not.toHaveBeenCalled();
+    expect(shadow.querySelector('input, textarea')).toBeNull();
+  });
+
   it("uses a closed root, no text inputs and a default-off account checkbox", () => {
     expect(document.querySelector("palladin-capture")!.shadowRoot).toBeNull();
     expect(shadow.querySelector("input, textarea")).toBeNull();

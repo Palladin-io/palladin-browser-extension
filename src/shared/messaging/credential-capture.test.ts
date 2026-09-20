@@ -18,6 +18,9 @@ describe("isolated credential capture protocol", () => {
     expect(isCredentialCaptureCommand({ ...submitted, credential })).toBe(true);
     for (const patch of [{ kind: 'login' }, { username: 'preselected' }, { usernameOptions: { email: '', nickname: 'handle' } },
       { usernameOptions: { email: 'contact@example.test', nickname: 'x'.repeat(513) } },
+      { usernameOptions: { email: 'contact@example.test' } },
+      { usernameOptions: { email: ' contact@example.test', nickname: 'handle' } },
+      { usernameOptions: null },
       { usernameOptions: { email: 'same', nickname: 'same' } },
       { usernameOptions: { email: 'contact@example.test', nickname: 'handle', password: 'injected' } }]) {
       expect(isCredentialCaptureCommand({ ...submitted, credential: { ...credential, ...patch } })).toBe(false);
@@ -27,6 +30,22 @@ describe("isolated credential capture protocol", () => {
     expect(isCredentialCaptureCommand({ ...choose, choice: 'nickname' })).toBe(true);
     expect(isCredentialCaptureCommand({ ...choose, choice: 'other' })).toBe(false);
     expect(isCredentialCaptureCommand({ ...choose, username: 'injected' })).toBe(false);
+  });
+  it('keeps identity selection responses value-free and forbids write targets before selection', () => {
+    const prompt = { id: submitted.submissionId, site: 'example.com', state: 'ready', targets: [],
+      defaultTargetId: null, usernameSelection: { selected: null } };
+    expect(isCredentialCaptureResult({ status: 'prompt', prompt })).toBe(true);
+    for (const patch of [
+      { state: 'locked' },
+      { usernameSelection: { selected: 'invalid' } },
+      { usernameSelection: {} },
+      { usernameSelection: { selected: null, email: 'private@example.test' } },
+      { usernameOptions: { email: 'private@example.test', nickname: 'private-handle' } },
+      { targets: [{ id: submitted.submissionId, action: 'create', label: 'Personal', vaultLabel: 'Personal' }] },
+    ]) expect(isCredentialCaptureResult({ status: 'prompt', prompt: { ...prompt, ...patch } })).toBe(false);
+    for (const selected of ['email', 'nickname']) {
+      expect(isCredentialCaptureResult({ status: 'prompt', prompt: { ...prompt, usernameSelection: { selected } } })).toBe(true);
+    }
   });
   it("accepts short passwords without normalizing their value", () => {
     expect(isCredentialCaptureCommand(submitted)).toBe(true);
