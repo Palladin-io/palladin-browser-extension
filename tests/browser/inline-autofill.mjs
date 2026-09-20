@@ -135,6 +135,18 @@ try {
   assert.equal(await page.locator('[id="«r0»"]').inputValue(), '');
   assert.equal(await page.locator('[id="«r1»"]').inputValue(), '');
   console.log('PASS: observed LinkedIn variants fill only visible controls and mount one aligned shield');
+  // Synthetic page-framework mutations, not claimed as observed LinkedIn behavior.
+  const preservedHost = await page.locator('palladin-autofill').elementHandle();
+  await page.locator('palladin-autofill').evaluate(host => host.remove());
+  await wait(() => preservedHost.evaluate(host => host.isConnected), 'removed shield host restored');
+  assert.equal(await page.locator('palladin-autofill').count(), 1);
+  await aligned('[id="«r3»"]');
+  await page.locator('[id="«r3»"]').evaluate(input => { input.parentElement.style.transition = 'transform 300ms linear'; });
+  await page.waitForTimeout(40);
+  await page.locator('[id="«r3»"]').evaluate(input => { input.parentElement.style.transform = 'translateY(100px)'; });
+  await page.waitForTimeout(400);
+  await aligned('[id="«r3»"]');
+  console.log('PASS: synthetic host removal and completed transform transition recover one aligned shield');
   assert.deepEqual(api.errors, []);
 } finally {
   popup?.close(); await context?.close(); await api.close(); await rm(profile, { recursive: true, force: true });

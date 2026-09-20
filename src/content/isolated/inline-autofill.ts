@@ -85,7 +85,9 @@ function mutationAffectsLoginDiscovery(record: MutationRecord): boolean {
   if (record.attributeName === "id") return target instanceof HTMLFormElement || target instanceof HTMLInputElement;
   if (["class", "style", "hidden", "aria-hidden", "inert", "disabled", "open"]
     .includes(record.attributeName ?? "")) {
-    return target instanceof HTMLInputElement || queryOpenElements(target, 'input').length > 0;
+    // Ancestors may own inputs in open roots. Keep this callback O(records);
+    // the throttled scan decides whether a credential scope is affected.
+    return true;
   }
   return target instanceof HTMLInputElement;
 }
@@ -96,7 +98,8 @@ class InlineAutofillController {
   private resizeObserver: ResizeObserver | null = null;
   private readonly observedInputs = new Set<HTMLInputElement>();
   private positionFrame: number | null = null;
-  private scheduled = false;
+  private readonly layoutRoots = new Set<ShadowRoot>();
+  private scanTimer: ReturnType<typeof setTimeout> | null = null;
   private locale: UiLocale = "en";
   private theme: ThemePreference = "system";
   private stopped = false;
@@ -117,11 +120,12 @@ class InlineAutofillController {
     }
     this.scan();
     this.observer = new view.MutationObserver((records) => {
-      if (records.some(mutationAffectsLoginDiscovery)) this.scheduleScan();
+      const pageRecords = records.filter(record => !(record.target instanceof Element && this.isOwnedSurface(record.target)));
+      if (pageRecords.some(mutationAffectsLoginDiscovery)) this.scheduleScan();
       // Inputs can move without resizing when a sibling error appears. Do not
       // observe our own positioning writes recursively or scan the whole form
       // just because unrelated page text changed.
-      if (records.some(record => !(record.target instanceof Element && this.isOwnedSurface(record.target)))) {
+      if (pageRecords.length > 0) {
         this.scheduleReposition();
       }
     });
@@ -129,6 +133,8 @@ class InlineAutofillController {
     view.addEventListener("scroll", this.reposition, true);
     view.addEventListener("resize", this.handleResize);
     this.doc.addEventListener("pointerdown", this.closeOutside, true);
+    this.doc.addEventListener("transitionend", this.handleLayoutEnd, true);
+    this.doc.addEventListener("animationend", this.handleLayoutEnd, true);
     void this.loadPreferences();
   }
 
@@ -161,14 +167,32 @@ class InlineAutofillController {
       ],
     };
     this.observer.observe(this.doc.documentElement, options);
+    const roots = new Set<ShadowRoot>();
     for (const element of queryOpenElements(this.doc, '*')) {
-      if (element.shadowRoot && !this.isOwnedSurface(element)) this.observer.observe(element.shadowRoot, options);
+      if (!element.shadowRoot || this.isOwnedSurface(element)) continue;
+      const root = element.shadowRoot;
+      roots.add(root);
+      this.observer.observe(root, options);
+      if (!this.layoutRoots.has(root)) {
+        // Native transition/animation end events do not cross shadow boundaries.
+        root.addEventListener("transitionend", this.handleLayoutEnd, true);
+        root.addEventListener("animationend", this.handleLayoutEnd, true);
+        this.layoutRoots.add(root);
+      }
+    }
+    for (const root of this.layoutRoots) {
+      if (roots.has(root)) continue;
+      root.removeEventListener("transitionend", this.handleLayoutEnd, true);
+      root.removeEventListener("animationend", this.handleLayoutEnd, true);
+      this.layoutRoots.delete(root);
     }
   }
 
   stop(): void {
     this.stopped = true;
     this.observer?.disconnect();
+    if (this.scanTimer !== null) clearTimeout(this.scanTimer);
+    this.scanTimer = null;
     this.resizeObserver?.disconnect();
     this.observedInputs.clear();
     const view = this.doc.defaultView;
@@ -177,6 +201,13 @@ class InlineAutofillController {
     view?.removeEventListener("scroll", this.reposition, true);
     view?.removeEventListener("resize", this.handleResize);
     this.doc.removeEventListener("pointerdown", this.closeOutside, true);
+    this.doc.removeEventListener("transitionend", this.handleLayoutEnd, true);
+    this.doc.removeEventListener("animationend", this.handleLayoutEnd, true);
+    for (const root of this.layoutRoots) {
+      root.removeEventListener("transitionend", this.handleLayoutEnd, true);
+      root.removeEventListener("animationend", this.handleLayoutEnd, true);
+    }
+    this.layoutRoots.clear();
     for (const widget of this.widgets.values()) widget.destroy();
     this.widgets.clear();
   }
@@ -236,6 +267,8 @@ class InlineAutofillController {
     });
   }
 
+  private readonly handleLayoutEnd = (): void => this.scheduleReposition();
+
   private readonly handleResize = (): void => {
     this.scheduleScan();
     this.reposition();
@@ -248,12 +281,13 @@ class InlineAutofillController {
   };
 
   private scheduleScan(): void {
-    if (this.scheduled || this.stopped) return;
-    this.scheduled = true;
-    queueMicrotask(() => {
-      this.scheduled = false;
+    if (this.scanTimer !== null || this.stopped) return;
+    // Fixed cadence, not a trailing debounce: a busy SPA cannot postpone
+    // discovery forever. Geometry updates stay independently frame-coalesced.
+    this.scanTimer = setTimeout(() => {
+      this.scanTimer = null;
       if (!this.stopped) this.scan();
-    });
+    }, 100);
   }
 
   private scan(): void {
@@ -265,7 +299,7 @@ class InlineAutofillController {
       if (currentTarget === null || !widget.matchesLoginTarget(currentTarget)) {
         widget.destroy();
         this.widgets.delete(input);
-      }
+      } else widget.restoreHost();
     }
     if (this.widgets.size === 0) this.automaticFillUrl = null;
     for (const input of queryOpenElements<HTMLInputElement>(this.doc, 'input')) {
@@ -409,6 +443,13 @@ class InlineWidget {
     });
     this.reposition();
     this.options.doc.defaultView?.requestAnimationFrame?.(() => this.reposition());
+  }
+
+  /** Restore only the owned host, preserving listeners, fill state and operation identity. */
+  restoreHost(): void {
+    if (this.destroyed || this.host.isConnected) return;
+    this.options.doc.documentElement.append(this.host);
+    this.reposition();
   }
 
   destroy(): void {

@@ -93,3 +93,33 @@ it('mounts only on the observed visible LinkedIn formless variant', () => {
   expect(isLoginField(visible)).toBe(true);
   expect(document.querySelectorAll('palladin-autofill')).toHaveLength(1);
 });
+
+
+it.each(['transitionend', 'animationend'])('repositions after a completed %s without a size change', async event => {
+  document.body.innerHTML = form;
+  const input = document.querySelector('input')!;
+  const rect = geometry(input); start();
+  const host = document.querySelector<HTMLElement>('palladin-autofill')!;
+  await new Promise(resolve => setTimeout(resolve, 40));
+  rect.top = 180; rect.bottom = 220;
+  input.parentElement!.dispatchEvent(new Event(event, { bubbles: true }));
+  await vi.waitFor(() => expect(host.style.top).toBe('187px'));
+});
+
+
+it('handles non-composed layout events inside open roots and releases listeners on stop', async () => {
+  const component = document.createElement('section'); document.body.append(component);
+  const root = component.attachShadow({ mode: 'open' }); root.innerHTML = form;
+  const input = root.querySelector('input')!;
+  const rect = geometry(input); start();
+  const host = document.querySelector<HTMLElement>('palladin-autofill')!;
+  await new Promise(resolve => setTimeout(resolve, 40));
+  rect.top = 180; rect.bottom = 220;
+  input.dispatchEvent(new Event('transitionend', { bubbles: true, composed: false }));
+  await vi.waitFor(() => expect(host.style.top).toBe('187px'));
+  controller!.stop();
+  const bounds = vi.spyOn(input, 'getBoundingClientRect'); bounds.mockClear();
+  input.dispatchEvent(new Event('animationend', { bubbles: true, composed: false }));
+  await new Promise(resolve => setTimeout(resolve, 40));
+  expect(bounds).not.toHaveBeenCalled();
+});
