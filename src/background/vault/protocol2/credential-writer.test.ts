@@ -92,6 +92,57 @@ describe('captured Credential canonical writer', () => {
     expect(await writer.choices(credential, url)).toEqual({ identical: false, targets: [], defaultIndex: null })
     expect(client.listVaults).not.toHaveBeenCalled()
   })
+  // Synthetic matching regression for regional sign-in hosts. This does not
+  // claim a replay of AWS authentication or inspect a real stored credential.
+  it.each([false, true])('suppresses an identical related-host login even with a stale exact copy: %s', async staleExact => {
+    const regional = 'https://us-west-2.signin.example.com/login'
+    const related = createCapturedCredentialSecret({ label: 'Sign in', username: 'alice', password: 'same-pass',
+      url: 'https://signin.example.com', urlDomain: 'signin.example.com' })
+    data.refresh.mockResolvedValue([
+      ...(staleExact ? [{ vaultId: VAULT, id: 'regional-entry', type: 1, urlDomain: 'us-west-2.signin.example.com' }] : []),
+      { vaultId: VAULT, id: ENTRY, type: 1, urlDomain: 'signin.example.com' },
+    ])
+    client.getEntry.mockImplementation(async (_token, _vault, id) => ({ ...detail, id }))
+    cryptoMocks.openCurrentMemberSecret.mockImplementation(async (_key, _envelope, _vaultKey, scope) =>
+      scope.entryId === ENTRY ? related : { ...related, content: { ...related.content,
+        password: 'stale-pass', urlDomain: 'us-west-2.signin.example.com' } })
+    expect(await writer.choices({ kind: 'login', username: 'alice', password: 'same-pass', previousPassword: null }, regional))
+      .toEqual({ identical: true, targets: [], defaultIndex: null })
+    expect(client.updateEntry).not.toHaveBeenCalled()
+    expect(client.createEntry).not.toHaveBeenCalled()
+  })
+  it.each(['password', 'username', 'case', 'whitespace'])('does not suppress a related-host login with different %s', async difference => {
+    const candidate = { kind: 'login' as const, username: 'alice', password: 'old-pass', previousPassword: null }
+    if (difference === 'password') candidate.password = 'different-pass'
+    if (difference === 'username') candidate.username = 'bob'
+    if (difference === 'case') candidate.username = 'Alice'
+    if (difference === 'whitespace') candidate.password = ' old-pass '
+    expect(await writer.choices(candidate, 'https://regional.example.com/login')).toMatchObject({
+      identical: false, targets: [{ action: 'create', vaultId: VAULT }], defaultIndex: 0,
+    })
+  })
+  it.each(['https://login.other.test', 'https://other.github.io'])('never reads unrelated credentials for duplicate suppression on %s', async liveUrl => {
+    data.refresh.mockResolvedValue([{ vaultId: VAULT, id: ENTRY, type: 1, urlDomain: 'tenant.github.io' }])
+    expect((await writer.choices({ ...credential, kind: 'login', password: 'old-pass' }, liveUrl)).identical).toBe(false)
+    expect(client.getEntry).not.toHaveBeenCalled()
+    expect(cryptoMocks.openCurrentMemberSecret).not.toHaveBeenCalled()
+  })
+  it('keeps direct save restricted to the exact stored host', async () => {
+    await expect(writer.save(credential, 'https://regional.example.com/login', target, authorized))
+      .rejects.toThrow('Capture Entry scope changed')
+    expect(client.updateEntry).not.toHaveBeenCalled()
+  })
+  it.each(['registration', 'password-change'] as const)('retains exact-host comparisons for %s', async kind => {
+    expect(await writer.choices({ ...credential, kind, password: 'old-pass' }, 'https://regional.example.com/login'))
+      .toMatchObject({ identical: false, targets: [{ action: 'create', vaultId: VAULT }], defaultIndex: 0 })
+    expect(client.getEntry).not.toHaveBeenCalled()
+  })
+  it('checks the decrypted host before suppressing a related-site prompt', async () => {
+    cryptoMocks.openCurrentMemberSecret.mockResolvedValue({ ...secret, content: { ...secret.content, urlDomain: 'other.test' } })
+    await expect(writer.choices({ ...credential, kind: 'login', password: 'old-pass' }, 'https://regional.example.com/login'))
+      .rejects.toThrow('Capture Entry scope changed')
+    expect(client.updateEntry).not.toHaveBeenCalled()
+  })
   it('creates with canonical defaults in the selected vault without FULL per-entry fan-out', async () => {
     const result = await writer.save(credential, url,
       { action: 'create', vaultId: VAULT, label: 'Personal', vaultLabel: 'Personal' }, authorized)

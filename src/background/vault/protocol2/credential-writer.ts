@@ -47,6 +47,10 @@ export class Protocol2CredentialWriter {
     const metadata = await this.deps.data.refresh()
     const vaults = await this.withAuth((token) => this.deps.client.listVaults(token))
     const targets: CredentialWriteTarget[] = []
+    // A login explicitly filled from a related site need not be saved again.
+    // Related-host comparison only suppresses an identical pair; it never
+    // authorizes a write, adds an update target, or changes autofill policy.
+    const comparisonScope = credential.kind === 'login' ? 'related-login-comparison' : 'exact-host'
     let personalIndex: number | null = null
     for (const listed of vaults) {
       const vault = await this.withAuth((token) => this.deps.client.getVault(token, listed.id))
@@ -55,13 +59,15 @@ export class Protocol2CredentialWriter {
         if (vault.isDefault) personalIndex = targets.length
         targets.push({ action: 'create', vaultId: vault.id, label: opened.metadata.name, vaultLabel: opened.metadata.name })
         for (const entry of metadata.filter((candidate) => candidate.vaultId === vault.id
-          && candidate.type === ENTRY_TYPE_CREDENTIAL && matchesTab(url, candidate.urlDomain))) {
+          && candidate.type === ENTRY_TYPE_CREDENTIAL && matchesTab(url, candidate.urlDomain,
+            { exactSubdomain: comparisonScope === 'exact-host' }))) {
           const detail = await this.withAuth((token) => this.deps.client.getEntry(token, vault.id, entry.id))
-          const secret = await this.openCredential(detail, vault, entry.id, opened.vaultKey, url)
+          const secret = await this.openCredential(detail, vault, entry.id, opened.vaultKey, url, comparisonScope)
           const exactAccount = credential.username.length > 0 && secret.content.username === credential.username
           if (exactAccount && secret.content.password === credential.password) {
             return { identical: true, targets: [], defaultIndex: null }
           }
+          if (!matchesTab(url, entry.urlDomain) || !matchesTab(url, secret.content.urlDomain)) continue
           targets.push({ action: 'update', vaultId: vault.id, entryId: entry.id,
             revision: detail.currentRevision, label: secret.content.username
               ? `${secret.memberLabel} (${secret.content.username})` : secret.memberLabel,
@@ -221,11 +227,13 @@ export class Protocol2CredentialWriter {
     }
   }
 
-  private async openCredential(detail: EntryDetail, vault: EncryptedVaultSummary, entryId: string, key: Uint8Array, url: string) {
+  private async openCredential(detail: EntryDetail, vault: EncryptedVaultSummary, entryId: string, key: Uint8Array,
+    url: string, scope: 'exact-host' | 'related-login-comparison' = 'exact-host') {
     assertCoordinates(detail, vault, entryId)
     const secret = await openCurrentMemberSecret(detail.entryKey, detail.memberSecret, key,
       { organizationId: vault.organizationId, vaultId: vault.id, entryId, revision: detail.currentRevision })
-    if (secret.entryType !== 'credential' || !matchesTab(url, secret.content.urlDomain)) throw new Error('Capture Entry scope changed')
+    if (secret.entryType !== 'credential' || !matchesTab(url, secret.content.urlDomain,
+      { exactSubdomain: scope === 'exact-host' })) throw new Error('Capture Entry scope changed')
     return secret
   }
 
