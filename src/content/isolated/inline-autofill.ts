@@ -772,7 +772,8 @@ class InlineWidget {
         text.append(primary);
       }
       const detail = this.options.doc.createElement("small");
-      detail.textContent = suggestionDetail(entry, this.options.locale()) + suffix;
+      const detailText = suggestionDetail(entry, this.options.locale());
+      detail.textContent = identifier === undefined ? detailText : `${identifier} · ${detailText}`;
       text.append(detail);
       option.append(text);
       option.addEventListener("click", () => void this.fill(entry));
