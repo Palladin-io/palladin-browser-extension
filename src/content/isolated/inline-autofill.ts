@@ -16,6 +16,7 @@ import {
   type InlineAutofillCommand,
   type InlineAutofillSuggestion,
 } from "@shared/messaging";
+import { queryOpenElements } from "./open-dom";
 import {
   isCurrentLoginTarget,
   loginTargetFor,
@@ -80,10 +81,10 @@ function mutationAffectsLoginDiscovery(record: MutationRecord): boolean {
   if (!(record.target instanceof Element)) return false;
   const target = record.target;
   if (record.attributeName === "form") return target instanceof HTMLInputElement;
-  if (record.attributeName === "id") return target instanceof HTMLFormElement;
+  if (record.attributeName === "id") return target instanceof HTMLFormElement || target instanceof HTMLInputElement;
   if (["class", "style", "hidden", "aria-hidden", "inert", "disabled", "open"]
     .includes(record.attributeName ?? "")) {
-    return target instanceof HTMLInputElement || target.querySelector("input") !== null;
+    return target instanceof HTMLInputElement || queryOpenElements(target, 'input').length > 0;
   }
   return target instanceof HTMLInputElement;
 }
@@ -91,6 +92,9 @@ function mutationAffectsLoginDiscovery(record: MutationRecord): boolean {
 class InlineAutofillController {
   private readonly widgets = new Map<HTMLInputElement, InlineWidget>();
   private observer: MutationObserver | null = null;
+  private resizeObserver: ResizeObserver | null = null;
+  private readonly observedInputs = new Set<HTMLInputElement>();
+  private positionFrame: number | null = null;
   private scheduled = false;
   private locale: UiLocale = "en";
   private theme: ThemePreference = "system";
@@ -105,19 +109,44 @@ class InlineAutofillController {
   ) {}
 
   start(): void {
-    this.scan();
     const view = this.doc.defaultView;
     if (!view) return;
+    if (typeof view.ResizeObserver === "function") {
+      this.resizeObserver = new view.ResizeObserver(() => { this.scheduleScan(); this.reposition(); });
+    }
+    this.scan();
     this.observer = new view.MutationObserver((records) => {
       if (records.some(mutationAffectsLoginDiscovery)) this.scheduleScan();
+      // Inputs can move without resizing when a sibling error appears. Do not
+      // observe our own positioning writes recursively or scan the whole form
+      // just because unrelated page text changed.
+      if (records.some(record => !(record.target instanceof Element && this.isOwnedSurface(record.target)))) {
+        this.scheduleReposition();
+      }
     });
-    this.observer.observe(this.doc.documentElement, {
+    this.observeOpenRoots();
+    view.addEventListener("scroll", this.reposition, true);
+    view.addEventListener("resize", this.handleResize);
+    this.doc.addEventListener("pointerdown", this.closeOutside, true);
+    void this.loadPreferences();
+  }
+
+  private observeOpenRoots(): void {
+    if (!this.observer) return;
+    // Rebuild subscriptions from connected roots; removed components must not
+    // retain controls or trigger scans after their document subtree disappears.
+    this.observer.disconnect();
+    const options: MutationObserverInit = {
       childList: true,
       subtree: true,
+      characterData: true,
       attributes: true,
       attributeFilter: [
         "type",
         "autocomplete",
+        "name",
+        "role",
+        "aria-label",
         "disabled",
         "readonly",
         "hidden",
@@ -129,17 +158,21 @@ class InlineAutofillController {
         "id",
         "open",
       ],
-    });
-    view.addEventListener("scroll", this.reposition, true);
-    view.addEventListener("resize", this.handleResize);
-    this.doc.addEventListener("pointerdown", this.closeOutside, true);
-    void this.loadPreferences();
+    };
+    this.observer.observe(this.doc.documentElement, options);
+    for (const element of queryOpenElements(this.doc, '*')) {
+      if (element.shadowRoot && !this.isOwnedSurface(element)) this.observer.observe(element.shadowRoot, options);
+    }
   }
 
   stop(): void {
     this.stopped = true;
     this.observer?.disconnect();
+    this.resizeObserver?.disconnect();
+    this.observedInputs.clear();
     const view = this.doc.defaultView;
+    if (this.positionFrame !== null) view?.cancelAnimationFrame(this.positionFrame);
+    this.positionFrame = null;
     view?.removeEventListener("scroll", this.reposition, true);
     view?.removeEventListener("resize", this.handleResize);
     this.doc.removeEventListener("pointerdown", this.closeOutside, true);
@@ -192,6 +225,15 @@ class InlineAutofillController {
     for (const widget of this.widgets.values()) widget.reposition();
   };
 
+  private scheduleReposition(): void {
+    const view = this.doc.defaultView;
+    if (!view?.requestAnimationFrame || this.positionFrame !== null || this.stopped) return;
+    this.positionFrame = view.requestAnimationFrame(() => {
+      this.positionFrame = null;
+      if (!this.stopped) this.reposition();
+    });
+  }
+
   private readonly handleResize = (): void => {
     this.scheduleScan();
     this.reposition();
@@ -213,6 +255,9 @@ class InlineAutofillController {
   }
 
   private scan(): void {
+    for (const input of this.observedInputs) {
+      if (!input.isConnected) { this.resizeObserver?.unobserve(input); this.observedInputs.delete(input); }
+    }
     for (const [input, widget] of this.widgets) {
       const currentTarget = input.isConnected ? loginTargetFor(input) : null;
       if (currentTarget === null || !widget.matchesLoginTarget(currentTarget)) {
@@ -221,7 +266,11 @@ class InlineAutofillController {
       }
     }
     if (this.widgets.size === 0) this.automaticFillUrl = null;
-    for (const input of this.doc.querySelectorAll<HTMLInputElement>("input")) {
+    for (const input of queryOpenElements<HTMLInputElement>(this.doc, 'input')) {
+      if (this.resizeObserver && !this.observedInputs.has(input)) {
+        this.resizeObserver.observe(input);
+        this.observedInputs.add(input);
+      }
       const loginTarget = loginTargetFor(input);
       if (loginTarget === null || this.widgets.has(input)) continue;
       const widget = new InlineWidget({
@@ -240,6 +289,7 @@ class InlineAutofillController {
       this.widgets.set(input, widget);
       widget.mount();
     }
+    this.observeOpenRoots();
     const currentUrl = this.doc.location.href;
     const first = this.widgets.values().next().value as InlineWidget | undefined;
     if (first !== undefined && this.automaticFillUrl !== currentUrl) {
@@ -329,7 +379,11 @@ class InlineWidget {
     this.options.doc.documentElement.append(this.host);
     this.options.input.addEventListener("focus", this.handleFocus);
     this.button.addEventListener("pointerdown", (event) => event.preventDefault());
-    this.button.addEventListener("click", () => void this.open());
+    this.button.addEventListener("click", () => {
+      // Only an explicit shield click leaves the page input, dismissing its native chooser.
+      this.button.focus({ preventScroll: true });
+      void this.open();
+    });
     this.reposition();
     this.options.doc.defaultView?.requestAnimationFrame?.(() => this.reposition());
   }
