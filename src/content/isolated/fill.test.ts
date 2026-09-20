@@ -280,6 +280,29 @@ describe("performFill", () => {
 });
 
 describe("performBoundFill", () => {
+  it.each(["username", "password"])("rejects a nonmatching %s before writing its empty companion", kind => {
+    const doc = mount('<form><input id="user"><input id="pass" type="password"></form>');
+    const username = doc.getElementById("user") as HTMLInputElement;
+    const password = doc.getElementById("pass") as HTMLInputElement;
+    const target = loginTargetFor(username)!;
+    (kind === "username" ? username : password).value = "different-synthetic-value";
+    const before = [username.value, password.value];
+    expect(performBoundFill(doc, bound(CREDS, { loginTargetId: "login-1" }), "https://example.com/login", "document-1", target))
+      .toEqual({ ok: false, reason: "no-form" });
+    expect([username.value, password.value]).toEqual(before);
+  });
+
+  it("rejects synchronous framework mutation of an already completed field", () => {
+    const doc = mount('<form><input id="user"><input id="pass" type="password"></form>');
+    const username = doc.getElementById("user") as HTMLInputElement;
+    const password = doc.getElementById("pass") as HTMLInputElement;
+    const target = loginTargetFor(username)!;
+    username.addEventListener("input", () => { username.value = ""; });
+    expect(performBoundFill(doc, bound(CREDS, { loginTargetId: "login-1" }), "https://example.com/login", "document-1", target))
+      .toEqual({ ok: false, reason: "no-form" });
+    expect(password.value).toBe("");
+  });
+
   it("refuses an inline target whose username was reassociated before the DOM write", () => {
     const doc = mount(`
       <form id="first"><input id="user"><input id="first-pass" type="password"></form>

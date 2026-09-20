@@ -662,6 +662,7 @@ class InlineWidget {
       if (!silent) this.renderStatus("inline.noForm");
       return false;
     }
+    const originalUrl = this.options.doc.location.href;
     if (!silent) this.renderStatus("inline.filling");
     let raw: unknown;
     try {
@@ -682,7 +683,16 @@ class InlineWidget {
       return false;
     }
     if (raw.status === "filled" && submitAfterFill) {
-      submitLoginForm(this.options.loginTarget.password);
+      const filledValues = loginValueSnapshot(this.options.loginTarget);
+      // Allow queued framework input handlers to settle, then revalidate the exact pair.
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      if (this.destroyed || this.options.doc.location.href !== originalUrl
+        || !isCurrentLoginTarget(this.options.loginTarget)
+        || loginValueSnapshot(this.options.loginTarget) !== filledValues
+        || !submitLoginForm(this.options.loginTarget.password)) {
+        if (!silent && !this.destroyed) this.renderStatus("inline.noForm");
+        return false;
+      }
     }
     if (raw.status === "filled") {
       this.lastFilled = {

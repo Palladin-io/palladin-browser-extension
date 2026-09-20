@@ -192,21 +192,25 @@ export function performLoginTargetFill(
   target: LoginTarget,
   fields: readonly FillField[],
 ): FillOutcome {
-  if (!isCurrentLoginTarget(target)
-    || target.username.value !== ""
-    || target.password.value !== "") {
-    return { ok: false, reason: "no-form" };
-  }
-  for (const field of fields) {
-    if (field.kind === "username") setFieldValue(target.username, field.value);
-    else if (field.kind === "password") {
-      if (!isCurrentLoginTarget(target) || target.password.value !== "") {
-        return { ok: false, reason: "no-form" };
-      }
-      setFieldValue(target.password, field.value);
+  const controls = fields.flatMap(field => field.kind === "username"
+    ? [{ input: target.username, value: field.value }]
+    : field.kind === "password" ? [{ input: target.password, value: field.value }] : []);
+  const expected = (input: HTMLInputElement) => controls.find(control => control.input === input)?.value;
+  const compatible = () => isCurrentLoginTarget(target)
+    && [target.username, target.password].every(input => input.value === "" || input.value === expected(input));
+  if (!compatible()) return { ok: false, reason: "no-form" };
+  const completed: typeof controls = [];
+  for (const control of controls) {
+    if (!compatible() || completed.some(done => done.input.value !== done.value)) {
+      return { ok: false, reason: "no-form" };
     }
+    // Preserve matching values without replaying framework input/change handlers.
+    if (control.input.value !== control.value) setFieldValue(control.input, control.value);
+    completed.push(control);
   }
-  return { ok: true };
+  return compatible() && completed.every(control => control.input.value === control.value)
+    ? { ok: true }
+    : { ok: false, reason: "no-form" };
 }
 
 /** Final isolated-world binding check immediately before any DOM write. */
