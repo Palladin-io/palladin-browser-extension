@@ -749,7 +749,10 @@ class InlineWidget {
     const title = this.createTitle();
     const list = this.options.doc.createElement("div");
     list.className = "list";
+    const identifiers = ambiguousSuggestionIdentifiers(entries, this.options.locale());
     for (const entry of entries) {
+      const identifier = identifiers.get(entry.entryId);
+      const suffix = identifier === undefined ? "" : ` · ${identifier}`;
       const row = this.options.doc.createElement("div");
       row.className = "option-row";
       const option = this.options.doc.createElement("button");
@@ -769,7 +772,7 @@ class InlineWidget {
         text.append(primary);
       }
       const detail = this.options.doc.createElement("small");
-      detail.textContent = suggestionDetail(entry, this.options.locale());
+      detail.textContent = suggestionDetail(entry, this.options.locale()) + suffix;
       text.append(detail);
       option.append(text);
       option.addEventListener("click", () => void this.fill(entry));
@@ -778,7 +781,7 @@ class InlineWidget {
       submit.type = "button";
       submit.className = "submit-login";
       submit.title = message(this.options.locale(), "inline.fillAndLogin");
-      submit.setAttribute("aria-label", `${submit.title}: ${entry.username || entry.name}`);
+      submit.setAttribute("aria-label", `${submit.title}: ${entry.username || entry.name}${suffix}`);
       const submitLabel = this.options.doc.createElement("span");
       submitLabel.textContent = message(this.options.locale(), "inline.logIn");
       submit.append(submitLabel);
@@ -925,6 +928,32 @@ export function suggestionDetail(entry: InlineAutofillSuggestion, locale: UiLoca
   return entry.match === "related"
     ? `${message(locale, "inline.related")}: ${entry.urlDomain} · ${vault}`
     : vault;
+}
+
+export function ambiguousSuggestionIdentifiers(
+  entries: readonly InlineAutofillSuggestion[],
+  locale: UiLocale,
+): ReadonlyMap<string, string> {
+  const groups = new Map<string, InlineAutofillSuggestion[]>();
+  for (const entry of entries) {
+    const key = JSON.stringify([
+      entry.username || entry.name,
+      displayEntryLabel(entry),
+      suggestionDetail(entry, locale),
+    ]).toLowerCase();
+    const group = groups.get(key) ?? [];
+    group.push(entry);
+    groups.set(key, group);
+  }
+  const identifiers = new Map<string, string>();
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    for (const entry of group) {
+      const id = entry.entryId;
+      identifiers.set(id, id.length > 15 ? `${id.slice(0, 8)}…${id.slice(-6)}` : id);
+    }
+  }
+  return identifiers;
 }
 
 function resolvedTheme(preference: ThemePreference, view: Window | null): "light" | "dark" {
