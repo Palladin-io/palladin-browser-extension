@@ -141,3 +141,35 @@ it.each(['ambiguous', 'hidden', 'mode'])('revalidates the original known action 
   expect(live.commitDeferred({ channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'login.example.test', submitReady: response.submitReady, expiresAt: Date.now() + 1000 }).ok).toBe(false);
   expect(clicked).not.toHaveBeenCalled();
 });
+// Synthetic normal forms: non-credential readonly emails must not become a
+// carried identity merely because their native input type is email.
+it.each(['readonly', 'disabled'])('ignores %s subscription and confirmation emails in a normal password-only stage', async mode => {
+  document.body.innerHTML = `<form><input type="email" name="newsletter_email" ${mode}><input type="email" aria-label="Confirm email" ${mode}><input type="password" autocomplete="current-password"><button>Sign in</button></form>`;
+  const emails = [...document.querySelectorAll<HTMLInputElement>('input[type=email]')];
+  emails[0]!.value = 'unrelated@example.test';
+  const changed = vi.fn(), clicked = vi.fn((event: Event) => event.preventDefault());
+  for (const email of emails) { email.addEventListener('input', changed); email.addEventListener('change', changed); }
+  document.querySelector('button')!.addEventListener('click', clicked);
+  live = new LiveLogin(document, documentId, () => url, () => true, { isVisible: element => !element.hidden });
+  const plan = live.inspect(url);
+  expect(plan?.steps[0]!.fields.map(field => field.entryFieldId)).toEqual(['credential.password']);
+  const ready = await live.fillDeferred({ channel: 'palladin.agent-live/deferred-fill', pendingId: 'b'.repeat(32), documentId, expectedDomain: 'login.example.test', expiresAt: Date.now() + 10_000,
+    form: plan!, values: [{ entryFieldId: 'credential.password', value: 'Synthetic-password!42' }] });
+  expect(ready.ok).toBe(true); if (!ready.ok) return;
+  expect(live.commitDeferred({ channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'login.example.test', submitReady: ready.submitReady, expiresAt: Date.now() + 1000 }).ok).toBe(true);
+  expect(clicked).toHaveBeenCalledTimes(1); expect(changed).not.toHaveBeenCalled();
+  expect(emails.map(email => email.value)).toEqual(['unrelated@example.test', '']);
+});
+it('blocks a formerly unrelated readonly email reclassified as carried identity before commit', async () => {
+  document.body.innerHTML = '<form><input type="email" name="newsletter_email" readonly><input type="password" autocomplete="current-password"><button>Sign in</button></form>';
+  const clicked = vi.fn(); document.querySelector('button')!.addEventListener('click', clicked);
+  live = new LiveLogin(document, documentId, () => url, () => true, { isVisible: element => !element.hidden });
+  const plan = live.inspect(url);
+  expect(plan?.steps[0]!.fields.map(field => field.entryFieldId)).toEqual(['credential.password']);
+  const ready = await live.fillDeferred({ channel: 'palladin.agent-live/deferred-fill', pendingId: 'b'.repeat(32), documentId, expectedDomain: 'login.example.test', expiresAt: Date.now() + 10_000,
+    form: plan!, values: [{ entryFieldId: 'credential.password', value: 'Synthetic-password!42' }] });
+  expect(ready.ok).toBe(true); if (!ready.ok) return;
+  document.querySelector<HTMLInputElement>('input[type=email]')!.name = 'username';
+  expect(live.commitDeferred({ channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'login.example.test', submitReady: ready.submitReady, expiresAt: Date.now() + 1000 }).ok).toBe(false);
+  expect(clicked).not.toHaveBeenCalled(); expect(document.querySelector<HTMLInputElement>('input[type=password]')!.value).toBe('');
+});

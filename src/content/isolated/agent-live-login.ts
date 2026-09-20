@@ -8,7 +8,7 @@ import { AGENT_FORM_INSPECT_CHANNEL, AGENT_FORM_LIMITS } from '@shared/messaging
 import { AgentFormRegistry } from './agent-form';
 import { performAgentInjectStep, type AgentInjectDomAccess } from './agent-inject';
 import { loginTargetFor, isFillable } from './credential-form-analysis';
-import { credentialScopeFor, isIdentifiedUsername, isOneTimeCodeControl, isVisibleScopeHint, scopeInputs } from './login-controls';
+import { credentialScopeFor, isEmailConfirmationControl, isIdentifiedUsername, isOneTimeCodeControl, isSubscriptionIdentity, isVisibleScopeHint, scopeInputs } from './login-controls';
 import { actionCaption, composedForm } from './open-dom';
 import { markAgentManagedControl, isAgentManagedControl, unmarkAgentManagedControl } from './agent-managed-controls';
 import { hasLiveLoginObstacle } from './agent-live-obstacles';
@@ -40,7 +40,8 @@ export class LiveLogin {
     const scope = credentialScopeFor(fields[0]!.input);
     const action = bindings.find(binding => binding.selector === normal.steps[0]!.submit.selector)?.element;
     if (!scope || !(action instanceof HTMLButtonElement || action instanceof HTMLInputElement)) return null;
-    const carriedIdentities = () => scopeInputs(scope).filter(input => isIdentifiedUsername(input) && (input.disabled || input.readOnly));
+    const carriedIdentities = () => scopeInputs(scope).filter(input => isIdentifiedUsername(input)
+      && !isSubscriptionIdentity(input) && !isEmailConfirmationControl(input) && (input.disabled || input.readOnly));
     const identities = carriedIdentities();
     const identity = identities[0];
     if (identities.length > 1 || (identity && (fields.some(field => field.fieldId === 'credential.username')
