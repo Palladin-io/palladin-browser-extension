@@ -76,3 +76,16 @@ it('releases observer subscriptions to removed open roots and observes replaceme
   expect(disconnect).toHaveBeenCalledTimes(1);
   disconnect.mockRestore();
 });
+it('offers email or a uniquely labelled nickname even when email wins ordinary login discovery', () => {
+  const target = form('<label>Email<input type="email" name="email" autocomplete="email" value="synthetic@example.test"></label><label>Nickname<input name="nickname" value="synthetic-handle"></label><label>Password<input type="password" name="password" autocomplete="new-password" value="synthetic-password"></label><label>Confirm password<input type="password" name="confirm" autocomplete="new-password" value="synthetic-password"></label>');
+  expect(readSubmittedCredential(target)).toEqual({ kind: 'registration', username: '', password: 'synthetic-password', previousPassword: null,
+    usernameOptions: { email: 'synthetic@example.test', nickname: 'synthetic-handle' } });
+});
+it('keeps an explicitly annotated username authoritative beside email and nickname', () => {
+  const target = form('<input autocomplete="username" value="approved-login"><label>Nickname<input name="nickname" value="public-handle"></label><input type="email" value="synthetic@example.test"><input type="password" autocomplete="new-password" value="synthetic-password">');
+  expect(readSubmittedCredential(target)).toEqual({ kind: 'registration', username: 'approved-login', password: 'synthetic-password', previousPassword: null });
+});
+it('does not offer a personal-name field as nickname when its declared purpose conflicts', () => {
+  const target = form('<label>Nickname<input name="nickname" autocomplete="given-name" value="synthetic-name"></label><input type="email" value="synthetic@example.test"><input type="password" autocomplete="new-password" value="synthetic-password">');
+  expect(readSubmittedCredential(target)).toEqual({ kind: 'registration', username: 'synthetic@example.test', password: 'synthetic-password', previousPassword: null });
+});

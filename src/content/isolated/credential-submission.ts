@@ -2,7 +2,7 @@ import { isAgentManagedControl } from './agent-managed-controls';
 import { composedParent, queryOpenElements } from './open-dom';
 import { analyzeCredentialForm } from './credential-form-analysis';
 import { normalizedControlLabels, identityLabelPurpose } from './control-labels';
-import { scopeInputs, usernameCandidates, isIdentifiedUsername, isSubscriptionIdentity,
+import { scopeInputs, usernameCandidates, isIdentifiedUsername, isUsernameControl, isSubscriptionIdentity,
   isEmailConfirmationControl, isOneTimeCodeControl, isCollapsedClip, credentialScopeFor,
   ACTION_SELECTOR, isCredentialAction, type CredentialScope } from './login-controls';
 import {
@@ -84,12 +84,18 @@ export function readSubmittedCredential(form: CredentialScope, allowMissingUsern
   if (confirmations.length && (emails.length !== 1 || !emails[0]!.value.trim()
     || confirmations.some(field => field.value.trim() !== emails[0]!.value.trim()))) return null;
   if (!username && kind !== "password-change" && !(allowMissingUsername && identities.length === 0)) return null;
-  const nickname = kind === 'registration' && identities.length === 1 ? identities[0] : undefined;
-  const needsChoice = nickname && !purpose(nickname).includes('username')
-    && normalizedControlLabels(nickname).some(label => ['nickname', 'nick name', 'pseudonym', 'pseudonim', 'nick'].includes(label))
-    && emails.length === 1 && emails[0] !== nickname && emails[0]!.value.trim() !== username;
+  // Ordinary login discovery prefers a recognized email over weaker nickname
+  // metadata. Registration must still expose that distinct identity choice.
+  const nicknames = kind === 'registration' ? usernameFields.filter(field =>
+    isUsernameControl(field) && !isSubscriptionIdentity(field) && !isEmailConfirmationControl(field)
+    && normalizedControlLabels(field).some(label => ['nickname', 'nick name', 'pseudonym', 'pseudonim', 'nick'].includes(label))) : [];
+  const nickname = nicknames.length === 1 ? nicknames[0] : undefined;
+  const needsChoice = nickname && !usernameFields.some(field => purpose(field).includes('username'))
+    && emails.length === 1 && emails[0] !== nickname
+    && identities.every(field => field === nickname || field === emails[0])
+    && nickname.value.trim().length > 0 && emails[0]!.value.trim() !== nickname.value.trim();
   const credential: CredentialSubmission = needsChoice
-    ? { kind, username: '', password, previousPassword, usernameOptions: { email: emails[0]!.value.trim(), nickname: username } }
+    ? { kind, username: '', password, previousPassword, usernameOptions: { email: emails[0]!.value.trim(), nickname: nickname!.value.trim() } }
     : { kind, username, password, previousPassword };
   return isCredentialSubmission(credential) ? credential : null;
 }
