@@ -3,7 +3,7 @@ import { sameLiveForm } from '@shared/messaging/agent-live';
 import { sameSubmitReady, type DeferredFillMessage, type DeferredFillOutcome, type DeferredCommitMessage, type SubmitReady } from '@shared/messaging/agent-deferred';
 import { matchesAgentInjectionTarget } from '@shared/security/domain';
 import { isFillable } from './credential-form-analysis';
-import { isAccountCreationHeadingText, isIdentifiedUsername, isSubscriptionIdentity, scopeInputs } from './login-controls';
+import { isAccountCreationHeadingText, isIdentifiedUsername, isSubscriptionIdentity, isVisibleScopeHint, scopeInputs } from './login-controls';
 import { autocompleteTokens } from './form-semantics';
 import { actionCaption, composedForm, queryOpenElements } from './open-dom';
 import { hasLiveLoginObstacle } from './agent-live-obstacles';
@@ -111,8 +111,8 @@ export class DeferredLiveLogin {
     if (fields.length !== 1 || !input || !this.dom.isVisible(input) || !isIdentifiedUsername(input) || isSubscriptionIdentity(input)
       || inputs.some(field => autocompleteTokens(field).includes('new-password') || autocompleteTokens(field).includes('one-time-code'))
       || hasLiveLoginObstacle(this.doc, scope, this.dom)) return null;
-    const headings = queryOpenElements(scope, 'header,h1,h2,h3,h4,h5,h6,legend');
-    if ([...headings, ...cardHeadings(scope)].some(node => {
+    const headings = queryOpenElements(scope, 'header,h1,h2,h3,h4,h5,h6,legend').filter(node => isVisibleScopeHint(node));
+    if ([...headings, ...cardHeadings(scope).filter(node => isVisibleScopeHint(node))].some(node => {
       const text = (node.textContent ?? '').trim();
       return isAccountCreationHeadingText(text) || /create\s+(?:an?\s+)?account|sign\s*up|zarejestruj|utwórz\s+konto/i.test(text);
     })) return null;

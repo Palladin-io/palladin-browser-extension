@@ -154,3 +154,17 @@ it('revalidates a surrounding registration heading before committing', async () 
 it('does not borrow a registration heading from an unrelated sibling card', () => {
   expect(setup(`<section><h4>Create your account</h4></section><section>${generic}</section>`).inspect(url)?.version).toBe(2);
 });
+it.each(['hidden', 'style="display:none"', 'style="opacity:0"'])('does not authorize deferred discovery from an inactive login heading: %s', hidden => {
+  expect(setup(`<form><div ${hidden}><h2>Sign in</h2></div><input autocomplete="username"><div>Continue</div></form>`).inspect(url)).toBeNull();
+});
+it('revalidates visible login-heading evidence before commit', async () => {
+  const instance = setup('<form><h2>Sign in</h2><input autocomplete="username"><div>Continue</div></form>');
+  const submitted = vi.fn((event: Event) => event.preventDefault()); document.querySelector('form')!.addEventListener('submit', submitted);
+  const ready = await filled(instance); expect(ready.ok).toBe(true); if (!ready.ok) return;
+  document.querySelector('h2')!.hidden = true;
+  expect(instance.commitDeferred({ channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'login.example.test', submitReady: ready.submitReady, expiresAt: Date.now() + 1000 }).ok).toBe(false);
+  expect(submitted).not.toHaveBeenCalled(); expect(document.querySelector<HTMLInputElement>('input')!.value).toBe('');
+});
+it('ignores inactive registration headings inside the form and its surrounding card', () => {
+  expect(setup(`<section><h4 hidden>Create your account</h4>${generic.replace('<form>', '<form><h2 hidden>Sign up</h2>')}</section>`).inspect(url)?.version).toBe(2);
+});
