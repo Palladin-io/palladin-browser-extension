@@ -1,7 +1,14 @@
-import { formContainsAgentManagedControl } from './agent-managed-controls';
+import { isAgentManagedControl } from './agent-managed-controls';
+import { composedParent, queryOpenElements } from './open-dom';
+import { analyzeCredentialForm } from './credential-form-analysis';
+import { normalizedControlLabels, identityLabelPurpose } from './control-labels';
+import { scopeInputs, usernameCandidates, isIdentifiedUsername, isSubscriptionIdentity,
+  isEmailConfirmationControl, isOneTimeCodeControl, isCollapsedClip, credentialScopeFor,
+  ACTION_SELECTOR, isCredentialAction, type CredentialScope } from './login-controls';
 import {
   CREDENTIAL_CAPTURE_CHANNEL,
-  isSubmittedCredential,
+  isCredentialSubmission,
+  type CredentialSubmission,
   type CredentialCaptureCommand,
   type SubmittedCredential,
 } from "@shared/messaging/credential-capture";
@@ -12,9 +19,10 @@ const SUBMISSION_TTL_MS = 3 * 60_000;
 export function isCaptureVisible(element: Element): boolean {
   const view = element.ownerDocument.defaultView;
   if (!view || !element.isConnected || element.closest('[hidden], [inert], [aria-hidden="true"]')) return false;
-  for (let current: Element | null = element; current; current = current.parentElement) {
+  for (let current: Element | null = element; current; current = composedParent(current)) {
+    if (current.matches('[hidden], [inert], [aria-hidden="true"]')) return false;
     const style = view.getComputedStyle(current);
-    if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse"
+    if (isCollapsedClip(style) || style.getPropertyValue("content-visibility") === "hidden" || style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse"
       || style.opacity === "0") return false;
   }
   return true;
@@ -24,18 +32,15 @@ function purpose(input: HTMLInputElement): string[] {
   return input.autocomplete.toLowerCase().split(/\s+/);
 }
 
-function inputs(form: HTMLFormElement): HTMLInputElement[] {
-  const Input = form.ownerDocument.defaultView?.HTMLInputElement;
-  return Input ? [...form.elements].filter((element): element is HTMLInputElement => element instanceof Input) : [];
-}
+const inputs = scopeInputs;
 
-export function readSubmittedCredential(form: HTMLFormElement, allowMissingUsername = false): SubmittedCredential | null {
-  if (formContainsAgentManagedControl(form)) return null;
+export function readSubmittedCredential(form: CredentialScope, allowMissingUsername = false): CredentialSubmission | null {
   const fields = inputs(form);
-  const passwords = fields.filter((field) => field.type === "password" && !field.disabled && isCaptureVisible(field));
+  if (fields.some(isAgentManagedControl)) return null;
+  const passwords = fields.filter((field) => field.type === "password" && !field.matches(":disabled") && isCaptureVisible(field));
   if (passwords.length < 1 || passwords.length > 3 || passwords.some((field) => field.value.length === 0)) return null;
-  const current = passwords.filter((field) => purpose(field).includes("current-password"));
-  const next = passwords.filter((field) => purpose(field).includes("new-password"));
+  const { current, next, stage } = analyzeCredentialForm(form,
+    fields.filter(field => !field.matches(':disabled') && isCaptureVisible(field)));
   if (current.some((field) => next.includes(field)) || current.length > 1) return null;
 
   let kind: SubmittedCredential["kind"];
@@ -48,7 +53,7 @@ export function readSubmittedCredential(form: HTMLFormElement, allowMissingUsern
     password = next[0]!.value;
     previousPassword = current[0]?.value ?? null;
   } else if (passwords.length === 1) {
-    kind = "login";
+    kind = stage === "registration" ? "registration" : "login";
     password = passwords[0]!.value;
   } else if (current.length === 0 && passwords.length === 2 && passwords[0]!.value === passwords[1]!.value) {
     kind = "registration";
@@ -62,24 +67,40 @@ export function readSubmittedCredential(form: HTMLFormElement, allowMissingUsern
     return null;
   }
 
-  const usernameFields = fields.filter((field) => !field.disabled && isCaptureVisible(field)
+  const usernameFields = fields.filter((field) => !field.matches(":disabled") && isCaptureVisible(field)
     && ["text", "email", "tel"].includes(field.type));
-  const explicit = usernameFields.filter((field) => purpose(field).includes("username"));
-  const emails = usernameFields.filter((field) => field.type === "email" || purpose(field).includes("email"));
-  const candidates = explicit.length > 0 ? explicit : emails.length > 0 ? emails : usernameFields;
-  const username = candidates.length === 1 ? candidates[0]!.value.trim() : "";
-  if (!username && kind !== "password-change" && !(allowMissingUsername && candidates.length === 0)) return null;
-  const credential = { kind, username, password, previousPassword };
-  return isSubmittedCredential(credential) ? credential : null;
+  const candidates = usernameCandidates(usernameFields.filter(field => !isSubscriptionIdentity(field)));
+  // Only explicit carried identity metadata may expose a disabled/hidden value.
+  // Do not read transport tokens or verification-code controls.
+  const retained = candidates.length === 0 ? fields.filter(field =>
+    ['hidden', 'text', 'email'].includes(field.type) && purpose(field).includes('username')
+    && !isOneTimeCodeControl(field) && !isSubscriptionIdentity(field) && !isEmailConfirmationControl(field)) : [];
+  const identities = candidates.length ? candidates : retained;
+  const username = identities.length === 1 ? identities[0]!.value.trim() : '';
+  const emails = usernameFields.filter(field => !isEmailConfirmationControl(field) && !isSubscriptionIdentity(field)
+    && !isOneTimeCodeControl(field) && (field.type === 'email' || purpose(field).includes('email')
+      || normalizedControlLabels(field).some(label => identityLabelPurpose(label) === 'email')));
+  const confirmations = usernameFields.filter(isEmailConfirmationControl);
+  if (confirmations.length && (emails.length !== 1 || !emails[0]!.value.trim()
+    || confirmations.some(field => field.value.trim() !== emails[0]!.value.trim()))) return null;
+  if (!username && kind !== "password-change" && !(allowMissingUsername && identities.length === 0)) return null;
+  const nickname = kind === 'registration' && identities.length === 1 ? identities[0] : undefined;
+  const needsChoice = nickname && !purpose(nickname).includes('username')
+    && normalizedControlLabels(nickname).some(label => ['nickname', 'nick name', 'pseudonym', 'pseudonim', 'nick'].includes(label))
+    && emails.length === 1 && emails[0] !== nickname && emails[0]!.value.trim() !== username;
+  const credential: CredentialSubmission = needsChoice
+    ? { kind, username: '', password, previousPassword, usernameOptions: { email: emails[0]!.value.trim(), nickname: username } }
+    : { kind, username, password, previousPassword };
+  return isCredentialSubmission(credential) ? credential : null;
 }
 
-function readSubmittedIdentifier(form: HTMLFormElement): string | null {
-  if (formContainsAgentManagedControl(form)) return null;
+function readSubmittedIdentifier(form: CredentialScope): string | null {
   const fields = inputs(form);
-  if (fields.some((field) => field.type === "password" || purpose(field).includes("one-time-code"))) return null;
-  const candidates = fields.filter((field) => !field.disabled && isCaptureVisible(field)
+  if (fields.some(isAgentManagedControl)) return null;
+  if (fields.some(field => isCaptureVisible(field) && (field.type === "password" || isOneTimeCodeControl(field)))) return null;
+  const candidates = fields.filter((field) => !field.matches(":disabled") && isCaptureVisible(field)
     && ["text", "email", "tel"].includes(field.type)
-    && (field.type === "email" || purpose(field).some((token) => token === "username" || token === "email")));
+    && isIdentifiedUsername(field) && !isSubscriptionIdentity(field) && !isEmailConfirmationControl(field));
   const username = candidates.length === 1 ? candidates[0]!.value.trim() : "";
   return username.length > 0 && username.length <= 512 ? username : null;
 }
@@ -90,7 +111,7 @@ const SUCCESS_TEXT = /(?:password\s+(?:(?:has\s+been|was)\s+)?(?:successfully\s+
 const NEGATED_SUCCESS = /\b(?:not|cannot|couldn't|failed|unable|nie|błąd|błędne|niepoprawne)\b/i;
 
 export function capturePageHasError(doc: Document): boolean {
-  return [...doc.querySelectorAll(ERROR_SELECTOR)].some((element) => isCaptureVisible(element)
+  return queryOpenElements(doc, ERROR_SELECTOR).some((element) => isCaptureVisible(element)
     && (element.getAttribute("aria-invalid") === "true"
       || ((element.textContent ?? "").trim().length > 0 && !isSuccess(element))));
 }
@@ -101,13 +122,13 @@ function isSuccess(element: Element): boolean {
 }
 
 function successElements(doc: Document): Element[] {
-  return [...doc.querySelectorAll(STATUS_SELECTOR)].filter((element) => isCaptureVisible(element) && isSuccess(element));
+  return queryOpenElements(doc, STATUS_SELECTOR).filter((element) => isCaptureVisible(element) && isSuccess(element));
 }
 
 export function capturePageHasSuccess(doc: Document): boolean { return successElements(doc).length > 0; }
 
 export function capturePageHasPasswordForm(doc: Document): boolean {
-  return [...doc.querySelectorAll('input[type="password"]')].some(isCaptureVisible);
+  return queryOpenElements(doc, 'input[type="password"]').some(isCaptureVisible);
 }
 
 interface PendingSubmission {
@@ -123,7 +144,9 @@ export class CredentialSubmissionObserver {
   private observer: MutationObserver | null = null;
   private settleTimer: ReturnType<typeof setTimeout> | null = null;
   private expiryTimer: ReturnType<typeof setTimeout> | null = null;
-  private intent: { form: HTMLFormElement; at: number } | null = null;
+  private readonly observedRoots = new Set<Document | ShadowRoot>();
+  private lastCapture: { scope: WeakRef<CredentialScope>; at: number } | null = null;
+  private intent: { form: CredentialScope; at: number } | null = null;
 
   constructor(
     private readonly doc: Document,
@@ -137,33 +160,49 @@ export class CredentialSubmissionObserver {
     const view = this.doc.defaultView;
     if (!view || view.top !== view || view.location.protocol !== "https:") return;
     this.doc.addEventListener("submit", this.onSubmit, true);
+    this.doc.addEventListener("click", this.onClick, true);
     this.doc.addEventListener("pointerdown", this.onIntent, true);
     this.doc.addEventListener("keydown", this.onIntent, true);
     view.addEventListener("pagehide", this.onPageHide);
-    this.observer = new view.MutationObserver(() => this.scheduleOutcome());
-    this.observer.observe(this.doc, { childList: true, subtree: true, characterData: true, attributes: true,
-      attributeFilter: ["class", "style", "hidden", "aria-invalid", "aria-hidden"] });
+    this.observer = new view.MutationObserver(records => {
+      // MutationObserver itself retains observed roots. Release detached SPA
+      // components without rescanning the entire document on each mutation.
+      if (records.some(record => record.removedNodes.length > 0)) this.releaseDetachedRoots();
+      for (const record of records) for (const node of record.addedNodes) {
+        if (node instanceof view.Element) this.observeRoots(node);
+      }
+      this.scheduleOutcome();
+    });
+    this.observeRoots(this.doc);
   }
 
   stop(): void {
     this.clearPending();
     this.observer?.disconnect();
+    this.observedRoots.clear();
     this.doc.removeEventListener("submit", this.onSubmit, true);
+    this.doc.removeEventListener("click", this.onClick, true);
     this.doc.removeEventListener("pointerdown", this.onIntent, true);
     this.doc.removeEventListener("keydown", this.onIntent, true);
     this.intent = null;
+    this.lastCapture = null;
     this.doc.defaultView?.removeEventListener("pagehide", this.onPageHide);
   }
 
-  capture(form: HTMLFormElement): void {
+  capture(form: CredentialScope): void {
     const view = this.doc.defaultView;
     if (!view || view.location.protocol !== "https:" || view.top !== view) return;
     try {
-      if (new URL(form.action || view.location.href, view.location.href).origin !== view.location.origin) return;
+      if (new URL(form instanceof view.HTMLFormElement ? form.action || view.location.href : view.location.href, view.location.href).origin !== view.location.origin) return;
     } catch { return; }
+    // Enter may invoke the browser's default submitter. Do not stage a value
+    // for a scope advertising a cross-origin submit override.
+    const actions = form instanceof view.HTMLFormElement ? [...form.elements] : queryOpenElements(form, ACTION_SELECTOR);
+    if (actions.some(action => !this.sameOriginAction(action))) return;
     const credential = readSubmittedCredential(form, true);
     const username = credential ? null : readSubmittedIdentifier(form);
     if (!credential && !username) return;
+    this.observeRoots(form);
     this.clearPending();
     const id = this.createId();
     this.pending = { id, passwordFields: inputs(form).filter((field) => field.type === "password")
@@ -179,26 +218,84 @@ export class CredentialSubmissionObserver {
   private readonly onSubmit = (event: Event): void => {
     const Form = this.doc.defaultView?.HTMLFormElement;
     if (!event.isTrusted || !Form || !(event.target instanceof Form)
+      || !this.sameOriginAction((event as SubmitEvent).submitter)
       || this.intent?.form !== event.target || this.now() - this.intent.at > 10_000) return;
     this.intent = null;
-    this.capture(event.target);
+    this.captureIntent(event.target);
+  };
+
+  private eventTarget(event: Event): Element | null {
+    const view = this.doc.defaultView;
+    const target = event.composedPath()[0];
+    return view && target instanceof view.Element ? target : null;
+  }
+
+  private sameOriginAction(action: Element | null): boolean {
+    const view = this.doc.defaultView;
+    if (!view) return false;
+    const destination = action?.getAttribute('formaction');
+    try { return destination === null || destination === undefined
+      || new URL(destination, this.doc.baseURI).origin === view.location.origin; }
+    catch { return false; }
+  }
+
+  private captureIntent(scope: CredentialScope): void {
+    if (this.lastCapture?.scope.deref() === scope && this.now() - this.lastCapture.at < 500) return;
+    const previous = this.pending;
+    this.capture(scope);
+    if (this.pending && this.pending !== previous) this.lastCapture = { scope: new WeakRef(scope), at: this.now() };
+  }
+
+  private readonly onClick = (event: Event): void => {
+    if (!event.isTrusted) return;
+    const target = this.eventTarget(event);
+    let action: Element | null = target;
+    while (action && !action.matches(ACTION_SELECTOR)) action = composedParent(action);
+    if (!action || !isCredentialAction(action) || !this.sameOriginAction(action)) return;
+    const scope = credentialScopeFor(action);
+    if (scope) this.captureIntent(scope);
   };
 
   private readonly onIntent = (event: Event): void => {
     const view = this.doc.defaultView;
-    if (!event.isTrusted || !view || !(event.target instanceof view.Element)) return;
-    const target = event.target;
-    const form = target instanceof view.HTMLInputElement || target instanceof view.HTMLButtonElement
-      ? target.form : target.closest("form");
-    if (form) this.intent = { form, at: this.now() };
+    const target = this.eventTarget(event);
+    if (!event.isTrusted || !view || !target) return;
+    const scope = credentialScopeFor(target);
+    if (!scope) return;
+    this.intent = { form: scope, at: this.now() };
+    if (event instanceof view.KeyboardEvent && event.key === 'Enter' && !event.isComposing
+      && target instanceof view.HTMLInputElement && isCaptureVisible(target)
+      && !target.matches(':disabled') && (target.type === 'password' || isIdentifiedUsername(target))) this.captureIntent(scope);
   };
+
+  private observeRoot(root: Document | ShadowRoot): void {
+    this.observer?.observe(root, { childList: true, subtree: true, characterData: true, attributes: true,
+      attributeFilter: ['class', 'style', 'hidden', 'aria-invalid', 'aria-hidden'] });
+  }
+
+  private releaseDetachedRoots(): void {
+    const detached = [...this.observedRoots].filter(root => root instanceof ShadowRoot && !root.host.isConnected);
+    if (!detached.length) return;
+    this.observer?.disconnect();
+    detached.forEach(root => this.observedRoots.delete(root));
+    for (const root of this.observedRoots) this.observeRoot(root);
+  }
+
+  private observeRoots(root: Document | Element | ShadowRoot): void {
+    if (!this.observer) return;
+    if ((root instanceof Document || root instanceof ShadowRoot) && !this.observedRoots.has(root)) {
+      this.observedRoots.add(root);
+      this.observeRoot(root);
+    }
+    if (root instanceof Element && root.shadowRoot) this.observeRoots(root.shadowRoot);
+    for (const element of root.querySelectorAll('*')) if (element.shadowRoot) this.observeRoots(element.shadowRoot);
+  }
 
   // The worker retains a bounded submission across same-origin top-frame navigation.
   private readonly onPageHide = (): void => this.stop();
 
   private scheduleOutcome(): void {
-    if (!this.pending) return;
-    if (this.settleTimer !== null) clearTimeout(this.settleTimer);
+    if (!this.pending || this.settleTimer !== null) return;
     this.settleTimer = setTimeout(() => this.inspectOutcome(), SETTLE_MS);
   }
 
