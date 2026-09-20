@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LiveLogin } from '../../content/isolated/agent-live-login';
 import { AGENT_INJECT_STEP_CHANNEL } from '@shared/messaging';
 import type { AgentInjectForm } from '@shared/messaging';
 import { handleNativeAgentMessage, type AgentFillDeps, type AgentProviderSession } from './native-provider';
 
+let elapsed = 0;
+beforeEach(() => { elapsed = 0; vi.spyOn(performance, 'now').mockImplementation(() => elapsed); });
+afterEach(() => vi.restoreAllMocks());
 const doc = 'd'.repeat(32), nextDoc = 'e'.repeat(32), url = 'https://signin.example.test/start';
 function form(field: 'username' | 'password' | 'totp', serial = '1'): AgentInjectForm {
   return { version: 1, steps: [{ fields: [{ entryFieldId: `credential.${field}`, control: field === 'totp' ? 'otp' : field,
@@ -19,7 +22,7 @@ function fixture() {
     inspectLiveLogin: vi.fn(async () => form('username')),
     probeLiveLogin: vi.fn(async () => next),
     sendStep: vi.fn(async () => ({ ok: true } as const)),
-    probeTransition: vi.fn(async () => ({ status: 'ready' } as const)), wait: vi.fn(async () => {}),
+    probeTransition: vi.fn(async () => ({ status: 'ready' } as const)), wait: vi.fn(async (ms: number) => { elapsed += ms; }),
   } satisfies AgentFillDeps;
   const session: AgentProviderSession = { prepared: null };
   const replay = { consume: vi.fn(async () => true) };
@@ -141,7 +144,7 @@ describe('one-session live continuation', () => {
       sendStep: async (_tab, expectedDomain, documentId, step, values) => live.fill({ channel: AGENT_INJECT_STEP_CHANNEL, expectedDomain, documentId, step, values }),
       fillDeferred: async (_tab, message) => live.fillDeferred(message), commitDeferred: async (_tab, message) => live.commitDeferred(message),
       cancelDeferred: async (_tab, pendingId) => live.cancelDeferred(pendingId),
-      probeTransition: async () => ({ status: 'missing' }), wait: async () => {},
+      probeTransition: async () => ({ status: 'missing' }), wait: async ms => { elapsed += ms; },
     };
     const session: AgentProviderSession = { prepared: null }, guard = { consume: async () => true };
     try {

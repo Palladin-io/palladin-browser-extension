@@ -1,9 +1,12 @@
-import { expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import wire from '../../../tests/fixtures/protocol/deferred-live-v2.json';
 import passwordWire from '../../../tests/fixtures/protocol/deferred-password-v2.json';
 import { handleNativeAgentMessage, type AgentFillDeps, type AgentProviderSession } from './native-provider';
 import { cancelPendingDeferred } from './native-deferred';
 import type { AgentInjectForm } from '@shared/messaging';
+let elapsed = 0;
+beforeEach(() => { elapsed = 0; vi.spyOn(performance, 'now').mockImplementation(() => elapsed); });
+afterEach(() => vi.restoreAllMocks());
 const url = 'https://login.example.test/', documentId = 'd'.repeat(32);
 function fixture() {
   const form = structuredClone(wire.inject.form) as AgentInjectForm;
@@ -11,7 +14,7 @@ function fixture() {
   const ready = { ...wire.submitReady.submitReady };
   const deps = {
     getActivePage: vi.fn(async () => page), getPageById: vi.fn(async () => page), inspectLiveLogin: vi.fn(async () => form),
-    probeLiveLogin: vi.fn<NonNullable<AgentFillDeps['probeLiveLogin']>>(async () => ({ outcome: 'no-form' } as const)), wait: vi.fn(async () => {}),
+    probeLiveLogin: vi.fn<NonNullable<AgentFillDeps['probeLiveLogin']>>(async () => ({ outcome: 'no-form' } as const)), wait: vi.fn(async (ms: number) => { elapsed += ms; }),
     sendStep: vi.fn(async () => ({ ok: true } as const)), probeTransition: vi.fn(async () => ({ status: 'ready' } as const)),
     fillDeferred: vi.fn(async (_tab: number, message: { pendingId: string }) => ({ ok: true as const, submitReady: { ...ready, pendingId: message.pendingId, submitSelector: `palladin-live:${message.pendingId}:${'3'.repeat(32)}` } })),
     commitDeferred: vi.fn(async () => ({ ok: true } as const)), cancelDeferred: vi.fn(async () => {}),
