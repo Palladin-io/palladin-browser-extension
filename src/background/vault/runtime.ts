@@ -132,13 +132,14 @@ async function sendFill(
   submit: boolean,
   loginTargetId?: string,
   assertSessionCurrent?: () => void,
+  intent?: "automatic" | "manual",
 ): Promise<FillOutcome> {
   const expectedOrigin = httpsOrigin(target.url);
   if (expectedOrigin === null) return { ok: false, reason: "target-changed" };
   if (target.documentTransport === "legacy-firefox-port") {
     const assertSession = assertSessionCurrent ?? captureFillSession();
     return legacyFirefoxDocuments?.send(target, { channel: FILL_REQUEST_CHANNEL, documentId: target.documentId,
-      expectedOrigin, expectedDomain, submit, loginTargetId: loginTargetId ?? null, fields }, assertSession) ?? { ok: false, reason: "target-changed" };
+      expectedOrigin, expectedDomain, submit, loginTargetId: loginTargetId ?? null, fields, ...(intent === undefined ? {} : { intent }) }, assertSession) ?? { ok: false, reason: "target-changed" };
   }
   try {
     const outcome = await chrome.tabs.sendMessage(
@@ -150,6 +151,7 @@ async function sendFill(
         expectedDomain,
         submit,
         loginTargetId: loginTargetId ?? null,
+        ...(intent === undefined ? {} : { intent }),
         fields,
       },
       { documentId: target.browserDocumentId },

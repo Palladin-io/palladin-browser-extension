@@ -328,7 +328,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
         getStatus: () => sessionManager.getStatus(),
         getMetadata: () => vaultData.getMetadata(),
         recency: inlineAutofillRecency,
-        fill: async (source, vaultId, entryId, scope, loginTargetId) => {
+        fill: async (source, vaultId, entryId, scope, loginTargetId, intent) => {
           // This channel includes passive exact-host autofill. A fill request
           // is not trusted own activity and must never renew session deadlines.
           return fillInlineSelectedEntry(
@@ -338,6 +338,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
             entryId,
             scope,
             loginTargetId,
+            intent,
           );
         },
       }, raw, sender, chrome.runtime.id);

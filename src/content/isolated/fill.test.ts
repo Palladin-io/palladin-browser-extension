@@ -451,3 +451,11 @@ describe('one-use isolated manual submit receipt', () => {
     } finally { vi.useRealTimers(); }
   });
 });
+
+it('manual replacement stops if an input handler changes an unwritten field', () => {
+  mount('<form><input autocomplete="username" value="other-user"><input type="password" autocomplete="current-password" value="other-password"><button type="submit">Sign in</button></form>');
+  const target = loginTargetFor(document.querySelector('input')!)!;
+  target.username!.addEventListener('input', () => { target.password!.value = ''; });
+  expect(performLoginTargetFill(target, CREDS, 'manual')).toEqual({ ok: false, reason: 'no-form' });
+  expect(target.password!.value).toBe('');
+});

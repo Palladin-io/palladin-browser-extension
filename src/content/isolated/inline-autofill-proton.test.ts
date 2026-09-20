@@ -31,7 +31,7 @@ function fixture(automatic = true, replyDelay = false) {
     if (command.type !== 'inline/fill') return { ok: false };
     const outcome = performBoundFill(document, { channel: 'palladin.fill/request', documentId: 'fixture-document',
       expectedOrigin: 'https://account.proton.me', expectedDomain: 'account.proton.me', submit: false,
-      loginTargetId: command.loginTargetId, fields: [{ kind: 'username', value: 'synthetic@example.test' }, { kind: 'password', value: 'Synthetic-password!42' }] },
+      loginTargetId: command.loginTargetId, intent: command.intent, fields: [{ kind: 'username', value: 'synthetic@example.test' }, { kind: 'password', value: 'Synthetic-password!42' }] },
     'https://account.proton.me/login', 'fixture-document', controller.resolveLoginTarget(command.loginTargetId));
     if (replyDelay) await new Promise(resolve => setTimeout(resolve, 10));
     return { ok: true, kind: 'fill', status: outcome.ok ? 'filled' : 'no-form' };
@@ -62,14 +62,15 @@ it('submits the observed Proton form after automatic fill without rewriting matc
   expect(f.send.mock.calls.filter(([command]) => command.type === 'inline/fill')).toHaveLength(2);
 });
 
-it.each(['username', 'password'] as const)('does not overwrite or submit a changed %s after automatic fill', async field => {
+it.each(['username', 'password'] as const)('explicitly replaces a different %s left by another autofill provider', async field => {
   const f = fixture(); await vi.waitFor(() => expect(f.password.value).toBe('Synthetic-password!42'));
   f[field].value = 'different-synthetic-value';
-  const before = [f.username.value, f.password.value];
-  const root = await f.clickLogin();
-  await vi.waitFor(() => expect(root.textContent).toContain('The login form could not be filled.'));
-  expect([f.username.value, f.password.value]).toEqual(before);
   expect(f.submit).not.toHaveBeenCalled();
+  await f.clickLogin();
+  await vi.waitFor(() => expect(f.submit).toHaveBeenCalledTimes(1));
+  expect([f.username.value, f.password.value]).toEqual(['synthetic@example.test', 'Synthetic-password!42']);
+  expect(f.send.mock.calls.filter(([command]) => command.type === 'inline/fill').map(([command]) =>
+    command.type === 'inline/fill' ? command.intent : null)).toEqual(['automatic', 'manual']);
 });
 
 it('lets queued framework input state settle before an explicit manual submit', async () => {

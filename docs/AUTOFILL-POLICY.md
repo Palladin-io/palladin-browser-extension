@@ -17,10 +17,11 @@ so it is not evidence of trusted user activity. The native extension surface's
 separate trusted activity channel records own input with its original timestamp.
 This preserves automatic exact-host autofill without adding a gesture gate.
 
-A standard login form must expose both a usable username/email control and a
-usable password control associated with the same `form`. A standalone email or
-username form never receives the inline launcher, suggestions, or automatic
-fill.
+Inline discovery uses the same credential-form analysis as native live login.
+It accepts an unambiguous username/email stage, a current-password stage, or a
+combined login stage, bound to one native form or one bounded credential scope.
+An unrelated standalone email field is not a login stage. Registration, password
+change, ambiguous actions and hidden or readonly controls remain excluded.
 
 Requiring a blanket user gesture before every automatic exact-host fill changes
 the product behavior and must not be introduced as a security fix without a new
@@ -49,11 +50,10 @@ history outside the encrypted Vault.
 - active tab and page-load/browser document binding, rechecked before decrypt
   and DOM write;
 - an isolated-world target identity that binds the worker round-trip to the
-  exact username, password, and owning form discovered before decryption;
+  exact present username/password controls and owning scope discovered before decryption;
 - Credential type, username, and stored domain present;
-- rendered, non-zero-area, usable username/email and password controls
-  associated with the same form;
-- username and password controls are still empty when the suggestion response
+- rendered, non-zero-area, usable controls in the same detected credential scope;
+- every present login control is still empty when the automatic suggestion response
   returns;
 - one automatic fill per current URL/form lifecycle;
 - `submit: false` for every automatic fill;
@@ -64,6 +64,23 @@ A same-registrable-domain sibling is only a labelled related-site candidate. It
 always requires a closed-surface, per-Entry choice for one operation, and the
 final write is rebound to the exact live host. Cards, neutral custom fields,
 form submission, capture, save, and update also remain explicit actions.
+
+## Explicit manual choice
+
+A click on a particular Entry in the closed inline surface sends a typed `manual`
+intent through the authenticated worker/document channel. It may replace another
+account already present in the bound controls. `automatic` intent never overwrites
+existing values, never permits related-host selection and never submits. Missing
+inline intent is rejected; legacy worker fill messages do not gain replacement rights.
+
+Matching values are preserved without replaying input events. After each DOM write,
+control ownership and both completed and not-yet-written values are rechecked.
+Explicit “Fill and log in” consumes a one-use isolated-world receipt from that
+approved fill, waits one task for framework state, then rechecks URL, scope, control
+identity and approved values before submit. The receipt is memory-only and expires
+after five seconds. A formless scope requires exactly one enabled native credential
+button; arbitrary page DIV actions are not clicked. Submission is not proof of
+successful authentication.
 
 ## Accepted trust boundary
 

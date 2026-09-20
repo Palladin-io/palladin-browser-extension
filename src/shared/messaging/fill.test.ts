@@ -66,3 +66,12 @@ describe("fill message guards", () => {
     expect(isFillOutcome({ ok: false, reason: "target-changed" })).toBe(true);
   });
 });
+
+
+it('only accepts explicit replacement intent on a bound inline credential fill', () => {
+  expect(isFillRequestMessage({ ...request, intent: 'manual' })).toBe(false);
+  expect(isFillRequestMessage({ ...request, loginTargetId: 'login-1', intent: 'manual' })).toBe(true);
+  expect(isFillRequestMessage({ ...request, loginTargetId: 'login-1', intent: 'automatic' })).toBe(true);
+  expect(isFillRequestMessage({ ...request, loginTargetId: 'login-1', intent: 'unknown' })).toBe(false);
+  expect(isFillRequestMessage({ ...request, loginTargetId: 'login-1', intent: 'manual', submit: true })).toBe(false);
+});

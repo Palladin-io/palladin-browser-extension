@@ -111,16 +111,26 @@ export function performFill(doc: Document, fields: readonly FillField[]): FillOu
 export function performLoginTargetFill(
   target: LoginTarget,
   fields: readonly FillField[],
+  intent: "automatic" | "manual" = "automatic",
 ): FillOutcome {
   const controls = fields.flatMap(field => field.kind === "username" && target.username !== null
     ? [{ input: target.username, value: field.value }]
     : field.kind === "password" && target.password !== null ? [{ input: target.password, value: field.value }] : []);
+  const initial = new Map([target.username, target.password].filter((input): input is HTMLInputElement => input !== null)
+    .map(input => [input, input.value] as const));
   const expected = (input: HTMLInputElement) => controls.find(control => control.input === input)?.value;
+  const completed: typeof controls = [];
   const compatible = () => isCurrentLoginTarget(target)
-    && [target.username, target.password].every(input => input === null || input.value === "" || input.value === expected(input));
+    && [target.username, target.password].every(input => {
+      if (input === null) return true;
+      const done = completed.find(control => control.input === input);
+      if (done !== undefined) return input.value === done.value;
+      if (intent === 'manual') return input.value === initial.get(input)
+        && (expected(input) !== undefined || input.value === '');
+      return input.value === '' || input.value === expected(input);
+    });
   clearFillReceipt(target);
   if (controls.length === 0 || !compatible()) return { ok: false, reason: "no-form" };
-  const completed: typeof controls = [];
   for (const control of controls) {
     if (!compatible() || completed.some(done => done.input.value !== done.value)) {
       return { ok: false, reason: "no-form" };
@@ -196,7 +206,7 @@ export function performBoundFill(
     ? performFill(doc, message.fields)
     : loginTarget === null
       ? { ok: false as const, reason: "no-form" as const }
-      : performLoginTargetFill(loginTarget, message.fields);
+      : performLoginTargetFill(loginTarget, message.fields, message.intent);
   if (!outcome.ok || !message.submit) return outcome;
 
   const password = message.loginTargetId === null

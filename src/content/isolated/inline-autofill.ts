@@ -670,6 +670,7 @@ class InlineWidget {
       raw = await this.options.send({
         channel: INLINE_AUTOFILL_CHANNEL,
         type: "inline/fill",
+        intent: silent ? "automatic" : "manual",
         documentId: this.options.documentId,
         vaultId: entry.vaultId,
         entryId: entry.entryId,

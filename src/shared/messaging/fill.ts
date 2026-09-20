@@ -49,6 +49,8 @@ export interface FillRequestMessage {
   readonly submit: boolean;
   /** Exact isolated-world login target for inline fills; null for popup and generated fills. */
   readonly loginTargetId: string | null;
+  /** Only inline manual choice permits replacing current page values. Missing stays no-overwrite. */
+  readonly intent?: "automatic" | "manual";
   readonly fields: readonly FillField[];
 }
 
@@ -89,6 +91,7 @@ export function isFillRequestMessage(value: unknown): value is FillRequestMessag
     "submit",
     "loginTargetId",
     "fields",
+    "intent",
   ])) {
     return false;
   }
@@ -100,6 +103,7 @@ export function isFillRequestMessage(value: unknown): value is FillRequestMessag
     submit?: unknown;
     loginTargetId?: unknown;
     fields?: unknown;
+    intent?: unknown;
   };
   return (
     message.channel === FILL_REQUEST_CHANNEL &&
@@ -118,6 +122,8 @@ export function isFillRequestMessage(value: unknown): value is FillRequestMessag
       message.loginTargetId.length >= 1 &&
       message.loginTargetId.length <= 256
     )) &&
+    (message.intent === undefined || (message.loginTargetId !== null && message.submit === false
+      && (message.intent === "automatic" || message.intent === "manual"))) &&
     Array.isArray(message.fields) &&
     message.fields.length >= 1 &&
     message.fields.length <= 8 &&
