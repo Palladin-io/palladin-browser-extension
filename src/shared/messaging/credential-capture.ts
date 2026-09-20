@@ -9,6 +9,11 @@ export interface SubmittedCredential {
   readonly previousPassword: string | null;
 }
 
+export type UsernameChoice = 'email' | 'nickname';
+export interface CredentialSubmission extends SubmittedCredential {
+  readonly usernameOptions?: Readonly<Record<UsernameChoice, string>>;
+}
+
 interface DocumentCommand {
   readonly channel: typeof CREDENTIAL_CAPTURE_CHANNEL;
   readonly documentId: string;
@@ -16,7 +21,7 @@ interface DocumentCommand {
 
 export type CredentialCaptureCommand = DocumentCommand & (
   | { readonly type: "identifier"; readonly submissionId: string; readonly username: string }
-  | { readonly type: "submitted"; readonly submissionId: string; readonly credential: SubmittedCredential }
+  | { readonly type: "submitted"; readonly submissionId: string; readonly credential: CredentialSubmission }
   | {
       readonly type: "outcome";
       readonly submissionId: string;
@@ -24,6 +29,7 @@ export type CredentialCaptureCommand = DocumentCommand & (
     }
   | { readonly type: "resume"; readonly hasPasswordForm: boolean; readonly hasError: boolean; readonly hasSuccess: boolean }
   | { readonly type: "get" }
+  | { readonly type: 'choose-username'; readonly promptId: string; readonly choice: UsernameChoice }
   | {
       readonly type: "save";
       readonly promptId: string;
@@ -49,6 +55,7 @@ export interface CredentialCapturePrompt {
   readonly targets: readonly CredentialCaptureTarget[];
   readonly defaultTargetId: string | null;
   readonly error?: "save-failed";
+  readonly usernameSelection?: { readonly selected: UsernameChoice | null };
 }
 
 export type CredentialCaptureResult =
@@ -81,6 +88,17 @@ export function isSubmittedCredential(value: unknown): value is SubmittedCredent
     && (value.kind === "password-change" || value.previousPassword === null);
 }
 
+export function isCredentialSubmission(value: unknown): value is CredentialSubmission {
+  if (!record(value)) return false;
+  if (!('usernameOptions' in value)) return isSubmittedCredential(value);
+  const { usernameOptions, ...credential } = value;
+  return isSubmittedCredential(credential) && credential.kind === 'registration' && credential.username === ''
+    && record(usernameOptions) && only(usernameOptions, ['email', 'nickname'])
+    && [usernameOptions.email, usernameOptions.nickname].every(option =>
+      boundedString(option, 1, 512) && option.trim() === option)
+    && usernameOptions.email !== usernameOptions.nickname;
+}
+
 export function isCredentialCaptureCommand(value: unknown): value is CredentialCaptureCommand {
   if (!record(value) || value.channel !== CREDENTIAL_CAPTURE_CHANNEL || !id(value.documentId)) return false;
   const base = ["channel", "documentId", "type"];
@@ -90,7 +108,7 @@ export function isCredentialCaptureCommand(value: unknown): value is CredentialC
         && id(value.submissionId) && boundedString(value.username, 1, 512) && value.username.trim() === value.username;
     case "submitted":
       return only(value, [...base, "submissionId", "credential"])
-        && id(value.submissionId) && isSubmittedCredential(value.credential);
+        && id(value.submissionId) && isCredentialSubmission(value.credential);
     case "outcome":
       return only(value, [...base, "submissionId", "outcome"]) && id(value.submissionId)
         && (value.outcome === "rejected" || value.outcome === "form-dismissed" || value.outcome === "success-message");
@@ -104,6 +122,9 @@ export function isCredentialCaptureCommand(value: unknown): value is CredentialC
     case "save":
       return only(value, [...base, "promptId", "targetId", "autoUpdate"])
         && id(value.promptId) && id(value.targetId) && typeof value.autoUpdate === "boolean";
+    case 'choose-username':
+      return only(value, [...base, 'promptId', 'choice']) && id(value.promptId)
+        && (value.choice === 'email' || value.choice === 'nickname');
     case "dismiss":
     case "mute":
       return only(value, [...base, "promptId"]) && id(value.promptId);
@@ -132,7 +153,13 @@ export function isCredentialCaptureResult(value: unknown): value is CredentialCa
       if (!only(value, ["status", "prompt"])) return false;
       const prompt = value.prompt;
       return prompt === null || (record(prompt)
-        && only(prompt, ["id", "site", "state", "targets", "defaultTargetId", "error"])
+        && only(prompt, ["id", "site", "state", "targets", "defaultTargetId", "error", 'usernameSelection'])
+        && (prompt.usernameSelection === undefined || (record(prompt.usernameSelection)
+          && only(prompt.usernameSelection, ['selected']) && prompt.state === 'ready'
+          && (prompt.usernameSelection.selected === null || prompt.usernameSelection.selected === 'email'
+            || prompt.usernameSelection.selected === 'nickname')
+          && (prompt.usernameSelection.selected !== null || (Array.isArray(prompt.targets)
+            && prompt.targets.length === 0 && prompt.defaultTargetId === null))))
         && (prompt.error === undefined || prompt.error === "save-failed")
         && id(prompt.id) && boundedString(prompt.site, 1, 253)
         && (prompt.state === "locked" || prompt.state === "ready")

@@ -12,6 +12,22 @@ const submitted = {
 };
 
 describe("isolated credential capture protocol", () => {
+  it('accepts only bounded registration identity alternatives and value-free choices', () => {
+    const credential = { kind: 'registration', username: '', password: 'secret', previousPassword: null,
+      usernameOptions: { email: 'contact@example.test', nickname: 'handle' } };
+    expect(isCredentialCaptureCommand({ ...submitted, credential })).toBe(true);
+    for (const patch of [{ kind: 'login' }, { username: 'preselected' }, { usernameOptions: { email: '', nickname: 'handle' } },
+      { usernameOptions: { email: 'contact@example.test', nickname: 'x'.repeat(513) } },
+      { usernameOptions: { email: 'same', nickname: 'same' } },
+      { usernameOptions: { email: 'contact@example.test', nickname: 'handle', password: 'injected' } }]) {
+      expect(isCredentialCaptureCommand({ ...submitted, credential: { ...credential, ...patch } })).toBe(false);
+    }
+    const choose = { ...base, type: 'choose-username', promptId: submitted.submissionId, choice: 'email' };
+    expect(isCredentialCaptureCommand(choose)).toBe(true);
+    expect(isCredentialCaptureCommand({ ...choose, choice: 'nickname' })).toBe(true);
+    expect(isCredentialCaptureCommand({ ...choose, choice: 'other' })).toBe(false);
+    expect(isCredentialCaptureCommand({ ...choose, username: 'injected' })).toBe(false);
+  });
   it("accepts short passwords without normalizing their value", () => {
     expect(isCredentialCaptureCommand(submitted)).toBe(true);
     expect(isCredentialCaptureCommand({ ...submitted, credential: { ...submitted.credential, password: "x" } })).toBe(true);
