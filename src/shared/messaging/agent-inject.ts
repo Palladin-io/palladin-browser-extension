@@ -171,6 +171,7 @@ export function parseAgentInjectForm(value: unknown): AgentInjectForm | null {
       || field.control !== 'username' || step.submit.action !== 'deferred-native-click'
       || !/^palladin-live:[a-f0-9]{32}:[a-f0-9]{32}$/.test(field.selector)
       || !/^palladin-live:[a-f0-9]{32}:[a-f0-9]{32}$/.test(step.submit.selector)
+      || field.selector === step.submit.selector
       || field.selector.split(':')[1] !== step.submit.selector.split(':')[1]) return null;
     return { version: 2, steps: [step] };
   }

@@ -9,7 +9,7 @@ describe('explicit deferred username-only wire', () => {
     expect(isAgentInjectStepMessage({ channel: AGENT_INJECT_STEP_CHANNEL, expectedDomain: fixture.inject.expectedDomain, documentId: 'd'.repeat(32),
       step: fixture.inject.form.steps[0], values: fixture.inject.values })).toBe(false);
   });
-  it.each(['password','totp','mixed','v1','wait','different-snapshot','missing-expiry'])('rejects deferred %s', mutation => {
+  it.each(['password','totp','mixed','v1','wait','different-snapshot','same-selector','missing-expiry'])('rejects deferred %s', mutation => {
     const raw = structuredClone(fixture.inject);
     const field = raw.form.steps[0]!.fields[0]!;
     if (mutation === 'password' || mutation === 'totp') { field.entryFieldId = `credential.${mutation}`; field.control = mutation === 'totp' ? 'otp' : mutation; }
@@ -17,6 +17,7 @@ describe('explicit deferred username-only wire', () => {
     if (mutation === 'v1') raw.form.version = 1;
     if (mutation === 'wait') Object.assign(raw.form.steps[0]!, { waitFor: { selector: '#anything' } });
     if (mutation === 'different-snapshot') field.selector = field.selector.replace('a'.repeat(32), 'e'.repeat(32));
+    if (mutation === 'same-selector') raw.form.steps[0]!.submit.selector = field.selector;
     if (mutation === 'missing-expiry') Reflect.deleteProperty(raw, 'expiresAt');
     expect(parseAgentInjectionRequest(raw)).toBeNull();
   });
