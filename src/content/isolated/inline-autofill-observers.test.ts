@@ -73,7 +73,7 @@ it('never enters a later closed shadow root', async () => {
   await vi.advanceTimersByTimeAsync(1000);
   expect(document.querySelector('palladin-autofill')).toBeNull();
 });
-it('caps host probes per tick and rotates past early hosts across unrelated scans', async () => {
+it('caps host probes per tick and preserves rotation past early hosts across an unrelated scan', async () => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
   const hosts = Array.from({ length: 600 }, () => document.createElement('late-rotating-fields'));
   document.body.append(...hosts); start();
@@ -81,11 +81,12 @@ it('caps host probes per tick and rotates past early hosts across unrelated scan
   await vi.advanceTimersByTimeAsync(250);
   expect(probes.reduce((sum, probe) => sum + probe.mock.calls.length, 0)).toBeLessThanOrEqual(256);
   probes.forEach(probe => probe.mockRestore());
+  // Scan once before the root exists: it must preserve the cursor advanced at 250ms.
+  document.body.className = 'synthetic-update';
+  await vi.advanceTimersByTimeAsync(200);
   hosts[599]!.attachShadow({ mode: 'open' }).innerHTML = form;
-  // These scans must not keep resetting the probe cursor to the first host.
-  for (let tick = 0; tick < 10; tick++) {
-    document.body.className = `synthetic-${tick}`;
-    await vi.advanceTimersByTimeAsync(100);
-  }
+  // No light-DOM mutation can discover the root. Rotation reaches it at 750ms;
+  // a reset cursor would not reach it before 1000ms (plus the scan delay).
+  await vi.advanceTimersByTimeAsync(450);
   expect(document.querySelectorAll('palladin-autofill')).toHaveLength(1);
 });
