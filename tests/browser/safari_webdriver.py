@@ -116,6 +116,8 @@ class SafariPopup(WebDriverActions):
             self.click('#open-popup')
             self.last_stage = 'observe-native-popup-open'
             self.wait(lambda: self.read('return !!popup'), 'native Safari Popup')
+        self.last_stage = 'observe-native-popup-presentation'
+        self.wait(lambda: self.read('return !!popup && popup.document.readyState === "complete" && popup.document.hasFocus()'), 'native Popup presentation')
         self.last_stage = 'native-popup-open'
 
     def read(self, script, *args):
@@ -123,8 +125,16 @@ class SafariPopup(WebDriverActions):
         # be called by its own product handlers, not by this tab's JS context.
         return self.script('''
           const expected = arguments[0];
-          const popup = browser.extension.getViews({ type: 'popup' })
-            .find(view => !view.closed && view.location.href === expected);
+          // Safari may retain an unfocused/preloaded view while presenting its
+          // replacement. A detached cross-window object can also throw here.
+          const views = browser.extension.getViews({ type: 'popup' }).filter(view => {
+            try { return !view.closed && view.location.href === expected && !!view.document; }
+            catch { return false; }
+          });
+          const popup = views.find(view => {
+            try { return view.document.readyState === 'complete' && view.document.hasFocus(); }
+            catch { return false; }
+          }) ?? views[0];
           const values = Array.prototype.slice.call(arguments, 1);
         ''' + script, self.popup_url, *args)
 
