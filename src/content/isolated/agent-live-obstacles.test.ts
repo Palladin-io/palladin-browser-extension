@@ -15,7 +15,7 @@ function setup(html: string) {
 }
 it('prepares the observed Allegro login despite a separately observed outside-form advertising iframe', () => {
   const instance = setup(readFileSync('tests/fixtures/forms/allegro-login-ad-2026-09-20/page.html', 'utf8'));
-  const plan = instance.inspect(url);
+  const plan = instance.inspectCurrent(url);
   expect(plan?.steps[0]?.fields.map(field => field.entryFieldId)).toEqual(['credential.username', 'credential.password']);
   const submitted = vi.fn((event: Event) => event.preventDefault());
   document.querySelector('form')!.addEventListener('submit', submitted);
@@ -43,10 +43,10 @@ it('does not discover credentials owned only by an iframe', () => {
   expect(setup('<iframe title="Sign in"></iframe>').probe(url)).toEqual({ outcome: 'challenge' });
 });
 it('never chooses between two native credential forms', () => {
-  expect(setup(login + login).inspect(url)).toBeNull();
+  expect(setup(login + login).inspectCurrent(url)).toBeNull();
 });
 it('still rejects controls covered by an overlay at discovery', () => {
   document.body.innerHTML = login;
   live = new LiveLogin(document, documentId, () => url, () => true, { isVisible: element => !element.matches('input') });
-  expect(live.inspect(url)).toBeNull();
+  expect(live.inspectCurrent(url)).toBeNull();
 });

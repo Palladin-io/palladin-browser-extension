@@ -1,5 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import wire from '../../../tests/fixtures/protocol/deferred-live-v2.json';
+import passwordWire from '../../../tests/fixtures/protocol/deferred-password-v2.json';
 import { handleNativeAgentMessage, type AgentFillDeps, type AgentProviderSession } from './native-provider';
 import { cancelPendingDeferred } from './native-deferred';
 import type { AgentInjectForm } from '@shared/messaging';
@@ -10,7 +11,7 @@ function fixture() {
   const ready = { ...wire.submitReady.submitReady };
   const deps = {
     getActivePage: vi.fn(async () => page), getPageById: vi.fn(async () => page), inspectLiveLogin: vi.fn(async () => form),
-    probeLiveLogin: vi.fn(async () => ({ outcome: 'no-form' } as const)), wait: vi.fn(async () => {}),
+    probeLiveLogin: vi.fn<NonNullable<AgentFillDeps['probeLiveLogin']>>(async () => ({ outcome: 'no-form' } as const)), wait: vi.fn(async () => {}),
     sendStep: vi.fn(async () => ({ ok: true } as const)), probeTransition: vi.fn(async () => ({ status: 'ready' } as const)),
     fillDeferred: vi.fn(async (_tab: number, message: { pendingId: string }) => ({ ok: true as const, submitReady: { ...ready, pendingId: message.pendingId, submitSelector: `palladin-live:${message.pendingId}:${'3'.repeat(32)}` } })),
     commitDeferred: vi.fn(async () => ({ ok: true } as const)), cancelDeferred: vi.fn(async () => {}),
@@ -31,6 +32,22 @@ it('requires a distinct commit after fill, counts one stage only after physical 
   expect(await f.send(commit)).toMatchObject({ outcome: 'injected', continuation: { outcome: 'no-form' } });
   expect(await f.send(commit)).toMatchObject({ outcome: 'rejected' });
   expect(f.deps.fillDeferred).toHaveBeenCalledTimes(1); expect(f.deps.commitDeferred).toHaveBeenCalledTimes(1);
+});
+it('continues one deferred username into one fresh deferred password with the same chain and carried identity', async () => {
+  const f = fixture(); await f.prepare(); await f.inject();
+  const passwordForm = structuredClone(passwordWire.carriedUsername.inject.form) as AgentInjectForm;
+  f.deps.probeLiveLogin.mockResolvedValue({ outcome: 'ready', form: passwordForm });
+  expect(await f.commit()).toMatchObject({ outcome: 'injected', continuation: { outcome: 'ready', liveForm: passwordForm } });
+  const chain = f.session.liveChain!; expect(chain.steps).toBe(1);
+  const next = { ...structuredClone(passwordWire.carriedUsername.inject), transactionId: 'password-tx', expiresAt: Date.now() + 10_000 };
+  expect(await f.send(next)).toMatchObject({ outcome: 'submit-ready' });
+  expect(f.session.pendingSubmit!.chain).toBe(chain); expect(chain.steps).toBe(1);
+  expect(f.deps.fillDeferred).toHaveBeenLastCalledWith(7, expect.objectContaining({ requireExistingUsername: true }));
+  const commit = { ...wire.submit, transactionId: 'password-commit', preparedTransactionId: 'password-tx', submitReady: f.session.pendingSubmit!.ready, expiresAt: Date.now() + 1000 };
+  // An unchanged password step after submission times out instead of replaying.
+  expect(await f.send(commit)).toMatchObject({ outcome: 'injected', continuation: { outcome: 'timeout' } });
+  expect(chain.steps).toBe(2); expect(f.deps.fillDeferred).toHaveBeenCalledTimes(2); expect(f.deps.commitDeferred).toHaveBeenCalledTimes(2);
+  expect(await f.send(commit)).toMatchObject({ outcome: 'rejected' });
 });
 it.each(['grantId','entryId','expectedDomain','preparedTransactionId','expired','replay','document','lost-response'])('fails closed on %s before/after the one commit', async mutation => {
   const f = fixture(); await f.prepare(); await f.inject();

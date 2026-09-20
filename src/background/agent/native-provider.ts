@@ -176,7 +176,7 @@ export async function handleNativeAgentMessage(
     return result(request.transactionId, 'rejected');
   }
   if (request.form.version === 2) {
-    const chain = request.continueLive === true && !priorChain ? bindLiveChain(prepared, priorChain, request) : null;
+    const chain = request.continueLive === true ? bindLiveChain(prepared, priorChain, request) : null;
     if (!chain) { wipeValues(request.values); return result(request.transactionId, 'rejected'); }
     return beginDeferredSubmit(deps, replay, session, prepared, chain, request);
   }

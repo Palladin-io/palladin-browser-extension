@@ -83,7 +83,8 @@ it('never clicks an unannotated DIV and cancels after bounded discovery', async 
   expect(document.querySelector<HTMLInputElement>('input')!.value).toBe('');
 });
 it('cannot extend the pending lifetime through clock rollback or a later commit expiry', async () => {
-  vi.useFakeTimers(); const instance = setup(generic), response = await filled(instance); expect(response.ok).toBe(true); if (!response.ok) return;
+  vi.useFakeTimers(); const instance = setup(generic), pending = filled(instance); await vi.advanceTimersByTimeAsync(1);
+  const response = await pending; expect(response.ok).toBe(true); if (!response.ok) return;
   const start = Date.now(); vi.setSystemTime(start - 60_000); await vi.advanceTimersByTimeAsync(10_001);
   expect(instance.commitDeferred({ channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'login.example.test', submitReady: response.submitReady, expiresAt: start + 60_000 }).ok).toBe(false);
   expect(document.querySelector<HTMLInputElement>('input')!.value).toBe('');
@@ -100,10 +101,10 @@ it('preserves an already matching identifier without input/change while waiting 
   if (result.ok) instance.cancelDeferred(result.submitReady.pendingId);
   expect(input.value).toBe('synthetic@example.test');
 });
-it('uses ordinary v1 for a matching username whose native action is already enabled', () => {
+it('uses the deferred adapter for a matching username whose native action is already enabled', () => {
   const instance = setup(generic.replace('<div>Continue</div>','<button>Continue</button>'));
   document.querySelector<HTMLInputElement>('input')!.value = 'synthetic@example.test';
-  expect(instance.inspect(url)?.version).toBe(1);
+  expect(instance.inspect(url)?.version).toBe(2);
 });
 it('does not reinterpret a covered password as an absent field in an identifier-only plan', () => {
   document.body.innerHTML = '<form><h2>Sign in</h2><input autocomplete="username"><input type="password"><div>Continue</div></form>';

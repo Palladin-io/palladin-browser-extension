@@ -16,7 +16,7 @@ function setup(html: string) {
 }
 it('discovers the observed AWS Root identifier and Next without copying its page selectors', () => {
   const instance = setup(readFileSync('tests/fixtures/forms/aws-root-identifier-2026-09-18/page.html', 'utf8'));
-  const form = instance.inspect(url);
+  const form = instance.inspectCurrent(url);
   expect(form?.steps[0]?.fields.map(field => field.entryFieldId)).toEqual(['credential.username']);
   expect(JSON.stringify(form)).not.toContain('resolving_input');
   const submit = vi.fn((event: Event) => event.preventDefault());
@@ -31,11 +31,11 @@ it.each(['', 'synthetic@example.test'])('inspects observed AWS Root with a prefi
   const input = document.querySelector<HTMLInputElement>('#resolving_input')!;
   input.value = value;
   Object.defineProperty(input, 'value', { get() { throw new Error('Live discovery must remain value-free'); } });
-  expect(instance.inspect(url)?.steps[0]?.fields.map(field => field.entryFieldId)).toEqual(['credential.username']);
+  expect(instance.inspectCurrent(url)?.steps[0]?.fields.map(field => field.entryFieldId)).toEqual(['credential.username']);
 });
 it('binds the actual controls and rejects replacement before any write', () => {
   const instance = setup('<form><input autocomplete="username"><input type="password"><button>Sign in</button></form>');
-  const form = instance.inspect(url)!;
+  const form = instance.inspectCurrent(url)!;
   document.querySelector('input')!.outerHTML = '<input autocomplete="username">';
   expect(instance.fill({ channel: AGENT_INJECT_STEP_CHANNEL, documentId, expectedDomain: 'signin.aws.amazon.com',
     step: form.steps[0]!, values: [{ entryFieldId: 'credential.username', value: 'synthetic' }, { entryFieldId: 'credential.password', value: 'synthetic-password' }] }).ok).toBe(false);
@@ -43,20 +43,20 @@ it('binds the actual controls and rejects replacement before any write', () => {
 });
 it('discovers authenticator MFA but rejects explicit SMS, signup and ambiguous forms', () => {
   let instance = setup('<form><label>Authenticator code<input autocomplete="one-time-code"></label><button>Verify</button></form>');
-  expect(instance.inspect(url)?.steps[0]?.fields[0]?.entryFieldId).toBe('credential.totp');
+  expect(instance.inspectCurrent(url)?.steps[0]?.fields[0]?.entryFieldId).toBe('credential.totp');
   instance.clear();
   for (const html of [
     '<form>Code sent by SMS<input autocomplete="one-time-code"><button>Verify</button></form>',
     '<form><input autocomplete="username"><input type="password" autocomplete="new-password"><button>Register</button></form>',
     '<form><input type="email"><button>Next</button></form><form><input type="email"><button>Next</button></form>',
-  ]) { instance = setup(html); expect(instance.inspect(url)).toBeNull(); instance.clear(); }
+  ]) { instance = setup(html); expect(instance.inspectCurrent(url)).toBeNull(); instance.clear(); }
 });
 
 // The HTML is observed AWS markup; these event handlers are synthetic mechanism
 // regressions, not a recording of AWS's production JavaScript.
 it.each(['value attribute', 'unrelated DOM'])('keeps live bindings across %s updates from input handling', (mutation) => {
   const instance = setup(readFileSync('tests/fixtures/forms/aws-root-identifier-2026-09-18/page.html', 'utf8'));
-  const form = instance.inspect(url)!;
+  const form = instance.inspectCurrent(url)!;
   const input = document.querySelector<HTMLInputElement>('#resolving_input')!;
   input.addEventListener('input', () => {
     if (mutation === 'value attribute') input.setAttribute('value', input.value);
@@ -71,7 +71,7 @@ it.each(['value attribute', 'unrelated DOM'])('keeps live bindings across %s upd
 
 it.each(['replacement', 'field type', 'new field', 'submit destination', 'submit caption', 'covered submit'])('rejects %s during input handling without submitting', (mutation) => {
   const instance = setup('<form><label>Password<input type="password" autocomplete="current-password"></label><button>Sign in</button></form>');
-  const form = instance.inspect(url)!;
+  const form = instance.inspectCurrent(url)!;
   const input = document.querySelector<HTMLInputElement>('input')!;
   const action = document.querySelector('button')!;
   input.addEventListener('input', () => {
@@ -94,7 +94,7 @@ it('does not extend expiry when revalidating live controls', () => {
   vi.useFakeTimers();
   try {
     const instance = setup('<form><label>Password<input type="password" autocomplete="current-password"></label><button>Sign in</button></form>');
-    const form = instance.inspect(url)!;
+    const form = instance.inspectCurrent(url)!;
     vi.advanceTimersByTime(60_000);
     expect(instance.fill({ channel: AGENT_INJECT_STEP_CHANNEL, documentId, expectedDomain: 'signin.aws.amazon.com',
       step: form.steps[0]!, values: [{ entryFieldId: 'credential.password', value: 'synthetic-password' }] }).ok).toBe(false);
@@ -119,7 +119,7 @@ it.each(['matching', 'empty', 'foreign', 'changed during password input'])('pres
   const events = vi.fn(); identity.addEventListener('input', events); identity.addEventListener('change', events);
   if (state === 'changed during password input') password.addEventListener('input', () => { identity.value = 'other@example.test'; });
   const submit = vi.fn((event: Event) => event.preventDefault()); document.querySelector('form')!.addEventListener('submit', submit);
-  const plan = instance.inspect(url)!;
+  const plan = instance.inspectCurrent(url)!;
   const outcome = instance.fill({ channel: AGENT_INJECT_STEP_CHANNEL, documentId, expectedDomain: 'signin.aws.amazon.com', step: plan.steps[0]!,
     requireExistingUsername: true,
     values: [{ entryFieldId: 'credential.username', value: 'approved@example.test' }, { entryFieldId: 'credential.password', value: 'synthetic-password' }] });
@@ -141,7 +141,7 @@ it.each(['submit', 'button'].flatMap(type => ['cross-origin action', 'foreign ta
   const input = shadow.querySelector('input')!;
   if (state === 'action changed during input') input.addEventListener('input', () => { owner.action = 'https://foreign.example.test/'; });
   const clicked = vi.fn(); shadow.querySelector('button')!.addEventListener('click', clicked);
-  const plan = instance.inspect(url)!;
+  const plan = instance.inspectCurrent(url)!;
   expect(plan).not.toBeNull();
   expect(instance.fill({ channel: AGENT_INJECT_STEP_CHANNEL, documentId, expectedDomain: 'signin.aws.amazon.com', step: plan.steps[0]!,
     values: [{ entryFieldId: 'credential.password', value: 'synthetic-password' }] }).ok).toBe(false);
@@ -152,7 +152,7 @@ it.each(['submit', 'button'].flatMap(type => ['cross-origin action', 'foreign ta
 it('does not let inert button overrides hide its owner destination', () => {
   const instance = setup('<form action="https://foreign.example.test/"><input type="password" autocomplete="current-password"><button type="button" formaction="/local">Sign in</button></form>');
   const clicked = vi.fn(); document.querySelector('button')!.addEventListener('click', clicked);
-  const plan = instance.inspect(url)!;
+  const plan = instance.inspectCurrent(url)!;
   expect(plan).not.toBeNull();
   expect(instance.fill({ channel: AGENT_INJECT_STEP_CHANNEL, documentId, expectedDomain: 'signin.aws.amazon.com', step: plan.steps[0]!,
     values: [{ entryFieldId: 'credential.password', value: 'synthetic-password' }] }).ok).toBe(false);
@@ -166,7 +166,7 @@ it.each(['href', 'target'])('rejects a changed document base %s before submittin
     const input = document.querySelector<HTMLInputElement>('input')!;
     input.addEventListener('input', () => { base.setAttribute(attribute, attribute === 'href' ? 'https://foreign.example.test/' : '_blank'); });
     const submit = vi.fn((event: Event) => event.preventDefault()); document.querySelector('form')!.addEventListener('submit', submit);
-    const plan = instance.inspect(url)!;
+    const plan = instance.inspectCurrent(url)!;
     expect(instance.fill({ channel: AGENT_INJECT_STEP_CHANNEL, documentId, expectedDomain: 'signin.aws.amazon.com', step: plan.steps[0]!,
       values: [{ entryFieldId: 'credential.password', value: 'synthetic-password' }] }).ok).toBe(false);
     expect(submit).not.toHaveBeenCalled();
