@@ -1,3 +1,5 @@
+import { DEFERRED_CANCEL, parseSubmitReady, type DeferredFillMessage, type DeferredFillOutcome, type DeferredCommitMessage } from '@shared/messaging/agent-deferred';
+import { cancelPendingDeferred } from './native-deferred';
 import { AGENT_LIVE_INSPECT_CHANNEL, AGENT_LIVE_PROBE_CHANNEL, parseLiveLoginProbe, type LiveLoginProbe } from '@shared/messaging/agent-live';
 import { parseAgentInjectForm, type AgentInjectForm } from '@shared/messaging';
 import {
@@ -69,6 +71,7 @@ class SessionReplayGuard implements TransactionReplayGuard {
 }
 
 const replay = new SessionReplayGuard();
+let cancelActiveDeferred: (() => void) | null = null;
 let nativePort: chrome.runtime.Port | null = null;
 let clientSession: InjectClientSession | null = null;
 let secureChannel: InjectSecureChannel | null = null;
@@ -79,6 +82,7 @@ let reconnectDelayMinutes = INITIAL_RECONNECT_DELAY_MINUTES;
 let reconnectDelayLoad: Promise<void> | null = null;
 
 const agentFillDeps: AgentFillDeps = {
+  fillDeferred, commitDeferred, cancelDeferred,
   inspectLiveLogin,
   probeLiveLogin,
   getActivePage,
@@ -93,6 +97,18 @@ export function gateAgentFillDeps(
   isActive: () => boolean,
 ): AgentFillDeps {
   return {
+    async fillDeferred(tabId, message) {
+      if (!isActive() || !deps.fillDeferred) return null;
+      const response = await deps.fillDeferred(tabId, message);
+      if (!isActive()) { void deps.cancelDeferred?.(tabId, message.pendingId).catch(() => undefined); return null; }
+      return response;
+    },
+    async commitDeferred(tabId, message) {
+      if (!isActive() || !deps.commitDeferred) return null;
+      const response = await deps.commitDeferred(tabId, message);
+      return isActive() ? response : null;
+    },
+    async cancelDeferred(tabId, pendingId) { await deps.cancelDeferred?.(tabId, pendingId); },
     async probeLiveLogin(tabId, documentId, targetUrl) {
       if (!isActive() || !deps.probeLiveLogin) return null;
       const result = await deps.probeLiveLogin(tabId, documentId, targetUrl);
@@ -192,6 +208,7 @@ async function openNativeAgentProvider(expectedLifecycle: number): Promise<void>
     port = chrome.runtime.connectNative(NATIVE_HOST_NAME);
     nativePort = port;
     const providerSession: AgentProviderSession = { prepared: null };
+    cancelActiveDeferred = () => cancelPendingDeferred(agentFillDeps, providerSession);
     const isActive = () => nativePort === port
       && lifecycleVersion === expectedLifecycle;
     const lifecycleDeps = gateAgentFillDeps(agentFillDeps, isActive);
@@ -452,6 +469,7 @@ function disconnectSecurePort(port: chrome.runtime.Port): void {
 
 function disposeSecureSession(port?: chrome.runtime.Port): void {
   if (port !== undefined && nativePort !== port) return;
+  cancelActiveDeferred?.(); cancelActiveDeferred = null;
   clearHandshakeTimeout();
   secureChannel?.dispose();
   clientSession?.dispose();
@@ -596,4 +614,25 @@ async function probeLiveLogin(tabId: number, documentId: string, targetUrl: stri
       { channel: AGENT_LIVE_PROBE_CHANNEL, documentId, targetUrl }, { frameId: 0 }), TAB_PROBE_TIMEOUT_MS);
     return parseLiveLoginProbe(response);
   } catch { return null; }
+}
+
+async function fillDeferred(tabId: number, message: DeferredFillMessage): Promise<DeferredFillOutcome | null> {
+  try {
+    const response: unknown = await settleWithin(chrome.tabs.sendMessage(tabId, message, { frameId: 0 }), 5_500);
+    if (typeof response !== 'object' || response === null) return null;
+    if ('ok' in response && response.ok === true && 'submitReady' in response && Object.keys(response).length === 2) {
+      const ready = parseSubmitReady(response.submitReady);
+      return ready ? { ok: true, submitReady: ready } : null;
+    }
+    return isAgentInjectStepOutcome(response) && !response.ok ? response : null;
+  } catch { return null; }
+}
+async function commitDeferred(tabId: number, message: DeferredCommitMessage): Promise<AgentInjectStepOutcome | null> {
+  try {
+    const response = await settleWithin(chrome.tabs.sendMessage(tabId, message, { frameId: 0 }), TAB_PROBE_TIMEOUT_MS);
+    return isAgentInjectStepOutcome(response) ? response : null;
+  } catch { return null; }
+}
+async function cancelDeferred(tabId: number, pendingId: string): Promise<void> {
+  try { await chrome.tabs.sendMessage(tabId, { channel: DEFERRED_CANCEL, pendingId }, { frameId: 0 }); } catch { /* Cleared by document disposal or pending TTL. */ }
 }

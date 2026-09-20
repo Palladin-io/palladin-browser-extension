@@ -159,9 +159,14 @@ export function hasExplicitPasswordLogin(scope: CredentialScope, fields: readonl
 function hasAccountCreationHeading(scope: CredentialScope): boolean {
   return [...scope.querySelectorAll('header, h1, h2, h3, h4, h5, h6, legend')].some(heading => {
     const text = (heading.textContent ?? '').trim();
-    return isVisibleScopeHint(heading) && text.length <= 256
-      && /^(?:create\s+(?:(?:a|an|your)\s+)?account\b|sign\s*up\b|utw[oó]rz\s+konto\b|zał[oó]ż\s+konto\b|opprett\s+(?:[\p{L}\p{N}]{1,32}[ -])?(?:profil|konto)\b)/iu.test(text);
+    return isVisibleScopeHint(heading) && isAccountCreationHeadingText(text);
   });
+}
+
+/** Shared public heading vocabulary; each caller supplies its own scope policy. */
+export function isAccountCreationHeadingText(text: string): boolean {
+  return text.length <= 256
+    && /^(?:create\s+(?:(?:a|an|your)\s+)?account\b|sign\s*up\b|utw[oó]rz\s+konto\b|zał[oó]ż\s+konto\b|opprett\s+(?:[\p{L}\p{N}]{1,32}[ -])?(?:profil|konto)\b)/iu.test(text);
 }
 
 /** Some signup cards put the heading immediately outside their native form.

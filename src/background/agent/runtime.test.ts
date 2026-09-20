@@ -16,6 +16,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentInjectionRequest } from "@shared/messaging";
 
+import deferredContract from '../../../tests/fixtures/protocol/deferred-live-v2.json';
 import secureSessionContract from "./fixtures/inject-provider/v1/secure-session.json";
 
 import {
@@ -585,4 +586,37 @@ describe("secure Native Messaging frame boundary", () => {
       nonce: "n".repeat(32),
     })).toBeNull();
   });
+});
+
+it.each([false, true])('cancels an in-flight deferred fill on native disconnect, explicit=%s', async explicit => {
+  const { native } = stubChrome();
+  const url = 'https://login.example.test/', documentId = 'd'.repeat(32);
+  let pendingId = '', release!: (value: unknown) => void;
+  const sendMessage = vi.fn(async (_id: number, message: Record<string, unknown>) => {
+    if (message.channel === 'palladin.tab/current-url') return { url, documentId };
+    if (message.channel === 'palladin.agent-live/inspect') return deferredContract.inject.form;
+    if (message.channel === 'palladin.agent-live/deferred-fill') { pendingId = String(message.pendingId); return new Promise(resolve => { release = resolve; }); }
+    return { ok: true };
+  });
+  chrome.tabs = { sendMessage } as unknown as typeof chrome.tabs;
+  const requests: unknown[] = [
+    { protocol: 'palladin.inject-provider.v1', type: 'prepare', nonce: 'a'.repeat(64), targetTabId: 7, targetUrl: url, liveDetection: true },
+    { ...structuredClone(deferredContract.inject), expiresAt: Date.now() + 10_000 },
+  ];
+  const seal = vi.fn(async () => secureSessionContract.firstExtensionFrame);
+  const channel = { open: async () => new TextEncoder().encode(JSON.stringify(requests.shift())), seal, dispose: vi.fn() } as unknown as InjectSecureChannel;
+  const mocked = vi.spyOn(palladinCrypto, 'createInjectClientSession').mockResolvedValue({ openFrame: secureSessionContract.open,
+    acceptReady: async () => channel, dispose: vi.fn() } as unknown as InjectClientSession);
+  try {
+    await connectNativeAgentProviderNow(); native.emitMessage(secureSessionContract.offer);
+    await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledTimes(1));
+    native.emitMessage(secureSessionContract.ready); native.emitMessage(secureSessionContract.firstHostFrame);
+    await vi.waitFor(() => expect(seal).toHaveBeenCalledTimes(1)); native.emitMessage(secureSessionContract.firstHostFrame);
+    await vi.waitFor(() => expect(pendingId).not.toBe(''));
+    if (explicit) disconnectNativeAgentProvider(); else native.emitDisconnect();
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledWith(7, { channel: 'palladin.agent-live/deferred-cancel', pendingId }, { frameId: 0 }));
+    release({ ok: true, submitReady: { ...deferredContract.submitReady.submitReady, pendingId, submitSelector: `palladin-live:${pendingId}:${'3'.repeat(32)}` } });
+    await Promise.resolve(); expect(seal).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls.some(([, message]) => message.channel === 'palladin.agent-live/deferred-commit')).toBe(false);
+  } finally { mocked.mockRestore(); }
 });

@@ -1,3 +1,5 @@
+import { DeferredLiveLogin } from './agent-live-deferred';
+import type { DeferredFillMessage, DeferredCommitMessage } from '@shared/messaging/agent-deferred';
 import { sameLiveStep, type LiveLoginProbe } from '@shared/messaging/agent-live';
 /** Experimental login discovery. Plans contain expiring isolated-world handles,
  * never persistent site selectors; map execution remains a separate path. */
@@ -15,6 +17,7 @@ export const LIVE_SELECTOR_PREFIX = 'palladin-live:';
 const ACTION = /^(?:log\s*in|sign\s*in|continue|next|submit|verify|verify code|authenticate|zaloguj(?:\s+się)?|dalej|kontynuuj|potwierdź|zweryfikuj|anmelden|weiter)$/i;
 export class LiveLogin {
   private readonly registry: AgentFormRegistry;
+  private readonly deferred: DeferredLiveLogin;
   private plan: AgentInjectForm | null = null;
   private targetUrl = '';
   private expiresAt = 0;
@@ -23,8 +26,16 @@ export class LiveLogin {
   constructor(private readonly doc: Document, private readonly documentId: string,
     private readonly url: () => string, private readonly top: () => boolean, private readonly dom: AgentInjectDomAccess) {
     this.registry = new AgentFormRegistry(doc, documentId, url, top, dom);
+    this.deferred = new DeferredLiveLogin(doc, documentId, url, top, dom);
   }
   inspect(targetUrl: string): AgentInjectForm | null {
+    const normal = this.inspectCurrent(targetUrl);
+    return normal ?? (this.inspectionOutcome === "challenge" ? null : this.deferred.inspect(targetUrl));
+  }
+  fillDeferred(message: DeferredFillMessage) { return this.deferred.fill(message); }
+  commitDeferred(message: DeferredCommitMessage) { return this.deferred.commit(message); }
+  cancelDeferred(pendingId: string) { this.deferred.cancel(pendingId); }
+  private inspectCurrent(targetUrl: string): AgentInjectForm | null {
     this.clear();
     this.inspectionOutcome = 'no-form';
     const inspected = this.registry.inspect({ channel: AGENT_FORM_INSPECT_CHANNEL, documentId: this.documentId, targetUrl });
@@ -164,6 +175,7 @@ export class LiveLogin {
     } finally { current.clear(); }
   }
   clear(): void {
+    this.deferred.clear();
     this.registry.clear(); this.plan = null; this.targetUrl = '';
     this.bindings = []; this.expiresAt = 0;
   }

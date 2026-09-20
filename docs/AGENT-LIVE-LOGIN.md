@@ -72,9 +72,9 @@ explicitly synthetic, not reconstructed AWS account screens.
 The Allegro regression preserves a sanitized observed auth-form subtree plus a
 separately observed advertising frame outside it. Its omitted ancestor layout
 and production handlers are documented with the fixture. Submission handlers
-and overlay/CAPTCHA tests are synthetic. The currently observed X flow with a
-plain unannotated DIV action remains unsupported; this change does not invent
-native-button or disabled-button semantics for it.
+and overlay/CAPTCHA tests are synthetic. The observed initial X form is also retained with its original unannotated DIV
+action. Its later native-button transition in tests is synthetic; no production
+post-input transition is claimed from that fixture.
 
 Unit tests cover SPA and document changes, one native session, value-free
 inspection, grant/Entry/domain changes, expiry, replay, tab replacement,
@@ -86,3 +86,45 @@ failing identity-mutation test demonstrated the need for the final equality chec
 checks the observed identifier plus generic combined login, carried username,
 password-only, authenticator, navigation, replay and challenge scenarios. It
 does not modify an installed extension or perform real authentication.
+
+## Deferred identifier submit
+
+A form may expose its native submit only after the identifier is entered. An
+explicit live-only version-2 plan supports this initial stage for exactly one
+`credential.username` field, never passwords, TOTP or mixed fields. It requires a
+native form, one recognized editable identity, concrete credential context and no
+challenge or ambiguity. A public Continue caption is an intent hint, never an
+executable DIV or an invented button.
+
+The additive frozen wire example is `tests/fixtures/protocol/deferred-live-v2.json`:
+
+1. `prepare` returns version 2 with `deferred-native-click`; its opaque selector
+   binds a scope, not an existing action. Saved version-1 maps are unchanged.
+2. An authorized `inject` includes `expiresAt` and writes the identifier at most
+   once. It can wait up to five seconds to observe one enabled native action in
+   the original form. It returns `submit-ready` with `pendingId`, current URL,
+   document ID and the actual bound action reference. Nothing has been clicked.
+3. Native rechecks the original delivery, lease and lifecycle, then sends a new
+   value-free `submit` transaction with `preparedTransactionId`, the same
+   grant/Entry/domain, echoed `submitReady`, and the reauthorized `expiresAt`.
+4. The extension consumes the pending operation before a synchronous final
+   identity/control/scope/origin/destination/deadline check and one click. Only
+   this phase returns `injected` and advances the normal continuation counter.
+
+A pending operation has one original deadline, capped at ten seconds by both
+wall time and `performance.now()`, and by the initial native expiry. Ready and
+commit messages cannot refresh it. The reauthorized commit expiry is also
+checked immediately before clicking, without an asynchronous wait. A native
+`cancel-submit`, connection/lifecycle loss, timeout, new preparation or invalid
+commit clears pending state. A late result cannot restore a disposed operation.
+Only the approved identifier remains in isolated-world memory for equality
+checking; nothing is persisted or emitted in the value-free ready/commit frames.
+A matching prefilled identity is preserved without input/change events. Failure
+clears a value written by this operation only while it still matches, preserving
+later user edits. Replay, replaced controls, changed identity, new CAPTCHA,
+foreign destinations, expiry and ambiguous actions all stop without a click.
+
+Opaque iframe contents and arbitrary DIV actions are not operated. If no real
+native action appears, this path stops instead of claiming a successful submit.
+The browser regression demonstrates synthetic deferred behavior and does not
+claim that X necessarily produces such a button after input.

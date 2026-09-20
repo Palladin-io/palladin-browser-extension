@@ -1,3 +1,5 @@
+import { beginDeferredSubmit, commitDeferredSubmit, cancelPendingDeferred, type PendingDeferredSubmit } from './native-deferred';
+import { parseDeferredSubmit, parseDeferredCancel, type DeferredFillMessage, type DeferredCommitMessage, type DeferredFillOutcome, type SubmitReady } from '@shared/messaging/agent-deferred';
 import { sameLiveForm } from '@shared/messaging/agent-live';
 import type { LiveLoginProbe, LiveContinuation } from '@shared/messaging/agent-live';
 import { bindLiveChain, advanceLiveChain, type LiveChain } from './native-live';
@@ -34,6 +36,9 @@ export interface AgentTabState {
 }
 
 export interface AgentFillDeps {
+  fillDeferred?(tabId: number, message: DeferredFillMessage): Promise<DeferredFillOutcome | null>;
+  commitDeferred?(tabId: number, message: DeferredCommitMessage): Promise<AgentInjectStepOutcome | null>;
+  cancelDeferred?(tabId: number, pendingId: string): Promise<void>;
   probeLiveLogin?(tabId: number, documentId: string, targetUrl: string): Promise<LiveLoginProbe | null>;
   inspectLiveLogin?(tabId: number, documentId: string, targetUrl: string): Promise<AgentInjectForm | null>;
   getActivePage(): Promise<AgentTabState | null>;
@@ -64,6 +69,7 @@ export interface PreparedAgentPage {
 }
 
 export interface AgentProviderSession {
+  pendingSubmit?: PendingDeferredSubmit | null;
   liveChain?: LiveChain | null;
   prepared: PreparedAgentPage | null;
 }
@@ -73,11 +79,13 @@ export interface TransactionReplayGuard {
 }
 
 export type AgentInjectionOutcome =
+  | "submit-ready"
   | "injected"
   | "rejected"
   | AgentInjectFailure;
 
 export interface AgentInjectionResult {
+  readonly submitReady?: SubmitReady;
   readonly continuation?: LiveContinuation;
   readonly protocol: typeof AGENT_INJECT_PROTOCOL;
   readonly type: "inject.result";
@@ -108,6 +116,14 @@ export async function handleNativeAgentMessage(
   session: AgentProviderSession,
   raw: unknown,
 ): Promise<AgentInjectionResult | AgentPrepareResult> {
+  const commit = parseDeferredSubmit(raw);
+  if (commit) return commitDeferredSubmit(deps, replay, session, commit);
+  const cancel = parseDeferredCancel(raw);
+  if (cancel) {
+    if (session.pendingSubmit?.pendingId === cancel.pendingId && session.pendingSubmit.preparedTransactionId === cancel.preparedTransactionId) cancelPendingDeferred(deps, session);
+    return result(cancel.transactionId, 'rejected');
+  }
+  cancelPendingDeferred(deps, session);
   const prepare = parseAgentPrepareRequest(raw);
   if (prepare !== null) {
     session.liveChain = null;
@@ -158,6 +174,11 @@ export async function handleNativeAgentMessage(
     || (usesLiveRefs && !prepared.liveForm)) {
     wipeValues(request.values);
     return result(request.transactionId, 'rejected');
+  }
+  if (request.form.version === 2) {
+    const chain = request.continueLive === true && !priorChain ? bindLiveChain(prepared, priorChain, request) : null;
+    if (!chain) { wipeValues(request.values); return result(request.transactionId, 'rejected'); }
+    return beginDeferredSubmit(deps, replay, session, prepared, chain, request);
   }
   if (request.continueLive === true) {
     const chain = bindLiveChain(prepared, priorChain, request);
