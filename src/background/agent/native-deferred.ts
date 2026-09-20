@@ -27,8 +27,10 @@ export async function beginDeferredSubmit(deps: AgentFillDeps, replay: Transacti
       chain, request, expiresAt: Date.now() + remaining, deadline: performance.now() + remaining, ready: null,
       timer: setTimeout(() => { if (session.pendingSubmit === pending) cancelPendingDeferred(deps, session); }, remaining) };
     session.pendingSubmit = pending;
+    const marker = chain.steps === 0 && !prepared.requireExistingUsername ? deps.currentAutomaticFillSession?.() : null;
     const response = await deps.fillDeferred(prepared.tabId, { channel: DEFERRED_FILL, pendingId: pending.pendingId, documentId: prepared.documentId,
       expectedDomain: request.expectedDomain, form: request.form, values: request.values, expiresAt: pending.expiresAt,
+      ...(marker ? { automaticFillSessionId: marker } : {}),
       ...(prepared.requireExistingUsername ? { requireExistingUsername: true } : {}) });
     const current = await deps.getPageById(prepared.tabId);
     if (session.pendingSubmit !== pending || !response?.ok || !current?.page || current.id !== prepared.tabId

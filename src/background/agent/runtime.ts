@@ -1,3 +1,4 @@
+import { automaticFillSession } from '../session/automatic-fill-session';
 import { DEFERRED_CANCEL, parseSubmitReady, type DeferredFillMessage, type DeferredFillOutcome, type DeferredCommitMessage } from '@shared/messaging/agent-deferred';
 import { cancelPendingDeferred } from './native-deferred';
 import { AGENT_LIVE_INSPECT_CHANNEL, AGENT_LIVE_PROBE_CHANNEL, parseLiveLoginProbe, type LiveLoginProbe } from '@shared/messaging/agent-live';
@@ -82,6 +83,7 @@ let reconnectDelayMinutes = INITIAL_RECONNECT_DELAY_MINUTES;
 let reconnectDelayLoad: Promise<void> | null = null;
 
 const agentFillDeps: AgentFillDeps = {
+  currentAutomaticFillSession: () => automaticFillSession.current(),
   fillDeferred, commitDeferred, cancelDeferred,
   inspectLiveLogin,
   probeLiveLogin,
@@ -97,6 +99,7 @@ export function gateAgentFillDeps(
   isActive: () => boolean,
 ): AgentFillDeps {
   return {
+    currentAutomaticFillSession: () => isActive() ? deps.currentAutomaticFillSession?.() ?? null : null,
     async fillDeferred(tabId, message) {
       if (!isActive() || !deps.fillDeferred) return null;
       const response = await deps.fillDeferred(tabId, message);

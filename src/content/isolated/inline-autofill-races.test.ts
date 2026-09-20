@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
+// @vitest-environment-options {"url":"https://example.test/login"}
 import { observeNativeSubmit } from './manual-submit.test-helper';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { InlineAutofillCommand } from '@shared/messaging';
+import { takeAutomaticFillProvenance } from './automatic-fill-provenance';
 import { performBoundFill } from './fill';
 import { startInlineAutofill } from './inline-autofill';
 
@@ -31,7 +33,7 @@ function fixture(automatic = false) {
       let ok = false;
       pending.push({ id: command.loginTargetId, apply() {
         ok = performBoundFill(document, { channel: 'palladin.fill/request', documentId: 'doc', expectedOrigin: 'https://example.test',
-          expectedDomain: 'example.test', submit: false, loginTargetId: command.loginTargetId, intent: command.intent,
+          expectedDomain: 'example.test', submit: false, loginTargetId: command.loginTargetId, intent: command.intent, ...(command.intent === 'automatic' ? { automaticFillSessionId: 'a'.repeat(32) } : {}),
           fields: [{ kind: 'username', value: command.entryId }, { kind: 'password', value: `synthetic-${command.entryId}` }] },
         'https://example.test/login', 'doc', controller!.resolveLoginTarget(command.loginTargetId)).ok;
         return ok;
@@ -98,4 +100,16 @@ it('consumes the local delivery identity only once', async () => {
   expect(f.pending[0]!.apply()).toBe(true);
   expect(controller!.resolveLoginTarget(f.pending[0]!.id)).toBeNull();
   f.pending[0]!.reply();
+});
+
+it.each(['unchanged', 'lock', 'stop', 'manual-pending'] as const)('revokes automatic replacement provenance on %s before another worker reply', async lifecycle => {
+  const f = fixture(true);
+  await vi.waitFor(() => expect(f.pending).toHaveLength(1));
+  expect(f.pending[0]!.apply()).toBe(true); f.pending[0]!.reply();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  if (lifecycle === 'lock') controller!.clearSessionState();
+  if (lifecycle === 'stop') controller!.stop();
+  if (lifecycle === 'manual-pending') await f.choose('Beta', false);
+  expect(takeAutomaticFillProvenance(document, 'doc', document.location.href, 'a'.repeat(32), [f.username, f.password])).toBe(lifecycle === 'unchanged');
+  if (lifecycle === 'manual-pending') f.pending[1]!.reply();
 });

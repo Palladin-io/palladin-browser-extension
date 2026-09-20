@@ -103,6 +103,47 @@ try {
       ${unsafe ? '' : "document.querySelector('#next_button').addEventListener('click',event=>{event.preventDefault();globalThis.nextClicks++;document.querySelector('#resolving_input').form.innerHTML='<input id=next-password type=password autocomplete=current-password><button type=submit>Sign in</button>'})"}
       </script>` });
   });
+  // Value-free transport observation in this synthetic harness. Runtime grant
+  // authorization is substituted; the actual worker issues the automatic epoch.
+  await worker.evaluate(() => {
+    const send = chrome.tabs.sendMessage.bind(chrome.tabs);
+    chrome.tabs.sendMessage = (tabId, message, ...rest) => {
+      if (message?.channel === 'palladin.fill/request' && message.intent === 'automatic') {
+        globalThis.syntheticAutomaticBinding = { tabId, documentId: message.documentId, sessionId: message.automaticFillSessionId };
+      }
+      return send(tabId, message, ...rest);
+    };
+  });
+  for (const collision of ['replace', 'different-session', 'page-edited']) {
+    await page.goto(`https://aws.example.test/collision-${collision}`);
+    await wait(async () => await page.locator('#resolving_input').inputValue() === username, 'actual worker automatic provenance');
+    if (collision === 'page-edited') await page.locator('#resolving_input').fill('synthetic-human@example.test');
+    const outcome = await worker.evaluate(async collision => {
+      const { tabId, documentId, sessionId } = globalThis.syntheticAutomaticBinding;
+      if (!sessionId) throw new Error('Expected a worker-issued automatic epoch');
+      const targetUrl = `https://aws.example.test/collision-${collision}`;
+      const probe = await chrome.tabs.sendMessage(tabId, { channel: 'palladin.agent-live/probe', documentId, targetUrl }, { frameId: 0 });
+      if (probe.outcome !== 'ready') throw new Error('Synthetic initial live plan unavailable');
+      const ready = await chrome.tabs.sendMessage(tabId, { channel: 'palladin.agent-live/deferred-fill', pendingId: 'b'.repeat(32), documentId,
+        expectedDomain: 'aws.example.test', form: probe.form, expiresAt: Date.now() + 10_000,
+        automaticFillSessionId: collision === 'different-session' ? (sessionId === 'f'.repeat(32) ? 'e'.repeat(32) : 'f'.repeat(32)) : sessionId,
+        values: [{ entryFieldId: 'credential.username', value: 'synthetic-agent@example.test' }] }, { frameId: 0 });
+      if (!ready.ok) return { filled: false };
+      const commit = await chrome.tabs.sendMessage(tabId, { channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'aws.example.test',
+        submitReady: ready.submitReady, expiresAt: Date.now() + 1_000 }, { frameId: 0 });
+      return { filled: true, committed: commit.ok };
+    }, collision);
+    assert.equal(outcome.filled, collision === 'replace');
+    if (collision === 'replace') {
+      assert.equal(outcome.committed, true);
+      await wait(() => page.evaluate(() => globalThis.nextClicks === 1), 'authorized agent replacement commits once');
+    } else {
+      assert.equal(await page.evaluate(() => globalThis.nextClicks), 0);
+      assert.equal(await page.locator('#resolving_input').inputValue(), collision === 'page-edited' ? 'synthetic-human@example.test' : username);
+    }
+  }
+  console.log('PASS: actual automatic fill followed by synthetic authorized agent replacement; changed session and human edit rejected');
+  awsRequests.length = 0;
   await page.goto('https://aws.example.test/login');
   await wait(async () => await page.locator('#resolving_input').inputValue() === username, 'AWS observed identifier automatic fill');
   await click('Open Palladin suggestions'); await click(`Fill and log in: ${username}`);

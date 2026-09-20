@@ -110,6 +110,38 @@ scripts on the approved origin, which already observe the filled DOM values.
 A page handler that stops propagation can bypass this extra default-GET guard;
 it is not a universal guarantee against the page initiating a request.
 
+## Explicit agent choice after automatic user fill
+
+An authorized agent may choose a different Entry after passive user autofill has
+already populated the initial login stage. This does not enable automatic
+replacement. The isolated script records a one-use, memory-only receipt only
+when an authenticated worker automatic operation fills previously empty controls.
+The receipt binds the exact controls, credential scope, document, URL, current
+values and a private worker-issued unlocked-session marker. It expires after
+60 seconds. No Entry A value, hash or length is included in agent messages.
+
+Only the initial deferred agent stage can receive the current marker over the
+private worker-to-isolated channel. Public/native requests and inline callers
+cannot supply it. A locked or restarted worker has no marker; a fresh unlock
+creates a different one. Missing or differing markers reject replacement while
+ordinary empty-field agent fill remains available independently of user unlock.
+Carried identity, readonly/disabled controls and later stages never gain this
+permission. Existing origin, document, grant delivery and two-phase submit checks
+remain unchanged.
+
+The receipt is consumed before any agent write, also when the requested values
+already match. Manual choice, input/change events, session clearing, controller
+stop, target removal, navigation or expiry revoke it. A changed current tuple or
+scope fails closed; cancellation or failed fill cannot restore the receipt.
+This checks the current tuple and observed edit events. It cannot prove that an
+origin script never silently changed and restored a value without an event;
+scripts on the accepted origin already have access to the filled DOM.
+
+Regression evidence uses the observed AWS identifier structure with synthetic
+identities and framework behavior. Chromium replays actual worker automatic fill
+followed by a synthetic authorized agent choice, plus changed-session and user-edit
+negatives. That is separate from real-site acceptance.
+
 ## Accepted trust boundary
 
 Filling a password into a page intentionally releases that value to the exact

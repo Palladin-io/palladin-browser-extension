@@ -43,3 +43,8 @@ it('requires explicit intent and refuses automatic related-host selection', () =
   expect(isInlineAutofillCommand({ ...fill, intent: 'automatic', scope: 'related' })).toBe(false);
   expect(isInlineAutofillCommand({ ...fill, intent: 'unknown' })).toBe(false);
 });
+
+it('does not accept a caller-supplied automatic session marker', () => {
+  expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', intent: 'automatic', documentId,
+    vaultId: 'v', entryId: 'e', scope: 'exact', loginTargetId: 'login-1', automaticFillSessionId: 'a'.repeat(32) })).toBe(false);
+});

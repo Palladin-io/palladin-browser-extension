@@ -1,3 +1,4 @@
+import { automaticFillSession } from '../session/automatic-fill-session';
 /**
  * Composition root for the vault data layer: build the one live
  * canonical data service, the {@link ClipboardGuard}, and the injected effects
@@ -136,10 +137,12 @@ async function sendFill(
 ): Promise<FillOutcome> {
   const expectedOrigin = httpsOrigin(target.url);
   if (expectedOrigin === null) return { ok: false, reason: "target-changed" };
+  const marker = intent === "automatic" ? automaticFillSession.current() : null;
+  const provenance = marker === null ? {} : { automaticFillSessionId: marker };
   if (target.documentTransport === "legacy-firefox-port") {
     const assertSession = assertSessionCurrent ?? captureFillSession();
     return legacyFirefoxDocuments?.send(target, { channel: FILL_REQUEST_CHANNEL, documentId: target.documentId,
-      expectedOrigin, expectedDomain, submit, loginTargetId: loginTargetId ?? null, fields, ...(intent === undefined ? {} : { intent }) }, assertSession) ?? { ok: false, reason: "target-changed" };
+      expectedOrigin, expectedDomain, submit, ...provenance, loginTargetId: loginTargetId ?? null, fields, ...(intent === undefined ? {} : { intent }) }, assertSession) ?? { ok: false, reason: "target-changed" };
   }
   try {
     const outcome = await chrome.tabs.sendMessage(
@@ -148,6 +151,7 @@ async function sendFill(
         channel: FILL_REQUEST_CHANNEL,
         documentId: target.documentId,
         expectedOrigin,
+        ...provenance,
         expectedDomain,
         submit,
         loginTargetId: loginTargetId ?? null,

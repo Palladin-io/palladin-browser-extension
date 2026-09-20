@@ -36,6 +36,7 @@ export interface AgentTabState {
 }
 
 export interface AgentFillDeps {
+  currentAutomaticFillSession?(): string | null;
   fillDeferred?(tabId: number, message: DeferredFillMessage): Promise<DeferredFillOutcome | null>;
   commitDeferred?(tabId: number, message: DeferredCommitMessage): Promise<AgentInjectStepOutcome | null>;
   cancelDeferred?(tabId: number, pendingId: string): Promise<void>;

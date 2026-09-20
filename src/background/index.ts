@@ -1,3 +1,4 @@
+import { automaticFillSession } from './session/automatic-fill-session';
 import { isSharedUnlockLinkSettingsCommand } from '../shared/messaging/shared-unlock-link-settings';
 import { handleSharedUnlockLinkSettings } from './shared-unlock/link-settings-runtime';
 import { isSurfaceActivity } from "../shared/messaging/surface-activity";
@@ -150,6 +151,9 @@ function unavailableDuringServerChange(raw: unknown): unknown {
   }
   return null;
 }
+
+sessionManager.hooks.onUnlocked(() => automaticFillSession.unlocked());
+sessionManager.hooks.onLocked(() => automaticFillSession.locked());
 
 // Clear legacy badge text after each committed session transition.
 sessionManager.hooks.onUnlocked(() => refreshBadge());

@@ -1,3 +1,4 @@
+import { clearAutomaticFillProvenance, discardAutomaticFillProvenance } from './automatic-fill-provenance';
 import en from "../../popup/locales/en.json";
 import pl from "../../popup/locales/pl.json";
 import palladinIconUrl from "../../../icons/icon-32.png?inline";
@@ -228,6 +229,7 @@ class InlineAutofillController {
   }
 
   stop(): void {
+    clearAutomaticFillProvenance(this.doc);
     this.stopped = true;
     this.observer?.disconnect();
     if (this.scanTimer !== null) clearTimeout(this.scanTimer);
@@ -275,6 +277,7 @@ class InlineAutofillController {
   }
 
   clearSessionState(): void {
+    clearAutomaticFillProvenance(this.doc);
     for (const widget of this.widgets.values()) widget.clearSessionState();
   }
 
@@ -334,6 +337,7 @@ class InlineAutofillController {
   }
 
   private scan(): void {
+    if (this.automaticFillUrl !== null && this.automaticFillUrl !== this.doc.location.href) clearAutomaticFillProvenance(this.doc);
     for (const input of this.observedInputs) {
       if (!input.isConnected) { this.resizeObserver?.unobserve(input); this.observedInputs.delete(input); }
     }
@@ -496,6 +500,7 @@ class InlineWidget {
   }
 
   destroy(): void {
+    discardAutomaticFillProvenance(this.options.loginTarget);
     this.destroyed = true;
     this.invalidatePendingFill();
     this.invalidateSuggestions();
@@ -826,6 +831,7 @@ class InlineWidget {
       if (!silent) this.renderStatus("inline.noForm");
       return false;
     }
+    if (!silent) discardAutomaticFillProvenance(this.options.loginTarget);
     // The latest explicit choice supersedes a pending passive/explicit request.
     // A passive retry cannot displace the user's outstanding choice.
     if (silent && this.pendingFill?.manual) return false;

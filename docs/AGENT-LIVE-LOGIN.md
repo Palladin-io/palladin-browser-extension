@@ -151,3 +151,17 @@ The framework-state tests reproduce queued microtask/timer updates on native
 forms and DIV scopes; they are mechanism regressions, not captured LinkedIn HTML
 or production JavaScript. All physical submits require a newly authorized commit;
 no second-click retry or arbitrary DIV operation is added.
+
+
+### Initial stage after user autofill
+
+An explicit agent delivery can replace an unchanged tuple written by Palladin's
+previous automatic user fill, using the one-use isolated provenance described in
+[AUTOFILL-POLICY.md](AUTOFILL-POLICY.md#explicit-agent-choice-after-automatic-user-fill).
+The private worker-to-isolated deferred-fill message carries an optional current
+unlocked-session marker only on chain step zero and never with a carried-identity
+requirement. This is not a public/native protocol field, a new grant right, or a
+generic overwrite flag. Later stages, manual/pre-existing values, edited controls
+and expired/invalidated receipts remain fail-closed. The original native delivery,
+lease and one-call deadline are unchanged; submit still requires a separate fresh
+native commit authorization.

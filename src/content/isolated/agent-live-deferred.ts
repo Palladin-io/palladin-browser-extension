@@ -1,3 +1,4 @@
+import { takeAutomaticFillProvenance, discardAutomaticFillForInputs } from './automatic-fill-provenance';
 import { generateNonce, type AgentInjectForm, type AgentInjectStepOutcome } from '@shared/messaging';
 import { sameLiveForm } from '@shared/messaging/agent-live';
 import { sameSubmitReady, type DeferredFillMessage, type DeferredFillOutcome, type DeferredCommitMessage, type SubmitReady } from '@shared/messaging/agent-deferred';
@@ -69,9 +70,16 @@ export class DeferredLiveLogin {
     for (const field of bound.fields) {
       const expected = message.values.find(value => value.entryFieldId === field.fieldId)?.value;
       const compare = field.mode === 'compare' || (message.requireExistingUsername && field.fieldId === 'credential.username');
-      if (!expected || (compare ? field.input.value !== expected : field.input.value !== '' && field.input.value !== expected)) return fail();
+      if (!expected || (compare && field.input.value !== expected)) return fail();
       fields.push({ field: compare ? { ...field, mode: 'compare' } : field, expected, before: field.input.value, wrote: false, marked: false });
     }
+    const differs = fields.some(field => field.before !== '' && field.before !== field.expected);
+    if (differs && (!message.automaticFillSessionId || message.requireExistingUsername
+      || fields.some(field => field.field.mode !== 'write' || field.field.input.disabled || field.field.input.readOnly)
+      || !takeAutomaticFillProvenance(this.doc, this.documentId, bound.url, message.automaticFillSessionId, fields.map(field => field.field.input)))) return fail();
+    // Even a matching agent operation consumes this earlier automatic provenance.
+    // A later flow must never reuse it after the first agent has acted.
+    discardAutomaticFillForInputs(this.doc, fields.map(field => field.field.input));
     const pendingId = message.pendingId;
     const pending: Pending = { bound, fields, expectedDomain: message.expectedDomain,
       expiresAt: Math.min(message.expiresAt, Date.now() + remaining), deadline: performance.now() + remaining,
@@ -85,7 +93,7 @@ export class DeferredLiveLogin {
         if (field.field.mode === 'write' && !isAgentManagedControl(field.field.input)) {
           markAgentManagedControl(field.field.input); field.marked = true;
         }
-        if (field.field.mode === 'write' && field.before === '') {
+        if (field.field.mode === 'write' && field.before !== field.expected) {
           field.wrote = true; writeControlValue(field.field.input, field.expected, true);
         }
         field.before = field.expected;

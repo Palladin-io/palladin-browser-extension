@@ -2,6 +2,7 @@
  * native live login; popup/generator/card fills preserve their existing contract.
  * The worker authorizes delivery. This module rechecks the live DOM binding. */
 
+import { rememberAutomaticFill, discardAutomaticFillProvenance } from './automatic-fill-provenance';
 import type { FillField, FillOutcome, FillRequestMessage } from "@shared/messaging";
 import { matchesTab } from "@shared/security/domain";
 
@@ -202,11 +203,17 @@ export function performBoundFill(
   if (message.expectedDomain !== null && !matchesTab(currentUrl, message.expectedDomain)) {
     return { ok: false, reason: "target-changed" };
   }
+  const automaticEmpty = loginTarget !== null && [loginTarget.username, loginTarget.password]
+    .every(input => input === null || input.value === '');
+  if (loginTarget && message.intent === 'manual') discardAutomaticFillProvenance(loginTarget);
   const outcome = message.loginTargetId === null
     ? performFill(doc, message.fields)
     : loginTarget === null
       ? { ok: false as const, reason: "no-form" as const }
       : performLoginTargetFill(loginTarget, message.fields, message.intent);
+  if (outcome.ok && loginTarget && automaticEmpty && message.intent === 'automatic' && message.automaticFillSessionId) {
+    rememberAutomaticFill(loginTarget, currentDocumentId, currentUrl, message.automaticFillSessionId);
+  }
   if (!outcome.ok || !message.submit) return outcome;
 
   const password = message.loginTargetId === null
