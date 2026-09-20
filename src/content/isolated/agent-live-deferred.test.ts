@@ -105,3 +105,35 @@ it('uses ordinary v1 for a matching username whose native action is already enab
   document.querySelector<HTMLInputElement>('input')!.value = 'synthetic@example.test';
   expect(instance.inspect(url)?.version).toBe(1);
 });
+it('does not reinterpret a covered password as an absent field in an identifier-only plan', () => {
+  document.body.innerHTML = '<form><h2>Sign in</h2><input autocomplete="username"><input type="password"><div>Continue</div></form>';
+  live = new LiveLogin(document, documentId, () => url, () => true, { isVisible: element => dom.isVisible(element) && !element.matches('input[type="password"]') });
+  expect(live.inspect(url)).toBeNull();
+});
+it('rejects a newly editable covered password before committing the identifier', async () => {
+  document.body.innerHTML = generic;
+  live = new LiveLogin(document, documentId, () => url, () => true, { isVisible: element => dom.isVisible(element) && !element.matches('input[type="password"]') });
+  const submitted = vi.fn((event: Event) => event.preventDefault()); document.querySelector('form')!.addEventListener('submit', submitted);
+  const ready = await filled(live); expect(ready.ok).toBe(true); if (!ready.ok) return;
+  document.querySelector<HTMLInputElement>('input[type="password"]')!.style.opacity = '1';
+  expect(live.commitDeferred({ channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'login.example.test', submitReady: ready.submitReady, expiresAt: Date.now() + 1000 }).ok).toBe(false);
+  expect(submitted).not.toHaveBeenCalled();
+});
+it.each(['new-password', 'one-time-code', 'signup', 'no-context'])('revalidates %s credential context before the deferred commit', async mutation => {
+  const instance = setup(generic), submitted = vi.fn((event: Event) => event.preventDefault());
+  document.querySelector('form')!.addEventListener('submit', submitted);
+  const ready = await filled(instance); expect(ready.ok).toBe(true); if (!ready.ok) return;
+  if (mutation === 'new-password' || mutation === 'one-time-code') document.querySelector('form')!.insertAdjacentHTML('beforeend', `<input hidden autocomplete="${mutation}">`);
+  if (mutation === 'signup') document.querySelector('form')!.insertAdjacentHTML('afterbegin', '<h2>Create an account</h2>');
+  if (mutation === 'no-context') document.querySelector('input[type="password"]')!.remove();
+  expect(instance.commitDeferred({ channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'login.example.test', submitReady: ready.submitReady, expiresAt: Date.now() + 1000 }).ok).toBe(false);
+  expect(submitted).not.toHaveBeenCalled(); expect(document.querySelector<HTMLInputElement>('input')!.value).toBe('');
+});
+it('accepts an initially disabled native submit input that becomes enabled after the identifier write', async () => {
+  const instance = setup(generic.replace('<div>Continue</div>', '<input type="submit" value="Continue" disabled>'));
+  const submitted = vi.fn((event: Event) => event.preventDefault()); document.querySelector('form')!.addEventListener('submit', submitted);
+  document.querySelector('input')!.addEventListener('input', () => { document.querySelector<HTMLInputElement>('input[type="submit"]')!.disabled = false; });
+  const ready = await filled(instance, 'absent'); expect(ready.ok).toBe(true); if (!ready.ok) return;
+  expect(instance.commitDeferred({ channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'login.example.test', submitReady: ready.submitReady, expiresAt: Date.now() + 1000 }).ok).toBe(true);
+  expect(submitted).toHaveBeenCalledTimes(1);
+});

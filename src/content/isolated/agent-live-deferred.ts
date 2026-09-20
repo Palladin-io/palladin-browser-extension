@@ -28,16 +28,10 @@ export class DeferredLiveLogin {
     this.clear();
     if (!this.top() || targetUrl !== this.url() || new URL(targetUrl).protocol !== 'https:') return null;
     const candidates = queryOpenElements<HTMLFormElement>(this.doc, 'form').flatMap(scope => {
-      const fields = scopeInputs(scope).filter(input => isFillable(input) && this.dom.isVisible(input));
-      const input = fields[0];
-      if (fields.length !== 1 || !input || !isIdentifiedUsername(input) || isSubscriptionIdentity(input)
-        || scopeInputs(scope).some(field => autocompleteTokens(field).includes('new-password') || autocompleteTokens(field).includes('one-time-code'))
-        || hasLiveLoginObstacle(this.doc, scope, this.dom)) return [];
-      const hiddenPassword = scopeInputs(scope).some(field => field.type === 'password' && !isFillable(field));
-      const loginHeading = queryOpenElements(scope, 'h1,h2,h3,legend').some(node => /^(?:sign\s*in|log\s*in|zaloguj(?:\s+się)?)$/i.test((node.textContent ?? '').trim()));
-      const hint = queryOpenElements<HTMLElement>(scope, 'button,input[type="submit"],div,p,span').some(node => this.dom.isVisible(node) && ACTION.test((actionCaption(node) ?? '').trim()));
-      if (!(hiddenPassword || loginHeading) || !hint || this.actions(scope).length > 0) return [];
-      if (queryOpenElements(scope, 'h1,h2,h3,legend').some(node => /create\s+(?:an?\s+)?account|sign\s*up|zarejestruj|utwórz\s+konto/i.test(node.textContent ?? ''))) return [];
+      const input = this.identifier(scope);
+      if (!input) return [];
+      const hint = queryOpenElements<HTMLElement>(scope, 'button,input[type="submit"],div,p,span').some(node => this.dom.isVisible(node) && ACTION.test((deferredActionCaption(node) ?? '').trim()));
+      if (!hint || this.actions(scope).length > 0) return [];
       return [{ scope, input }];
     });
     if (candidates.length !== 1) return null;
@@ -106,13 +100,27 @@ export class DeferredLiveLogin {
   private current(bound: BoundIdentifier): boolean {
     return this.top() && this.url() === bound.url && performance.now() < bound.deadline && bound.scope.isConnected && bound.input.isConnected
       && composedForm(bound.input) === bound.scope && signature(bound.scope, bound.input) === bound.signature
-      && isFillable(bound.input) && this.dom.isVisible(bound.input) && !hasLiveLoginObstacle(this.doc, bound.scope, this.dom)
-      && scopeInputs(bound.scope).filter(input => isFillable(input) && this.dom.isVisible(input)).every(input => input === bound.input);
+      && this.identifier(bound.scope) === bound.input;
+  }
+  private identifier(scope: HTMLFormElement): HTMLInputElement | null {
+    const inputs = scopeInputs(scope);
+    // Covered editable fields still belong to this stage. Native action inputs
+    // are checked separately and never mistaken for additional credential fields.
+    const fields = inputs.filter(input => !['submit', 'button', 'reset', 'image'].includes(input.type) && isFillable(input));
+    const input = fields[0];
+    if (fields.length !== 1 || !input || !this.dom.isVisible(input) || !isIdentifiedUsername(input) || isSubscriptionIdentity(input)
+      || inputs.some(field => autocompleteTokens(field).includes('new-password') || autocompleteTokens(field).includes('one-time-code'))
+      || hasLiveLoginObstacle(this.doc, scope, this.dom)) return null;
+    const headings = queryOpenElements(scope, 'h1,h2,h3,legend');
+    if (headings.some(node => /create\s+(?:an?\s+)?account|sign\s*up|zarejestruj|utwórz\s+konto/i.test(node.textContent ?? ''))) return null;
+    const hiddenPassword = inputs.some(field => field.type === 'password' && !isFillable(field));
+    const loginHeading = headings.some(node => /^(?:sign\s*in|log\s*in|zaloguj(?:\s+się)?)$/i.test((node.textContent ?? '').trim()));
+    return hiddenPassword || loginHeading ? input : null;
   }
   private actions(scope: HTMLFormElement): (HTMLButtonElement | HTMLInputElement)[] {
     return queryOpenElements<HTMLButtonElement | HTMLInputElement>(this.doc, 'button,input[type="submit"],input[type="button"]')
       .filter(action => composedForm(action) === scope && ['submit','button'].includes(action.type) && isUsableAgentFormControl(action, this.dom)
-        && ACTION.test((actionCaption(action) ?? '').trim()));
+        && ACTION.test((deferredActionCaption(action) ?? '').trim()));
   }
   private cleanup(pending: Pending): void {
     clearTimeout(pending.timer);
@@ -125,7 +133,10 @@ function signature(scope: HTMLFormElement, input: HTMLInputElement): string {
   return JSON.stringify([scope.getAttribute('action'),scope.getAttribute('method'),scope.getAttribute('target'),scope.ownerDocument.baseURI,
     scope.ownerDocument.querySelector('base[target]')?.getAttribute('target'), ...['id','name','type','autocomplete','pattern','minlength','maxlength','form','required','aria-label','aria-labelledby'].map(key => input.getAttribute(key))]);
 }
-function actionSignature(action: HTMLElement): string { return JSON.stringify([action.tagName, ...['type','form','formaction','formtarget','formmethod'].map(key => action.getAttribute(key)), actionCaption(action)]); }
+function deferredActionCaption(element: HTMLElement): string | null {
+  return element instanceof HTMLInputElement && ['submit', 'button'].includes(element.type) ? element.value : actionCaption(element);
+}
+function actionSignature(action: HTMLElement): string { return JSON.stringify([action.tagName, ...['type','form','formaction','formtarget','formmethod'].map(key => action.getAttribute(key)), deferredActionCaption(action)]); }
 function safeDestination(doc: Document, scope: HTMLFormElement, action: HTMLButtonElement | HTMLInputElement, url: string): boolean {
   const destination = new URL((action.type === 'submit' ? action.getAttribute('formaction') : null) ?? scope.getAttribute('action') ?? url, doc.baseURI);
   const target = (action.type === 'submit' ? action.getAttribute('formtarget') : null) ?? scope.getAttribute('target') ?? doc.querySelector('base[target]')?.getAttribute('target') ?? '_self';
