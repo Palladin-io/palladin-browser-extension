@@ -193,6 +193,52 @@ try {
   await wait(() => ax().then((nodes) => nodes.some((node) => node.name?.value === 'Login saved')), 'Team save toast')
   console.log('PASS: registration defaults to Personal and Change allows an explicit Team save')
 
+  // Synthetic native signup with two plausible login identities. Real browser
+  // clicks exercise capture -> closed chooser -> fresh targets -> encrypted save.
+  for (const selected of ['email', 'nickname']) {
+    const initialChoice = selected === 'email' ? 'Nickname' : 'Email'
+    const finalChoice = selected === 'email' ? 'Email' : 'Nickname'
+    const email = `synthetic-${selected}@example.test`
+    const nickname = `synthetic-${selected}-handle`
+    const password = `Synthetic-identity-${selected}!42`
+    capturedPasswords.push(password)
+    const count = api.writes.length
+    await page.goto(`https://identity-${selected}.example.test/registration?mode=spa&identity=ambiguous`)
+    await page.getByLabel('Email', { exact: true }).fill(email)
+    await page.getByLabel('Nickname', { exact: true }).fill(nickname)
+    await page.getByLabel('Password', { exact: true }).fill(password)
+    await page.getByLabel('Confirm password', { exact: true }).fill(password)
+    await page.getByRole('heading', { name: 'Credential capture test' }).click()
+    await page.getByRole('button', { name: 'Submit', exact: true }).click()
+    await page.getByRole('status').waitFor()
+    await wait(() => find('radio', initialChoice), 'unselected signup identity choices')
+    for (const label of ['Email', 'Nickname']) {
+      const radio = await find('radio', label)
+      assert.equal(radio.properties.find(property => property.name === 'checked')?.value.value, 'false')
+    }
+    assert(!(await ax()).some(node => !node.ignored && node.role?.value === 'button'
+      && /^(?:Save in|Update) /.test(node.name?.value ?? '')), 'No write target is offered before an identity choice')
+    assert.equal(api.writes.length, count)
+    await click('radio', initialChoice)
+    await click('button', 'Change...')
+    await click('button', 'Save in Team')
+    assert.equal(api.writes.length, count, 'Identity and Vault selection are not saves')
+    await click('radio', finalChoice)
+    await wait(() => find('button', 'Save in Personal'), 'fresh default write target after changing identity')
+    assert.equal(await find('button', 'Save in Team'), undefined, 'Changing identity invalidates the previously chosen Team target')
+    assert.equal(api.writes.length, count)
+    await click('button', 'Save in Personal')
+    await wait(() => api.writes.length === count + 1, 'encrypted signup saved with explicitly chosen identity')
+    const write = api.writes.at(-1)
+    const saved = await api.decrypt(write)
+    assert.equal(write.vaultId, api.vaults[0].detail.id)
+    assert.equal(saved.content.username, selected === 'email' ? email : nickname)
+    assert.equal(saved.content.password, password)
+    assert.equal(saved.content.urlDomain, `identity-${selected}.example.test`)
+    await wait(() => ax().then(nodes => nodes.some(node => node.name?.value === 'Login saved')), 'identity save toast')
+  }
+  console.log('PASS: email/nickname chooser has no default, resets prior write targets, and saves only the explicitly chosen identity')
+
   before = api.writes.length
   for (const mode of ['spa', 'classic']) {
     await submit({ host: 'rejected-login', kind: 'login', mode, username: 'alice', password: 'Synthetic-rejected!', failure: true })
@@ -488,7 +534,9 @@ function fixturePage(url) {
     : kind === 'registration' ? 'Account created' : 'Successfully signed in'
   const outcome = `<div role="${failure ? 'alert' : 'status'}">${message}</div>`
   const form = `<form method="post" action="/${kind}/complete?${url.searchParams}">
-    <label>Username<input name="username" autocomplete="username"></label>
+    ${url.searchParams.get('identity') === 'ambiguous'
+      ? '<label>Email<input type="email" name="email" autocomplete="email"></label><label>Nickname<input name="nickname"></label>'
+      : '<label>Username<input name="username" autocomplete="username"></label>'}
     ${kind === 'password-change' ? '<label>Current password<input type="password" name="old" autocomplete="current-password"></label>' : ''}
     <label>Password<input type="password" name="password" autocomplete="${kind === 'login' ? 'current-password' : 'new-password'}"></label>
     ${kind !== 'login' ? '<label>Confirm password<input type="password" name="confirm" autocomplete="new-password"></label>' : ''}
