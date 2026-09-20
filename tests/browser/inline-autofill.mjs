@@ -52,7 +52,7 @@ try {
   await context.route('https://**/*', route => {
     const host = new URL(route.request().url()).hostname;
     if (!host.endsWith('.example.test')) return route.abort();
-    return route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<style>body{margin:60px}form{width:450px}input:not([type=checkbox]){display:block;width:400px;height:40px;margin:12px 0}button{min-height:35px}</style>${host.startsWith('proton') ? proton : host.startsWith('linkedin') ? linkedin : jetbrains}<script>globalThis.submissions=0;document.querySelector('form')?.addEventListener('submit',event=>{event.preventDefault();globalThis.submissions++})</script>` });
+    return route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<style>body{margin:60px}form{width:450px}input:not([type=checkbox]){display:block;width:400px;height:40px;margin:12px 0}button{min-height:35px}</style>${host.startsWith('proton') ? proton : host.startsWith('linkedin') ? linkedin : jetbrains}<script>globalThis.submissions=0;document.querySelector('form')?.addEventListener('submit',event=>{if(event.defaultPrevented)return;event.preventDefault();globalThis.submissions++})</script>` });
   });
   const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
   const extensionId = new URL(worker.url()).host;
@@ -99,7 +99,7 @@ try {
     return route.fulfill({ contentType: 'text/html; charset=utf-8', body:
       `<style>body{margin:40px}form{width:450px}input:not([type=radio]){display:block;width:400px;height:40px;margin:12px}button{min-height:35px}</style>${markup}<script>
       globalThis.nextClicks=0;globalThis.submitEvents=0;globalThis.blockedDefault=false;
-      document.querySelector('form').addEventListener('submit',event=>{globalThis.submitEvents++;globalThis.blockedDefault=event.defaultPrevented});
+      document.querySelector('form').addEventListener('submit',event=>{globalThis.submitEvents++;queueMicrotask(()=>{globalThis.blockedDefault=event.defaultPrevented})});
       ${unsafe ? '' : "document.querySelector('#next_button').addEventListener('click',event=>{event.preventDefault();globalThis.nextClicks++;document.querySelector('#resolving_input').form.innerHTML='<input id=next-password type=password autocomplete=current-password><button type=submit>Sign in</button>'})"}
       </script>` });
   });
@@ -148,7 +148,7 @@ try {
     document.body.replaceChildren();
     const component = document.createElement('div'); component.id = 'component';
     const root = component.attachShadow({ mode: 'open' });
-    const controls = '<input id="shadow-username" autocomplete="username"><input id="shadow-password" type="password" autocomplete="current-password"><button type="button">Sign in</button>';
+    const controls = '<input id="shadow-username" autocomplete="username"><input id="shadow-password" type="password" autocomplete="current-password"><button type="button">Fortsett</button>';
     root.innerHTML = '<style>input{display:block;width:400px;height:40px;margin:12px}section{width:450px}</style><section>' + controls + '</section><section hidden>' + controls + '</section>';
     root.querySelector('button').addEventListener('click', () => { globalThis.submissions++; });
     document.body.append(component);
@@ -158,7 +158,10 @@ try {
   assert.equal(await page.locator('palladin-autofill').count(), 1, 'Hidden duplicate does not create another shield');
   await click('Open Palladin suggestions'); await click(`Fill and log in: ${username}`);
   await wait(() => page.evaluate(() => globalThis.submissions === 1), 'formless native button submit');
-  console.log('PASS: open-root formless login excludes hidden duplicate, keeps aligned shield and clicks one native action');
+  await page.evaluate(() => { const button = document.querySelector('#component').shadowRoot.querySelector('button'); button.textContent = ''; button.setAttribute('aria-label', 'Continue'); button.style.width = '40px'; });
+  await click('Open Palladin suggestions'); await click(`Fill and log in: ${username}`);
+  await wait(() => page.evaluate(() => globalThis.submissions === 2), 'formless icon action aria-label');
+  console.log('PASS: open-root formless login excludes hidden duplicate and clicks localized and aria-labelled native actions');
   await page.goto('https://linkedin.example.test/login');
   await page.locator('[id="«r3»"]').scrollIntoViewIfNeeded();
   await wait(async () => await page.locator('[id="«r4»"]').inputValue() === password, 'observed LinkedIn formless fill');

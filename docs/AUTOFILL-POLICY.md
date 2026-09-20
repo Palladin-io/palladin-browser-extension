@@ -100,12 +100,15 @@ hidden, disabled, foreign-form and arbitrary DIV actions are rejected. The manua
 adapter does not call bare `requestSubmit()`: that skips click handlers and can
 accidentally use a form's default GET behavior.
 
-During that synchronous click, a one-operation submit listener cancels default
+During that synchronous click, a one-operation listener at the scope root runs
+after existing framework submit handlers. It cancels normally propagating default
 GET serialization, including omitted/invalid methods and a submitter's
 `formmethod` override, without stopping framework click or submit handlers. POST
 and native validation are preserved. The result means that the native action was
 dispatched, not that authentication succeeded. This is not a sandbox against
 scripts on the approved origin, which already observe the filled DOM values.
+A page handler that stops propagation can bypass this extra default-GET guard;
+it is not a universal guarantee against the page initiating a request.
 
 ## Accepted trust boundary
 

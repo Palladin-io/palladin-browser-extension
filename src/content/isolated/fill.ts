@@ -9,8 +9,8 @@ type TextLikeInput = HTMLInputElement;
 type FillControl = HTMLInputElement | HTMLTextAreaElement;
 
 import { isFillable, isCurrentLoginTarget, type LoginTarget } from './credential-form-analysis';
-import { credentialScopeFor, isVisibleScopeHint } from './login-controls';
-import { actionCaption, queryOpenElements } from './open-dom';
+import { credentialScopeFor, hasLoginActionLabel, isVisibleScopeHint } from './login-controls';
+import { queryOpenElements } from './open-dom';
 export { isFillable, isCurrentLoginTarget, loginTargetFor, type LoginTarget } from './credential-form-analysis';
 
 const USERNAME_TYPES = new Set(["text", "email", "tel", ""]);
@@ -218,8 +218,6 @@ export function performBoundFill(
   return { ok: true };
 }
 
-const LOGIN_ACTION = /^(?:log\s*in|sign\s*in|continue|next|submit|zaloguj(?:\s+się)?|dalej|kontynuuj|anmelden|weiter)$/i;
-
 /** Dispatch the exact native action, not proof of authentication or navigation.
  * Native click preserves framework click handlers and browser form validation.
  * Never synthesize a bare form submission when no unambiguous action exists.
@@ -239,14 +237,13 @@ export function submitLoginForm(input: HTMLInputElement, target?: LoginTarget): 
     && !action.matches(':disabled, [aria-disabled="true"]') && isVisibleScopeHint(action)
     && credentialScopeFor(action) === scope);
   const submits = nativeForm === null ? [] : actions.filter(action => action.type === 'submit');
-  const eligible = submits.length > 0 ? submits : actions.filter(action => LOGIN_ACTION.test(
-    (action instanceof HTMLInputElement ? action.value : actionCaption(action) ?? '').trim()));
+  const eligible = submits.length > 0 ? submits : actions.filter(hasLoginActionLabel);
   if (eligible.length !== 1) return false;
   const action = eligible[0]!;
-  // A framework may intercept click OR submit. Cancel unsafe browser-default GET
-  // without stopping either handler; omitted/invalid method means GET. The page
-  // already has DOM access to filled values; this guards our default navigation,
-  // not deliberate exfiltration by an origin script.
+  // Run after existing framework submit handlers, which may respect prior
+  // cancellation. Cancel a normally propagating browser-default GET; omitted or
+  // invalid method means GET. A page can stop propagation or read filled values:
+  // this is a one-click default-navigation guard, not an origin-script sandbox.
   const guardGet = (event: Event) => {
     if (nativeForm === null || event.target !== nativeForm) return;
     const submitter = (event as SubmitEvent).submitter;
@@ -255,10 +252,10 @@ export function submitLoginForm(input: HTMLInputElement, target?: LoginTarget): 
     if (method !== 'post' && method !== 'dialog') event.preventDefault();
   };
   const eventRoot = scope.getRootNode();
-  eventRoot.addEventListener('submit', guardGet, true);
+  eventRoot.addEventListener('submit', guardGet);
   try { action.click(); return true; }
   catch { return false; }
-  finally { eventRoot.removeEventListener('submit', guardGet, true); }
+  finally { eventRoot.removeEventListener('submit', guardGet); }
 }
 
 function performCardFill(doc: Document, fields: readonly FillField[]): FillOutcome {

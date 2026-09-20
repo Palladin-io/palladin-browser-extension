@@ -27,10 +27,10 @@ it.each(['', 'method="get"', 'method="post"'])('prevents credential serializatio
   const input = document.querySelector<HTMLInputElement>('#username')!;
   input.value = 'synthetic@example.test';
   document.querySelector<HTMLInputElement>('[type=password]')!.value = 'synthetic-only';
-  const defaults: boolean[] = [];
-  document.querySelector('form')!.addEventListener('submit', event => { defaults.push(event.defaultPrevented); event.preventDefault(); });
+  const events: Event[] = [];
+  document.querySelector('form')!.addEventListener('submit', event => { events.push(event); });
   expect(submitLoginForm(input)).toBe(true);
-  expect(defaults).toEqual([true]);
+  expect(events.map(event => event.defaultPrevented)).toEqual([true]);
 });
 
 
@@ -85,19 +85,68 @@ it('blocks a non-composed default GET submit inside an open shadow root', () => 
   const host = document.createElement('section'); document.body.append(host);
   const root = host.attachShadow({ mode: 'open' });
   root.innerHTML = '<form><input autocomplete="username"><input type="password"><button type="submit">Sign in</button></form>';
-  const defaults: boolean[] = [];
-  root.querySelector('form')!.addEventListener('submit', event => { defaults.push(event.defaultPrevented); event.preventDefault(); });
+  const events: Event[] = [];
+  root.querySelector('form')!.addEventListener('submit', event => { events.push(event); });
   const input = root.querySelector('input')!;
   expect(submitLoginForm(input, loginTargetFor(input)!)).toBe(true);
-  expect(defaults).toEqual([true]);
+  expect(events.map(event => event.defaultPrevented)).toEqual([true]);
 });
 
 it('does not leave a guard installed after its one explicit native click', () => {
   document.body.innerHTML = '<form><input autocomplete="username"><input type="password"><button type="submit">Sign in</button></form>';
   const form = document.querySelector('form')!;
-  const defaults: boolean[] = [];
-  form.addEventListener('submit', event => { defaults.push(event.defaultPrevented); event.preventDefault(); });
+  const events: Event[] = [];
+  form.addEventListener('submit', event => { events.push(event); });
   expect(submitLoginForm(document.querySelector('input')!)).toBe(true);
-  form.requestSubmit();
-  expect(defaults).toEqual([true, false]);
+  form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }));
+  expect(events.map(event => event.defaultPrevented)).toEqual([true, false]);
+});
+
+
+it.each(['Fortsett', 'Fortsätt', 'Continuar', 'Συνέχεια', 'Logowanie'])('retains the canonical formless login action %s', caption => {
+  document.body.innerHTML = `<section><input autocomplete="username"><input type="password"><button type="button">${caption}</button></section>`;
+  const input = document.querySelector('input')!;
+  const click = vi.fn(); document.querySelector('button')!.addEventListener('click', click);
+  expect(submitLoginForm(input, loginTargetFor(input)!)).toBe(true);
+  expect(click).toHaveBeenCalledTimes(1);
+});
+
+it.each(['<button type="button" aria-label="Continue"><svg></svg></button>', '<input type="button" value="Fortsett">'])('recognizes native action accessibility/value labels: %s', action => {
+  document.body.innerHTML = `<section><input id="username" autocomplete="username"><input type="password">${action}</section>`;
+  const input = document.querySelector<HTMLInputElement>('#username')!;
+  const click = vi.fn(); document.querySelector('button, [type=button]')!.addEventListener('click', click);
+  expect(submitLoginForm(input, loginTargetFor(input)!)).toBe(true);
+  expect(click).toHaveBeenCalledTimes(1);
+});
+
+it.each(['Sign up', 'Register', 'Create account', 'Konto erstellen', 'Continue with Google'])('does not treat the discovery caption %s as an executable login fallback', caption => {
+  document.body.innerHTML = `<section><input autocomplete="username"><input type="password"><button type="button" aria-label="${caption}"></button></section>`;
+  const input = document.querySelector('input')!;
+  const click = vi.fn(); document.querySelector('button')!.addEventListener('click', click);
+  expect(submitLoginForm(input, loginTargetFor(input)!)).toBe(false);
+  expect(click).not.toHaveBeenCalled();
+});
+
+it('preserves uncancelled native POST until the framework itself handles it', () => {
+  document.body.innerHTML = '<form method="post"><input autocomplete="username"><input type="password"><button type="submit">Sign in</button></form>';
+  const defaults: boolean[] = [];
+  document.querySelector('form')!.addEventListener('submit', event => { defaults.push(event.defaultPrevented); event.preventDefault(); });
+  expect(submitLoginForm(document.querySelector('input')!)).toBe(true);
+  expect(defaults).toEqual([false]);
+});
+
+it.each(['form', 'root'])('preserves a %s SPA handler that respects earlier cancellation', location => {
+  document.body.innerHTML = '<form><input autocomplete="username"><input type="password"><button type="submit">Sign in</button></form>';
+  const accepted = vi.fn(); const before: boolean[] = [];
+  const owner = location === 'form' ? document.querySelector('form')! : document;
+  const handler = (event: Event) => {
+    before.push(event.defaultPrevented);
+    if (event.defaultPrevented) return;
+    event.preventDefault(); accepted();
+  };
+  owner.addEventListener('submit', handler);
+  try {
+    expect(submitLoginForm(document.querySelector('input')!)).toBe(true);
+    expect(before).toEqual([false]); expect(accepted).toHaveBeenCalledTimes(1);
+  } finally { owner.removeEventListener('submit', handler); }
 });
