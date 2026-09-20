@@ -266,7 +266,7 @@ function controlMatches(input: WritableControl, control: AgentInjectControl): bo
     || type === "search" || type === "url";
 }
 
-function writeControlValue(control: WritableControl, value: string, emitEvents: boolean): void {
+export function writeControlValue(control: WritableControl, value: string, emitEvents: boolean): void {
   const prototype = control instanceof HTMLTextAreaElement
     ? HTMLTextAreaElement.prototype
     : HTMLInputElement.prototype;

@@ -32,7 +32,7 @@ export interface AgentInjectFormField {
 }
 
 export interface AgentInjectSubmit {
-  readonly action: "click" | "press-enter";
+  readonly action: "click" | "press-enter" | "deferred-native-click";
   readonly selector: string;
 }
 
@@ -48,7 +48,7 @@ export interface AgentInjectFormStep {
 }
 
 export interface AgentInjectForm {
-  readonly version: 1;
+  readonly version: 1 | 2;
   readonly steps: readonly AgentInjectFormStep[];
 }
 
@@ -67,6 +67,7 @@ export interface AgentPrepareRequest {
 }
 
 export interface AgentInjectionRequest {
+  readonly expiresAt?: number;
   readonly continueLive?: boolean;
   readonly protocol: typeof AGENT_INJECT_PROTOCOL;
   readonly type: "inject";
@@ -142,6 +143,7 @@ export function parseAgentInjectionRequest(value: unknown): AgentInjectionReques
     "form",
     "values",
     "continueLive",
+    "expiresAt",
   ])) return null;
   if (value.continueLive !== undefined && typeof value.continueLive !== 'boolean') return null;
   if (value.protocol !== AGENT_INJECT_PROTOCOL
@@ -151,7 +153,7 @@ export function parseAgentInjectionRequest(value: unknown): AgentInjectionReques
     || !validIdentifier(value.entryId)
     || !validExpectedDomain(value.expectedDomain)) return null;
   const form = parseAgentInjectForm(value.form);
-  if (form === null) return null;
+  if (form === null || (form.version === 2 ? !validExpiry(value.expiresAt) : value.expiresAt !== undefined)) return null;
   const values = parseAgentInjectValues(value.values, form);
   if (values === null) return null;
   return { ...(value as unknown as Omit<AgentInjectionRequest, "form" | "values">), form, values };
@@ -159,8 +161,20 @@ export function parseAgentInjectionRequest(value: unknown): AgentInjectionReques
 
 export function parseAgentInjectForm(value: unknown): AgentInjectForm | null {
   if (!isRecord(value) || !onlyKeys(value, ["version", "steps"])
-    || value.version !== 1 || !Array.isArray(value.steps)
+    || ![1, 2].includes(Number(value.version)) || !Array.isArray(value.steps)
     || value.steps.length < 1 || value.steps.length > MAX_FORM_STEPS) return null;
+  if (value.version === 2) {
+    if (value.steps.length !== 1) return null;
+    const step = parseStep(value.steps[0], true);
+    const field = step?.fields[0];
+    if (!step || step.waitFor || step.fields.length !== 1 || field?.entryFieldId !== 'credential.username'
+      || field.control !== 'username' || step.submit.action !== 'deferred-native-click'
+      || !/^palladin-live:[a-f0-9]{32}:[a-f0-9]{32}$/.test(field.selector)
+      || !/^palladin-live:[a-f0-9]{32}:[a-f0-9]{32}$/.test(step.submit.selector)
+      || field.selector.split(':')[1] !== step.submit.selector.split(':')[1]) return null;
+    return { version: 2, steps: [step] };
+  }
+  if (value.version !== 1) return null;
   let totalFields = 0;
   const steps: AgentInjectFormStep[] = [];
   for (let index = 0; index < value.steps.length; index += 1) {
@@ -248,7 +262,7 @@ export function valuesForAgentInjectStep(
   }));
 }
 
-function parseStep(value: unknown): AgentInjectFormStep | null {
+function parseStep(value: unknown, deferred = false): AgentInjectFormStep | null {
   if (!isRecord(value) || !onlyKeys(value, ["fields", "submit", "waitFor"])
     || !Array.isArray(value.fields) || value.fields.length < 1) return null;
   const fields: AgentInjectFormField[] = [];
@@ -264,7 +278,7 @@ function parseStep(value: unknown): AgentInjectFormStep | null {
   }
   const submit = value.submit;
   if (!isRecord(submit) || !onlyKeys(submit, ["action", "selector"])
-    || (submit.action !== "click" && submit.action !== "press-enter")
+    || (submit.action !== "click" && submit.action !== "press-enter" && !(deferred && submit.action === "deferred-native-click"))
     || !validSelector(submit.selector)
     || (submit.action === "press-enter"
       && !fields.some((field) => field.selector === submit.selector))) return null;
@@ -286,7 +300,7 @@ function parseStep(value: unknown): AgentInjectFormStep | null {
   };
 }
 
-function validIdentifier(value: unknown): value is string {
+export function validIdentifier(value: unknown): value is string {
   return typeof value === "string"
     && value.length >= 1
     && value.length <= MAX_IDENTIFIER_LENGTH
@@ -312,7 +326,7 @@ function validBrowserTabId(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
-function validTargetUrl(value: unknown): value is string {
+export function validTargetUrl(value: unknown): value is string {
   if (typeof value !== "string" || value.length < 1 || value.length > 4_096
     || value !== value.trim()) return false;
   try {
@@ -326,7 +340,7 @@ function validTargetUrl(value: unknown): value is string {
   }
 }
 
-function validExpectedDomain(value: unknown): value is string {
+export function validExpectedDomain(value: unknown): value is string {
   if (typeof value !== "string" || value.length < 1 || value.length > 253
     || value !== value.trim() || value !== value.toLowerCase()
     || value.includes("/") || value.includes(":")
@@ -349,11 +363,13 @@ function isAgentInjectFailure(value: unknown): value is AgentInjectFailure {
     || value === "provider-unavailable";
 }
 
-function onlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+export function onlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
   const allowed = new Set(keys);
   return Object.keys(value).every((key) => allowed.has(key));
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+export function validExpiry(value: unknown): value is number { return typeof value === "number" && Number.isSafeInteger(value) && value > 0; }

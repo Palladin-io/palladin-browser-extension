@@ -1,3 +1,4 @@
+import { isDeferredFillMessage, isDeferredCommitMessage, isDeferredCancelMessage } from '@shared/messaging/agent-deferred';
 import { LiveLogin, LIVE_SELECTOR_PREFIX } from './agent-live-login';
 import { isLiveInspectMessage, isLiveProbeMessage } from '@shared/messaging/agent-live';
 /**
@@ -125,6 +126,13 @@ if (extensionBuildTarget === "firefox" && window === window.top && location.prot
 // written into the page's inputs but is NEVER forwarded to the main-world script
 // (see the Port relay below, which explicitly excludes fill traffic).
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (isDeferredFillMessage(message) || isDeferredCommitMessage(message) || isDeferredCancelMessage(message)) {
+    if (_sender.id !== chrome.runtime.id || _sender.tab !== undefined) { sendResponse(null); return undefined; }
+    if (isDeferredFillMessage(message)) { void liveLogin.fillDeferred(message).then(sendResponse).catch(() => { liveLogin.clear(); sendResponse(null); }); return true; }
+    if (isDeferredCommitMessage(message)) { sendResponse(liveLogin.commitDeferred(message)); return undefined; }
+    liveLogin.cancelDeferred(message.pendingId); sendResponse({ ok: true }); return undefined;
+  }
+
   if (isLiveProbeMessage(message)) {
     if (_sender.id !== chrome.runtime.id || _sender.tab !== undefined || message.documentId !== documentId) { sendResponse(null); return undefined; }
     try { sendResponse(liveLogin.probe(message.targetUrl)); }

@@ -95,9 +95,34 @@ try {
     values: [{ entryFieldId: 'credential.username', value: 'synthetic@example.test' }, { entryFieldId: 'credential.password', value: 'Synthetic-password!42' }] }), { ok: true });
   assert.equal(await page.evaluate(() => globalThis.syntheticSubmitted), true);
   console.log('PASS observed-allegro: unrelated ad frame, overlay/CAPTCHA rejection, native fill/submit');
+  for (const expired of [false, true]) {
+    await page.goto('https://login.example.test/deferred-synthetic');
+    const deferredTarget = await binding();
+    const initial = await send(deferredTarget, { channel: 'palladin.agent-live/probe', documentId: deferredTarget.documentId, targetUrl: deferredTarget.url });
+    assert.equal(initial.outcome, 'ready'); assert.equal(initial.form.version, 2);
+    const ready = await send(deferredTarget, { channel: 'palladin.agent-live/deferred-fill', pendingId: 'b'.repeat(32), documentId: deferredTarget.documentId,
+      expectedDomain: 'login.example.test', form: initial.form, expiresAt: Date.now() + 10_000,
+      values: [{ entryFieldId: 'credential.username', value: 'synthetic@example.test' }] });
+    assert.equal(ready.ok, true);
+    assert.deepEqual(await page.evaluate(() => [globalThis.fillEvents, globalThis.submitEvents]), [1, 0]);
+    const commit = { channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'login.example.test', submitReady: ready.submitReady,
+      expiresAt: Date.now() + (expired ? -1 : 1000) };
+    assert.equal((await send(deferredTarget, commit)).ok, !expired);
+    assert.equal((await send(deferredTarget, commit)).ok, false);
+    assert.equal(await page.evaluate(() => globalThis.submitEvents), expired ? 0 : 1);
+  }
+  console.log('PASS synthetic-deferred: fill once, real native-action rediscovery, separate commit, replay/expiry rejection');
 } finally { await context?.close(); await rm(profile, { recursive: true, force: true }); }
 
 function fixture(route) {
+  if (route === '/deferred-synthetic') return `<!doctype html><html><head><meta charset="utf-8"><style>form{width:400px}input,button{min-height:32px}input{display:block;margin:16px}</style></head><body>
+    <form><input autocomplete="username"><input type="password" style="opacity:0"><div>Continue</div></form><script>
+    // Synthetic mechanism only: no claim about X production post-input behavior.
+    globalThis.fillEvents=0;globalThis.submitEvents=0;
+    const form=document.querySelector('form');document.querySelector('input').addEventListener('input',()=>{fillEvents++;setTimeout(()=>form.insertAdjacentHTML('beforeend','<button type="submit">Continue</button>'),50)});
+    form.addEventListener('submit',event=>{event.preventDefault();submitEvents++;form.innerHTML='<p>Neutral destination</p>'});
+    </script></body></html>`;
+
   if (route === '/allegro-observed') return `<!doctype html><html><body>${allegro}</body></html>`;
   const password = '<label>Password<input type="password" autocomplete="current-password"></label><button>Sign in</button>';
   const identity = '<label>Email<input autocomplete="username" type="email"></label>';

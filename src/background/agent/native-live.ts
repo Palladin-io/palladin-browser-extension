@@ -62,6 +62,7 @@ export async function advanceLiveChain(deps: AgentFillDeps, session: AgentProvid
         continue;
       }
       absent = 0;
+      if (report.form.version !== 1) return stop('challenge');
       const fields = report.form.steps[0]?.fields;
       if (report.form.steps.length !== 1 || !fields?.length
         || fields.some(field => !['credential.username', 'credential.password', 'credential.totp'].includes(field.entryFieldId))) return stop('challenge');
