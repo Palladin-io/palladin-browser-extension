@@ -137,3 +137,20 @@ it('accepts an initially disabled native submit input that becomes enabled after
   expect(instance.commitDeferred({ channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'login.example.test', submitReady: ready.submitReady, expiresAt: Date.now() + 1000 }).ok).toBe(true);
   expect(submitted).toHaveBeenCalledTimes(1);
 });
+it.each([
+  '<h4>Create your account</h4>', '<h5>Załóż konto</h5>', '<h6>Opprett profil</h6>', '<header>Sign up</header>',
+])('rejects registration heading vocabulary inside and beside the native form: %s', heading => {
+  expect(setup(generic.replace('<form>', `<form>${heading}`)).inspect(url)).toBeNull();
+  expect(setup(`<section>${heading}${generic}</section>`).inspect(url)).toBeNull();
+});
+it('revalidates a surrounding registration heading before committing', async () => {
+  const instance = setup(`<section><h4>Sign in</h4>${generic}</section>`), submitted = vi.fn((event: Event) => event.preventDefault());
+  document.querySelector('form')!.addEventListener('submit', submitted);
+  const ready = await filled(instance); expect(ready.ok).toBe(true); if (!ready.ok) return;
+  document.querySelector('h4')!.textContent = 'Create your account';
+  expect(instance.commitDeferred({ channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'login.example.test', submitReady: ready.submitReady, expiresAt: Date.now() + 1000 }).ok).toBe(false);
+  expect(submitted).not.toHaveBeenCalled(); expect(document.querySelector<HTMLInputElement>('input')!.value).toBe('');
+});
+it('does not borrow a registration heading from an unrelated sibling card', () => {
+  expect(setup(`<section><h4>Create your account</h4></section><section>${generic}</section>`).inspect(url)?.version).toBe(2);
+});

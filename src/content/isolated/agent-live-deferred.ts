@@ -3,7 +3,7 @@ import { sameLiveForm } from '@shared/messaging/agent-live';
 import { sameSubmitReady, type DeferredFillMessage, type DeferredFillOutcome, type DeferredCommitMessage, type SubmitReady } from '@shared/messaging/agent-deferred';
 import { matchesAgentInjectionTarget } from '@shared/security/domain';
 import { isFillable } from './credential-form-analysis';
-import { isIdentifiedUsername, isSubscriptionIdentity, scopeInputs } from './login-controls';
+import { isAccountCreationHeadingText, isIdentifiedUsername, isSubscriptionIdentity, scopeInputs } from './login-controls';
 import { autocompleteTokens } from './form-semantics';
 import { actionCaption, composedForm, queryOpenElements } from './open-dom';
 import { hasLiveLoginObstacle } from './agent-live-obstacles';
@@ -111,8 +111,11 @@ export class DeferredLiveLogin {
     if (fields.length !== 1 || !input || !this.dom.isVisible(input) || !isIdentifiedUsername(input) || isSubscriptionIdentity(input)
       || inputs.some(field => autocompleteTokens(field).includes('new-password') || autocompleteTokens(field).includes('one-time-code'))
       || hasLiveLoginObstacle(this.doc, scope, this.dom)) return null;
-    const headings = queryOpenElements(scope, 'h1,h2,h3,legend');
-    if (headings.some(node => /create\s+(?:an?\s+)?account|sign\s*up|zarejestruj|utwórz\s+konto/i.test(node.textContent ?? ''))) return null;
+    const headings = queryOpenElements(scope, 'header,h1,h2,h3,h4,h5,h6,legend');
+    if ([...headings, ...cardHeadings(scope)].some(node => {
+      const text = (node.textContent ?? '').trim();
+      return isAccountCreationHeadingText(text) || /create\s+(?:an?\s+)?account|sign\s*up|zarejestruj|utwórz\s+konto/i.test(text);
+    })) return null;
     const hiddenPassword = inputs.some(field => field.type === 'password' && !isFillable(field));
     const loginHeading = headings.some(node => /^(?:sign\s*in|log\s*in|zaloguj(?:\s+się)?)$/i.test((node.textContent ?? '').trim()));
     return hiddenPassword || loginHeading ? input : null;
@@ -128,6 +131,16 @@ export class DeferredLiveLogin {
     if (pending.marked) unmarkAgentManagedControl(pending.bound.input);
     pending.expected = '';
   }
+}
+/** Borrow only the immediate sole-form card, never page-wide promotional copy. */
+function cardHeadings(scope: HTMLFormElement): Element[] {
+  const card = scope.parentElement;
+  if (!card || card === scope.ownerDocument.body || card === scope.ownerDocument.documentElement) return [];
+  const forms = queryOpenElements(card, 'form');
+  if (forms.length !== 1 || forms[0] !== scope
+    || queryOpenElements(card, 'input,select,textarea').some(control => composedForm(control) !== scope)) return [];
+  return queryOpenElements(card, 'header,h1,h2,h3,h4,h5,h6,legend').filter(heading => !scope.contains(heading)
+    && (heading.parentElement === card || heading.parentElement?.parentElement === card));
 }
 function signature(scope: HTMLFormElement, input: HTMLInputElement): string {
   return JSON.stringify([scope.getAttribute('action'),scope.getAttribute('method'),scope.getAttribute('target'),scope.ownerDocument.baseURI,
