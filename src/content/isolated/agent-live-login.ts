@@ -8,7 +8,7 @@ import { AGENT_FORM_INSPECT_CHANNEL, AGENT_FORM_LIMITS } from '@shared/messaging
 import { AgentFormRegistry } from './agent-form';
 import { performAgentInjectStep, type AgentInjectDomAccess } from './agent-inject';
 import { loginTargetFor, isFillable } from './credential-form-analysis';
-import { credentialScopeFor, isOneTimeCodeControl, scopeInputs } from './login-controls';
+import { credentialScopeFor, isIdentifiedUsername, isOneTimeCodeControl, isVisibleScopeHint, scopeInputs } from './login-controls';
 import { actionCaption, composedForm } from './open-dom';
 import { markAgentManagedControl, isAgentManagedControl, unmarkAgentManagedControl } from './agent-managed-controls';
 import { hasLiveLoginObstacle } from './agent-live-obstacles';
@@ -40,9 +40,20 @@ export class LiveLogin {
     const scope = credentialScopeFor(fields[0]!.input);
     const action = bindings.find(binding => binding.selector === normal.steps[0]!.submit.selector)?.element;
     if (!scope || !(action instanceof HTMLButtonElement || action instanceof HTMLInputElement)) return null;
+    const carriedIdentities = () => scopeInputs(scope).filter(input => isIdentifiedUsername(input) && (input.disabled || input.readOnly));
+    const identities = carriedIdentities();
+    const identity = identities[0];
+    if (identities.length > 1 || (identity && (fields.some(field => field.fieldId === 'credential.username')
+      || !this.dom.isVisible(identity) || !isVisibleScopeHint(identity)))) return null;
+    if (identity) fields.unshift({ input: identity, fieldId: 'credential.username', mode: 'compare' });
+    const currentIdentity = () => {
+      const current = carriedIdentities();
+      return current.length === identities.length && current.every((input, index) => input === identities[index]
+        && credentialScopeFor(input) === scope && this.dom.isVisible(input) && isVisibleScopeHint(input));
+    };
     const expiresAt = this.expiresAt;
     return this.deferred.bindKnown(targetUrl, scope, fields, action,
-      () => Date.now() < expiresAt && this.matchesBindings(targetUrl, normal, bindings), expiresAt - Date.now());
+      () => Date.now() < expiresAt && currentIdentity() && this.matchesBindings(targetUrl, normal, bindings), expiresAt - Date.now());
   }
   fillDeferred(message: DeferredFillMessage) { return this.deferred.fill(message); }
   commitDeferred(message: DeferredCommitMessage) { return this.deferred.commit(message); }

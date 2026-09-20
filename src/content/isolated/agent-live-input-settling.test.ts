@@ -67,6 +67,32 @@ it.each(['', 'foreign', 'synthetic-user'])('preserves an editable carried userna
   expect(response.ok).toBe(existing === 'synthetic-user'); expect(username.value).toBe(existing); expect(events).not.toHaveBeenCalled();
   if (response.ok) live.cancelDeferred(response.submitReady.pendingId);
 });
+it.each(['disabled', 'readonly'])('includes an existing %s identity in a normal password form with a native action', async attribute => {
+  document.body.innerHTML = `<form><input autocomplete="username" ${attribute}><input type="password" autocomplete="current-password"><button>Sign in</button></form>`;
+  const username = document.querySelector<HTMLInputElement>('input')!; username.value = 'foreign';
+  live = new LiveLogin(document, documentId, () => url, () => true, { isVisible: element => !element.hidden });
+  const plan = live.inspect(url)!;
+  expect(plan.steps[0]!.fields.map(field => field.entryFieldId)).toEqual(['credential.username', 'credential.password']);
+  const response = await live.fillDeferred({ channel: 'palladin.agent-live/deferred-fill', pendingId: 'b'.repeat(32), documentId, expectedDomain: 'login.example.test', expiresAt: Date.now() + 10_000,
+    form: plan, values: [{ entryFieldId: 'credential.username', value: 'synthetic-user' }, { entryFieldId: 'credential.password', value: 'Synthetic-password!42' }] });
+  expect(response.ok).toBe(false); expect(document.querySelector<HTMLInputElement>('input[type=password]')!.value).toBe(''); expect(username.value).toBe('foreign');
+});
+it.each(['unchanged', 'value', 'duplicate', 'replacement', 'mode'])('revalidates an existing normal-form readonly identity through commit: %s', async mutation => {
+  document.body.innerHTML = '<form><input autocomplete="username" readonly><input type="password" autocomplete="current-password"><button>Sign in</button></form>';
+  const username = document.querySelector<HTMLInputElement>('input')!; username.value = 'synthetic-user';
+  const events = vi.fn(), clicked = vi.fn((event: Event) => event.preventDefault()); username.addEventListener('input', events); username.addEventListener('change', events);
+  document.querySelector('button')!.addEventListener('click', clicked);
+  live = new LiveLogin(document, documentId, () => url, () => true, { isVisible: element => !element.hidden });
+  const ready = await live.fillDeferred({ channel: 'palladin.agent-live/deferred-fill', pendingId: 'b'.repeat(32), documentId, expectedDomain: 'login.example.test', expiresAt: Date.now() + 10_000,
+    form: live.inspect(url)!, values: [{ entryFieldId: 'credential.username', value: 'synthetic-user' }, { entryFieldId: 'credential.password', value: 'Synthetic-password!42' }] });
+  expect(ready.ok).toBe(true); if (!ready.ok) return;
+  if (mutation === 'value') username.value = 'foreign';
+  if (mutation === 'duplicate') username.after(username.cloneNode(true));
+  if (mutation === 'replacement') username.replaceWith(username.cloneNode(true));
+  if (mutation === 'mode') username.readOnly = false;
+  expect(live.commitDeferred({ channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'login.example.test', submitReady: ready.submitReady, expiresAt: Date.now() + 1000 }).ok).toBe(mutation === 'unchanged');
+  expect(clicked).toHaveBeenCalledTimes(mutation === 'unchanged' ? 1 : 0); expect(events).not.toHaveBeenCalled();
+});
 it.each(['identity', 'destination', 'replacement'])('revalidates queued %s mutation before returning submit-ready', async mutation => {
   document.body.innerHTML = '<form><input autocomplete="username"><input type="password" autocomplete="current-password"><button>Sign in</button></form>';
   const username = document.querySelector<HTMLInputElement>('input')!, password = document.querySelector<HTMLInputElement>('input[type=password]')!;
