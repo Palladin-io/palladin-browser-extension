@@ -1,0 +1,188 @@
+{
+  "date": "2026-09-21",
+  "purpose": "PR51 final R3 visible aria-hidden caption regression",
+  "validation": {
+    "unit": {
+      "passed": 3075,
+      "failed": 0,
+      "skipped": 0
+    },
+    "typecheck": "pass",
+    "build": [
+      "chromium",
+      "firefox",
+      "safari"
+    ]
+  },
+  "review": {
+    "cloud": "three-round-limit; final finding fixed after R3; no clean cloud claim",
+    "independent": "parent and non-author reviewer accepted final source diff"
+  },
+  "sourceSha256": {
+    "src/content/isolated/login-controls.ts": "f692e2deac759c31394eb9571e39ed398cdeec08b80e5d77fad6a7fb25d630b6",
+    "src/content/isolated/agent-live-login.ts": "a37dd0108eee67ad22183bc895e73ae14152cf0772f04b98bc5e82b862fa8a89",
+    "src/content/isolated/agent-live-deferred.ts": "9b02c532759d5d627bd0e83110d9d1f9eacef983e9d3a8494f338e7f4e8cddf5",
+    "tests/browser/form-corpus.mjs": "8a4a2ef733b215616462561f5f6c5a6e1f62902334b184d1b98c7e11bae0fcb5",
+    "tests/fixtures/forms/amazon-login-identifier-2026-09-15/page.html": "e377424d43426613b0a2b5c09dc774023376a6c839c51dfa1bb603a71c42fc4b",
+    "tests/fixtures/forms/amazon-login-identifier-2026-09-15/page.css": "a5af4affeb88af59de9570383156495fadf4f9be40a45022aa1490c7b024034a",
+    "tests/fixtures/forms/amazon-login-identifier-2026-09-15/case.json": "7f3f30ae15cfb0a983fc9fd2254e1faa14f2ee663a5ba1b15eb090e47f67ec39",
+    "tests/fixtures/forms/bilibili-login-2026-09-16/page.html": "72f33493fcff4695e71576f6f1c12a39b2e2b2058c68d2cae5f12a10dfa88d89",
+    "tests/fixtures/forms/bilibili-login-2026-09-16/page.css": "3a5962669a0343b9223ce10be1fa0f2984c214cae81f5e551309a9071e81a81c",
+    "tests/fixtures/forms/bilibili-login-2026-09-16/case.json": "33a5f1f8d36a741fc756e3652d8cc74a8320253fcad1dc023f57c051f3c514db",
+    "tests/fixtures/forms/booking-login-identifier-2026-09-15/page.html": "8f6d484564371b77bc9103c238eb5b1ee6f669926d3d33f88f87e24ac803b0a5",
+    "tests/fixtures/forms/booking-login-identifier-2026-09-15/page.css": "13bf97d45af56c7fc047bb7dcdfe4c9061c0c3a4a5a67118fe140787b2b5ffd3",
+    "tests/fixtures/forms/booking-login-identifier-2026-09-15/case.json": "857e14c4b4bc0881d966489c13517482124d7f324b3ea6c9e2a963d2d0f637a4",
+    "tests/fixtures/forms/canva-login-identifier-2026-09-15/page.html": "8d8921e46ac05730fdacea082c81e4585a9067f1a433ea48fd609919ef9b274f",
+    "tests/fixtures/forms/canva-login-identifier-2026-09-15/page.css": "2277043cc6bc7d427a33cbb4b8006fb54529c6bcd58a3eb672b2072f738735ca",
+    "tests/fixtures/forms/canva-login-identifier-2026-09-15/case.json": "4882814ab9b29be7312848226e153196bf3497386e609a58a01e7d47f69e6044",
+    "tests/fixtures/forms/ccc-login-2026-09-16/page.html": "d3c313d6208d52f17dfbce691ecc15e0cab76e8a1df6816e3d7a0772cd4942a7",
+    "tests/fixtures/forms/ccc-login-2026-09-16/page.css": "e29eb116ff7f094ec02ee5b03b5ec16ff859e3ca0006452e3889ed75b28a18c6",
+    "tests/fixtures/forms/ccc-login-2026-09-16/case.json": "55fa70c5bb7d135eceaf0edc5bef901298d664e8c0380fbf74c74b92c74bae6b",
+    "tests/fixtures/forms/claude-login-identifier-2026-09-15/page.html": "b2545a71cf067d388acede2db897cdf39df3b1c90533cddc01792d02ebddf8f1",
+    "tests/fixtures/forms/claude-login-identifier-2026-09-15/page.css": "8f0e3e2b21b32573107e86a6a234248f5a4966c64fc90c1158a54fbd5400fafb",
+    "tests/fixtures/forms/claude-login-identifier-2026-09-15/case.json": "9b3c183ca7552e57607bec6d72cea0ca04ebdb1fc2bafd773b71d91707b1a52a",
+    "tests/fixtures/forms/meczyki-login-2026-09-16/page.html": "a23fb1ea6da24a36f8b8f093abe5ac868c1ffd480b439a9b4c12cdf37c6eda2b",
+    "tests/fixtures/forms/meczyki-login-2026-09-16/page.css": "d35ad396cb6af2049a7a6cd13ed14477305249721d7ee219d8ff28655930206d",
+    "tests/fixtures/forms/meczyki-login-2026-09-16/case.json": "6e6c2608da502c7d83280a8b73d99916c332bbfb26482619ba24f467a756e950"
+  },
+  "report": {
+    "note": "Observed specimen structure and recorded viewport (fallback 1200x900) with synthetic behavior. User shield results assert count and a closed shadow root only, not geometry or fill. No production login, native grant authorization or legacy registration executor is proved.",
+    "excludedDirectoriesWithoutCaseMetadata": [
+      "tests/fixtures/forms/allegro-login-ad-2026-09-20",
+      "tests/fixtures/forms/aws-root-identifier-2026-09-20",
+      "tests/fixtures/forms/doradcasmaku-capture-2026-09-16",
+      "tests/fixtures/forms/jetbrains-identifier-2026-09-20",
+      "tests/fixtures/forms/linkedin-capture-2026-09-15",
+      "tests/fixtures/forms/linkedin-login-2026-09-20",
+      "tests/fixtures/forms/proton-login-2026-09-20"
+    ],
+    "results": [
+      {
+        "id": "amazon-login-identifier-2026-09-15",
+        "service": "amazon",
+        "flow": "login",
+        "stage": "identifier",
+        "userShield": "pass",
+        "agentLive": "pass",
+        "actionVisibilityNegatives": [
+          {
+            "mutation": "covered",
+            "outcome": "pass"
+          },
+          {
+            "mutation": "hidden-label",
+            "outcome": "pass"
+          },
+          {
+            "mutation": "distant-label",
+            "outcome": "pass"
+          },
+          {
+            "mutation": "zero-opacity",
+            "outcome": "pass"
+          }
+        ]
+      },
+      {
+        "id": "bilibili-login-2026-09-16",
+        "service": "bilibili",
+        "flow": "login",
+        "stage": null,
+        "userShield": "pass",
+        "agentLive": "pass",
+        "customCommitNegatives": [
+          {
+            "mutation": "href-or-role",
+            "outcome": "pass"
+          },
+          {
+            "mutation": "class",
+            "outcome": "pass"
+          },
+          {
+            "mutation": "covered",
+            "outcome": "pass"
+          },
+          {
+            "mutation": "replacement",
+            "outcome": "pass"
+          },
+          {
+            "mutation": "extra-field",
+            "outcome": "pass"
+          },
+          {
+            "mutation": "caption",
+            "outcome": "pass"
+          }
+        ]
+      },
+      {
+        "id": "booking-login-identifier-2026-09-15",
+        "service": "booking",
+        "flow": "login",
+        "stage": "identifier",
+        "userShield": "pass",
+        "agentLive": "pass"
+      },
+      {
+        "id": "canva-login-identifier-2026-09-15",
+        "service": "canva",
+        "flow": "login",
+        "stage": "identifier",
+        "userShield": "pass",
+        "agentLive": "pass"
+      },
+      {
+        "id": "ccc-login-2026-09-16",
+        "service": "ccc",
+        "flow": "login",
+        "stage": null,
+        "userShield": "pass",
+        "agentLive": "pass"
+      },
+      {
+        "id": "claude-login-identifier-2026-09-15",
+        "service": "claude",
+        "flow": "login",
+        "stage": "identifier",
+        "userShield": "pass",
+        "agentLive": "pass"
+      },
+      {
+        "id": "meczyki-login-2026-09-16",
+        "service": "meczyki",
+        "flow": "login",
+        "stage": null,
+        "userShield": "pass",
+        "agentLive": "pass",
+        "customCommitNegatives": [
+          {
+            "mutation": "href-or-role",
+            "outcome": "pass"
+          },
+          {
+            "mutation": "class",
+            "outcome": "pass"
+          },
+          {
+            "mutation": "covered",
+            "outcome": "pass"
+          },
+          {
+            "mutation": "replacement",
+            "outcome": "pass"
+          },
+          {
+            "mutation": "extra-field",
+            "outcome": "pass"
+          },
+          {
+            "mutation": "caption",
+            "outcome": "pass"
+          }
+        ]
+      }
+    ]
+  }
+}

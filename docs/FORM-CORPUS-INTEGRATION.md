@@ -263,3 +263,24 @@ seven recorded-viewport Chromium specimens and sixteen mutation checks passed.
 Detailed hashes/results are in
 `form-corpus/2026-09-21-review-r2-icon-regression.json`. These checks do not rerun
 or complete the whole regional corpus and do not claim real-site authentication.
+
+## Final R3 correction and review limit
+
+The third cloud round found that aria-hidden alone still suppressed visually
+rendered signup/reset/delete captions. Ten failing assertions preceded the final
+correction: decorative exclusion now requires a bounded declared image/SVG or a
+leaf established glyph/short symbol; arbitrary hidden wrappers and meaningful
+visible text remain in the conflict check. Provider semantics inside a wrapper
+and changes before commit are covered. The observed Amazon caption root remains
+supported. Two independent non-author read reviews accepted this final diff.
+
+Final local verification: 3075 unit tests passed, no skips; typecheck and all three
+browser builds passed; seven recorded-viewport Chromium specimens and sixteen
+mutation checks passed. Evidence:
+`form-corpus/2026-09-21-review-r3-visible-caption-regression.json`.
+
+The bounded cloud loop ended after three completed rounds, each with findings.
+This final correction is validated by regression tests, independent review and
+repository CI before merge; it is not a clean cloud review and no fourth round
+will be requested. Corpus completion and real authentication remain separate
+from these focused checks.
