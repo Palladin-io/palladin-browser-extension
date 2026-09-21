@@ -1,0 +1,72 @@
+{
+  "note": "Observed specimen structure and recorded viewport (fallback 1200x900) with synthetic behavior. User shield results assert count and a closed shadow root only, not geometry or fill. No production login, native grant authorization or legacy registration executor is proved.",
+  "excludedDirectoriesWithoutCaseMetadata": [
+    "tests/fixtures/forms/allegro-login-ad-2026-09-20",
+    "tests/fixtures/forms/aws-root-identifier-2026-09-20",
+    "tests/fixtures/forms/doradcasmaku-capture-2026-09-16",
+    "tests/fixtures/forms/jetbrains-identifier-2026-09-20",
+    "tests/fixtures/forms/linkedin-capture-2026-09-15",
+    "tests/fixtures/forms/linkedin-login-2026-09-20",
+    "tests/fixtures/forms/proton-login-2026-09-20"
+  ],
+  "results": [
+    {
+      "id": "24ur-login-2026-09-15",
+      "service": "24ur",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "bankier-login-2026-09-15",
+      "service": "bankier",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "record-login-2026-09-16",
+      "service": "record",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "rte-login-2026-09-15",
+      "service": "rte",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "tv2-login-2026-09-16",
+      "service": "tv2",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    }
+  ],
+  "source": {
+    "baseCommit": "37a0268d6c1cf9654e6b8b95cfbe2c0f8490180b",
+    "productionChanges": [
+      {
+        "path": "src/content/isolated/login-controls.ts",
+        "sha256": "73a3f45bc3668ee7d9246d06854857c67866014471b44486cbe052e3b191b865"
+      },
+      {
+        "path": "src/content/isolated/agent-live-login.ts",
+        "sha256": "5be7b9c9d20bfa2bb4dd2b13056bcba707c76f067f5384137bb33577b8c30873"
+      },
+      {
+        "path": "src/content/isolated/agent-live-deferred.ts",
+        "sha256": "94d7a13b95f6e59ac2555d2839f0cd7ed96c6f00c03fb0a88fdf7f07a38f5b11"
+      }
+    ],
+    "harnessSha256": "90820293448cac1ab6e650bd9019fa4fcf274d599f48c47a7788569c89dbc182"
+  }
+}

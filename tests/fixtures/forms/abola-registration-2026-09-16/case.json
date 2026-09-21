@@ -1,0 +1,80 @@
+{
+  "id": "abola-registration-2026-09-16",
+  "service": "abola",
+  "flow": "registration",
+  "source": {
+    "url": "https://www.abola.pt/",
+    "observedAt": "2026-09-16",
+    "locale": "pt",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Registe-se opens signup in same dialog as retained email-only login/link forms. Public registration code creates Firebase account with email/password and sends username separately as profile data. No account submitted.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "relatedEvidence": [
+      {
+        "url": "https://cdn.abola.pt/5d61e72c-1e20-4dac-b54c-11fc1781b126/theme/pt/assets/FirebaseRegisterPage-CWmDWSdf.js",
+        "observation": "Public register implementation passes email/password to auth helper and sends username separately as profile data."
+      },
+      {
+        "url": "https://cdn.abola.pt/5d61e72c-1e20-4dac-b54c-11fc1781b126/theme/pt/assets/auth-V1NhbP5S.js",
+        "observation": "Imported helper maps to Firebase createUserWithEmailAndPassword."
+      }
+    ]
+  },
+  "fidelity": {
+    "structure": "Observed complete authentication dialog, including inactive login/reset/link forms as context",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "Editable/hidden field values, URLs, scripts, handlers and iframe content omitted; public input-button captions retained",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#firebase-register-username",
+          "kind": "text",
+          "purpose": "username",
+          "fieldId": "profile.username"
+        },
+        {
+          "selector": "#firebase-register-email",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#firebase-register-password",
+          "kind": "password",
+          "purpose": "new-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form:has(#firebase-register-email)",
+      "username": "#firebase-register-username",
+      "passwords": [
+        "#firebase-register-password"
+      ],
+      "usernameValue": "fixture_handle"
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "expectationHistory": [
+    {
+      "date": "2026-09-21",
+      "reason": "Observed registration input explicitly declares autocomplete=username; expected captured identity is that field, not the contact email. Synthetic field assignments unchanged; production DOM unchanged."
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "id": "mediaexpert-registration-2026-09-15",
+  "service": "mediaexpert",
+  "flow": "registration",
+  "source": {
+    "url": "https://www.mediaexpert.pl/registration",
+    "observedAt": "2026-09-15",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "public form, no values read",
+    "viewport": {
+      "width": 954,
+      "height": 375
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "[name=\"first_name\"]",
+          "kind": "text",
+          "purpose": "given-name",
+          "fieldId": "profile.given-name"
+        },
+        {
+          "selector": "[name=\"last_name\"]",
+          "kind": "text",
+          "purpose": "family-name",
+          "fieldId": "profile.family-name"
+        },
+        {
+          "selector": "[name=\"email\"]",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "[name=\"password\"]",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "[name=\"email\"]",
+      "passwords": [
+        "[name=\"password\"]"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}
+

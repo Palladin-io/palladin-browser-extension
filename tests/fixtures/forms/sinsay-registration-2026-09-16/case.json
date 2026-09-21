@@ -1,0 +1,71 @@
+{
+  "id": "sinsay-registration-2026-09-16",
+  "service": "sinsay",
+  "flow": "registration",
+  "source": {
+    "url": "https://www.sinsay.com/pl/pl/customer/account/login/referer/aHR0cHM6Ly93d3cuc2luc2F5LmNvbS9wbC9wbC8,/",
+    "entryUrl": "https://www.sinsay.com/pl/pl/",
+    "observedAt": "2026-09-16",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Homepage -> Moje konto -> Załóż konto replaces the form. Newsletter and privacy checkboxes untouched; no fields entered or submit.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "Observed native React form with original bracketed login names/IDs and labelled signup inputs",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Anchor href presence retained as fixed synthetic fragment; actual target URLs omitted."
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#email",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#firstname",
+          "kind": "text",
+          "purpose": "given-name",
+          "fieldId": "profile.given-name"
+        },
+        {
+          "selector": "#lastname",
+          "kind": "text",
+          "purpose": "family-name",
+          "fieldId": "profile.family-name"
+        },
+        {
+          "selector": "#password",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "#email",
+      "passwords": [
+        "#password"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}

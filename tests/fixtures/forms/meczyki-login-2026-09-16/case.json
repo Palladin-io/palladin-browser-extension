@@ -1,0 +1,67 @@
+{
+  "id": "meczyki-login-2026-09-16",
+  "service": "meczyki",
+  "flow": "login",
+  "source": {
+    "url": "https://www.meczyki.pl/logowanie.html",
+    "observedAt": "2026-09-16",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Homepage account link -> public login. Formless credential group uses an anchor with class button and no href as its action; other anchors navigate. No credentials or terms submitted.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "Observed .form-wrapper subtree with native absence of form and button semantics retained",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Anchor href presence retained as synthetic #form-specimen-navigation; actual navigation targets omitted."
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "input[type=\"text\"]",
+      "username": "input[type=\"text\"]",
+      "password": "input[id=\"ee2dccd2fe78\"]"
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "input[type=\"text\"]",
+          "kind": "text",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "input[id=\"ee2dccd2fe78\"]",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        }
+      ],
+      "action": "a.button:not([href])"
+    },
+    "capture": {
+      "kind": "login",
+      "scope": ".form-inside-wrapper:has(input[type=\"password\"])",
+      "username": "input[type=\"text\"]",
+      "passwords": [
+        "input[id=\"ee2dccd2fe78\"]"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported",
+    "agentActionExecution": "synthetic-chromium-explicit-activation-pass"
+  },
+  "synthetic": {
+    "username": "fixture_handle"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "id": "bilibili-registration-sms-2026-09-16",
+  "service": "bilibili",
+  "flow": "registration",
+  "source": {
+    "url": "https://www.bilibili.com/",
+    "observedAt": "2026-09-16",
+    "locale": "zh-CN",
+    "method": "Playwright read-only DOM projection in isolated browser",
+    "state": "注册 control opens combined SMS login/registration. No values entered or submit/OTP requested.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "Observed whole .login-sms-wp subtree including hidden CAPTCHA and sibling div actions",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed; no page scripts replayed",
+    "redactions": [
+      "values, URLs, scripts, handlers, CAPTCHA content and SVG paths omitted",
+      "page shell omitted; full hidden country-code list retained"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "input[placeholder=\"请输入手机号\"]",
+          "kind": "text",
+          "purpose": "tel",
+          "fieldId": "credential.username"
+        }
+      ],
+      "observedOnly": [
+        {
+          "selector": "input[placeholder=\"请输入验证码\"]",
+          "kind": "text",
+          "purpose": "one-time-code"
+        }
+      ],
+      "action": "div.btn_primary"
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported",
+    "agentActionExecution": "synthetic-chromium-explicit-activation-pass",
+    "userTrustedActionCapture": "unverified-nonsemantic-div",
+    "syntheticTrustedEnter": "pass-no-identifier-credential-prompt-or-write"
+  },
+  "synthetic": {
+    "username": "15555550123"
+  },
+  "stage": "verification"
+}

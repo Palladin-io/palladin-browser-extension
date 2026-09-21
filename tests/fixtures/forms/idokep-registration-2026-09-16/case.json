@@ -1,0 +1,74 @@
+{
+  "id": "idokep-registration-2026-09-16",
+  "service": "idokep",
+  "flow": "registration",
+  "source": {
+    "url": "https://www.idokep.hu/regisztracio",
+    "observedAt": "2026-09-16",
+    "locale": "hu",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Homepage registration link -> Regisztrálás kezdőként (beginner variant). Username, contact email and two password fields observed. Location selection, terms and CAPTCHA not completed; no account submitted.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Unselected public city options and their per-option CSS omitted; select, selected placeholder and enhanced search widget retained. Location selection is not replayed."
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#user",
+          "kind": "text",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#passFirst",
+          "kind": "password",
+          "purpose": "new-password",
+          "fieldId": "credential.password"
+        },
+        {
+          "selector": "#passVerify",
+          "kind": "password",
+          "purpose": "new-password",
+          "fieldId": "credential.password"
+        },
+        {
+          "selector": "#email",
+          "kind": "text",
+          "purpose": "email",
+          "fieldId": "profile.email"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "#user",
+      "passwords": [
+        "#passFirst",
+        "#passVerify"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "synthetic": {
+    "username": "fixture_handle"
+  }
+}

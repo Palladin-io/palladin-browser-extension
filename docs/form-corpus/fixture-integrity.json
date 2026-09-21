@@ -1,0 +1,2525 @@
+{
+  "note": "Local recovered corpus integrity manifest, not production source attestation or passing coverage.",
+  "files": [
+    {
+      "path": "tests/fixtures/forms/20min-login-identifier-2026-09-16/case.json",
+      "sha256": "697d7ab9fe541ffe9ca140ce7d65ac46560069cc2c33b11be9f718618f6ee261"
+    },
+    {
+      "path": "tests/fixtures/forms/20min-login-identifier-2026-09-16/page.css",
+      "sha256": "c3fdf79271a7ef77c91f5c2d197cec903038a71f91db85f3e17e89a8bf5b4324"
+    },
+    {
+      "path": "tests/fixtures/forms/20min-login-identifier-2026-09-16/page.html",
+      "sha256": "10d1b831cb1c0a8bfb7deef3a58960f9299e8560e0d681b8938e38e0ec01c6e4"
+    },
+    {
+      "path": "tests/fixtures/forms/20min-registration-identifier-2026-09-16/case.json",
+      "sha256": "0fb2903cbe27a887865a17e5e3375337f56a6c024f87be231ac67da4b1934f35"
+    },
+    {
+      "path": "tests/fixtures/forms/20min-registration-identifier-2026-09-16/page.css",
+      "sha256": "c3fdf79271a7ef77c91f5c2d197cec903038a71f91db85f3e17e89a8bf5b4324"
+    },
+    {
+      "path": "tests/fixtures/forms/20min-registration-identifier-2026-09-16/page.html",
+      "sha256": "10d1b831cb1c0a8bfb7deef3a58960f9299e8560e0d681b8938e38e0ec01c6e4"
+    },
+    {
+      "path": "tests/fixtures/forms/24ur-login-2026-09-15/case.json",
+      "sha256": "e636b8fc4b27ff551f9d9df7c827a62ac9312a207795b5e8ad8d6c11bd1740b2"
+    },
+    {
+      "path": "tests/fixtures/forms/24ur-login-2026-09-15/page.css",
+      "sha256": "94d8e977d833b2720704fe75ce0a8796862d0075d0bb005e130aca896d4e9f61"
+    },
+    {
+      "path": "tests/fixtures/forms/24ur-login-2026-09-15/page.html",
+      "sha256": "6b09225e236b860286fc76b8c07f113487078861989024b4525b3f6f4cece4db"
+    },
+    {
+      "path": "tests/fixtures/forms/24ur-registration-2026-09-15/case.json",
+      "sha256": "473c03683fd29c55156fd1db24f5eecd5c41afa2be485899768f8e36ee84555f"
+    },
+    {
+      "path": "tests/fixtures/forms/24ur-registration-2026-09-15/page.css",
+      "sha256": "9aa66cc2685d19329aac3da635bb26dc62cded3572e0287712e736220a285107"
+    },
+    {
+      "path": "tests/fixtures/forms/24ur-registration-2026-09-15/page.html",
+      "sha256": "5937774fb782facb7b69943b922bf9037b1bdad40ac08b634d3aaa8deb4000fa"
+    },
+    {
+      "path": "tests/fixtures/forms/README.md",
+      "sha256": "d07c973156ca6d2039882e19361f3c9379663fc6d703dec42ef592a8837becae"
+    },
+    {
+      "path": "tests/fixtures/forms/abola-login-identifier-2026-09-16/case.json",
+      "sha256": "426b9cfde8551aa617169d8474e5ea69ec67223de1e1162fe1ce17f2566e93bc"
+    },
+    {
+      "path": "tests/fixtures/forms/abola-login-identifier-2026-09-16/page.css",
+      "sha256": "cf5db2476dab39c361f02518074b0aa23ca66a47ddeed7a4ec0a05acfacb1d2f"
+    },
+    {
+      "path": "tests/fixtures/forms/abola-login-identifier-2026-09-16/page.html",
+      "sha256": "8bd251bb776f1111705deb68dd93c78c23d26abcf38083d36ccfd5b276203796"
+    },
+    {
+      "path": "tests/fixtures/forms/abola-registration-2026-09-16/case.json",
+      "sha256": "a33a454e14d4dfd69d697148d159dcc92803ff9009dc7812996d8553c3580f1d"
+    },
+    {
+      "path": "tests/fixtures/forms/abola-registration-2026-09-16/page.css",
+      "sha256": "568a2d937f4761993317f912f156d6f95aee6f42b1b0b9a31b4fd2fe4773bd13"
+    },
+    {
+      "path": "tests/fixtures/forms/abola-registration-2026-09-16/page.html",
+      "sha256": "b8e371f295940cdf90c75d4a62315f2604161384036a5ec15532f625a78ec502"
+    },
+    {
+      "path": "tests/fixtures/forms/abv-login-2026-09-15/case.json",
+      "sha256": "34622d8087ed5da45cc278ccc02e446e926c7040371d8fbb323a0a27a2fb6c2a"
+    },
+    {
+      "path": "tests/fixtures/forms/abv-login-2026-09-15/page.css",
+      "sha256": "9a25b8f81d4cd8b6a5b040b5ea5a0d17bdbfe82d67bd7eb78e1584fac219f160"
+    },
+    {
+      "path": "tests/fixtures/forms/abv-login-2026-09-15/page.html",
+      "sha256": "b887573da4e84ecd38dd7d348a4de45212f413858739fb901b300ffd0f8b55e7"
+    },
+    {
+      "path": "tests/fixtures/forms/adobe-login-identifier-2026-09-16/case.json",
+      "sha256": "3c4fab8cac4c226b1a67233ff5b1d0c5f9533d13a2cbea5c60d91bc43ac29be5"
+    },
+    {
+      "path": "tests/fixtures/forms/adobe-login-identifier-2026-09-16/page.css",
+      "sha256": "24261eb9ac16749707015a79e5451664f619dccc950f9119e13a1291f2cf4515"
+    },
+    {
+      "path": "tests/fixtures/forms/adobe-login-identifier-2026-09-16/page.html",
+      "sha256": "43199c2fa2a3db461fc07a3378a49fdaaa94b0c7fe751d57105692dfd37870b6"
+    },
+    {
+      "path": "tests/fixtures/forms/adobe-registration-2026-09-16/case.json",
+      "sha256": "a84346d1c28c452152267da888d16de89a25b88975cb51a8dba18bdcee0140c6"
+    },
+    {
+      "path": "tests/fixtures/forms/adobe-registration-2026-09-16/page.css",
+      "sha256": "24299bb65157f71588db5582a2d16a6bb8ea4eb60953ab7cb19c0038278157e3"
+    },
+    {
+      "path": "tests/fixtures/forms/adobe-registration-2026-09-16/page.html",
+      "sha256": "6b0177dcaeae43a23596a33059b114b6162379f0a5a3e48291fc68772b563e4a"
+    },
+    {
+      "path": "tests/fixtures/forms/aftonbladet-login-identifier-2026-09-16/case.json",
+      "sha256": "eba05ba07186b47f8a8bb716c28bc92acea2e6651b50ad0bf9a6c289a4d5c130"
+    },
+    {
+      "path": "tests/fixtures/forms/aftonbladet-login-identifier-2026-09-16/page.css",
+      "sha256": "b0ca36260e4529896ea7a679e8a35e0064de3ae590d536c786c1bf32e3ce19ad"
+    },
+    {
+      "path": "tests/fixtures/forms/aftonbladet-login-identifier-2026-09-16/page.html",
+      "sha256": "ca3a8ced13b79ee16c385e6c2f8d72ec26145729425277d97d17177cc58df7fd"
+    },
+    {
+      "path": "tests/fixtures/forms/aftonbladet-registration-identifier-2026-09-16/case.json",
+      "sha256": "67568ad6266882ca9d8d1f7eda88588e69a675aa424012aea8b3d22f7b2ebf85"
+    },
+    {
+      "path": "tests/fixtures/forms/aftonbladet-registration-identifier-2026-09-16/page.css",
+      "sha256": "b0ca36260e4529896ea7a679e8a35e0064de3ae590d536c786c1bf32e3ce19ad"
+    },
+    {
+      "path": "tests/fixtures/forms/aftonbladet-registration-identifier-2026-09-16/page.html",
+      "sha256": "1382ce1f566867091db39dc51a3b5ecc47a5b4ece1ab1012e608bb93620671cd"
+    },
+    {
+      "path": "tests/fixtures/forms/allegro-login-2026-09-15/case.json",
+      "sha256": "78831aaadd9730a0d6b475ee3db83785b4de7867a4dd605f1f5e9ca0ce0fd39d"
+    },
+    {
+      "path": "tests/fixtures/forms/allegro-login-2026-09-15/page.css",
+      "sha256": "54f5e361a0ef93ce4031393d714bad03ed3c95b6a9ae29c82dc3e502940b94fd"
+    },
+    {
+      "path": "tests/fixtures/forms/allegro-login-2026-09-15/page.html",
+      "sha256": "bd3bddb7c800fcd70dcc0fe46b60f3b8fd30d5d09a535c03e964837f77d7012e"
+    },
+    {
+      "path": "tests/fixtures/forms/allegro-login-ad-2026-09-20/README.md",
+      "sha256": "9ab3daedf20d9e2ad03e8f5cff9f2c4d46bd70922f9dd1e7e9e585b6dcd132a7"
+    },
+    {
+      "path": "tests/fixtures/forms/allegro-login-ad-2026-09-20/page.html",
+      "sha256": "ad87258eeb55792d0269a4c6fce807278b582c9a424d5ed7b0b8eb7d4632f881"
+    },
+    {
+      "path": "tests/fixtures/forms/allegro-registration-2026-09-15/case.json",
+      "sha256": "2251afae2b2dcf1393684047fdf06d74fcdd3a2e41002e6eb1b882fc9f863d99"
+    },
+    {
+      "path": "tests/fixtures/forms/allegro-registration-2026-09-15/page.css",
+      "sha256": "6a7c258cafbe7b2d2938bee00cfc37d1730e9a54f1ce2854f0364a146a682109"
+    },
+    {
+      "path": "tests/fixtures/forms/allegro-registration-2026-09-15/page.html",
+      "sha256": "0f38fc78a1d284dbf6eb51d14022838656361d7540ed715987539d5f19315142"
+    },
+    {
+      "path": "tests/fixtures/forms/amazon-login-identifier-2026-09-15/case.json",
+      "sha256": "7f3f30ae15cfb0a983fc9fd2254e1faa14f2ee663a5ba1b15eb090e47f67ec39"
+    },
+    {
+      "path": "tests/fixtures/forms/amazon-login-identifier-2026-09-15/page.css",
+      "sha256": "a5af4affeb88af59de9570383156495fadf4f9be40a45022aa1490c7b024034a"
+    },
+    {
+      "path": "tests/fixtures/forms/amazon-login-identifier-2026-09-15/page.html",
+      "sha256": "e377424d43426613b0a2b5c09dc774023376a6c839c51dfa1bb603a71c42fc4b"
+    },
+    {
+      "path": "tests/fixtures/forms/atlassian-login-identifier-2026-09-15/case.json",
+      "sha256": "cba250b38d7e3e253c23b822db0eb2f75fe8d0ca1090f4246a98f09224ee96c2"
+    },
+    {
+      "path": "tests/fixtures/forms/atlassian-login-identifier-2026-09-15/page.css",
+      "sha256": "6fc495b36aee4f135c43359dbf2530e642b223a17450d8807ac4863e810873d9"
+    },
+    {
+      "path": "tests/fixtures/forms/atlassian-login-identifier-2026-09-15/page.html",
+      "sha256": "cd2cb265138406269ac6154310ab8aa225bd9d282141e4a3112a33f8afa8a201"
+    },
+    {
+      "path": "tests/fixtures/forms/aws-iam-2026-09-18/case.json",
+      "sha256": "9ff35183e7fee51745881f61c6ae3c8b74af032e92a57ad97efefa80b8b18595"
+    },
+    {
+      "path": "tests/fixtures/forms/aws-iam-2026-09-18/page.css",
+      "sha256": "4540d62ae2fad1cbdeab4a1d8d8ee8b695fa100463f83ce14265d87d4c6db717"
+    },
+    {
+      "path": "tests/fixtures/forms/aws-iam-2026-09-18/page.html",
+      "sha256": "ec9cdca55d20047fd70d636d4097a4fad07bb1ab5483591e2d41a83e5ec33deb"
+    },
+    {
+      "path": "tests/fixtures/forms/aws-iam-context-2026-09-18/case.json",
+      "sha256": "030fef5772f946f1b8eb26bd9b09e06b9785e29a530ded560c39bea82f5c6d55"
+    },
+    {
+      "path": "tests/fixtures/forms/aws-iam-context-2026-09-18/page.css",
+      "sha256": "e861bd6ea6633f7726017dc53e3fa47d80f6abc682ae67967016d23330a46075"
+    },
+    {
+      "path": "tests/fixtures/forms/aws-iam-context-2026-09-18/page.html",
+      "sha256": "acb3d9bf36620482dd95899d9f21e1f900d3ebd8ef0c3659f1d7723748fc48a7"
+    },
+    {
+      "path": "tests/fixtures/forms/aws-iam-context-2026-09-18/validation-after.css",
+      "sha256": "a7dcd0041d03cb3a81ec248605287ae532f6109963cc3a2e21e06ea8d58afb4d"
+    },
+    {
+      "path": "tests/fixtures/forms/aws-iam-context-2026-09-18/validation-after.html",
+      "sha256": "e867f1d95258fd64dc3275c8c6d5310bfc3226d92a7b8ba0d7f7ee19b1acafaf"
+    },
+    {
+      "path": "tests/fixtures/forms/aws-iam-context-2026-09-18/validation-before.css",
+      "sha256": "e861bd6ea6633f7726017dc53e3fa47d80f6abc682ae67967016d23330a46075"
+    },
+    {
+      "path": "tests/fixtures/forms/aws-iam-context-2026-09-18/validation-before.html",
+      "sha256": "acb3d9bf36620482dd95899d9f21e1f900d3ebd8ef0c3659f1d7723748fc48a7"
+    },
+    {
+      "path": "tests/fixtures/forms/aws-iam-context-2026-09-18/validation.json",
+      "sha256": "0ad7364554ea983b5a59973760f18e33d6c7001d7430e5d62390fda87ac1709b"
+    },
+    {
+      "path": "tests/fixtures/forms/aws-root-identifier-2026-09-18/case.json",
+      "sha256": "9e56ff0859c31e63e3d22ae6e9b4c9818d2b1279ce5d2f6fb79299b42e2dda2b"
+    },
+    {
+      "path": "tests/fixtures/forms/aws-root-identifier-2026-09-18/page.css",
+      "sha256": "2ddc1ce07f81bc8716d083d99d47ff5420693e66725492bad05b49241584d057"
+    },
+    {
+      "path": "tests/fixtures/forms/aws-root-identifier-2026-09-18/page.html",
+      "sha256": "cc2823589ebc612a8728a6b2592e8f0c7fa18868ed63d69e2b2fbfac9f3eac19"
+    },
+    {
+      "path": "tests/fixtures/forms/aws-root-identifier-2026-09-20/README.md",
+      "sha256": "ffd633a938f93b7607b4cf544559f10da3b0799e9b86fd380939fab10a309ebb"
+    },
+    {
+      "path": "tests/fixtures/forms/aws-root-identifier-2026-09-20/page.html",
+      "sha256": "102199bbeff15ba9b25e447490c270d21b8561cce2dea617239d064cf196fbdc"
+    },
+    {
+      "path": "tests/fixtures/forms/baidu-login-2026-09-16/case.json",
+      "sha256": "1e571aef1513a93c6cc715eef4904a3d0ad3b1ccd8e1ba993d1c0963db11cd14"
+    },
+    {
+      "path": "tests/fixtures/forms/baidu-login-2026-09-16/page.css",
+      "sha256": "716997f855a4ad1f7db8755da78c72cb0c3f05e51a566ccd435300e0d445812d"
+    },
+    {
+      "path": "tests/fixtures/forms/baidu-login-2026-09-16/page.html",
+      "sha256": "ec563edea5d7b9a75a0a1e51a6caac8f3997a1cf484915a970e619ce74a42f39"
+    },
+    {
+      "path": "tests/fixtures/forms/baidu-registration-2026-09-16/case.json",
+      "sha256": "3f9f77a3a8b1da85615e820e86fe6dd42b4cc789178b7f2531fae40fc7643826"
+    },
+    {
+      "path": "tests/fixtures/forms/baidu-registration-2026-09-16/page.css",
+      "sha256": "465f39a3a4c9585ae1f37f84bfcc350ce9f9eacf95ffe7d89adae4eeb02510a8"
+    },
+    {
+      "path": "tests/fixtures/forms/baidu-registration-2026-09-16/page.html",
+      "sha256": "cb162aaaf2782cb2c55a70714574b52babdfafeb974e28f4fe7effb1a2978404"
+    },
+    {
+      "path": "tests/fixtures/forms/bankier-login-2026-09-15/case.json",
+      "sha256": "c675ef7d2ba962e19cffee27c0b3e2b03a82dd9fccc78397038cbc4a084800b4"
+    },
+    {
+      "path": "tests/fixtures/forms/bankier-login-2026-09-15/page.css",
+      "sha256": "e93442939f845394b6f84c96782a2d4377b8495621f3beb4a3b6ab63bfd09896"
+    },
+    {
+      "path": "tests/fixtures/forms/bankier-login-2026-09-15/page.html",
+      "sha256": "25667c6e4671c5a2dfcb5610bafa909d97b3230e461b7a1ead82a80fe2b94b55"
+    },
+    {
+      "path": "tests/fixtures/forms/bankier-registration-2026-09-15/case.json",
+      "sha256": "26a716fa3cc67f98918dd1903667b239349155f1dc008e0f4b2dc4df42e4ac19"
+    },
+    {
+      "path": "tests/fixtures/forms/bankier-registration-2026-09-15/page.css",
+      "sha256": "2638355e81c71c0965d35a829362b65eec21d702502b2b4e077299a0003e788f"
+    },
+    {
+      "path": "tests/fixtures/forms/bankier-registration-2026-09-15/page.html",
+      "sha256": "6960d91cb4ca1323383d01180098266d4a45a222446a8f7bc912bbec6cb89257"
+    },
+    {
+      "path": "tests/fixtures/forms/bbc-login-identifier-2026-09-15/case.json",
+      "sha256": "50925f2f6c2f5a8e2d17fb97526da4c739b143fef0d32af42236ac3ed3931366"
+    },
+    {
+      "path": "tests/fixtures/forms/bbc-login-identifier-2026-09-15/page.css",
+      "sha256": "b7e71f8a71dd439c3dc732a0fbcf6cd11ba1abcc8cbc432796cebcd341054e08"
+    },
+    {
+      "path": "tests/fixtures/forms/bbc-login-identifier-2026-09-15/page.html",
+      "sha256": "afb78823602ec21e3da3f41c78f83c44bf232fcc34bf17e2e41aea7eb7cce68c"
+    },
+    {
+      "path": "tests/fixtures/forms/bbc-registration-identifier-2026-09-16/case.json",
+      "sha256": "bc9f2fcc9b4913f5b0faa16c352a653c9d253a7e4c89b270c2c5bacb7d0e2b7b"
+    },
+    {
+      "path": "tests/fixtures/forms/bbc-registration-identifier-2026-09-16/page.css",
+      "sha256": "bd867a44e23748a3282529e00120ddd36007b4a128438ca1a994092cbe7b57f3"
+    },
+    {
+      "path": "tests/fixtures/forms/bbc-registration-identifier-2026-09-16/page.html",
+      "sha256": "5fdf899ac9edc3d03debff7de51d3551a5cfee622760b3204dc0b93441873703"
+    },
+    {
+      "path": "tests/fixtures/forms/bilibili-login-2026-09-16/case.json",
+      "sha256": "33a5f1f8d36a741fc756e3652d8cc74a8320253fcad1dc023f57c051f3c514db"
+    },
+    {
+      "path": "tests/fixtures/forms/bilibili-login-2026-09-16/page.css",
+      "sha256": "3a5962669a0343b9223ce10be1fa0f2984c214cae81f5e551309a9071e81a81c"
+    },
+    {
+      "path": "tests/fixtures/forms/bilibili-login-2026-09-16/page.html",
+      "sha256": "72f33493fcff4695e71576f6f1c12a39b2e2b2058c68d2cae5f12a10dfa88d89"
+    },
+    {
+      "path": "tests/fixtures/forms/bilibili-registration-sms-2026-09-16/case.json",
+      "sha256": "ea209e944d1b197112086653024e98a33a02b716d774534f107c92618e40a429"
+    },
+    {
+      "path": "tests/fixtures/forms/bilibili-registration-sms-2026-09-16/page.css",
+      "sha256": "9f7ad0ac446210f4cde4832d759843aae263b738f5da73ca95351f28630ef32f"
+    },
+    {
+      "path": "tests/fixtures/forms/bilibili-registration-sms-2026-09-16/page.html",
+      "sha256": "ac64d225080504f776af6816770d9db19bf8d973bdad9b3e12bc1797d96a1396"
+    },
+    {
+      "path": "tests/fixtures/forms/booking-login-identifier-2026-09-15/case.json",
+      "sha256": "857e14c4b4bc0881d966489c13517482124d7f324b3ea6c9e2a963d2d0f637a4"
+    },
+    {
+      "path": "tests/fixtures/forms/booking-login-identifier-2026-09-15/page.css",
+      "sha256": "13bf97d45af56c7fc047bb7dcdfe4c9061c0c3a4a5a67118fe140787b2b5ffd3"
+    },
+    {
+      "path": "tests/fixtures/forms/booking-login-identifier-2026-09-15/page.html",
+      "sha256": "8f6d484564371b77bc9103c238eb5b1ee6f669926d3d33f88f87e24ac803b0a5"
+    },
+    {
+      "path": "tests/fixtures/forms/canva-login-identifier-2026-09-15/case.json",
+      "sha256": "4882814ab9b29be7312848226e153196bf3497386e609a58a01e7d47f69e6044"
+    },
+    {
+      "path": "tests/fixtures/forms/canva-login-identifier-2026-09-15/page.css",
+      "sha256": "2277043cc6bc7d427a33cbb4b8006fb54529c6bcd58a3eb672b2072f738735ca"
+    },
+    {
+      "path": "tests/fixtures/forms/canva-login-identifier-2026-09-15/page.html",
+      "sha256": "8d8921e46ac05730fdacea082c81e4585a9067f1a433ea48fd609919ef9b274f"
+    },
+    {
+      "path": "tests/fixtures/forms/ccc-login-2026-09-16/case.json",
+      "sha256": "55fa70c5bb7d135eceaf0edc5bef901298d664e8c0380fbf74c74b92c74bae6b"
+    },
+    {
+      "path": "tests/fixtures/forms/ccc-login-2026-09-16/page.css",
+      "sha256": "e29eb116ff7f094ec02ee5b03b5ec16ff859e3ca0006452e3889ed75b28a18c6"
+    },
+    {
+      "path": "tests/fixtures/forms/ccc-login-2026-09-16/page.html",
+      "sha256": "d3c313d6208d52f17dfbce691ecc15e0cab76e8a1df6816e3d7a0772cd4942a7"
+    },
+    {
+      "path": "tests/fixtures/forms/ccc-registration-2026-09-16/case.json",
+      "sha256": "8c8a22680844fe96179224cc90c07fd0ae46d9cbf09dc7e79134f5335792e197"
+    },
+    {
+      "path": "tests/fixtures/forms/ccc-registration-2026-09-16/page.css",
+      "sha256": "5343a94a342b1628e2baae2904d1c7fcfad80c7374dfff66c7568412b3e65e13"
+    },
+    {
+      "path": "tests/fixtures/forms/ccc-registration-2026-09-16/page.html",
+      "sha256": "76593fb846ca386d521ac8a09cffd123c9b412c50fa47c98b122a68f619c7a1f"
+    },
+    {
+      "path": "tests/fixtures/forms/ceneo-login-2026-09-15/case.json",
+      "sha256": "20a283fa76a4381da421d3a4da23af5c9c49db5e4bf510c9f2dd7453972601b2"
+    },
+    {
+      "path": "tests/fixtures/forms/ceneo-login-2026-09-15/page.css",
+      "sha256": "6001718d08bfc66656a353f78fc712a75282f6a6cf580819bfdf83f9888bfac8"
+    },
+    {
+      "path": "tests/fixtures/forms/ceneo-login-2026-09-15/page.html",
+      "sha256": "e4b8bdeb79fc58b028333a28e1661506b6b91026a3d2356ee01c4c229046b2dc"
+    },
+    {
+      "path": "tests/fixtures/forms/ceneo-registration-2026-09-15/case.json",
+      "sha256": "6f123b6fd047378c1a6e8b6518fe5461731eb2b61204d853ca58087d0688bca5"
+    },
+    {
+      "path": "tests/fixtures/forms/ceneo-registration-2026-09-15/page.css",
+      "sha256": "8772a98ac149aa46525d8ce8d595a3c638c10ac49a610e86a8a27989a7a6aeca"
+    },
+    {
+      "path": "tests/fixtures/forms/ceneo-registration-2026-09-15/page.html",
+      "sha256": "ce1380dccf88df6a1260e76b9333698f7ce3a54fe1f9689b21ce0545bb56ec48"
+    },
+    {
+      "path": "tests/fixtures/forms/claude-login-identifier-2026-09-15/case.json",
+      "sha256": "9b3c183ca7552e57607bec6d72cea0ca04ebdb1fc2bafd773b71d91707b1a52a"
+    },
+    {
+      "path": "tests/fixtures/forms/claude-login-identifier-2026-09-15/page.css",
+      "sha256": "8f0e3e2b21b32573107e86a6a234248f5a4966c64fc90c1158a54fbd5400fafb"
+    },
+    {
+      "path": "tests/fixtures/forms/claude-login-identifier-2026-09-15/page.html",
+      "sha256": "b2545a71cf067d388acede2db897cdf39df3b1c90533cddc01792d02ebddf8f1"
+    },
+    {
+      "path": "tests/fixtures/forms/cnn-login-identifier-2026-09-15/case.json",
+      "sha256": "5aef47a407b693975ec1bdf2fcea47977f1c8f9298848b1f8f9497a8d091b6d1"
+    },
+    {
+      "path": "tests/fixtures/forms/cnn-login-identifier-2026-09-15/page.css",
+      "sha256": "5e644d907f364dc327040a5aba778572fc39c37d20539453c52a2df4fcc13270"
+    },
+    {
+      "path": "tests/fixtures/forms/cnn-login-identifier-2026-09-15/page.html",
+      "sha256": "5c9d258d1c26e345a04735751628a4155f493b842802ace654ac1913b426aa32"
+    },
+    {
+      "path": "tests/fixtures/forms/cnn-registration-identifier-2026-09-15/case.json",
+      "sha256": "5684f94378e6db9c6cfded5ec18f6436695212b1130191bda253126b548fe103"
+    },
+    {
+      "path": "tests/fixtures/forms/cnn-registration-identifier-2026-09-15/page.css",
+      "sha256": "8e0d753a7d46f04f88bc4f532e1d2cf587dc8ea2f353f67dcf3c1ec76c223ba9"
+    },
+    {
+      "path": "tests/fixtures/forms/cnn-registration-identifier-2026-09-15/page.html",
+      "sha256": "3db734597aa5983a5205817cb6b5cf9e88f80f35168729e9df08cf6041aa0796"
+    },
+    {
+      "path": "tests/fixtures/forms/coverage.json",
+      "sha256": "08ec536249278c2b274174844db218709e320d0b35f0dce7afd9eda8a253f7ff"
+    },
+    {
+      "path": "tests/fixtures/forms/decathlon-login-identifier-pl-2026-09-15/case.json",
+      "sha256": "eece35ab31c5d703d20f6079b8e4bd660dc3bcfeb814bacd7cae8ca2cf599141"
+    },
+    {
+      "path": "tests/fixtures/forms/decathlon-login-identifier-pl-2026-09-15/page.css",
+      "sha256": "2775d15bb333fd2d34725665b9706341d645e7248d78134c2747ceda924b5fb3"
+    },
+    {
+      "path": "tests/fixtures/forms/decathlon-login-identifier-pl-2026-09-15/page.html",
+      "sha256": "129999a253d18b3ca8c26e02c335f9c803094aed8e9e7c4da31ceafd1d9ecb95"
+    },
+    {
+      "path": "tests/fixtures/forms/deepseek-login-2026-09-15/case.json",
+      "sha256": "80f309570e2d83daabbd23642ec9e65e35d10e0764e6b0c9a04212cc60adc837"
+    },
+    {
+      "path": "tests/fixtures/forms/deepseek-login-2026-09-15/page.css",
+      "sha256": "58fa12759011f072b3501f3adee3dfb7e9ec969982154fca7fe0cdf080877b5f"
+    },
+    {
+      "path": "tests/fixtures/forms/deepseek-login-2026-09-15/page.html",
+      "sha256": "3d52e9171b941377c29db3fecc528fe53780bf4ffadef82c7605bf7ba631ffce"
+    },
+    {
+      "path": "tests/fixtures/forms/deepseek-registration-2026-09-15/case.json",
+      "sha256": "e8615226320bae070cabc2f026cdd4bca9e0cdc6637deb54b750536810ffeca7"
+    },
+    {
+      "path": "tests/fixtures/forms/deepseek-registration-2026-09-15/page.css",
+      "sha256": "1fb85398dd6cc4cb93a9f82855b250877eeef585a7c290a9f010ef7959b10c1e"
+    },
+    {
+      "path": "tests/fixtures/forms/deepseek-registration-2026-09-15/page.html",
+      "sha256": "90597f183fc9e8b43cc2f16e99d1e084406b25fd67f2c6fb9a80d7364698d66e"
+    },
+    {
+      "path": "tests/fixtures/forms/diag-login-identifier-2026-09-16/case.json",
+      "sha256": "337f5976b87c599851e159ae82a698093cb604d4a5c2cec5e28f4b62799cc830"
+    },
+    {
+      "path": "tests/fixtures/forms/diag-login-identifier-2026-09-16/page.css",
+      "sha256": "2d2c15466049d8070a4f3ef030f4eb5cf9cc7a81d326a4452bfe5e30c2c81ae1"
+    },
+    {
+      "path": "tests/fixtures/forms/diag-login-identifier-2026-09-16/page.html",
+      "sha256": "fd23e8ad74bb96c38cd92dc8bdd8b7570a0feb6f662cb601092a2ccb8a6d9e02"
+    },
+    {
+      "path": "tests/fixtures/forms/diag-registration-identifier-2026-09-16/case.json",
+      "sha256": "7a9b9f1499a70fa1a026310297533265c1528fba2a87ca9311f6dd5d1e6687e0"
+    },
+    {
+      "path": "tests/fixtures/forms/diag-registration-identifier-2026-09-16/page.css",
+      "sha256": "807b8fe212e195dae0cf83b8e6d14c0e066a0d03f9173665c198f0e77d0bb09f"
+    },
+    {
+      "path": "tests/fixtures/forms/diag-registration-identifier-2026-09-16/page.html",
+      "sha256": "f69edee17f3ed44843bfbf4dd222d35854b49a93d728dee0ce220153a5ce4e62"
+    },
+    {
+      "path": "tests/fixtures/forms/dir-bg-login-2026-09-15/case.json",
+      "sha256": "fd7c703d870efd0e066c52d1e9985f968aeaa40f2f01464de31c06210b3e77d6"
+    },
+    {
+      "path": "tests/fixtures/forms/dir-bg-login-2026-09-15/page.css",
+      "sha256": "ba3d29e7a1c0c6fb6d50f2be6b91860f67d424a5d21075bc1eec3ffbc140af48"
+    },
+    {
+      "path": "tests/fixtures/forms/dir-bg-login-2026-09-15/page.html",
+      "sha256": "9df1864f52948ce065412e9e47e087b63b84b236d9ab36f6dda3b90867154bb8"
+    },
+    {
+      "path": "tests/fixtures/forms/dir-bg-registration-identifier-2026-09-15/case.json",
+      "sha256": "007567bedbb5d713bfe89000c8288e6c1602c4c7145b0f7f74713d4c417f560c"
+    },
+    {
+      "path": "tests/fixtures/forms/dir-bg-registration-identifier-2026-09-15/page.css",
+      "sha256": "d82bf14b10840820df8654f5b21e3f1ec4c4f452fff78d61c08614b2f9aba9ea"
+    },
+    {
+      "path": "tests/fixtures/forms/dir-bg-registration-identifier-2026-09-15/page.html",
+      "sha256": "b128718ca453504571b48f4854ea6f0322e40c12ef203e489cf4b4aa4ae4d656"
+    },
+    {
+      "path": "tests/fixtures/forms/discord-login-2026-09-15/case.json",
+      "sha256": "243c01451d8c87d3fb622807ca21c05105e0a2775a7f5b574f4f12705817faae"
+    },
+    {
+      "path": "tests/fixtures/forms/discord-login-2026-09-15/page.css",
+      "sha256": "516348f7a2249b5adc7ee958e066dba3d57d6c3ea5d995f94ec319456af937ef"
+    },
+    {
+      "path": "tests/fixtures/forms/discord-login-2026-09-15/page.html",
+      "sha256": "7583f2b3d62b5b5c4e1ee76a74a6164adf4b6ff2a3055a5feb1c295ebe897264"
+    },
+    {
+      "path": "tests/fixtures/forms/discord-registration-2026-09-15/case.json",
+      "sha256": "a480c57c4bd8b0028c5db7e261fa2f589dd22d6b382c70f6c8c538b24ac085cf"
+    },
+    {
+      "path": "tests/fixtures/forms/discord-registration-2026-09-15/page.css",
+      "sha256": "52e7329604ed76b72eac14b3e16566f043f7c654f242351ec52fed48fc3c6f60"
+    },
+    {
+      "path": "tests/fixtures/forms/discord-registration-2026-09-15/page.html",
+      "sha256": "85f39e1c6859b56dc9de8b1c6545f80b124a76a124cc08294c00d5768324b265"
+    },
+    {
+      "path": "tests/fixtures/forms/doradcasmaku-capture-2026-09-16/README.md",
+      "sha256": "39a8c84a9b2f8a876c63675b17f38e3112f6b8d0c5cea86cbd188a4539d061e6"
+    },
+    {
+      "path": "tests/fixtures/forms/doradcasmaku-capture-2026-09-16/page.css",
+      "sha256": "2b7428c8f332679bae9ceca78a0ed9d515b79ff9e99345cd707f505bbf2c8d38"
+    },
+    {
+      "path": "tests/fixtures/forms/doradcasmaku-capture-2026-09-16/page.html",
+      "sha256": "89df5a393302b2593249872668bb336166f33406ee51775e0041e2050877c956"
+    },
+    {
+      "path": "tests/fixtures/forms/doradcasmaku-login-2026-09-16/case.json",
+      "sha256": "f96404ff5148be9e258c7db7c8f449ea6c4c16adbfd88b35af539702c82f5a79"
+    },
+    {
+      "path": "tests/fixtures/forms/doradcasmaku-login-2026-09-16/page.css",
+      "sha256": "f0bf3cb44b7ecfc2db499f1d1665460aaf2693cef554d887ff8dc68a0ec48be3"
+    },
+    {
+      "path": "tests/fixtures/forms/doradcasmaku-login-2026-09-16/page.html",
+      "sha256": "06ca0511d59ea9a765547c4111e238a92ee567d4f459a43ea4fdff6b5b1572b4"
+    },
+    {
+      "path": "tests/fixtures/forms/doradcasmaku-registration-2026-09-16/case.json",
+      "sha256": "1d615d1ed42d725f7b341082cc481e53d3e3ddeef913462334aff1086014aeb8"
+    },
+    {
+      "path": "tests/fixtures/forms/doradcasmaku-registration-2026-09-16/page.css",
+      "sha256": "2b7428c8f332679bae9ceca78a0ed9d515b79ff9e99345cd707f505bbf2c8d38"
+    },
+    {
+      "path": "tests/fixtures/forms/doradcasmaku-registration-2026-09-16/page.html",
+      "sha256": "89df5a393302b2593249872668bb336166f33406ee51775e0041e2050877c956"
+    },
+    {
+      "path": "tests/fixtures/forms/doz-login-2026-09-16/case.json",
+      "sha256": "9afc407d6b3eba9b09cdca465b2ff204e7dc0110ae3f55ed158b391682452dfc"
+    },
+    {
+      "path": "tests/fixtures/forms/doz-login-2026-09-16/page.css",
+      "sha256": "d692627c1e562f010cc5b113c9b9465e21f7c86a3f5ad4a37d882a934cef792c"
+    },
+    {
+      "path": "tests/fixtures/forms/doz-login-2026-09-16/page.html",
+      "sha256": "4baffd1fd59820eb940199bbc8be290072b4e8051f6472d67b70d1181f2046cf"
+    },
+    {
+      "path": "tests/fixtures/forms/doz-registration-2026-09-16/case.json",
+      "sha256": "2dde9fc8222bbff4363c6161f60ee76cb55b8306baa08e3446e1779819f32277"
+    },
+    {
+      "path": "tests/fixtures/forms/doz-registration-2026-09-16/page.css",
+      "sha256": "909249c884d500650a61b9f93d7aff6de09a621a7407fd9ca817cc51416d6ad3"
+    },
+    {
+      "path": "tests/fixtures/forms/doz-registration-2026-09-16/page.html",
+      "sha256": "f61b8fe7b043f5c327c6281a65309896c551b7c7ee61f3ad32b865d6aae68291"
+    },
+    {
+      "path": "tests/fixtures/forms/dr-login-identifier-2026-09-15/case.json",
+      "sha256": "7bd6caf669d2d72f135bab30261e777db6ee289eb9a7d2d64c70ba3dfb93d637"
+    },
+    {
+      "path": "tests/fixtures/forms/dr-login-identifier-2026-09-15/page.css",
+      "sha256": "af76f331343f2be4d6a0f5b69e9f02f7aab1e9595ba9db6d18899c40d325e306"
+    },
+    {
+      "path": "tests/fixtures/forms/dr-login-identifier-2026-09-15/page.html",
+      "sha256": "ab963ce9efdc7e045c8d14449ffe168c2a1ae826bd5122e8cd26fe3a692d97f7"
+    },
+    {
+      "path": "tests/fixtures/forms/dropbox-login-identifier-2026-09-15/case.json",
+      "sha256": "a86a1be7d8481c78db27ccf92507bd2854eb7364c7738526a036610e4159c4b9"
+    },
+    {
+      "path": "tests/fixtures/forms/dropbox-login-identifier-2026-09-15/page.css",
+      "sha256": "366714216d877fc2e0a5a62de993bd3e5569dd11872a0bd03536ae7d802562b9"
+    },
+    {
+      "path": "tests/fixtures/forms/dropbox-login-identifier-2026-09-15/page.html",
+      "sha256": "faa517133b27a0ef0b6a91fe7b47afa8259d7e2b68166dbab3d22219ef32cf97"
+    },
+    {
+      "path": "tests/fixtures/forms/duolingo-login-2026-09-15/case.json",
+      "sha256": "845d9c4e0b72a9055662d6e58ff82ac658d475ada2639287dd49426841127197"
+    },
+    {
+      "path": "tests/fixtures/forms/duolingo-login-2026-09-15/page.css",
+      "sha256": "84e43d4ebe1465b7cc0d57826a24fa5a7d13c2df94c266d5ab387e9f70d7ec38"
+    },
+    {
+      "path": "tests/fixtures/forms/duolingo-login-2026-09-15/page.html",
+      "sha256": "31a6e78c05737201e2334dc15b5d73647b0ecbdf9f04db21729a3e6af62b01c6"
+    },
+    {
+      "path": "tests/fixtures/forms/ebay-login-identifier-2026-09-16/case.json",
+      "sha256": "cd4621dfc81c93ee4f117694f82b192eb989edfe038896053ca7efa2e4e46b34"
+    },
+    {
+      "path": "tests/fixtures/forms/ebay-login-identifier-2026-09-16/page.css",
+      "sha256": "0838ed43bcc79d07c2e03a5301abff389c09b8a740ccbaff7e92faab1bef3b7c"
+    },
+    {
+      "path": "tests/fixtures/forms/ebay-login-identifier-2026-09-16/page.html",
+      "sha256": "acdc3559b8debee1641fbc4d37099166262feb73ee703090f4afdd49c2c12b28"
+    },
+    {
+      "path": "tests/fixtures/forms/ebay-registration-2026-09-16/case.json",
+      "sha256": "8636d13b53caf4d75deb2e5dea6b89c647ce0e8a945c29a01a9b869b8fb56fc1"
+    },
+    {
+      "path": "tests/fixtures/forms/ebay-registration-2026-09-16/page.css",
+      "sha256": "4e6ef97142c404196a9287aa405c664d8c98acadbfbe30a572a0fa9b2e7abb6d"
+    },
+    {
+      "path": "tests/fixtures/forms/ebay-registration-2026-09-16/page.html",
+      "sha256": "ff4a48b37f488eb510971adc26e6baac8fac4443d1daa1ebabfebbc94e042015"
+    },
+    {
+      "path": "tests/fixtures/forms/empik-login-2026-09-15/case.json",
+      "sha256": "b83edcb4afa1213fe6df9836d6dfc17dc5bd47a199c77fbb6873ead7c481ae7a"
+    },
+    {
+      "path": "tests/fixtures/forms/empik-login-2026-09-15/page.css",
+      "sha256": "18715d2cd9721cc5b22b740163c3604875f68bbd27977eedae9fbf4f827a1d98"
+    },
+    {
+      "path": "tests/fixtures/forms/empik-login-2026-09-15/page.html",
+      "sha256": "61ca854110767b448d98033348de9900df8e909fcb6d816e5c53cb3e064e3db8"
+    },
+    {
+      "path": "tests/fixtures/forms/empik-registration-2026-09-15/case.json",
+      "sha256": "275b7311c2bb5613b15d5712970f4cd9d4e735e555d0826bc6ada4a244a46571"
+    },
+    {
+      "path": "tests/fixtures/forms/empik-registration-2026-09-15/page.css",
+      "sha256": "42a347c84f890f3dfa78298b306a07cd8298491777432e57a7fc369de296fa27"
+    },
+    {
+      "path": "tests/fixtures/forms/empik-registration-2026-09-15/page.html",
+      "sha256": "48b643b9de0be4403ea09620b90bd907e9371dbc5b5f22dafb82d6b2e03a6903"
+    },
+    {
+      "path": "tests/fixtures/forms/epicgames-login-identifier-2026-09-15/case.json",
+      "sha256": "46aa74c9ead12440eaf038fd6acca7205067e35fd794c10d0562d2280064cf86"
+    },
+    {
+      "path": "tests/fixtures/forms/epicgames-login-identifier-2026-09-15/page.css",
+      "sha256": "08d388e3b0dd71d4251d5c49914cedf9a4052c47e2ad26542fdaaad721bbb52c"
+    },
+    {
+      "path": "tests/fixtures/forms/epicgames-login-identifier-2026-09-15/page.html",
+      "sha256": "b591a1c389366c246c46ac37117a3b3ad69c34497f067d014b6bce31e33328ac"
+    },
+    {
+      "path": "tests/fixtures/forms/etsy-login-2026-09-16/case.json",
+      "sha256": "af33c358bfcbecf03c44abee79bace2294cf3374769433ab49d878620ca1890a"
+    },
+    {
+      "path": "tests/fixtures/forms/etsy-login-2026-09-16/page.css",
+      "sha256": "9f755be23a8bf0041d6e0a483e9c97eeebfcd8c9d06b3125b0b025685fbd4a7c"
+    },
+    {
+      "path": "tests/fixtures/forms/etsy-login-2026-09-16/page.html",
+      "sha256": "8cd90e41f8ae1ffb194b8b090efcf9fad72436486b8de5e1e2ffd1f56e410a4f"
+    },
+    {
+      "path": "tests/fixtures/forms/etsy-registration-2026-09-16/case.json",
+      "sha256": "64febd802dc6d98291bc7f3498d979642f9d8e1ed345f765b2fbf5294175de2d"
+    },
+    {
+      "path": "tests/fixtures/forms/etsy-registration-2026-09-16/page.css",
+      "sha256": "f016e37ffc3ce8c4d673d10f55c53c71f2983b5dc344a0e8a2849a52794f79d7"
+    },
+    {
+      "path": "tests/fixtures/forms/etsy-registration-2026-09-16/page.html",
+      "sha256": "826ba849fdc38e2c41d446f208029d3400ccb4309048bdab905cc51711502a4d"
+    },
+    {
+      "path": "tests/fixtures/forms/euro-login-2026-09-15/case.json",
+      "sha256": "7857a47751dc6ef9b562daf45f019306922b5edd282458bf57533bee2a83c293"
+    },
+    {
+      "path": "tests/fixtures/forms/euro-login-2026-09-15/page.css",
+      "sha256": "59edb93c0b788c6a449dd3f9daab8efb04b474c7064bd1eeafc28ededad6cb9c"
+    },
+    {
+      "path": "tests/fixtures/forms/euro-login-2026-09-15/page.html",
+      "sha256": "e5c702785216ea3875d8f85560294f3348f46ea0748bfb27c94de6373b400225"
+    },
+    {
+      "path": "tests/fixtures/forms/euro-registration-2026-09-15/case.json",
+      "sha256": "a2dec1cc1bcdeda0d884600f92df361def5824c7738fed9fd9e653fd585d325c"
+    },
+    {
+      "path": "tests/fixtures/forms/euro-registration-2026-09-15/page.css",
+      "sha256": "a472edd6cf2aa83fcaa3c0f28e698f97a6cb725899e37af1b7309bc34b2da57f"
+    },
+    {
+      "path": "tests/fixtures/forms/euro-registration-2026-09-15/page.html",
+      "sha256": "954c19f3aa385eb41d950df4042e8525d5f825b01fad5bd2fa722db1e7d3b64c"
+    },
+    {
+      "path": "tests/fixtures/forms/facebook-login-2026-09-15/case.json",
+      "sha256": "31b1337ecbd78fdd112bcdbb51f0aebac4fee05080584909a2bc232ee4c09a42"
+    },
+    {
+      "path": "tests/fixtures/forms/facebook-login-2026-09-15/page.css",
+      "sha256": "2d7ef2c569535dfc941f08ee378cc259a973a8542648e952031d3bd46f18e8ce"
+    },
+    {
+      "path": "tests/fixtures/forms/facebook-login-2026-09-15/page.html",
+      "sha256": "053747f98fe0c3757b3aef0c0b1625f80738150df5c984147c913e28bc0d19db"
+    },
+    {
+      "path": "tests/fixtures/forms/facebook-registration-2026-09-15/case.json",
+      "sha256": "840084303ae3a61988b4824a6504919ae5f733faf1191db856dcbc8c012b1644"
+    },
+    {
+      "path": "tests/fixtures/forms/facebook-registration-2026-09-15/page.css",
+      "sha256": "82742a998260c9432dfb4dfaa06dc0423d2f2da88d8e39746ab35ee8481648e4"
+    },
+    {
+      "path": "tests/fixtures/forms/facebook-registration-2026-09-15/page.html",
+      "sha256": "01691c52bf22b96e86fd9e2d0096ddead69aa99cba9d6e04b2511fa1cb54b377"
+    },
+    {
+      "path": "tests/fixtures/forms/fandom-login-2026-09-15/case.json",
+      "sha256": "9b92be4eabc3fbc2826cfbd8cfbdbecd82d6593b071bc707824db5d48cfd9652"
+    },
+    {
+      "path": "tests/fixtures/forms/fandom-login-2026-09-15/page.css",
+      "sha256": "3119172c3841300933681f940f77bf7dbc65729c85241e5117a1f0ccea451b4e"
+    },
+    {
+      "path": "tests/fixtures/forms/fandom-login-2026-09-15/page.html",
+      "sha256": "fa6f7edfc19eda28d632c5444a8a29a9f7aa3fc16f226bded28de40a80dba4b2"
+    },
+    {
+      "path": "tests/fixtures/forms/fandom-registration-2026-09-15/case.json",
+      "sha256": "c92d3ac444458a05efc9afff9496d429940322fd88966ab1a8923dadc73ff896"
+    },
+    {
+      "path": "tests/fixtures/forms/fandom-registration-2026-09-15/page.css",
+      "sha256": "09a701956ccc80d2fce8b2518cf3d91e76b84dfb0eab6215b19117bcaaa640d3"
+    },
+    {
+      "path": "tests/fixtures/forms/fandom-registration-2026-09-15/page.html",
+      "sha256": "968f8129f5ccfb8af86842e6304e57e2c87a4dfd6599faf6d2c236ec2383b384"
+    },
+    {
+      "path": "tests/fixtures/forms/figma-login-2026-09-15/case.json",
+      "sha256": "5eacb4245292bc1caa4b84878b23afd9bf644fc888a24bf43a856a3ec4554a15"
+    },
+    {
+      "path": "tests/fixtures/forms/figma-login-2026-09-15/page.css",
+      "sha256": "686464c30e3bd89578708f1865de571c425279d09397132b68d223fc7237db4a"
+    },
+    {
+      "path": "tests/fixtures/forms/figma-login-2026-09-15/page.html",
+      "sha256": "6276c4f241c78981f9aa2cc871e5bf3f4e64481c1a3d13f12c8ca3c7115c8813"
+    },
+    {
+      "path": "tests/fixtures/forms/figma-registration-identifier-2026-09-15/case.json",
+      "sha256": "4ee1cf61311fc47f98754ade734ccd4b1fddc070f21cbe796aefcc2d162503fb"
+    },
+    {
+      "path": "tests/fixtures/forms/figma-registration-identifier-2026-09-15/page.css",
+      "sha256": "c810eb6d8a4fc8a646dbeb4b30aa95913da21d6a2e636463be44333794b1b30d"
+    },
+    {
+      "path": "tests/fixtures/forms/figma-registration-identifier-2026-09-15/page.html",
+      "sha256": "2c61e9ddb5ae1538bd26a970a9965dece8dd477253d778f95f9327282a535507"
+    },
+    {
+      "path": "tests/fixtures/forms/filmweb-login-2026-09-15/case.json",
+      "sha256": "7f101a398a7bb31596039a1b7d96cfa419962009e22474e7f317f7550069f5e2"
+    },
+    {
+      "path": "tests/fixtures/forms/filmweb-login-2026-09-15/page.css",
+      "sha256": "75daaa87b41efc7ab1b07cdc3152c876fba5acab94988f3ca5f2c8f6fd2c175e"
+    },
+    {
+      "path": "tests/fixtures/forms/filmweb-login-2026-09-15/page.html",
+      "sha256": "40ba287ee56dc8f2567ce8f15bdab44d1d82d6ce22cb4cfccf6fa91c7de5244a"
+    },
+    {
+      "path": "tests/fixtures/forms/filmweb-registration-2026-09-15/case.json",
+      "sha256": "a75cd20773b8aed12091c2b86d42669863d8d445a5d5186224cbb78fb711fc42"
+    },
+    {
+      "path": "tests/fixtures/forms/filmweb-registration-2026-09-15/page.css",
+      "sha256": "8167c4fd7d5e71dac30003c843d0524cb1d3da83d1a8a072cdae3355536f658e"
+    },
+    {
+      "path": "tests/fixtures/forms/filmweb-registration-2026-09-15/page.html",
+      "sha256": "2c6cfe007ef23fb012fa8af572b4e1447acd1df2781ad1f2b81d46d36a9222c3"
+    },
+    {
+      "path": "tests/fixtures/forms/finn-login-identifier-2026-09-16/case.json",
+      "sha256": "547024e4219bfae6c82e82329f8a352d07c45d8fd46ed6b91db68d688dcf5f99"
+    },
+    {
+      "path": "tests/fixtures/forms/finn-login-identifier-2026-09-16/page.css",
+      "sha256": "4dadc81fc51fcceee6561cad0f3fca53174881dfd51f180cc816240b8ab4fbba"
+    },
+    {
+      "path": "tests/fixtures/forms/finn-login-identifier-2026-09-16/page.html",
+      "sha256": "bc21587c3968cae90e8727d8686f6fd15ee07c7a7f9f1a1e7264437c6b6d910c"
+    },
+    {
+      "path": "tests/fixtures/forms/finn-registration-identifier-2026-09-16/case.json",
+      "sha256": "63985a7f80b8313e6e6068a1514318ce00f13ee43e45bd99fab4a93a7a812d9b"
+    },
+    {
+      "path": "tests/fixtures/forms/finn-registration-identifier-2026-09-16/page.css",
+      "sha256": "dafb11c6bbff705c8449ff189c5c7f6eb93d7ebe04397034952c9fb60a6e5c8b"
+    },
+    {
+      "path": "tests/fixtures/forms/finn-registration-identifier-2026-09-16/page.html",
+      "sha256": "687b4778dcf79afed016b1d61eb48949eaf43f8c9829de6a46a1999776a16d18"
+    },
+    {
+      "path": "tests/fixtures/forms/galaxus-login-identifier-2026-09-15/case.json",
+      "sha256": "fb2395d721a34520241c4f5020071c12c2b74366c2ae79d70ce68bddb9e6c825"
+    },
+    {
+      "path": "tests/fixtures/forms/galaxus-login-identifier-2026-09-15/page.css",
+      "sha256": "c56b1bbbe1583cbd0b0b08d2b09ad201f90a9fd0b97f2023dc68546a3c718010"
+    },
+    {
+      "path": "tests/fixtures/forms/galaxus-login-identifier-2026-09-15/page.html",
+      "sha256": "e92d6b527571c920dee945fc8a91b957048db625eb942971b4ca8e3a02962736"
+    },
+    {
+      "path": "tests/fixtures/forms/gazeta-login-2026-09-16/case.json",
+      "sha256": "671af5ebef3c196f4024a5a1d62335d8b4f7ec80696c3face01f2b4edb6f5159"
+    },
+    {
+      "path": "tests/fixtures/forms/gazeta-login-2026-09-16/page.css",
+      "sha256": "3246933297404437f64ceaca73673c224c7f4b7e850c0787654607ba8e447a95"
+    },
+    {
+      "path": "tests/fixtures/forms/gazeta-login-2026-09-16/page.html",
+      "sha256": "149cec7088c49172cceec87c41cf81c4a45c9eded7f34473b36583a17e335436"
+    },
+    {
+      "path": "tests/fixtures/forms/gazeta-registration-2026-09-16/case.json",
+      "sha256": "deb59d418bd725a36481be1dc9dd755d21e79cf3ad80bcf091559596fb46fb49"
+    },
+    {
+      "path": "tests/fixtures/forms/gazeta-registration-2026-09-16/page.css",
+      "sha256": "cdf944e84be691c055f3e4a7051d5e7cb5cae91391dbf02c719802a05f288cb0"
+    },
+    {
+      "path": "tests/fixtures/forms/gazeta-registration-2026-09-16/page.html",
+      "sha256": "c502f54505ba73b2bdedb3a91cdbdd095f1fedd0457d097c82eaf0514687759b"
+    },
+    {
+      "path": "tests/fixtures/forms/github-login-2026-09-15/case.json",
+      "sha256": "a819f49b9564ba10edbfcfe01883041c5dab8b747ee3845b4afff87de5d0038a"
+    },
+    {
+      "path": "tests/fixtures/forms/github-login-2026-09-15/page.css",
+      "sha256": "f6e3fde2fdb3df1f9bdc46ea9697d03bee8589f7a8a15f232b38cbd00bf02545"
+    },
+    {
+      "path": "tests/fixtures/forms/github-login-2026-09-15/page.html",
+      "sha256": "fe7451a88c0794181c0021ba01359b87087c3b2caa508ea798548a078430a301"
+    },
+    {
+      "path": "tests/fixtures/forms/globo-login-identifier-2026-09-15/case.json",
+      "sha256": "f1736ec20a36e5fb57c62e450c4955a8efd185266b21fb92cbe7fe327df34b3f"
+    },
+    {
+      "path": "tests/fixtures/forms/globo-login-identifier-2026-09-15/page.css",
+      "sha256": "83f0a81a6a2314d99fbf7859c760a37a9af6845ab9bf4d2eb5779bae9e6ce4d5"
+    },
+    {
+      "path": "tests/fixtures/forms/globo-login-identifier-2026-09-15/page.html",
+      "sha256": "34de7c8aee1591fa33ec2b74186e09eb075466a9d5c275a41e5c3547e08ff353"
+    },
+    {
+      "path": "tests/fixtures/forms/globo-registration-identifier-2026-09-15/case.json",
+      "sha256": "b47aa8500b9618f05f865dfe96c2f316d05488e558787623f32b86ea0996aedd"
+    },
+    {
+      "path": "tests/fixtures/forms/globo-registration-identifier-2026-09-15/page.css",
+      "sha256": "b84663689946dddade9844a99d239ca3d9c6e11cc744313e2c31fc9bcdf964b7"
+    },
+    {
+      "path": "tests/fixtures/forms/globo-registration-identifier-2026-09-15/page.html",
+      "sha256": "a612ef18c6a2d198896bc9595277dc7204746e027991d0db3a9ee16133c96f0f"
+    },
+    {
+      "path": "tests/fixtures/forms/google-login-identifier-2026-09-15/case.json",
+      "sha256": "c9534ee1fa963b291d319dfd65aad167f33b6db5e83e9af773a078305d481795"
+    },
+    {
+      "path": "tests/fixtures/forms/google-login-identifier-2026-09-15/page.css",
+      "sha256": "f2476ab324817dcc4c764427d0d0a116d4659271aca31fd33765013e54292bb5"
+    },
+    {
+      "path": "tests/fixtures/forms/google-login-identifier-2026-09-15/page.html",
+      "sha256": "4ab79ff0c39fc133563880926c36f675562d4c96e78a8830746b1934bdd75d53"
+    },
+    {
+      "path": "tests/fixtures/forms/google-registration-name-2026-09-15/case.json",
+      "sha256": "8d6f1d4701cf2d4c211c2dc725a637ec6b176cb14d7f008c1a538e5b39c03773"
+    },
+    {
+      "path": "tests/fixtures/forms/google-registration-name-2026-09-15/page.css",
+      "sha256": "d16e3ab6937772408532f6ac3e8e47531bb8c818d3a592f70374076d13a33acb"
+    },
+    {
+      "path": "tests/fixtures/forms/google-registration-name-2026-09-15/page.html",
+      "sha256": "bdacc95250f0e9b9106c0535535ac6222ef4a03ee9eaab163ee9e2a698d0aa1f"
+    },
+    {
+      "path": "tests/fixtures/forms/hln-login-identifier-2026-09-16/case.json",
+      "sha256": "a13e958104f085f56ed56c09adf323d3e37e72c19a236484b885456953108f1f"
+    },
+    {
+      "path": "tests/fixtures/forms/hln-login-identifier-2026-09-16/page.css",
+      "sha256": "6e4da9c0a39a83cf5373a21f23202cdee1d56a862204298cd14234ff8cdca5cc"
+    },
+    {
+      "path": "tests/fixtures/forms/hln-login-identifier-2026-09-16/page.html",
+      "sha256": "d72f6cff28c55b381bd93456aff2f120b9620fbf876c817d5be300a2ccb355d6"
+    },
+    {
+      "path": "tests/fixtures/forms/idnes-login-identifier-2026-09-16/case.json",
+      "sha256": "85f4ca47d85f80c2c9451ca87fc5cc9c0cf1431378cde5ff862bd00cba0e2790"
+    },
+    {
+      "path": "tests/fixtures/forms/idnes-login-identifier-2026-09-16/page.css",
+      "sha256": "2b3a5d06f27d7dba17a595d0cb9cbefed7b9060a16417c74228b24748fa8523f"
+    },
+    {
+      "path": "tests/fixtures/forms/idnes-login-identifier-2026-09-16/page.html",
+      "sha256": "50d376065c2ef7c7acc3a1ad88a34a4e5508cd6a8dfec1ad59bdc80db9ad322a"
+    },
+    {
+      "path": "tests/fixtures/forms/idnes-registration-identifier-2026-09-16/case.json",
+      "sha256": "6624c00bc4550010222d804295ad7043f036b19693f1311cc6f15e2905cff068"
+    },
+    {
+      "path": "tests/fixtures/forms/idnes-registration-identifier-2026-09-16/page.css",
+      "sha256": "ae36f269c0eeaec6c0602ad023a454334d85e3aa22d45b1ff37e167d8dbb06f6"
+    },
+    {
+      "path": "tests/fixtures/forms/idnes-registration-identifier-2026-09-16/page.html",
+      "sha256": "94351963875cac037c2081cc75d6273ce3ea4e021952f1d0e40ac1e327f8d324"
+    },
+    {
+      "path": "tests/fixtures/forms/idokep-login-2026-09-16/case.json",
+      "sha256": "2ef63ff6f9827a7c83762276647d145f28a3c88afd6e907c94db976499929ddb"
+    },
+    {
+      "path": "tests/fixtures/forms/idokep-login-2026-09-16/page.css",
+      "sha256": "551a0b23672412b90ffb1623a4443a1681780fd6a49bd6718adcb80b5683bb27"
+    },
+    {
+      "path": "tests/fixtures/forms/idokep-login-2026-09-16/page.html",
+      "sha256": "2d327305e815a60bc35a0888057c57d8da9fc2214dbd36ca6cfae8667582ba17"
+    },
+    {
+      "path": "tests/fixtures/forms/idokep-registration-2026-09-16/case.json",
+      "sha256": "aea4a52d917f2c024063e8d0a79a03555d1daa0697381c3c737d7c4f78163822"
+    },
+    {
+      "path": "tests/fixtures/forms/idokep-registration-2026-09-16/page.css",
+      "sha256": "8789bf3b532cd6039bf6a4086cc48fc23434d79a4a019f9aa2294eea8a93f061"
+    },
+    {
+      "path": "tests/fixtures/forms/idokep-registration-2026-09-16/page.html",
+      "sha256": "383de9f2d729b9088e1c7fed5c637386fb934d410c5bbb94469b2ffed29ff14c"
+    },
+    {
+      "path": "tests/fixtures/forms/ikea-login-2026-09-16/case.json",
+      "sha256": "762db92ca90d12a70fd9ac0327ba06af716b14d3930a339e4dd77054defbe039"
+    },
+    {
+      "path": "tests/fixtures/forms/ikea-login-2026-09-16/page.css",
+      "sha256": "34a4e17b703f21df2ffde78fd0ed620fe503f250c1361c2b92973316bd528d56"
+    },
+    {
+      "path": "tests/fixtures/forms/ikea-login-2026-09-16/page.html",
+      "sha256": "212a391893f659cd764cf4d7643853faa89ce0713a432196c2737cfd8063158d"
+    },
+    {
+      "path": "tests/fixtures/forms/ikea-registration-identifier-2026-09-16/case.json",
+      "sha256": "a00bbae95bb7d0f90a337dc4df9f913c3adc553880b7e433a7e08449cdb90916"
+    },
+    {
+      "path": "tests/fixtures/forms/ikea-registration-identifier-2026-09-16/page.css",
+      "sha256": "59c6c11d44bfeaffa97c6725f5ed562c57e3fd9435d66b502d870d0c62179e9f"
+    },
+    {
+      "path": "tests/fixtures/forms/ikea-registration-identifier-2026-09-16/page.html",
+      "sha256": "79aec3b95139a8ec0a109c3f5053130fe0d76e9a8610854678b7003bfb79f66a"
+    },
+    {
+      "path": "tests/fixtures/forms/iltalehti-login-2026-09-16/case.json",
+      "sha256": "03945599fd51a3bd79f7f48691724d25cdb1be486f9a325ec53b6b4f51b0f0a4"
+    },
+    {
+      "path": "tests/fixtures/forms/iltalehti-login-2026-09-16/page.css",
+      "sha256": "0dd5163900f7069d4e6c68d54a9c2ccb1af9e9f83f7652208c37a2c824747909"
+    },
+    {
+      "path": "tests/fixtures/forms/iltalehti-login-2026-09-16/page.html",
+      "sha256": "17c792728428df71deedbfbd4622a36cb3388c1f690c1863923abd7664a157dd"
+    },
+    {
+      "path": "tests/fixtures/forms/iltalehti-registration-2026-09-16/case.json",
+      "sha256": "59eb55cbad1a2bfbbaaa48327f02f0e6565139dbedbb8c1330bc255b817c0c06"
+    },
+    {
+      "path": "tests/fixtures/forms/iltalehti-registration-2026-09-16/page.css",
+      "sha256": "c8468343ba8fff81bc0a800b1d7fbedc9b40168a329b17982e6a1ecbb94eb580"
+    },
+    {
+      "path": "tests/fixtures/forms/iltalehti-registration-2026-09-16/page.html",
+      "sha256": "958d597859105dd35f9b5e6eda459b1f5ec06725c1aec6ece7ea3b589702198d"
+    },
+    {
+      "path": "tests/fixtures/forms/imdb-login-2026-09-16/case.json",
+      "sha256": "9c8dfb950e69c14ebe623519c0abb1191dfaf6b4da1a201682ded5b2898394d1"
+    },
+    {
+      "path": "tests/fixtures/forms/imdb-login-2026-09-16/page.css",
+      "sha256": "19c66b6ed2ea7ba508e10ba70330b73154fb081708dde7f8435e2ddd47f71597"
+    },
+    {
+      "path": "tests/fixtures/forms/imdb-login-2026-09-16/page.html",
+      "sha256": "f924aa5f40f669d3959e0f2f8802598dc014d8b42a1d0c77c04a4eb89395f436"
+    },
+    {
+      "path": "tests/fixtures/forms/imdb-registration-identifier-2026-09-16/case.json",
+      "sha256": "adcc624415b5a7a50ddebfaccae3231070ad8c1c8cfbdc59c80a3e1d77d51f9f"
+    },
+    {
+      "path": "tests/fixtures/forms/imdb-registration-identifier-2026-09-16/page.css",
+      "sha256": "0f21d9c3b7b272569364aa7d157cdad6c6b861e667a865999dfcd4023074fde0"
+    },
+    {
+      "path": "tests/fixtures/forms/imdb-registration-identifier-2026-09-16/page.html",
+      "sha256": "b2b069755167cb343243e1c665aee1632949df8a622260747d4d9e3d597e932c"
+    },
+    {
+      "path": "tests/fixtures/forms/inbox-lv-login-identifier-2026-09-15/case.json",
+      "sha256": "02b7f25f4731cd6f1f4973298fbfe5b774675899e82ac65c0114b92e2f75355d"
+    },
+    {
+      "path": "tests/fixtures/forms/inbox-lv-login-identifier-2026-09-15/page.css",
+      "sha256": "c54ea27da9a09a811a06095e1c1a98f4c336981d025e5b52d8e0381c858046b6"
+    },
+    {
+      "path": "tests/fixtures/forms/inbox-lv-login-identifier-2026-09-15/page.html",
+      "sha256": "14fa968dcd1aa20cc382587d9bcf51bd0c4dd8c7842d39ef39a0ceea693b0f58"
+    },
+    {
+      "path": "tests/fixtures/forms/inbox-lv-registration-identifier-2026-09-15/case.json",
+      "sha256": "df1b4e283a0c7d749a08818532a9420cd8b10df306346cba878db16cf25ba537"
+    },
+    {
+      "path": "tests/fixtures/forms/inbox-lv-registration-identifier-2026-09-15/page.css",
+      "sha256": "ae8060446bd722077e002e907823ef740dc453f9179648957ab7863815393774"
+    },
+    {
+      "path": "tests/fixtures/forms/inbox-lv-registration-identifier-2026-09-15/page.html",
+      "sha256": "16bfeddbab8d354cead4cac59b9ec311bc4495d7f1b6375f38af718e5cffb214"
+    },
+    {
+      "path": "tests/fixtures/forms/index-hr-login-identifier-2026-09-15/case.json",
+      "sha256": "8f6f82ac5f96cb73961a9e8593f755e530a00df14c1b8efc7a6491c11e25bc6c"
+    },
+    {
+      "path": "tests/fixtures/forms/index-hr-login-identifier-2026-09-15/page.css",
+      "sha256": "c85c3e0e8de608dd8da821861d2d6dd0573bc2ab265973189e3c548fb9908987"
+    },
+    {
+      "path": "tests/fixtures/forms/index-hr-login-identifier-2026-09-15/page.html",
+      "sha256": "c1cd0db465e88ff179359672730bc7b4f80d027ceaedb610a3d828b8ab6eec9e"
+    },
+    {
+      "path": "tests/fixtures/forms/index-hr-registration-identifier-2026-09-15/case.json",
+      "sha256": "a726e40383c4ba1d7a4f5331a102f5a5cdda76188e894825ad320ff12c8dc176"
+    },
+    {
+      "path": "tests/fixtures/forms/index-hr-registration-identifier-2026-09-15/page.css",
+      "sha256": "f62148c8b186fe7c0ecc82c85ebe1b9f1ec68ff857cc306b5f71878b7afcbe65"
+    },
+    {
+      "path": "tests/fixtures/forms/index-hr-registration-identifier-2026-09-15/page.html",
+      "sha256": "f4ae488533d7821bc6bf5c25ac4fcb28d5b3cf4212dde3577665ced3020d9839"
+    },
+    {
+      "path": "tests/fixtures/forms/inpost-login-2026-09-15/case.json",
+      "sha256": "98890dd3d2aee67328595e7e1f781a8aeacfde88efbf45812c8a1216d1235f5a"
+    },
+    {
+      "path": "tests/fixtures/forms/inpost-login-2026-09-15/page.css",
+      "sha256": "1030a599bac32ef8fd91a2425d49768374797b1d60b8141112c32b62fbaf6d33"
+    },
+    {
+      "path": "tests/fixtures/forms/inpost-login-2026-09-15/page.html",
+      "sha256": "2fcd8f5a3109eabcd90cddee8610c3b2bf8d006f62e860a1a1602a6ee609c287"
+    },
+    {
+      "path": "tests/fixtures/forms/instagram-login-2026-09-15/case.json",
+      "sha256": "648460c2e408861c458cfac69fc2633766867408996b1a6365c721464ad3f275"
+    },
+    {
+      "path": "tests/fixtures/forms/instagram-login-2026-09-15/page.css",
+      "sha256": "7761f9a154e1f3dde32a10b169794e2786fb07977f7b81d8e07d6441acc522f9"
+    },
+    {
+      "path": "tests/fixtures/forms/instagram-login-2026-09-15/page.html",
+      "sha256": "74bc91fdba94251b61e15dd24078c69d788caffe3fdf559e945a87905396c569"
+    },
+    {
+      "path": "tests/fixtures/forms/instagram-registration-2026-09-15/case.json",
+      "sha256": "ad858f0caecff05e107508c5707dea4b1c5525a2ecd1267a5589f72ae244a517"
+    },
+    {
+      "path": "tests/fixtures/forms/instagram-registration-2026-09-15/page.css",
+      "sha256": "21e7cfb5cc9877ca2fe1ff4527cc9a067c821f85af978becba3f5d0a5781d46a"
+    },
+    {
+      "path": "tests/fixtures/forms/instagram-registration-2026-09-15/page.html",
+      "sha256": "fef4a41e86064ce95113f443fb722bb906b535f5638b17f2c4d6d103ad5cfc6a"
+    },
+    {
+      "path": "tests/fixtures/forms/interia-login-2026-09-15/case.json",
+      "sha256": "2e2a9cb2adfa3fee55df0e0fa6fb089715727b59c5c92591818ddbc5edeb9c2b"
+    },
+    {
+      "path": "tests/fixtures/forms/interia-login-2026-09-15/page.css",
+      "sha256": "2f6f2c6c8a482ace96e33b267b9961ab306f8f33971c02028da037146afdb5b9"
+    },
+    {
+      "path": "tests/fixtures/forms/interia-login-2026-09-15/page.html",
+      "sha256": "5a20cf0fc15ac8fb2c283454241567616fda20fd5571f1008b626a11571d47a3"
+    },
+    {
+      "path": "tests/fixtures/forms/jetbrains-identifier-2026-09-20/README.md",
+      "sha256": "1e640fa172616788579ebcf03ebbd31f99ffb18606d77c0a692607084dfc1242"
+    },
+    {
+      "path": "tests/fixtures/forms/jetbrains-identifier-2026-09-20/page.html",
+      "sha256": "3e963fcb30e2da383b09b8e6b131eb96cd0e3d57a87ff7fceecb701f18d532aa"
+    },
+    {
+      "path": "tests/fixtures/forms/jysk-login-2026-09-16/case.json",
+      "sha256": "8ee0022e87cf6c229297608411ce5a16dbda2b5885ae17fc3745d097ab6ad252"
+    },
+    {
+      "path": "tests/fixtures/forms/jysk-login-2026-09-16/page.css",
+      "sha256": "a37b38faa839f8e56baac66e6f85b26f80b723c31b7a1622998a7a65df4459bd"
+    },
+    {
+      "path": "tests/fixtures/forms/jysk-login-2026-09-16/page.html",
+      "sha256": "a76d8dcfe862f8ff498261aab11e5a35ac28fa39194a13bf266de21c3009cb36"
+    },
+    {
+      "path": "tests/fixtures/forms/jysk-registration-2026-09-16/case.json",
+      "sha256": "6d695cdd8ebe910a071e99a6e2a32d74739badd44239e34d91193274ffef3ee5"
+    },
+    {
+      "path": "tests/fixtures/forms/jysk-registration-2026-09-16/page.css",
+      "sha256": "995b446a9b20e83c928f0096ee6b52e0cd13c3e40a25f50617a5b14952220e3e"
+    },
+    {
+      "path": "tests/fixtures/forms/jysk-registration-2026-09-16/page.html",
+      "sha256": "c6cd1575b55a231c1ca20a203e7feede305d96a02edba12fdcb09ba0c04fee45"
+    },
+    {
+      "path": "tests/fixtures/forms/krone-login-identifier-2026-09-16/case.json",
+      "sha256": "da213f02c78c8c1337e5299ea6b989d251065d0318028ffd6f2979a385d421da"
+    },
+    {
+      "path": "tests/fixtures/forms/krone-login-identifier-2026-09-16/page.css",
+      "sha256": "0981fa5bfe07914feadc8fd93388913bf4d597740aba4a9438fd9e4562c74915"
+    },
+    {
+      "path": "tests/fixtures/forms/krone-login-identifier-2026-09-16/page.html",
+      "sha256": "b2ea72286da80cbbe9fa20ce84692cdee8b15b063d48a3927f4d042962f56f9b"
+    },
+    {
+      "path": "tests/fixtures/forms/krone-registration-2026-09-16/case.json",
+      "sha256": "5bb692a7560b9b05453d9f89e62d1c6cb75fbafd05f5b5554b42c2159a5be361"
+    },
+    {
+      "path": "tests/fixtures/forms/krone-registration-2026-09-16/page.css",
+      "sha256": "158c91ecb68b22cdf0d12aa384e108e905df7f8dae680d358deab4f7a21e807d"
+    },
+    {
+      "path": "tests/fixtures/forms/krone-registration-2026-09-16/page.html",
+      "sha256": "77ebb4d2e238961eedd32b37215bcd8c7921ce9285026da67ccb347f8202cee2"
+    },
+    {
+      "path": "tests/fixtures/forms/linkedin-capture-2026-09-15/README.md",
+      "sha256": "c870e0fbfd448ff4cba79f7ceaf356278d9d8713f5fb4add09aa4f796043d391"
+    },
+    {
+      "path": "tests/fixtures/forms/linkedin-capture-2026-09-15/page.css",
+      "sha256": "0dfda3bdc1f6b1ca1bda7022f267bad6cc24a6e98f98ec847b5db461b8036508"
+    },
+    {
+      "path": "tests/fixtures/forms/linkedin-capture-2026-09-15/page.html",
+      "sha256": "8d4efdc2309b211bde7938a923a368f62761392a5b959a20a1b3013bcc8dd998"
+    },
+    {
+      "path": "tests/fixtures/forms/linkedin-login-2026-09-15/case.json",
+      "sha256": "42098d6b5184dd1194899387e10baf2d4760c71b5ef890905315ecf18fa8abd5"
+    },
+    {
+      "path": "tests/fixtures/forms/linkedin-login-2026-09-15/page.css",
+      "sha256": "0dfda3bdc1f6b1ca1bda7022f267bad6cc24a6e98f98ec847b5db461b8036508"
+    },
+    {
+      "path": "tests/fixtures/forms/linkedin-login-2026-09-15/page.html",
+      "sha256": "8d4efdc2309b211bde7938a923a368f62761392a5b959a20a1b3013bcc8dd998"
+    },
+    {
+      "path": "tests/fixtures/forms/linkedin-login-2026-09-20/README.md",
+      "sha256": "1a0c183441f9ee7f480a126c7b1283fe9052253a4122265a2465af8f72bf5af2"
+    },
+    {
+      "path": "tests/fixtures/forms/linkedin-login-2026-09-20/page.html",
+      "sha256": "6392419d7a8f60c08f34b3f7d954c96dbe829972667b57c41578049bd4134371"
+    },
+    {
+      "path": "tests/fixtures/forms/linkedin-registration-2026-09-15/case.json",
+      "sha256": "31133de04a2ec766977abe272fd9f1e4b381ef43cdc93572ab0d2d3dd2d80a3a"
+    },
+    {
+      "path": "tests/fixtures/forms/linkedin-registration-2026-09-15/page.css",
+      "sha256": "aaf6b4680ed098938c38bc1010de730d51dcf48b1e7b1139877f03262f71a6b6"
+    },
+    {
+      "path": "tests/fixtures/forms/linkedin-registration-2026-09-15/page.html",
+      "sha256": "041e56989398e162d0f59eb7cdeb7d0468862fdd607ed7f05cc9e08d3efe9c64"
+    },
+    {
+      "path": "tests/fixtures/forms/lubimyczytac-login-2026-09-15/case.json",
+      "sha256": "a8a6081d42064a7287bbd942a48d5baee8025942b0e930e1fd2254dd6acbd13d"
+    },
+    {
+      "path": "tests/fixtures/forms/lubimyczytac-login-2026-09-15/page.css",
+      "sha256": "64df1f195239975c50efc639fadbed6e401433db0d5db133acda4121cf84d30f"
+    },
+    {
+      "path": "tests/fixtures/forms/lubimyczytac-login-2026-09-15/page.html",
+      "sha256": "24c85d835d070dfdfc6cbda9dd4572f3003f1233277f2b382b164d8484d64a62"
+    },
+    {
+      "path": "tests/fixtures/forms/lubimyczytac-registration-2026-09-15/case.json",
+      "sha256": "fe5b09126345d403927852db6083eed0f9ebb21a7dc8869673d5dce41e887295"
+    },
+    {
+      "path": "tests/fixtures/forms/lubimyczytac-registration-2026-09-15/page.css",
+      "sha256": "da285222a5ad1b2ed381427b55b4463d721640018f4a959515f1397335873f04"
+    },
+    {
+      "path": "tests/fixtures/forms/lubimyczytac-registration-2026-09-15/page.html",
+      "sha256": "b0d6fab2001068da8b67930e68702ab6db6fb87c4a4af099f643a7beac527d08"
+    },
+    {
+      "path": "tests/fixtures/forms/mailru-login-identifier-2026-09-15/case.json",
+      "sha256": "d4b8e620b6dd0a8979400239ee49a41aa9b5c3e2c7efe3119381997dd284cb77"
+    },
+    {
+      "path": "tests/fixtures/forms/mailru-login-identifier-2026-09-15/page.css",
+      "sha256": "ba78ae1d0adedf6099d5a3bb20a26a0a300910719224aa7aab9934bb9851370d"
+    },
+    {
+      "path": "tests/fixtures/forms/mailru-login-identifier-2026-09-15/page.html",
+      "sha256": "272f66ebf7fc327fdd2658eddf5affad98a2c6fca8db913925f2665656b3ec4d"
+    },
+    {
+      "path": "tests/fixtures/forms/mbl-login-2026-09-15/case.json",
+      "sha256": "546950ad39dc24c1d8b48c81506039efc19d1a1ce94d81ebae91f7b7dad7bc40"
+    },
+    {
+      "path": "tests/fixtures/forms/mbl-login-2026-09-15/page.css",
+      "sha256": "f8651f69f402f9f86ede5c70688015dc83c56e7bad5b8ae98169bf956de867ac"
+    },
+    {
+      "path": "tests/fixtures/forms/mbl-login-2026-09-15/page.html",
+      "sha256": "e26483df5afbfdbc223ff17038411788f794e09b66de41eb3641a8f291eed4ee"
+    },
+    {
+      "path": "tests/fixtures/forms/mbl-registration-2026-09-15/case.json",
+      "sha256": "ab6ba76bfafb70084106638e9389c182bb96339c8f7bdff8293a08467f822b78"
+    },
+    {
+      "path": "tests/fixtures/forms/mbl-registration-2026-09-15/page.css",
+      "sha256": "79e0be7a849a4140bb2a3956f55e9bf6748f07f127d42b7d7b1494ea8f8ef3a8"
+    },
+    {
+      "path": "tests/fixtures/forms/mbl-registration-2026-09-15/page.html",
+      "sha256": "0825230f9886b9cb8916ac057bb63926a6faf88688e72603276ef1addbfbda86"
+    },
+    {
+      "path": "tests/fixtures/forms/meczyki-login-2026-09-16/case.json",
+      "sha256": "6e6c2608da502c7d83280a8b73d99916c332bbfb26482619ba24f467a756e950"
+    },
+    {
+      "path": "tests/fixtures/forms/meczyki-login-2026-09-16/page.css",
+      "sha256": "d35ad396cb6af2049a7a6cd13ed14477305249721d7ee219d8ff28655930206d"
+    },
+    {
+      "path": "tests/fixtures/forms/meczyki-login-2026-09-16/page.html",
+      "sha256": "a23fb1ea6da24a36f8b8f093abe5ac868c1ffd480b439a9b4c12cdf37c6eda2b"
+    },
+    {
+      "path": "tests/fixtures/forms/meczyki-registration-2026-09-16/case.json",
+      "sha256": "a7bcc838794e8296427447d158179612ec0f4f9d09e8b25109000b2898b4dbb3"
+    },
+    {
+      "path": "tests/fixtures/forms/meczyki-registration-2026-09-16/page.css",
+      "sha256": "f23082b6e3d297359f1db3a88521d1be6815c214f9eeb852960f9d45bd100b70"
+    },
+    {
+      "path": "tests/fixtures/forms/meczyki-registration-2026-09-16/page.html",
+      "sha256": "063f22a9534789407252dbb4f4cdcaa3ca7e1e3b778c20cced7c5f8e87a19479"
+    },
+    {
+      "path": "tests/fixtures/forms/mediaexpert-login-2026-09-15/case.json",
+      "sha256": "80279438218e546b892ccf50579fdb20aae1e870c7ff1aea734e18d83ecb38ae"
+    },
+    {
+      "path": "tests/fixtures/forms/mediaexpert-login-2026-09-15/page.css",
+      "sha256": "2e7eead8c8f9a02b30ca83b22b1818aa0f9d6c25de0bcd007be3fb72acda4010"
+    },
+    {
+      "path": "tests/fixtures/forms/mediaexpert-login-2026-09-15/page.html",
+      "sha256": "f010d63dcd4c7d60db98c9f483074244b69f783e963f7ff43ec7c8daf30ac018"
+    },
+    {
+      "path": "tests/fixtures/forms/mediaexpert-registration-2026-09-15/case.json",
+      "sha256": "9ce675550c4d93659ed34bd114e4c904873609bd6f60d13a893eb2cacec681ef"
+    },
+    {
+      "path": "tests/fixtures/forms/mediaexpert-registration-2026-09-15/page.css",
+      "sha256": "dc1ae2c00a51a714b35e5452436c89dcb307aaf7e62cb08bea1ec7deb86abee7"
+    },
+    {
+      "path": "tests/fixtures/forms/mediaexpert-registration-2026-09-15/page.html",
+      "sha256": "ce6cdf3c345f5c6188fbb1c4b1eddacbdc0eb0603addb4d30f7dc9c56ae26846"
+    },
+    {
+      "path": "tests/fixtures/forms/microsoft-login-identifier-2026-09-15/case.json",
+      "sha256": "6655a858f95b235daaf6c710954cd269e6bdb537e25876e65a0bc168a6b9f79c"
+    },
+    {
+      "path": "tests/fixtures/forms/microsoft-login-identifier-2026-09-15/page.css",
+      "sha256": "a0d74dc6ffaafe4f1a69d0b95651506fe4168bd7d26d7bc043a91c478ae18009"
+    },
+    {
+      "path": "tests/fixtures/forms/microsoft-login-identifier-2026-09-15/page.html",
+      "sha256": "bc88fe85bfad897d30006f5310a97f824955ef9bd3056eb8f24847142c2f1408"
+    },
+    {
+      "path": "tests/fixtures/forms/morele-login-2026-09-15/case.json",
+      "sha256": "99cc2cb3e98ec86f459934789349403bda2cb22440ddfe582de4ff365313b170"
+    },
+    {
+      "path": "tests/fixtures/forms/morele-login-2026-09-15/page.css",
+      "sha256": "8e0800b7b00936426c6e42aa1c108a2524ca60dd1b2c562c6732cde6ec1dd6ba"
+    },
+    {
+      "path": "tests/fixtures/forms/morele-login-2026-09-15/page.html",
+      "sha256": "990c9c4104df0d57407ca8d1fe5a665699c3f8a66167bfacc9f97dd76af10681"
+    },
+    {
+      "path": "tests/fixtures/forms/morele-registration-2026-09-15/case.json",
+      "sha256": "1332c1a4a6d6d60a0124e590d1b6ee19f33fb72a176e48b533e82dda15dd7838"
+    },
+    {
+      "path": "tests/fixtures/forms/morele-registration-2026-09-15/page.css",
+      "sha256": "89ac1dcf46c846b87c75d329c9d9a7ac489e360c874f3b42804a2fbe6187dc1e"
+    },
+    {
+      "path": "tests/fixtures/forms/morele-registration-2026-09-15/page.html",
+      "sha256": "e8d2116910234e9d065fd240bab535c78dfe6a786cf07c37004cbdb74df4ebbf"
+    },
+    {
+      "path": "tests/fixtures/forms/naver-login-2026-09-15/case.json",
+      "sha256": "602e24ac9fecaa3e77aeda05a846f81d907a938bb87bf322b84c8b978c308873"
+    },
+    {
+      "path": "tests/fixtures/forms/naver-login-2026-09-15/page.css",
+      "sha256": "fa66facff4c1c66f13b6ec2597d598673f74a2c9a8b1e5e492398fc10cb561f2"
+    },
+    {
+      "path": "tests/fixtures/forms/naver-login-2026-09-15/page.html",
+      "sha256": "2aa4623f2f727db98b64f6b52b7454404b84e0cfd519dad1b366000e881dab64"
+    },
+    {
+      "path": "tests/fixtures/forms/netflix-login-2026-09-15/case.json",
+      "sha256": "5d2169466d94bf47e230f1d53981b5aeb62fa26ddc863ad13a2bbfc89c56dc23"
+    },
+    {
+      "path": "tests/fixtures/forms/netflix-login-2026-09-15/page.css",
+      "sha256": "a6cf2914355ee6440c5b62d2fa5233fcbdc441ddcee0f3bf29bc2d3d3994b5d8"
+    },
+    {
+      "path": "tests/fixtures/forms/netflix-login-2026-09-15/page.html",
+      "sha256": "d5b2c55dc3324672d5877a57695443c9aefb870834c9cdd539e14ba6c24fc491"
+    },
+    {
+      "path": "tests/fixtures/forms/notion-login-identifier-2026-09-15/case.json",
+      "sha256": "2d00913708c9c2e1d624f84d5c836facd80f3803e45357e1045114a73d2b6159"
+    },
+    {
+      "path": "tests/fixtures/forms/notion-login-identifier-2026-09-15/page.css",
+      "sha256": "bdc5f8b227b2f82bc74999a26464b78d9a2d2bfff950ec368cf3d9d0b334bc91"
+    },
+    {
+      "path": "tests/fixtures/forms/notion-login-identifier-2026-09-15/page.html",
+      "sha256": "ea8a273760cd250cd087ae22c0d3ef3b491a912b070fd2f0342e8e71e07cd19c"
+    },
+    {
+      "path": "tests/fixtures/forms/nrk-login-identifier-2026-09-15/case.json",
+      "sha256": "e92e1d41df42245e7463721b30cbc74277b1b4ada30b0f49d71d0080014d61f7"
+    },
+    {
+      "path": "tests/fixtures/forms/nrk-login-identifier-2026-09-15/page.css",
+      "sha256": "16f7b24a3379b1a8844e7099f295966bd7c934f838f24474353d0dd9c59bbebe"
+    },
+    {
+      "path": "tests/fixtures/forms/nrk-login-identifier-2026-09-15/page.html",
+      "sha256": "31283522ea09e0537e7c27576f71f0b3a3efe6f4ea51c17c7cf10fc807cac38a"
+    },
+    {
+      "path": "tests/fixtures/forms/nrk-registration-2026-09-15/case.json",
+      "sha256": "dfc3a0942419cad6918130f990f701e65cceb249d639a8d73f70c8593f205eac"
+    },
+    {
+      "path": "tests/fixtures/forms/nrk-registration-2026-09-15/page.css",
+      "sha256": "5d100eb87c7b2f37abf2928871efeb8bfdd082946f96f87de8f7f0a17f8568e4"
+    },
+    {
+      "path": "tests/fixtures/forms/nrk-registration-2026-09-15/page.html",
+      "sha256": "d822359a87b37e5297b919da0bf5f4166368e3e0f466d3fd0aafcb7831de1eb2"
+    },
+    {
+      "path": "tests/fixtures/forms/nu-login-identifier-2026-09-15/case.json",
+      "sha256": "73ff23d19c80c3097b8bb65a0a0f09506621796624ebed76ba053b3006e42225"
+    },
+    {
+      "path": "tests/fixtures/forms/nu-login-identifier-2026-09-15/page.css",
+      "sha256": "6e4da9c0a39a83cf5373a21f23202cdee1d56a862204298cd14234ff8cdca5cc"
+    },
+    {
+      "path": "tests/fixtures/forms/nu-login-identifier-2026-09-15/page.html",
+      "sha256": "d72f6cff28c55b381bd93456aff2f120b9620fbf876c817d5be300a2ccb355d6"
+    },
+    {
+      "path": "tests/fixtures/forms/nytimes-login-identifier-2026-09-15/case.json",
+      "sha256": "72329dd9c8c485a41fd08bd927567e98c78e0aab5205681dbf99dc4d245f72e5"
+    },
+    {
+      "path": "tests/fixtures/forms/nytimes-login-identifier-2026-09-15/page.css",
+      "sha256": "9162d27592bd18feb4d4f28d76df62553dcd4dd4035ae22c037a59759b4048fd"
+    },
+    {
+      "path": "tests/fixtures/forms/nytimes-login-identifier-2026-09-15/page.html",
+      "sha256": "366a31d2136fcbc5007a209a5e8f701868e43fbb54d5e87db5808428dc936b53"
+    },
+    {
+      "path": "tests/fixtures/forms/olx-login-2026-09-15/case.json",
+      "sha256": "f2a88be2a35a825955ffa22b5c38b8d7b0f3a2750f903a2dd1b2b851c1435990"
+    },
+    {
+      "path": "tests/fixtures/forms/olx-login-2026-09-15/page.css",
+      "sha256": "7a05b0d0696b713b7e10fdc651b8adceb11e39f08e69d640414421c4f3c8e477"
+    },
+    {
+      "path": "tests/fixtures/forms/olx-login-2026-09-15/page.html",
+      "sha256": "e13683aec51eb9b70fc6b94e7a2e522088fbe6231c8aab84375560ea4bee0582"
+    },
+    {
+      "path": "tests/fixtures/forms/olx-registration-2026-09-15/case.json",
+      "sha256": "62a06d19a07ec4aa2691dbb011d662464d41a92e25b423d96f1aa9d22a8a8a24"
+    },
+    {
+      "path": "tests/fixtures/forms/olx-registration-2026-09-15/page.css",
+      "sha256": "fe84704017a1cb5c1edd7afe695fc235ae49eb2908f610258249d73ae43e7090"
+    },
+    {
+      "path": "tests/fixtures/forms/olx-registration-2026-09-15/page.html",
+      "sha256": "73c9415a3c4aafdb9adbb2119ce4a985fdb7627633a4041ea242b7ee7c500698"
+    },
+    {
+      "path": "tests/fixtures/forms/onet-login-identifier-2026-09-15/case.json",
+      "sha256": "f732b2823264a49e212c84d0b8c309059ec925840ab7b00bc7f30e3678521b0e"
+    },
+    {
+      "path": "tests/fixtures/forms/onet-login-identifier-2026-09-15/page.css",
+      "sha256": "06f1a1f3e3ae07a320ac49dfa6c6e49e5e6be7143c3c8b94429ea0cb198c124c"
+    },
+    {
+      "path": "tests/fixtures/forms/onet-login-identifier-2026-09-15/page.html",
+      "sha256": "8e2a5a0ac46dea69002b3d832dde70fdfb051cc316437eaf2b061923cb7dd11f"
+    },
+    {
+      "path": "tests/fixtures/forms/otodom-login-2026-09-16/case.json",
+      "sha256": "9aa42ae278976964596d8ea9c14f44f8c3a6df7e1bdf8dbf7c98ab949ecd46dc"
+    },
+    {
+      "path": "tests/fixtures/forms/otodom-login-2026-09-16/page.css",
+      "sha256": "f48e425bccb889efda8a6e75162b013a3c223e80a18f66cec539a1d72ab75f4e"
+    },
+    {
+      "path": "tests/fixtures/forms/otodom-login-2026-09-16/page.html",
+      "sha256": "8bd439192761cd925c6c453c605120d3e758ef4e504bd59686da8cd342ca3515"
+    },
+    {
+      "path": "tests/fixtures/forms/otodom-registration-2026-09-16/case.json",
+      "sha256": "bfb785861236a6942ca7d842c92c25e350c59190ad52c68beb5169a5b517fb17"
+    },
+    {
+      "path": "tests/fixtures/forms/otodom-registration-2026-09-16/page.css",
+      "sha256": "8da67384e31045d1146805abe51471d15dbbb65d92d7ab112bdea8cf3ab7e21c"
+    },
+    {
+      "path": "tests/fixtures/forms/otodom-registration-2026-09-16/page.html",
+      "sha256": "f6cfe040c550a7b04bf6cd2cc688913c7663baeebdc67eb36d309dd62404b195"
+    },
+    {
+      "path": "tests/fixtures/forms/otomoto-login-2026-09-16/case.json",
+      "sha256": "71852f43206fd0fae31e4f125294b2171730f02515b5f14cb9997a5e951b5395"
+    },
+    {
+      "path": "tests/fixtures/forms/otomoto-login-2026-09-16/page.css",
+      "sha256": "a834d0667ff2b03af9731c7a4b1dc17452982e5237c6a96bb5bf26003b589edb"
+    },
+    {
+      "path": "tests/fixtures/forms/otomoto-login-2026-09-16/page.html",
+      "sha256": "529fa89dd62c17d60c373b4700b3034839d7040bbf2e69dfed0995d8b717d712"
+    },
+    {
+      "path": "tests/fixtures/forms/otomoto-registration-2026-09-16/case.json",
+      "sha256": "2eb2883ab42e5370fb4d7b456c488dce7ae27087bb71b55884d918edd96da5aa"
+    },
+    {
+      "path": "tests/fixtures/forms/otomoto-registration-2026-09-16/page.css",
+      "sha256": "cb78b6cab8dbc20322ad5ff7c1b8f8a331410294f4fed86adaaa5fcdd84e935d"
+    },
+    {
+      "path": "tests/fixtures/forms/otomoto-registration-2026-09-16/page.html",
+      "sha256": "fbea49c1553f32612b0d1b1208859587a9ce7705ea61e84395c5d48e325b178b"
+    },
+    {
+      "path": "tests/fixtures/forms/paypal-login-identifier-2026-09-15/case.json",
+      "sha256": "d3abcceaadb9008b23065e66e5879d214071212e7b4e1e56145f95700d94c907"
+    },
+    {
+      "path": "tests/fixtures/forms/paypal-login-identifier-2026-09-15/page.css",
+      "sha256": "2b23693a28d9597dc30a1f8ab24d4e859c456f67ef4cbc4d2bc6409450d877a5"
+    },
+    {
+      "path": "tests/fixtures/forms/paypal-login-identifier-2026-09-15/page.html",
+      "sha256": "bf02f5687d727c8ff7af58b976df5d0db29efa84642c47ea4011479d0311592f"
+    },
+    {
+      "path": "tests/fixtures/forms/pepper-login-identifier-2026-09-15/case.json",
+      "sha256": "236d139f87189c6d622359f0f9924269f939922fcac21a6e3e48a27adc446453"
+    },
+    {
+      "path": "tests/fixtures/forms/pepper-login-identifier-2026-09-15/page.css",
+      "sha256": "eb38785f6e50859fc5924b7267e8505efdf962c2fa43953ce11b725c37817969"
+    },
+    {
+      "path": "tests/fixtures/forms/pepper-login-identifier-2026-09-15/page.html",
+      "sha256": "9c063ac25eaf11b3eb38f9a07d6b1c929cab12578b26b5a94f59ba9055f915ec"
+    },
+    {
+      "path": "tests/fixtures/forms/pinterest-login-2026-09-15/case.json",
+      "sha256": "7031d1c2428d6a125e96fa7fcc03bebd84c150c51bbca17f63a6cbea48c670f0"
+    },
+    {
+      "path": "tests/fixtures/forms/pinterest-login-2026-09-15/page.css",
+      "sha256": "440ce3fdc26bf14c56ee18baa36d0425a037de90337bf2d4cf1f035f878ce129"
+    },
+    {
+      "path": "tests/fixtures/forms/pinterest-login-2026-09-15/page.html",
+      "sha256": "8cbb1746dbaee838c8dde4349ea15b03b95e0debd8605b0922ffed231e367679"
+    },
+    {
+      "path": "tests/fixtures/forms/pracuj-login-identifier-2026-09-15/case.json",
+      "sha256": "10a9eee23b2194954f9dcb7245d270f74400f8d4f5bc9e411c46c82e24131dd1"
+    },
+    {
+      "path": "tests/fixtures/forms/pracuj-login-identifier-2026-09-15/page.css",
+      "sha256": "3bc3bdc41823fae07165e78a0356edcaa70bdda650495e14997eb10ccb03238a"
+    },
+    {
+      "path": "tests/fixtures/forms/pracuj-login-identifier-2026-09-15/page.html",
+      "sha256": "d57a5f090701366667b695b8daa245d7655a695c477f95c5412b07dba5275a16"
+    },
+    {
+      "path": "tests/fixtures/forms/pracuj-registration-identifier-2026-09-15/case.json",
+      "sha256": "ef4408c70bf6e0c18a59d99074237865d30f71637e028088bc613b3a02c6d2f0"
+    },
+    {
+      "path": "tests/fixtures/forms/pracuj-registration-identifier-2026-09-15/page.css",
+      "sha256": "3bc3bdc41823fae07165e78a0356edcaa70bdda650495e14997eb10ccb03238a"
+    },
+    {
+      "path": "tests/fixtures/forms/pracuj-registration-identifier-2026-09-15/page.html",
+      "sha256": "d57a5f090701366667b695b8daa245d7655a695c477f95c5412b07dba5275a16"
+    },
+    {
+      "path": "tests/fixtures/forms/pravda-blog-login-2026-09-16/case.json",
+      "sha256": "ecb69c3f5b1abd1bef36a0b8c2562847629483d3da3f0deb3ddcd2978eeae088"
+    },
+    {
+      "path": "tests/fixtures/forms/pravda-blog-login-2026-09-16/page.css",
+      "sha256": "391645173ec7617b518865fa2737c6fa64301008a40b98f2956f9a4ed7a89e1d"
+    },
+    {
+      "path": "tests/fixtures/forms/pravda-blog-login-2026-09-16/page.html",
+      "sha256": "0f0cfdf176b051776806324e1d742c241b37bc1dcdfd00758c110776a113da90"
+    },
+    {
+      "path": "tests/fixtures/forms/pravda-blog-registration-account-details-2026-09-16/case.json",
+      "sha256": "f0e53830fa4a4f86f80a9885e4f12512898f08d8a3dde39b02d27589ffcff074"
+    },
+    {
+      "path": "tests/fixtures/forms/pravda-blog-registration-account-details-2026-09-16/page.css",
+      "sha256": "115b58b122a9f53073aef86a192d60bd1747ea08161ff07cf8d7718db5b31acc"
+    },
+    {
+      "path": "tests/fixtures/forms/pravda-blog-registration-account-details-2026-09-16/page.html",
+      "sha256": "c5ba97eb79ea6adcbda77ff66e9a8545cb857c18a7365cde2a69ceda5d73b9f6"
+    },
+    {
+      "path": "tests/fixtures/forms/proton-login-2026-09-15/case.json",
+      "sha256": "e962463b377c3530697eb291ae4bc8357a9fed6c67e46d34cc4686fb92dca384"
+    },
+    {
+      "path": "tests/fixtures/forms/proton-login-2026-09-15/page.css",
+      "sha256": "e4c6be6fb656f3d85789e4c55ce0c0cc5f08138dcc1739e76a8d2932225883ef"
+    },
+    {
+      "path": "tests/fixtures/forms/proton-login-2026-09-15/page.html",
+      "sha256": "c288ea1ff92264b837a6a241d23269582079145d11dc5399275020e12a788f11"
+    },
+    {
+      "path": "tests/fixtures/forms/proton-login-2026-09-20/README.md",
+      "sha256": "6ea1cdd80343fd0c15448ce6ff5b9054dfade3f8bed708a0378a34847ecaeb50"
+    },
+    {
+      "path": "tests/fixtures/forms/proton-login-2026-09-20/page.html",
+      "sha256": "443e828ab89493c5889d6b833802e746b84a06b3ec6526ac0af7c3b2997593f4"
+    },
+    {
+      "path": "tests/fixtures/forms/proton-registration-2026-09-15/case.json",
+      "sha256": "a3f53454ce8d6d6d22d9931b83026b2a80035a7671f4e1d6a35ddf8ff58d13f9"
+    },
+    {
+      "path": "tests/fixtures/forms/proton-registration-2026-09-15/page.css",
+      "sha256": "e083040ff9f131999bf62476758ea2c0fdb3b983980ae6ee023c50aeba7d85ef"
+    },
+    {
+      "path": "tests/fixtures/forms/proton-registration-2026-09-15/page.html",
+      "sha256": "fbb954b84ee3eca37f56a4e70aa992148949c1d8538eab8c52e714270755f9ab"
+    },
+    {
+      "path": "tests/fixtures/forms/quora-login-pl-2026-09-15/case.json",
+      "sha256": "d120e8abf1b43af6e0635e9ce4907b9eca4f9ac8fdf4f1045204bb375833741a"
+    },
+    {
+      "path": "tests/fixtures/forms/quora-login-pl-2026-09-15/page.css",
+      "sha256": "be505eaf92db546739dcec86a4e19c3ab774e4b777309d01c59b8253720ff1f2"
+    },
+    {
+      "path": "tests/fixtures/forms/quora-login-pl-2026-09-15/page.html",
+      "sha256": "102280f10c742c562daa87eec0a5e505b1fc2e1b13e4f468751dc6341afb4a49"
+    },
+    {
+      "path": "tests/fixtures/forms/quora-registration-identifier-pl-2026-09-15/case.json",
+      "sha256": "74202b5d2ee3e782512894b1b0c3d66fbdae99c5c7fc78ddd71e4769e1fd137c"
+    },
+    {
+      "path": "tests/fixtures/forms/quora-registration-identifier-pl-2026-09-15/page.css",
+      "sha256": "7e82ea1c306c7d04cf14d4936a3dde70b4276638c32cdbdd583039016be83d7f"
+    },
+    {
+      "path": "tests/fixtures/forms/quora-registration-identifier-pl-2026-09-15/page.html",
+      "sha256": "de888c09818b45561b72ff25ededa5d59374ce18defe59c86b845142c18395f3"
+    },
+    {
+      "path": "tests/fixtures/forms/record-login-2026-09-16/case.json",
+      "sha256": "e805d8e898d1961f1adcc5f66ac36d629c65828cf1322ae40d585f570586b259"
+    },
+    {
+      "path": "tests/fixtures/forms/record-login-2026-09-16/page.css",
+      "sha256": "ed5cfc81d16ce481e6e0722f5300f443e6532c2319e2ffc17c19e8993809e70b"
+    },
+    {
+      "path": "tests/fixtures/forms/record-login-2026-09-16/page.html",
+      "sha256": "b9aa11d6a02d12596eed6904540b7d82df47a94d0e8488d08c1f7759ecea4f91"
+    },
+    {
+      "path": "tests/fixtures/forms/record-registration-2026-09-16/case.json",
+      "sha256": "27d71322bddcf9c2d42a0bef12790d7342c397dfe47cb13ff6c79f0cba364e45"
+    },
+    {
+      "path": "tests/fixtures/forms/record-registration-2026-09-16/page.css",
+      "sha256": "62939704aceef3ae230a7b7e6127dfb1961ec6cf1a6163287c45b6eb7f1d806c"
+    },
+    {
+      "path": "tests/fixtures/forms/record-registration-2026-09-16/page.html",
+      "sha256": "5066884ed8ca3ae6ac65bd3903c10a0678128176abbeb0ff254f4aaf15357df3"
+    },
+    {
+      "path": "tests/fixtures/forms/regional-shortlists.json",
+      "sha256": "faaca57811c0d7dcda80f6c810595edf76e9d12a147b98355c90e1398ec90742"
+    },
+    {
+      "path": "tests/fixtures/forms/roblox-login-2026-09-15/case.json",
+      "sha256": "803c05c373c42c18aa2b23bef4c5382569337bb540dbcb8dd868ff8f3fa37cdb"
+    },
+    {
+      "path": "tests/fixtures/forms/roblox-login-2026-09-15/page.css",
+      "sha256": "6738dbdc7f9117aff7e3dc505f49e6bcdd0a9f49bb0f637f49802a93e46fa8c5"
+    },
+    {
+      "path": "tests/fixtures/forms/roblox-login-2026-09-15/page.html",
+      "sha256": "5425421e7c9af6fe2a7d47a074d6042cda4825c65d4437180c6c544371ca61b4"
+    },
+    {
+      "path": "tests/fixtures/forms/roblox-registration-2026-09-15/case.json",
+      "sha256": "11cf53e00c6578aef05a06ee4aa59b9e403164cc76bc508f4075242e5392d63d"
+    },
+    {
+      "path": "tests/fixtures/forms/roblox-registration-2026-09-15/page.css",
+      "sha256": "c293bf44495377422874a1ede2d58882cc7eb658e3dbcb2eca18c8be02799d35"
+    },
+    {
+      "path": "tests/fixtures/forms/roblox-registration-2026-09-15/page.html",
+      "sha256": "ee1e58291b5a670615e7db91572e333bbf59f8ba43c210fe6fd1fbeb5114b8a2"
+    },
+    {
+      "path": "tests/fixtures/forms/rossmann-login-2026-09-15/case.json",
+      "sha256": "a1937b2b5690482012e0156c0bcb74355f3c35a2958cd0e02901a00e5760b971"
+    },
+    {
+      "path": "tests/fixtures/forms/rossmann-login-2026-09-15/page.css",
+      "sha256": "934e479f4589fcbec7375b023b6c13ee65f5fac36a169e0b4fcb8f341ca8d99c"
+    },
+    {
+      "path": "tests/fixtures/forms/rossmann-login-2026-09-15/page.html",
+      "sha256": "0f6f32ac3efa2a68cb9257d7190fd1f4e058efe0b2bf10657835b77328a3a5e1"
+    },
+    {
+      "path": "tests/fixtures/forms/rossmann-registration-2026-09-15/case.json",
+      "sha256": "8848d2c1955b37d9cab9898e2fac19a97fe05b3de811fd183d166401b5e5232b"
+    },
+    {
+      "path": "tests/fixtures/forms/rossmann-registration-2026-09-15/page.css",
+      "sha256": "15b53513b940a40aae4d71f3fc134051dc564ea32c9a8999155884bab82b3831"
+    },
+    {
+      "path": "tests/fixtures/forms/rossmann-registration-2026-09-15/page.html",
+      "sha256": "4b2f86e7562a98f8d4b245389aeb097a8ca4f3ad8094761dd268f463ca0e4ebe"
+    },
+    {
+      "path": "tests/fixtures/forms/rte-login-2026-09-15/case.json",
+      "sha256": "de82a858853b3119342f9e830ad7a2723cbb7af399b5452017af8d25e08b8be5"
+    },
+    {
+      "path": "tests/fixtures/forms/rte-login-2026-09-15/page.css",
+      "sha256": "5144c90b2bccb298522ea43db36288ea9cc9dc6d0db8f64731e5dacf54a10d03"
+    },
+    {
+      "path": "tests/fixtures/forms/rte-login-2026-09-15/page.html",
+      "sha256": "d60e68c57c8dffa7e912420940909e533d02e1bfa07858ab0f8570260e13a4f2"
+    },
+    {
+      "path": "tests/fixtures/forms/rte-registration-2026-09-15/case.json",
+      "sha256": "b59b4d59a81701dfcb495ad8b9f9403bf63f86e8565cf6893aa68b6af3b49f11"
+    },
+    {
+      "path": "tests/fixtures/forms/rte-registration-2026-09-15/page.css",
+      "sha256": "cce599a4d016b806ded20586268ac5d21cd1f6c92712c0aa43d3c3a5311780dd"
+    },
+    {
+      "path": "tests/fixtures/forms/rte-registration-2026-09-15/page.html",
+      "sha256": "28e7dee9fa9e44fc73d63b04f0fe04bb5c904976d9b46b5d57ee43976e63574e"
+    },
+    {
+      "path": "tests/fixtures/forms/rtvslo-login-2026-09-15/case.json",
+      "sha256": "c75fa31661ab4a3921e00f873db5062150d9b046e5e34bcbb705085f1c7fa6e9"
+    },
+    {
+      "path": "tests/fixtures/forms/rtvslo-login-2026-09-15/page.css",
+      "sha256": "cada5081167bbd18b2a966afe0c6370499405f769e4a5f2b2ace0bbe6f90ff12"
+    },
+    {
+      "path": "tests/fixtures/forms/rtvslo-login-2026-09-15/page.html",
+      "sha256": "442538c9d0a93edadccdee04798a77a369102dec2a96b32619033cc9222e3b42"
+    },
+    {
+      "path": "tests/fixtures/forms/rtvslo-registration-2026-09-15/case.json",
+      "sha256": "497db0524b1ecd6fe683c44338707240f179c8d1c6957b46f6f3a4fa067e7b8d"
+    },
+    {
+      "path": "tests/fixtures/forms/rtvslo-registration-2026-09-15/page.css",
+      "sha256": "9e3396bdd5e31582cf723495f2f344ce2c3bd53395636926658d1522f06b2fdc"
+    },
+    {
+      "path": "tests/fixtures/forms/rtvslo-registration-2026-09-15/page.html",
+      "sha256": "d156855704e1ca62c20f31430f6183e7ae53fd280e4166ac6ed4ca0aaafba2af"
+    },
+    {
+      "path": "tests/fixtures/forms/samsung-login-identifier-2026-09-16/case.json",
+      "sha256": "a4a2140792f66efe030eb399c3e8377f4133e95bff624e3bb25cb0fdf94f506a"
+    },
+    {
+      "path": "tests/fixtures/forms/samsung-login-identifier-2026-09-16/page.css",
+      "sha256": "8f5523bd03d87f97495bd84e905237f92016b4bbb8e9398613d326a2d986fb6b"
+    },
+    {
+      "path": "tests/fixtures/forms/samsung-login-identifier-2026-09-16/page.html",
+      "sha256": "b4f7365cabbeb58a11b7124f74db6f22d35d7c8abccec1a3f1dcae45a7f7a8fb"
+    },
+    {
+      "path": "tests/fixtures/forms/selection-sources.json",
+      "sha256": "108612e0f2e79d5b73f0ed17c1f9beac12ffd6fe6d2df2d880266517dc0ea1c0"
+    },
+    {
+      "path": "tests/fixtures/forms/seznam-login-identifier-2026-09-15/case.json",
+      "sha256": "e01be04d1a7985de89cd7039e13a99e3ac875cf6b7dd6d3d196c311891b7c4d7"
+    },
+    {
+      "path": "tests/fixtures/forms/seznam-login-identifier-2026-09-15/page.css",
+      "sha256": "db92fe562bfec119b1629b3868bdeddb0ae744a454158b8b07c6686c90d97697"
+    },
+    {
+      "path": "tests/fixtures/forms/seznam-login-identifier-2026-09-15/page.html",
+      "sha256": "0c83e13bb48affad30b675407849f9d58583f52735545e099969c0d35661b731"
+    },
+    {
+      "path": "tests/fixtures/forms/seznam-registration-2026-09-15/case.json",
+      "sha256": "bd859f15814253bc906767a36888731c06f7c5e2f8bfc1d334b54c1d7c5a7d4f"
+    },
+    {
+      "path": "tests/fixtures/forms/seznam-registration-2026-09-15/page.css",
+      "sha256": "28e47edb453bdd8ca8b2fbc1714500f36f2fdfe0e53987f7723d4a805efcf4a9"
+    },
+    {
+      "path": "tests/fixtures/forms/seznam-registration-2026-09-15/page.html",
+      "sha256": "c2df62b2f3aa1f356917bb822423122752173b40881fbbdfe3401e7a673b67dc"
+    },
+    {
+      "path": "tests/fixtures/forms/shein-login-identifier-2026-09-16/case.json",
+      "sha256": "8f98abbd29a41ca57f677804ad552a176f863d42f6d9280922b88786ea66cd6e"
+    },
+    {
+      "path": "tests/fixtures/forms/shein-login-identifier-2026-09-16/page.css",
+      "sha256": "ce57363a5d688999fcd14afa7cf6c7b649f188cc45a75daa7f512dd6424de269"
+    },
+    {
+      "path": "tests/fixtures/forms/shein-login-identifier-2026-09-16/page.html",
+      "sha256": "b10832f05b54c4d40af2213400e5eae67f09160f00bb77809ad4e6ae6186f497"
+    },
+    {
+      "path": "tests/fixtures/forms/sinsay-login-2026-09-16/case.json",
+      "sha256": "cc19903d8aa79da7cc840d82edf79cf3970db54f8b466fbaa8391c03d256057c"
+    },
+    {
+      "path": "tests/fixtures/forms/sinsay-login-2026-09-16/page.css",
+      "sha256": "2444652b4170ffbfa9eb9a11c45827f669c669c2895ad57e741f9e16498fed49"
+    },
+    {
+      "path": "tests/fixtures/forms/sinsay-login-2026-09-16/page.html",
+      "sha256": "2647f59ae351eb563dff0fffdd355a58167d98747b65739a5622aa0c71ed8d53"
+    },
+    {
+      "path": "tests/fixtures/forms/sinsay-registration-2026-09-16/case.json",
+      "sha256": "a5eb74e2e377d0a7325ba1606b36d18e9074ea36ec23d815a8dae61c978118fd"
+    },
+    {
+      "path": "tests/fixtures/forms/sinsay-registration-2026-09-16/page.css",
+      "sha256": "109559b66f3481b8e1ce1b535c999f81ee931362f4429302a5b6c50268be0106"
+    },
+    {
+      "path": "tests/fixtures/forms/sinsay-registration-2026-09-16/page.html",
+      "sha256": "6525578916468fd9e0ba29a16b81f2ed1de0f0a3be06e2b42c8ca128dc284e62"
+    },
+    {
+      "path": "tests/fixtures/forms/skroutz-login-identifier-2026-09-15/case.json",
+      "sha256": "4916e059f97b8ca04c1e5f0a9e94565588d7bc896cb1206e127836b8b1936c90"
+    },
+    {
+      "path": "tests/fixtures/forms/skroutz-login-identifier-2026-09-15/page.css",
+      "sha256": "b3692374ea5b75083b775d91ce743296a44a57b5d45809c334a5c97edfb587a2"
+    },
+    {
+      "path": "tests/fixtures/forms/skroutz-login-identifier-2026-09-15/page.html",
+      "sha256": "0dc1ba3dd7bcafeeb83211defe8b4a3625549a576deb30152dce5c510c0e5a3e"
+    },
+    {
+      "path": "tests/fixtures/forms/slack-login-identifier-2026-09-15/case.json",
+      "sha256": "bf0f4a19ef9dd7af87af1897ab82de5ff4bb35ce4aa8251833e1bdb728d6ca51"
+    },
+    {
+      "path": "tests/fixtures/forms/slack-login-identifier-2026-09-15/page.css",
+      "sha256": "d425c9f96e0e617ff78a7d5dcff6b19abc3732919535f1e4e963b1c2b7352655"
+    },
+    {
+      "path": "tests/fixtures/forms/slack-login-identifier-2026-09-15/page.html",
+      "sha256": "ef5edbf75178946d5dba79e714cb002031429d56ec3f4713c98eb9f92c0d60bd"
+    },
+    {
+      "path": "tests/fixtures/forms/sme-login-2026-09-15/case.json",
+      "sha256": "68ddf93f5361d103799642cddf61bf3ed0955f86ef56486ef6af9583b1a254bf"
+    },
+    {
+      "path": "tests/fixtures/forms/sme-login-2026-09-15/page.css",
+      "sha256": "5644554abb494ff32c8296b0002d548a408ecf8705f5d1870b2504cd52e47ee6"
+    },
+    {
+      "path": "tests/fixtures/forms/sme-login-2026-09-15/page.html",
+      "sha256": "bff125d362ac72e694fe30e6fbd857027a2b6e365c50046b9daf3fa0162637b6"
+    },
+    {
+      "path": "tests/fixtures/forms/sme-registration-2026-09-15/case.json",
+      "sha256": "e412953aa37167fae9f2b2cb0a74fbc4deaff245be2b27fd23e1079bdf58da6e"
+    },
+    {
+      "path": "tests/fixtures/forms/sme-registration-2026-09-15/page.css",
+      "sha256": "d6bf6391a63631441c664e21f8962f6ba7ec74d35e0f135fd062b47b5531436b"
+    },
+    {
+      "path": "tests/fixtures/forms/sme-registration-2026-09-15/page.html",
+      "sha256": "9a15fe6fecab5ddbda493f3afb528554e7a8354cd951d4e219685c4d2a44e77c"
+    },
+    {
+      "path": "tests/fixtures/forms/spotify-login-identifier-2026-09-15/case.json",
+      "sha256": "0dd02030325a11760d95eb399ffca8404ff3ce25561dd7152ce6a7ca17906481"
+    },
+    {
+      "path": "tests/fixtures/forms/spotify-login-identifier-2026-09-15/page.css",
+      "sha256": "6162969b72bf58efc48e899355f31a26d228e48094e05f24bf4690f438ec228c"
+    },
+    {
+      "path": "tests/fixtures/forms/spotify-login-identifier-2026-09-15/page.html",
+      "sha256": "36921f5ee3b29fdc33341d7f1e8e328458d7a713ecaedf0bfb51168fa7ca8103"
+    },
+    {
+      "path": "tests/fixtures/forms/spotify-registration-identifier-2026-09-15/case.json",
+      "sha256": "c03f031838732de3bada3d44bce66544aa0a440badd1625aeaebb1dd97075328"
+    },
+    {
+      "path": "tests/fixtures/forms/spotify-registration-identifier-2026-09-15/page.css",
+      "sha256": "a1e3b26d9d41a4b7f5e967d3eb24f8934e453dfa7a8f2ec8b308365be9cceb39"
+    },
+    {
+      "path": "tests/fixtures/forms/spotify-registration-identifier-2026-09-15/page.html",
+      "sha256": "cd0aa9dbcceef20aa6fdcc5e35cdd579f0ce0e6a5f4723010e21bc03c02e684b"
+    },
+    {
+      "path": "tests/fixtures/forms/srf-login-identifier-2026-09-15/case.json",
+      "sha256": "60d2701fc24695042d80fa3db86ed9ed961ab3625fdca060c6c4998ba43394eb"
+    },
+    {
+      "path": "tests/fixtures/forms/srf-login-identifier-2026-09-15/page.css",
+      "sha256": "467f1eee013a6d7372470cc3d1103c652960fcdbbc05b319a7e220984b50aadb"
+    },
+    {
+      "path": "tests/fixtures/forms/srf-login-identifier-2026-09-15/page.html",
+      "sha256": "107be3c262ade0b5d4f94e7057611149de65af477b895b9a2a94958cef83ab48"
+    },
+    {
+      "path": "tests/fixtures/forms/stackoverflow-login-2026-09-15/case.json",
+      "sha256": "975ba94cba281005353b97ac744f850df73d10c564dd42c72a1f6359f2d7ca3f"
+    },
+    {
+      "path": "tests/fixtures/forms/stackoverflow-login-2026-09-15/page.css",
+      "sha256": "dfb026d68aa3d766e81d3f8f75747d54ea8940f2ff9190d07f6bf324334f1420"
+    },
+    {
+      "path": "tests/fixtures/forms/stackoverflow-login-2026-09-15/page.html",
+      "sha256": "9b2a9c928ae015412e095fa9eb6c04513e1b7ae7ef1637cdcd9a03db8eab4ae1"
+    },
+    {
+      "path": "tests/fixtures/forms/stackoverflow-registration-2026-09-15/case.json",
+      "sha256": "d588cced68140958339ad64fb1767044ec98f739d07dd072a934c5d453ef9150"
+    },
+    {
+      "path": "tests/fixtures/forms/stackoverflow-registration-2026-09-15/page.css",
+      "sha256": "8887769ebfb075a357a1092b4e33d89728989e0e2381626cf305fe6c0fd1f6ca"
+    },
+    {
+      "path": "tests/fixtures/forms/stackoverflow-registration-2026-09-15/page.html",
+      "sha256": "1c21f15b7375c42125c52d5aef337df9729bd6e761ebcf51d190875b418b5b5d"
+    },
+    {
+      "path": "tests/fixtures/forms/steam-login-2026-09-15/case.json",
+      "sha256": "85da47a69159d476058b03c1289513d5392a70aacbf84b327535cbdf6207501c"
+    },
+    {
+      "path": "tests/fixtures/forms/steam-login-2026-09-15/page.css",
+      "sha256": "d337373c1b7831a689adec507ae4e4883d4d6bd787fdbd34c44b90c64be67050"
+    },
+    {
+      "path": "tests/fixtures/forms/steam-login-2026-09-15/page.html",
+      "sha256": "e77a8bc0ead63e7cfeed45c574745deb0a05ddaba52a3c5ae0897343ff7a4459"
+    },
+    {
+      "path": "tests/fixtures/forms/steam-registration-identifier-2026-09-15/case.json",
+      "sha256": "3ce5088ebf861bc54400381735bf4cf751312babc6620f1b68df2ea57e69ec05"
+    },
+    {
+      "path": "tests/fixtures/forms/steam-registration-identifier-2026-09-15/page.css",
+      "sha256": "18ee0c55aaff35ff2e2ab712b3bd2360f8d620fb32264ce509ec6924c18cd067"
+    },
+    {
+      "path": "tests/fixtures/forms/steam-registration-identifier-2026-09-15/page.html",
+      "sha256": "987d64b953b46d7ebff9e8578c5a243a0e3c6d9258e083882d779dc7a1924162"
+    },
+    {
+      "path": "tests/fixtures/forms/szarada-login-2026-09-15/case.json",
+      "sha256": "349bb5f80b44351a0096cd6655085510bb7ea4eba00ef8c5208a8aefc4fc4819"
+    },
+    {
+      "path": "tests/fixtures/forms/szarada-login-2026-09-15/page.css",
+      "sha256": "1bac8bfd738cb90a8af9f205e6bdec8ce9f2b0077d8c1d1e0c6489d8f6a9f4bf"
+    },
+    {
+      "path": "tests/fixtures/forms/szarada-login-2026-09-15/page.html",
+      "sha256": "0f0610805c2372a01a3e830502060cc2f7d61512e679361323c2eeb58ccabc68"
+    },
+    {
+      "path": "tests/fixtures/forms/szarada-registration-account-details-2026-09-15/case.json",
+      "sha256": "c3e7b6164ddf6d5703062f734b634637ec531c0349b5bc5f61c35da801728f30"
+    },
+    {
+      "path": "tests/fixtures/forms/szarada-registration-account-details-2026-09-15/page.css",
+      "sha256": "0244e95b92de0d589326d871ccd4e35918d0de776a520740e020b5c10b2e8ace"
+    },
+    {
+      "path": "tests/fixtures/forms/szarada-registration-account-details-2026-09-15/page.html",
+      "sha256": "1d9cdfbbf065b827c8ca230bbcf19fdbb7ad370cc3d0387db4a61afcbcd3afb9"
+    },
+    {
+      "path": "tests/fixtures/forms/tekstowo-login-2026-09-15/case.json",
+      "sha256": "8228890dde20917b5e17d0a879b085a6ff3638f5860dca977ca57ccdc48cccc7"
+    },
+    {
+      "path": "tests/fixtures/forms/tekstowo-login-2026-09-15/page.css",
+      "sha256": "940e7e25e58f4b50dca09befefc84eb4f19379c0931af5dcf6c2b7889168489d"
+    },
+    {
+      "path": "tests/fixtures/forms/tekstowo-login-2026-09-15/page.html",
+      "sha256": "224e5ba0b2cda372160a1b560ced70007b3d58e414a956693b0113f7b06a0cfb"
+    },
+    {
+      "path": "tests/fixtures/forms/tekstowo-registration-2026-09-15/case.json",
+      "sha256": "b1f255ae3307ced3497c9de2f1e41b9c90fb7fddaaefe312c088ab6d06e2c275"
+    },
+    {
+      "path": "tests/fixtures/forms/tekstowo-registration-2026-09-15/page.css",
+      "sha256": "776c7eb53959353a074c02fa9ba6750990f731d0571c403405ef565bdc0aa8e5"
+    },
+    {
+      "path": "tests/fixtures/forms/tekstowo-registration-2026-09-15/page.html",
+      "sha256": "2eeeb92c9df18d0061448032c9fdf05a65d2c67e72ad6f15903ce3a1ff7431ef"
+    },
+    {
+      "path": "tests/fixtures/forms/tiktok-login-2026-09-15/case.json",
+      "sha256": "ec62fc2efcdc62baecc7a072a8fb9a0cd0301e5c8ed332a4069b7ba8f75bd231"
+    },
+    {
+      "path": "tests/fixtures/forms/tiktok-login-2026-09-15/page.css",
+      "sha256": "2b3e39781a709e551c956b9bccc665c4161d32404ef464fa987040c36a3e3d02"
+    },
+    {
+      "path": "tests/fixtures/forms/tiktok-login-2026-09-15/page.html",
+      "sha256": "55697ad656b5edc51477f977783f0b74171daf8399349ec79440690b8331133f"
+    },
+    {
+      "path": "tests/fixtures/forms/tv2-login-2026-09-16/case.json",
+      "sha256": "3ad255f3438a9443ccd9f84f1baf8def93bf85417fc71448bc1e25b73076fb10"
+    },
+    {
+      "path": "tests/fixtures/forms/tv2-login-2026-09-16/page.css",
+      "sha256": "8c2e70f09343976e83ed884f0799afa2d5c4cc7de8f856e83040bee27d075fa9"
+    },
+    {
+      "path": "tests/fixtures/forms/tv2-login-2026-09-16/page.html",
+      "sha256": "48bcf75cc7e1080392d563c7ff213ddcad1e8c9d462475d551e8bed06173df01"
+    },
+    {
+      "path": "tests/fixtures/forms/tv2-registration-2026-09-16/case.json",
+      "sha256": "7d1da43ab638b98dfc08179df8daa908c6195241bd588afdd351d2cfa743aa7b"
+    },
+    {
+      "path": "tests/fixtures/forms/tv2-registration-2026-09-16/page.css",
+      "sha256": "158a69ce4bfbd002bc701f0c1262450a02ae3811982f321456a3b0c9f85267e2"
+    },
+    {
+      "path": "tests/fixtures/forms/tv2-registration-2026-09-16/page.html",
+      "sha256": "0cb0c58ac707f62857c19be8914a482ec23928b89209cdea3af0871ebd7642af"
+    },
+    {
+      "path": "tests/fixtures/forms/tvp-login-2026-09-16/case.json",
+      "sha256": "850b9c80c82ff525c9192d622d561e92cedab4bbe0caa549bebe234f0d107fba"
+    },
+    {
+      "path": "tests/fixtures/forms/tvp-login-2026-09-16/page.css",
+      "sha256": "dc1a4750791fba0da74ebffa516d226c9f84603bb4df257c075a423a4541c97e"
+    },
+    {
+      "path": "tests/fixtures/forms/tvp-login-2026-09-16/page.html",
+      "sha256": "0b6dc418db8eb38c10916aa3c30c66461f119de3b00d9b62ba294a0ed0ec3772"
+    },
+    {
+      "path": "tests/fixtures/forms/tvp-registration-2026-09-16/case.json",
+      "sha256": "0ebb513158157b3b1e7d09be8b0bf651e8f80a4a7ef782fc70e4da7cf7ba9405"
+    },
+    {
+      "path": "tests/fixtures/forms/tvp-registration-2026-09-16/initial.css",
+      "sha256": "d4abbafbd028a4c7fcdf018d028c71e14afdb23726d6a8af0b2b3158b56d7778"
+    },
+    {
+      "path": "tests/fixtures/forms/tvp-registration-2026-09-16/initial.html",
+      "sha256": "580276ebf8565a10804498d3e0973f46941937b814dc0457ed9370f2ea09fc1f"
+    },
+    {
+      "path": "tests/fixtures/forms/tvp-registration-2026-09-16/page.css",
+      "sha256": "6369f332206ceb2258cf4766821751a8339ab96ca864da3c05fcee6867140780"
+    },
+    {
+      "path": "tests/fixtures/forms/tvp-registration-2026-09-16/page.html",
+      "sha256": "fd3cb1928234b46015e77ff88a5a61507b75f7e250d7e31e099bb8dfe6fd0acf"
+    },
+    {
+      "path": "tests/fixtures/forms/twitch-login-2026-09-15/case.json",
+      "sha256": "edebe63673917fa9d2c9137ff0c2fd4e0533d70628478244703656fc5c3790a5"
+    },
+    {
+      "path": "tests/fixtures/forms/twitch-login-2026-09-15/page.css",
+      "sha256": "6383fbc578be83f6a89d657854293ed4b67d1c44fcb19049c6a80e5773965e18"
+    },
+    {
+      "path": "tests/fixtures/forms/twitch-login-2026-09-15/page.html",
+      "sha256": "ccf03b1c9f2cdf71f44f680495889928bf114450d6cc0b638b4fc49a22dcb352"
+    },
+    {
+      "path": "tests/fixtures/forms/twitch-registration-identifier-2026-09-15/case.json",
+      "sha256": "3c2e27c08b16b8d42baee4b54eb161e97a9790fc2b774690bb001194c5f51ad8"
+    },
+    {
+      "path": "tests/fixtures/forms/twitch-registration-identifier-2026-09-15/page.css",
+      "sha256": "d9add9e3916caddd915eec6c3997ce9b0b83e66bf3595d30fcf80c9f4eeb6ce2"
+    },
+    {
+      "path": "tests/fixtures/forms/twitch-registration-identifier-2026-09-15/page.html",
+      "sha256": "cb83b9d110fd6e896955150dc83d37c733dc7c60818e5e21be1058cbeb3225c5"
+    },
+    {
+      "path": "tests/fixtures/forms/usps-login-2026-09-15/case.json",
+      "sha256": "ba2ff4d61d7e130921f6821edd5f0a7e99cdf7d78f9f5393e6822f17d0888ac7"
+    },
+    {
+      "path": "tests/fixtures/forms/usps-login-2026-09-15/page.css",
+      "sha256": "dff719e88025ae39c83a2780da504f8e2aed3352596de81e1c837473902e8a19"
+    },
+    {
+      "path": "tests/fixtures/forms/usps-login-2026-09-15/page.html",
+      "sha256": "3be38d770a6f93ebe8d4d0370ce0e49b005f3d4adb6267978e2855c70f2fc605"
+    },
+    {
+      "path": "tests/fixtures/forms/vg-login-identifier-2026-09-15/case.json",
+      "sha256": "2cff270f1de25d24f8399a8fe967b6ac29aa2bef013169ccd129023ba2415546"
+    },
+    {
+      "path": "tests/fixtures/forms/vg-login-identifier-2026-09-15/page.css",
+      "sha256": "4fced8e9488fd36f35bbe909d1ca4ee662c2e9b648f16f1748691784eaae05aa"
+    },
+    {
+      "path": "tests/fixtures/forms/vg-login-identifier-2026-09-15/page.html",
+      "sha256": "deafdb0b0653e70ac99b6fff7f8974cc15265de9bebaaa297fab7318e094b057"
+    },
+    {
+      "path": "tests/fixtures/forms/vg-registration-identifier-2026-09-15/case.json",
+      "sha256": "41addcbddcf94a6d1c5819afea0c706ea711ffb4e8bddb81dc823f90d07c6405"
+    },
+    {
+      "path": "tests/fixtures/forms/vg-registration-identifier-2026-09-15/page.css",
+      "sha256": "4fced8e9488fd36f35bbe909d1ca4ee662c2e9b648f16f1748691784eaae05aa"
+    },
+    {
+      "path": "tests/fixtures/forms/vg-registration-identifier-2026-09-15/page.html",
+      "sha256": "b5da0f0532db7b16def84f6884eecd89782f9465e139a6afa7de3431cfc7350b"
+    },
+    {
+      "path": "tests/fixtures/forms/vinted-login-2026-09-16/case.json",
+      "sha256": "3d7955d00ed276af8f98aa3a1d57a8180340c1932e0d9972b3f24cc1f89f8e48"
+    },
+    {
+      "path": "tests/fixtures/forms/vinted-login-2026-09-16/page.css",
+      "sha256": "c73a974f27d416cf0ea3b1cea3387c1af3f65d68816d0a9598a5a5f821c7bdd6"
+    },
+    {
+      "path": "tests/fixtures/forms/vinted-login-2026-09-16/page.html",
+      "sha256": "8bfe768faa82c8fcedcdd67e1c307d9ee78c3a3dded8d5e99f2892445a6b4151"
+    },
+    {
+      "path": "tests/fixtures/forms/vinted-registration-2026-09-16/case.json",
+      "sha256": "2cede252a78f0301af66a58b7a667fa24b8c5011fbd98360009e173c96a95eec"
+    },
+    {
+      "path": "tests/fixtures/forms/vinted-registration-2026-09-16/page.css",
+      "sha256": "5d9f9d4656deff5fc5904756b2f13707630e9a1f913b4f5dc269d96733cce6c7"
+    },
+    {
+      "path": "tests/fixtures/forms/vinted-registration-2026-09-16/page.html",
+      "sha256": "cb2747e43f326501ac0a1a65d35a9724ff3ab6d2cac846517a6f856096e44f30"
+    },
+    {
+      "path": "tests/fixtures/forms/walmart-login-identifier-2026-09-15/case.json",
+      "sha256": "7f1947d0c25e47fe35fa4ffe48a95866dea0e4adaece85762c5f1169bc6c0c8a"
+    },
+    {
+      "path": "tests/fixtures/forms/walmart-login-identifier-2026-09-15/page.css",
+      "sha256": "5162dda60e3e9e26956dc11bd1b562e34e877360b4434ae79edcdc722ca9cbd2"
+    },
+    {
+      "path": "tests/fixtures/forms/walmart-login-identifier-2026-09-15/page.html",
+      "sha256": "8ed87e8e491e26a07321941f8b1ef6500c777b03e8e5fabd00bd6105f0f73fc5"
+    },
+    {
+      "path": "tests/fixtures/forms/wikipedia-login-2026-09-15/case.json",
+      "sha256": "7a6f5f05a83f61f66dc2ea1819e8f2f29f65e44b7a2d021cb312e1eb9378fc59"
+    },
+    {
+      "path": "tests/fixtures/forms/wikipedia-login-2026-09-15/page.css",
+      "sha256": "54a571d80253b78b0bedf6583cd99be2a84f893099476b8f559121965f7a284f"
+    },
+    {
+      "path": "tests/fixtures/forms/wikipedia-login-2026-09-15/page.html",
+      "sha256": "67b04574dffb6a0686874a0a3f0a8eb5005cd4b82a52f3ede864bd23320f24a3"
+    },
+    {
+      "path": "tests/fixtures/forms/wikipedia-registration-2026-09-15/case.json",
+      "sha256": "fe99b0906a93ebfa203bda52eb4f9b76e2442600f3a546d68e77bf7af245080f"
+    },
+    {
+      "path": "tests/fixtures/forms/wikipedia-registration-2026-09-15/page.css",
+      "sha256": "53cea22adfd7ee7f19d1870601e2a5b8020b17a37160a941fa74285518aaa4a4"
+    },
+    {
+      "path": "tests/fixtures/forms/wikipedia-registration-2026-09-15/page.html",
+      "sha256": "720c6cf8fa9816fa9cec144cb3331c6044b0754b7109ee6390f348e11fd03b42"
+    },
+    {
+      "path": "tests/fixtures/forms/wp-login-2026-09-15/case.json",
+      "sha256": "cbdeb13218b35159768a4a268b1a2e13f7efbe12e45f3e580559bde34f24e80a"
+    },
+    {
+      "path": "tests/fixtures/forms/wp-login-2026-09-15/page.css",
+      "sha256": "2e9af78ca4d5a8ce0c6e4bfd45e9a2d09c9c6ad0a675176590ff408e281165f9"
+    },
+    {
+      "path": "tests/fixtures/forms/wp-login-2026-09-15/page.html",
+      "sha256": "c818dea9c472e4064c9bf6eb263e407101fa5e53c57a5bf260b7aed7751322a5"
+    },
+    {
+      "path": "tests/fixtures/forms/wykop-login-2026-09-15/case.json",
+      "sha256": "3a095e5ec7b384b205b32480412ecd733023bc845542239b1da73b442416ec53"
+    },
+    {
+      "path": "tests/fixtures/forms/wykop-login-2026-09-15/page.css",
+      "sha256": "225bb3630a127c64537d2436df0ce8b041b4b468af6d82b0bb21ab7ca4c75e99"
+    },
+    {
+      "path": "tests/fixtures/forms/wykop-login-2026-09-15/page.html",
+      "sha256": "05978e25ff4298ecfe44699c266c777923d24de4f74ab3970a389b150173512d"
+    },
+    {
+      "path": "tests/fixtures/forms/x-deferred-login-2026-09-20.html",
+      "sha256": "87c60775b659bad61cad5aacb93fdc3a9031b30d4b5d5fecaf646d7515bb3c34"
+    },
+    {
+      "path": "tests/fixtures/forms/x-deferred-password-2026-09-20.html",
+      "sha256": "e9bb14ebe4fcb9a3f8632320d02882c32cb13b79230080af255301ba987985e8"
+    },
+    {
+      "path": "tests/fixtures/forms/x-deferred-password-2026-09-20.md",
+      "sha256": "d8f986d93990d9e260ec98112847c67e9980f7a37661f8f9ab8da36995fae120"
+    },
+    {
+      "path": "tests/fixtures/forms/x-login-identifier-2026-09-15/case.json",
+      "sha256": "7e039df1f2fc883d82bb2c57bb7fcc0350d69e0206302a16ce9f40b04c0cc268"
+    },
+    {
+      "path": "tests/fixtures/forms/x-login-identifier-2026-09-15/page.css",
+      "sha256": "8113695366d3505d60e9c76ba02a0c74416b089afd617090efbaef3a91685ad0"
+    },
+    {
+      "path": "tests/fixtures/forms/x-login-identifier-2026-09-15/page.html",
+      "sha256": "03fe21f4eec8beb03dfe2ae65362755198f7f65fcdd7dc8b93d960496dd9957c"
+    },
+    {
+      "path": "tests/fixtures/forms/xkom-login-2026-09-15/case.json",
+      "sha256": "319788510a4b8b4d9648f1e9efdc475b2370ed6e89ff013c85a2a078c46a91f9"
+    },
+    {
+      "path": "tests/fixtures/forms/xkom-login-2026-09-15/page.css",
+      "sha256": "5502cf8279071e3491e19e8d12e3cce0dfb792566d289f1401e2f1d6b7e2ae4d"
+    },
+    {
+      "path": "tests/fixtures/forms/xkom-login-2026-09-15/page.html",
+      "sha256": "8669ae244ecc41614bde1ba41ed834d5ab622a2bf26cbb0a7fda31741e2ebf0b"
+    },
+    {
+      "path": "tests/fixtures/forms/xkom-registration-2026-09-15/case.json",
+      "sha256": "d1f48fc57e97889989284d3715988834c1a065350b7431e56025fc7ee08319bd"
+    },
+    {
+      "path": "tests/fixtures/forms/xkom-registration-2026-09-15/page.css",
+      "sha256": "93160b95a1939dddb15a01da54d3ca030b8c87dc77617999b8c00719d76f3daf"
+    },
+    {
+      "path": "tests/fixtures/forms/xkom-registration-2026-09-15/page.html",
+      "sha256": "0d035d1e92d3c1a44c2317b76fb015f36b6bf7e40020618d7b94b2fb74f6ee13"
+    },
+    {
+      "path": "tests/fixtures/forms/yahoo-login-identifier-2026-09-15/case.json",
+      "sha256": "6f2b9a950867ee29dd64bfb564c5fbe254d52ea89ba312d9d2986538f6af4800"
+    },
+    {
+      "path": "tests/fixtures/forms/yahoo-login-identifier-2026-09-15/page.css",
+      "sha256": "77a4ee79ed1fd82906e964bfaf28c8b33e790b252b6c750f6418bb8ddfdbfcd1"
+    },
+    {
+      "path": "tests/fixtures/forms/yahoo-login-identifier-2026-09-15/page.html",
+      "sha256": "ea4044dac84306593b3ce769fd91e61cf41f867dd5910723a22a9fc9e8c378cb"
+    },
+    {
+      "path": "tests/fixtures/forms/yahoo-registration-2026-09-15/case.json",
+      "sha256": "6e571d4022741fdb9c27660bbbd1f407b743863d542bde6e1e0f050175afba35"
+    },
+    {
+      "path": "tests/fixtures/forms/yahoo-registration-2026-09-15/page.css",
+      "sha256": "630635a5d566efc5236a4019d95f9550a1d5bd3267fd8687d69d014de5504667"
+    },
+    {
+      "path": "tests/fixtures/forms/yahoo-registration-2026-09-15/page.html",
+      "sha256": "4b00b87ac7ac04ed856ce279d876c30310cecd49965a4e079d239c9f2683eeb6"
+    },
+    {
+      "path": "tests/fixtures/forms/yandex-login-identifier-2026-09-15/case.json",
+      "sha256": "c4ff8662e63a0528e2c77ec959212ea3297a101d7df3c8e2a6d0e2ebf0835e1d"
+    },
+    {
+      "path": "tests/fixtures/forms/yandex-login-identifier-2026-09-15/page.css",
+      "sha256": "a00c0f24b641e503521f9c217ac9d267e2180772b79ba9efea968967bc74d7ab"
+    },
+    {
+      "path": "tests/fixtures/forms/yandex-login-identifier-2026-09-15/page.html",
+      "sha256": "e3f50a01819148368840039561bf5491759bf6b46e4b9fc75ea971872338fe26"
+    },
+    {
+      "path": "tests/fixtures/forms/zalando-login-identifier-2026-09-15/case.json",
+      "sha256": "52f62c68aa5c2cda0bafb5f62c7870966c1c45b5050c4095bb2508c243d8c60b"
+    },
+    {
+      "path": "tests/fixtures/forms/zalando-login-identifier-2026-09-15/page.css",
+      "sha256": "34cd1ec75a07ebd51e5a3c5ee842c90f114cdbf8a38ef8d0158a12964ab77c35"
+    },
+    {
+      "path": "tests/fixtures/forms/zalando-login-identifier-2026-09-15/page.html",
+      "sha256": "88cfceb5e3afc5eba2f341bbc43290955ad81906c6f1d0fe22c5d593d0f46727"
+    },
+    {
+      "path": "tests/fixtures/forms/znanylekarz-login-2026-09-16/case.json",
+      "sha256": "ad9ad9b07a65e0f5222c38d0f3e83ea8c5fb7cba25cd8c24e4ee6791f034e9f4"
+    },
+    {
+      "path": "tests/fixtures/forms/znanylekarz-login-2026-09-16/page.css",
+      "sha256": "b1c12a3e74299d916f9cf5987648da1f93845f563dcf2cb62b91e7134290be17"
+    },
+    {
+      "path": "tests/fixtures/forms/znanylekarz-login-2026-09-16/page.html",
+      "sha256": "10bbd9093ab9edea5b8d804e644beffaa72d4a20148d9e2f975972ea6d060c85"
+    },
+    {
+      "path": "tests/fixtures/forms/znanylekarz-registration-2026-09-16/case.json",
+      "sha256": "dcf21ede550fd6b36b9dd6cae23e0338270fba799e807efc596898d75e5cdb72"
+    },
+    {
+      "path": "tests/fixtures/forms/znanylekarz-registration-2026-09-16/page.css",
+      "sha256": "f8b995e8e806a0652bb32651522e7691176a4c29a9eeb2426a22a9d684a6d351"
+    },
+    {
+      "path": "tests/fixtures/forms/znanylekarz-registration-2026-09-16/page.html",
+      "sha256": "21a96fd5c3e78227d5f41b92a5a9a455f0215b0e0f4d3e69c046957b385c9ef0"
+    },
+    {
+      "path": "tests/fixtures/forms/zoom-login-identifier-2026-09-15/case.json",
+      "sha256": "c7eee5b8fb166450954908f3d58d5474540721033675de037fecd99d82965326"
+    },
+    {
+      "path": "tests/fixtures/forms/zoom-login-identifier-2026-09-15/page.css",
+      "sha256": "df1c89c798cec4626f83f502f11fd198f992dce8e65951536c8cd8b795d91b60"
+    },
+    {
+      "path": "tests/fixtures/forms/zoom-login-identifier-2026-09-15/page.html",
+      "sha256": "ea9533f0485e0b7ec68a1252db81f899c5342a0f2c4e8488b7478e3aab662c25"
+    },
+    {
+      "path": "tests/fixtures/non-auth/24ur-newsletter-2026-09-15/case.json",
+      "sha256": "274e447d96730fe8ff26020f86f88672675ff9c4b873e7c91735f8eadfc98f71"
+    },
+    {
+      "path": "tests/fixtures/non-auth/24ur-newsletter-2026-09-15/page.css",
+      "sha256": "3be28595a09b091aad123a4de77c1091143804e3c2ce22dcddab7ae5761c459e"
+    },
+    {
+      "path": "tests/fixtures/non-auth/24ur-newsletter-2026-09-15/page.html",
+      "sha256": "bc84d89f744243a5e7cb72833743a5b9a38ab8b372523c7a0407a52374f699b7"
+    },
+    {
+      "path": "tests/fixtures/non-auth/jysk-newsletter-2026-09-16/case.json",
+      "sha256": "9d43a4baf1c28be729dbb926dc1f53fe907e9203de00bd19b618a4033b4fe67d"
+    },
+    {
+      "path": "tests/fixtures/non-auth/jysk-newsletter-2026-09-16/page.css",
+      "sha256": "ffa02929340b7579403ecf0e2fd2bab125969a19c1c59a823fe1feb8447f2c47"
+    },
+    {
+      "path": "tests/fixtures/non-auth/jysk-newsletter-2026-09-16/page.html",
+      "sha256": "137348fd6492bda17ca0d95e236f79bde0c9061a67dcc375f5c141d21bdc72c7"
+    }
+  ]
+}

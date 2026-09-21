@@ -1,0 +1,49 @@
+{
+  "id": "samsung-login-identifier-2026-09-16",
+  "service": "samsung",
+  "flow": "login",
+  "source": {
+    "url": "https://account.samsung.com/iam/oauth2/authorize",
+    "observedAt": "2026-09-16",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Samsung homepage account dashboard -> Zaloguj. Email-first form and its observed external Dalej button retained; no email submitted",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed public form container including native form and external actions; synthetic node attributes attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "Editable/hidden field values, URLs, scripts, handlers and iframe content omitted; public input-button captions retained",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#account",
+      "username": "#account",
+      "password": null
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#account",
+          "kind": "text",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "stage": "identifier"
+}

@@ -1,0 +1,49 @@
+{
+  "id": "adobe-login-identifier-2026-09-16",
+  "service": "adobe",
+  "flow": "login",
+  "source": {
+    "url": "https://auth.services.adobe.com/en_US/deeplink.html",
+    "observedAt": "2026-09-16",
+    "locale": "en-US",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Adobe account entry redirects to email-first sign-in; retained current-password field is visibility:hidden",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "Editable/hidden field values, URLs, scripts, handlers and iframe content omitted; public input-button captions retained",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#EmailPage-EmailField",
+      "username": "#EmailPage-EmailField",
+      "password": null
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#EmailPage-EmailField",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "stage": "identifier"
+}

@@ -1,0 +1,72 @@
+{
+  "id": "tvp-registration-2026-09-16",
+  "service": "tvp",
+  "flow": "registration",
+  "activation": {
+    "kind": "focus-removes-readonly",
+    "selectors": [
+      "input[name=\"email\"]",
+      "input[name=\"password\"]",
+      "input[name=\"password_repeat\"]"
+    ]
+  },
+  "source": {
+    "url": "https://user.tvp.pl/register.php",
+    "observedAt": "2026-09-16",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "TVP homepage -> linked TVP VOD -> account login -> Kontynuuj poprzez e-mail; signup opened through Załóż konto bezpłatnie. Each credential field was clicked (no values entered), and the site removed readonly from that field. This specimen is the observed post-focus state, including visible empty-field errors; initial readonly state and focus activation are replayed separately. No CAPTCHA, terms or account submission.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "Recorded initial readonly state and focus-removes-readonly activation replayed in Chromium. Post-focus validation CSS is retained in the static specimen; validation transitions and post-submit behavior are not replayed.",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "input[name=\"email\"]",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "input[name=\"password\"]",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        },
+        {
+          "selector": "input[name=\"password_repeat\"]",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "input[name=\"email\"]",
+      "passwords": [
+        "input[name=\"password\"]",
+        "input[name=\"password_repeat\"]"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}

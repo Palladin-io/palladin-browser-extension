@@ -1,0 +1,1752 @@
+{
+  "note": "Observed specimen structure with synthetic behavior. No production login, native grant authorization or legacy registration executor is proved.",
+  "excludedDirectoriesWithoutCaseMetadata": [
+    "tests/fixtures/forms/allegro-login-ad-2026-09-20",
+    "tests/fixtures/forms/aws-root-identifier-2026-09-20",
+    "tests/fixtures/forms/doradcasmaku-capture-2026-09-16",
+    "tests/fixtures/forms/jetbrains-identifier-2026-09-20",
+    "tests/fixtures/forms/linkedin-capture-2026-09-15",
+    "tests/fixtures/forms/linkedin-login-2026-09-20",
+    "tests/fixtures/forms/proton-login-2026-09-20"
+  ],
+  "results": [
+    {
+      "id": "20min-login-identifier-2026-09-16",
+      "service": "20min",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "20min-registration-identifier-2026-09-16",
+      "service": "20min",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "24ur-login-2026-09-15",
+      "service": "24ur",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "24ur-registration-2026-09-15",
+      "service": "24ur",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 3
+    },
+    {
+      "id": "abola-login-identifier-2026-09-16",
+      "service": "abola",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "abola-registration-2026-09-16",
+      "service": "abola",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 3
+    },
+    {
+      "id": "abv-login-2026-09-15",
+      "service": "abv",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "adobe-login-identifier-2026-09-16",
+      "service": "adobe",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "adobe-registration-2026-09-16",
+      "service": "adobe",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "aftonbladet-login-identifier-2026-09-16",
+      "service": "aftonbladet",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "aftonbladet-registration-identifier-2026-09-16",
+      "service": "aftonbladet",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "allegro-login-2026-09-15",
+      "service": "allegro",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "allegro-registration-2026-09-15",
+      "service": "allegro",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "amazon-login-identifier-2026-09-15",
+      "service": "amazon",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Deferred fill: stale-form-map"
+    },
+    {
+      "id": "atlassian-login-identifier-2026-09-15",
+      "service": "atlassian",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "aws-iam-2026-09-18",
+      "service": "aws",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "aws-iam-context-2026-09-18",
+      "service": "aws",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "aws-root-identifier-2026-09-18",
+      "service": "aws",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "baidu-login-2026-09-16",
+      "service": "baidu",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "baidu-registration-2026-09-16",
+      "service": "baidu",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 3
+    },
+    {
+      "id": "bankier-login-2026-09-15",
+      "service": "bankier",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "bankier-registration-2026-09-15",
+      "service": "bankier",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 4
+    },
+    {
+      "id": "bbc-login-identifier-2026-09-15",
+      "service": "bbc",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "bbc-registration-identifier-2026-09-16",
+      "service": "bbc",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "bilibili-login-2026-09-16",
+      "service": "bilibili",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "bilibili-registration-sms-2026-09-16",
+      "service": "bilibili",
+      "flow": "registration",
+      "stage": "verification",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "booking-login-identifier-2026-09-15",
+      "service": "booking",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "canva-login-identifier-2026-09-15",
+      "service": "canva",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "ccc-login-2026-09-16",
+      "service": "ccc",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "ccc-registration-2026-09-16",
+      "service": "ccc",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "ceneo-login-2026-09-15",
+      "service": "ceneo",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "ceneo-registration-2026-09-15",
+      "service": "ceneo",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "claude-login-identifier-2026-09-15",
+      "service": "claude",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "cnn-login-identifier-2026-09-15",
+      "service": "cnn",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Deferred fill: stale-form-map"
+    },
+    {
+      "id": "cnn-registration-identifier-2026-09-15",
+      "service": "cnn",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "decathlon-login-identifier-pl-2026-09-15",
+      "service": "decathlon",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "deepseek-login-2026-09-15",
+      "service": "deepseek",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "deepseek-registration-2026-09-15",
+      "service": "deepseek",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 3
+    },
+    {
+      "id": "diag-login-identifier-2026-09-16",
+      "service": "diag",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "diag-registration-identifier-2026-09-16",
+      "service": "diag",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "dir-bg-login-2026-09-15",
+      "service": "dir-bg",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "dir-bg-registration-identifier-2026-09-15",
+      "service": "dir-bg",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "discord-login-2026-09-15",
+      "service": "discord",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "discord-registration-2026-09-15",
+      "service": "discord",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "doradcasmaku-login-2026-09-16",
+      "service": "doradcasmaku",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "doradcasmaku-registration-2026-09-16",
+      "service": "doradcasmaku",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 4
+    },
+    {
+      "id": "doz-login-2026-09-16",
+      "service": "doz",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "doz-registration-2026-09-16",
+      "service": "doz",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "dr-login-identifier-2026-09-15",
+      "service": "dr",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "dropbox-login-identifier-2026-09-15",
+      "service": "dropbox",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "duolingo-login-2026-09-15",
+      "service": "duolingo",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "ebay-login-identifier-2026-09-16",
+      "service": "ebay",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "ebay-registration-2026-09-16",
+      "service": "ebay",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 4
+    },
+    {
+      "id": "empik-login-2026-09-15",
+      "service": "empik",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: challenge"
+    },
+    {
+      "id": "empik-registration-2026-09-15",
+      "service": "empik",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "epicgames-login-identifier-2026-09-15",
+      "service": "epicgames",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "etsy-login-2026-09-16",
+      "service": "etsy",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "etsy-registration-2026-09-16",
+      "service": "etsy",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 3
+    },
+    {
+      "id": "euro-login-2026-09-15",
+      "service": "euro",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "euro-registration-2026-09-15",
+      "service": "euro",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 5
+    },
+    {
+      "id": "facebook-login-2026-09-15",
+      "service": "facebook",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "facebook-registration-2026-09-15",
+      "service": "facebook",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "fandom-login-2026-09-15",
+      "service": "fandom",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "fandom-registration-2026-09-15",
+      "service": "fandom",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 3
+    },
+    {
+      "id": "figma-login-2026-09-15",
+      "service": "figma",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "figma-registration-identifier-2026-09-15",
+      "service": "figma",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "filmweb-login-2026-09-15",
+      "service": "filmweb",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "filmweb-registration-2026-09-15",
+      "service": "filmweb",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 3
+    },
+    {
+      "id": "finn-login-identifier-2026-09-16",
+      "service": "finn",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "finn-registration-identifier-2026-09-16",
+      "service": "finn",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "galaxus-login-identifier-2026-09-15",
+      "service": "galaxus",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "gazeta-login-2026-09-16",
+      "service": "gazeta",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "gazeta-registration-2026-09-16",
+      "service": "gazeta",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 5
+    },
+    {
+      "id": "github-login-2026-09-15",
+      "service": "github",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "globo-login-identifier-2026-09-15",
+      "service": "globo",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "globo-registration-identifier-2026-09-15",
+      "service": "globo",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "google-login-identifier-2026-09-15",
+      "service": "google",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "google-registration-name-2026-09-15",
+      "service": "google",
+      "flow": "registration",
+      "stage": "name",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "hln-login-identifier-2026-09-16",
+      "service": "hln",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "idnes-login-identifier-2026-09-16",
+      "service": "idnes",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "idnes-registration-identifier-2026-09-16",
+      "service": "idnes",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "idokep-login-2026-09-16",
+      "service": "idokep",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: challenge"
+    },
+    {
+      "id": "idokep-registration-2026-09-16",
+      "service": "idokep",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 4
+    },
+    {
+      "id": "ikea-login-2026-09-16",
+      "service": "ikea",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "ikea-registration-identifier-2026-09-16",
+      "service": "ikea",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 3
+    },
+    {
+      "id": "iltalehti-login-2026-09-16",
+      "service": "iltalehti",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "iltalehti-registration-2026-09-16",
+      "service": "iltalehti",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 4
+    },
+    {
+      "id": "imdb-login-2026-09-16",
+      "service": "imdb",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "imdb-registration-identifier-2026-09-16",
+      "service": "imdb",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "inbox-lv-login-identifier-2026-09-15",
+      "service": "inbox-lv",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "inbox-lv-registration-identifier-2026-09-15",
+      "service": "inbox-lv",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "index-hr-login-identifier-2026-09-15",
+      "service": "index-hr",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "index-hr-registration-identifier-2026-09-15",
+      "service": "index-hr",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "inpost-login-2026-09-15",
+      "service": "inpost",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: challenge"
+    },
+    {
+      "id": "instagram-login-2026-09-15",
+      "service": "instagram",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "instagram-registration-2026-09-15",
+      "service": "instagram",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 4
+    },
+    {
+      "id": "interia-login-2026-09-15",
+      "service": "interia",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "jysk-login-2026-09-16",
+      "service": "jysk",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "jysk-registration-2026-09-16",
+      "service": "jysk",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 5
+    },
+    {
+      "id": "krone-login-identifier-2026-09-16",
+      "service": "krone",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "krone-registration-2026-09-16",
+      "service": "krone",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 4
+    },
+    {
+      "id": "linkedin-login-2026-09-15",
+      "service": "linkedin",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "linkedin-registration-2026-09-15",
+      "service": "linkedin",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "lubimyczytac-login-2026-09-15",
+      "service": "lubimyczytac",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: challenge"
+    },
+    {
+      "id": "lubimyczytac-registration-2026-09-15",
+      "service": "lubimyczytac",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 4
+    },
+    {
+      "id": "mailru-login-identifier-2026-09-15",
+      "service": "mailru",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "mbl-login-2026-09-15",
+      "service": "mbl",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "mbl-registration-2026-09-15",
+      "service": "mbl",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 4
+    },
+    {
+      "id": "meczyki-login-2026-09-16",
+      "service": "meczyki",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "meczyki-registration-2026-09-16",
+      "service": "meczyki",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 4
+    },
+    {
+      "id": "mediaexpert-login-2026-09-15",
+      "service": "mediaexpert",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: challenge"
+    },
+    {
+      "id": "mediaexpert-registration-2026-09-15",
+      "service": "mediaexpert",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 4
+    },
+    {
+      "id": "microsoft-login-identifier-2026-09-15",
+      "service": "microsoft",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "morele-login-2026-09-15",
+      "service": "morele",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "morele-registration-2026-09-15",
+      "service": "morele",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "naver-login-2026-09-15",
+      "service": "naver",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "netflix-login-2026-09-15",
+      "service": "netflix",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "notion-login-identifier-2026-09-15",
+      "service": "notion",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Deferred fill: stale-form-map"
+    },
+    {
+      "id": "nrk-login-identifier-2026-09-15",
+      "service": "nrk",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "nrk-registration-2026-09-15",
+      "service": "nrk",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 3
+    },
+    {
+      "id": "nu-login-identifier-2026-09-15",
+      "service": "nu",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "nytimes-login-identifier-2026-09-15",
+      "service": "nytimes",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "olx-login-2026-09-15",
+      "service": "olx",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "olx-registration-2026-09-15",
+      "service": "olx",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "onet-login-identifier-2026-09-15",
+      "service": "onet",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "otodom-login-2026-09-16",
+      "service": "otodom",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "otodom-registration-2026-09-16",
+      "service": "otodom",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "otomoto-login-2026-09-16",
+      "service": "otomoto",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "otomoto-registration-2026-09-16",
+      "service": "otomoto",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "paypal-login-identifier-2026-09-15",
+      "service": "paypal",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "pepper-login-identifier-2026-09-15",
+      "service": "pepper",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "pinterest-login-2026-09-15",
+      "service": "pinterest",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "pracuj-login-identifier-2026-09-15",
+      "service": "pracuj",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "pracuj-registration-identifier-2026-09-15",
+      "service": "pracuj",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "pravda-blog-login-2026-09-16",
+      "service": "pravda",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: challenge"
+    },
+    {
+      "id": "pravda-blog-registration-account-details-2026-09-16",
+      "service": "pravda",
+      "flow": "registration",
+      "stage": "account-details",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 4
+    },
+    {
+      "id": "proton-login-2026-09-15",
+      "service": "proton",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "proton-registration-2026-09-15",
+      "service": "proton",
+      "flow": "registration",
+      "stage": "cross-frame",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "quora-login-pl-2026-09-15",
+      "service": "quora",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "quora-registration-identifier-pl-2026-09-15",
+      "service": "quora",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "record-login-2026-09-16",
+      "service": "record",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "record-registration-2026-09-16",
+      "service": "record",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 3
+    },
+    {
+      "id": "roblox-login-2026-09-15",
+      "service": "roblox",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "roblox-registration-2026-09-15",
+      "service": "roblox",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "rossmann-login-2026-09-15",
+      "service": "rossmann",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "rossmann-registration-2026-09-15",
+      "service": "rossmann",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "rte-login-2026-09-15",
+      "service": "rte",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "rte-registration-2026-09-15",
+      "service": "rte",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 3
+    },
+    {
+      "id": "rtvslo-login-2026-09-15",
+      "service": "rtvslo",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "rtvslo-registration-2026-09-15",
+      "service": "rtvslo",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 4
+    },
+    {
+      "id": "samsung-login-identifier-2026-09-16",
+      "service": "samsung",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "seznam-login-identifier-2026-09-15",
+      "service": "seznam",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "seznam-registration-2026-09-15",
+      "service": "seznam",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "shein-login-identifier-2026-09-16",
+      "service": "shein",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "sinsay-login-2026-09-16",
+      "service": "sinsay",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "sinsay-registration-2026-09-16",
+      "service": "sinsay",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 4
+    },
+    {
+      "id": "skroutz-login-identifier-2026-09-15",
+      "service": "skroutz",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "slack-login-identifier-2026-09-15",
+      "service": "slack",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "sme-login-2026-09-15",
+      "service": "sme",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "sme-registration-2026-09-15",
+      "service": "sme",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "spotify-login-identifier-2026-09-15",
+      "service": "spotify",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "spotify-registration-identifier-2026-09-15",
+      "service": "spotify",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "srf-login-identifier-2026-09-15",
+      "service": "srf",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "stackoverflow-login-2026-09-15",
+      "service": "stackoverflow",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "stackoverflow-registration-2026-09-15",
+      "service": "stackoverflow",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "steam-login-2026-09-15",
+      "service": "steam",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: challenge"
+    },
+    {
+      "id": "steam-registration-identifier-2026-09-15",
+      "service": "steam",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "szarada-login-2026-09-15",
+      "service": "szarada",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "szarada-registration-account-details-2026-09-15",
+      "service": "szarada",
+      "flow": "registration",
+      "stage": "account-details",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "tekstowo-login-2026-09-15",
+      "service": "tekstowo",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "tekstowo-registration-2026-09-15",
+      "service": "tekstowo",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 5
+    },
+    {
+      "id": "tiktok-login-2026-09-15",
+      "service": "tiktok",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "tv2-login-2026-09-16",
+      "service": "tv2",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "tv2-registration-2026-09-16",
+      "service": "tv2",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "tvp-login-2026-09-16",
+      "service": "tvp",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: challenge"
+    },
+    {
+      "id": "tvp-registration-2026-09-16",
+      "service": "tvp",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 3
+    },
+    {
+      "id": "twitch-login-2026-09-15",
+      "service": "twitch",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "twitch-registration-identifier-2026-09-15",
+      "service": "twitch",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "usps-login-2026-09-15",
+      "service": "usps",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "vg-login-identifier-2026-09-15",
+      "service": "vg",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Current live probe: no-form"
+    },
+    {
+      "id": "vg-registration-identifier-2026-09-15",
+      "service": "vg",
+      "flow": "registration",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "vinted-login-2026-09-16",
+      "service": "vinted",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "vinted-registration-2026-09-16",
+      "service": "vinted",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 4
+    },
+    {
+      "id": "walmart-login-identifier-2026-09-15",
+      "service": "walmart",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "wikipedia-login-2026-09-15",
+      "service": "wikipedia",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "wikipedia-registration-2026-09-15",
+      "service": "wikipedia",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 3
+    },
+    {
+      "id": "wp-login-2026-09-15",
+      "service": "wp",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "wykop-login-2026-09-15",
+      "service": "wykop",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "x-login-identifier-2026-09-15",
+      "service": "x",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "fail",
+      "agentError": "Deferred fill: stale-form-map"
+    },
+    {
+      "id": "xkom-login-2026-09-15",
+      "service": "xkom",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "xkom-registration-2026-09-15",
+      "service": "xkom",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 4
+    },
+    {
+      "id": "yahoo-login-identifier-2026-09-15",
+      "service": "yahoo",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "yahoo-registration-2026-09-15",
+      "service": "yahoo",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "yandex-login-identifier-2026-09-15",
+      "service": "yandex",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "zalando-login-identifier-2026-09-15",
+      "service": "zalando",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "znanylekarz-login-2026-09-16",
+      "service": "znanylekarz",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "znanylekarz-registration-2026-09-16",
+      "service": "znanylekarz",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    },
+    {
+      "id": "zoom-login-identifier-2026-09-15",
+      "service": "zoom",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "24ur-newsletter-2026-09-15",
+      "service": "24ur",
+      "flow": "non-auth",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "jysk-newsletter-2026-09-16",
+      "service": "jysk",
+      "flow": "non-auth",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 2
+    }
+  ],
+  "baselineQualification": "Pre-fidelity-correction harness forced viewport height2000 and counted shield presence/closedroot only. Not geometry, capture or live authentication proof.",
+  "productionSourceCommit": "37a0268d6c1cf9654e6b8b95cfbe2c0f8490180b"
+}

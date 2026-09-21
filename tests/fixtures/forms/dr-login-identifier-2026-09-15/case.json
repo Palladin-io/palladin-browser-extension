@@ -1,0 +1,51 @@
+{
+  "id": "dr-login-identifier-2026-09-15",
+  "service": "dr",
+  "flow": "login",
+  "source": {
+    "url": "https://www.dr.dk/auth/drlogin/login",
+    "observedAt": "2026-09-15",
+    "locale": "da",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Email-first login after public entrypoint redirect to login.dr.dk; transaction-specific URL path omitted",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Transaction-specific redirect pathname omitted; source URL is the observed public login entrypoint"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "[name=\"email\"]",
+      "username": "[name=\"email\"]",
+      "password": null
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "[name=\"email\"]",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "stage": "identifier"
+}
+

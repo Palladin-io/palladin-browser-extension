@@ -1,0 +1,62 @@
+{
+  "id": "euro-login-2026-09-15",
+  "service": "euro",
+  "flow": "login",
+  "source": {
+    "url": "https://www.euro.com.pl/account-login.bhtml",
+    "observedAt": "2026-09-15",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Public login form reached from homepage account button",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#eui-primitive-textfield-2",
+      "username": "#eui-primitive-textfield-2",
+      "password": "#eui-primitive-textfield-3"
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#eui-primitive-textfield-2",
+          "kind": "text",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#eui-primitive-textfield-3",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "login",
+      "scope": "form",
+      "username": "#eui-primitive-textfield-2",
+      "passwords": [
+        "#eui-primitive-textfield-3"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}
+

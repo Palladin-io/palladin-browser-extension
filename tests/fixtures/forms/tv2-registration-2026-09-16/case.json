@@ -1,0 +1,67 @@
+{
+  "id": "tv2-registration-2026-09-16",
+  "service": "tv2",
+  "flow": "registration",
+  "source": {
+    "url": "https://auth.tv2.dk/u/signup",
+    "entryUrl": "https://tv2.dk/",
+    "observedAt": "2026-09-16",
+    "locale": "da",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Login -> Opret TV 2 Login. Email/password/birth-year form with custom consent checkboxes; terms and marketing remain unchecked. Security check not completed. Birth year inspected but left unassigned in replay; no submission.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Source query state omitted. Href presence retained as fixed fragment; hidden payload values omitted."
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "input[name=\"email\"]",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "input[name=\"password\"]",
+          "kind": "password",
+          "purpose": "new-password",
+          "fieldId": "credential.password"
+        }
+      ],
+      "observedOnly": [
+        {
+          "selector": "input[name=\"birthYear\"]",
+          "kind": "number",
+          "purpose": null
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "input[name=\"email\"]",
+      "passwords": [
+        "input[name=\"password\"]"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}
+

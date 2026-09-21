@@ -1,0 +1,63 @@
+{
+  "id": "rte-registration-2026-09-15",
+  "service": "rte",
+  "flow": "registration",
+  "source": {
+    "url": "https://www.rte.ie/",
+    "observedAt": "2026-09-15",
+    "locale": "en",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Public account-details signup overlay after Create an RTÉ account; password marked current-password and name marked name; later steps not observed",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "Editable/hidden field values, URLs, scripts, handlers and iframe content omitted; public input-button captions retained",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "[name=\"email\"]",
+          "kind": "text",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "[name=\"profile.firstName\"]",
+          "kind": "text",
+          "purpose": "name",
+          "fieldId": "profile.name"
+        },
+        {
+          "selector": "[name=\"password\"]",
+          "kind": "password",
+          "purpose": "current-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "[name=\"email\"]",
+      "passwords": [
+        "[name=\"password\"]"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}

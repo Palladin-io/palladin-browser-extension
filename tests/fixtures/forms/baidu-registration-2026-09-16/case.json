@@ -1,0 +1,76 @@
+{
+  "id": "baidu-registration-2026-09-16",
+  "service": "baidu",
+  "flow": "registration",
+  "source": {
+    "url": "https://passport.baidu.com/v2/",
+    "entryUrl": "https://www.baidu.com/",
+    "observedAt": "2026-09-16",
+    "locale": "zh-CN",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Homepage account layer -> 立即注册 opens public signup tab. Username, phone, password and SMS code controls; disabled Register and unchecked terms preserved. No fields entered, OTP requested, terms accepted or submission.",
+    "viewport": {
+      "width": 954,
+      "height": 431
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Source query state omitted. Href presence retained as fixed fragment; hidden payload values omitted."
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "input[name=\"userName\"]",
+          "kind": "text",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "input[name=\"phone\"]",
+          "kind": "text",
+          "purpose": "tel",
+          "fieldId": "profile.tel"
+        },
+        {
+          "selector": "input[id=\"TANGRAM__PSP_4__password\"]",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        }
+      ],
+      "observedOnly": [
+        {
+          "selector": "input[name=\"verifyCode\"]",
+          "kind": "text",
+          "purpose": "one-time-code"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "input[name=\"userName\"]",
+      "passwords": [
+        "input[id=\"TANGRAM__PSP_4__password\"]"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "synthetic": {
+    "username": "fixture_handle"
+  }
+}
+

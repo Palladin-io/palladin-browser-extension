@@ -1,0 +1,58 @@
+{
+  "id": "sme-registration-2026-09-15",
+  "service": "sme",
+  "flow": "registration",
+  "source": {
+    "url": "https://prihlasenie.sme.sk/",
+    "observedAt": "2026-09-15",
+    "locale": "sk",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Registration reached via registracia.sme.sk redirect, after explicitly choosing to create a password now",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "Editable/hidden field values, URLs, scripts, handlers and iframe content omitted; public input-button captions retained",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#email",
+          "kind": "email",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#plainPassword",
+          "kind": "password",
+          "purpose": "new-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "#email",
+      "passwords": [
+        "#plainPassword"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}
+

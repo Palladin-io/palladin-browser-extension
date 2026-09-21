@@ -1,0 +1,4064 @@
+{
+  "targetServiceCount": null,
+  "selectionStatus": "scope-expanded-by-owner; lists require region-specific ranking evidence",
+  "sources": [
+    {
+      "url": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/",
+      "period": "2026-05",
+      "use": "global ranking, deduplicated services"
+    },
+    {
+      "url": "https://www.semrush.com/trending-websites/pl/all",
+      "period": "2026-07",
+      "use": "regional priority; not evidence for every additional candidate"
+    }
+  ],
+  "services": [
+    {
+      "id": "google",
+      "domain": "google.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "google-login-identifier-2026-09-15",
+        "google-registration-name-2026-09-15"
+      ],
+      "regions": [
+        "global",
+        "poland",
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "google-login-identifier-2026-09-15",
+            "source": "https://accounts.google.com/v3/signin/identifier",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "google-registration-name-2026-09-15",
+            "source": "https://accounts.google.com/lifecycle/steps/signup/name",
+            "stage": "name",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "facebook",
+      "domain": "facebook.com",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "facebook-login-2026-09-15",
+        "facebook-registration-2026-09-15"
+      ],
+      "regions": [
+        "global",
+        "poland",
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "facebook-login-2026-09-15",
+            "source": "https://www.facebook.com/login/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "facebook-registration-2026-09-15",
+            "source": "https://www.facebook.com/r.php",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "instagram",
+      "domain": "instagram.com",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "instagram-login-2026-09-15",
+        "instagram-registration-2026-09-15"
+      ],
+      "regions": [
+        "global",
+        "poland",
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "instagram-login-2026-09-15",
+            "source": "https://www.instagram.com/accounts/login/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "instagram-registration-2026-09-15",
+            "source": "https://www.instagram.com/accounts/emailsignup/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "chatgpt",
+      "domain": "chatgpt.com",
+      "selection": "global-ranking",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "reddit",
+      "domain": "reddit.com",
+      "selection": "global-ranking",
+      "login": "blocked-antibot",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": [],
+      "evidence": {
+        "login": {
+          "url": "https://www.reddit.com/login/",
+          "observedAt": "2026-09-15",
+          "result": "public anti-bot page; no login specimen captured"
+        }
+      }
+    },
+    {
+      "id": "x",
+      "domain": "x.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "x-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "global",
+        "poland",
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "x-login-identifier-2026-09-15",
+            "source": "https://x.com/i/flow/login",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "whatsapp",
+      "domain": "whatsapp.com",
+      "selection": "global-ranking",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "tiktok",
+      "domain": "tiktok.com",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "pending",
+      "fixtures": [
+        "tiktok-login-2026-09-15"
+      ],
+      "regions": [
+        "global",
+        "poland",
+        "europe"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "tiktok-login-2026-09-15",
+            "source": "https://www.tiktok.com/login/phone-or-email/email",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "wikipedia",
+      "domain": "wikipedia.org",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "wikipedia-login-2026-09-15",
+        "wikipedia-registration-2026-09-15"
+      ],
+      "regions": [
+        "global",
+        "poland",
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "wikipedia-login-2026-09-15",
+            "source": "https://auth.wikimedia.org/plwiki/wiki/Specjalna:Zaloguj",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "wikipedia-registration-2026-09-15",
+            "source": "https://auth.wikimedia.org/plwiki/w/index.php",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "yahoo",
+      "domain": "yahoo.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "observed",
+      "fixtures": [
+        "yahoo-login-identifier-2026-09-15",
+        "yahoo-registration-2026-09-15"
+      ],
+      "regions": [
+        "global",
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "yahoo-login-identifier-2026-09-15",
+            "source": "https://login.yahoo.com/",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "yahoo-registration-2026-09-15",
+            "source": "https://login.yahoo.com/account/create",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "yandex",
+      "domain": "yandex.ru",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "yandex-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "global",
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "yandex-login-identifier-2026-09-15",
+            "source": "https://passport.yandex.com/pwl-yandex/auth/add",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "amazon",
+      "domain": "amazon.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "amazon-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "global"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "amazon-login-identifier-2026-09-15",
+            "source": "https://www.amazon.com/ap/signin",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "linkedin",
+      "domain": "linkedin.com",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "linkedin-login-2026-09-15",
+        "linkedin-registration-2026-09-15"
+      ],
+      "regions": [
+        "global",
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "linkedin-login-2026-09-15",
+            "source": "https://www.linkedin.com/login/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "linkedin-registration-2026-09-15",
+            "source": "https://www.linkedin.com/signup",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "baidu",
+      "domain": "baidu.com",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "baidu-login-2026-09-16",
+        "baidu-registration-2026-09-16"
+      ],
+      "regions": [
+        "global"
+      ],
+      "regionalVariants": "Only recorded zh-CN password login and signup states observed; QR/SMS alternatives and other regional variants unverified. No code requests, consent or submission.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "baidu-login-2026-09-16",
+            "source": "https://www.baidu.com/",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "baidu-registration-2026-09-16",
+            "source": "https://passport.baidu.com/v2/",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      }
+    },
+    {
+      "id": "naver",
+      "domain": "naver.com",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "pending",
+      "fixtures": [
+        "naver-login-2026-09-15"
+      ],
+      "regions": [
+        "global"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "naver-login-2026-09-15",
+            "source": "https://nid.naver.com/nidlogin.login",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "netflix",
+      "domain": "netflix.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "netflix-login-2026-09-15"
+      ],
+      "regions": [
+        "global",
+        "poland",
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "netflix-login-2026-09-15",
+            "source": "https://www.netflix.com/pl-en/login",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "pinterest",
+      "domain": "pinterest.com",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "pending",
+      "fixtures": [
+        "pinterest-login-2026-09-15"
+      ],
+      "regions": [
+        "global",
+        "poland"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "pinterest-login-2026-09-15",
+            "source": "https://www.pinterest.com/login/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "microsoft",
+      "domain": "microsoft.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "microsoft-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "global",
+        "poland"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "microsoft-login-identifier-2026-09-15",
+            "source": "https://login.live.com/",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "bilibili",
+      "domain": "bilibili.com",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "bilibili-login-2026-09-16",
+        "bilibili-registration-sms-2026-09-16"
+      ],
+      "regions": [
+        "global"
+      ],
+      "regionalVariants": "Only recorded zh-CN public states observed; other variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "bilibili-login-2026-09-16",
+            "source": "https://www.bilibili.com/",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "bilibili-registration-sms-2026-09-16",
+            "source": "https://www.bilibili.com/",
+            "stage": "verification",
+            "observedAt": "2026-09-16"
+          }
+        ]
+      }
+    },
+    {
+      "id": "temu",
+      "domain": "temu.com",
+      "selection": "global-ranking",
+      "login": "blocked",
+      "registration": "blocked",
+      "fixtures": [],
+      "regions": [],
+      "evidence": {
+        "login": {
+          "url": "https://www.temu.com/pl-en",
+          "observedAt": "2026-09-16",
+          "result": "Homepage presents Security Verification / Slide to complete the puzzle before account form access. Challenge not completed; no specimen or PASS."
+        },
+        "registration": {
+          "url": "https://www.temu.com/pl-en",
+          "observedAt": "2026-09-16",
+          "result": "Homepage presents Security Verification / Slide to complete the puzzle before account form access. Challenge not completed; no specimen or PASS."
+        }
+      }
+    },
+    {
+      "id": "dzen",
+      "domain": "dzen.ru",
+      "selection": "global-ranking",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "twitch",
+      "domain": "twitch.tv",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "twitch-login-2026-09-15",
+        "twitch-registration-identifier-2026-09-15"
+      ],
+      "regions": [
+        "global",
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "twitch-login-2026-09-15",
+            "source": "https://www.twitch.tv/login",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "twitch-registration-identifier-2026-09-15",
+            "source": "https://www.twitch.tv/signup",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "vk",
+      "domain": "vk.com",
+      "selection": "global-ranking",
+      "login": "blocked",
+      "registration": "blocked",
+      "fixtures": [],
+      "regions": [],
+      "evidence": {
+        "login": {
+          "url": "https://vk.ru/challenge.html",
+          "observedAt": "2026-09-16",
+          "result": "vk.com redirects to vk.ru and stays on a robot-verification page. Challenge not completed; no auth specimen or PASS."
+        },
+        "registration": {
+          "url": "https://vk.ru/challenge.html",
+          "observedAt": "2026-09-16",
+          "result": "vk.com redirects to vk.ru and stays on a robot-verification page. Challenge not completed; no auth specimen or PASS."
+        }
+      }
+    },
+    {
+      "id": "canva",
+      "domain": "canva.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "canva-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "global"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "canva-login-identifier-2026-09-15",
+            "source": "https://www.canva.com/login/",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "claude",
+      "domain": "claude.ai",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "claude-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "global",
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "claude-login-identifier-2026-09-15",
+            "source": "https://claude.ai/login",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "fandom",
+      "domain": "fandom.com",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "fandom-login-2026-09-15",
+        "fandom-registration-2026-09-15"
+      ],
+      "regions": [
+        "global",
+        "poland"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "fandom-login-2026-09-15",
+            "source": "https://auth.fandom.com/signin",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "fandom-registration-2026-09-15",
+            "source": "https://auth.fandom.com/register",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "globo",
+      "domain": "globo.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "globo-login-identifier-2026-09-15",
+        "globo-registration-identifier-2026-09-15"
+      ],
+      "regions": [
+        "global"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "globo-login-identifier-2026-09-15",
+            "source": "https://authx.globoid.globo.com/4654/login",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "globo-registration-identifier-2026-09-15",
+            "source": "https://authx.globoid.globo.com/4654/register/personal-data",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "mailru",
+      "domain": "mail.ru",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "mailru-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "global"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "mailru-login-identifier-2026-09-15",
+            "source": "https://id.vk.ru/auth",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "samsung",
+      "domain": "samsung.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "not-observed",
+      "fixtures": [
+        "samsung-login-identifier-2026-09-16"
+      ],
+      "regions": [
+        "global"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "samsung-login-identifier-2026-09-16",
+            "source": "https://account.samsung.com/iam/oauth2/authorize",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": {
+          "source": "https://account.samsung.com/iam/sign-up/terms",
+          "observedAt": "2026-09-16",
+          "reason": "Public Create account leads to required terms acceptance before identity fields; account terms not accepted, no account created. Credential form not observed."
+        }
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "discord",
+      "domain": "discord.com",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "discord-login-2026-09-15",
+        "discord-registration-2026-09-15"
+      ],
+      "regions": [
+        "global"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "discord-login-2026-09-15",
+            "source": "https://discord.com/login",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "discord-registration-2026-09-15",
+            "source": "https://discord.com/register",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "github",
+      "domain": "github.com",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "blocked-http-403",
+      "fixtures": [
+        "github-login-2026-09-15"
+      ],
+      "regions": [
+        "global"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "github-login-2026-09-15",
+            "source": "https://github.com/login",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "ebay",
+      "domain": "ebay.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "observed",
+      "fixtures": [
+        "ebay-login-identifier-2026-09-16",
+        "ebay-registration-2026-09-16"
+      ],
+      "regions": [
+        "global"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "ebay-login-identifier-2026-09-16",
+            "source": "https://signin.ebay.com/ws/eBayISAPI.dll",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "ebay-registration-2026-09-16",
+            "source": "https://signup.ebay.com/pa/crte",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "previousObservations": {
+        "login": {
+          "url": "https://signin.ebay.com/",
+          "observedAt": "2026-09-15",
+          "result": "public anti-bot page; no login specimen captured"
+        }
+      },
+      "regionalVariants": "Only recorded locale/states observed; other variants unverified."
+    },
+    {
+      "id": "spotify",
+      "domain": "spotify.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "spotify-login-identifier-2026-09-15",
+        "spotify-registration-identifier-2026-09-15"
+      ],
+      "regions": [
+        "global",
+        "poland"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "spotify-login-identifier-2026-09-15",
+            "source": "https://accounts.spotify.com/en/login",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "spotify-registration-identifier-2026-09-15",
+            "source": "https://www.spotify.com/pl/signup",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "nytimes",
+      "domain": "nytimes.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "nytimes-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "global"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "nytimes-login-identifier-2026-09-15",
+            "source": "https://myaccount.nytimes.com/auth/enter-email",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "zoom",
+      "domain": "zoom.us",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "zoom-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "global"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "zoom-login-identifier-2026-09-15",
+            "source": "https://zoom.us/signin",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "booking",
+      "domain": "booking.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "booking-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "global",
+        "poland"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "booking-login-identifier-2026-09-15",
+            "source": "https://account.booking.com/sign-in",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "imdb",
+      "domain": "imdb.com",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "imdb-login-2026-09-16",
+        "imdb-registration-identifier-2026-09-16"
+      ],
+      "regions": [
+        "global"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "imdb-login-2026-09-16",
+            "source": "https://www.imdb.com/ap/signin",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "imdb-registration-identifier-2026-09-16",
+            "source": "https://www.amazon.com/ap/signin",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ]
+      }
+    },
+    {
+      "id": "cricbuzz",
+      "domain": "cricbuzz.com",
+      "selection": "global-ranking",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "ozon",
+      "domain": "ozon.ru",
+      "selection": "global-ranking",
+      "login": "unavailable",
+      "registration": "unavailable",
+      "fixtures": [],
+      "regions": [],
+      "evidence": {
+        "login": {
+          "url": "https://www.ozon.ru/my/orderlist/",
+          "observedAt": "2026-09-16",
+          "result": "Initial automatic antibot page completed without interaction. Homepage account/orders action and the public unauthorized order-list login button did not open an authentication form during observation. No credential fields, account data, specimen or PASS."
+        },
+        "registration": {
+          "url": "https://www.ozon.ru/my/orderlist/",
+          "observedAt": "2026-09-16",
+          "result": "Initial automatic antibot page completed without interaction. Homepage account/orders action and the public unauthorized order-list login button did not open an authentication form during observation. No credential fields, account data, specimen or PASS."
+        }
+      }
+    },
+    {
+      "id": "roblox",
+      "domain": "roblox.com",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "roblox-login-2026-09-15",
+        "roblox-registration-2026-09-15"
+      ],
+      "regions": [
+        "global",
+        "poland"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "roblox-login-2026-09-15",
+            "source": "https://www.roblox.com/login",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "roblox-registration-2026-09-15",
+            "source": "https://www.roblox.com/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "aliexpress",
+      "domain": "aliexpress.com",
+      "selection": "global-ranking",
+      "login": "blocked",
+      "registration": "blocked",
+      "fixtures": [],
+      "regions": [],
+      "evidence": {
+        "login": {
+          "url": "https://pl.aliexpress.com/",
+          "observedAt": "2026-09-16",
+          "result": "Homepage redirects to Poland locale. Account action is covered by a robot-verification dialog; challenge frame says We need to check if you are a robot. No bypass or completion; no auth specimen or PASS."
+        },
+        "registration": {
+          "url": "https://pl.aliexpress.com/",
+          "observedAt": "2026-09-16",
+          "result": "Homepage redirects to Poland locale. Account action is covered by a robot-verification dialog; challenge frame says We need to check if you are a robot. No bypass or completion; no auth specimen or PASS."
+        }
+      }
+    },
+    {
+      "id": "bbc",
+      "domain": "bbc.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "bbc-login-identifier-2026-09-15",
+        "bbc-registration-identifier-2026-09-16"
+      ],
+      "regions": [
+        "global",
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "bbc-login-identifier-2026-09-15",
+            "source": "https://account.bbc.com/auth/identifier/signin",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "bbc-registration-identifier-2026-09-16",
+            "source": "https://account.bbc.com/auth/identifier/signin",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "regionalVariants": "BBC UK homepage Register was observed redirecting to the shared BBC account identifier on 2026-09-16. Later steps and other variants unverified.",
+      "selectionDomains": [
+        "bbc.com",
+        "bbc.co.uk"
+      ]
+    },
+    {
+      "id": "apple",
+      "domain": "apple.com",
+      "selection": "global-ranking",
+      "login": "unsupported-cross-origin-frame",
+      "registration": "unsupported-cross-origin-frame",
+      "fixtures": [],
+      "regions": [
+        "global",
+        "poland"
+      ],
+      "evidence": {
+        "registration": {
+          "source": "https://account.apple.com/account",
+          "observedAt": "2026-09-16",
+          "reason": "Create Apple Account embeds its form at https://appleid.apple.com/widget/account/; current top-frame-only adapter cannot fill the actual flow. No signup was started."
+        },
+        "login": {
+          "source": "https://account.apple.com/sign-in",
+          "observedAt": "2026-09-16",
+          "reason": "Public sign-in embeds https://idmsa.apple.com/appleauth/auth/authorize/signin. The current top-frame-only adapter cannot fill the actual login frame; no authentication started."
+        }
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "docomo",
+      "domain": "docomo.ne.jp",
+      "selection": "global-ranking",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "walmart",
+      "domain": "walmart.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "walmart-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "global"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "walmart-login-identifier-2026-09-15",
+            "source": "https://identity.walmart.com/account/login",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "espn",
+      "domain": "espn.com",
+      "selection": "global-ranking",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "paypal",
+      "domain": "paypal.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "paypal-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "global"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "paypal-login-identifier-2026-09-15",
+            "source": "https://www.paypal.com/signin",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "etsy",
+      "domain": "etsy.com",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "etsy-login-2026-09-16",
+        "etsy-registration-2026-09-16"
+      ],
+      "regions": [
+        "global"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "etsy-login-2026-09-16",
+            "source": "https://www.etsy.com/",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "etsy-registration-2026-09-16",
+            "source": "https://www.etsy.com/",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      }
+    },
+    {
+      "id": "deepseek",
+      "domain": "deepseek.com",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "deepseek-login-2026-09-15",
+        "deepseek-registration-2026-09-15"
+      ],
+      "regions": [
+        "global"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "deepseek-login-2026-09-15",
+            "source": "https://chat.deepseek.com/sign_in",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "deepseek-registration-2026-09-15",
+            "source": "https://chat.deepseek.com/sign_up",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "indeed",
+      "domain": "indeed.com",
+      "selection": "global-ranking",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "disneyplus",
+      "domain": "disneyplus.com",
+      "selection": "global-ranking",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "rakuten",
+      "domain": "rakuten.co.jp",
+      "selection": "global-ranking",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "adobe",
+      "domain": "adobe.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "observed",
+      "fixtures": [
+        "adobe-login-identifier-2026-09-16",
+        "adobe-registration-2026-09-16"
+      ],
+      "regions": [
+        "global"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "adobe-login-identifier-2026-09-16",
+            "source": "https://auth.services.adobe.com/en_US/deeplink.html",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "adobe-registration-2026-09-16",
+            "source": "https://auth.services.adobe.com/en_US/deeplink.html",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "max",
+      "domain": "hbomax.com",
+      "selection": "global-ranking",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "zillow",
+      "domain": "zillow.com",
+      "selection": "global-ranking",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "ok",
+      "domain": "ok.ru",
+      "selection": "global-ranking",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "cnn",
+      "domain": "cnn.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "cnn-login-identifier-2026-09-15",
+        "cnn-registration-identifier-2026-09-15"
+      ],
+      "regions": [
+        "global"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "cnn-login-identifier-2026-09-15",
+            "source": "https://edition.cnn.com/account/log-in",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "cnn-registration-identifier-2026-09-15",
+            "source": "https://edition.cnn.com/account/register",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "shein",
+      "domain": "shein.com",
+      "selection": "global-ranking",
+      "login": "partially-observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "shein-login-identifier-2026-09-16"
+      ],
+      "regions": [
+        "global"
+      ],
+      "regionalVariants": "Only recorded locale/states observed; other variants unverified. Global homepage redirected to pl.shein.com; shared Sign In/Register initial identifier dialog only. Password/SMS controls hidden; Continue and its terms acceptance not activated.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "shein-login-identifier-2026-09-16",
+            "source": "https://pl.shein.com/",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "shein-login-identifier-2026-09-16",
+            "source": "https://pl.shein.com/",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ]
+      }
+    },
+    {
+      "id": "wildberries",
+      "domain": "wildberries.ru",
+      "selection": "global-ranking",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "qq",
+      "domain": "qq.com",
+      "selection": "global-ranking",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "douyin",
+      "domain": "douyin.com",
+      "selection": "global-ranking",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "usps",
+      "domain": "usps.com",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "pending",
+      "fixtures": [
+        "usps-login-2026-09-15"
+      ],
+      "regions": [
+        "global"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "usps-login-2026-09-15",
+            "source": "https://verified.usps.com/login/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "instructure",
+      "domain": "instructure.com",
+      "selection": "global-ranking",
+      "login": "unavailable",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": [],
+      "evidence": {
+        "login": {
+          "url": "https://canvas.instructure.com/login/canvas",
+          "observedAt": "2026-09-15",
+          "result": "Public platform-restoration / Canvas Lite announcement instead of an account form. No specimen and no acceptance claim."
+        }
+      }
+    },
+    {
+      "id": "quora",
+      "domain": "quora.com",
+      "selection": "global-ranking",
+      "login": "observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "quora-login-pl-2026-09-15",
+        "quora-registration-identifier-pl-2026-09-15"
+      ],
+      "regions": [
+        "global"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "quora-login-pl-2026-09-15",
+            "source": "https://pl.quora.com/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "quora-registration-identifier-pl-2026-09-15",
+            "source": "https://pl.quora.com/",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "rutube",
+      "domain": "rutube.ru",
+      "selection": "global-ranking",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "allegro",
+      "domain": "allegro.pl",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "allegro-login-2026-09-15",
+        "allegro-registration-2026-09-15"
+      ],
+      "regions": [
+        "poland",
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "allegro-login-2026-09-15",
+            "source": "https://allegro.pl/logowanie",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "allegro-registration-2026-09-15",
+            "source": "https://allegro.pl/rejestracja",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "interia",
+      "domain": "interia.pl",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "pending",
+      "fixtures": [
+        "interia-login-2026-09-15"
+      ],
+      "regions": [
+        "poland",
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "interia-login-2026-09-15",
+            "source": "https://poczta.interia.pl/logowanie/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "onet",
+      "domain": "onet.pl",
+      "selection": "regional-candidate",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "onet-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "poland",
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "onet-login-identifier-2026-09-15",
+            "source": "https://konto.onet.pl/en/signin",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "olx",
+      "domain": "olx.pl",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "olx-login-2026-09-15",
+        "olx-registration-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "olx-login-2026-09-15",
+            "source": "https://login.olx.pl/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "olx-registration-2026-09-15",
+            "source": "https://login.olx.pl/register",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "filmweb",
+      "domain": "filmweb.pl",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "filmweb-login-2026-09-15",
+        "filmweb-registration-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "filmweb-login-2026-09-15",
+            "source": "https://www.filmweb.pl/login",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "filmweb-registration-2026-09-15",
+            "source": "https://www.filmweb.pl/login",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "mediaexpert",
+      "domain": "mediaexpert.pl",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "mediaexpert-login-2026-09-15",
+        "mediaexpert-registration-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "mediaexpert-login-2026-09-15",
+            "source": "https://www.mediaexpert.pl/login",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "mediaexpert-registration-2026-09-15",
+            "source": "https://www.mediaexpert.pl/registration",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "otomoto",
+      "domain": "otomoto.pl",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "otomoto-login-2026-09-16",
+        "otomoto-registration-2026-09-16"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "otomoto-login-2026-09-16",
+            "source": "https://login.otomoto.pl/",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "otomoto-registration-2026-09-16",
+            "source": "https://login.otomoto.pl/register",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      }
+    },
+    {
+      "id": "pepper",
+      "domain": "pepper.pl",
+      "selection": "regional-candidate",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "pepper-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "pepper-login-identifier-2026-09-15",
+            "source": "https://www.pepper.pl/",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "gazeta",
+      "domain": "gazeta.pl",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "gazeta-login-2026-09-16",
+        "gazeta-registration-2026-09-16"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "gazeta-login-2026-09-16",
+            "source": "https://oauth.gazeta.pl/poczta/auth",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "gazeta-registration-2026-09-16",
+            "source": "https://konto.gazeta.pl/konto/szybka-rejestracja.servlet",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      }
+    },
+    {
+      "id": "wp",
+      "domain": "wp.pl",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "blocked-antibot",
+      "fixtures": [
+        "wp-login-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "wp-login-2026-09-15",
+            "source": "https://poczta.wp.pl/login/login.html",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "wykop",
+      "domain": "wykop.pl",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "pending",
+      "fixtures": [
+        "wykop-login-2026-09-15"
+      ],
+      "regions": [],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "wykop-login-2026-09-15",
+            "source": "https://wykop.pl/logowanie",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "ceneo",
+      "domain": "ceneo.pl",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "ceneo-login-2026-09-15",
+        "ceneo-registration-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "ceneo-login-2026-09-15",
+            "source": "https://www.ceneo.pl/logowanie",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "ceneo-registration-2026-09-15",
+            "source": "https://www.ceneo.pl/logowanie",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "empik",
+      "domain": "empik.com",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "empik-login-2026-09-15",
+        "empik-registration-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "empik-login-2026-09-15",
+            "source": "https://www.empik.com/konto/logowanie",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "empik-registration-2026-09-15",
+            "source": "https://www.empik.com/konto/rejestracja",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "xkom",
+      "domain": "x-kom.pl",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "xkom-login-2026-09-15",
+        "xkom-registration-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "xkom-login-2026-09-15",
+            "source": "https://www.x-kom.pl/logowanie",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "xkom-registration-2026-09-15",
+            "source": "https://www.x-kom.pl/rejestracja",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "morele",
+      "domain": "morele.net",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "morele-login-2026-09-15",
+        "morele-registration-2026-09-15"
+      ],
+      "regions": [],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "morele-login-2026-09-15",
+            "source": "https://www.morele.net/login",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "morele-registration-2026-09-15",
+            "source": "https://www.morele.net/login",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "euro",
+      "domain": "euro.com.pl",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "euro-login-2026-09-15",
+        "euro-registration-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "euro-login-2026-09-15",
+            "source": "https://www.euro.com.pl/account-login.bhtml",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "euro-registration-2026-09-15",
+            "source": "https://www.euro.com.pl/account-login.bhtml",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "zalando",
+      "domain": "zalando.pl",
+      "selection": "regional-candidate",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "zalando-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "zalando-login-identifier-2026-09-15",
+            "source": "https://accounts.zalando.com/authenticate",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "vinted",
+      "domain": "vinted.pl",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "vinted-login-2026-09-16",
+        "vinted-registration-2026-09-16"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "regionalVariants": "Only recorded locale/states observed; other variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "vinted-login-2026-09-16",
+            "source": "https://www.vinted.pl/member/login/email",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "vinted-registration-2026-09-16",
+            "source": "https://www.vinted.pl/member/register/email",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      }
+    },
+    {
+      "id": "pyszne",
+      "domain": "pyszne.pl",
+      "selection": "regional-candidate",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "inpost",
+      "domain": "inpost.pl",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "pending",
+      "fixtures": [
+        "inpost-login-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "inpost-login-2026-09-15",
+            "source": "https://manager.paczkomaty.pl/auth/login",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "steam",
+      "domain": "steampowered.com",
+      "selection": "category-candidate",
+      "login": "observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "steam-login-2026-09-15",
+        "steam-registration-identifier-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "steam-login-2026-09-15",
+            "source": "https://store.steampowered.com/login/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "steam-registration-identifier-2026-09-15",
+            "source": "https://store.steampowered.com/join/",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "epicgames",
+      "domain": "epicgames.com",
+      "selection": "category-candidate",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "epicgames-login-identifier-2026-09-15"
+      ],
+      "regions": [],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "epicgames-login-identifier-2026-09-15",
+            "source": "https://www.epicgames.com/id/login",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "gitlab",
+      "domain": "gitlab.com",
+      "selection": "category-candidate",
+      "login": "blocked-antibot",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": [],
+      "evidence": {
+        "login": {
+          "url": "https://gitlab.com/users/sign_in",
+          "observedAt": "2026-09-15",
+          "result": "public anti-bot page; no login specimen captured"
+        }
+      }
+    },
+    {
+      "id": "stackoverflow",
+      "domain": "stackoverflow.com",
+      "selection": "category-candidate",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "stackoverflow-login-2026-09-15",
+        "stackoverflow-registration-2026-09-15"
+      ],
+      "regions": [],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "stackoverflow-login-2026-09-15",
+            "source": "https://stackoverflow.com/users/login",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "stackoverflow-registration-2026-09-15",
+            "source": "https://stackoverflow.com/users/signup",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "dropbox",
+      "domain": "dropbox.com",
+      "selection": "category-candidate",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "dropbox-login-identifier-2026-09-15"
+      ],
+      "regions": [],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "dropbox-login-identifier-2026-09-15",
+            "source": "https://www.dropbox.com/login",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "notion",
+      "domain": "notion.so",
+      "selection": "category-candidate",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "notion-login-identifier-2026-09-15"
+      ],
+      "regions": [],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "notion-login-identifier-2026-09-15",
+            "source": "https://app.notion.com/login",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "slack",
+      "domain": "slack.com",
+      "selection": "category-candidate",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "slack-login-identifier-2026-09-15"
+      ],
+      "regions": [],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "slack-login-identifier-2026-09-15",
+            "source": "https://slack.com/signin",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "atlassian",
+      "domain": "atlassian.com",
+      "selection": "category-candidate",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "atlassian-login-identifier-2026-09-15"
+      ],
+      "regions": [],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "atlassian-login-identifier-2026-09-15",
+            "source": "https://id.atlassian.com/login",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "figma",
+      "domain": "figma.com",
+      "selection": "category-candidate",
+      "login": "observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "figma-login-2026-09-15",
+        "figma-registration-identifier-2026-09-15"
+      ],
+      "regions": [],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "figma-login-2026-09-15",
+            "source": "https://www.figma.com/login",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "figma-registration-identifier-2026-09-15",
+            "source": "https://www.figma.com/signup",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "proton",
+      "domain": "proton.me",
+      "selection": "category-candidate",
+      "login": "observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "proton-login-2026-09-15",
+        "proton-registration-2026-09-15"
+      ],
+      "regions": [],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "proton-login-2026-09-15",
+            "source": "https://account.proton.me/login",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "proton-registration-2026-09-15",
+            "source": "https://account.proton.me/signup",
+            "stage": "cross-frame",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "duolingo",
+      "domain": "duolingo.com",
+      "selection": "category-candidate",
+      "login": "observed",
+      "registration": "pending",
+      "fixtures": [
+        "duolingo-login-2026-09-15"
+      ],
+      "regions": [],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "duolingo-login-2026-09-15",
+            "source": "https://www.duolingo.com/log-in",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "airbnb",
+      "domain": "airbnb.com",
+      "selection": "category-candidate",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "tripadvisor",
+      "domain": "tripadvisor.com",
+      "selection": "category-candidate",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "expedia",
+      "domain": "expedia.com",
+      "selection": "category-candidate",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "coursera",
+      "domain": "coursera.org",
+      "selection": "category-candidate",
+      "login": "pending",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": []
+    },
+    {
+      "id": "galaxus",
+      "domain": "galaxus.ch",
+      "selection": "observed-europe-ranking-candidate",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "galaxus-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "galaxus-login-identifier-2026-09-15",
+            "source": "https://id.digitecgalaxus.ch/n/p/22/en",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "abv",
+      "domain": "abv.bg",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "pending",
+      "fixtures": [
+        "abv-login-2026-09-15"
+      ],
+      "regions": [
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "abv-login-2026-09-15",
+            "source": "https://home.abv.bg/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "inbox-lv",
+      "domain": "inbox.lv",
+      "selection": "regional-candidate",
+      "login": "partially-observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "inbox-lv-login-identifier-2026-09-15",
+        "inbox-lv-registration-identifier-2026-09-15"
+      ],
+      "regions": [
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "inbox-lv-login-identifier-2026-09-15",
+            "source": "https://login.inbox.lv/login",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "inbox-lv-registration-identifier-2026-09-15",
+            "source": "https://login.inbox.lv/signup",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "seznam",
+      "domain": "seznam.cz",
+      "selection": "regional-candidate",
+      "login": "partially-observed",
+      "registration": "observed",
+      "fixtures": [
+        "seznam-login-identifier-2026-09-15",
+        "seznam-registration-2026-09-15"
+      ],
+      "regions": [],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "seznam-login-identifier-2026-09-15",
+            "source": "https://login.szn.cz/",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "seznam-registration-2026-09-15",
+            "source": "https://registrace.seznam.cz/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "skroutz",
+      "domain": "skroutz.gr",
+      "selection": "regional-candidate",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "skroutz-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "skroutz-login-identifier-2026-09-15",
+            "source": "https://www.skroutz.gr/sign_in",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "vg",
+      "domain": "vg.no",
+      "selection": "regional-candidate",
+      "login": "partially-observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "vg-login-identifier-2026-09-15",
+        "vg-registration-identifier-2026-09-15"
+      ],
+      "regions": [
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "vg-login-identifier-2026-09-15",
+            "source": "https://payment.schibsted.no/authn/",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "vg-registration-identifier-2026-09-15",
+            "source": "https://payment.schibsted.no/authn/",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "delfi-ee",
+      "domain": "delfi.ee",
+      "selection": "regional-candidate",
+      "regions": [
+        "europe"
+      ],
+      "login": "unsupported-cross-frame",
+      "registration": "pending",
+      "fixtures": [],
+      "evidence": {
+        "login": {
+          "source": "https://www.delfi.ee/",
+          "observedAt": "2026-09-15",
+          "method": "Playwright read-only public DOM inspection after Sisene",
+          "state": "Login opens an iframe titled User authentication interface at https://auth.piano.delfi.ee/id/. No top-frame identity controls. Current adapter is top-frame only; not a passing whole-form case."
+        }
+      },
+      "regionalVariants": "Estonian homepage observed; other Delfi country services unverified."
+    },
+    {
+      "id": "decathlon",
+      "domain": "decathlon.pl",
+      "selection": "regional-candidate",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "decathlon-login-identifier-pl-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "decathlon-login-identifier-pl-2026-09-15",
+            "source": "https://login.decathlon.net/",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "pracuj",
+      "domain": "pracuj.pl",
+      "selection": "regional-candidate",
+      "login": "partially-observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "pracuj-login-identifier-2026-09-15",
+        "pracuj-registration-identifier-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "pracuj-login-identifier-2026-09-15",
+            "source": "https://login.pracuj.pl/",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "pracuj-registration-identifier-2026-09-15",
+            "source": "https://login.pracuj.pl/",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "rossmann",
+      "domain": "rossmann.pl",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "rossmann-login-2026-09-15",
+        "rossmann-registration-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "rossmann-login-2026-09-15",
+            "source": "https://www.rossmann.pl/logowanie",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "rossmann-registration-2026-09-15",
+            "source": "https://www.rossmann.pl/rejestracja",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "rtvslo",
+      "domain": "rtvslo.si",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "rtvslo-login-2026-09-15",
+        "rtvslo-registration-2026-09-15"
+      ],
+      "regions": [
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "rtvslo-login-2026-09-15",
+            "source": "https://www.rtvslo.si/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "rtvslo-registration-2026-09-15",
+            "source": "https://www.rtvslo.si/registracija",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "dir-bg",
+      "domain": "dir.bg",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "dir-bg-login-2026-09-15",
+        "dir-bg-registration-identifier-2026-09-15"
+      ],
+      "regions": [
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "dir-bg-login-2026-09-15",
+            "source": "https://profile.dir.bg/login",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "dir-bg-registration-identifier-2026-09-15",
+            "source": "https://profile.dir.bg/register",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "index-hr",
+      "domain": "index.hr",
+      "selection": "regional-candidate",
+      "login": "partially-observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "index-hr-login-identifier-2026-09-15",
+        "index-hr-registration-identifier-2026-09-15"
+      ],
+      "regions": [
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "index-hr-login-identifier-2026-09-15",
+            "source": "https://www.index.hr/",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "index-hr-registration-identifier-2026-09-15",
+            "source": "https://sso.index.hr/Account/LoginProcessInit",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "24ur",
+      "domain": "24ur.com",
+      "selection": "regional-candidate",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "24ur-login-2026-09-15",
+        "24ur-registration-2026-09-15"
+      ],
+      "regions": [
+        "europe"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "24ur-login-2026-09-15",
+            "source": "https://prijava.24ur.com/prijava",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "24ur-registration-2026-09-15",
+            "source": "https://prijava.24ur.com/registracija",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      },
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
+    },
+    {
+      "id": "leroymerlin",
+      "domain": "leroymerlin.pl",
+      "selection": "regional-candidate",
+      "regions": [
+        "poland"
+      ],
+      "login": "blocked-antibot",
+      "registration": "pending",
+      "fixtures": [],
+      "evidence": {
+        "login": {
+          "source": "https://www.leroymerlin.pl/",
+          "observedAt": "2026-09-15",
+          "state": "Public homepage returns HTTP 403 in isolated browser before account navigation; no auth form captured."
+        }
+      }
+    },
+    {
+      "id": "srf",
+      "domain": "srf.ch",
+      "selection": "europe-shortlist",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "srf-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "europe"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "srf-login-identifier-2026-09-15",
+            "source": "https://account.srgssr.ch/signin/login",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "castorama",
+      "domain": "castorama.pl",
+      "selection": "poland-shortlist",
+      "login": "blocked-http",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": [
+        "poland"
+      ],
+      "evidence": {
+        "login": {
+          "url": "https://www.castorama.pl/",
+          "observedAt": "2026-09-15",
+          "result": "Homepage returned HTTP 503 before account navigation; no specimen."
+        }
+      }
+    },
+    {
+      "id": "nrk",
+      "domain": "nrk.no",
+      "selection": "europe-shortlist",
+      "login": "partially-observed",
+      "registration": "observed",
+      "fixtures": [
+        "nrk-login-identifier-2026-09-15",
+        "nrk-registration-2026-09-15"
+      ],
+      "regions": [
+        "europe"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "nrk-login-identifier-2026-09-15",
+            "source": "https://innlogging.nrk.no/logginn",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "nrk-registration-2026-09-15",
+            "source": "https://innlogging.nrk.no/registrer",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "dr",
+      "domain": "dr.dk",
+      "selection": "europe-shortlist",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "dr-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "europe"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "dr-login-identifier-2026-09-15",
+            "source": "https://www.dr.dk/auth/drlogin/login",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "nu",
+      "domain": "nu.nl",
+      "selection": "europe-shortlist",
+      "login": "partially-observed",
+      "registration": "pending",
+      "fixtures": [
+        "nu-login-identifier-2026-09-15"
+      ],
+      "regions": [
+        "europe"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "nu-login-identifier-2026-09-15",
+            "source": "https://login.dpgmedia.nl/identify",
+            "stage": "identifier",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "rte",
+      "domain": "rte.ie",
+      "selection": "europe-shortlist",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "rte-login-2026-09-15",
+        "rte-registration-2026-09-15"
+      ],
+      "regions": [
+        "europe"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "rte-login-2026-09-15",
+            "source": "https://www.rte.ie/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "rte-registration-2026-09-15",
+            "source": "https://www.rte.ie/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sme",
+      "domain": "sme.sk",
+      "selection": "europe-shortlist",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "sme-login-2026-09-15",
+        "sme-registration-2026-09-15"
+      ],
+      "regions": [
+        "europe"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "sme-login-2026-09-15",
+            "source": "https://www.sme.sk/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "sme-registration-2026-09-15",
+            "source": "https://prihlasenie.sme.sk/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "mbl",
+      "domain": "mbl.is",
+      "selection": "europe-shortlist",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "mbl-login-2026-09-15",
+        "mbl-registration-2026-09-15"
+      ],
+      "regions": [
+        "europe"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "mbl-login-2026-09-15",
+            "source": "https://www.mbl.is/minar-sidur/innskraning/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "mbl-registration-2026-09-15",
+            "source": "https://www.mbl.is/minar-sidur/nyskraning/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "yle",
+      "domain": "yle.fi",
+      "selection": "europe-shortlist",
+      "login": "unsupported-cross-origin-frame",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": [
+        "europe"
+      ],
+      "evidence": {
+        "login": {
+          "url": "https://yle.fi/",
+          "observedAt": "2026-09-15",
+          "result": "Homepage Kirjaudu opens cross-origin iframe https://tunnus.yle.fi/login; current top-frame-only adapter cannot fill this actual flow."
+        }
+      }
+    },
+    {
+      "id": "visir",
+      "domain": "visir.is",
+      "selection": "europe-shortlist",
+      "login": "external-identity-only",
+      "registration": "pending",
+      "fixtures": [],
+      "regions": [
+        "europe"
+      ],
+      "evidence": {
+        "login": {
+          "url": "https://www.visir.is/innskra",
+          "observedAt": "2026-09-15",
+          "result": "Observed redirect to https://min.syn.is/s/login offering electronic-ID phone login (Rafræn skilríki) and Auðkenni app. No password form observed; no authentication started. Password-form eligibility remains unresolved."
+        }
+      }
+    },
+    {
+      "id": "bankier",
+      "domain": "bankier.pl",
+      "selection": "poland-shortlist",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "bankier-login-2026-09-15",
+        "bankier-registration-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "bankier-login-2026-09-15",
+            "source": "https://www.bankier.pl/konto/logowanie",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "bankier-registration-2026-09-15",
+            "source": "https://www.bankier.pl/konto/rejestracja",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "lubimyczytac",
+      "domain": "lubimyczytac.pl",
+      "selection": "poland-shortlist",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "lubimyczytac-login-2026-09-15",
+        "lubimyczytac-registration-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "lubimyczytac-login-2026-09-15",
+            "source": "https://lubimyczytac.pl/zaloguj",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "lubimyczytac-registration-2026-09-15",
+            "source": "https://lubimyczytac.pl/zarejestruj",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "tekstowo",
+      "domain": "tekstowo.pl",
+      "selection": "poland-shortlist",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "tekstowo-login-2026-09-15",
+        "tekstowo-registration-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "tekstowo-login-2026-09-15",
+            "source": "https://www.tekstowo.pl/logowanie",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "tekstowo-registration-2026-09-15",
+            "source": "https://www.tekstowo.pl/rejestracja",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "szarada",
+      "domain": "szarada.net",
+      "selection": "poland-shortlist",
+      "login": "observed",
+      "registration": "partially-observed",
+      "fixtures": [
+        "szarada-login-2026-09-15",
+        "szarada-registration-account-details-2026-09-15"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "szarada-login-2026-09-15",
+            "source": "https://szarada.net/konto/zaloguj/",
+            "stage": null,
+            "observedAt": "2026-09-15"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "szarada-registration-account-details-2026-09-15",
+            "source": "https://szarada.net/konto/rejestracja/",
+            "stage": "account-details",
+            "observedAt": "2026-09-15"
+          }
+        ]
+      }
+    },
+    {
+      "id": "otodom",
+      "domain": "otodom.pl",
+      "selection": "poland-shortlist",
+      "login": "observed",
+      "registration": "observed",
+      "fixtures": [
+        "otodom-login-2026-09-16",
+        "otodom-registration-2026-09-16"
+      ],
+      "regions": [
+        "poland"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "otodom-login-2026-09-16",
+            "source": "https://login.otodom.pl/",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "otodom-registration-2026-09-16",
+            "source": "https://login.otodom.pl/register",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      }
+    },
+    {
+      "id": "finn",
+      "domain": "finn.no",
+      "selection": "regional-shortlist",
+      "regions": [
+        "europe"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "finn-login-identifier-2026-09-16",
+            "source": "https://login.vend.no/authn/email-login",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "finn-registration-identifier-2026-09-16",
+            "source": "https://login.vend.no/authn/email-login",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "fixtures": [
+        "finn-login-identifier-2026-09-16",
+        "finn-registration-identifier-2026-09-16"
+      ],
+      "login": "partially-observed",
+      "registration": "partially-observed"
+    },
+    {
+      "id": "idnes",
+      "domain": "idnes.cz",
+      "selection": "regional-shortlist",
+      "regions": [
+        "europe"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "idnes-login-identifier-2026-09-16",
+            "source": "https://ucet.idnes.cz/prihlasit",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "idnes-registration-identifier-2026-09-16",
+            "source": "https://ucet.idnes.cz/registrace",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "fixtures": [
+        "idnes-login-identifier-2026-09-16",
+        "idnes-registration-identifier-2026-09-16"
+      ],
+      "login": "partially-observed",
+      "registration": "partially-observed"
+    },
+    {
+      "id": "20min",
+      "domain": "20min.ch",
+      "selection": "regional-shortlist",
+      "regions": [
+        "europe"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "20min-login-identifier-2026-09-16",
+            "source": "https://auth.20min.ch/signin",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "20min-registration-identifier-2026-09-16",
+            "source": "https://auth.20min.ch/signin",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "fixtures": [
+        "20min-login-identifier-2026-09-16",
+        "20min-registration-identifier-2026-09-16"
+      ],
+      "login": "partially-observed",
+      "registration": "partially-observed"
+    },
+    {
+      "id": "krone",
+      "domain": "krone.at",
+      "selection": "regional-shortlist",
+      "regions": [
+        "europe"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "krone-login-identifier-2026-09-16",
+            "source": "https://www.krone.at/",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "krone-registration-2026-09-16",
+            "source": "https://www.krone.at/",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "fixtures": [
+        "krone-login-identifier-2026-09-16",
+        "krone-registration-2026-09-16"
+      ],
+      "login": "partially-observed",
+      "registration": "observed"
+    },
+    {
+      "id": "doz",
+      "domain": "doz.pl",
+      "selection": "regional-shortlist",
+      "regions": [
+        "poland"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "doz-login-2026-09-16",
+            "source": "https://www.doz.pl/logowanie",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "doz-registration-2026-09-16",
+            "source": "https://www.doz.pl/rejestracja",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "fixtures": [
+        "doz-login-2026-09-16",
+        "doz-registration-2026-09-16"
+      ],
+      "login": "observed",
+      "registration": "observed"
+    },
+    {
+      "id": "abola",
+      "domain": "abola.pt",
+      "selection": "regional-shortlist",
+      "regions": [
+        "europe"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "abola-login-identifier-2026-09-16",
+            "source": "https://www.abola.pt/",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "abola-registration-2026-09-16",
+            "source": "https://www.abola.pt/",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "fixtures": [
+        "abola-login-identifier-2026-09-16",
+        "abola-registration-2026-09-16"
+      ],
+      "login": "partially-observed",
+      "registration": "observed"
+    },
+    {
+      "id": "idokep",
+      "domain": "idokep.hu",
+      "selection": "regional-shortlist",
+      "regions": [
+        "europe"
+      ],
+      "regionalVariants": "Only recorded locales and states tested; other regional variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "idokep-login-2026-09-16",
+            "source": "https://www.idokep.hu/login",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "idokep-registration-2026-09-16",
+            "source": "https://www.idokep.hu/regisztracio",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "fixtures": [
+        "idokep-login-2026-09-16",
+        "idokep-registration-2026-09-16"
+      ],
+      "login": "observed",
+      "registration": "observed"
+    },
+    {
+      "id": "ikea",
+      "domain": "ikea.com",
+      "selection": "regional-shortlist",
+      "regions": [
+        "poland"
+      ],
+      "regionalVariants": "Only Polish personal-account password login and initial IKEA Family signup observed. Other country/business variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "ikea-login-2026-09-16",
+            "source": "https://pl.accounts.ikea.com/login",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "ikea-registration-identifier-2026-09-16",
+            "source": "https://pl.accounts.ikea.com/login",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "fixtures": [
+        "ikea-login-2026-09-16",
+        "ikea-registration-identifier-2026-09-16"
+      ],
+      "login": "observed",
+      "registration": "partially-observed"
+    },
+    {
+      "id": "tvp",
+      "domain": "tvp.pl",
+      "selection": "regional-shortlist",
+      "regions": [
+        "poland"
+      ],
+      "regionalVariants": "TVP homepage -> TVP VOD -> shared TVP account observed; signup fixture covers fields after explicit focus, not initial readonly activation.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "tvp-login-2026-09-16",
+            "source": "https://user.tvp.pl/login.php",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "tvp-registration-2026-09-16",
+            "source": "https://user.tvp.pl/register.php",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "fixtures": [
+        "tvp-login-2026-09-16",
+        "tvp-registration-2026-09-16"
+      ],
+      "login": "observed",
+      "registration": "observed"
+    },
+    {
+      "id": "jysk",
+      "domain": "jysk.pl",
+      "selection": "regional-shortlist",
+      "regions": [
+        "poland"
+      ],
+      "regionalVariants": "Only Polish account login/signup observed; other markets unverified.",
+      "fixtures": [
+        "jysk-login-2026-09-16",
+        "jysk-registration-2026-09-16"
+      ],
+      "login": "observed",
+      "registration": "observed",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "jysk-login-2026-09-16",
+            "source": "https://jysk.pl/customer/login",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "jysk-registration-2026-09-16",
+            "source": "https://jysk.pl/customer/create",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      }
+    },
+    {
+      "id": "meczyki",
+      "domain": "meczyki.pl",
+      "selection": "regional-shortlist",
+      "regions": [
+        "poland"
+      ],
+      "regionalVariants": "Only Polish public login/signup states observed; post-submit behavior unobserved.",
+      "fixtures": [
+        "meczyki-login-2026-09-16",
+        "meczyki-registration-2026-09-16"
+      ],
+      "login": "observed",
+      "registration": "observed",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "meczyki-login-2026-09-16",
+            "source": "https://www.meczyki.pl/logowanie.html",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "meczyki-registration-2026-09-16",
+            "source": "https://www.meczyki.pl/rejestracja.html",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      }
+    },
+    {
+      "id": "doradcasmaku",
+      "domain": "doradcasmaku.pl",
+      "selection": "regional-shortlist",
+      "regions": [
+        "poland"
+      ],
+      "regionalVariants": "Only recorded Polish login/signup states observed; other variants unverified. Owner confirmed explicit email/nickname save-time choice on 2026-09-17. No live account creation.",
+      "fixtures": [
+        "doradcasmaku-login-2026-09-16",
+        "doradcasmaku-registration-2026-09-16"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "doradcasmaku-login-2026-09-16",
+            "source": "https://www.doradcasmaku.pl/logowanie",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "doradcasmaku-registration-2026-09-16",
+            "source": "https://www.doradcasmaku.pl/rejestracja",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "login": "observed",
+      "registration": "observed",
+      "observation": "docs/form-observations/doradcasmaku-2026-09-16/observation.json"
+    },
+    {
+      "id": "iltalehti",
+      "domain": "iltalehti.fi",
+      "selection": "regional-shortlist",
+      "regions": [
+        "europe"
+      ],
+      "regionalVariants": "Only recorded locale/states observed; other variants unverified.",
+      "fixtures": [
+        "iltalehti-login-2026-09-16",
+        "iltalehti-registration-2026-09-16"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "iltalehti-login-2026-09-16",
+            "source": "https://tunnus.almamedia.fi/login",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "iltalehti-registration-2026-09-16",
+            "source": "https://tunnus.almamedia.fi/login",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "login": "observed",
+      "registration": "observed"
+    },
+    {
+      "id": "ccc",
+      "domain": "ccc.eu",
+      "selection": "regional-shortlist",
+      "regions": [
+        "poland"
+      ],
+      "regionalVariants": "Only recorded locale/states observed; other variants unverified.",
+      "fixtures": [
+        "ccc-login-2026-09-16",
+        "ccc-registration-2026-09-16"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "ccc-login-2026-09-16",
+            "source": "https://ccc.eu/pl/pl/",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "ccc-registration-2026-09-16",
+            "source": "https://ccc.eu/pl/pl/",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "login": "observed",
+      "registration": "observed"
+    },
+    {
+      "id": "record",
+      "domain": "record.pt",
+      "selection": "regional-shortlist",
+      "regions": [
+        "europe"
+      ],
+      "regionalVariants": "Only recorded locale/states observed; other variants unverified.",
+      "fixtures": [
+        "record-login-2026-09-16",
+        "record-registration-2026-09-16"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "record-login-2026-09-16",
+            "source": "https://www.record.pt/",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "record-registration-2026-09-16",
+            "source": "https://www.record.pt/",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "login": "observed",
+      "registration": "observed"
+    },
+    {
+      "id": "sinsay",
+      "domain": "sinsay.com",
+      "selection": "regional-shortlist",
+      "regions": [
+        "poland"
+      ],
+      "fixtures": [
+        "sinsay-login-2026-09-16",
+        "sinsay-registration-2026-09-16"
+      ],
+      "regionalVariants": "Only recorded locale/states observed; other variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "sinsay-login-2026-09-16",
+            "source": "https://www.sinsay.com/pl/pl/customer/account/login/referer/aHR0cHM6Ly93d3cuc2luc2F5LmNvbS9wbC9wbC8,/",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "sinsay-registration-2026-09-16",
+            "source": "https://www.sinsay.com/pl/pl/customer/account/login/referer/aHR0cHM6Ly93d3cuc2luc2F5LmNvbS9wbC9wbC8,/",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "login": "observed",
+      "registration": "observed"
+    },
+    {
+      "id": "pravda",
+      "domain": "pravda.sk",
+      "selection": "regional-shortlist",
+      "regions": [
+        "europe"
+      ],
+      "fixtures": [
+        "pravda-blog-login-2026-09-16",
+        "pravda-blog-registration-account-details-2026-09-16"
+      ],
+      "regionalVariants": "Only recorded locale/states observed; other variants unverified. Pravda Blog account only, reached from the homepage menu.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "pravda-blog-login-2026-09-16",
+            "source": "https://blog.pravda.sk/wp-pravda-login.php",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "pravda-blog-registration-account-details-2026-09-16",
+            "source": "https://blog.pravda.sk/wp-signup.php",
+            "stage": "account-details",
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "login": "observed",
+      "registration": "partially-observed"
+    },
+    {
+      "id": "diag",
+      "domain": "diag.pl",
+      "selection": "regional-shortlist",
+      "regions": [
+        "poland"
+      ],
+      "fixtures": [
+        "diag-login-identifier-2026-09-16",
+        "diag-registration-identifier-2026-09-16"
+      ],
+      "regionalVariants": "Only recorded locale/states observed; other variants unverified. E-shop account observed. Results-account registration requires a collection-point visit according to the public signup page; results login remains separately unobserved.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "diag-login-identifier-2026-09-16",
+            "source": "https://diag.pl/pacjent/",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "diag-registration-identifier-2026-09-16",
+            "source": "https://diag.pl/sklep/rejestracja/",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "login": "partially-observed",
+      "registration": "partially-observed"
+    },
+    {
+      "id": "znanylekarz",
+      "domain": "znanylekarz.pl",
+      "selection": "regional-shortlist",
+      "regions": [
+        "poland"
+      ],
+      "fixtures": [
+        "znanylekarz-login-2026-09-16",
+        "znanylekarz-registration-2026-09-16"
+      ],
+      "regionalVariants": "Only recorded locale/states observed; other variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "znanylekarz-login-2026-09-16",
+            "source": "https://l.znanylekarz.pl/",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "znanylekarz-registration-2026-09-16",
+            "source": "https://l.znanylekarz.pl/signup",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "login": "observed",
+      "registration": "observed"
+    },
+    {
+      "id": "aftonbladet",
+      "domain": "aftonbladet.se",
+      "selection": "regional-shortlist",
+      "regions": [
+        "europe"
+      ],
+      "fixtures": [
+        "aftonbladet-login-identifier-2026-09-16",
+        "aftonbladet-registration-identifier-2026-09-16"
+      ],
+      "regionalVariants": "Only recorded locale/states observed; other variants unverified.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "aftonbladet-login-identifier-2026-09-16",
+            "source": "https://login.schibsted.com/authn/",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "aftonbladet-registration-identifier-2026-09-16",
+            "source": "https://login.schibsted.com/authn/",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "login": "partially-observed",
+      "registration": "partially-observed"
+    },
+    {
+      "id": "hln",
+      "domain": "hln.be",
+      "selection": "regional-shortlist",
+      "regions": [
+        "europe"
+      ],
+      "fixtures": [
+        "hln-login-identifier-2026-09-16"
+      ],
+      "regionalVariants": "Only recorded locale/states observed; other variants unverified. Combined DPG login/signup identifier form only; hidden password control does not prove another stage.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "hln-login-identifier-2026-09-16",
+            "source": "https://login.dpgmedia.be/identify",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "hln-login-identifier-2026-09-16",
+            "source": "https://login.dpgmedia.be/identify",
+            "stage": "identifier",
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "login": "partially-observed",
+      "registration": "partially-observed"
+    },
+    {
+      "id": "tv2",
+      "domain": "tv2.dk",
+      "selection": "regional-shortlist",
+      "regions": [
+        "europe"
+      ],
+      "fixtures": [
+        "tv2-login-2026-09-16",
+        "tv2-registration-2026-09-16"
+      ],
+      "regionalVariants": "Only recorded locale/states observed; other variants unverified. Birth year inspected but unassigned; security check/terms/account creation not exercised.",
+      "evidence": {
+        "login": [
+          {
+            "fixture": "tv2-login-2026-09-16",
+            "source": "https://auth.tv2.dk/u/login",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ],
+        "registration": [
+          {
+            "fixture": "tv2-registration-2026-09-16",
+            "source": "https://auth.tv2.dk/u/signup",
+            "stage": null,
+            "observedAt": "2026-09-16"
+          }
+        ]
+      },
+      "login": "observed",
+      "registration": "observed"
+    },
+    {
+      "id": "aws",
+      "domain": "aws.amazon.com",
+      "selection": "owner-reported-regression; outside ranked regional selection",
+      "regions": [],
+      "login": "partially-observed",
+      "registration": "not-observed",
+      "fixtures": [
+        "aws-iam-2026-09-18",
+        "aws-root-identifier-2026-09-18",
+        "aws-iam-context-2026-09-18"
+      ],
+      "evidence": {
+        "login": [
+          {
+            "fixture": "aws-iam-2026-09-18",
+            "source": "https://eu-north-1.signin.aws.amazon.com/oauth",
+            "stage": null,
+            "observedAt": "2026-09-18"
+          },
+          {
+            "fixture": "aws-root-identifier-2026-09-18",
+            "source": "https://signin.aws.amazon.com/signin",
+            "stage": "identifier",
+            "observedAt": "2026-09-18"
+          },
+          {
+            "fixture": "aws-iam-context-2026-09-18",
+            "source": "https://eu-north-1.signin.aws.amazon.com/oauth",
+            "stage": null,
+            "observedAt": "2026-09-18"
+          }
+        ]
+      },
+      "regionalVariants": "IAM credential form observed; root identifier only. Root password/MFA, account creation and alternate regional UI not observed."
+    }
+  ],
+  "targetRegionalPositions": 300,
+  "targets": {
+    "global": 100,
+    "poland": 100,
+    "europe": 100
+  },
+  "europeScope": "EU + UK + EFTA (confirmed by owner 2026-09-15)",
+  "selectionEvidence": "selection-sources.json",
+  "regionalShortlists": "regional-shortlists.json"
+}

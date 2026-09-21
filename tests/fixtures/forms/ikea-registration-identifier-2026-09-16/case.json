@@ -1,0 +1,57 @@
+{
+  "id": "ikea-registration-identifier-2026-09-16",
+  "service": "ikea",
+  "flow": "registration",
+  "source": {
+    "url": "https://pl.accounts.ikea.com/login",
+    "observedAt": "2026-09-16",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Login -> Kupuję do domu opens IKEA Family signup: profile details/email, then email verification. No values submitted, terms/marketing not selected. Later stages unobserved; OAuth query omitted.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#family-signup-form-firstName",
+          "kind": "text",
+          "purpose": "given-name",
+          "fieldId": "profile.given-name"
+        },
+        {
+          "selector": "#family-signup-form-lastName",
+          "kind": "text",
+          "purpose": "family-name",
+          "fieldId": "profile.family-name"
+        },
+        {
+          "selector": "#family-signup-form-email",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "stage": "identifier"
+}

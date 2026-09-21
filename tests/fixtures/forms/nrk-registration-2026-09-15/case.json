@@ -1,0 +1,64 @@
+{
+  "id": "nrk-registration-2026-09-15",
+  "service": "nrk",
+  "flow": "registration",
+  "source": {
+    "url": "https://innlogging.nrk.no/registrer",
+    "observedAt": "2026-09-15",
+    "locale": "nb",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Public signup credential step 1 of 2; password annotated current-password; birth year left unchanged, later terms step not observed",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "[name=\"firstName\"]",
+          "kind": "text",
+          "purpose": "given-name",
+          "fieldId": "profile.given-name"
+        },
+        {
+          "selector": "[name=\"email\"]",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "[name=\"password\"]",
+          "kind": "password",
+          "purpose": "current-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "[name=\"email\"]",
+      "passwords": [
+        "[name=\"password\"]"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}
+

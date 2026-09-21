@@ -33,12 +33,13 @@ export function scopeInputs(scope: CredentialScope): HTMLInputElement[] {
 export const ACTION_SELECTOR = 'button, input[type="submit"], input[type="button"], [role="button"], a.button:not([href]), div.btn_primary';
 const AUTH_ACTION = /(?:\blog\s*in\b|\bsign\s*in\b|\bsign\s*up\b|\bcontinue\b|\bnext\b|\bsubmit\b|\bregister\b|\bcreate\s+account\b|\bsave\b|zaloguj|zarejestruj|dalej|kontynuuj|zapisz|utwórz\s+konto)/i;
 
-const LOCALIZED_LOGIN_ACTIONS = new Set(['logowanie', 'συνέχεια', 'fortsett', 'fortsätt', 'continuar', 'weiter', 'anmelden']);
+const LOCALIZED_LOGIN_ACTIONS = new Set(['logowanie', 'συνέχεια', 'fortsett', 'fortsätt', 'continuar', 'weiter', 'anmelden',
+  'prijavi se', 'entrar', 'log ind']);
 const EXACT_LOGIN_ACTION = /^(?:log\s*in|sign\s*in|continue|next|submit|zaloguj(?:\s+się)?|dalej|kontynuuj)$/i;
 
 function actionLabels(element: Element): string[] {
   const value = element instanceof HTMLInputElement && ['submit', 'button'].includes(element.type)
-    ? element.value : element.getAttribute('value');
+    ? element.value : null;
   return [element.getAttribute('aria-label'), actionCaption(element), value]
     .filter((label): label is string => label !== null && label.length <= 512)
     .map(label => label.trim().toLowerCase());

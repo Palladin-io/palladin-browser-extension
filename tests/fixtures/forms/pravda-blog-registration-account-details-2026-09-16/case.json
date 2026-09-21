@@ -1,0 +1,68 @@
+{
+  "id": "pravda-blog-registration-account-details-2026-09-16",
+  "service": "pravda",
+  "flow": "registration",
+  "source": {
+    "url": "https://blog.pravda.sk/wp-signup.php",
+    "entryUrl": "https://www.pravda.sk/",
+    "observedAt": "2026-09-16",
+    "locale": "sk",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Homepage menu -> Blog -> Registrácia -> Osobný blog (blog_type=1). Initial account/profile collection; no password present. Terms unchecked; no fields entered or submit.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "Observed native blog account form, including public action input captions",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Public navigation href presence retained as fixed fragment; actual targets, CAPTCHA content and hidden field values omitted."
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#user_name",
+          "kind": "text",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#user_email",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "profile.email"
+        },
+        {
+          "selector": "#first_name",
+          "kind": "text",
+          "purpose": "given-name",
+          "fieldId": "profile.given-name"
+        },
+        {
+          "selector": "#last_name",
+          "kind": "text",
+          "purpose": "family-name",
+          "fieldId": "profile.family-name"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "stage": "account-details",
+  "synthetic": {
+    "username": "fixture_handle"
+  }
+}

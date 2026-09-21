@@ -1,0 +1,71 @@
+{
+  "id": "ebay-registration-2026-09-16",
+  "service": "ebay",
+  "flow": "registration",
+  "source": {
+    "url": "https://signup.ebay.com/pa/crte",
+    "entryUrl": "https://www.ebay.com/",
+    "observedAt": "2026-09-16",
+    "locale": "en-US",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Homepage -> Sign in -> Create account -> Personal default. No values entered, terms accepted or form submitted.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "Observed native form including hidden transport and inactive controls without values",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Anchor href presence retained as a constant fragment, no actual targets retained."
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#firstname",
+          "kind": "text",
+          "purpose": "given-name",
+          "fieldId": "profile.given-name"
+        },
+        {
+          "selector": "#lastname",
+          "kind": "text",
+          "purpose": "family-name",
+          "fieldId": "profile.family-name"
+        },
+        {
+          "selector": "#Email",
+          "kind": "text",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#password",
+          "kind": "password",
+          "purpose": "new-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "#Email",
+      "passwords": [
+        "#password"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}

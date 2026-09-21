@@ -1,0 +1,62 @@
+{
+  "id": "figma-login-2026-09-15",
+  "service": "figma",
+  "flow": "login",
+  "source": {
+    "url": "https://www.figma.com/login",
+    "observedAt": "2026-09-15",
+    "locale": "en",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "public form, no values read",
+    "viewport": {
+      "width": 954,
+      "height": 375
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#email",
+      "username": "#email",
+      "password": "#current-password"
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#email",
+          "kind": "email",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#current-password",
+          "kind": "password",
+          "purpose": "current-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "login",
+      "scope": "form",
+      "username": "#email",
+      "passwords": [
+        "#current-password"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}
+

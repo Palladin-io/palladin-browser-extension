@@ -1,0 +1,7 @@
+/* Observed input computed styles; structural fixture, not pixel-perfect. */
+[id="wpName1"] { display:block; visibility:visible; opacity:1; width:448px; height:32px; }
+[id="wpPassword1"] { display:block; visibility:visible; opacity:1; width:448px; height:32px; }
+[id="wpRemember"] { display:block; visibility:visible; opacity:0; width:20px; height:20px; }
+[id="wpEditToken"] { display:none; visibility:visible; opacity:1; width:auto; height:auto; }
+[id="mw-input-auth_info"] { display:none; visibility:visible; opacity:1; width:auto; height:auto; }
+[id="mw-input-credential"] { display:none; visibility:visible; opacity:1; width:auto; height:auto; }

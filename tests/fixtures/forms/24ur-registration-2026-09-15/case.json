@@ -1,0 +1,73 @@
+{
+  "id": "24ur-registration-2026-09-15",
+  "service": "24ur",
+  "flow": "registration",
+  "source": {
+    "url": "https://prijava.24ur.com/registracija",
+    "observedAt": "2026-09-15",
+    "locale": "sl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "public form, no values read",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "[name=\"email\"]",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#password",
+          "kind": "password",
+          "purpose": "new-password",
+          "fieldId": "credential.password"
+        },
+        {
+          "selector": "[name=\"nickname\"]",
+          "kind": "text",
+          "purpose": null,
+          "fieldId": "profile.username"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "[name=\"email\"]",
+      "passwords": [
+        "#password"
+      ],
+      "usernameOptions": {
+        "email": "fixture-user@example.test",
+        "nickname": "fixture_handle"
+      }
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "expectationHistory": [
+    {
+      "date": "2026-09-21",
+      "reason": "Align with owner-approved email/nickname choice when no explicit username field exists. Observed DOM unchanged; previous email-only expectation predates this decision."
+    }
+  ]
+}

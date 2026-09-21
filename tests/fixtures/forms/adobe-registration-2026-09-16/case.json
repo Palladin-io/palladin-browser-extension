@@ -1,0 +1,57 @@
+{
+  "id": "adobe-registration-2026-09-16",
+  "service": "adobe",
+  "flow": "registration",
+  "source": {
+    "url": "https://auth.services.adobe.com/en_US/deeplink.html",
+    "observedAt": "2026-09-16",
+    "locale": "en-US",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Create an account opens email/new-password step; hidden current-password transport field retained; later steps not observed",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "Editable/hidden field values, URLs, scripts, handlers and iframe content omitted; public input-button captions retained",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#Signup-EmailField",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#Signup-PasswordField",
+          "kind": "password",
+          "purpose": "new-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "#Signup-EmailField",
+      "passwords": [
+        "#Signup-PasswordField"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}

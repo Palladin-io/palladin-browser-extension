@@ -8,13 +8,13 @@ import { AGENT_FORM_INSPECT_CHANNEL, AGENT_FORM_LIMITS } from '@shared/messaging
 import { AgentFormRegistry } from './agent-form';
 import { performAgentInjectStep, type AgentInjectDomAccess } from './agent-inject';
 import { loginTargetFor, isFillable } from './credential-form-analysis';
-import { credentialScopeFor, isEmailConfirmationControl, isIdentifiedUsername, isOneTimeCodeControl, isSubscriptionIdentity, isVisibleScopeHint, scopeInputs } from './login-controls';
+import { credentialScopeFor, hasLoginActionLabel, isEmailConfirmationControl, isIdentifiedUsername, isOneTimeCodeControl, isSubscriptionIdentity, isVisibleScopeHint, scopeInputs } from './login-controls';
 import { actionCaption, composedForm } from './open-dom';
 import { markAgentManagedControl, isAgentManagedControl, unmarkAgentManagedControl } from './agent-managed-controls';
 import { hasLiveLoginObstacle } from './agent-live-obstacles';
 
 export const LIVE_SELECTOR_PREFIX = 'palladin-live:';
-const ACTION = /^(?:log\s*in|sign\s*in|continue|next|submit|verify|verify code|authenticate|zaloguj(?:\s+się)?|dalej|kontynuuj|potwierdź|zweryfikuj|anmelden|weiter)$/i;
+const VERIFICATION_ACTION = /^(?:verify|verify code|authenticate|potwierdź|zweryfikuj)$/i;
 export class LiveLogin {
   private readonly registry: AgentFormRegistry;
   private readonly deferred: DeferredLiveLogin;
@@ -100,7 +100,8 @@ export class LiveLogin {
       this.inspectionOutcome = 'challenge'; this.clear(); return null;
     }
     const actions = nodes.filter(({ element }) => element instanceof HTMLElement
-      && credentialScopeFor(element) === scope && ACTION.test((actionCaption(element) ?? '').trim())
+      && credentialScopeFor(element) === scope
+      && (hasLoginActionLabel(element) || VERIFICATION_ACTION.test((actionCaption(element) ?? '').trim()))
       && ((element instanceof HTMLButtonElement || element instanceof HTMLInputElement) && ['submit', 'button'].includes(element.type)));
     if (actions.length !== 1) { this.clear(); return null; }
     const ref = (reference: string) => `${LIVE_SELECTOR_PREFIX}${snapshot.snapshotId}:${reference}`;

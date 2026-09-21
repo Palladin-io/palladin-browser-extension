@@ -1,0 +1,61 @@
+{
+  "id": "etsy-login-2026-09-16",
+  "service": "etsy",
+  "flow": "login",
+  "source": {
+    "url": "https://www.etsy.com/",
+    "observedAt": "2026-09-16",
+    "locale": "en",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Etsy homepage -> Sign in; each field has a separate open clg-text-input shadow root. Essential Cookies Only chosen; no account data submitted.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "Observed form subtree including open shadow roots and slot boundaries, serialized as inert templates for test hydration",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "Editable/hidden field values, URLs, scripts, handlers and iframe content omitted; public input-button captions retained",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#input-1",
+      "username": "#input-1",
+      "password": "#input-2"
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#input-1",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#input-2",
+          "kind": "password",
+          "purpose": "current-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "login",
+      "scope": "form",
+      "username": "#input-1",
+      "passwords": [
+        "#input-2"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "id": "wikipedia-registration-2026-09-15",
+  "service": "wikipedia",
+  "flow": "registration",
+  "source": {
+    "url": "https://auth.wikimedia.org/plwiki/w/index.php",
+    "observedAt": "2026-09-15",
+    "locale": "pl",
+    "method": "CUA read-only DOM inspection",
+    "state": "public create-account form reached via Dołącz do Wikipedii; URL query omitted"
+  },
+  "fidelity": {
+    "structure": "observed form subtree",
+    "styles": "observed input visibility and geometry only",
+    "behavior": "hCaptcha present; submission not attempted",
+    "redactions": [
+      "value attributes and live values excluded",
+      "scripts, noscript, images, SVG, external links/actions and unreviewed attributes omitted",
+      "page shell omitted; long non-field copy shortened if present"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#wpName2",
+          "kind": "text",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#wpPassword2",
+          "kind": "password",
+          "purpose": "new-password",
+          "fieldId": "credential.password"
+        },
+        {
+          "selector": "#wpRetype",
+          "kind": "password",
+          "purpose": "new-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "#userlogin2",
+      "username": "#wpName2",
+      "passwords": [
+        "#wpPassword2",
+        "#wpRetype"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}

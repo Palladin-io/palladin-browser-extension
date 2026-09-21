@@ -1,0 +1,61 @@
+{
+  "id": "imdb-login-2026-09-16",
+  "service": "imdb",
+  "flow": "login",
+  "source": {
+    "url": "https://www.imdb.com/ap/signin",
+    "observedAt": "2026-09-16",
+    "locale": "en",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "IMDb homepage -> Sign in -> Sign in to an existing account -> Sign in with IMDb. Public email/password form; no authentication submitted.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "Editable/hidden field values, URLs, scripts, handlers and iframe content omitted; public input-button captions retained",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#ap_email",
+      "username": "#ap_email",
+      "password": "#ap_password"
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#ap_email",
+          "kind": "email",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#ap_password",
+          "kind": "password",
+          "purpose": "current-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "login",
+      "scope": "form",
+      "username": "#ap_email",
+      "passwords": [
+        "#ap_password"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}

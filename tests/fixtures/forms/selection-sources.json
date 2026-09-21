@@ -1,0 +1,3708 @@
+{
+  "method": "Public country top lists; not an aggregate Europe traffic ranking",
+  "scope": "EU + UK + EFTA",
+  "sources": [
+    {
+      "market": "at",
+      "url": "https://www.semrush.com/trending-websites/at/all",
+      "title": "Most Visited Websites in Austria July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "orf.at"
+        },
+        {
+          "rank": 4,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 5,
+          "domain": "amazon.de"
+        },
+        {
+          "rank": 6,
+          "domain": "krone.at"
+        },
+        {
+          "rank": 7,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 8,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 9,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 10,
+          "domain": "willhaben.at"
+        },
+        {
+          "rank": 11,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 12,
+          "domain": "weather.com"
+        },
+        {
+          "rank": 13,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 14,
+          "domain": "derstandard.at"
+        },
+        {
+          "rank": 15,
+          "domain": "heute.at"
+        },
+        {
+          "rank": 16,
+          "domain": "duckduckgo.com"
+        },
+        {
+          "rank": 17,
+          "domain": "wetteronline.at"
+        },
+        {
+          "rank": 18,
+          "domain": "google.at"
+        },
+        {
+          "rank": 19,
+          "domain": "bergfex.at"
+        },
+        {
+          "rank": 20,
+          "domain": "xhamster.com"
+        }
+      ]
+    },
+    {
+      "market": "be",
+      "url": "https://www.semrush.com/trending-websites/be/all",
+      "title": "Most Visited Websites in Belgium July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "hln.be"
+        },
+        {
+          "rank": 5,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 6,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 7,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 8,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 9,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 10,
+          "domain": "sporza.be"
+        },
+        {
+          "rank": 11,
+          "domain": "vrt.be"
+        },
+        {
+          "rank": 12,
+          "domain": "belgium.be"
+        },
+        {
+          "rank": 13,
+          "domain": "live.com"
+        },
+        {
+          "rank": 14,
+          "domain": "com.be"
+        },
+        {
+          "rank": 15,
+          "domain": "x.com"
+        },
+        {
+          "rank": 16,
+          "domain": "nieuwsblad.be"
+        },
+        {
+          "rank": 17,
+          "domain": "weather.com"
+        },
+        {
+          "rank": 18,
+          "domain": "xhamster.com"
+        },
+        {
+          "rank": 19,
+          "domain": "rtbf.be"
+        },
+        {
+          "rank": 20,
+          "domain": "tiktok.com"
+        }
+      ]
+    },
+    {
+      "market": "bg",
+      "url": "https://www.semrush.com/trending-websites/bg/all",
+      "title": "Most Visited Websites in Bulgaria July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "dir.bg"
+        },
+        {
+          "rank": 5,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 6,
+          "domain": "abv.bg"
+        },
+        {
+          "rank": 7,
+          "domain": "sportal.bg"
+        },
+        {
+          "rank": 8,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 9,
+          "domain": "playtube.tv"
+        },
+        {
+          "rank": 10,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 11,
+          "domain": "xhamster.com"
+        },
+        {
+          "rank": 12,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 13,
+          "domain": "sinoptik.bg"
+        },
+        {
+          "rank": 14,
+          "domain": "winbet.bg"
+        },
+        {
+          "rank": 15,
+          "domain": "blitz.bg"
+        },
+        {
+          "rank": 16,
+          "domain": "filmizip.com"
+        },
+        {
+          "rank": 17,
+          "domain": "fakti.bg"
+        },
+        {
+          "rank": 18,
+          "domain": "mobile.bg"
+        },
+        {
+          "rank": 19,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 20,
+          "domain": "xvideos.com"
+        }
+      ]
+    },
+    {
+      "market": "ch",
+      "url": "https://www.semrush.com/trending-websites/ch/all",
+      "title": "Most Visited Websites in Switzerland July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "srf.ch"
+        },
+        {
+          "rank": 4,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 5,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 6,
+          "domain": "20min.ch"
+        },
+        {
+          "rank": 7,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 8,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 9,
+          "domain": "blick.ch"
+        },
+        {
+          "rank": 10,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 11,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 12,
+          "domain": "duckduckgo.com"
+        },
+        {
+          "rank": 13,
+          "domain": "linkedin.com"
+        },
+        {
+          "rank": 14,
+          "domain": "whatsapp.com"
+        },
+        {
+          "rank": 15,
+          "domain": "galaxus.ch"
+        },
+        {
+          "rank": 16,
+          "domain": "x.com"
+        },
+        {
+          "rank": 17,
+          "domain": "admin.ch"
+        },
+        {
+          "rank": 18,
+          "domain": "watson.ch"
+        },
+        {
+          "rank": 19,
+          "domain": "msn.com"
+        },
+        {
+          "rank": 20,
+          "domain": "weather.com"
+        }
+      ]
+    },
+    {
+      "market": "cy",
+      "url": "https://www.semrush.com/trending-websites/cy/all",
+      "title": "Most Visited Websites in Cyprus July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 5,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 6,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 7,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 8,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 9,
+          "domain": "msn.com"
+        },
+        {
+          "rank": 10,
+          "domain": "x.com"
+        },
+        {
+          "rank": 11,
+          "domain": "twitch.tv"
+        },
+        {
+          "rank": 12,
+          "domain": "philenews.com"
+        },
+        {
+          "rank": 13,
+          "domain": "netflix.com"
+        },
+        {
+          "rank": 14,
+          "domain": "gazzetta.gr"
+        },
+        {
+          "rank": 15,
+          "domain": "linkedin.com"
+        },
+        {
+          "rank": 16,
+          "domain": "sigmalive.com"
+        },
+        {
+          "rank": 17,
+          "domain": "stoiximan.com.cy"
+        },
+        {
+          "rank": 18,
+          "domain": "whatsapp.com"
+        },
+        {
+          "rank": 19,
+          "domain": "claude.ai"
+        },
+        {
+          "rank": 20,
+          "domain": "live.com"
+        }
+      ]
+    },
+    {
+      "market": "cz",
+      "url": "https://www.semrush.com/trending-websites/cz/all",
+      "title": "Most Visited Websites in the Czech Republic July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "novinky.cz"
+        },
+        {
+          "rank": 5,
+          "domain": "idnes.cz"
+        },
+        {
+          "rank": 6,
+          "domain": "seznamzpravy.cz"
+        },
+        {
+          "rank": 7,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 8,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 9,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 10,
+          "domain": "lide.cz"
+        },
+        {
+          "rank": 11,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 12,
+          "domain": "csfd.cz"
+        },
+        {
+          "rank": 13,
+          "domain": "1gr.cz"
+        },
+        {
+          "rank": 14,
+          "domain": "sport.cz"
+        },
+        {
+          "rank": 15,
+          "domain": "super.cz"
+        },
+        {
+          "rank": 16,
+          "domain": "bazos.cz"
+        },
+        {
+          "rank": 17,
+          "domain": "weather.com"
+        },
+        {
+          "rank": 18,
+          "domain": "ceskatelevize.cz"
+        },
+        {
+          "rank": 19,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 20,
+          "domain": "centrum.cz"
+        }
+      ]
+    },
+    {
+      "market": "de",
+      "url": "https://www.semrush.com/trending-websites/de/all",
+      "title": "Most Visited Websites in Germany July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "amazon.de"
+        },
+        {
+          "rank": 4,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 5,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 6,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 7,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 8,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 9,
+          "domain": "duckduckgo.com"
+        },
+        {
+          "rank": 10,
+          "domain": "weather.com"
+        },
+        {
+          "rank": 11,
+          "domain": "bild.de"
+        },
+        {
+          "rank": 12,
+          "domain": "kleinanzeigen.de"
+        },
+        {
+          "rank": 13,
+          "domain": "google.de"
+        },
+        {
+          "rank": 14,
+          "domain": "dhl.de"
+        },
+        {
+          "rank": 15,
+          "domain": "aniworld.to"
+        },
+        {
+          "rank": 16,
+          "domain": "twitch.tv"
+        },
+        {
+          "rank": 17,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 18,
+          "domain": "paypal.com"
+        },
+        {
+          "rank": 19,
+          "domain": "tiktok.com"
+        },
+        {
+          "rank": 20,
+          "domain": "x.com"
+        }
+      ]
+    },
+    {
+      "market": "dk",
+      "url": "https://www.semrush.com/trending-websites/dk/all",
+      "title": "Most Visited Websites in Denmark July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "tv2.dk"
+        },
+        {
+          "rank": 4,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 5,
+          "domain": "ekstrabladet.dk"
+        },
+        {
+          "rank": 6,
+          "domain": "dr.dk"
+        },
+        {
+          "rank": 7,
+          "domain": "bt.dk"
+        },
+        {
+          "rank": 8,
+          "domain": "mitid.dk"
+        },
+        {
+          "rank": 9,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 10,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 11,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 12,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 13,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 14,
+          "domain": "bold.dk"
+        },
+        {
+          "rank": 15,
+          "domain": "duckduckgo.com"
+        },
+        {
+          "rank": 16,
+          "domain": "dmi.dk"
+        },
+        {
+          "rank": 17,
+          "domain": "twitch.tv"
+        },
+        {
+          "rank": 18,
+          "domain": "netflix.com"
+        },
+        {
+          "rank": 19,
+          "domain": "xvideos.com"
+        },
+        {
+          "rank": 20,
+          "domain": "xhamster.com"
+        }
+      ]
+    },
+    {
+      "market": "ee",
+      "url": "https://www.semrush.com/trending-websites/ee/all",
+      "title": "Most Visited Websites in Estonia July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "delfi.ee"
+        },
+        {
+          "rank": 5,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 6,
+          "domain": "postimees.ee"
+        },
+        {
+          "rank": 7,
+          "domain": "err.ee"
+        },
+        {
+          "rank": 8,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 9,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 10,
+          "domain": "twitch.tv"
+        },
+        {
+          "rank": 11,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 12,
+          "domain": "swedbank.ee"
+        },
+        {
+          "rank": 13,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 14,
+          "domain": "ria.ee"
+        },
+        {
+          "rank": 15,
+          "domain": "yandex.ru"
+        },
+        {
+          "rank": 16,
+          "domain": "x.com"
+        },
+        {
+          "rank": 17,
+          "domain": "ohtuleht.ee"
+        },
+        {
+          "rank": 18,
+          "domain": "roblox.com"
+        },
+        {
+          "rank": 19,
+          "domain": "yr.no"
+        },
+        {
+          "rank": 20,
+          "domain": "tiktok.com"
+        }
+      ]
+    },
+    {
+      "market": "es",
+      "url": "https://www.semrush.com/trending-websites/es/all",
+      "title": "Most Visited Websites in Spain July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "marca.com"
+        },
+        {
+          "rank": 4,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 5,
+          "domain": "google.es"
+        },
+        {
+          "rank": 6,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 7,
+          "domain": "amazon.es"
+        },
+        {
+          "rank": 8,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 9,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 10,
+          "domain": "x.com"
+        },
+        {
+          "rank": 11,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 12,
+          "domain": "tiktok.com"
+        },
+        {
+          "rank": 13,
+          "domain": "elmundo.es"
+        },
+        {
+          "rank": 14,
+          "domain": "elpais.com"
+        },
+        {
+          "rank": 15,
+          "domain": "whatsapp.com"
+        },
+        {
+          "rank": 16,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 17,
+          "domain": "xvideos.com"
+        },
+        {
+          "rank": 18,
+          "domain": "eldiario.es"
+        },
+        {
+          "rank": 19,
+          "domain": "rtve.es"
+        },
+        {
+          "rank": 20,
+          "domain": "temu.com"
+        }
+      ]
+    },
+    {
+      "market": "fi",
+      "url": "https://www.semrush.com/trending-websites/fi/all",
+      "title": "Most Visited Websites in Finland July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "is.fi"
+        },
+        {
+          "rank": 4,
+          "domain": "iltalehti.fi"
+        },
+        {
+          "rank": 5,
+          "domain": "yle.fi"
+        },
+        {
+          "rank": 6,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 7,
+          "domain": "foreca.fi"
+        },
+        {
+          "rank": 8,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 9,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 10,
+          "domain": "hs.fi"
+        },
+        {
+          "rank": 11,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 12,
+          "domain": "ilmatieteenlaitos.fi"
+        },
+        {
+          "rank": 13,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 14,
+          "domain": "duckduckgo.com"
+        },
+        {
+          "rank": 15,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 16,
+          "domain": "tori.fi"
+        },
+        {
+          "rank": 17,
+          "domain": "x.com"
+        },
+        {
+          "rank": 18,
+          "domain": "suomi.fi"
+        },
+        {
+          "rank": 19,
+          "domain": "telia.fi"
+        },
+        {
+          "rank": 20,
+          "domain": "mtvuutiset.fi"
+        }
+      ]
+    },
+    {
+      "market": "fr",
+      "url": "https://www.semrush.com/trending-websites/fr/all",
+      "title": "Most Visited Websites in France July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 5,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 6,
+          "domain": "amazon.fr"
+        },
+        {
+          "rank": 7,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 8,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 9,
+          "domain": "leboncoin.fr"
+        },
+        {
+          "rank": 10,
+          "domain": "x.com"
+        },
+        {
+          "rank": 11,
+          "domain": "weather.com"
+        },
+        {
+          "rank": 12,
+          "domain": "ecosia.org"
+        },
+        {
+          "rank": 13,
+          "domain": "lequipe.fr"
+        },
+        {
+          "rank": 14,
+          "domain": "meteofrance.com"
+        },
+        {
+          "rank": 15,
+          "domain": "anime-sama.to"
+        },
+        {
+          "rank": 16,
+          "domain": "yahoo.com"
+        },
+        {
+          "rank": 17,
+          "domain": "duckduckgo.com"
+        },
+        {
+          "rank": 18,
+          "domain": "twitch.tv"
+        },
+        {
+          "rank": 19,
+          "domain": "tiktok.com"
+        },
+        {
+          "rank": 20,
+          "domain": "actu.fr"
+        }
+      ]
+    },
+    {
+      "market": "gb",
+      "url": "https://www.semrush.com/trending-websites/gb/all",
+      "title": "Most Visited Websites in the United Kingdom July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "bbc.co.uk"
+        },
+        {
+          "rank": 4,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 5,
+          "domain": "amazon.co.uk"
+        },
+        {
+          "rank": 6,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 7,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 8,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 9,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 10,
+          "domain": "x.com"
+        },
+        {
+          "rank": 11,
+          "domain": "google.co.uk"
+        },
+        {
+          "rank": 12,
+          "domain": "ebay.co.uk"
+        },
+        {
+          "rank": 13,
+          "domain": "yahoo.com"
+        },
+        {
+          "rank": 14,
+          "domain": "gov.uk"
+        },
+        {
+          "rank": 15,
+          "domain": "live.com"
+        },
+        {
+          "rank": 16,
+          "domain": "bing.com"
+        },
+        {
+          "rank": 17,
+          "domain": "linkedin.com"
+        },
+        {
+          "rank": 18,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 19,
+          "domain": "netflix.com"
+        },
+        {
+          "rank": 20,
+          "domain": "duckduckgo.com"
+        }
+      ]
+    },
+    {
+      "market": "gr",
+      "url": "https://www.semrush.com/trending-websites/gr/all",
+      "title": "Most Visited Websites in Greece July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "protothema.gr"
+        },
+        {
+          "rank": 5,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 6,
+          "domain": "gazzetta.gr"
+        },
+        {
+          "rank": 7,
+          "domain": "skroutz.gr"
+        },
+        {
+          "rank": 8,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 9,
+          "domain": "sport24.gr"
+        },
+        {
+          "rank": 10,
+          "domain": "xhamster.com"
+        },
+        {
+          "rank": 11,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 12,
+          "domain": "sdna.gr"
+        },
+        {
+          "rank": 13,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 14,
+          "domain": "newsit.gr"
+        },
+        {
+          "rank": 15,
+          "domain": "gsis.gr"
+        },
+        {
+          "rank": 16,
+          "domain": "meteo.gr"
+        },
+        {
+          "rank": 17,
+          "domain": "sport-fm.gr"
+        },
+        {
+          "rank": 18,
+          "domain": "xvideos.com"
+        },
+        {
+          "rank": 19,
+          "domain": "car.gr"
+        },
+        {
+          "rank": 20,
+          "domain": "in.gr"
+        }
+      ]
+    },
+    {
+      "market": "hr",
+      "url": "https://www.semrush.com/trending-websites/hr/all",
+      "title": "Most Visited Websites in Croatia July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "index.hr"
+        },
+        {
+          "rank": 4,
+          "domain": "jutarnji.hr"
+        },
+        {
+          "rank": 5,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 6,
+          "domain": "24sata.hr"
+        },
+        {
+          "rank": 7,
+          "domain": "vecernji.hr"
+        },
+        {
+          "rank": 8,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 9,
+          "domain": "net.hr"
+        },
+        {
+          "rank": 10,
+          "domain": "slobodnadalmacija.hr"
+        },
+        {
+          "rank": 11,
+          "domain": "dnevnik.hr"
+        },
+        {
+          "rank": 12,
+          "domain": "njuskalo.hr"
+        },
+        {
+          "rank": 13,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 14,
+          "domain": "weather.com"
+        },
+        {
+          "rank": 15,
+          "domain": "tportal.hr"
+        },
+        {
+          "rank": 16,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 17,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 18,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 19,
+          "domain": "xhamster.com"
+        },
+        {
+          "rank": 20,
+          "domain": "xvideos.com"
+        }
+      ]
+    },
+    {
+      "market": "hu",
+      "url": "https://www.semrush.com/trending-websites/hu/all",
+      "title": "Most Visited Websites in Hungary July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "idokep.hu"
+        },
+        {
+          "rank": 5,
+          "domain": "index.hu"
+        },
+        {
+          "rank": 6,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 7,
+          "domain": "videa.hu"
+        },
+        {
+          "rank": 8,
+          "domain": "telex.hu"
+        },
+        {
+          "rank": 9,
+          "domain": "24.hu"
+        },
+        {
+          "rank": 10,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 11,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 12,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 13,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 14,
+          "domain": "jobbmintatv.pro"
+        },
+        {
+          "rank": 15,
+          "domain": "xhamster.com"
+        },
+        {
+          "rank": 16,
+          "domain": "weather.com"
+        },
+        {
+          "rank": 17,
+          "domain": "xvideos.com"
+        },
+        {
+          "rank": 18,
+          "domain": "sorozat-barat.info"
+        },
+        {
+          "rank": 19,
+          "domain": "gov.hu"
+        },
+        {
+          "rank": 20,
+          "domain": "freemail.hu"
+        }
+      ]
+    },
+    {
+      "market": "ie",
+      "url": "https://www.semrush.com/trending-websites/ie/all",
+      "title": "Most Visited Websites in Ireland July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 5,
+          "domain": "rte.ie"
+        },
+        {
+          "rank": 6,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 7,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 8,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 9,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 10,
+          "domain": "aib.ie"
+        },
+        {
+          "rank": 11,
+          "domain": "x.com"
+        },
+        {
+          "rank": 12,
+          "domain": "duckduckgo.com"
+        },
+        {
+          "rank": 13,
+          "domain": "bbc.com"
+        },
+        {
+          "rank": 14,
+          "domain": "xhamster.com"
+        },
+        {
+          "rank": 15,
+          "domain": "xvideos.com"
+        },
+        {
+          "rank": 16,
+          "domain": "linkedin.com"
+        },
+        {
+          "rank": 17,
+          "domain": "amazon.ie"
+        },
+        {
+          "rank": 18,
+          "domain": "tiktok.com"
+        },
+        {
+          "rank": 19,
+          "domain": "theguardian.com"
+        },
+        {
+          "rank": 20,
+          "domain": "independent.ie"
+        }
+      ]
+    },
+    {
+      "market": "is",
+      "url": "https://www.semrush.com/trending-websites/is/all",
+      "title": "Most Visited Websites in Iceland July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "visir.is"
+        },
+        {
+          "rank": 5,
+          "domain": "mbl.is"
+        },
+        {
+          "rank": 6,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 7,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 8,
+          "domain": "ruv.is"
+        },
+        {
+          "rank": 9,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 10,
+          "domain": "netflix.com"
+        },
+        {
+          "rank": 11,
+          "domain": "twitch.tv"
+        },
+        {
+          "rank": 12,
+          "domain": "dv.is"
+        },
+        {
+          "rank": 13,
+          "domain": "x.com"
+        },
+        {
+          "rank": 14,
+          "domain": "msn.com"
+        },
+        {
+          "rank": 15,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 16,
+          "domain": "vedur.is"
+        },
+        {
+          "rank": 17,
+          "domain": "island.is"
+        },
+        {
+          "rank": 18,
+          "domain": "tiktok.com"
+        },
+        {
+          "rank": 19,
+          "domain": "fotbolti.net"
+        },
+        {
+          "rank": 20,
+          "domain": "bing.com"
+        }
+      ]
+    },
+    {
+      "market": "it",
+      "url": "https://www.semrush.com/trending-websites/it/all",
+      "title": "Most Visited Websites in Italy July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 5,
+          "domain": "amazon.it"
+        },
+        {
+          "rank": 6,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 7,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 8,
+          "domain": "gazzetta.it"
+        },
+        {
+          "rank": 9,
+          "domain": "corriere.it"
+        },
+        {
+          "rank": 10,
+          "domain": "google.it"
+        },
+        {
+          "rank": 11,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 12,
+          "domain": "repubblica.it"
+        },
+        {
+          "rank": 13,
+          "domain": "mediaset.it"
+        },
+        {
+          "rank": 14,
+          "domain": "whatsapp.com"
+        },
+        {
+          "rank": 15,
+          "domain": "3bmeteo.com"
+        },
+        {
+          "rank": 16,
+          "domain": "animeunity.so"
+        },
+        {
+          "rank": 17,
+          "domain": "ansa.it"
+        },
+        {
+          "rank": 18,
+          "domain": "duckduckgo.com"
+        },
+        {
+          "rank": 19,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 20,
+          "domain": "ilmeteo.it"
+        }
+      ]
+    },
+    {
+      "market": "li",
+      "url": "https://www.semrush.com/trending-websites/li/all",
+      "title": "Most Visited Websites in Liechtenstein July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 4,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 5,
+          "domain": "twitch.tv"
+        },
+        {
+          "rank": 6,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 7,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 8,
+          "domain": "msn.com"
+        },
+        {
+          "rank": 9,
+          "domain": "claude.ai"
+        },
+        {
+          "rank": 10,
+          "domain": "linkedin.com"
+        },
+        {
+          "rank": 11,
+          "domain": "github.com"
+        },
+        {
+          "rank": 12,
+          "domain": "galaxus.ch"
+        },
+        {
+          "rank": 13,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 14,
+          "domain": "aniworld.to"
+        },
+        {
+          "rank": 15,
+          "domain": "srf.ch"
+        },
+        {
+          "rank": 16,
+          "domain": "x.com"
+        },
+        {
+          "rank": 17,
+          "domain": "xhamster.com"
+        },
+        {
+          "rank": 18,
+          "domain": "yandex.ru"
+        },
+        {
+          "rank": 19,
+          "domain": "microsoft.com"
+        },
+        {
+          "rank": 20,
+          "domain": "duckduckgo.com"
+        }
+      ]
+    },
+    {
+      "market": "lt",
+      "url": "https://www.semrush.com/trending-websites/lt/all",
+      "title": "Most Visited Websites in Lithuania July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "delfi.lt"
+        },
+        {
+          "rank": 4,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 5,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 6,
+          "domain": "15min.lt"
+        },
+        {
+          "rank": 7,
+          "domain": "lrytas.lt"
+        },
+        {
+          "rank": 8,
+          "domain": "swedbank.lt"
+        },
+        {
+          "rank": 9,
+          "domain": "skelbiu.lt"
+        },
+        {
+          "rank": 10,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 11,
+          "domain": "tv3.lt"
+        },
+        {
+          "rank": 12,
+          "domain": "autoplius.lt"
+        },
+        {
+          "rank": 13,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 14,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 15,
+          "domain": "weather.com"
+        },
+        {
+          "rank": 16,
+          "domain": "twitch.tv"
+        },
+        {
+          "rank": 17,
+          "domain": "lrt.lt"
+        },
+        {
+          "rank": 18,
+          "domain": "roblox.com"
+        },
+        {
+          "rank": 19,
+          "domain": "msn.com"
+        },
+        {
+          "rank": 20,
+          "domain": "wikipedia.org"
+        }
+      ]
+    },
+    {
+      "market": "lu",
+      "url": "https://www.semrush.com/trending-websites/lu/all",
+      "title": "Most Visited Websites in Luxembourg July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 4,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 5,
+          "domain": "twitch.tv"
+        },
+        {
+          "rank": 6,
+          "domain": "msn.com"
+        },
+        {
+          "rank": 7,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 8,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 9,
+          "domain": "linkedin.com"
+        },
+        {
+          "rank": 10,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 11,
+          "domain": "x.com"
+        },
+        {
+          "rank": 12,
+          "domain": "bing.com"
+        },
+        {
+          "rank": 13,
+          "domain": "stake.com"
+        },
+        {
+          "rank": 14,
+          "domain": "whatsapp.com"
+        },
+        {
+          "rank": 15,
+          "domain": "amazon.de"
+        },
+        {
+          "rank": 16,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 17,
+          "domain": "claude.ai"
+        },
+        {
+          "rank": 18,
+          "domain": "netflix.com"
+        },
+        {
+          "rank": 19,
+          "domain": "yahoo.com"
+        },
+        {
+          "rank": 20,
+          "domain": "live.com"
+        }
+      ]
+    },
+    {
+      "market": "lv",
+      "url": "https://www.semrush.com/trending-websites/lv/all",
+      "title": "Most Visited Websites in Latvia July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "inbox.lv"
+        },
+        {
+          "rank": 5,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 6,
+          "domain": "delfi.lv"
+        },
+        {
+          "rank": 7,
+          "domain": "ss.com"
+        },
+        {
+          "rank": 8,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 9,
+          "domain": "ss.lv"
+        },
+        {
+          "rank": 10,
+          "domain": "whatsapp.com"
+        },
+        {
+          "rank": 11,
+          "domain": "jauns.lv"
+        },
+        {
+          "rank": 12,
+          "domain": "swedbank.lv"
+        },
+        {
+          "rank": 13,
+          "domain": "twitch.tv"
+        },
+        {
+          "rank": 14,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 15,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 16,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 17,
+          "domain": "tvnet.lv"
+        },
+        {
+          "rank": 18,
+          "domain": "sportacentrs.com"
+        },
+        {
+          "rank": 19,
+          "domain": "yandex.ru"
+        },
+        {
+          "rank": 20,
+          "domain": "tiktok.com"
+        }
+      ]
+    },
+    {
+      "market": "mt",
+      "url": "https://www.semrush.com/trending-websites/mt/all",
+      "title": "Most Visited Websites in Malta July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 5,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 6,
+          "domain": "whatsapp.com"
+        },
+        {
+          "rank": 7,
+          "domain": "gov.mt"
+        },
+        {
+          "rank": 8,
+          "domain": "timesofmalta.com"
+        },
+        {
+          "rank": 9,
+          "domain": "netflix.com"
+        },
+        {
+          "rank": 10,
+          "domain": "linkedin.com"
+        },
+        {
+          "rank": 11,
+          "domain": "x.com"
+        },
+        {
+          "rank": 12,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 13,
+          "domain": "atlassian.net"
+        },
+        {
+          "rank": 14,
+          "domain": "msn.com"
+        },
+        {
+          "rank": 15,
+          "domain": "live.com"
+        },
+        {
+          "rank": 16,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 17,
+          "domain": "microsoft.com"
+        },
+        {
+          "rank": 18,
+          "domain": "bing.com"
+        },
+        {
+          "rank": 19,
+          "domain": "claude.ai"
+        },
+        {
+          "rank": 20,
+          "domain": "twitch.tv"
+        }
+      ]
+    },
+    {
+      "market": "nl",
+      "url": "https://www.semrush.com/trending-websites/nl/all",
+      "title": "Most Visited Websites in the Netherlands July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "nu.nl"
+        },
+        {
+          "rank": 5,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 6,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 7,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 8,
+          "domain": "ideal.nl"
+        },
+        {
+          "rank": 9,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 10,
+          "domain": "ad.nl"
+        },
+        {
+          "rank": 11,
+          "domain": "nos.nl"
+        },
+        {
+          "rank": 12,
+          "domain": "bol.com"
+        },
+        {
+          "rank": 13,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 14,
+          "domain": "duckduckgo.com"
+        },
+        {
+          "rank": 15,
+          "domain": "linkedin.com"
+        },
+        {
+          "rank": 16,
+          "domain": "marktplaats.nl"
+        },
+        {
+          "rank": 17,
+          "domain": "whatsapp.com"
+        },
+        {
+          "rank": 18,
+          "domain": "digid.nl"
+        },
+        {
+          "rank": 19,
+          "domain": "weather.com"
+        },
+        {
+          "rank": 20,
+          "domain": "ing.nl"
+        }
+      ]
+    },
+    {
+      "market": "no",
+      "url": "https://www.semrush.com/trending-websites/no/all",
+      "title": "Most Visited Websites in Norway July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "vg.no"
+        },
+        {
+          "rank": 4,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 5,
+          "domain": "nrk.no"
+        },
+        {
+          "rank": 6,
+          "domain": "finn.no"
+        },
+        {
+          "rank": 7,
+          "domain": "dagbladet.no"
+        },
+        {
+          "rank": 8,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 9,
+          "domain": "yr.no"
+        },
+        {
+          "rank": 10,
+          "domain": "tv2.no"
+        },
+        {
+          "rank": 11,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 12,
+          "domain": "bankid.no"
+        },
+        {
+          "rank": 13,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 14,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 15,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 16,
+          "domain": "idporten.no"
+        },
+        {
+          "rank": 17,
+          "domain": "x.com"
+        },
+        {
+          "rank": 18,
+          "domain": "nettavisen.no"
+        },
+        {
+          "rank": 19,
+          "domain": "duckduckgo.com"
+        },
+        {
+          "rank": 20,
+          "domain": "stake.com"
+        }
+      ]
+    },
+    {
+      "market": "pl",
+      "url": "https://www.semrush.com/trending-websites/pl/all",
+      "title": "Most Visited Websites in Poland July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "interia.pl"
+        },
+        {
+          "rank": 5,
+          "domain": "allegro.pl"
+        },
+        {
+          "rank": 6,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 7,
+          "domain": "onet.pl"
+        },
+        {
+          "rank": 8,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 9,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 10,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 11,
+          "domain": "olx.pl"
+        },
+        {
+          "rank": 12,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 13,
+          "domain": "filmweb.pl"
+        },
+        {
+          "rank": 14,
+          "domain": "weather.com"
+        },
+        {
+          "rank": 15,
+          "domain": "x.com"
+        },
+        {
+          "rank": 16,
+          "domain": "google.pl"
+        },
+        {
+          "rank": 17,
+          "domain": "mediaexpert.pl"
+        },
+        {
+          "rank": 18,
+          "domain": "otomoto.pl"
+        },
+        {
+          "rank": 19,
+          "domain": "pepper.pl"
+        },
+        {
+          "rank": 20,
+          "domain": "gazeta.pl"
+        }
+      ]
+    },
+    {
+      "market": "pt",
+      "url": "https://www.semrush.com/trending-websites/pt/all",
+      "title": "Most Visited Websites in Portugal July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 5,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 6,
+          "domain": "abola.pt"
+        },
+        {
+          "rank": 7,
+          "domain": "record.pt"
+        },
+        {
+          "rank": 8,
+          "domain": "sapo.pt"
+        },
+        {
+          "rank": 9,
+          "domain": "whatsapp.com"
+        },
+        {
+          "rank": 10,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 11,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 12,
+          "domain": "twitch.tv"
+        },
+        {
+          "rank": 13,
+          "domain": "iol.pt"
+        },
+        {
+          "rank": 14,
+          "domain": "x.com"
+        },
+        {
+          "rank": 15,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 16,
+          "domain": "msn.com"
+        },
+        {
+          "rank": 17,
+          "domain": "live.com"
+        },
+        {
+          "rank": 18,
+          "domain": "xvideos.com"
+        },
+        {
+          "rank": 19,
+          "domain": "olx.pt"
+        },
+        {
+          "rank": 20,
+          "domain": "worten.pt"
+        }
+      ]
+    },
+    {
+      "market": "ro",
+      "url": "https://www.semrush.com/trending-websites/ro/all",
+      "title": "Most Visited Websites in Romania July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 5,
+          "domain": "fsonline.app"
+        },
+        {
+          "rank": 6,
+          "domain": "weather.com"
+        },
+        {
+          "rank": 7,
+          "domain": "digi24.ro"
+        },
+        {
+          "rank": 8,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 9,
+          "domain": "emag.ro"
+        },
+        {
+          "rank": 10,
+          "domain": "gsp.ro"
+        },
+        {
+          "rank": 11,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 12,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 13,
+          "domain": "hotnews.ro"
+        },
+        {
+          "rank": 14,
+          "domain": "yahoo.com"
+        },
+        {
+          "rank": 15,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 16,
+          "domain": "olx.ro"
+        },
+        {
+          "rank": 17,
+          "domain": "xhamster.com"
+        },
+        {
+          "rank": 18,
+          "domain": "tiktok.com"
+        },
+        {
+          "rank": 19,
+          "domain": "digisport.ro"
+        },
+        {
+          "rank": 20,
+          "domain": "superbet.ro"
+        }
+      ]
+    },
+    {
+      "market": "se",
+      "url": "https://www.semrush.com/trending-websites/se/all",
+      "title": "Most Visited Websites in Sweden July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "aftonbladet.se"
+        },
+        {
+          "rank": 5,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 6,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 7,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 8,
+          "domain": "expressen.se"
+        },
+        {
+          "rank": 9,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 10,
+          "domain": "svt.se"
+        },
+        {
+          "rank": 11,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 12,
+          "domain": "twitch.tv"
+        },
+        {
+          "rank": 13,
+          "domain": "duckduckgo.com"
+        },
+        {
+          "rank": 14,
+          "domain": "blocket.se"
+        },
+        {
+          "rank": 15,
+          "domain": "x.com"
+        },
+        {
+          "rank": 16,
+          "domain": "amazon.se"
+        },
+        {
+          "rank": 17,
+          "domain": "live.com"
+        },
+        {
+          "rank": 18,
+          "domain": "weather.com"
+        },
+        {
+          "rank": 19,
+          "domain": "smhi.se"
+        },
+        {
+          "rank": 20,
+          "domain": "tiktok.com"
+        }
+      ]
+    },
+    {
+      "market": "si",
+      "url": "https://www.semrush.com/trending-websites/si/all",
+      "title": "Most Visited Websites in Slovenia July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "24ur.com"
+        },
+        {
+          "rank": 4,
+          "domain": "rtvslo.si"
+        },
+        {
+          "rank": 5,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 6,
+          "domain": "siol.net"
+        },
+        {
+          "rank": 7,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 8,
+          "domain": "gov.si"
+        },
+        {
+          "rank": 9,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 10,
+          "domain": "zurnal24.si"
+        },
+        {
+          "rank": 11,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 12,
+          "domain": "delo.si"
+        },
+        {
+          "rank": 13,
+          "domain": "svet24.si"
+        },
+        {
+          "rank": 14,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 15,
+          "domain": "avto.net"
+        },
+        {
+          "rank": 16,
+          "domain": "n1info.si"
+        },
+        {
+          "rank": 17,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 18,
+          "domain": "x.com"
+        },
+        {
+          "rank": 19,
+          "domain": "weather.com"
+        },
+        {
+          "rank": 20,
+          "domain": "sloflix.com"
+        }
+      ]
+    },
+    {
+      "market": "sk",
+      "url": "https://www.semrush.com/trending-websites/sk/all",
+      "title": "Most Visited Websites in Slovakia July 2026 | Top Websites & Popular Rankings",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "limit": "public first page only",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "topky.sk"
+        },
+        {
+          "rank": 5,
+          "domain": "sme.sk"
+        },
+        {
+          "rank": 6,
+          "domain": "aktuality.sk"
+        },
+        {
+          "rank": 7,
+          "domain": "pravda.sk"
+        },
+        {
+          "rank": 8,
+          "domain": "bazos.sk"
+        },
+        {
+          "rank": 9,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 10,
+          "domain": "zoznam.sk"
+        },
+        {
+          "rank": 11,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 12,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 13,
+          "domain": "shmu.sk"
+        },
+        {
+          "rank": 14,
+          "domain": "cas.sk"
+        },
+        {
+          "rank": 15,
+          "domain": "azet.sk"
+        },
+        {
+          "rank": 16,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 17,
+          "domain": "weather.com"
+        },
+        {
+          "rank": 18,
+          "domain": "dennikn.sk"
+        },
+        {
+          "rank": 19,
+          "domain": "alza.sk"
+        },
+        {
+          "rank": 20,
+          "domain": "reddit.com"
+        }
+      ]
+    },
+    {
+      "market": "global",
+      "url": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/",
+      "title": "Top 100 Most Visited Websites Worldwide (May 2026) | Similarweb",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "metric": "monthly visits",
+      "limit": "public first 100",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "google.com"
+        },
+        {
+          "rank": 2,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 5,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 6,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 7,
+          "domain": "x.com"
+        },
+        {
+          "rank": 8,
+          "domain": "whatsapp.com"
+        },
+        {
+          "rank": 9,
+          "domain": "tiktok.com"
+        },
+        {
+          "rank": 10,
+          "domain": "bing.com"
+        },
+        {
+          "rank": 11,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 12,
+          "domain": "gemini.google.com"
+        },
+        {
+          "rank": 13,
+          "domain": "yahoo.co.jp"
+        },
+        {
+          "rank": 14,
+          "domain": "yandex.ru"
+        },
+        {
+          "rank": 15,
+          "domain": "yahoo.com"
+        },
+        {
+          "rank": 16,
+          "domain": "amazon.com"
+        },
+        {
+          "rank": 17,
+          "domain": "linkedin.com"
+        },
+        {
+          "rank": 18,
+          "domain": "baidu.com"
+        },
+        {
+          "rank": 19,
+          "domain": "bet.br"
+        },
+        {
+          "rank": 20,
+          "domain": "naver.com"
+        },
+        {
+          "rank": 21,
+          "domain": "netflix.com"
+        },
+        {
+          "rank": 22,
+          "domain": "pinterest.com"
+        },
+        {
+          "rank": 23,
+          "domain": "cloud.microsoft"
+        },
+        {
+          "rank": 24,
+          "domain": "live.com"
+        },
+        {
+          "rank": 25,
+          "domain": "pornhub.com"
+        },
+        {
+          "rank": 26,
+          "domain": "bilibili.com"
+        },
+        {
+          "rank": 27,
+          "domain": "xhamster.com"
+        },
+        {
+          "rank": 28,
+          "domain": "temu.com"
+        },
+        {
+          "rank": 29,
+          "domain": "dzen.ru"
+        },
+        {
+          "rank": 30,
+          "domain": "microsoft.com"
+        },
+        {
+          "rank": 31,
+          "domain": "twitch.tv"
+        },
+        {
+          "rank": 32,
+          "domain": "weather.com"
+        },
+        {
+          "rank": 33,
+          "domain": "vk.com"
+        },
+        {
+          "rank": 34,
+          "domain": "xvideos.com"
+        },
+        {
+          "rank": 35,
+          "domain": "canva.com"
+        },
+        {
+          "rank": 36,
+          "domain": "claude.ai"
+        },
+        {
+          "rank": 37,
+          "domain": "news.yahoo.co.jp"
+        },
+        {
+          "rank": 38,
+          "domain": "fandom.com"
+        },
+        {
+          "rank": 39,
+          "domain": "globo.com"
+        },
+        {
+          "rank": 40,
+          "domain": "mail.ru"
+        },
+        {
+          "rank": 41,
+          "domain": "samsung.com"
+        },
+        {
+          "rank": 42,
+          "domain": "duckduckgo.com"
+        },
+        {
+          "rank": 43,
+          "domain": "t.me"
+        },
+        {
+          "rank": 44,
+          "domain": "discord.com"
+        },
+        {
+          "rank": 45,
+          "domain": "github.com"
+        },
+        {
+          "rank": 46,
+          "domain": "ebay.com"
+        },
+        {
+          "rank": 47,
+          "domain": "xnxx.com"
+        },
+        {
+          "rank": 48,
+          "domain": "stripchat.com"
+        },
+        {
+          "rank": 49,
+          "domain": "spotify.com"
+        },
+        {
+          "rank": 50,
+          "domain": "nytimes.com"
+        },
+        {
+          "rank": 51,
+          "domain": "zoom.us"
+        },
+        {
+          "rank": 52,
+          "domain": "booking.com"
+        },
+        {
+          "rank": 53,
+          "domain": "imdb.com"
+        },
+        {
+          "rank": 54,
+          "domain": "brave.com"
+        },
+        {
+          "rank": 55,
+          "domain": "eporner.com"
+        },
+        {
+          "rank": 56,
+          "domain": "cricbuzz.com"
+        },
+        {
+          "rank": 57,
+          "domain": "ozon.ru"
+        },
+        {
+          "rank": 58,
+          "domain": "roblox.com"
+        },
+        {
+          "rank": 59,
+          "domain": "aliexpress.com"
+        },
+        {
+          "rank": 60,
+          "domain": "bbc.co.uk"
+        },
+        {
+          "rank": 61,
+          "domain": "office.com"
+        },
+        {
+          "rank": 62,
+          "domain": "apple.com"
+        },
+        {
+          "rank": 63,
+          "domain": "docomo.ne.jp"
+        },
+        {
+          "rank": 64,
+          "domain": "amazon.in"
+        },
+        {
+          "rank": 65,
+          "domain": "walmart.com"
+        },
+        {
+          "rank": 66,
+          "domain": "espn.com"
+        },
+        {
+          "rank": 67,
+          "domain": "xhamster45.desi"
+        },
+        {
+          "rank": 68,
+          "domain": "amazon.co.jp"
+        },
+        {
+          "rank": 69,
+          "domain": "bbc.com"
+        },
+        {
+          "rank": 70,
+          "domain": "chaturbate.com"
+        },
+        {
+          "rank": 71,
+          "domain": "paypal.com"
+        },
+        {
+          "rank": 72,
+          "domain": "msn.com"
+        },
+        {
+          "rank": 73,
+          "domain": "ya.ru"
+        },
+        {
+          "rank": 74,
+          "domain": "etsy.com"
+        },
+        {
+          "rank": 75,
+          "domain": "deepseek.com"
+        },
+        {
+          "rank": 76,
+          "domain": "indeed.com"
+        },
+        {
+          "rank": 77,
+          "domain": "music.youtube.com"
+        },
+        {
+          "rank": 78,
+          "domain": "disneyplus.com"
+        },
+        {
+          "rank": 79,
+          "domain": "amazon.de"
+        },
+        {
+          "rank": 80,
+          "domain": "rakuten.co.jp"
+        },
+        {
+          "rank": 81,
+          "domain": "adobe.com"
+        },
+        {
+          "rank": 82,
+          "domain": "chat.deepseek.com"
+        },
+        {
+          "rank": 83,
+          "domain": "telegram.org"
+        },
+        {
+          "rank": 84,
+          "domain": "hbomax.com"
+        },
+        {
+          "rank": 85,
+          "domain": "zillow.com"
+        },
+        {
+          "rank": 86,
+          "domain": "amazon.co.uk"
+        },
+        {
+          "rank": 87,
+          "domain": "ok.ru"
+        },
+        {
+          "rank": 88,
+          "domain": "cnn.com"
+        },
+        {
+          "rank": 89,
+          "domain": "onlyfans.com"
+        },
+        {
+          "rank": 90,
+          "domain": "namu.wiki"
+        },
+        {
+          "rank": 91,
+          "domain": "shein.com"
+        },
+        {
+          "rank": 92,
+          "domain": "wildberries.ru"
+        },
+        {
+          "rank": 93,
+          "domain": "qq.com"
+        },
+        {
+          "rank": 94,
+          "domain": "douyin.com"
+        },
+        {
+          "rank": 95,
+          "domain": "usps.com"
+        },
+        {
+          "rank": 96,
+          "domain": "erome.com"
+        },
+        {
+          "rank": 97,
+          "domain": "instructure.com"
+        },
+        {
+          "rank": 98,
+          "domain": "primevideo.com"
+        },
+        {
+          "rank": 99,
+          "domain": "quora.com"
+        },
+        {
+          "rank": 100,
+          "domain": "rutube.ru"
+        }
+      ]
+    },
+    {
+      "market": "pl",
+      "url": "https://ahrefstop.com/websites/poland",
+      "title": "Top Websites in Poland - AhrefsTop",
+      "status": 200,
+      "observedAt": "2026-09-15",
+      "metric": "organic search visits (not total traffic)",
+      "limit": "public first 100",
+      "domains": [
+        {
+          "rank": 1,
+          "domain": "wikipedia.org"
+        },
+        {
+          "rank": 2,
+          "domain": "interia.pl"
+        },
+        {
+          "rank": 3,
+          "domain": "facebook.com"
+        },
+        {
+          "rank": 4,
+          "domain": "allegro.pl"
+        },
+        {
+          "rank": 5,
+          "domain": "olx.pl"
+        },
+        {
+          "rank": 6,
+          "domain": "youtube.com"
+        },
+        {
+          "rank": 7,
+          "domain": "wp.pl"
+        },
+        {
+          "rank": 8,
+          "domain": "onet.pl"
+        },
+        {
+          "rank": 9,
+          "domain": "filmweb.pl"
+        },
+        {
+          "rank": 10,
+          "domain": "doz.pl"
+        },
+        {
+          "rank": 11,
+          "domain": "aniagotuje.pl"
+        },
+        {
+          "rank": 12,
+          "domain": "instagram.com"
+        },
+        {
+          "rank": 13,
+          "domain": "google.com"
+        },
+        {
+          "rank": 14,
+          "domain": "mediaexpert.pl"
+        },
+        {
+          "rank": 15,
+          "domain": "chatgpt.com"
+        },
+        {
+          "rank": 16,
+          "domain": "otomoto.pl"
+        },
+        {
+          "rank": 17,
+          "domain": "flashscore.pl"
+        },
+        {
+          "rank": 18,
+          "domain": "tvn24.pl"
+        },
+        {
+          "rank": 19,
+          "domain": "www.gov.pl"
+        },
+        {
+          "rank": 20,
+          "domain": "tvp.pl"
+        },
+        {
+          "rank": 21,
+          "domain": "bankier.pl"
+        },
+        {
+          "rank": 22,
+          "domain": "ceneo.pl"
+        },
+        {
+          "rank": 23,
+          "domain": "gazeta.pl"
+        },
+        {
+          "rank": 24,
+          "domain": "reddit.com"
+        },
+        {
+          "rank": 25,
+          "domain": "kwestiasmaku.com"
+        },
+        {
+          "rank": 26,
+          "domain": "pracuj.pl"
+        },
+        {
+          "rank": 27,
+          "domain": "pinterest.com"
+        },
+        {
+          "rank": 28,
+          "domain": "leroymerlin.pl"
+        },
+        {
+          "rank": 29,
+          "domain": "zus.pl"
+        },
+        {
+          "rank": 30,
+          "domain": "castorama.pl"
+        },
+        {
+          "rank": 31,
+          "domain": "ikea.com"
+        },
+        {
+          "rank": 32,
+          "domain": "booking.com"
+        },
+        {
+          "rank": 33,
+          "domain": "decathlon.pl"
+        },
+        {
+          "rank": 34,
+          "domain": "rossmann.pl"
+        },
+        {
+          "rank": 35,
+          "domain": "diag.pl"
+        },
+        {
+          "rank": 36,
+          "domain": "o2.pl"
+        },
+        {
+          "rank": 37,
+          "domain": "apple.com"
+        },
+        {
+          "rank": 38,
+          "domain": "biedronka.pl"
+        },
+        {
+          "rank": 39,
+          "domain": "znanylekarz.pl"
+        },
+        {
+          "rank": 40,
+          "domain": "transfermarkt.pl"
+        },
+        {
+          "rank": 41,
+          "domain": "wakacje.pl"
+        },
+        {
+          "rank": 42,
+          "domain": "accuweather.com"
+        },
+        {
+          "rank": 43,
+          "domain": "twojapogoda.pl"
+        },
+        {
+          "rank": 44,
+          "domain": "doradcasmaku.pl"
+        },
+        {
+          "rank": 45,
+          "domain": "netflix.com"
+        },
+        {
+          "rank": 46,
+          "domain": "mp.pl"
+        },
+        {
+          "rank": 47,
+          "domain": "otodom.pl"
+        },
+        {
+          "rank": 48,
+          "domain": "roblox.com"
+        },
+        {
+          "rank": 49,
+          "domain": "euro.com.pl"
+        },
+        {
+          "rank": 50,
+          "domain": "tiktok.com"
+        },
+        {
+          "rank": 51,
+          "domain": "microsoft.com"
+        },
+        {
+          "rank": 52,
+          "domain": "meczyki.pl"
+        },
+        {
+          "rank": 53,
+          "domain": "pudelek.pl"
+        },
+        {
+          "rank": 54,
+          "domain": "zalando.pl"
+        },
+        {
+          "rank": 55,
+          "domain": "empik.com"
+        },
+        {
+          "rank": 56,
+          "domain": "fandom.com"
+        },
+        {
+          "rank": 57,
+          "domain": "openai.com"
+        },
+        {
+          "rank": 58,
+          "domain": "luxmed.pl"
+        },
+        {
+          "rank": 59,
+          "domain": "rozklad-pkp.pl"
+        },
+        {
+          "rank": 60,
+          "domain": "steampowered.com"
+        },
+        {
+          "rank": 61,
+          "domain": "jysk.pl"
+        },
+        {
+          "rank": 62,
+          "domain": "pkobp.pl"
+        },
+        {
+          "rank": 63,
+          "domain": "x.com"
+        },
+        {
+          "rank": 64,
+          "domain": "pogodairadar.pl"
+        },
+        {
+          "rank": 65,
+          "domain": "vinted.pl"
+        },
+        {
+          "rank": 66,
+          "domain": "autocentrum.pl"
+        },
+        {
+          "rank": 67,
+          "domain": "sinsay.com"
+        },
+        {
+          "rank": 68,
+          "domain": "alab.pl"
+        },
+        {
+          "rank": 69,
+          "domain": "gemini.pl"
+        },
+        {
+          "rank": 70,
+          "domain": "spotify.com"
+        },
+        {
+          "rank": 71,
+          "domain": "inpost.pl"
+        },
+        {
+          "rank": 72,
+          "domain": "lidl.pl"
+        },
+        {
+          "rank": 73,
+          "domain": "szarada.net"
+        },
+        {
+          "rank": 74,
+          "domain": "itaka.pl"
+        },
+        {
+          "rank": 75,
+          "domain": "trustpilot.com"
+        },
+        {
+          "rank": 76,
+          "domain": "ccc.eu"
+        },
+        {
+          "rank": 77,
+          "domain": "drmax.pl"
+        },
+        {
+          "rank": 78,
+          "domain": "lubimyczytac.pl"
+        },
+        {
+          "rank": 79,
+          "domain": "imgw.pl"
+        },
+        {
+          "rank": 80,
+          "domain": "ipko.pl"
+        },
+        {
+          "rank": 81,
+          "domain": "eobuwie.com.pl"
+        },
+        {
+          "rank": 82,
+          "domain": "x-kom.pl"
+        },
+        {
+          "rank": 83,
+          "domain": "e-podroznik.pl"
+        },
+        {
+          "rank": 84,
+          "domain": "nike.com"
+        },
+        {
+          "rank": 85,
+          "domain": "gofin.pl"
+        },
+        {
+          "rank": 86,
+          "domain": "orange.pl"
+        },
+        {
+          "rank": 87,
+          "domain": "amazon.pl"
+        },
+        {
+          "rank": 88,
+          "domain": "tekstowo.pl"
+        },
+        {
+          "rank": 89,
+          "domain": "podatki.gov.pl"
+        },
+        {
+          "rank": 90,
+          "domain": "tui.pl"
+        },
+        {
+          "rank": 91,
+          "domain": "erste.pl"
+        },
+        {
+          "rank": 92,
+          "domain": "kalbi.pl"
+        },
+        {
+          "rank": 93,
+          "domain": "action.com"
+        },
+        {
+          "rank": 94,
+          "domain": "fakt.pl"
+        },
+        {
+          "rank": 95,
+          "domain": "hebe.pl"
+        },
+        {
+          "rank": 96,
+          "domain": "tauron.pl"
+        },
+        {
+          "rank": 97,
+          "domain": "pzu.pl"
+        },
+        {
+          "rank": 98,
+          "domain": "intercity.pl"
+        },
+        {
+          "rank": 99,
+          "domain": "r.pl"
+        },
+        {
+          "rank": 100,
+          "domain": "gowork.pl"
+        }
+      ]
+    }
+  ]
+}

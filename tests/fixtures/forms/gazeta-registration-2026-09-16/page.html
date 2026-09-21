@@ -1,0 +1,354 @@
+<form id="form" class="accountRegister__form" data-form-specimen-node="0">
+            <div class="accountRegister__section accountRegister__section--main accountRegister__section--accountData" data-form-specimen-node="1">
+                <div class="accountRegister__subsection" data-form-specimen-node="2">
+            
+                    <h3 class="accountRegister__subHeader accountRegister__subHeader--first" data-form-specimen-node="3">Dane Twojego konta:</h3>
+                    <div class="accountRegister__field accountRegister__field--type" data-form-specimen-node="4">
+                        <label class="accountRegister__label accountRegister__type accountRegister__type--active" data-form-specimen-node="5"><input type="radio" name="accountType" checked="" autocomplete="off" data-form-specimen-node="6">bez poczty</label>
+                        <label class="accountRegister__label accountRegister__type accountRegister__type--input" data-form-specimen-node="7"><input type="radio" name="accountType" autocomplete="off" data-form-specimen-node="8">z pocztą</label>
+                    </div>
+                    <div class="accountRegister__field accountRegister__field--login" data-form-specimen-node="9">
+                        <label class="accountRegister__label" for="login" data-form-specimen-node="10">Login <span class="accountRegister__asterisk" data-form-specimen-node="11">*</span></label>
+                        <div class="accountRegister__inputContainer " data-form-specimen-node="12">
+                            <input id="login" name="login" placeholder="wpisz login" class="accountRegister__input accountRegister__input--noEmail" type="text" maxlength="30" autocomplete="login" data-form-specimen-node="13">
+                            
+                        </div>
+                        <p class="accountRegister__info accountRegister__info--warning accountRegister__info--additional" data-form-specimen-node="14">Użyj od 3 do 30 znaków. Nie używaj polskich liter i spacji. Możesz użyć znaków - . _ (minus, kropka, podkreślenie). Wielkie litery zostaną zamienione na małe.</p>
+                    </div>
+                    <div class="accountRegister__field accountRegister__field--password" data-form-specimen-node="15">
+                        <label class="accountRegister__label" for="pass" data-form-specimen-node="16">Hasło <span class="accountRegister__asterisk" data-form-specimen-node="17">*</span></label>
+                        <div class="accountRegister__inputContainer " data-form-specimen-node="18">
+                            <input id="pass" name="password" class="accountRegister__input" type="password" maxlength="30" autocomplete="off" data-form-specimen-node="19">
+                            <span class="accountRegister__showPassword" data-form-specimen-node="20"></span>
+                            
+                        </div>
+                        <p class="accountRegister__info accountRegister__info--warning accountRegister__info--additional" data-form-specimen-node="21">Użyj od 8 do 30 znaków, w tym przynajmniej jednej cyfry. Nie używaj polskich liter i spacji. Bezpieczne hasło ma duże i małe litery, zawiera cyfry i znaki specjalne.</p>
+                    </div>
+                    <div class="accountRegister__checker" data-form-specimen-node="22">
+                        <div class="accountRegister__checkerOption accountRegister__checkerOption--weak accountRegister__checkerOption--inactive" data-form-specimen-node="23">
+                            <div class="accountRegister__checkerLevel" data-form-specimen-node="24"></div>
+                            <div class="accountRegister__checkerLabel" data-form-specimen-node="25">słabe</div>
+                        </div>
+                        <div class="accountRegister__checkerOption accountRegister__checkerOption--medium accountRegister__checkerOption--inactive" data-form-specimen-node="26">
+                            <div class="accountRegister__checkerLevel" data-form-specimen-node="27"></div>
+                            <div class="accountRegister__checkerLabel" data-form-specimen-node="28">średnie</div>
+                        </div>
+                        <div class="accountRegister__checkerOption accountRegister__checkerOption--strong accountRegister__checkerOption--inactive" data-form-specimen-node="29">
+                            <div class="accountRegister__checkerLevel" data-form-specimen-node="30"></div>
+                            <div class="accountRegister__checkerLabel" data-form-specimen-node="31">mocne</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="accountRegister__subsection" data-form-specimen-node="32">
+                    <h3 class="accountRegister__subHeader" data-form-specimen-node="33">Metody pomocne w przypadku utraty hasła:</h3>
+                    <div class="accountRegister__field" data-form-specimen-node="34">
+                        <label class="accountRegister__label" for="emailPassRecovery" data-form-specimen-node="35">Podaj pomocniczy adres e-mail <span class="accountRegister__asterisk" data-form-specimen-node="36">*</span></label>
+                        <div class="accountRegister__inputContainer " data-form-specimen-node="37">
+                            <input id="emailPassRecovery" name="extEmail" type="email" class="accountRegister__input accountRegister__input--extEmail" autocomplete="email" data-form-specimen-node="38">
+                            
+                        </div>
+                        <p id="extEmailError" class="accountRegister__info accountRegister__info--warning accountRegister__info--additional" data-form-specimen-node="39">Na ten e-mail wyślemy zapomniane hasło.</p>
+                    </div>
+                    <div class="accountRegister__field" data-form-specimen-node="40">
+                        <label class="accountRegister__label" for="phoneNumber" data-form-specimen-node="41">Podaj numer telefonu</label>
+                        <div class="accountRegister__inputContainer accountRegister__inputContainer--phone " data-form-specimen-node="42">
+                            <input id="phoneNumber" name="phoneNumber" class="accountRegister__input accountRegister__input--phone" type="text" maxlength="9" data-form-specimen-node="43">
+                            
+                        </div>
+                        <p class="accountRegister__info accountRegister__info--warning accountRegister__info--additional" data-form-specimen-node="44">Numer będzie użyty tylko i wyłącznie w celach weryfikacyjnych w przypadku utraty hasła.</p>
+                    </div>
+                </div>
+                <div class="accountRegister__subsection" data-form-specimen-node="45">
+                    <h3 class="accountRegister__subHeader" data-form-specimen-node="46">Twoje dane</h3>
+                    <div class="accountRegister__field" data-form-specimen-node="47">
+                        <label class="accountRegister__label" data-form-specimen-node="48">Imię i nazwisko <span class="accountRegister__asterisk" data-form-specimen-node="49">*</span></label>
+                        <div class="accountRegister__inputContainer " data-form-specimen-node="50">
+                            <input id="name" name="name" placeholder="Imię" type="text" class="accountRegister__input" data-form-specimen-node="51">
+                            
+                        </div>
+                        <div class="accountRegister__inputContainer " data-form-specimen-node="52">
+                            <input id="surname" name="surname" placeholder="Nazwisko" type="text" class="accountRegister__input accountRegister__input--surname" data-form-specimen-node="53">
+                            
+                        </div>
+                    </div>
+                    <div class="accountRegister__field" data-form-specimen-node="54">
+                        <label class="accountRegister__label" data-form-specimen-node="55">Płeć</label>
+                        <div class="accountRegister__inputContainer " data-form-specimen-node="56">
+                            <label class="accountRegister__label accountRegister__label--sex" data-form-specimen-node="57">
+                                <input id="sex1" name="sex" type="radio" data-form-specimen-node="58">kobieta</label>
+                            <label class="accountRegister__label accountRegister__label--sex" data-form-specimen-node="59">
+                                <input id="sex2" name="sex" type="radio" data-form-specimen-node="60">mężczyzna</label>
+                            
+                        </div>
+                    </div>
+                    <div class="accountRegister__field" data-form-specimen-node="61">
+                        <label class="accountRegister__label" for="birthDate" data-form-specimen-node="62">Data urodzenia 
+                            <span class="accountRegister__asterisk" data-form-specimen-node="63">*</span>
+                        </label>
+                        <div class="accountRegister__inputContainer accountRegister__inputContainer--birth " data-form-specimen-node="64">
+                            <input id="birthDate" name="birthDate" pattern="\d{4}-\d{2}-\d{2}" placeholder="RRRR-MM-dd" type="date" class="accountRegister__input accountRegister__input--birth is-empty" autocomplete="off" max="2010-09-15" data-form-specimen-node="65">
+                            
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="accountRegister__section accountRegister__section--administratorInformation" data-form-specimen-node="66">
+                <div class="accountRegister__administratorInformation" data-form-specimen-node="67">
+                    <div class="accountRegister__administratorInformation" data-form-specimen-node="68">
+                        Administratorem Pani/Pana danych osobowych jest Gazeta.pl sp. z o.o. z siedzibą w Warszawie, ul. Czerska 8/10, 00-732 Warszawa. 
+                        Pani/Pana dane osobowe będą przetwarzane w celu rejestracji i obsługi konta użytkownika w serwisie internetowym Gazeta.pl, 
+                        w szczególności w celu umożliwienia korzystania z usługi poczty elektronicznej oraz z usług wymagających logowania w wydawanych przez Gazeta.pl sp. z o.o.
+                        serwisach internetowych, a także w celach marketingowych, w tym profilowania oraz w celach statystycznych i analitycznych administratora. 
+                        Więcej informacji na temat przetwarzania danych osobowych, w tym o przysługujących Pani/Panu prawach,
+                        znajduje się w 
+                        <a data-form-specimen-node="69">Regulaminie</a> oraz naszej <a data-form-specimen-node="70">Polityce Prywatności</a>.
+                    </div>
+                </div>
+            </div>
+            <div class="accountRegister__section accountRegister__section--main accountRegister__section--regulations" data-form-specimen-node="71">
+                <h3 class="accountRegister__subHeader" data-form-specimen-node="72">Regulaminy i zgody:</h3>
+                <div class="accountRegister__field accountRegister__field--regulation" data-form-specimen-node="73">
+                    <div class="reg_tos" data-form-specimen-node="74">
+<p class="boldBig" data-form-specimen-node="75">Regulamin Użytkownika Serwisów Internetowych Gazeta.pl</p>
+<p data-form-specimen-node="76">Ilekroć w niniejszym Regulaminie stosuje się poniższe określenia i definicje, należy je rozumieć jak następuje:</p>
+<p class="paragraph" data-form-specimen-node="77">§ 1. Definicje</p>
+<p data-form-specimen-node="78">1.1. Regulamin - &quot;Regulamin Użytkownika Serwisów Internetowych Gazeta.pl&quot;, stanowiący regulamin w rozumieniu ustawy z dnia 18 lipca 2002 roku o świadczeniu usług drogą elektroniczną.</p>
+<p data-form-specimen-node="79">1.2. Serwisy Internetowe - wydawane przez Gazeta.pl serwisy internetowe z Grupy Gazeta.pl, w tym, w szczególności Portal internetowy Gazeta.pl (lista Serwisów Internetowych dostępna jest pod adresem https://pomoc.gazeta.pl/pomoc/7,154322,26795223,lista-domen-i-aplikacji-serwisow-z-grupy-gazeta-pl.html). W skład Portalu nie wchodzą serwisy internetowe z Grupy Wyborcza.pl. Serwisy Internetowe, w zależności od ich charakteru, mogą zawierać teksty, materiały fotograficzne, materiały audiowizualne, materiały multimedialne, grafiki i innego rodzaju treści, w tym ogłoszenia i reklamy. Zawartość Serwisów Internetowych może być uaktualniana w sposób ciągły lub periodyczny.</p>
+<p data-form-specimen-node="80">1.3. Gazeta.pl - Gazeta.pl sp. z o.o. z siedzibą w Warszawie wpisanej do rejestru przedsiębiorców Krajowego Rejestru Sądowego prowadzonego przez Sąd Rejonowy dla m.st. Warszawy w Warszawie XIII Wydział Gospodarczy Krajowego Rejestru Sądowego pod numerem KRS: 0001052932, NIP: 5214032201, kapitał zakładowy 5 000 zł, adres poczty elektronicznej do kontaktu pomoc@grupagazeta.pl, numer telefonu do kontaktu: tel. (42) 631 60 90 (opłata za zwykłe połączenie telefoniczne, zgodnie z planem taryfowym dostawcy usług telekomunikacyjnych Użytkownika; informacja o godzinach działania infolinii dostępna jest na stronie O nas w sekcji Kontakt).</p>
+<p data-form-specimen-node="81">1.4. Użytkownik - osoba korzystająca z usług Gazeta.pl w ramach Serwisów Internetowych.</p>
+<p data-form-specimen-node="82">1.5. Portal Gazeta.pl lub Portal - portal internetowy udostępniany przez Gazeta.pl pod aktualnym adresem https://www.gazeta.pl/ oraz pod adresami będącymi przekierowaniami do tych adresów, a także każdym innym będącym ich uzupełnieniem lub kontynuacją.</p>
+<p data-form-specimen-node="83">1.6. Konto - konto Użytkownika tworzone w procesie rejestracji w Serwisie Internetowym.</p>
+<p data-form-specimen-node="84">1.7. RODO - Rozporządzenie nr 679/2016 Parlamentu Europejskiego i Rady z dnia 27 kwietnia 2016 roku w sprawie ochrony osób fizycznych w związku z przetwarzaniem danych osobowych i w sprawie swobodnego przepływu takich danych oraz uchylenia dyrektywy 95/4/WE.</p>
+<p data-form-specimen-node="85">1.8. Treści o Charakterze Terrorystycznym - materiały, których celem rozpowszechniania jest szerzenie przesłania grup terrorystycznych i ich zwolenników, w celu radykalizacji i rekrutacji zwolenników oraz w celu ułatwiania działalności terrorystycznej i kierowania nią, m. in. materiały, które podżegają do popełniania Przestępstw Terrorystycznych, ułatwiają, pochwalają lub popierają ich popełnianie (szczegółowe określenie Treści o Charakterze Terrorystycznym jest zawarte w art. 2 pkt 7  rozporządzenia Parlamentu Europejskiego i Rady (UE) 2021/784 z dnia 29 kwietnia 2021 r. w sprawie przeciwdziałania rozpowszechnianiu w internecie treści o charakterze terrorystycznym).</p>
+<p data-form-specimen-node="86">1.9. Przestępstwa Terrorystyczne - czyny umyślne, które ze względu na swój charakter lub kontekst mogą wyrządzić poważne szkody państwu lub organizacji międzynarodowej (szczegółowe określenie Przestępstw Terrorystycznych jest zawarte w art. 3 dyrektywy Parlamentu Europejskiego i Rady (UE) 2017/541 z dnia 15 marca 2017 r. w sprawie zwalczania terroryzmu i zastępującej decyzję ramową Rady 2002/475/WSiSW).</p>
+<p data-form-specimen-node="87">1.10. Powiadomienia Web Push - krótkie komunikaty, które wyświetlają się na urządzeniu (desktop i/lub mobilnym) Użytkownika, zawierające informacje o treściach dostępnych w ramach Serwisu Internetowego. Powiadomienia Web Push są wyświetlane w przeglądarce Użytkownika, także w czasie, gdy nie przegląda on Serwisów Internetowych. Wyświetlanie Powiadomień Web Push wymaga zgody Użytkownika, którą może on w każdej chwili odwołać.</p>
+<p class="paragraph" data-form-specimen-node="88">§ 2. Funkcje Serwisów Internetowych</p>
+<p data-form-specimen-node="89">2.1. W ramach Serwisów Internetowych Gazeta.pl rozpowszechnia treści, w szczególności informacyjne, publicystyczne, rozrywkowe i reklamowe, oraz, na zasadach określonych w niniejszym Regulaminie, bądź na odrębnie określonych zasadach, może realizować inne usługi, w tym, na przykład (o ile taka funkcja jest dostępna w Serwisie Internetowym) może udostępnić Użytkownikowi możliwość zamieszczania komentarzy do treści dostępnych w Serwisie Internetowym.</p>
+<p data-form-specimen-node="90">2.2. Gazeta.pl może proponować Użytkownikom wyświetlanie im Powiadomień Web Push. Powiadomienia Web Push będą wyświetlane Użytkownikom, którzy wyrazili na to zgodę.</p>
+<p class="paragraph" data-form-specimen-node="91">§ 3. Konto</p>
+<p data-form-specimen-node="92">3.1. Konto udostępniane jest przez Gazeta.pl nieodpłatnie. Gazeta.pl nie udostępnia Kont na potrzeby związane z prowadzoną działalnością gospodarczą lub zawodową.</p>
+<p data-form-specimen-node="93">3.2. Użytkownikiem Konta może zostać osoba, która ukończyła 16 lat.</p>
+<p data-form-specimen-node="94">3.3. Aby założyć Konto należy:</p>
+<p data-form-specimen-node="95">a) skorzystać z udostępnionego w Serwisie Internetowym formularza rejestracyjnego; albo</p>
+<p data-form-specimen-node="96">b) zalogować się za pośrednictwem platformy Google lub Facebook, przy czym możliwość logowania za pośrednictwem platformy Facebook nie dotyczy przypadków, kiedy do założenia konta na platformie Facebook Użytkownik użył wyłącznie numeru telefonu, tj. nie użył adres e-mail.</p>
+<p data-form-specimen-node="97">3.4. Zakładając Konto za pomocą udostępnionego w Serwisie Internetowym formularza rejestracyjnego należy wprowadzić dane oznaczone jako wymagane, wybrać adres e-mail oraz hasło, zapoznać się z treścią oświadczeń i Regulaminem oraz zaakceptować te z oświadczeń, które zostały określone jako obowiązkowe; następnie zatwierdzić całość klikając przycisk &quot;Załóż konto&quot;. Poza danymi oznaczonymi jako wymagane, Użytkownik uprawniony jest do podania danych fakultatywnych. Użytkownik uzyskuje możliwość korzystania z Konta w ramach Serwisów Internetowych bezpośrednio po potwierdzeniu przez Użytkownika linku aktywacyjnego wysłanego przez Gazeta.pl na adres e-mail Użytkownika, który to link aktywacyjny Gazeta.pl wyśle bezpośrednio po wysłaniu przez Użytkownika formularza rejestracyjnego dostępnego w Serwisie Internetowym. Do zawarcia umowy na korzystanie z Konta dochodzi z chwilą potwierdzenia przez Użytkownika linku aktywacyjnego, o którym mowa w zdaniu poprzedzającym.</p>
+<p data-form-specimen-node="98">3.5. Zakładając Konto za pośrednictwem platformy Google lub Facebook należy wyrazić zgodę na pobranie z konta Użytkownika utrzymywanego w ramach danej platformy danych potrzebnych do uwierzytelnienia i autoryzacji Użytkownika w celu rejestracji Konta (identyfikator, adres e-mail oraz data urodzenia) oraz zapoznać się z treścią Regulaminu i zaakceptować go; następnie zatwierdzić całość klikając przycisk &quot;Załóż konto&quot;. Do zawarcia umowy na korzystanie z Konta dochodzi z chwilą kliknięcia przycisku &quot;Załóż konto&quot;, o którym mowa powyżej.</p>
+<p data-form-specimen-node="99">3.6. Powiadomienia dotyczące korzystania z Konta oraz Serwisów Internetowych będą przesyłane na adres poczty elektronicznej podany przez Użytkownika w formularzu rejestracyjnym, przy czym Użytkownik może dokonać zmiany adresu usuwając i wprowadzając odpowiednie dane w formularzu Konta. Prosimy o weryfikację, czy podawany Gazeta.pl adres e-mail jest aktualny i poprawny, ponieważ służy on m.in do odzyskiwania dostępu do Konta.</p>
+<p data-form-specimen-node="100">3.7. Gazeta.pl nie kontroluje, ani nie weryfikuje danych identyfikacyjnych Użytkownika, zawartych w formularzu rejestracyjnym, jak również udostępnionych za pomocą zewnętrznej platformy.</p>
+<p data-form-specimen-node="101">3.8. Aby umożliwić weryfikację Użytkownika jako osoby uprawnionej do korzystania z Konta, założonego za pomocą formularza rejestracyjnego, o którym mowa w punkcie 3.4. Gazeta.pl udostępnia Użytkownikowi unikalny kod bezpieczeństwa nadawany do każdego Konta. Kod będzie przekazywany Użytkownikowi przy zakładaniu Konta, a w stosunku do Użytkowników, którzy założyli Konto przed wprowadzeniem do usługi Konta kodów bezpieczeństwa - kod został przekazany na konto Użytkownika w Portalu. Użytkownik zobowiązany jest zabezpieczyć uzyskany od Gazeta.pl kod przed utratą. Podanie kodu przez Użytkownika będzie wymagane przez Gazeta.pl dla potrzeb weryfikacji Użytkownika jako posiadacza Konta i autora treści zamieszczanych w Serwisach Internetowych. Kod nie jest stosowany w przypadku Użytkownika zalogowanego za pomocą zewnętrznej platformy.</p>
+<p class="paragraph" data-form-specimen-node="102">§ 4. Przetwarzanie danych osobowych</p>
+<p data-form-specimen-node="103">4.1. Wypełniając obowiązek informacyjny z art. 13 RODO informujemy, że:</p>
+<p data-form-specimen-node="104">1) Administratorem danych osobowych Użytkownika przetwarzanych w celu zawarcia i wykonywania umowy jest Gazeta.pl sp. z o.o. z siedzibą w Warszawie adres: ul. Czerska 8/10, 00-732 Warszawa (w niniejszym paragrafie zwana także &quot;Administratorem&quot;).</p>
+<p data-form-specimen-node="105">2) Z Administratorem można się skontaktować poprzez adres e-mail: pomoc@grupagazeta.pl lub pisemnie na adres siedziby Administratora.</p>
+<p data-form-specimen-node="106">3) Administrator wyznaczył inspektora ochrony danych, z którym każdy Użytkownik może skontaktować się poprzez adres e-mail iod@grupagazeta.pl lub pisemnie na adres siedziby Administratora (w przypadku korespondencji na adres siedziby Administratora, prosimy o zamieszczenie dopisku &quot;IOD&quot;). Z inspektorem ochrony danych można się kontaktować we wszystkich sprawach dotyczących przetwarzania danych osobowych oraz korzystania z praw związanych z przetwarzaniem danych.</p>
+<p data-form-specimen-node="107">4) Dane osobowe Użytkownika są przetwarzane:</p>
+<p data-form-specimen-node="108">a) w celu świadczenia usług związanych z prowadzeniem i obsługą Konta w Portalu, w szczególności w celu umożliwienia korzystania z usług wymagających logowania w Portalu - podstawą prawną przetwarzania jest niezbędność przetwarzania do wykonania umowy (art. 6 ust. 1 lit. b) RODO), a w zakresie danych podanych fakultatywnie - podstawą prawną przetwarzania jest zgoda (art. 6 ust. 1 lit. a) RODO); możesz wycofać zgodę w każdym momencie, wysyłając wiadomość pisemną na adres siedziby Administratora, z dopiskiem &quot;IOD&quot; lub pocztą elektroniczną na adres iod@grupagazeta.pl, przy czym wycofanie zgody nie wpływa na zgodność z prawem przetwarzania danych do momentu wycofania zgody;</p>
+<p data-form-specimen-node="109">b) w celach marketingowych (polegających na wyświetlaniu reklam standardowych, niezależnych od preferencji Użytkownika) - podstawą prawną przetwarzania danych w tym celu jest uzasadniony interes Administratora (art. 6 ust. 1 lit. f) RODO), polegający na prowadzeniu marketingu bezpośredniego;</p>
+<p data-form-specimen-node="110">c) w celu kierowania do Użytkownika przez Administratora treści marketingowych (informacji handlowych) dotyczących Gazeta.pl i jej partnerów biznesowych, w tym informacji o ich produktach, usługach i przedsięwzięciach, pocztą elektroniczną na adres e-mail w serwisie Gazeta.pl - podstawą prawną przetwarzania danych jest zgoda Użytkownika (art. 6 ust. 1 lit. a) RODO; zgodę można wycofać w każdym czasie, najprościej zrobić to poprzez odznaczenie jej w panelu edycji Konta lub poprzez kliknięcie w link zawarty w wiadomości z treścią marketingową. Można też wysłać wiadomość drogą pisemną na adres siedziby Administratora lub na adres iod@grupagazeta.pl. Wycofanie zgody nie wpływa na zgodność z prawem przetwarzania danych Użytkownika do momentu wycofania zgody,</p>
+<p data-form-specimen-node="111">d) w celach statystycznych i analitycznych Administratora - podstawą prawną przetwarzania danych jest uzasadniony interes Administratora (art. 6 ust. 1 lit. f) RODO; polegający na prowadzeniu analiz aktywności użytkowników w Portalu i sposobu korzystania z Konta, a także ich preferencji, w celu poprawy stosowanych funkcjonalności;</p>
+<p data-form-specimen-node="112">e) w celu ewentualnego ustalenia, dochodzenia lub obrony przed roszczeniami - podstawą prawną przetwarzania jest uzasadniony interes Administratora (art. 6 ust. 1 lit. f) RODO) polegający na ochronie naszych praw.</p>
+<p data-form-specimen-node="113">5) Dane będą przekazywane podmiotom świadczącym na rzecz Gazeta.pl usługi niezbędne do realizacji ww. celów, w tym w szczególności podmiotom z grupy kapitałowej Agora, podmiotom realizującym wsparcie techniczne, organizacyjne i doradcze, dostawcom systemów informatycznych, świadczącym usługi IT oraz podmiotom upoważnionym na podstawie przepisów prawa.</p>
+<p data-form-specimen-node="114">6) Dane osobowe będą przetwarzane przez czas świadczenia usługi lub odpowiednio: do czasu wycofania wyrażonej zgody lub zgłoszenia skutecznego sprzeciwu lub skutecznego żądania usunięcia danych. Okres przetwarzania danych może być przedłużony w przypadku, gdy przetwarzanie jest niezbędne do ustalenia, dochodzenia lub obrony przed ewentualnymi roszczeniami, a po tym okresie, jedynie w przypadku i w zakresie, w jakim będą wymagać tego przepisy prawa.</p>
+<p data-form-specimen-node="115">7) Każdemu Użytkownikowi przysługuje prawo dostępu do swoich danych oraz prawo żądania ich sprostowania, ich usunięcia lub ograniczenia ich przetwarzania, prawo do przenoszenia danych do innego administratora, a także prawo wniesienia skargi do organu nadzorczego zajmującego się ochroną danych osobowych, tj. do Prezesa Urzędu Ochrony Danych Osobowych.</p>
+<p data-form-specimen-node="116">8) Każdemu Użytkownikowi przysługuje także prawo do wniesienia sprzeciwu wobec przetwarzania danych:</p>
+<p data-form-specimen-node="117">a) z przyczyn związanych z jego szczególną sytuacją - w przypadkach, gdy podstawą prawną przetwarzania danych osobowych jest nasz prawnie uzasadniony interes,</p>
+<p data-form-specimen-node="118">b) w razie przetwarzania danych osobowych w celu marketingu bezpośredniego - w przypadkach, gdy podstawą prawną przetwarzania danych w tym celu jest nasz uzasadniony interes.</p>
+<p data-form-specimen-node="119">Dla celów dowodowych, Administrator prosi o wnoszenie sprzeciwu drogą pisemną na adres siedziby Administratora, z dopiskiem &quot;IOD&quot; lub pocztą elektroniczną na adres iod@grupagazeta.pl.</p>
+<p data-form-specimen-node="120">9) Podanie danych osobowych oznaczonych jako wymagane jest niezbędne do świadczenia przez Gazeta.pl usługi udostępniania Konta lub innych usług w ramach Serwisów Internetowych - niepodanie danych osobowych uniemożliwi założenie Konta lub świadczenie innych usług w ramach Serwisów Internetowych.</p>
+<p class="paragraph" data-form-specimen-node="121">§ 5. Zasady korzystania z Konta</p>
+<p data-form-specimen-node="122">5.1. Użytkownik jest zobowiązany do korzystania z Konta oraz z innych usług w Serwisach Internetowych w sposób zgodny z obowiązującym prawem, normami społecznymi i obyczajowymi oraz postanowieniami Regulaminu. W szczególności, zabronione jest korzystanie przez Użytkowników z Serwisów Internetowych w celu publicznego rozpowszechniania w internecie Treści o Charakterze Terrorystycznym. Niezależnie od uprawnień przysługujących Gazeta.pl w przypadku zamieszczenia przez Użytkownika treści naruszających prawo, o których mowa w § 10, Treści o Charakterze Terrorystycznym, mogą zostać usunięte lub dostęp do nich może zostać uniemożliwiony w wyniku nakazu usunięcia, wydanego przez właściwy organ państwa członkowskiego Unii Europejskiej. W celu odbioru nakazów usunięcia oraz ich niezwłocznego przekazania, Gazeta.pl ustanawia punkt kontaktowy w rozumieniu przepisów rozporządzenia Parlamentu Europejskiego i Rady (UE) 2021/784 z dnia 29 kwietnia 2021 r. w sprawie przeciwdziałania rozpowszechnianiu w internecie treści o charakterze terrorystycznym. Językiem urzędowym instytucji Unii Europejskiej, w którym można zwracać się do punktu kontaktowego i w których mają się odbywać dalsze wymiany informacji w związku z nakazami usunięcia, jest język polski.</p>
+<p data-form-specimen-node="123">5.2. Wykorzystywanie Konta i innych usług Serwisów Internetowych przez Użytkownika z naruszeniem powszechnie obowiązujących przepisów prawa może wiązać się z poniesieniem odpowiedzialności cywilnej lub karnej. Na żądanie uprawnionych organów państwa, na potrzeby prowadzonych przez nie postępowań, Gazeta.pl przekazuje pozostające w jej posiadaniu dane Użytkowników Serwisów Internetowych.</p>
+<p data-form-specimen-node="124">5.3. Gazeta.pl zastrzega sobie prawo zablokowania Konta Użytkownika, gdy:</p>
+<p data-form-specimen-node="125">a) Użytkownik wykorzystuje Konto z naruszeniem obowiązującego prawa,</p>
+<p data-form-specimen-node="126">b) nazwa Konta narusza prawo, prawem chronione dobra osób trzecich, jest niezgodna z dobrymi obyczajami, w tym jest wyrażeniem powszechnie uznanym za obraźliwe lub nazwa Konta sugeruje, że jest to Konto wykorzystywane przez Gazeta.pl, co może wprowadzać użytkowników w błąd;</p>
+<p data-form-specimen-node="127">c) zachodzi uzasadnione okolicznościami podejrzenie nieuprawnionego dostępu do Konta.</p>
+<p data-form-specimen-node="128">5.4. O zamiarze zablokowania Konta Gazeta.pl powiadomi Użytkownika z 5-dniowym wyprzedzeniem, wzywając go do zaniechania lub usunięcia naruszeń lub ich skutków w terminie 3 dni od otrzymania wezwania, a po bezskutecznym upływie tego terminu, zablokuje Konto. Jednakże Gazeta.pl zablokuje Konto w trybie natychmiastowym, tj. bez 5-dniowego wyprzedzenia gdy </p>
+<p data-form-specimen-node="129">a) Użytkownik naruszył bezwzględnie obowiązujące przepisy prawa i oczywiste jest, że nie jest możliwe usunięcie naruszeń lub ich skutków;</p>
+<p data-form-specimen-node="130">b) zachodzi przypadek określony w § 5 pkt 5.3 c), tj. uzasadnione okolicznościami podejrzenie nieuprawnionego dostępu do Konta.</p>
+<p data-form-specimen-node="131">Informacja o zablokowaniu Konta prezentowana będzie Użytkownikowi w panelu logowania do Konta</p>
+<p data-form-specimen-node="132">5.5. Korzystanie z usług, o których mowa w niniejszym Regulaminie jest możliwe przy spełnieniu następujących minimalnych wymagań technicznych:</p>
+<p data-form-specimen-node="133">a) posiadanie dostępu do internetu z parametrami pozwalającymi na swobodne i bezproblemowe korzystanie z internetu,</p>
+<p data-form-specimen-node="134">b) urządzenie z przeglądarką internetową Chrome 79 lub nowszą, Microsoft Edge 97 lub nowszą, Opera 66 lub nowszą, Firefox 71 lub nowszą, Safari 15 lub nowszą.</p>
+<p data-form-specimen-node="135">5.6. Minimalne wymagania techniczne wskazane w pkt 5.5. powyżej są aktualne na dzień utworzenia Konta. Gazeta.pl może dokonać zmiany minimalnych wymagań technicznych z następujących przyczyn:</p>
+<p data-form-specimen-node="136">a) jeżeli zmiana jest niezbędna do zachowania zgodności Konta z Regulaminem, lub</p>
+<p data-form-specimen-node="137">b) jeżeli udział Użytkowników, korzystających z najstarszych wersji oprogramowania lub sprzętu, spełniających aktualne minimalne wymagania techniczne, jest mniejszy niż 5%.</p>
+<p data-form-specimen-node="138">5.7. Gazeta.pl zawiadomi Użytkownika, pocztą elektroniczną na adres podany przy rejestracji Konta, o wprowadzanych zmianach i terminie w którym zostaną wprowadzone. Zawiadomienie będzie zawierać informację o prawie wypowiedzenia umowy, o którym mowa niżej w pkt. 5.8.</p>
+<p data-form-specimen-node="139">5.8. Użytkownik nieakceptujący zmian może wypowiedzieć umowę o Konto w każdym czasie, ze skutkiem natychmiastowym. Oświadczenie o wypowiedzeniu należy wysłać pocztą elektroniczną na adres Gazeta.pl: pomoc@grupagazeta.pl. Użytkownik może również w każdym czasie usunąć Konto.</p>
+<p data-form-specimen-node="140">5.9. Wypowiedzenie umowy o Konto spowoduje usunięcie Konta, co uniemożliwi korzystanie przez Użytkownika z usług, które wymagają posiadania Konta.</p>
+<p class="paragraph" data-form-specimen-node="141">§ 6. Rozwiązanie umowy, odstąpienie od umowy, zakończenie korzystania z usług</p>
+<p data-form-specimen-node="142">6.1. Umowa na korzystanie z Konta oraz świadczenie innych usług określonych w Regulaminie zawarta jest na czas nieoznaczony.</p>
+<p data-form-specimen-node="143">6.2. Użytkownik może wypowiedzieć umowę w każdym czasie bez podania przyczyny z zachowaniem 1-miesięcznego okresu wypowiedzenia lub bez zachowania okresu wypowiedzenia.</p>
+<p data-form-specimen-node="144">6.3. Gazeta.pl może wypowiedzieć umowę na świadczenie danej usługi z zachowaniem 1-miesięcznego okresu wypowiedzenia z następujących przyczyn:</p>
+<p data-form-specimen-node="145">a) zaplanowanego zakończenia działalności Gazeta.pl w zakresie udostępniania danej usługi określonej w Regulaminie,</p>
+<p data-form-specimen-node="146">b) w odniesieniu do usługi w postaci udostępniania Konta - Użytkownik nie dokonał logowania do swojego Konta przez okres co najmniej 180 dni, przy czym w tym przypadku Użytkownik może w okresie wypowiedzenia dokonać logowania do Konta, co spowoduje automatyczne cofnięcie przez Gazeta.pl wypowiedzenia umowy,</p>
+<p data-form-specimen-node="147">c) Użytkownik wykorzystuje daną usługę określoną w Regulaminie z naruszeniem obowiązującego prawa lub Regulaminu i Użytkownik nie zaniechał naruszeń lub nie usunął naruszeń lub ich skutków w terminie 3 dni od otrzymania od Gazeta.pl wezwania do zaniechania lub usunięcia naruszeń lub ich skutków albo zaniechanie naruszeń lub usunięcie naruszeń lub ich skutków nie jest możliwe,</p>
+<p data-form-specimen-node="148">d) w odniesieniu do usługi w postaci udostępniania Konta - nazwa Konta narusza prawo, prawem chronione dobra osób trzecich, jest niezgodna z dobrymi obyczajami, w tym jest wyrażeniem powszechnie uznanym za obraźliwe lub nazwa Konta sugeruje, że jest to Konto wykorzystywane przez Gazeta.pl, co może wprowadzać użytkowników w błąd i Użytkownik nie zaniechał naruszeń w terminie określonym w § 5 punkt 5.4,</p>
+<p data-form-specimen-node="149">e) w odniesieniu do usług wymagających posiadania Konta - w przypadku, gdy Gazeta.pl wypowiedziała Użytkownikowi umowę w zakresie korzystania z Konta na zasadach określonych w Regulaminie.</p>
+<p data-form-specimen-node="150">6.4. Użytkownikowi przysługuje w każdym czasie prawo do zamknięcia założonego Konta, zaprzestania korzystania z usług, o których mowa w Regulaminie oraz odstąpienia od umowy w zakresie korzystania z usług. Korespondencję dotyczącą wypowiedzenia umowy lub odstąpienia od umowy w zakresie korzystania z usług prosimy nadesłać do Gazeta.pl, np. na adres e-mail: pomoc@grupagazeta.pl lub pisemnie na adres Gazeta.pl (Gazeta.pl sp. z o.o., ul. Czerska 8/10, 00-732 Warszawa). Użytkownik może samodzielnie usunąć Konto poprzez wykorzystanie funkcjonalności panelu Konta.</p>
+<p data-form-specimen-node="151">6.5. Aby skorzystać z prawa do odstąpienia od umowy, Użytkownik musi poinformować Gazeta.pl o swojej decyzji o odstąpieniu od umowy w drodze jednoznacznego oświadczenia (np. pismem wysłanym pocztą na adres Gazeta.pl sp. z o.o. ul. Czerska 8/10, 00-732 Warszawa lub pocztą elektroniczną na adres pomoc@grupagazeta.pl). Użytkownik może skorzystać ze wzoru formularza odstąpienia od umowy, wskazanego w punkcie 6.7. Regulaminu, jednak nie jest to obowiązkowe.</p>
+<p data-form-specimen-node="152">6.6. Zakończenie świadczenia przez Gazeta.pl usługi udostępniania Konta Użytkownikowi nie oznacza zaprzestania świadczenia innych usług, o których mowa w Regulaminie, chyba że z postanowień Regulaminu dedykowanych tym usługom wynika, że warunkiem ich świadczenia jest posiadanie Konta.</p>
+<p data-form-specimen-node="153">6.7. Wzór formularza odstąpienia od umowy</p>
+<p data-form-specimen-node="154">(Formularz ten należy wypełnić i odesłać tylko w przypadku chęci odstąpienia od umowy.)</p>
+<p data-form-specimen-node="155">Adresat:</p>
+<p data-form-specimen-node="156">Gazeta.pl sp. z o.o.</p>
+<p data-form-specimen-node="157">ul. Czerska 8/10</p>
+<p data-form-specimen-node="158">00-732 Warszawa</p>
+<p data-form-specimen-node="159">lub elektronicznie na adres poczty elektronicznej pomoc@grupagazeta.pl.</p>
+<p data-form-specimen-node="160">Niniejszym informuję o moim odstąpieniu od umowy o świadczenie następującej usługi: ............................................................</p>
+<p data-form-specimen-node="161">Data zawarcia umowy: ...................</p>
+<p data-form-specimen-node="162">Imię i nazwisko konsumenta ..................</p>
+<p data-form-specimen-node="163">Adres poczty elektronicznej konsumenta .................</p>
+<p data-form-specimen-node="164">Podpis konsumenta (tylko, jeżeli formularz jest przesyłany w wersji papierowej) .............................</p>
+<p data-form-specimen-node="165">Data ..........................</p>
+<p class="paragraph" data-form-specimen-node="166">§ 7. Odpowiedzialność Gazeta.pl i reklamacje</p>
+<p data-form-specimen-node="167">7.1. Gazeta.pl zobowiązuje się dołożyć wszelkich starań w celu zapewnienia prawidłowego działania usług. Gazeta.pl ponosi odpowiedzialność za zgodność oferowanych w ramach usług świadczeń z umową (tj. treścią Regulaminu i ewentualnych wszelkich innych uzgodnień z Użytkownikiem) na ogólnych zasadach wynikających z obowiązujących przepisów prawa, z uwzględnieniem przepisów dotyczących umów z konsumentami, w tym zapewniających ochronę konsumentów.</p>
+<p data-form-specimen-node="168">7.2. Reklamacje dotyczące usług, o których mowa w Regulaminie (w tym dotyczące realizacji przez Gazeta.pl uprawnień polegających na blokowaniu lub usuwaniu treści zamieszczanych przez Użytkowników lub blokowaniu dostępu do usług w obrębie Serwisów Internetowych) prosimy zgłaszać pocztą elektroniczną na adres: dyrekcja_portalu@grupagazeta.pl, pomoc@grupagazeta.pl lub na piśmie na adres Gazeta.pl (Gazeta.pl sp. z o.o., ul. Czerska 8/10, 00-732 Warszawa). Gazeta.pl rozpatrzy reklamację i udzieli odpowiedzi w terminie 14 (czternastu) dni od dnia jej otrzymania. Odpowiedź na reklamację zostanie wysłana na adres składającego reklamację wskazany w reklamacji, przy czym Użytkownik może podać Gazeta.pl także inny adres, na który zostanie wysłana odpowiedź na reklamację.</p>
+<p data-form-specimen-node="169">7.3. Zaniechanie złożenia reklamacji przez Użytkownika lub nieuwzględnienie reklamacji przez Gazeta.pl nie wyłącza prawa Użytkownika do dochodzenia roszczeń na drodze postępowania sądowego.</p>
+<p class="paragraph" data-form-specimen-node="170">§ 8. Postanowienia dodatkowe</p>
+<p data-form-specimen-node="171">8.1. Regulamin udostępniany jest na stronie Portalu w formie, która umożliwia pobranie go, utrwalenie i wydrukowanie. Ponadto Regulamin dostępny jest w formie wydrukowanej pod adresem Gazeta.pl: Gazeta.pl sp. z o.o. ul. Czerska 8/10, 00-732 Warszawa, jest wysyłany Użytkownikowi pocztą elektroniczną w potwierdzeniu zawarcia umowy, a na dodatkowe żądanie Użytkownika jest mu także wysyłany pocztą elektroniczną.</p>
+<p data-form-specimen-node="172">8.2. Gazeta.pl może wprowadzać zmiany w Regulaminie, przy czym za wyjątkiem określonym w pkt. 8.3. poniżej:</p>
+<p data-form-specimen-node="173">a) zmiany mogą zostać wprowadzone tylko z powodu konieczności uwzględnienia obowiązków Gazeta.pl, nałożonych przez prawo lub rozstrzygnięcie sądu lub innego właściwego organu, lub z innych uzasadnionych przyczyn wyraźnie wskazanych w Regulaminie;</p>
+<p data-form-specimen-node="174">b) w przypadku zmian, o których mowa w pkt. 8.2. a) powyżej, Gazeta.pl zawiadomi Użytkownika o zmianach pocztą elektroniczną na adres podany przez Użytkownika dla potrzeb obsługi Konta, przedstawiając zmienioną treść Regulaminu. Zawiadomienie będzie zawierać informację, że w terminie 30 dni od dokonania zmian (a jeżeli Użytkownik otrzymał zawiadomienie o zmianach po ich wprowadzeniu - w ciągu 30 dni od otrzymania zawiadomienia) Użytkownik może wypowiedzieć umowę ze skutkiem natychmiastowym. Oświadczenie o wypowiedzeniu należy wysłać pocztą elektroniczną na adres Gazeta.pl: pomoc@grupagazeta.pl;</p>
+<p data-form-specimen-node="175">c) do czasu wypowiedzenia, o którym mowa w pkt. 8.2 b) powyżej, Gazeta.pl i Użytkownika obowiązuje Regulamin o treści nieuwzględniającej zmian.</p>
+<p data-form-specimen-node="176">8.3.   Punkty 8.2 a)-c) nie dotyczą zmian Regulaminu, które w oczywisty sposób nie wpływają na prawa i obowiązki Użytkownika, który zawarł umowę przed wprowadzeniem tych zmian (jak np. zmiany danych Gazeta.pl, adresów do korespondencji czy wprowadzanie uregulowań, niedotyczących usług będących przedmiotem umowy). O powyższych zmianach Gazeta.pl informuje na stronach Serwisów Internetowych.</p>
+<p data-form-specimen-node="177">8.4. Umowa z Użytkownikiem zawierana jest w języku polskim. W celu zawarcia umowy Użytkownik nie ponosi kosztów korzystania ze środka porozumiewania się na odległość, wyższych niż stosowane zwykle za korzystanie z tego środka porozumiewania się.</p>
+<p data-form-specimen-node="178">8.5. Informacje dotyczące sposobu porozumiewania się z Użytkownikiem: prosimy o kontakt na adres: Gazeta.pl sp. z o.o., ul. Czerska 8/19, 00-732 Warszawa lub adres poczty elektronicznej do kontaktu: pomoc@grupagazeta.pl lub numer telefonu do kontaktu: (42) 631 60 90 (opłata za zwykłe połączenie telefoniczne, zgodnie z planem taryfowym dostawcy usług telekomunikacyjnych Użytkownika, informacja o godzinach działania infolinii dostępna jest na stronie O nas w sekcji Kontakt).</p>
+<p data-form-specimen-node="179">8.6. Gazeta.pl nie wymaga od Użytkownika złożenia kaucji lub udzielenia innych gwarancji finansowych.</p>
+<p data-form-specimen-node="180">8.7. Nie występuje minimalny czas trwania zobowiązań Użytkownika wynikających z umowy.</p>
+<p data-form-specimen-node="181">8.8. Z zastrzeżeniem trybu składania i rozpatrywania reklamacji, o którym mowa w § 7 Regulaminu, Gazeta.pl nie przewiduje korzystania z pozasądowych sposobów rozpatrywania reklamacji i dochodzenia roszczeń.</p>
+<p data-form-specimen-node="182">8.9. Łącze elektroniczne do platformy ODR (Online Dispute Resolution), czyli do interaktywnej strony umożliwiającej elektroniczne rozstrzygnięcie przed podmiotem ADR (Alternative Dispute Resolution; nie-sądowym rozjemcą) sporu z internetowej umowy sprzedaży lub o świadczenie usług między konsumentem mieszkającym w Unii Europejskiej a przedsiębiorcą mającym siedzibę w UE, znajduje się tu:  http://ec.europa.eu/consumers/odr.</p>
+<p class="paragraph" data-form-specimen-node="183">§ 9 Postanowienia dodatkowe i szczególne dotyczące usługi poczty elektronicznej</p>
+<p data-form-specimen-node="184">9.1. Usługa poczty elektronicznej to świadczona przez Gazeta.pl w obrębie Portalu Gazeta.pl usługa polegająca na założeniu i utrzymaniu skrzynki poczty elektronicznej. Gazeta.pl nie świadczy usługi na potrzeby związane z prowadzoną działalnością gospodarczą lub zawodową.</p>
+<p data-form-specimen-node="185">9.2. W celu zamówienia usługi poczty elektronicznej Użytkownik wypełnia formularz rejestracyjny. W formularzu należy wprowadzić dane oznaczone jako wymagane, wybrać adres e-mail oraz hasło, zapoznać się z treścią oświadczeń i Regulaminem oraz zaakceptować te z oświadczeń, które zostały określone jako obowiązkowe; następnie zatwierdzić całość klikając przycisk &quot;Załóż konto&quot;. Poza danymi oznaczonymi jako wymagane, Użytkownik uprawniony jest do podania danych fakultatywnych. Aktywowanie usługi poczty elektronicznej jest uwarunkowane posiadaniem Konta w Serwisie Internetowym, o którym mowa w § 3 punkt 3.4 lub udostępnianego przez Gazeta.pl konta w domenie G.pl (użytkownikiem tych kont może zostać osoba, która ukończyła 16 lat). Aktywowanie usługi poczty elektronicznej nie jest możliwe dla Konta założonego za pomocą zewnętrznej platformy, o którym mowa w § 3 punkt 3.5.</p>
+<p data-form-specimen-node="186">9.3. Usługa poczty elektronicznej udostępniana jest przez Gazeta.pl nieodpłatnie. Gazeta.pl może udostępniać usługę poczty elektronicznej nieodpłatnie ze względu na współpracę z klientami - reklamodawcami:</p>
+<p data-form-specimen-node="187">a)  których materiały reklamowe prezentowane są w serwisie usługi</p>
+<p data-form-specimen-node="188">b) lub są przesyłane na konto poczty elektronicznej Użytkownika pod warunkiem udzielenia przez Użytkownika stosownej zgody §.</p>
+<p data-form-specimen-node="189">9.4. Powiadomienia dotyczące korzystania z usługi poczty elektronicznej będą przesyłane na adres poczty elektronicznej utworzony przez Użytkownika przy rejestracji usługi lub podany przez niego adres alternatywny, przy czym Użytkownik może dokonać zmiany adresu usuwając i wprowadzając odpowiednie dane w formularzu Konta. Prosimy o weryfikację, czy podawane Gazeta.pl dane są aktualne i poprawne.</p>
+<p data-form-specimen-node="190">9.5. Gazeta.pl nie kontroluje, ani nie weryfikuje danych identyfikacyjnych Użytkownika, zawartych w formularzu rejestracyjnym. Gazeta.pl nie ma wpływu na treść korespondencji przesyłanej z wykorzystaniem udostępnianej usługi poczty elektronicznej, nie kontroluje tych treści, ani ich nie weryfikuje. W przypadku, gdy Użytkownik wykorzystuje usługę poczty elektronicznej do działań obejmujących przetwarzanie danych osobowych, do których stosuje się postanowienia RODO, zobowiązany jest dopełnić wszelkich wymogów wynikających z obowiązujących przepisów.</p>
+<p data-form-specimen-node="191">9.6. Pojemność skrzynki poczty elektronicznej ograniczona jest do 15 GB. Gazeta.pl może czasowo powiększyć pojemność skrzynki poczty elektronicznej lub na określony czas odstąpić od stosowania ograniczeń pojemności, o czym będzie informować w serwisie usługi poczty elektronicznej.</p>
+<p data-form-specimen-node="192">9.7. Interoperacyjność:</p>
+<p data-form-specimen-node="193">9.7.1. Z konta poczty elektronicznej można korzystać za pomocą:</p>
+<p data-form-specimen-node="194">a) przeglądarek wspierających HTML5, CSS3 i JavaScript oraz za pomocą urządzeń mobilnych wyposażonych w przeglądarkę internetową,</p>
+<p data-form-specimen-node="195">b) programów pocztowych obsługujących protokół POP3/IMAP/SMTP, za pomocą których konto poczty elektronicznej zostało podłączone.</p>
+<p data-form-specimen-node="196">9.7.2. Korzystanie z poczty elektronicznej wymaga dostępu do sieci Internet.</p>
+<p data-form-specimen-node="197">9.8. Użytkownik jest zobowiązany do korzystania z usługi poczty elektronicznej w sposób zgodny z obowiązującym prawem, normami społecznymi i obyczajowymi oraz postanowieniami Regulaminu.</p>
+<p data-form-specimen-node="198">9.9. Wykorzystywanie usługi poczty elektronicznej przez Użytkownika z naruszeniem powszechnie obowiązujących przepisów prawa może wiązać się z poniesieniem odpowiedzialności cywilnej lub karnej. Na żądanie uprawnionych organów państwa, na potrzeby prowadzonych przez nie postępowań, Gazeta.pl przekazuje pozostające w jej posiadaniu dane Użytkowników.</p>
+<p data-form-specimen-node="199">9.10. Gazeta.pl zastrzega sobie prawo zablokowania usługi poczty elektronicznej, gdy:</p>
+<p data-form-specimen-node="200">a) Użytkownik wykorzystuje usługę poczty elektronicznej z naruszeniem obowiązującego prawa,</p>
+<p data-form-specimen-node="201">b) nazwa Konta narusza prawo, prawem chronione dobra osób trzecich, jest niezgodna z dobrymi obyczajami, w tym jest wyrażeniem powszechnie uznanym za obraźliwe lub nazwa Konta sugeruje, że jest to Konto wykorzystywane przez Gazeta.pl, co może wprowadzać użytkowników w błąd co do nadawcy korespondencji;</p>
+<p data-form-specimen-node="202">c) zachodzi uzasadnione okolicznościami podejrzenie nieuprawnionego dostępu do Konta</p>
+<p data-form-specimen-node="203">9.11. O zamiarze zablokowania usługi Gazeta.pl powiadomi Użytkownika z 5-dniowym wyprzedzeniem, wzywając go do zaniechania lub usunięcia naruszeń lub ich skutków w terminie 3 dni od otrzymania wezwania, a po bezskutecznym upływie tego terminu, zablokuje usługę poczty elektronicznej. Jednakże Gazeta.pl zablokuje usługę poczty elektronicznej w trybie natychmiastowym, tj. bez 5-dniowego wyprzedzenia, gdy:</p>
+<p data-form-specimen-node="204">a) Użytkownik wykorzystując usługę poczty elektronicznej naruszył bezwzględnie obowiązujące przepisy prawa i oczywiste jest, że nie jest możliwe usunięcie naruszeń lub ich skutków;</p>
+<p data-form-specimen-node="205">b) zachodzi przypadek określony w § 5 pkt 5.3 c) tj. uzasadnione okolicznościami podejrzenie nieuprawnionego dostępu do Konta.</p>
+<p data-form-specimen-node="206">Informacja o zablokowaniu usługi poczty elektronicznej prezentowana będzie Użytkownikowi w panelu logowania do Konta.</p>
+<p data-form-specimen-node="207">9.12. Umowa na korzystanie z usługi poczty elektronicznej zawarta jest na czas nieoznaczony.</p>
+<p data-form-specimen-node="208">9.13. Gazeta.pl może wypowiedzieć umowę z zachowaniem 1-miesięcznego okresu wypowiedzenia z następujących przyczyn:</p>
+<p data-form-specimen-node="209">a) zaplanowanego zakończenia działalności polegającej na udostępnianiu usługi poczty elektronicznej wobec wszystkich Użytkowników,</p>
+<p data-form-specimen-node="210">b) Użytkownik nie dokonał logowania do swojego Konta przez okres co najmniej 180 dni, przy czym w tym przypadku Użytkownik może w okresie wypowiedzenia dokonać logowania do Konta, co spowoduje automatyczne cofnięcie przez Gazeta.pl wypowiedzenia umowy,</p>
+<p data-form-specimen-node="211">c) Użytkownik wykorzystuje usługę poczty elektronicznej z naruszeniem obowiązującego prawa lub Regulaminu i Użytkownik nie zaniechał naruszeń lub nie usunął naruszeń lub ich skutków w terminie 3 dni od otrzymania wezwania do zaniechania naruszeń lub usunięcia naruszeń lub ich skutków albo zaniechanie naruszeń lub usunięcie naruszeń lub ich skutków nie jest możliwe,</p>
+<p data-form-specimen-node="212">d) nazwa Konta narusza prawo, prawem chronione dobra osób trzecich, jest niezgodna z dobrymi obyczajami, w tym jest wyrażeniem powszechnie uznanym za obraźliwe lub nazwa Konta sugeruje, że jest to Konto wykorzystywane przez Gazeta.pl, co może wprowadzać użytkowników w błąd co do nadawcy korespondencji i Użytkownik nie zaniechał naruszeń w terminie 3 dni od otrzymania wezwania do zaniechania naruszeń lub usunięcia naruszeń lub ich skutków albo zaniechanie naruszeń lub usunięcie naruszeń lub ich skutków nie jest możliwe</p>
+<p class="paragraph" data-form-specimen-node="213">§ 10 Postanowienia dodatkowe i szczególne dotyczące Serwisu Forum.gazeta.pl oraz komentarzy pod artykułami</p>
+<p data-form-specimen-node="214">10.1. Dostęp do Serwisu Forum.gazeta.pl oraz do komentarzy pod artykułami posiadają wszyscy użytkownicy publicznej sieci Internet. Zamieszczanie wpisów na stronach Forum.gazeta.pl lub komentarzy pod artykułami wymaga posiadania Konta. Użytkownik nie może identyfikować się wyrażeniem powszechnie uznawanym za wulgarne lub oznaczeniem komercyjnym (określającym podmiot prowadzący działalność gospodarczą, produkt lub usługę). Usługa, o której mowa w niniejszym paragrafie świadczona jest nieodpłatnie.</p>
+<p data-form-specimen-node="215">10.2. Zamieszczanie przez Użytkowników wpisów z naruszeniem powszechnie obowiązujących przepisów prawa może wiązać się z poniesieniem odpowiedzialności cywilnej lub karnej.</p>
+<p data-form-specimen-node="216">10.3. Niedopuszczalne jest umieszczanie przez Użytkowników na stronach Forum.gazeta.pl oraz w komentarzach pod artykułami treści sprzecznych z prawem (w tym Treści o Charakterze Terrorystycznym), treści nawołujących do nienawiści lub przemocy lub dyskryminujących ze względu na płeć, rasę, kolor skóry, pochodzenie etniczne, cechy genetyczne, język, religię, przynależność państwową, przynależność do mniejszości narodowej, niepełnosprawność, wiek lub orientację seksualną czy też treści propagujących przemoc. Niedopuszczalne jest również umieszczanie na stronach Forum.gazeta.pl oraz w komentarzach pod artykułami treści uznanych powszechnie za naganne moralnie, społecznie niewłaściwe (w tym zawierających wulgaryzmy, treści którymi obraża się rozmówców lub atakuje ich personalnie, podszywa się pod inne osoby, treści stanowiących spam).</p>
+<p data-form-specimen-node="217">10.4. Niedopuszczalne jest także umieszczanie przez uczestników na stronach Forum.gazeta.pl oraz w komentarzach pod artykułami:</p>
+<p data-form-specimen-node="218">a) przekazów reklamowych, z zastrzeżeniem postanowień punktu 10.10. niniejszego paragrafu,</p>
+<p data-form-specimen-node="219">b) wszelkich materiałów chronionych prawem autorskim, do których rozpowszechniania Użytkownik nie jest uprawniony.</p>
+<p data-form-specimen-node="220">10.5. Niedopuszczalne jest zamieszczanie na Forum.gazeta.pl treści w celu pozycjonowania stron internetowych oraz podbijanie wątków poprzez zamieszczanie wpisów nie posiadających treści. Niedopuszczalne jest zamieszczanie przez danego Użytkownika wpisów pod różnymi nickami w ramach jednego wątku.</p>
+<p data-form-specimen-node="221">10.6. Gazeta.pl zastrzega sobie prawo do blokowania dostępu do treści, o których mowa w punktach 10.3, 10.4 lub 10.5 niniejszego Regulaminu, jak również prawo do blokowania uczestnictwa w Forum.gazeta.pl oraz blokowania możliwości zamieszczania komentarzy pod artykułami w stosunku do osób, które wielokrotnie naruszyły postanowienia punktów 10.1, 10.3, 10.4 lub 10.5 niniejszego paragrafu. Gazeta.pl umożliwi Użytkownikowi zajęcie stanowiska wobec realizacji uprawnienia, o którym mowa w niniejszym punkcie.</p>
+<p data-form-specimen-node="222">10.7. Gazeta.pl zastrzega, że w przypadku, gdy wpis kwalifikujący się do zablokowania i zablokowany na podstawie punktu 10.6. powyżej, jest wpisem inicjującym dyskusję, po jego zablokowaniu wątek zainicjowany tym wpisem może być niedostępny, bez względu na treść pozostałych wpisów.</p>
+<p data-form-specimen-node="223">10.8. Użytkownikom, którzy wielokrotnie naruszyli postanowienia niniejszego Regulaminu administracja Forum.gazeta.pl ma prawo:</p>
+<p data-form-specimen-node="224">a) blokować dostęp do Forum.gazeta.pl oraz możliwość zamieszczania komentarzy pod artykułami m.in. poprzez zablokowanie adresu IP,</p>
+<p data-form-specimen-node="225">b) blokować wszystkie loginy,</p>
+<p data-form-specimen-node="226">c) blokować możliwość zakładania nowych wątków lub uczestniczenia w wątkach istniejących.</p>
+<p data-form-specimen-node="227">Gazeta.pl umożliwi Użytkownikowi zajęcie stanowiska wobec realizacji uprawnienia, o którym mowa w niniejszym punkcie.</p>
+<p data-form-specimen-node="228">10.9. Przy zamieszczonym przez Użytkownika wpisie, Gazeta.pl może publicznie prezentować część adresu IP, z którego nastąpiło połączenie z serwerem Serwisu Internetowego przy zamieszczaniu wpisu.</p>
+<p data-form-specimen-node="229">10.10. Umieszczanie przez Użytkowników na stronach Forum.gazeta.pl przekazów reklamowych dopuszczalne jest wyłącznie:</p>
+<p data-form-specimen-node="230">a) przez uczestników na forach oznaczonych przez Gazeta.pl jako ogłoszeniowe,</p>
+<p data-form-specimen-node="231">b) przez uprawnionych przez Gazeta.pl uczestników na forach oznaczonych przez Gazeta.pl jako sponsorowane,</p>
+<p data-form-specimen-node="232">c) przez uprawnionych przez Gazeta.pl uczestników na forach oznaczonych przez Gazeta.pl jako fora z udziałem przedstawiciela określonego produktu, reprezentującego konkretną markę, towar lub usługę; wypowiedzi uczestników mających status przedstawiciela określonego produktu oznaczone są wyróżnionym kolorem,</p>
+<p data-form-specimen-node="233">d) przez uprawnionych przez Gazeta.pl uczestników w ramach wątków oznaczonych jako wątki reklamowe.</p>
+<p data-form-specimen-node="234">10.11. Zarówno Serwis Forum.gazeta.pl, jak przestrzeń pod artykułami w Serwisach Internetowych Gazeta.pl są miejscami, które umożliwiają prezentowanie różnych poglądów, tym samym polemikę w każdym temacie. Gazeta.pl nie weryfikuje zamieszczanych treści pod kątem ich prawdziwości i rzetelności. Gazeta.pl nie weryfikuje także, czy zamieszczane przez Użytkowników w Serwisach Internetowych opinie o produktach lub usługach pochodzą od osób, które nabyły towar lub usługę, lub korzystały z towaru lub usługi.</p>
+<p data-form-specimen-node="235">10.12. Zbiór dobrych praktyk postępowania w zakresie zamieszczania komentarzy zawiera Netykieta dostępna tutaj: https://forum.gazeta.pl/forum/0,62605,1617503.html. Prosimy o zapoznanie się z jej treścią oraz stosowanie się do jej postanowień.</p>
+<p class="paragraph" data-form-specimen-node="236">§ 11 Postanowienia dodatkowe dotyczące Forum Społecznego</p>
+<p data-form-specimen-node="237">11.1 W zakresie nieuregulowanym odmiennie postanowieniami niniejszego paragrafu do świadczenia przez Gazeta.pl usług w ramach Forum Społecznego zastosowanie mają postanowienia § 10 niniejszego Regulaminu.</p>
+<p data-form-specimen-node="238">11.2. Do zakładania Forum Społecznego w ramach portalu Gazeta.pl oraz zamieszczania wpisów na jego stronach uprawnieni są wyłącznie zarejestrowani Użytkownicy Portalu Gazeta.pl.</p>
+<p data-form-specimen-node="239">11.3. Zarejestrowany Użytkownik Portalu Gazeta.pl może przy pomocy swojego Konta w Portalu Gazeta.pl założyć do 10 Forów Społecznych.</p>
+<p data-form-specimen-node="240">11.4. Założenie Forum Społecznego następuje przez wypełnienie odpowiedniego formularza dostępnego w sekcji Portalu Gazeta.pl, w szczególności poprzez określenie nazwy Forum Społecznego, wybranie kategorii katalogu Forów Społecznych oraz określenie rodzaju założonego Forum Społecznego.</p>
+<p data-form-specimen-node="241">11.5. Administratorzy Forum.gazeta.pl mogą zmienić wybraną przez założyciela Forum Społecznego kategorię, poprzez przypisanie Forum Społecznego do właściwej kategorii.</p>
+<p data-form-specimen-node="242">11.6. Założyciel Forum Społecznego może określić rodzaj założonego przez niego forum jako:</p>
+<p data-form-specimen-node="243">a) otwarty - gdzie każdy zarejestrowany Użytkownik Portalu Gazeta.pl może umieszczać wpisy, a zamieszczone wpisy są dostępne dla wszystkich Użytkowników Portalu Gazeta.pl; lub</p>
+<p data-form-specimen-node="244">b) zamknięty - gdzie umieszczać wpisy mogą zaakceptowani przez założyciela zarejestrowani Użytkownicy Portalu Gazeta.pl, a zamieszczone wpisy są dostępne dla wszystkich Użytkowników Portalu Gazeta.pl; lub</p>
+<p data-form-specimen-node="245">c) ukryty - gdzie umieszczać wpisy i czytać zamieszczone na forum wpisy mogą wyłącznie zaakceptowani przez założyciela zarejestrowani Użytkownicy Portalu Gazeta.pl.</p>
+<p data-form-specimen-node="246">11.7. Korzystanie z Serwisu Forum Społeczne Gazeta.pl jest nieodpłatne. Założyciel Forum Społecznego nie może uzależniać uczestnictwa w dyskusji w ramach założonego przez niego forum od jakichkolwiek korzyści materialnych.</p>
+<p data-form-specimen-node="247">11.8. Jeżeli temat zakładanego Forum Społecznego ma dotyczyć treści nieodpowiednich dla osób niepełnoletnich, w tym zawierać wulgaryzmy, założyciel ma obowiązek określić jego rodzaj jako ukryty i uprzedzić potencjalnych uczestników Forum Społecznego, że Forum Społeczne przeznaczone jest wyłącznie dla osób pełnoletnich.</p>
+<p data-form-specimen-node="248">11.9. Założyciel Forum Społecznego otwartego może zmienić jego rodzaj na zamknięty, założyciel Forum Społecznego zamkniętego może zmienić jego rodzaj na otwarty. Założyciel Forum Społecznego ukrytego nie może zmienić rodzaju forum.</p>
+<p data-form-specimen-node="249">11.10. Założyciel Forum Społecznego zamkniętego i ukrytego może nadawać prawa dostępu do założonego przez niego forum Użytkownikom Portalu Gazeta.pl. W przypadku forum zamkniętego założyciel nadaje Użytkownikom prawo do zamieszczania wiadomości na założonym przez siebie forum, zaś w przypadku forum ukrytego założyciel nadaje prawa do zamieszczania i czytania wiadomości na tym forum.</p>
+<p data-form-specimen-node="250">11.11. Założyciel może odebrać przyznane wcześniej uczestnikom uprawnienia, o których mowa w punkcie 11.10, jak również usuwać z założonego przez siebie Forum Społecznego umieszczone tam wątki i posty.</p>
+<p data-form-specimen-node="251">11.12. Założyciel Forum Społecznego jest zobowiązany do usuwania umieszczonych na stronach założonego przez niego Forum Społecznego treści naruszających obowiązujące prawo oraz treści naruszających Regulamin Forum.gazeta.pl.</p>
+<p data-form-specimen-node="252">11.13. Założyciel Forum Społecznego jest zobowiązany do zapoznawania się z treścią poczty elektronicznej przesyłanej na jego konto pocztowe w Portalu Gazeta.pl przez administratorów Serwisu Forum.gazeta.pl oraz do stosowania się do zaleceń w niej zawartych, mających na celu dostosowanie zawartości Forum Społecznego lub jego funkcjonowania do postanowień Regulaminu.</p>
+<p data-form-specimen-node="253">11.14. W przypadku naruszania w ramach Forum Społecznego obowiązującego prawa lub postanowień Regulaminu Gazeta.pl jest uprawniona do zablokowania dostępu do takiego forum. Gazeta.pl umożliwi Użytkownikowi zajęcie stanowiska wobec realizacji uprawnienia, o którym mowa w niniejszym punkcie.</p>
+<p data-form-specimen-node="254">11.15. Założyciel Forum Społecznego, które zostało zablokowane z powodów wskazanych w punkcie 11.14. traci prawo do ponownego założenia Forum Społecznego w obrębie Portalu Gazeta.pl.</p>
+<p data-form-specimen-node="255">11.16. Założyciel Forum Społecznego może przekazać prawa i obowiązki wynikające z założenia Forum Społecznego na rzecz innego, zarejestrowanego Użytkownika Portalu Gazeta.pl.</p>
+<p data-form-specimen-node="256">11.17. W przypadku, gdy założyciel Forum Społecznego w okresie nie krótszym niż 6 miesięcy nie zaloguje się na Konto w Portalu Gazeta.pl, przy pomocy którego założył Forum Społeczne, Gazeta.pl po uprzednim wysłaniu odpowiedniego zawiadomienia na Konto założyciela Forum Społecznego, ma prawo:</p>
+<p data-form-specimen-node="257">a) zablokować Forum Społeczne,</p>
+<p data-form-specimen-node="258">b) przekazać prawa i obowiązki założyciela Forum Społecznego innemu zarejestrowanemu Użytkownikowi Portalu Gazeta.pl, lub</p>
+<p data-form-specimen-node="259">c) przekształcić Forum Społeczne w forum prowadzone na zasadach ogólnych, o którym mowa w § 10 i przejąć prowadzenie Forum Społecznego, lub</p>
+<p data-form-specimen-node="260">d) w odniesieniu do Forum Społecznego zamkniętego - zmienić jego charakter na otwarte, lub</p>
+<p data-form-specimen-node="261">e) w odniesieniu do Forum Społecznego zamkniętego i otwartego - przenieść treści z Forum Społecznego na podobne tematycznie forum, o którym mowa w § 10.</p>
+<p data-form-specimen-node="262">Założyciel Forum Społecznego może w ciągu 14 dni od dnia wysłania przez Gazeta.pl zawiadomienia, zgłosić wolę dalszego wykonywania praw i obowiązków założyciela Forum Społecznego. W takim wypadku Gazeta.pl odstąpi od realizacji uprawnień, o których mowa w niniejszym punkcie.</p>
+<p data-form-specimen-node="263">11.18. Do Forum Społecznego o charakterze ukrytym nie stosuje się § 10 punkt 10.10 Regulaminu oraz punktu 11.17. b), c) i d) niniejszego paragrafu.</p>
+<p class="paragraph" data-form-specimen-node="264">§ 12 Postanowienia dodatkowe dotyczące Serwisu Jedennewsdziennie.pl</p>
+<p data-form-specimen-node="265">12.1. Postanowienia niniejszego paragrafu określają zasady świadczenia usługi drogą elektroniczną przez Gazeta.pl na rzecz Użytkowników prowadzonego przez nią Serwisu Internetowego Jedennewsdziennie.pl obejmującą utrzymywanie i publiczne udostępnianie w Serwisie Internetowym Jedennewsdziennie.pl materiałów prasowych.</p>
+<p data-form-specimen-node="266">12.2. Pełna treść materiału prasowego dostępna jest po uprzednim zalogowaniu do Serwisu Internetowego Jedennewsdziennie.pl. Przy czym Gazeta.pl udostępnia użytkownikom możliwość logowania w Serwisie Internetowym Jedennewsdziennie.pl wyłącznie za pośrednictwem platform zewnętrznych: Google lub Facebook. </p>
+<p data-form-specimen-node="267">12.3. Aby zalogować się do Serwisu Internetowego Jedennewsdziennie.pl za pośrednictwem platformy Google lub Facebook należy wyrazić zgodę na pobranie danych potrzebnych do uwierzytelnienia oraz autoryzacji tj. loginu, identyfikatora, adresu e-mail z konta Użytkownika utrzymywanego w ramach danej platformy. Po zalogowaniu Użytkownik uzyska dostęp do pełnej treści materiału prasowego.</p>
+<p data-form-specimen-node="268">12.4. Serwis Internetowy Jedennewsdziennie.pl udostępniany jest przez Gazeta.pl nieodpłatnie. Gazeta.pl może udostępniać Serwisy Internetowe nieodpłatnie ze względu na współpracę z klientami - reklamodawcami. Ze względu na powyższe, przewidujemy, że Użytkownik może wyrazić zgodę na wykorzystanie danych określonych w pkt 12.3 w celach marketingowych Gazeta.pl oraz innych podmiotów. Udzielenie zgody jest dobrowolne i nie wpływa na świadczoną w Serwisie Internetowym Jedennewsdziennie.pl usługę. Użytkownik może cofnąć zgodę w każdym momencie, jednak wycofanie zgody nie wpływa na legalność działań podejmowanych w okresie, gdy zgoda była wyrażona. Zgody można udzielić, odmówić wycofać lub ograniczyć jej zakres za pomocą funkcjonalności dostępnych w oknie wyświetlonym w procesie zbierania zgód w Serwisie Internetowym Jedennewsdziennie.pl.</p>
+<p class="paragraph" data-form-specimen-node="269">§ 13</p>
+<p data-form-specimen-node="270">Regulamin został przyjęty i obowiązuje od dnia 1 kwietnia 2024 r.</p>
+<p data-form-specimen-node="271">Polityka prywatności</p>
+<p data-form-specimen-node="272">Na stronach Serwisów Internetowych Gazeta.pl udostępnia Politykę prywatności.</p>
+<p data-form-specimen-node="273">Ustawienia zgód - aby zmienić ustawienia prywatności, wyrazić zgodę na przetwarzanie danych osobowych lub ją wycofać skorzystaj z przycisku &quot;Zgody&quot; w stopce serwisu.</p>
+
+</div>
+
+
+                </div>
+                <div class="accountRegister__field " data-form-specimen-node="274">
+                    <label class="accountRegister__label" for="acceptWithoutEmailAccountTermsGazeta" data-form-specimen-node="275">
+                        <input id="acceptWithoutEmailAccountTermsGazeta" name="acceptWithoutEmailAccountTermsGazeta" type="checkbox" data-form-specimen-node="276"><input type="hidden" name="_acceptWithoutEmailAccountTermsGazeta" data-form-specimen-node="277">
+                        <span class="accountRegister__info" data-form-specimen-node="278">
+                            <span class="accountRegister__asterisk" data-form-specimen-node="279">* </span>
+                            Potwierdzam, że zapoznałam(em) się z treścią Regulaminu Użytkownika Serwisów Internetowych Gazeta.pl
+                        </span>
+                    </label>
+                    
+                </div>
+                <div class="accountRegister__field accountRegister__field--info" data-form-specimen-node="280">
+                    <span class="accountRegister__asterisk" data-form-specimen-node="281">*</span> <span class="accountRegister__info" data-form-specimen-node="282">oświadczenia
+                        obowiązkowe</span>
+                </div>
+            </div>
+            <div data-form-specimen-node="283">
+                
+
+                
+                
+                    
+                    <div class="h-captcha" data-form-specimen-node="284"><textarea id="g-recaptcha-response-0qhioosc2gz8" name="g-recaptcha-response" data-form-specimen-node="285"></textarea><textarea id="h-captcha-response-0qhioosc2gz8" name="h-captcha-response" data-form-specimen-node="286"></textarea></div>
+                    
+                
+                
+            </div>
+
+            <div class="accountRegister__section accountRegister__section--main accountRegister__section--submit" data-form-specimen-node="287">
+                <div class="accountRegister__field" data-form-specimen-node="288">
+                    <input type="submit" id="accountRegister-rec3btn" class="accountRegister__btn accountRegister__btn--register" value="Zakładam konto" data-form-specimen-node="289">
+                </div>
+            </div>
+
+            <input type="hidden" name="Rejestracja nie-pocztowa usera - awd.1.2.register" data-form-specimen-node="290">
+            <input type="hidden" name="nextPage" data-form-specimen-node="291">
+            <input type="hidden" name="1053c57f40" data-form-specimen-node="292">
+            <input id="back" name="back" type="hidden" data-form-specimen-node="293">
+        </form>
+

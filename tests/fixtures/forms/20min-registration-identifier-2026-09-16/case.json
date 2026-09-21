@@ -1,0 +1,49 @@
+{
+  "id": "20min-registration-identifier-2026-09-16",
+  "service": "20min",
+  "flow": "registration",
+  "source": {
+    "url": "https://auth.20min.ch/signin",
+    "observedAt": "2026-09-16",
+    "locale": "de-CH",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Homepage Profil -> Jetzt anmelden opens combined sign-in/sign-up email step. Public copy explicitly offers login or registration; later account-dependent stages not submitted or observed.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "Editable/hidden field values, URLs, scripts, handlers and iframe content omitted; public input-button captions retained",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#initial-email",
+      "username": "#initial-email",
+      "password": null
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#initial-email",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "stage": "identifier"
+}

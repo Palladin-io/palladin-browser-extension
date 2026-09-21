@@ -1,0 +1,80 @@
+{
+  "id": "krone-registration-2026-09-16",
+  "service": "krone",
+  "flow": "registration",
+  "source": {
+    "url": "https://www.krone.at/",
+    "observedAt": "2026-09-16",
+    "locale": "de-AT",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Konto erstellen opens email, new-password, confirmation and public nickname. Terms/marketing untouched, no account submitted. Nickname uses explicit profile mapping.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "Editable/hidden field values, URLs, scripts, handlers and iframe content omitted; public input-button captions retained",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#Email",
+          "kind": "text",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#Password",
+          "kind": "password",
+          "purpose": "new-password",
+          "fieldId": "credential.password"
+        },
+        {
+          "selector": "#PasswordCheck",
+          "kind": "password",
+          "purpose": "new-password",
+          "fieldId": "credential.password"
+        },
+        {
+          "selector": "#NickName",
+          "kind": "text",
+          "purpose": null,
+          "fieldId": "profile.username"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "#Email",
+      "passwords": [
+        "#Password",
+        "#PasswordCheck"
+      ],
+      "usernameOptions": {
+        "email": "fixture-user@example.test",
+        "nickname": "fixture_handle"
+      }
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "expectationHistory": [
+    {
+      "date": "2026-09-21",
+      "reason": "Align with owner-approved email/nickname choice when no explicit username field exists. Observed DOM unchanged; previous email-only expectation predates this decision."
+    }
+  ]
+}
