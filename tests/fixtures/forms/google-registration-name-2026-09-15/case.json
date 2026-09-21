@@ -1,0 +1,51 @@
+{
+  "id": "google-registration-name-2026-09-15",
+  "service": "google",
+  "flow": "registration",
+  "source": {
+    "url": "https://accounts.google.com/lifecycle/steps/signup/name",
+    "observedAt": "2026-09-15",
+    "locale": "en",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "public name step reached through Create account > For my personal use; no account submitted; query state removed",
+    "viewport": {
+      "width": 954,
+      "height": 375
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#firstName",
+          "kind": "text",
+          "purpose": "given-name",
+          "fieldId": "profile.given-name"
+        },
+        {
+          "selector": "#lastName",
+          "kind": "text",
+          "purpose": "family-name",
+          "fieldId": "profile.family-name"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "stage": "name"
+}

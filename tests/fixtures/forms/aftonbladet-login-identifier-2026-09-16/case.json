@@ -1,0 +1,52 @@
+{
+  "id": "aftonbladet-login-identifier-2026-09-16",
+  "service": "aftonbladet",
+  "flow": "login",
+  "source": {
+    "url": "https://login.schibsted.com/authn/",
+    "entryUrl": "https://www.aftonbladet.se/",
+    "observedAt": "2026-09-16",
+    "locale": "sv",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Homepage consent dialog -> Logga in link -> Schibsted branded Aftonbladet email login. No advertising consent or paid option accepted; no identifier submitted.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Source query state omitted. Href presence retained as fixed fragment; hidden payload values omitted."
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#email-input",
+      "username": "#email-input",
+      "password": null
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#email-input",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "stage": "identifier"
+}
+

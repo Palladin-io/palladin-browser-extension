@@ -1,0 +1,58 @@
+{
+  "id": "allegro-login-2026-09-15",
+  "service": "allegro",
+  "flow": "login",
+  "source": {
+    "url": "https://allegro.pl/logowanie",
+    "observedAt": "2026-09-15",
+    "locale": "pl",
+    "method": "CUA read-only DOM inspection",
+    "state": "public login form, no values read"
+  },
+  "fidelity": {
+    "structure": "observed authForm subtree",
+    "styles": "observed input geometry and visibility; no pixel-perfect claim",
+    "behavior": "not observed after submission",
+    "redactions": [
+      "All value attributes and live values excluded",
+      "External links/actions, image/vector content and unreviewed data attributes excluded",
+      "Page shell and unrelated preference form omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#login",
+      "username": "#login",
+      "password": "#password"
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#login",
+          "kind": "text",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#password",
+          "kind": "password",
+          "purpose": "current-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "login",
+      "scope": "#authForm",
+      "username": "#login",
+      "passwords": [
+        "#password"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}

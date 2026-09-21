@@ -8,13 +8,14 @@ import { AGENT_FORM_INSPECT_CHANNEL, AGENT_FORM_LIMITS } from '@shared/messaging
 import { AgentFormRegistry } from './agent-form';
 import { performAgentInjectStep, type AgentInjectDomAccess } from './agent-inject';
 import { loginTargetFor, isFillable } from './credential-form-analysis';
-import { credentialScopeFor, isEmailConfirmationControl, isIdentifiedUsername, isOneTimeCodeControl, isSubscriptionIdentity, isVisibleScopeHint, scopeInputs } from './login-controls';
+import { credentialScopeFor, hasLoginActionLabel, publicActionLabels, publicActionReferenceState, isEmailConfirmationControl, isIdentifiedUsername, isOneTimeCodeControl, isSubscriptionIdentity, isVisibleScopeHint, scopeInputs } from './login-controls';
 import { actionCaption, composedForm } from './open-dom';
 import { markAgentManagedControl, isAgentManagedControl, unmarkAgentManagedControl } from './agent-managed-controls';
 import { hasLiveLoginObstacle } from './agent-live-obstacles';
+import { isCustomLoginAction, isNativeLoginAction, type LiveLoginAction } from './live-login-action';
 
 export const LIVE_SELECTOR_PREFIX = 'palladin-live:';
-const ACTION = /^(?:log\s*in|sign\s*in|continue|next|submit|verify|verify code|authenticate|zaloguj(?:\s+się)?|dalej|kontynuuj|potwierdź|zweryfikuj|anmelden|weiter)$/i;
+const VERIFICATION_ACTION = /^(?:verify|verify code|authenticate|potwierdź|zweryfikuj)$/i;
 export class LiveLogin {
   private readonly registry: AgentFormRegistry;
   private readonly deferred: DeferredLiveLogin;
@@ -39,7 +40,7 @@ export class LiveLogin {
     }));
     const scope = credentialScopeFor(fields[0]!.input);
     const action = bindings.find(binding => binding.selector === normal.steps[0]!.submit.selector)?.element;
-    if (!scope || !(action instanceof HTMLButtonElement || action instanceof HTMLInputElement)) return null;
+    if (!scope || !action || !(isNativeLoginAction(action) || isCustomLoginAction(action))) return null;
     const carriedIdentities = () => scopeInputs(scope).filter(input => isIdentifiedUsername(input)
       && !isSubscriptionIdentity(input) && !isEmailConfirmationControl(input) && (input.disabled || input.readOnly));
     const identities = carriedIdentities();
@@ -100,8 +101,9 @@ export class LiveLogin {
       this.inspectionOutcome = 'challenge'; this.clear(); return null;
     }
     const actions = nodes.filter(({ element }) => element instanceof HTMLElement
-      && credentialScopeFor(element) === scope && ACTION.test((actionCaption(element) ?? '').trim())
-      && ((element instanceof HTMLButtonElement || element instanceof HTMLInputElement) && ['submit', 'button'].includes(element.type)));
+      && credentialScopeFor(element) === scope
+      && (hasLoginActionLabel(element) || VERIFICATION_ACTION.test((actionCaption(element) ?? '').trim()))
+      && (isNativeLoginAction(element) || (fields.every(field => field.fieldId !== 'credential.totp') && isCustomLoginAction(element))));
     if (actions.length !== 1) { this.clear(); return null; }
     const ref = (reference: string) => `${LIVE_SELECTOR_PREFIX}${snapshot.snapshotId}:${reference}`;
     const planned: AgentInjectFormField[] = [];
@@ -112,7 +114,7 @@ export class LiveLogin {
     }
     this.bindings = [...planned.map(field => field.selector), ref(actions[0]!.control.ref)].map(selector => {
       const node = nodes.find(item => ref(item.control.ref) === selector)!;
-      const element = node.element as HTMLInputElement | HTMLButtonElement;
+      const element = node.element as LiveLoginAction;
       return { selector, element, signature: liveControlSignature(element), owner: composedForm(element) };
     });
     // Live login re-discovers and compares the actual bound controls before each
@@ -211,17 +213,21 @@ export class LiveLogin {
 
 /** No values: input/change may reflect a controlled input into its value attribute.
  * Identity, meaning, constraints and submission destination must still match. */
-function liveControlSignature(element: HTMLInputElement | HTMLButtonElement): string {
+function liveControlSignature(element: LiveLoginAction): string {
   const owner = composedForm(element);
   return JSON.stringify([
     element.tagName,
     ...['id', 'type', 'name', 'autocomplete', 'pattern', 'minlength', 'maxlength',
       'required', 'form', 'formaction', 'formtarget', 'formmethod', 'aria-label',
       'aria-labelledby'].map(attribute => element.getAttribute(attribute)),
+    isCustomLoginAction(element) ? ['class', 'role', 'href', 'target', 'download'].map(key => element.getAttribute(key)) : null,
     owner?.getAttribute('action'), owner?.getAttribute('target'),
     owner?.getAttribute('method'),
     element.ownerDocument.baseURI,
     element.ownerDocument.querySelector('base[target]')?.getAttribute('target'),
-    element instanceof HTMLButtonElement ? actionCaption(element) : null,
+    !(element instanceof HTMLInputElement) || ['submit', 'button'].includes(element.type) ? publicActionLabels(element, true) : null,
+    !(element instanceof HTMLInputElement) || ['submit', 'button'].includes(element.type) ? publicActionReferenceState(element) : null,
+    !(element instanceof HTMLInputElement) ? actionCaption(element)
+      : ['submit', 'button'].includes(element.type) ? element.value : null,
   ]);
 }

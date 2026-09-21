@@ -1,0 +1,52 @@
+{
+  "id": "diag-login-identifier-2026-09-16",
+  "service": "diag",
+  "flow": "login",
+  "source": {
+    "url": "https://diag.pl/pacjent/",
+    "entryUrl": "https://diag.pl/",
+    "observedAt": "2026-09-16",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Homepage -> Zaloguj się -> Zaloguj się do e-Sklepu, optional cookies rejected. Email stage visible; separate password form collapsed. No identifier submitted.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "Observed shared container of the visible email form and collapsed password form, retaining their independent ownership and visibility",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Href presence retained as fixed fragment; hidden payload values omitted."
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "input[name=\"email\"]",
+      "username": "input[name=\"email\"]",
+      "password": null
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "input[name=\"email\"]",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "stage": "identifier"
+}
+

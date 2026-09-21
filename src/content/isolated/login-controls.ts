@@ -33,15 +33,99 @@ export function scopeInputs(scope: CredentialScope): HTMLInputElement[] {
 export const ACTION_SELECTOR = 'button, input[type="submit"], input[type="button"], [role="button"], a.button:not([href]), div.btn_primary';
 const AUTH_ACTION = /(?:\blog\s*in\b|\bsign\s*in\b|\bsign\s*up\b|\bcontinue\b|\bnext\b|\bsubmit\b|\bregister\b|\bcreate\s+account\b|\bsave\b|zaloguj|zarejestruj|dalej|kontynuuj|zapisz|utwórz\s+konto)/i;
 
-const LOCALIZED_LOGIN_ACTIONS = new Set(['logowanie', 'συνέχεια', 'fortsett', 'fortsätt', 'continuar', 'weiter', 'anmelden']);
+const LOCALIZED_LOGIN_ACTIONS = new Set(['logowanie', 'συνέχεια', 'fortsett', 'fortsätt', 'continuar', 'weiter', 'anmelden',
+  'prijavi se', 'entrar', 'log ind', '登录', 'continue with email']);
 const EXACT_LOGIN_ACTION = /^(?:log\s*in|sign\s*in|continue|next|submit|zaloguj(?:\s+się)?|dalej|kontynuuj)$/i;
 
-function actionLabels(element: Element): string[] {
+/** Only the established font glyph and short non-letter symbols are decoration.
+ * aria-hidden alone does not make visible action text safe to ignore.
+ */
+function decorativeActionDescendant(element: Element): boolean {
+  const image = element.matches('img, svg');
+  const declared = element.getAttribute('aria-hidden') === 'true'
+    || (image && ['none', 'presentation'].includes(element.getAttribute('role') ?? ''));
+  if (!declared) return false;
+  if (!image && (element.childElementCount !== 0 || element.shadowRoot !== null || element.matches('slot')
+    || element.hasAttribute('aria-label') || element.hasAttribute('aria-labelledby'))) return false;
+  const caption = actionCaption(element);
+  if (caption === null || caption.length > 32) return false;
+  const glyph = caption.trim();
+  return glyph === 'person' || !/[\p{L}\p{N}]/u.test(glyph);
+}
+
+/** Bounded execution-only content: text plus independent semantic icon labels.
+ * Explicitly referenced roots may be aria-hidden (e.g. native submit captions),
+ * so only decorative descendants are skipped. This is not a full AccName engine.
+ */
+function executionActionContent(element: Element): string[] | null {
+  const pending: Node[] = [element];
+  const labels: string[] = [];
+  let text = '', visited = 0, length = 0;
+  const appendLabel = (label: string | null): boolean => {
+    if (label === null || label === '') return true;
+    length += label.length; labels.push(label);
+    return length <= 512;
+  };
+  while (pending.length) {
+    const node = pending.pop()!;
+    if (++visited > 256) return null;
+    if (node.nodeType === Node.TEXT_NODE) {
+      const content = node.textContent ?? '';
+      length += content.length; text += content;
+      if (length > 512) return null;
+    } else if (node instanceof Element) {
+      if (node.matches('script, style, input, textarea')) continue;
+      if (node !== element && decorativeActionDescendant(node)) continue;
+      // Descendant IDREF naming is not yet supported by this execution adapter.
+      // Fail closed rather than silently dropping a provider's semantic name.
+      if (node !== element && (node.getAttribute('aria-labelledby') ?? '').trim() !== '') return null;
+      if (!appendLabel(node.getAttribute('aria-label'))
+        || (node.matches('img') && !appendLabel(node.getAttribute('alt')))) return null;
+      const assigned = node instanceof HTMLSlotElement ? node.assignedNodes({ flatten: true }) : [];
+      const children = assigned.length ? assigned : [...(node.shadowRoot ?? node).childNodes];
+      pending.push(...children.reverse());
+    }
+  }
+  return [text, ...labels];
+}
+
+export function publicActionLabels(element: Element, execution = false): string[] {
+  const references = element.getAttribute('aria-labelledby');
+  if (references !== null && references.length > 512) return [];
+  if (references !== null && references.trim() !== '') {
+    const root = element.getRootNode();
+    const ids = references.trim().split(/\s+/);
+    if (ids.length > 8 || !(root instanceof Document || root instanceof ShadowRoot)) return [];
+    const labels = ids.map(id => root.getElementById(id));
+    if (labels.some(label => label !== null)) {
+      const contents = labels.map(label => label ? (execution ? executionActionContent(label) : [actionCaption(label)]) : null);
+      if (contents.some(content => content === null || content.some(caption => caption === null))) return [];
+      const captions = contents as string[][];
+      const caption = captions.map(content => content[0]).join(' ').trim().replace(/\s+/g, ' ').toLowerCase();
+      const own = execution ? executionActionContent(element) : [];
+      if (own === null) return [];
+      return caption.length <= 512 ? [caption, ...captions.flatMap(content => content.slice(1)), ...own]
+        .map(label => label.trim().toLowerCase()) : [];
+    }
+  }
   const value = element instanceof HTMLInputElement && ['submit', 'button'].includes(element.type)
-    ? element.value : element.getAttribute('value');
-  return [element.getAttribute('aria-label'), actionCaption(element), value]
+    ? element.value : null;
+  const content = execution ? executionActionContent(element) : [actionCaption(element)];
+  if (content === null) return [];
+  return [element.getAttribute('aria-label'), ...content, value]
     .filter((label): label is string => label !== null && label.length <= 512)
     .map(label => label.trim().toLowerCase());
+}
+
+/** Bind the source of a caption as well as its text across deferred commit. */
+export function publicActionReferenceState(element: Element): readonly boolean[] | null {
+  const references = element.getAttribute('aria-labelledby');
+  if (references === null) return [];
+  if (references.length > 512) return null;
+  const ids = references.trim() ? references.trim().split(/\s+/) : [];
+  const root = element.getRootNode();
+  if (ids.length > 8 || !(root instanceof Document || root instanceof ShadowRoot)) return null;
+  return ids.map(id => root.getElementById(id) !== null);
 }
 
 /** Execution uses the canonical login/continue labels, not the broader
@@ -49,7 +133,19 @@ function actionLabels(element: Element): string[] {
  * The caller still enforces native type, visibility, owner and uniqueness.
  */
 export function hasLoginActionLabel(element: Element): boolean {
-  return actionLabels(element).some(label => EXACT_LOGIN_ACTION.test(label) || LOCALIZED_LOGIN_ACTIONS.has(label));
+  const recognized = (label: string) => EXACT_LOGIN_ACTION.test(label) || LOCALIZED_LOGIN_ACTIONS.has(label);
+  const labels = publicActionLabels(element, true);
+  if (!labels.some(recognized)) return false;
+  // ARIA may override the accessible name, but must not hide a conflicting
+  // visible action (social sign-in, account creation, reset, etc.) from execution.
+  // Button.value is a submitted payload; only native input buttons expose it as
+  // their caption. Never read credential input values.
+  const content = executionActionContent(element);
+  if (content === null) return false;
+  const ownLabels = [element.getAttribute('aria-label') ?? '', ...content,
+    element instanceof HTMLInputElement && ['submit', 'button'].includes(element.type) ? element.value : ''];
+  return [...labels, ...ownLabels].every(label => label !== null && label.length <= 512
+    && (!/[\p{L}\p{N}]/u.test(label) || recognized(label.trim().toLowerCase())));
 }
 
 export function isCredentialAction(element: Element): boolean {
@@ -78,7 +174,7 @@ function isCredentialActionHint(element: Element): boolean {
     && ((element as HTMLButtonElement).form || (element.getAttribute('type') === 'submit'
       && element.getRootNode() instanceof ShadowRoot && composedForm(element)))
     && isVisibleScopeHint(element)) return true;
-  return actionLabels(element).some(label => AUTH_ACTION.test(label)
+  return publicActionLabels(element).some(label => AUTH_ACTION.test(label)
     || LOCALIZED_LOGIN_ACTIONS.has(label) || label === 'konto erstellen');
 }
 

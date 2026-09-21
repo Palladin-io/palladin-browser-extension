@@ -1,0 +1,58 @@
+{
+  "id": "seznam-registration-2026-09-15",
+  "service": "seznam",
+  "flow": "registration",
+  "source": {
+    "url": "https://registrace.seznam.cz/",
+    "observedAt": "2026-09-15",
+    "locale": "en",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "public form, no values read",
+    "viewport": {
+      "width": 954,
+      "height": 375
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#register-username",
+          "kind": "text",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "input[type=\"password\"]",
+          "kind": "password",
+          "purpose": "new-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "#register-username",
+      "passwords": [
+        "input[type=\"password\"]"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}
+

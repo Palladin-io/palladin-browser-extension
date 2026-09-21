@@ -1,0 +1,54 @@
+{
+  "id": "mailru-login-identifier-2026-09-15",
+  "service": "mailru",
+  "flow": "login",
+  "source": {
+    "url": "https://id.vk.ru/auth",
+    "observedAt": "2026-09-15",
+    "locale": "en",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "public Mail.ru login reached from account.mail.ru/login; VK ID localpart field and separate domain selector; only localpart control tested",
+    "viewport": {
+      "width": 954,
+      "height": 375
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#email",
+      "username": "#email",
+      "password": null
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#email",
+          "kind": "text",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported",
+    "domainComposition": "not-tested"
+  },
+  "stage": "identifier",
+  "synthetic": {
+    "username": "palladinfixture"
+  }
+}
+

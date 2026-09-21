@@ -1,0 +1,77 @@
+{
+  "id": "euro-registration-2026-09-15",
+  "service": "euro",
+  "flow": "registration",
+  "source": {
+    "url": "https://www.euro.com.pl/account-login.bhtml",
+    "observedAt": "2026-09-15",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Create-account overlay opened from login; overlay form subtree only",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#eui-primitive-textfield-4",
+          "kind": "text",
+          "purpose": "given-name",
+          "fieldId": "profile.given-name"
+        },
+        {
+          "selector": "#eui-primitive-textfield-5",
+          "kind": "text",
+          "purpose": "family-name",
+          "fieldId": "profile.family-name"
+        },
+        {
+          "selector": "#eui-primitive-textfield-6",
+          "kind": "text",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#eui-primitive-textfield-7",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        },
+        {
+          "selector": "#eui-primitive-textfield-8",
+          "kind": "password",
+          "purpose": "confirm-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "#eui-primitive-textfield-6",
+      "passwords": [
+        "#eui-primitive-textfield-7",
+        "#eui-primitive-textfield-8"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}
+

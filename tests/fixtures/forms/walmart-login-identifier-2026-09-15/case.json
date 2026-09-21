@@ -1,0 +1,50 @@
+{
+  "id": "walmart-login-identifier-2026-09-15",
+  "service": "walmart",
+  "flow": "login",
+  "source": {
+    "url": "https://identity.walmart.com/account/login",
+    "observedAt": "2026-09-15",
+    "locale": "en",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "public form, no values read",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "input[name=\"Phone number or email (required)\"]",
+      "username": "input[name=\"Phone number or email (required)\"]",
+      "password": null
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "input[name=\"Phone number or email (required)\"]",
+          "kind": "text",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "stage": "identifier"
+}
+

@@ -1,0 +1,64 @@
+{
+  "id": "znanylekarz-login-2026-09-16",
+  "service": "znanylekarz",
+  "flow": "login",
+  "source": {
+    "url": "https://l.znanylekarz.pl/",
+    "entryUrl": "https://www.znanylekarz.pl/",
+    "observedAt": "2026-09-16",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Homepage public login link /social-connect/pl_sso redirects to l.znanylekarz.pl. Optional cookie categories left off and preferences saved. Empty native login form, no submission or CAPTCHA completion.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Href presence retained as fixed fragment; hidden payload values omitted."
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#username",
+      "username": "#username",
+      "password": "#password"
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#username",
+          "kind": "email",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#password",
+          "kind": "password",
+          "purpose": "current-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "login",
+      "scope": "form",
+      "username": "#username",
+      "passwords": [
+        "#password"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}
+

@@ -1,0 +1,50 @@
+{
+  "id": "srf-login-identifier-2026-09-15",
+  "service": "srf",
+  "flow": "login",
+  "source": {
+    "url": "https://account.srgssr.ch/signin/login",
+    "observedAt": "2026-09-15",
+    "locale": "de",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Public SRG email step reached from SRF menu; includes hidden native submit and visible external Weiter",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#mat-input-0",
+      "username": "#mat-input-0",
+      "password": null
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#mat-input-0",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "stage": "identifier"
+}
+

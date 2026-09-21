@@ -1,0 +1,58 @@
+{
+  "id": "otomoto-registration-2026-09-16",
+  "service": "otomoto",
+  "flow": "registration",
+  "source": {
+    "url": "https://login.otomoto.pl/register",
+    "observedAt": "2026-09-16",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Public signup after Załóż konto; consent untouched; ambiguous username/E-mail metadata uses explicit mapping",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "Editable/hidden field values, URLs, scripts, handlers and iframe content omitted; public input-button captions retained",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#username",
+          "kind": "email",
+          "purpose": null,
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#password",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "#username",
+      "passwords": [
+        "#password"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}
+

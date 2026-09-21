@@ -1,0 +1,62 @@
+{
+  "id": "record-login-2026-09-16",
+  "service": "record",
+  "flow": "login",
+  "source": {
+    "url": "https://www.record.pt/",
+    "observedAt": "2026-09-16",
+    "locale": "pt",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Homepage -> Iniciar Sessão opens top-frame login layer; consent preferences declined. No fields entered.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "Observed native form in top-frame Medialivre account layer, including hidden transport fields without values",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Anchor href presence retained as synthetic fragment; actual targets and CAPTCHA iframe content omitted."
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#inputEmail",
+      "username": "#inputEmail",
+      "password": "#inputPassword"
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#inputEmail",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#inputPassword",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "login",
+      "scope": "form",
+      "username": "#inputEmail",
+      "passwords": [
+        "#inputPassword"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}

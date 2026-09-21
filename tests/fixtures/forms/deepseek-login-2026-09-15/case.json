@@ -1,0 +1,62 @@
+{
+  "id": "deepseek-login-2026-09-15",
+  "service": "deepseek",
+  "flow": "login",
+  "source": {
+    "url": "https://chat.deepseek.com/sign_in",
+    "observedAt": "2026-09-15",
+    "locale": "en",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "public form, no values read",
+    "viewport": {
+      "width": 954,
+      "height": 375
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "input[type=\"text\"]",
+      "username": "input[type=\"text\"]",
+      "password": "input[type=\"password\"]"
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "input[type=\"text\"]",
+          "kind": "text",
+          "purpose": null,
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "input[type=\"password\"]",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "login",
+      "scope": ".ds-auth-form__main-hero",
+      "username": "input[type=\"text\"]",
+      "passwords": [
+        "input[type=\"password\"]"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}
+

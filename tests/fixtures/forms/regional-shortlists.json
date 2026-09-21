@@ -1,0 +1,4882 @@
+{
+  "status": "provisional-domain-candidates-not-auth-coverage",
+  "observedAt": "2026-09-15",
+  "note": "Inspect login/registration before promoting to coverage.regions. A domain with no account flow is replaced; shared identity providers reuse specimens only after the redirect is observed.",
+  "lists": {
+    "global": {
+      "method": "First 100 domains in the public Similarweb global monthly-visits table; eligibility pending.",
+      "candidates": [
+        {
+          "domain": "google.com",
+          "evidence": [
+            {
+              "rank": 1,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "youtube.com",
+          "evidence": [
+            {
+              "rank": 2,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "facebook.com",
+          "evidence": [
+            {
+              "rank": 3,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "instagram.com",
+          "evidence": [
+            {
+              "rank": 4,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "chatgpt.com",
+          "evidence": [
+            {
+              "rank": 5,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "reddit.com",
+          "evidence": [
+            {
+              "rank": 6,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "x.com",
+          "evidence": [
+            {
+              "rank": 7,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "whatsapp.com",
+          "evidence": [
+            {
+              "rank": 8,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "tiktok.com",
+          "evidence": [
+            {
+              "rank": 9,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "bing.com",
+          "evidence": [
+            {
+              "rank": 10,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "wikipedia.org",
+          "evidence": [
+            {
+              "rank": 11,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "gemini.google.com",
+          "evidence": [
+            {
+              "rank": 12,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "yahoo.co.jp",
+          "evidence": [
+            {
+              "rank": 13,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "yandex.ru",
+          "evidence": [
+            {
+              "rank": 14,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "yahoo.com",
+          "evidence": [
+            {
+              "rank": 15,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "amazon.com",
+          "evidence": [
+            {
+              "rank": 16,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "linkedin.com",
+          "evidence": [
+            {
+              "rank": 17,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "baidu.com",
+          "evidence": [
+            {
+              "rank": 18,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "bet.br",
+          "evidence": [
+            {
+              "rank": 19,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "naver.com",
+          "evidence": [
+            {
+              "rank": 20,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "netflix.com",
+          "evidence": [
+            {
+              "rank": 21,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "pinterest.com",
+          "evidence": [
+            {
+              "rank": 22,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "cloud.microsoft",
+          "evidence": [
+            {
+              "rank": 23,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "live.com",
+          "evidence": [
+            {
+              "rank": 24,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "pornhub.com",
+          "evidence": [
+            {
+              "rank": 25,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "bilibili.com",
+          "evidence": [
+            {
+              "rank": 26,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "xhamster.com",
+          "evidence": [
+            {
+              "rank": 27,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "temu.com",
+          "evidence": [
+            {
+              "rank": 28,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "dzen.ru",
+          "evidence": [
+            {
+              "rank": 29,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "microsoft.com",
+          "evidence": [
+            {
+              "rank": 30,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "twitch.tv",
+          "evidence": [
+            {
+              "rank": 31,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "weather.com",
+          "evidence": [
+            {
+              "rank": 32,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "vk.com",
+          "evidence": [
+            {
+              "rank": 33,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "xvideos.com",
+          "evidence": [
+            {
+              "rank": 34,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "canva.com",
+          "evidence": [
+            {
+              "rank": 35,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "claude.ai",
+          "evidence": [
+            {
+              "rank": 36,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "news.yahoo.co.jp",
+          "evidence": [
+            {
+              "rank": 37,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "fandom.com",
+          "evidence": [
+            {
+              "rank": 38,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "globo.com",
+          "evidence": [
+            {
+              "rank": 39,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "mail.ru",
+          "evidence": [
+            {
+              "rank": 40,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "samsung.com",
+          "evidence": [
+            {
+              "rank": 41,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "duckduckgo.com",
+          "evidence": [
+            {
+              "rank": 42,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "t.me",
+          "evidence": [
+            {
+              "rank": 43,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "discord.com",
+          "evidence": [
+            {
+              "rank": 44,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "github.com",
+          "evidence": [
+            {
+              "rank": 45,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "ebay.com",
+          "evidence": [
+            {
+              "rank": 46,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "xnxx.com",
+          "evidence": [
+            {
+              "rank": 47,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "stripchat.com",
+          "evidence": [
+            {
+              "rank": 48,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "spotify.com",
+          "evidence": [
+            {
+              "rank": 49,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "nytimes.com",
+          "evidence": [
+            {
+              "rank": 50,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "zoom.us",
+          "evidence": [
+            {
+              "rank": 51,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "booking.com",
+          "evidence": [
+            {
+              "rank": 52,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "imdb.com",
+          "evidence": [
+            {
+              "rank": 53,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "brave.com",
+          "evidence": [
+            {
+              "rank": 54,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "eporner.com",
+          "evidence": [
+            {
+              "rank": 55,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "cricbuzz.com",
+          "evidence": [
+            {
+              "rank": 56,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "ozon.ru",
+          "evidence": [
+            {
+              "rank": 57,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "roblox.com",
+          "evidence": [
+            {
+              "rank": 58,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "aliexpress.com",
+          "evidence": [
+            {
+              "rank": 59,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "bbc.co.uk",
+          "evidence": [
+            {
+              "rank": 60,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "office.com",
+          "evidence": [
+            {
+              "rank": 61,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "apple.com",
+          "evidence": [
+            {
+              "rank": 62,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "docomo.ne.jp",
+          "evidence": [
+            {
+              "rank": 63,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "amazon.in",
+          "evidence": [
+            {
+              "rank": 64,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "walmart.com",
+          "evidence": [
+            {
+              "rank": 65,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "espn.com",
+          "evidence": [
+            {
+              "rank": 66,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "xhamster45.desi",
+          "evidence": [
+            {
+              "rank": 67,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "amazon.co.jp",
+          "evidence": [
+            {
+              "rank": 68,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "bbc.com",
+          "evidence": [
+            {
+              "rank": 69,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "chaturbate.com",
+          "evidence": [
+            {
+              "rank": 70,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "paypal.com",
+          "evidence": [
+            {
+              "rank": 71,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "msn.com",
+          "evidence": [
+            {
+              "rank": 72,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "ya.ru",
+          "evidence": [
+            {
+              "rank": 73,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "etsy.com",
+          "evidence": [
+            {
+              "rank": 74,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "deepseek.com",
+          "evidence": [
+            {
+              "rank": 75,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "indeed.com",
+          "evidence": [
+            {
+              "rank": 76,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "music.youtube.com",
+          "evidence": [
+            {
+              "rank": 77,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "disneyplus.com",
+          "evidence": [
+            {
+              "rank": 78,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "amazon.de",
+          "evidence": [
+            {
+              "rank": 79,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "rakuten.co.jp",
+          "evidence": [
+            {
+              "rank": 80,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "adobe.com",
+          "evidence": [
+            {
+              "rank": 81,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "chat.deepseek.com",
+          "evidence": [
+            {
+              "rank": 82,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "telegram.org",
+          "evidence": [
+            {
+              "rank": 83,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "hbomax.com",
+          "evidence": [
+            {
+              "rank": 84,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "zillow.com",
+          "evidence": [
+            {
+              "rank": 85,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "amazon.co.uk",
+          "evidence": [
+            {
+              "rank": 86,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "ok.ru",
+          "evidence": [
+            {
+              "rank": 87,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "cnn.com",
+          "evidence": [
+            {
+              "rank": 88,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "onlyfans.com",
+          "evidence": [
+            {
+              "rank": 89,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "namu.wiki",
+          "evidence": [
+            {
+              "rank": 90,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "shein.com",
+          "evidence": [
+            {
+              "rank": 91,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "wildberries.ru",
+          "evidence": [
+            {
+              "rank": 92,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "qq.com",
+          "evidence": [
+            {
+              "rank": 93,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "douyin.com",
+          "evidence": [
+            {
+              "rank": 94,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "usps.com",
+          "evidence": [
+            {
+              "rank": 95,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "erome.com",
+          "evidence": [
+            {
+              "rank": 96,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "instructure.com",
+          "evidence": [
+            {
+              "rank": 97,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "primevideo.com",
+          "evidence": [
+            {
+              "rank": 98,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "quora.com",
+          "evidence": [
+            {
+              "rank": 99,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        },
+        {
+          "domain": "rutube.ru",
+          "evidence": [
+            {
+              "rank": 100,
+              "source": "https://www.similarweb.com/blog/research/market-research/most-visited-websites/"
+            }
+          ]
+        }
+      ]
+    },
+    "poland": {
+      "method": "Semrush Poland public top 20 by visits, followed by unseen Ahrefs Poland top 100 by organic search. A mixed-metric testing shortlist, not a total-traffic top 100.",
+      "candidates": [
+        {
+          "domain": "google.com",
+          "evidence": [
+            {
+              "rank": 1,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "rank": 13,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "youtube.com",
+          "evidence": [
+            {
+              "rank": 2,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "rank": 6,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "facebook.com",
+          "evidence": [
+            {
+              "rank": 3,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "rank": 3,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "interia.pl",
+          "evidence": [
+            {
+              "rank": 4,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "rank": 2,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "allegro.pl",
+          "evidence": [
+            {
+              "rank": 5,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "rank": 4,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "wikipedia.org",
+          "evidence": [
+            {
+              "rank": 6,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "rank": 1,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "onet.pl",
+          "evidence": [
+            {
+              "rank": 7,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "rank": 8,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "pornhub.com",
+          "evidence": [
+            {
+              "rank": 8,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            }
+          ]
+        },
+        {
+          "domain": "instagram.com",
+          "evidence": [
+            {
+              "rank": 9,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "rank": 12,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "chatgpt.com",
+          "evidence": [
+            {
+              "rank": 10,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "rank": 15,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "olx.pl",
+          "evidence": [
+            {
+              "rank": 11,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "rank": 5,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "reddit.com",
+          "evidence": [
+            {
+              "rank": 12,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "rank": 24,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "filmweb.pl",
+          "evidence": [
+            {
+              "rank": 13,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "rank": 9,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "weather.com",
+          "evidence": [
+            {
+              "rank": 14,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            }
+          ]
+        },
+        {
+          "domain": "x.com",
+          "evidence": [
+            {
+              "rank": 15,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "rank": 63,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "google.pl",
+          "evidence": [
+            {
+              "rank": 16,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            }
+          ]
+        },
+        {
+          "domain": "mediaexpert.pl",
+          "evidence": [
+            {
+              "rank": 17,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "rank": 14,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "otomoto.pl",
+          "evidence": [
+            {
+              "rank": 18,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "rank": 16,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "pepper.pl",
+          "evidence": [
+            {
+              "rank": 19,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            }
+          ]
+        },
+        {
+          "domain": "gazeta.pl",
+          "evidence": [
+            {
+              "rank": 20,
+              "metric": "monthly visits",
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "rank": 23,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "wp.pl",
+          "evidence": [
+            {
+              "rank": 7,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "doz.pl",
+          "evidence": [
+            {
+              "rank": 10,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "aniagotuje.pl",
+          "evidence": [
+            {
+              "rank": 11,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "flashscore.pl",
+          "evidence": [
+            {
+              "rank": 17,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "tvn24.pl",
+          "evidence": [
+            {
+              "rank": 18,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "www.gov.pl",
+          "evidence": [
+            {
+              "rank": 19,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "tvp.pl",
+          "evidence": [
+            {
+              "rank": 20,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "bankier.pl",
+          "evidence": [
+            {
+              "rank": 21,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "ceneo.pl",
+          "evidence": [
+            {
+              "rank": 22,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "kwestiasmaku.com",
+          "evidence": [
+            {
+              "rank": 25,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "pracuj.pl",
+          "evidence": [
+            {
+              "rank": 26,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "pinterest.com",
+          "evidence": [
+            {
+              "rank": 27,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "leroymerlin.pl",
+          "evidence": [
+            {
+              "rank": 28,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "zus.pl",
+          "evidence": [
+            {
+              "rank": 29,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "castorama.pl",
+          "evidence": [
+            {
+              "rank": 30,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "ikea.com",
+          "evidence": [
+            {
+              "rank": 31,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "booking.com",
+          "evidence": [
+            {
+              "rank": 32,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "decathlon.pl",
+          "evidence": [
+            {
+              "rank": 33,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "rossmann.pl",
+          "evidence": [
+            {
+              "rank": 34,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "diag.pl",
+          "evidence": [
+            {
+              "rank": 35,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "o2.pl",
+          "evidence": [
+            {
+              "rank": 36,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "apple.com",
+          "evidence": [
+            {
+              "rank": 37,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "biedronka.pl",
+          "evidence": [
+            {
+              "rank": 38,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "znanylekarz.pl",
+          "evidence": [
+            {
+              "rank": 39,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "transfermarkt.pl",
+          "evidence": [
+            {
+              "rank": 40,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "wakacje.pl",
+          "evidence": [
+            {
+              "rank": 41,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "accuweather.com",
+          "evidence": [
+            {
+              "rank": 42,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "twojapogoda.pl",
+          "evidence": [
+            {
+              "rank": 43,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "doradcasmaku.pl",
+          "evidence": [
+            {
+              "rank": 44,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "netflix.com",
+          "evidence": [
+            {
+              "rank": 45,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "mp.pl",
+          "evidence": [
+            {
+              "rank": 46,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "otodom.pl",
+          "evidence": [
+            {
+              "rank": 47,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "roblox.com",
+          "evidence": [
+            {
+              "rank": 48,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "euro.com.pl",
+          "evidence": [
+            {
+              "rank": 49,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "tiktok.com",
+          "evidence": [
+            {
+              "rank": 50,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "microsoft.com",
+          "evidence": [
+            {
+              "rank": 51,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "meczyki.pl",
+          "evidence": [
+            {
+              "rank": 52,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "pudelek.pl",
+          "evidence": [
+            {
+              "rank": 53,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "zalando.pl",
+          "evidence": [
+            {
+              "rank": 54,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "empik.com",
+          "evidence": [
+            {
+              "rank": 55,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "fandom.com",
+          "evidence": [
+            {
+              "rank": 56,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "openai.com",
+          "evidence": [
+            {
+              "rank": 57,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "luxmed.pl",
+          "evidence": [
+            {
+              "rank": 58,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "rozklad-pkp.pl",
+          "evidence": [
+            {
+              "rank": 59,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "steampowered.com",
+          "evidence": [
+            {
+              "rank": 60,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "jysk.pl",
+          "evidence": [
+            {
+              "rank": 61,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "pkobp.pl",
+          "evidence": [
+            {
+              "rank": 62,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "pogodairadar.pl",
+          "evidence": [
+            {
+              "rank": 64,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "vinted.pl",
+          "evidence": [
+            {
+              "rank": 65,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "autocentrum.pl",
+          "evidence": [
+            {
+              "rank": 66,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "sinsay.com",
+          "evidence": [
+            {
+              "rank": 67,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "alab.pl",
+          "evidence": [
+            {
+              "rank": 68,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "gemini.pl",
+          "evidence": [
+            {
+              "rank": 69,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "spotify.com",
+          "evidence": [
+            {
+              "rank": 70,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "inpost.pl",
+          "evidence": [
+            {
+              "rank": 71,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "lidl.pl",
+          "evidence": [
+            {
+              "rank": 72,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "szarada.net",
+          "evidence": [
+            {
+              "rank": 73,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "itaka.pl",
+          "evidence": [
+            {
+              "rank": 74,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "trustpilot.com",
+          "evidence": [
+            {
+              "rank": 75,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "ccc.eu",
+          "evidence": [
+            {
+              "rank": 76,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "drmax.pl",
+          "evidence": [
+            {
+              "rank": 77,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "lubimyczytac.pl",
+          "evidence": [
+            {
+              "rank": 78,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "imgw.pl",
+          "evidence": [
+            {
+              "rank": 79,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "ipko.pl",
+          "evidence": [
+            {
+              "rank": 80,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "eobuwie.com.pl",
+          "evidence": [
+            {
+              "rank": 81,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "x-kom.pl",
+          "evidence": [
+            {
+              "rank": 82,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "e-podroznik.pl",
+          "evidence": [
+            {
+              "rank": 83,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "nike.com",
+          "evidence": [
+            {
+              "rank": 84,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "gofin.pl",
+          "evidence": [
+            {
+              "rank": 85,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "orange.pl",
+          "evidence": [
+            {
+              "rank": 86,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "amazon.pl",
+          "evidence": [
+            {
+              "rank": 87,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "tekstowo.pl",
+          "evidence": [
+            {
+              "rank": 88,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "podatki.gov.pl",
+          "evidence": [
+            {
+              "rank": 89,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "tui.pl",
+          "evidence": [
+            {
+              "rank": 90,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "erste.pl",
+          "evidence": [
+            {
+              "rank": 91,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "kalbi.pl",
+          "evidence": [
+            {
+              "rank": 92,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "action.com",
+          "evidence": [
+            {
+              "rank": 93,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "fakt.pl",
+          "evidence": [
+            {
+              "rank": 94,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "hebe.pl",
+          "evidence": [
+            {
+              "rank": 95,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        },
+        {
+          "domain": "tauron.pl",
+          "evidence": [
+            {
+              "rank": 96,
+              "metric": "organic search visits (not total traffic)",
+              "source": "https://ahrefstop.com/websites/poland"
+            }
+          ]
+        }
+      ]
+    },
+    "europe": {
+      "method": "Union of public Semrush top 20 in each of EU27 + UK + EFTA4; order by sum of reciprocal country rank (equal country weight), then domain. A balanced testing shortlist, not an aggregate traffic ranking.",
+      "candidates": [
+        {
+          "domain": "google.com",
+          "evidence": [
+            {
+              "market": "at",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/at/all"
+            },
+            {
+              "market": "be",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/be/all"
+            },
+            {
+              "market": "bg",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/bg/all"
+            },
+            {
+              "market": "ch",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/ch/all"
+            },
+            {
+              "market": "cy",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/cy/all"
+            },
+            {
+              "market": "cz",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/cz/all"
+            },
+            {
+              "market": "de",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/de/all"
+            },
+            {
+              "market": "dk",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/dk/all"
+            },
+            {
+              "market": "ee",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/ee/all"
+            },
+            {
+              "market": "es",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/es/all"
+            },
+            {
+              "market": "fi",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/fi/all"
+            },
+            {
+              "market": "fr",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/fr/all"
+            },
+            {
+              "market": "gb",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/gb/all"
+            },
+            {
+              "market": "gr",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/gr/all"
+            },
+            {
+              "market": "hr",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/hr/all"
+            },
+            {
+              "market": "hu",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/hu/all"
+            },
+            {
+              "market": "ie",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/ie/all"
+            },
+            {
+              "market": "is",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/is/all"
+            },
+            {
+              "market": "it",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/it/all"
+            },
+            {
+              "market": "li",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/li/all"
+            },
+            {
+              "market": "lt",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/lt/all"
+            },
+            {
+              "market": "lu",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "lv",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/lv/all"
+            },
+            {
+              "market": "mt",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/mt/all"
+            },
+            {
+              "market": "nl",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/nl/all"
+            },
+            {
+              "market": "no",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/no/all"
+            },
+            {
+              "market": "pl",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "market": "pt",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/pt/all"
+            },
+            {
+              "market": "ro",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/ro/all"
+            },
+            {
+              "market": "se",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/se/all"
+            },
+            {
+              "market": "si",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/si/all"
+            },
+            {
+              "market": "sk",
+              "rank": 1,
+              "source": "https://www.semrush.com/trending-websites/sk/all"
+            }
+          ]
+        },
+        {
+          "domain": "youtube.com",
+          "evidence": [
+            {
+              "market": "at",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/at/all"
+            },
+            {
+              "market": "be",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/be/all"
+            },
+            {
+              "market": "bg",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/bg/all"
+            },
+            {
+              "market": "ch",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/ch/all"
+            },
+            {
+              "market": "cy",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/cy/all"
+            },
+            {
+              "market": "cz",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/cz/all"
+            },
+            {
+              "market": "de",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/de/all"
+            },
+            {
+              "market": "dk",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/dk/all"
+            },
+            {
+              "market": "ee",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/ee/all"
+            },
+            {
+              "market": "es",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/es/all"
+            },
+            {
+              "market": "fi",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/fi/all"
+            },
+            {
+              "market": "fr",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/fr/all"
+            },
+            {
+              "market": "gb",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/gb/all"
+            },
+            {
+              "market": "gr",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/gr/all"
+            },
+            {
+              "market": "hr",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/hr/all"
+            },
+            {
+              "market": "hu",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/hu/all"
+            },
+            {
+              "market": "ie",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/ie/all"
+            },
+            {
+              "market": "is",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/is/all"
+            },
+            {
+              "market": "it",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/it/all"
+            },
+            {
+              "market": "li",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/li/all"
+            },
+            {
+              "market": "lt",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/lt/all"
+            },
+            {
+              "market": "lu",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "lv",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/lv/all"
+            },
+            {
+              "market": "mt",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/mt/all"
+            },
+            {
+              "market": "nl",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/nl/all"
+            },
+            {
+              "market": "no",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/no/all"
+            },
+            {
+              "market": "pl",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "market": "pt",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/pt/all"
+            },
+            {
+              "market": "ro",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/ro/all"
+            },
+            {
+              "market": "se",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/se/all"
+            },
+            {
+              "market": "si",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/si/all"
+            },
+            {
+              "market": "sk",
+              "rank": 2,
+              "source": "https://www.semrush.com/trending-websites/sk/all"
+            }
+          ]
+        },
+        {
+          "domain": "facebook.com",
+          "evidence": [
+            {
+              "market": "at",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/at/all"
+            },
+            {
+              "market": "be",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/be/all"
+            },
+            {
+              "market": "bg",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/bg/all"
+            },
+            {
+              "market": "ch",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/ch/all"
+            },
+            {
+              "market": "cy",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/cy/all"
+            },
+            {
+              "market": "cz",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/cz/all"
+            },
+            {
+              "market": "de",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/de/all"
+            },
+            {
+              "market": "dk",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/dk/all"
+            },
+            {
+              "market": "ee",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/ee/all"
+            },
+            {
+              "market": "es",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/es/all"
+            },
+            {
+              "market": "fi",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/fi/all"
+            },
+            {
+              "market": "fr",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/fr/all"
+            },
+            {
+              "market": "gb",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/gb/all"
+            },
+            {
+              "market": "gr",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/gr/all"
+            },
+            {
+              "market": "hr",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/hr/all"
+            },
+            {
+              "market": "hu",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/hu/all"
+            },
+            {
+              "market": "ie",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/ie/all"
+            },
+            {
+              "market": "is",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/is/all"
+            },
+            {
+              "market": "it",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/it/all"
+            },
+            {
+              "market": "li",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/li/all"
+            },
+            {
+              "market": "lt",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/lt/all"
+            },
+            {
+              "market": "lu",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "lv",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/lv/all"
+            },
+            {
+              "market": "mt",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/mt/all"
+            },
+            {
+              "market": "nl",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/nl/all"
+            },
+            {
+              "market": "no",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/no/all"
+            },
+            {
+              "market": "pl",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "market": "pt",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/pt/all"
+            },
+            {
+              "market": "ro",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/ro/all"
+            },
+            {
+              "market": "se",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/se/all"
+            },
+            {
+              "market": "si",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/si/all"
+            },
+            {
+              "market": "sk",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/sk/all"
+            }
+          ]
+        },
+        {
+          "domain": "chatgpt.com",
+          "evidence": [
+            {
+              "market": "at",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/at/all"
+            },
+            {
+              "market": "be",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/be/all"
+            },
+            {
+              "market": "bg",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/bg/all"
+            },
+            {
+              "market": "ch",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/ch/all"
+            },
+            {
+              "market": "cy",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/cy/all"
+            },
+            {
+              "market": "cz",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/cz/all"
+            },
+            {
+              "market": "de",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/de/all"
+            },
+            {
+              "market": "dk",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/dk/all"
+            },
+            {
+              "market": "ee",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/ee/all"
+            },
+            {
+              "market": "es",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/es/all"
+            },
+            {
+              "market": "fi",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/fi/all"
+            },
+            {
+              "market": "fr",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/fr/all"
+            },
+            {
+              "market": "gb",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/gb/all"
+            },
+            {
+              "market": "gr",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/gr/all"
+            },
+            {
+              "market": "hr",
+              "rank": 18,
+              "source": "https://www.semrush.com/trending-websites/hr/all"
+            },
+            {
+              "market": "hu",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/hu/all"
+            },
+            {
+              "market": "ie",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/ie/all"
+            },
+            {
+              "market": "is",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/is/all"
+            },
+            {
+              "market": "it",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/it/all"
+            },
+            {
+              "market": "li",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/li/all"
+            },
+            {
+              "market": "lt",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/lt/all"
+            },
+            {
+              "market": "lu",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "lv",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/lv/all"
+            },
+            {
+              "market": "mt",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/mt/all"
+            },
+            {
+              "market": "nl",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/nl/all"
+            },
+            {
+              "market": "no",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/no/all"
+            },
+            {
+              "market": "pl",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "market": "pt",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/pt/all"
+            },
+            {
+              "market": "ro",
+              "rank": 12,
+              "source": "https://www.semrush.com/trending-websites/ro/all"
+            },
+            {
+              "market": "se",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/se/all"
+            },
+            {
+              "market": "si",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/si/all"
+            },
+            {
+              "market": "sk",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/sk/all"
+            }
+          ]
+        },
+        {
+          "domain": "instagram.com",
+          "evidence": [
+            {
+              "market": "at",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/at/all"
+            },
+            {
+              "market": "be",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/be/all"
+            },
+            {
+              "market": "bg",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/bg/all"
+            },
+            {
+              "market": "ch",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/ch/all"
+            },
+            {
+              "market": "cy",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/cy/all"
+            },
+            {
+              "market": "cz",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/cz/all"
+            },
+            {
+              "market": "de",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/de/all"
+            },
+            {
+              "market": "dk",
+              "rank": 12,
+              "source": "https://www.semrush.com/trending-websites/dk/all"
+            },
+            {
+              "market": "ee",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/ee/all"
+            },
+            {
+              "market": "es",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/es/all"
+            },
+            {
+              "market": "fi",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/fi/all"
+            },
+            {
+              "market": "fr",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/fr/all"
+            },
+            {
+              "market": "gb",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/gb/all"
+            },
+            {
+              "market": "gr",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/gr/all"
+            },
+            {
+              "market": "hr",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/hr/all"
+            },
+            {
+              "market": "hu",
+              "rank": 12,
+              "source": "https://www.semrush.com/trending-websites/hu/all"
+            },
+            {
+              "market": "ie",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/ie/all"
+            },
+            {
+              "market": "is",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/is/all"
+            },
+            {
+              "market": "it",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/it/all"
+            },
+            {
+              "market": "li",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/li/all"
+            },
+            {
+              "market": "lt",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/lt/all"
+            },
+            {
+              "market": "lu",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "lv",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/lv/all"
+            },
+            {
+              "market": "mt",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/mt/all"
+            },
+            {
+              "market": "nl",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/nl/all"
+            },
+            {
+              "market": "no",
+              "rank": 14,
+              "source": "https://www.semrush.com/trending-websites/no/all"
+            },
+            {
+              "market": "pl",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "market": "pt",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/pt/all"
+            },
+            {
+              "market": "ro",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/ro/all"
+            },
+            {
+              "market": "se",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/se/all"
+            },
+            {
+              "market": "si",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/si/all"
+            },
+            {
+              "market": "sk",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/sk/all"
+            }
+          ]
+        },
+        {
+          "domain": "wikipedia.org",
+          "evidence": [
+            {
+              "market": "at",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/at/all"
+            },
+            {
+              "market": "be",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/be/all"
+            },
+            {
+              "market": "bg",
+              "rank": 12,
+              "source": "https://www.semrush.com/trending-websites/bg/all"
+            },
+            {
+              "market": "ch",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/ch/all"
+            },
+            {
+              "market": "cy",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/cy/all"
+            },
+            {
+              "market": "cz",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/cz/all"
+            },
+            {
+              "market": "de",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/de/all"
+            },
+            {
+              "market": "dk",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/dk/all"
+            },
+            {
+              "market": "ee",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/ee/all"
+            },
+            {
+              "market": "es",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/es/all"
+            },
+            {
+              "market": "fi",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/fi/all"
+            },
+            {
+              "market": "fr",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/fr/all"
+            },
+            {
+              "market": "gb",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/gb/all"
+            },
+            {
+              "market": "gr",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/gr/all"
+            },
+            {
+              "market": "hr",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/hr/all"
+            },
+            {
+              "market": "hu",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/hu/all"
+            },
+            {
+              "market": "ie",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/ie/all"
+            },
+            {
+              "market": "is",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/is/all"
+            },
+            {
+              "market": "it",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/it/all"
+            },
+            {
+              "market": "li",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/li/all"
+            },
+            {
+              "market": "lt",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/lt/all"
+            },
+            {
+              "market": "lu",
+              "rank": 16,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "lv",
+              "rank": 16,
+              "source": "https://www.semrush.com/trending-websites/lv/all"
+            },
+            {
+              "market": "mt",
+              "rank": 16,
+              "source": "https://www.semrush.com/trending-websites/mt/all"
+            },
+            {
+              "market": "nl",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/nl/all"
+            },
+            {
+              "market": "no",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/no/all"
+            },
+            {
+              "market": "pl",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "market": "pt",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/pt/all"
+            },
+            {
+              "market": "ro",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/ro/all"
+            },
+            {
+              "market": "se",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/se/all"
+            },
+            {
+              "market": "si",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/si/all"
+            },
+            {
+              "market": "sk",
+              "rank": 16,
+              "source": "https://www.semrush.com/trending-websites/sk/all"
+            }
+          ]
+        },
+        {
+          "domain": "pornhub.com",
+          "evidence": [
+            {
+              "market": "at",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/at/all"
+            },
+            {
+              "market": "be",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/be/all"
+            },
+            {
+              "market": "bg",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/bg/all"
+            },
+            {
+              "market": "ch",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/ch/all"
+            },
+            {
+              "market": "cy",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/cy/all"
+            },
+            {
+              "market": "cz",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/cz/all"
+            },
+            {
+              "market": "de",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/de/all"
+            },
+            {
+              "market": "dk",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/dk/all"
+            },
+            {
+              "market": "ee",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/ee/all"
+            },
+            {
+              "market": "es",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/es/all"
+            },
+            {
+              "market": "fi",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/fi/all"
+            },
+            {
+              "market": "gb",
+              "rank": 18,
+              "source": "https://www.semrush.com/trending-websites/gb/all"
+            },
+            {
+              "market": "gr",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/gr/all"
+            },
+            {
+              "market": "hr",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/hr/all"
+            },
+            {
+              "market": "hu",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/hu/all"
+            },
+            {
+              "market": "ie",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/ie/all"
+            },
+            {
+              "market": "it",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/it/all"
+            },
+            {
+              "market": "lt",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/lt/all"
+            },
+            {
+              "market": "lu",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "lv",
+              "rank": 14,
+              "source": "https://www.semrush.com/trending-websites/lv/all"
+            },
+            {
+              "market": "nl",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/nl/all"
+            },
+            {
+              "market": "no",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/no/all"
+            },
+            {
+              "market": "pl",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "market": "pt",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/pt/all"
+            },
+            {
+              "market": "ro",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/ro/all"
+            },
+            {
+              "market": "se",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/se/all"
+            },
+            {
+              "market": "si",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/si/all"
+            },
+            {
+              "market": "sk",
+              "rank": 12,
+              "source": "https://www.semrush.com/trending-websites/sk/all"
+            }
+          ]
+        },
+        {
+          "domain": "reddit.com",
+          "evidence": [
+            {
+              "market": "at",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/at/all"
+            },
+            {
+              "market": "be",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/be/all"
+            },
+            {
+              "market": "bg",
+              "rank": 19,
+              "source": "https://www.semrush.com/trending-websites/bg/all"
+            },
+            {
+              "market": "ch",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/ch/all"
+            },
+            {
+              "market": "cy",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/cy/all"
+            },
+            {
+              "market": "cz",
+              "rank": 19,
+              "source": "https://www.semrush.com/trending-websites/cz/all"
+            },
+            {
+              "market": "de",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/de/all"
+            },
+            {
+              "market": "dk",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/dk/all"
+            },
+            {
+              "market": "ee",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/ee/all"
+            },
+            {
+              "market": "es",
+              "rank": 16,
+              "source": "https://www.semrush.com/trending-websites/es/all"
+            },
+            {
+              "market": "fi",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/fi/all"
+            },
+            {
+              "market": "fr",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/fr/all"
+            },
+            {
+              "market": "gb",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/gb/all"
+            },
+            {
+              "market": "hr",
+              "rank": 16,
+              "source": "https://www.semrush.com/trending-websites/hr/all"
+            },
+            {
+              "market": "hu",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/hu/all"
+            },
+            {
+              "market": "ie",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/ie/all"
+            },
+            {
+              "market": "is",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/is/all"
+            },
+            {
+              "market": "it",
+              "rank": 19,
+              "source": "https://www.semrush.com/trending-websites/it/all"
+            },
+            {
+              "market": "li",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/li/all"
+            },
+            {
+              "market": "lt",
+              "rank": 14,
+              "source": "https://www.semrush.com/trending-websites/lt/all"
+            },
+            {
+              "market": "lu",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "lv",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/lv/all"
+            },
+            {
+              "market": "mt",
+              "rank": 12,
+              "source": "https://www.semrush.com/trending-websites/mt/all"
+            },
+            {
+              "market": "nl",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/nl/all"
+            },
+            {
+              "market": "no",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/no/all"
+            },
+            {
+              "market": "pl",
+              "rank": 12,
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "market": "pt",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/pt/all"
+            },
+            {
+              "market": "ro",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/ro/all"
+            },
+            {
+              "market": "se",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/se/all"
+            },
+            {
+              "market": "si",
+              "rank": 14,
+              "source": "https://www.semrush.com/trending-websites/si/all"
+            },
+            {
+              "market": "sk",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/sk/all"
+            }
+          ]
+        },
+        {
+          "domain": "x.com",
+          "evidence": [
+            {
+              "market": "be",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/be/all"
+            },
+            {
+              "market": "ch",
+              "rank": 16,
+              "source": "https://www.semrush.com/trending-websites/ch/all"
+            },
+            {
+              "market": "cy",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/cy/all"
+            },
+            {
+              "market": "de",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/de/all"
+            },
+            {
+              "market": "ee",
+              "rank": 16,
+              "source": "https://www.semrush.com/trending-websites/ee/all"
+            },
+            {
+              "market": "es",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/es/all"
+            },
+            {
+              "market": "fi",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/fi/all"
+            },
+            {
+              "market": "fr",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/fr/all"
+            },
+            {
+              "market": "gb",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/gb/all"
+            },
+            {
+              "market": "ie",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/ie/all"
+            },
+            {
+              "market": "is",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/is/all"
+            },
+            {
+              "market": "li",
+              "rank": 16,
+              "source": "https://www.semrush.com/trending-websites/li/all"
+            },
+            {
+              "market": "lu",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "mt",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/mt/all"
+            },
+            {
+              "market": "no",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/no/all"
+            },
+            {
+              "market": "pl",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "market": "pt",
+              "rank": 14,
+              "source": "https://www.semrush.com/trending-websites/pt/all"
+            },
+            {
+              "market": "se",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/se/all"
+            },
+            {
+              "market": "si",
+              "rank": 18,
+              "source": "https://www.semrush.com/trending-websites/si/all"
+            }
+          ]
+        },
+        {
+          "domain": "twitch.tv",
+          "evidence": [
+            {
+              "market": "cy",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/cy/all"
+            },
+            {
+              "market": "de",
+              "rank": 16,
+              "source": "https://www.semrush.com/trending-websites/de/all"
+            },
+            {
+              "market": "dk",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/dk/all"
+            },
+            {
+              "market": "ee",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/ee/all"
+            },
+            {
+              "market": "fr",
+              "rank": 18,
+              "source": "https://www.semrush.com/trending-websites/fr/all"
+            },
+            {
+              "market": "is",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/is/all"
+            },
+            {
+              "market": "li",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/li/all"
+            },
+            {
+              "market": "lt",
+              "rank": 16,
+              "source": "https://www.semrush.com/trending-websites/lt/all"
+            },
+            {
+              "market": "lu",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "lv",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/lv/all"
+            },
+            {
+              "market": "mt",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/mt/all"
+            },
+            {
+              "market": "pt",
+              "rank": 12,
+              "source": "https://www.semrush.com/trending-websites/pt/all"
+            },
+            {
+              "market": "se",
+              "rank": 12,
+              "source": "https://www.semrush.com/trending-websites/se/all"
+            }
+          ]
+        },
+        {
+          "domain": "weather.com",
+          "evidence": [
+            {
+              "market": "at",
+              "rank": 12,
+              "source": "https://www.semrush.com/trending-websites/at/all"
+            },
+            {
+              "market": "be",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/be/all"
+            },
+            {
+              "market": "ch",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/ch/all"
+            },
+            {
+              "market": "cz",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/cz/all"
+            },
+            {
+              "market": "de",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/de/all"
+            },
+            {
+              "market": "fr",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/fr/all"
+            },
+            {
+              "market": "hr",
+              "rank": 14,
+              "source": "https://www.semrush.com/trending-websites/hr/all"
+            },
+            {
+              "market": "hu",
+              "rank": 16,
+              "source": "https://www.semrush.com/trending-websites/hu/all"
+            },
+            {
+              "market": "lt",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/lt/all"
+            },
+            {
+              "market": "nl",
+              "rank": 19,
+              "source": "https://www.semrush.com/trending-websites/nl/all"
+            },
+            {
+              "market": "pl",
+              "rank": 14,
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            },
+            {
+              "market": "ro",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/ro/all"
+            },
+            {
+              "market": "se",
+              "rank": 18,
+              "source": "https://www.semrush.com/trending-websites/se/all"
+            },
+            {
+              "market": "si",
+              "rank": 19,
+              "source": "https://www.semrush.com/trending-websites/si/all"
+            },
+            {
+              "market": "sk",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/sk/all"
+            }
+          ]
+        },
+        {
+          "domain": "duckduckgo.com",
+          "evidence": [
+            {
+              "market": "at",
+              "rank": 16,
+              "source": "https://www.semrush.com/trending-websites/at/all"
+            },
+            {
+              "market": "ch",
+              "rank": 12,
+              "source": "https://www.semrush.com/trending-websites/ch/all"
+            },
+            {
+              "market": "de",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/de/all"
+            },
+            {
+              "market": "dk",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/dk/all"
+            },
+            {
+              "market": "fi",
+              "rank": 14,
+              "source": "https://www.semrush.com/trending-websites/fi/all"
+            },
+            {
+              "market": "fr",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/fr/all"
+            },
+            {
+              "market": "gb",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/gb/all"
+            },
+            {
+              "market": "ie",
+              "rank": 12,
+              "source": "https://www.semrush.com/trending-websites/ie/all"
+            },
+            {
+              "market": "it",
+              "rank": 18,
+              "source": "https://www.semrush.com/trending-websites/it/all"
+            },
+            {
+              "market": "li",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/li/all"
+            },
+            {
+              "market": "nl",
+              "rank": 14,
+              "source": "https://www.semrush.com/trending-websites/nl/all"
+            },
+            {
+              "market": "no",
+              "rank": 19,
+              "source": "https://www.semrush.com/trending-websites/no/all"
+            },
+            {
+              "market": "se",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/se/all"
+            }
+          ]
+        },
+        {
+          "domain": "whatsapp.com",
+          "evidence": [
+            {
+              "market": "ch",
+              "rank": 14,
+              "source": "https://www.semrush.com/trending-websites/ch/all"
+            },
+            {
+              "market": "cy",
+              "rank": 18,
+              "source": "https://www.semrush.com/trending-websites/cy/all"
+            },
+            {
+              "market": "es",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/es/all"
+            },
+            {
+              "market": "it",
+              "rank": 14,
+              "source": "https://www.semrush.com/trending-websites/it/all"
+            },
+            {
+              "market": "lu",
+              "rank": 14,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "lv",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/lv/all"
+            },
+            {
+              "market": "mt",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/mt/all"
+            },
+            {
+              "market": "nl",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/nl/all"
+            },
+            {
+              "market": "pt",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/pt/all"
+            }
+          ]
+        },
+        {
+          "domain": "msn.com",
+          "evidence": [
+            {
+              "market": "ch",
+              "rank": 19,
+              "source": "https://www.semrush.com/trending-websites/ch/all"
+            },
+            {
+              "market": "cy",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/cy/all"
+            },
+            {
+              "market": "is",
+              "rank": 14,
+              "source": "https://www.semrush.com/trending-websites/is/all"
+            },
+            {
+              "market": "li",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/li/all"
+            },
+            {
+              "market": "lt",
+              "rank": 19,
+              "source": "https://www.semrush.com/trending-websites/lt/all"
+            },
+            {
+              "market": "lu",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "mt",
+              "rank": 14,
+              "source": "https://www.semrush.com/trending-websites/mt/all"
+            },
+            {
+              "market": "pt",
+              "rank": 16,
+              "source": "https://www.semrush.com/trending-websites/pt/all"
+            }
+          ]
+        },
+        {
+          "domain": "xhamster.com",
+          "evidence": [
+            {
+              "market": "at",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/at/all"
+            },
+            {
+              "market": "be",
+              "rank": 18,
+              "source": "https://www.semrush.com/trending-websites/be/all"
+            },
+            {
+              "market": "bg",
+              "rank": 11,
+              "source": "https://www.semrush.com/trending-websites/bg/all"
+            },
+            {
+              "market": "dk",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/dk/all"
+            },
+            {
+              "market": "gr",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/gr/all"
+            },
+            {
+              "market": "hr",
+              "rank": 19,
+              "source": "https://www.semrush.com/trending-websites/hr/all"
+            },
+            {
+              "market": "hu",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/hu/all"
+            },
+            {
+              "market": "ie",
+              "rank": 14,
+              "source": "https://www.semrush.com/trending-websites/ie/all"
+            },
+            {
+              "market": "li",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/li/all"
+            },
+            {
+              "market": "ro",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/ro/all"
+            }
+          ]
+        },
+        {
+          "domain": "linkedin.com",
+          "evidence": [
+            {
+              "market": "ch",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/ch/all"
+            },
+            {
+              "market": "cy",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/cy/all"
+            },
+            {
+              "market": "gb",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/gb/all"
+            },
+            {
+              "market": "ie",
+              "rank": 16,
+              "source": "https://www.semrush.com/trending-websites/ie/all"
+            },
+            {
+              "market": "li",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/li/all"
+            },
+            {
+              "market": "lu",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "mt",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/mt/all"
+            },
+            {
+              "market": "nl",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/nl/all"
+            }
+          ]
+        },
+        {
+          "domain": "amazon.de",
+          "evidence": [
+            {
+              "market": "at",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/at/all"
+            },
+            {
+              "market": "de",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/de/all"
+            },
+            {
+              "market": "lu",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            }
+          ]
+        },
+        {
+          "domain": "tiktok.com",
+          "evidence": [
+            {
+              "market": "be",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/be/all"
+            },
+            {
+              "market": "de",
+              "rank": 19,
+              "source": "https://www.semrush.com/trending-websites/de/all"
+            },
+            {
+              "market": "ee",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/ee/all"
+            },
+            {
+              "market": "es",
+              "rank": 12,
+              "source": "https://www.semrush.com/trending-websites/es/all"
+            },
+            {
+              "market": "fr",
+              "rank": 19,
+              "source": "https://www.semrush.com/trending-websites/fr/all"
+            },
+            {
+              "market": "ie",
+              "rank": 18,
+              "source": "https://www.semrush.com/trending-websites/ie/all"
+            },
+            {
+              "market": "is",
+              "rank": 18,
+              "source": "https://www.semrush.com/trending-websites/is/all"
+            },
+            {
+              "market": "lv",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/lv/all"
+            },
+            {
+              "market": "ro",
+              "rank": 18,
+              "source": "https://www.semrush.com/trending-websites/ro/all"
+            },
+            {
+              "market": "se",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/se/all"
+            }
+          ]
+        },
+        {
+          "domain": "netflix.com",
+          "evidence": [
+            {
+              "market": "cy",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/cy/all"
+            },
+            {
+              "market": "dk",
+              "rank": 18,
+              "source": "https://www.semrush.com/trending-websites/dk/all"
+            },
+            {
+              "market": "gb",
+              "rank": 19,
+              "source": "https://www.semrush.com/trending-websites/gb/all"
+            },
+            {
+              "market": "is",
+              "rank": 10,
+              "source": "https://www.semrush.com/trending-websites/is/all"
+            },
+            {
+              "market": "lu",
+              "rank": 18,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "mt",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/mt/all"
+            }
+          ]
+        },
+        {
+          "domain": "xvideos.com",
+          "evidence": [
+            {
+              "market": "bg",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/bg/all"
+            },
+            {
+              "market": "dk",
+              "rank": 19,
+              "source": "https://www.semrush.com/trending-websites/dk/all"
+            },
+            {
+              "market": "es",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/es/all"
+            },
+            {
+              "market": "gr",
+              "rank": 18,
+              "source": "https://www.semrush.com/trending-websites/gr/all"
+            },
+            {
+              "market": "hr",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/hr/all"
+            },
+            {
+              "market": "hu",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/hu/all"
+            },
+            {
+              "market": "ie",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/ie/all"
+            },
+            {
+              "market": "pt",
+              "rank": 18,
+              "source": "https://www.semrush.com/trending-websites/pt/all"
+            }
+          ]
+        },
+        {
+          "domain": "live.com",
+          "evidence": [
+            {
+              "market": "be",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/be/all"
+            },
+            {
+              "market": "cy",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/cy/all"
+            },
+            {
+              "market": "gb",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/gb/all"
+            },
+            {
+              "market": "lu",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "mt",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/mt/all"
+            },
+            {
+              "market": "pt",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/pt/all"
+            },
+            {
+              "market": "se",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/se/all"
+            }
+          ]
+        },
+        {
+          "domain": "srf.ch",
+          "evidence": [
+            {
+              "market": "ch",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/ch/all"
+            },
+            {
+              "market": "li",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/li/all"
+            }
+          ]
+        },
+        {
+          "domain": "24ur.com",
+          "evidence": [
+            {
+              "market": "si",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/si/all"
+            }
+          ]
+        },
+        {
+          "domain": "bbc.co.uk",
+          "evidence": [
+            {
+              "market": "gb",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/gb/all"
+            }
+          ]
+        },
+        {
+          "domain": "delfi.lt",
+          "evidence": [
+            {
+              "market": "lt",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/lt/all"
+            }
+          ]
+        },
+        {
+          "domain": "index.hr",
+          "evidence": [
+            {
+              "market": "hr",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/hr/all"
+            }
+          ]
+        },
+        {
+          "domain": "is.fi",
+          "evidence": [
+            {
+              "market": "fi",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/fi/all"
+            }
+          ]
+        },
+        {
+          "domain": "marca.com",
+          "evidence": [
+            {
+              "market": "es",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/es/all"
+            }
+          ]
+        },
+        {
+          "domain": "orf.at",
+          "evidence": [
+            {
+              "market": "at",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/at/all"
+            }
+          ]
+        },
+        {
+          "domain": "tv2.dk",
+          "evidence": [
+            {
+              "market": "dk",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/dk/all"
+            }
+          ]
+        },
+        {
+          "domain": "vg.no",
+          "evidence": [
+            {
+              "market": "no",
+              "rank": 3,
+              "source": "https://www.semrush.com/trending-websites/no/all"
+            }
+          ]
+        },
+        {
+          "domain": "claude.ai",
+          "evidence": [
+            {
+              "market": "cy",
+              "rank": 19,
+              "source": "https://www.semrush.com/trending-websites/cy/all"
+            },
+            {
+              "market": "li",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/li/all"
+            },
+            {
+              "market": "lu",
+              "rank": 17,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "mt",
+              "rank": 19,
+              "source": "https://www.semrush.com/trending-websites/mt/all"
+            }
+          ]
+        },
+        {
+          "domain": "yahoo.com",
+          "evidence": [
+            {
+              "market": "fr",
+              "rank": 16,
+              "source": "https://www.semrush.com/trending-websites/fr/all"
+            },
+            {
+              "market": "gb",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/gb/all"
+            },
+            {
+              "market": "lu",
+              "rank": 19,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "ro",
+              "rank": 14,
+              "source": "https://www.semrush.com/trending-websites/ro/all"
+            }
+          ]
+        },
+        {
+          "domain": "bing.com",
+          "evidence": [
+            {
+              "market": "gb",
+              "rank": 16,
+              "source": "https://www.semrush.com/trending-websites/gb/all"
+            },
+            {
+              "market": "is",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/is/all"
+            },
+            {
+              "market": "lu",
+              "rank": 12,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "mt",
+              "rank": 18,
+              "source": "https://www.semrush.com/trending-websites/mt/all"
+            }
+          ]
+        },
+        {
+          "domain": "aftonbladet.se",
+          "evidence": [
+            {
+              "market": "se",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/se/all"
+            }
+          ]
+        },
+        {
+          "domain": "delfi.ee",
+          "evidence": [
+            {
+              "market": "ee",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/ee/all"
+            }
+          ]
+        },
+        {
+          "domain": "dir.bg",
+          "evidence": [
+            {
+              "market": "bg",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/bg/all"
+            }
+          ]
+        },
+        {
+          "domain": "hln.be",
+          "evidence": [
+            {
+              "market": "be",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/be/all"
+            }
+          ]
+        },
+        {
+          "domain": "idokep.hu",
+          "evidence": [
+            {
+              "market": "hu",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/hu/all"
+            }
+          ]
+        },
+        {
+          "domain": "iltalehti.fi",
+          "evidence": [
+            {
+              "market": "fi",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/fi/all"
+            }
+          ]
+        },
+        {
+          "domain": "inbox.lv",
+          "evidence": [
+            {
+              "market": "lv",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/lv/all"
+            }
+          ]
+        },
+        {
+          "domain": "interia.pl",
+          "evidence": [
+            {
+              "market": "pl",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            }
+          ]
+        },
+        {
+          "domain": "jutarnji.hr",
+          "evidence": [
+            {
+              "market": "hr",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/hr/all"
+            }
+          ]
+        },
+        {
+          "domain": "novinky.cz",
+          "evidence": [
+            {
+              "market": "cz",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/cz/all"
+            }
+          ]
+        },
+        {
+          "domain": "nu.nl",
+          "evidence": [
+            {
+              "market": "nl",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/nl/all"
+            }
+          ]
+        },
+        {
+          "domain": "protothema.gr",
+          "evidence": [
+            {
+              "market": "gr",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/gr/all"
+            }
+          ]
+        },
+        {
+          "domain": "rtvslo.si",
+          "evidence": [
+            {
+              "market": "si",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/si/all"
+            }
+          ]
+        },
+        {
+          "domain": "topky.sk",
+          "evidence": [
+            {
+              "market": "sk",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/sk/all"
+            }
+          ]
+        },
+        {
+          "domain": "visir.is",
+          "evidence": [
+            {
+              "market": "is",
+              "rank": 4,
+              "source": "https://www.semrush.com/trending-websites/is/all"
+            }
+          ]
+        },
+        {
+          "domain": "gazzetta.gr",
+          "evidence": [
+            {
+              "market": "cy",
+              "rank": 14,
+              "source": "https://www.semrush.com/trending-websites/cy/all"
+            },
+            {
+              "market": "gr",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/gr/all"
+            }
+          ]
+        },
+        {
+          "domain": "allegro.pl",
+          "evidence": [
+            {
+              "market": "pl",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            }
+          ]
+        },
+        {
+          "domain": "amazon.co.uk",
+          "evidence": [
+            {
+              "market": "gb",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/gb/all"
+            }
+          ]
+        },
+        {
+          "domain": "amazon.it",
+          "evidence": [
+            {
+              "market": "it",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/it/all"
+            }
+          ]
+        },
+        {
+          "domain": "ekstrabladet.dk",
+          "evidence": [
+            {
+              "market": "dk",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/dk/all"
+            }
+          ]
+        },
+        {
+          "domain": "fsonline.app",
+          "evidence": [
+            {
+              "market": "ro",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/ro/all"
+            }
+          ]
+        },
+        {
+          "domain": "google.es",
+          "evidence": [
+            {
+              "market": "es",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/es/all"
+            }
+          ]
+        },
+        {
+          "domain": "idnes.cz",
+          "evidence": [
+            {
+              "market": "cz",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/cz/all"
+            }
+          ]
+        },
+        {
+          "domain": "index.hu",
+          "evidence": [
+            {
+              "market": "hu",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/hu/all"
+            }
+          ]
+        },
+        {
+          "domain": "mbl.is",
+          "evidence": [
+            {
+              "market": "is",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/is/all"
+            }
+          ]
+        },
+        {
+          "domain": "nrk.no",
+          "evidence": [
+            {
+              "market": "no",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/no/all"
+            }
+          ]
+        },
+        {
+          "domain": "rte.ie",
+          "evidence": [
+            {
+              "market": "ie",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/ie/all"
+            }
+          ]
+        },
+        {
+          "domain": "sme.sk",
+          "evidence": [
+            {
+              "market": "sk",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/sk/all"
+            }
+          ]
+        },
+        {
+          "domain": "yle.fi",
+          "evidence": [
+            {
+              "market": "fi",
+              "rank": 5,
+              "source": "https://www.semrush.com/trending-websites/fi/all"
+            }
+          ]
+        },
+        {
+          "domain": "yandex.ru",
+          "evidence": [
+            {
+              "market": "ee",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/ee/all"
+            },
+            {
+              "market": "li",
+              "rank": 18,
+              "source": "https://www.semrush.com/trending-websites/li/all"
+            },
+            {
+              "market": "lv",
+              "rank": 19,
+              "source": "https://www.semrush.com/trending-websites/lv/all"
+            }
+          ]
+        },
+        {
+          "domain": "15min.lt",
+          "evidence": [
+            {
+              "market": "lt",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/lt/all"
+            }
+          ]
+        },
+        {
+          "domain": "20min.ch",
+          "evidence": [
+            {
+              "market": "ch",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/ch/all"
+            }
+          ]
+        },
+        {
+          "domain": "24sata.hr",
+          "evidence": [
+            {
+              "market": "hr",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/hr/all"
+            }
+          ]
+        },
+        {
+          "domain": "abola.pt",
+          "evidence": [
+            {
+              "market": "pt",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/pt/all"
+            }
+          ]
+        },
+        {
+          "domain": "abv.bg",
+          "evidence": [
+            {
+              "market": "bg",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/bg/all"
+            }
+          ]
+        },
+        {
+          "domain": "aktuality.sk",
+          "evidence": [
+            {
+              "market": "sk",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/sk/all"
+            }
+          ]
+        },
+        {
+          "domain": "amazon.fr",
+          "evidence": [
+            {
+              "market": "fr",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/fr/all"
+            }
+          ]
+        },
+        {
+          "domain": "delfi.lv",
+          "evidence": [
+            {
+              "market": "lv",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/lv/all"
+            }
+          ]
+        },
+        {
+          "domain": "dr.dk",
+          "evidence": [
+            {
+              "market": "dk",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/dk/all"
+            }
+          ]
+        },
+        {
+          "domain": "finn.no",
+          "evidence": [
+            {
+              "market": "no",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/no/all"
+            }
+          ]
+        },
+        {
+          "domain": "krone.at",
+          "evidence": [
+            {
+              "market": "at",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/at/all"
+            }
+          ]
+        },
+        {
+          "domain": "postimees.ee",
+          "evidence": [
+            {
+              "market": "ee",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/ee/all"
+            }
+          ]
+        },
+        {
+          "domain": "seznamzpravy.cz",
+          "evidence": [
+            {
+              "market": "cz",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/cz/all"
+            }
+          ]
+        },
+        {
+          "domain": "siol.net",
+          "evidence": [
+            {
+              "market": "si",
+              "rank": 6,
+              "source": "https://www.semrush.com/trending-websites/si/all"
+            }
+          ]
+        },
+        {
+          "domain": "yr.no",
+          "evidence": [
+            {
+              "market": "ee",
+              "rank": 19,
+              "source": "https://www.semrush.com/trending-websites/ee/all"
+            },
+            {
+              "market": "no",
+              "rank": 9,
+              "source": "https://www.semrush.com/trending-websites/no/all"
+            }
+          ]
+        },
+        {
+          "domain": "galaxus.ch",
+          "evidence": [
+            {
+              "market": "ch",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/ch/all"
+            },
+            {
+              "market": "li",
+              "rank": 12,
+              "source": "https://www.semrush.com/trending-websites/li/all"
+            }
+          ]
+        },
+        {
+          "domain": "amazon.es",
+          "evidence": [
+            {
+              "market": "es",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/es/all"
+            }
+          ]
+        },
+        {
+          "domain": "bt.dk",
+          "evidence": [
+            {
+              "market": "dk",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/dk/all"
+            }
+          ]
+        },
+        {
+          "domain": "dagbladet.no",
+          "evidence": [
+            {
+              "market": "no",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/no/all"
+            }
+          ]
+        },
+        {
+          "domain": "digi24.ro",
+          "evidence": [
+            {
+              "market": "ro",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/ro/all"
+            }
+          ]
+        },
+        {
+          "domain": "err.ee",
+          "evidence": [
+            {
+              "market": "ee",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/ee/all"
+            }
+          ]
+        },
+        {
+          "domain": "foreca.fi",
+          "evidence": [
+            {
+              "market": "fi",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/fi/all"
+            }
+          ]
+        },
+        {
+          "domain": "gov.mt",
+          "evidence": [
+            {
+              "market": "mt",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/mt/all"
+            }
+          ]
+        },
+        {
+          "domain": "lrytas.lt",
+          "evidence": [
+            {
+              "market": "lt",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/lt/all"
+            }
+          ]
+        },
+        {
+          "domain": "onet.pl",
+          "evidence": [
+            {
+              "market": "pl",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/pl/all"
+            }
+          ]
+        },
+        {
+          "domain": "pravda.sk",
+          "evidence": [
+            {
+              "market": "sk",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/sk/all"
+            }
+          ]
+        },
+        {
+          "domain": "record.pt",
+          "evidence": [
+            {
+              "market": "pt",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/pt/all"
+            }
+          ]
+        },
+        {
+          "domain": "skroutz.gr",
+          "evidence": [
+            {
+              "market": "gr",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/gr/all"
+            }
+          ]
+        },
+        {
+          "domain": "sportal.bg",
+          "evidence": [
+            {
+              "market": "bg",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/bg/all"
+            }
+          ]
+        },
+        {
+          "domain": "ss.com",
+          "evidence": [
+            {
+              "market": "lv",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/lv/all"
+            }
+          ]
+        },
+        {
+          "domain": "vecernji.hr",
+          "evidence": [
+            {
+              "market": "hr",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/hr/all"
+            }
+          ]
+        },
+        {
+          "domain": "videa.hu",
+          "evidence": [
+            {
+              "market": "hu",
+              "rank": 7,
+              "source": "https://www.semrush.com/trending-websites/hu/all"
+            }
+          ]
+        },
+        {
+          "domain": "aniworld.to",
+          "evidence": [
+            {
+              "market": "de",
+              "rank": 15,
+              "source": "https://www.semrush.com/trending-websites/de/all"
+            },
+            {
+              "market": "li",
+              "rank": 14,
+              "source": "https://www.semrush.com/trending-websites/li/all"
+            }
+          ]
+        },
+        {
+          "domain": "stake.com",
+          "evidence": [
+            {
+              "market": "lu",
+              "rank": 13,
+              "source": "https://www.semrush.com/trending-websites/lu/all"
+            },
+            {
+              "market": "no",
+              "rank": 20,
+              "source": "https://www.semrush.com/trending-websites/no/all"
+            }
+          ]
+        },
+        {
+          "domain": "bazos.sk",
+          "evidence": [
+            {
+              "market": "sk",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/sk/all"
+            }
+          ]
+        },
+        {
+          "domain": "expressen.se",
+          "evidence": [
+            {
+              "market": "se",
+              "rank": 8,
+              "source": "https://www.semrush.com/trending-websites/se/all"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "id": "iltalehti-registration-2026-09-16",
+  "service": "iltalehti",
+  "flow": "registration",
+  "source": {
+    "url": "https://tunnus.almamedia.fi/login",
+    "observedAt": "2026-09-16",
+    "locale": "fi",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Iltalehti homepage -> public login from privacy settings -> Alma account. Uusi käyttäjä? Rekisteröidy opens account creation in the same app. No values submitted, terms accepted, consent payment or account creation.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "entryUrl": "https://www.iltalehti.fi/"
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#email-input",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#password-input",
+          "kind": "password",
+          "purpose": "new-password",
+          "fieldId": "credential.password"
+        },
+        {
+          "selector": "#text-field-0",
+          "kind": "text",
+          "purpose": "given-name",
+          "fieldId": "profile.given-name"
+        },
+        {
+          "selector": "#text-field-2",
+          "kind": "text",
+          "purpose": "family-name",
+          "fieldId": "profile.family-name"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "#email-input",
+      "passwords": [
+        "#password-input"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}

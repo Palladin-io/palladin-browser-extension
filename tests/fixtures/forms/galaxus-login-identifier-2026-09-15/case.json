@@ -1,0 +1,50 @@
+{
+  "id": "galaxus-login-identifier-2026-09-15",
+  "service": "galaxus",
+  "flow": "login",
+  "source": {
+    "url": "https://id.digitecgalaxus.ch/n/p/22/en",
+    "observedAt": "2026-09-15",
+    "locale": "en",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "public Sign in reached from galaxus.ch/en; password is hidden and aria-hidden; redirect query omitted",
+    "viewport": {
+      "width": 954,
+      "height": 375
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#email",
+      "username": "#email",
+      "password": null
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#email",
+          "kind": "text",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "stage": "identifier"
+}
+

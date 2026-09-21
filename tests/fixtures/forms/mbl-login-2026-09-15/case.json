@@ -1,0 +1,62 @@
+{
+  "id": "mbl-login-2026-09-15",
+  "service": "mbl",
+  "flow": "login",
+  "source": {
+    "url": "https://www.mbl.is/minar-sidur/innskraning/",
+    "observedAt": "2026-09-15",
+    "locale": "is",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Public login reached from more login options on homepage",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "Editable/hidden field values, URLs, scripts, handlers and iframe content omitted; public input-button captions retained",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#id_identifier",
+      "username": "#id_identifier",
+      "password": "#id_password"
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#id_identifier",
+          "kind": "text",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#id_password",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "login",
+      "scope": "form",
+      "username": "#id_identifier",
+      "passwords": [
+        "#id_password"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}
+

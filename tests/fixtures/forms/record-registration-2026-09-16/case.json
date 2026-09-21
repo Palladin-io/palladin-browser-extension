@@ -1,0 +1,65 @@
+{
+  "id": "record-registration-2026-09-16",
+  "service": "record",
+  "flow": "registration",
+  "source": {
+    "url": "https://www.record.pt/",
+    "observedAt": "2026-09-16",
+    "locale": "pt",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Homepage -> Iniciar Sessão -> Novo Registo replaces layer with registration. Terms, marketing and CAPTCHA untouched; no fields entered or submit.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "Observed native form in top-frame Medialivre account layer, including hidden transport fields without values",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Anchor href presence retained as synthetic fragment; actual targets and CAPTCHA iframe content omitted."
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#inputEmail",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#inputPassword",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        },
+        {
+          "selector": "#inputConfirmPassword",
+          "kind": "password",
+          "purpose": "confirm-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "#inputEmail",
+      "passwords": [
+        "#inputPassword",
+        "#inputConfirmPassword"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}

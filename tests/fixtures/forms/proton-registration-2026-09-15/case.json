@@ -1,0 +1,49 @@
+{
+  "id": "proton-registration-2026-09-15",
+  "service": "proton",
+  "flow": "registration",
+  "source": {
+    "url": "https://account.proton.me/signup",
+    "observedAt": "2026-09-15",
+    "locale": "en",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "public signup: actual email control in a cross-origin iframe; top-frame username is an aria-hidden layout placeholder",
+    "viewport": {
+      "width": 954,
+      "height": 375
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "iframe title Email address and account-api.proton.me origin observed; iframe DOM not captured; no submission",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#password",
+          "kind": "password",
+          "purpose": "new-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported",
+    "completeForm": "unsupported-cross-origin-username-frame"
+  },
+  "synthetic": {
+    "username": "palladinfixture"
+  },
+  "stage": "cross-frame"
+}

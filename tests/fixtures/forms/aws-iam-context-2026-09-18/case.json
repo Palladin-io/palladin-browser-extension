@@ -1,0 +1,76 @@
+{
+  "id": "aws-iam-context-2026-09-18",
+  "service": "aws",
+  "flow": "login",
+  "source": {
+    "url": "https://eu-north-1.signin.aws.amazon.com/oauth",
+    "observedAt": "2026-09-18",
+    "locale": "en",
+    "method": "Playwright read-only DOM inspection in a fresh unauthenticated context; reviewed form card with original ancestor shells",
+    "state": "Fresh public IAM sign-in; selected the observed direct parent card and retained its real ancestor chain. No values entered or read.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "Observed parent card and original ancestor shells; unrelated branches explicitly omitted",
+    "styles": "Computed layout and visibility frozen per retained element; body and omitted page branches are not a full-page reproduction",
+    "behavior": "Public IAM to root navigation observed. Submission, authentication and root password step not observed.",
+    "redactions": [
+      "Editable/hidden values, URLs, handlers, scripts, iframe content and SVG paths omitted.",
+      "Unselected ancestor siblings omitted; ancestor element identities and CSS retained."
+    ],
+    "context": {
+      "mode": "explicit-public-context",
+      "ancestorCount": 7,
+      "omittedBranches": 5,
+      "wholePage": false
+    }
+  },
+  "expected": {
+    "user": {
+      "anchor": "#username",
+      "username": "#username",
+      "password": "#password",
+      "prefilled": true
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#username",
+          "kind": "text",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#password",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        }
+      ],
+      "observedOnly": [
+        {
+          "selector": "#account",
+          "kind": "text",
+          "purpose": null
+        }
+      ]
+    },
+    "capture": {
+      "kind": "login",
+      "scope": "form",
+      "username": "#username",
+      "passwords": [
+        "#password"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported",
+    "syntheticUserAndAgent": "unit-and-built-chromium-debug-pass; empty and prefilled user launcher; exact Agent controls"
+  }
+}

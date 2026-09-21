@@ -1,0 +1,30 @@
+{
+  "source": {
+    "url": "https://eu-north-1.signin.aws.amazon.com/oauth",
+    "observedAt": "2026-09-18",
+    "entryPoint": "https://console.aws.amazon.com/",
+    "locale": "en",
+    "viewport": { "width": 1280, "height": 900 },
+    "method": "Fresh unauthenticated Playwright context; public IAM form before and after a trusted Sign in click with empty Account ID and fictitious username/password. Client validation shows Account is required. No authentication performed.",
+    "retainedLiveNodes": ["#username", "form[data-testid=iam-login-form]"]
+  },
+  "files": ["validation-before.html", "validation-before.css", "validation-after.html", "validation-after.css"],
+  "redactions": ["All editable values, URL values, scripts and event handlers omitted by the public-form collector.", "Only the public form and eight real ancestor shells retained; five unrelated branches omitted."],
+  "replay": "tests/browser/aws-inline-regression.mjs morphs recorded attributes, text and appended error nodes while preserving the original form and input elements. The computed CSS is replaced with the observed error-state CSS. Fictitious field values are seeded locally. No AWS JavaScript executes; no network authentication occurs.",
+  "limitations": ["Computed CSS is a reduced layout specimen, not the entire page.", "The replay implements only the observed Account-required transition, not general AWS validation.", "Explicit credential choice is tested against the synthetic Palladin provider. Real-account login remains a manual acceptance step."],
+  "liveAcceptance": {
+    "date": "2026-09-18",
+    "artifact": "dist/chromium-debug",
+    "scope": "Public AWS IAM required-account validation, fictitious username/password, no authentication",
+    "launcherCenterOffsetBeforePx": 0,
+    "launcherCenterOffsetAfterPx": 0,
+    "usernameCenterShiftPx": 10,
+    "realAccountFill": "not-tested"
+  },
+  "regression": {
+    "prefilledChoiceRed": "Previous username remained instead of the selected account; no-form outcome.",
+    "layoutRed": "Retained username moved but launcher stayed 10 pixels above its center in Chromium.",
+    "agent": "Existing initial AWS fixture covers Agent inspection/fill. This added transition covers the user launcher; it does not enable overwrite for Agent delivery.",
+    "playwrightProvider": "unsupported"
+  }
+}

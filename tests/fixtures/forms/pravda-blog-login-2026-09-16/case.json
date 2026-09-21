@@ -1,0 +1,66 @@
+{
+  "id": "pravda-blog-login-2026-09-16",
+  "service": "pravda",
+  "flow": "login",
+  "source": {
+    "url": "https://blog.pravda.sk/wp-pravda-login.php",
+    "entryUrl": "https://www.pravda.sk/",
+    "observedAt": "2026-09-16",
+    "locale": "sk",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Homepage menu -> Blog -> Prihlásenie. CAPTCHA untouched; no values entered or submit. Only this Blog account surface observed.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "Observed native blog account form, including public action input captions",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Public navigation href presence retained as fixed fragment; actual targets, CAPTCHA content and hidden field values omitted."
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#user_login",
+      "username": "#user_login",
+      "password": "#user_pass"
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#user_login",
+          "kind": "text",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#user_pass",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "login",
+      "scope": "form",
+      "username": "#user_login",
+      "passwords": [
+        "#user_pass"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "synthetic": {
+    "username": "fixture_handle"
+  }
+}

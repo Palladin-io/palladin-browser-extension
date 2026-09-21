@@ -1,0 +1,65 @@
+{
+  "id": "deepseek-registration-2026-09-15",
+  "service": "deepseek",
+  "flow": "registration",
+  "source": {
+    "url": "https://chat.deepseek.com/sign_up",
+    "observedAt": "2026-09-15",
+    "locale": "en",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "public signup reached via Sign up; email verification code not requested or filled",
+    "viewport": {
+      "width": 954,
+      "height": 375
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "input[placeholder=\"Email address\"]",
+          "kind": "text",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "input[placeholder=\"Password\"]",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        },
+        {
+          "selector": "input[placeholder=\"Confirm password\"]",
+          "kind": "password",
+          "purpose": "confirm-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": ".ds-auth-form__main-hero",
+      "username": "input[placeholder=\"Email address\"]",
+      "passwords": [
+        "input[placeholder=\"Password\"]",
+        "input[placeholder=\"Confirm password\"]"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}
+

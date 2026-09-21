@@ -1,0 +1,58 @@
+{
+  "id": "wikipedia-login-2026-09-15",
+  "service": "wikipedia",
+  "flow": "login",
+  "source": {
+    "url": "https://auth.wikimedia.org/plwiki/wiki/Specjalna:Zaloguj",
+    "observedAt": "2026-09-15",
+    "locale": "pl",
+    "method": "CUA read-only DOM inspection",
+    "state": "public form; field values never read"
+  },
+  "fidelity": {
+    "structure": "observed form subtree",
+    "styles": "observed input visibility and geometry only",
+    "behavior": "post-submit behavior not observed",
+    "redactions": [
+      "value attributes and live values excluded",
+      "scripts, noscript, images, SVG, external links/actions and unreviewed attributes omitted",
+      "page shell omitted; long non-field copy shortened if present"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#wpName1",
+      "username": "#wpName1",
+      "password": "#wpPassword1"
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#wpName1",
+          "kind": "text",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#wpPassword1",
+          "kind": "password",
+          "purpose": "current-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "login",
+      "scope": "form",
+      "username": "#wpName1",
+      "passwords": [
+        "#wpPassword1"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}

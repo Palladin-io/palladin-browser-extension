@@ -1,0 +1,75 @@
+{
+  "id": "vinted-registration-2026-09-16",
+  "service": "vinted",
+  "flow": "registration",
+  "source": {
+    "url": "https://www.vinted.pl/member/register/email",
+    "entryUrl": "https://www.vinted.pl/",
+    "observedAt": "2026-09-16",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Homepage -> account selector -> register by e-mail. Signup card includes own heading, full name, public profile handle, email and password. Terms/newsletter untouched; no fields entered or submit.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "Observed complete signup card, retaining the heading immediately above its single native form",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Href presence retained as fixed fragment; targets and SVG paths omitted."
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#realName",
+          "kind": "text",
+          "purpose": "name",
+          "fieldId": "profile.name"
+        },
+        {
+          "selector": "#login",
+          "kind": "text",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#email",
+          "kind": "text",
+          "purpose": "email",
+          "fieldId": "profile.email"
+        },
+        {
+          "selector": "#password",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "#login",
+      "passwords": [
+        "#password"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported",
+    "userTrustedActionCapture": "synthetic-chromium-trusted-click-and-encrypted-save-pass"
+  },
+  "synthetic": {
+    "username": "fixture_handle"
+  }
+}

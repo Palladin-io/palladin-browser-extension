@@ -32,7 +32,7 @@ export interface AgentInjectFormField {
 }
 
 export interface AgentInjectSubmit {
-  readonly action: "click" | "press-enter" | "deferred-native-click";
+  readonly action: "click" | "press-enter" | "deferred-native-click" | "deferred-control-click";
   readonly selector: string;
 }
 
@@ -166,7 +166,7 @@ export function parseAgentInjectForm(value: unknown): AgentInjectForm | null {
   if (value.version === 2) {
     if (value.steps.length !== 1) return null;
     const step = parseStep(value.steps[0], true);
-    if (!step || step.waitFor || step.submit.action !== 'deferred-native-click'
+    if (!step || step.waitFor || !['deferred-native-click', 'deferred-control-click'].includes(step.submit.action)
       || !/^palladin-live:[a-f0-9]{32}:[a-f0-9]{32}$/.test(step.submit.selector)
       || !isDeferredCredentialFields(step.fields)
       || new Set(step.fields.map(field => field.selector)).size !== step.fields.length
@@ -287,7 +287,7 @@ function parseStep(value: unknown, deferred = false): AgentInjectFormStep | null
   }
   const submit = value.submit;
   if (!isRecord(submit) || !onlyKeys(submit, ["action", "selector"])
-    || (submit.action !== "click" && submit.action !== "press-enter" && !(deferred && submit.action === "deferred-native-click"))
+    || (submit.action !== "click" && submit.action !== "press-enter" && !(deferred && (submit.action === 'deferred-native-click' || submit.action === 'deferred-control-click')))
     || !validSelector(submit.selector)
     || (submit.action === "press-enter"
       && !fields.some((field) => field.selector === submit.selector))) return null;

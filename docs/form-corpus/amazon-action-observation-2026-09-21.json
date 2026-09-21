@@ -1,0 +1,35 @@
+{
+  "service": "amazon",
+  "source": "https://www.amazon.com/ap/signin",
+  "observedAt": "2026-09-21",
+  "locale": "en",
+  "method": "Read-only public DOM inspection through CUA in connected Chrome",
+  "navigation": "Direct query-free signin URL showed an error. Followed its Home link, then the public Hello, sign in Account & Lists link. No identifier entered or form submitted.",
+  "scope": "Focused action and parent structure, not a new complete form specimen",
+  "existingSpecimen": "amazon-login-identifier-2026-09-15",
+  "form": { "selector": "#ap_login_form", "method": "post" },
+  "action": {
+    "selector": "#ap_login_form input[type=submit]",
+    "tag": "INPUT",
+    "attributes": { "class": "a-button-input", "type": "submit", "aria-labelledby": "continue-announce" },
+    "valueAttribute": null,
+    "computed": { "opacity": "0.01", "display": "block", "visibility": "visible", "pointerEvents": "auto" },
+    "rect": { "x": 1005, "y": 227, "width": 294, "height": 30 }
+  },
+  "label": {
+    "tag": "SPAN",
+    "attributes": { "id": "continue-announce", "class": "a-button-text a-text-center", "aria-hidden": "true" },
+    "publicText": "Continue",
+    "computed": { "opacity": "1", "display": "block", "visibility": "visible", "pointerEvents": "auto" },
+    "rect": { "x": 1005, "y": 227, "width": 294, "height": 30 }
+  },
+  "parent": { "tag": "SPAN", "class": "a-button-inner" },
+  "grandparent": { "tag": "SPAN", "id": "continue", "class": "a-button a-spacing-top-small a-button-span12 a-button-primary aok-relative" },
+  "finding": "The existing specimen retains this action/IDREF/label structure and opacity. Missing aria-labelledby interpretation and the opacity threshold caused current adapter failures; a dropped value caption is not the cause for Amazon.",
+  "limitations": [
+    "No editable or hidden field values, cookies, tokens, storage or network payloads were inspected.",
+    "This focused observation does not refresh the complete old form HTML/CSS or its source date.",
+    "The newly observed method is recorded here; no method was retroactively invented for the old specimen.",
+    "No production submission, registration or authentication was tested."
+  ]
+}

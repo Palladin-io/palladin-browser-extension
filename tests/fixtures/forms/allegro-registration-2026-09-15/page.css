@@ -1,0 +1,4 @@
+/* Observed input computed styles; structural fixture only. */
+#email, #password { display:block; width:576px; height:40px; visibility:visible; opacity:1; }
+#switchToSignup, #switchToCompanySignup, #allCheckboxesCheck, #agreementTerm, #allegroMarketing, #thirdPartyMarketing { display:block; width:13px; height:13px; visibility:visible; opacity:0; }
+#isAdultNO, #isAdultYES { display:block; width:1px; height:1px; visibility:visible; opacity:1; }

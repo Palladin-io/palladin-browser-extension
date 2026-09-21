@@ -1,0 +1,76 @@
+{
+  "id": "meczyki-registration-2026-09-16",
+  "service": "meczyki",
+  "flow": "registration",
+  "source": {
+    "url": "https://www.meczyki.pl/rejestracja.html",
+    "observedAt": "2026-09-16",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Homepage account link -> public registration. Formless credential group uses an anchor with class button and no href as its action; other anchors navigate. No credentials or terms submitted.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "Observed .form-wrapper subtree with native absence of form and button semantics retained",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Anchor href presence retained as synthetic #form-specimen-navigation; actual navigation targets omitted."
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "input[type=\"text\"]",
+          "kind": "text",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "input[type=\"email\"]",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "profile.email"
+        },
+        {
+          "selector": "input[id=\"26e08c1e6748\"]",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        },
+        {
+          "selector": "input[id=\"23a13acf35d8\"]",
+          "kind": "password",
+          "purpose": "confirm-password",
+          "fieldId": "credential.password"
+        }
+      ],
+      "action": "a.button:not([href])"
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": ".form-inside-wrapper:has(input[type=\"password\"])",
+      "username": "input[type=\"text\"]",
+      "passwords": [
+        "input[id=\"26e08c1e6748\"]",
+        "input[id=\"23a13acf35d8\"]"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported",
+    "agentActionExecution": "synthetic-chromium-explicit-activation-pass"
+  },
+  "synthetic": {
+    "username": "fixture_handle"
+  }
+}

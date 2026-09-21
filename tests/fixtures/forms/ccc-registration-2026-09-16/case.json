@@ -1,0 +1,58 @@
+{
+  "id": "ccc-registration-2026-09-16",
+  "service": "ccc",
+  "flow": "registration",
+  "source": {
+    "url": "https://ccc.eu/pl/pl/",
+    "observedAt": "2026-09-16",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Homepage -> login modal -> registration. Club toggle unchanged/off. Terms-accepting submit not clicked; no fields entered.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "Observed native form including custom-element wrappers, duplicated wrapper/input IDs and adjacent alternate-flow buttons",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Anchor href presence retained as synthetic fragment; no actual targets retained."
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "input[id=\"email\"]",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "input[id=\"password\"]",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "input[id=\"email\"]",
+      "passwords": [
+        "input[id=\"password\"]"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}

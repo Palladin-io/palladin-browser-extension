@@ -1,0 +1,45 @@
+{
+  "id": "24ur-newsletter-2026-09-15",
+  "service": "24ur",
+  "flow": "non-auth",
+  "source": {
+    "url": "https://www.24ur.com/",
+    "observedAt": "2026-09-15",
+    "locale": "sl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Public newsletter form on homepage; not account sign-in, which separately redirects to prijava.24ur.com",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#mailing_email3",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "profile.email"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}
+

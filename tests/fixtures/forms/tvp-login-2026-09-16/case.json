@@ -1,0 +1,61 @@
+{
+  "id": "tvp-login-2026-09-16",
+  "service": "tvp",
+  "flow": "login",
+  "source": {
+    "url": "https://user.tvp.pl/login.php",
+    "observedAt": "2026-09-16",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "TVP homepage -> linked TVP VOD -> account login -> Kontynuuj poprzez e-mail. Public login email/password were editable before focus. Recorded after clicking both fields without entering values; empty-email error preserved. No credentials or CAPTCHA submitted.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "Post-focus DOM/CSS only; post-submit behavior not replayed.",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#email",
+      "username": "#email",
+      "password": "#password"
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#email",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#password",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "login",
+      "scope": "form",
+      "username": "#email",
+      "passwords": [
+        "#password"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}

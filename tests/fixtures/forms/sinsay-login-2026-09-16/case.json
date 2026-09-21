@@ -1,0 +1,63 @@
+{
+  "id": "sinsay-login-2026-09-16",
+  "service": "sinsay",
+  "flow": "login",
+  "source": {
+    "url": "https://www.sinsay.com/pl/pl/customer/account/login/referer/aHR0cHM6Ly93d3cuc2luc2F5LmNvbS9wbC9wbC8,/",
+    "entryUrl": "https://www.sinsay.com/pl/pl/",
+    "observedAt": "2026-09-16",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Homepage -> Moje konto after saving optional cookies off. Referer path encodes the public homepage. No fields entered.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "Observed native React form with original bracketed login names/IDs and labelled signup inputs",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Anchor href presence retained as fixed synthetic fragment; actual target URLs omitted."
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "input[id=\"login[username]\"]",
+      "username": "input[id=\"login[username]\"]",
+      "password": "input[id=\"login[password]\"]"
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "input[id=\"login[username]\"]",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "input[id=\"login[password]\"]",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "login",
+      "scope": "form",
+      "username": "input[id=\"login[username]\"]",
+      "passwords": [
+        "input[id=\"login[password]\"]"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}

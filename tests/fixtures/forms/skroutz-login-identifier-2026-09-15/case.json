@@ -1,0 +1,49 @@
+{
+  "id": "skroutz-login-identifier-2026-09-15",
+  "service": "skroutz",
+  "flow": "login",
+  "source": {
+    "url": "https://www.skroutz.gr/sign_in",
+    "observedAt": "2026-09-15",
+    "locale": "el",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "public identifier step; main subtree retained with four hidden-input SSO forms and external Continue button",
+    "viewport": {
+      "width": 954,
+      "height": 375
+    }
+  },
+  "fidelity": {
+    "structure": "observed main subtree including sibling SSO forms and external action; synthetic node attribute attaches recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "[name=\"user[username]\"]",
+      "username": "[name=\"user[username]\"]",
+      "password": null
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "[name=\"user[username]\"]",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "stage": "identifier"
+}

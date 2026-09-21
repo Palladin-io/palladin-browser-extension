@@ -1,0 +1,81 @@
+{
+  "id": "bilibili-login-2026-09-16",
+  "service": "bilibili",
+  "flow": "login",
+  "source": {
+    "url": "https://www.bilibili.com/",
+    "observedAt": "2026-09-16",
+    "locale": "zh-CN",
+    "method": "Playwright read-only DOM projection in isolated browser",
+    "state": "Password tab default. Separately observed synthetic input responses: account alone keeps action disabled; both nonempty fields remove disabled and change opacity from 0.5 to 1; clearing password restores disabled. Synthetic values cleared; no submit/OTP requested.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "Observed whole .login-pwd-wp subtree including hidden CAPTCHA and sibling div actions",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "Only separately observed nonempty-field action class/opacity response is replayed; no post-submit or server behavior observed.",
+    "redactions": [
+      "values, URLs, scripts, handlers, CAPTCHA content and SVG paths omitted",
+      "page shell omitted; full hidden country-code list retained"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "input[placeholder=\"请输入账号\"]",
+      "username": "input[placeholder=\"请输入账号\"]",
+      "password": "input[type=\"password\"]"
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "input[placeholder=\"请输入账号\"]",
+          "kind": "text",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "input[type=\"password\"]",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        }
+      ],
+      "action": "div.btn_primary"
+    },
+    "capture": {
+      "kind": "login",
+      "scope": "form",
+      "username": "input[placeholder=\"请输入账号\"]",
+      "passwords": [
+        "input[type=\"password\"]"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported",
+    "agentActionExecution": "synthetic-chromium-explicit-activation-pass",
+    "userTrustedActionCapture": "synthetic-chromium-trusted-click-and-encrypted-save-pass"
+  },
+  "synthetic": {
+    "username": "fixture_handle",
+    "passwordLength": 32
+  },
+  "actionActivation": {
+    "kind": "nonempty-fields",
+    "action": "div.btn_primary",
+    "fields": [
+      "input[placeholder=\"请输入账号\"]",
+      "input[type=\"password\"]"
+    ],
+    "disabledClass": "disabled",
+    "opacity": {
+      "disabled": "0.5",
+      "enabled": "1"
+    }
+  }
+}

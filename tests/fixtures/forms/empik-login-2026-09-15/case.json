@@ -1,0 +1,62 @@
+{
+  "id": "empik-login-2026-09-15",
+  "service": "empik",
+  "flow": "login",
+  "source": {
+    "url": "https://www.empik.com/konto/logowanie",
+    "observedAt": "2026-09-15",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "public form, no values read",
+    "viewport": {
+      "width": 954,
+      "height": 375
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#caf-login-form-email",
+      "username": "#caf-login-form-email",
+      "password": "#caf-login-form-password"
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#caf-login-form-email",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#caf-login-form-password",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "login",
+      "scope": "form",
+      "username": "#caf-login-form-email",
+      "passwords": [
+        "#caf-login-form-password"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}
+

@@ -1,0 +1,54 @@
+{
+  "id": "shein-login-identifier-2026-09-16",
+  "service": "shein",
+  "flow": "login",
+  "source": {
+    "url": "https://pl.shein.com/",
+    "entryUrl": "https://www.shein.com/",
+    "observedAt": "2026-09-16",
+    "locale": "en-PL",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "www homepage redirects to pl locale -> Sign in -> combined Sign In/Register dialog. Optional cookies rejected. Visible label requests phone/email; input aria-label says Email Address. No identifier or terms-accepting Continue submitted.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "Observed complete visible auth dialog including inactive password/SMS controls and duplicated wrapper/input ID",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted",
+      "Href presence retained as fixed synthetic fragment; URLs, SVG paths and hidden payload values omitted."
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "input[id=\"continue-alias-input\"]",
+      "username": "input[id=\"continue-alias-input\"]",
+      "password": null
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "input[id=\"continue-alias-input\"]",
+          "kind": "text",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "stage": "identifier",
+  "alsoServes": [
+    "registration"
+  ]
+}

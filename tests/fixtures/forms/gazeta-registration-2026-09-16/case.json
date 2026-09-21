@@ -1,0 +1,80 @@
+{
+  "id": "gazeta-registration-2026-09-16",
+  "service": "gazeta",
+  "flow": "registration",
+  "source": {
+    "url": "https://konto.gazeta.pl/konto/szybka-rejestracja.servlet",
+    "observedAt": "2026-09-16",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Public registration default without-mail variant; helper email, personal names and password; phone, birthday, account type and consents untouched",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "observed form subtree; stable synthetic node attribute added only to attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "Editable/hidden field values, URLs, scripts, handlers and iframe content omitted; public input-button captions retained",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": null,
+    "agent": {
+      "fields": [
+        {
+          "selector": "#login",
+          "kind": "text",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "#pass",
+          "kind": "password",
+          "purpose": null,
+          "fieldId": "credential.password"
+        },
+        {
+          "selector": "#emailPassRecovery",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "profile.email"
+        },
+        {
+          "selector": "#name",
+          "kind": "text",
+          "purpose": "given-name",
+          "fieldId": "profile.given-name"
+        },
+        {
+          "selector": "#surname",
+          "kind": "text",
+          "purpose": "family-name",
+          "fieldId": "profile.family-name"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "registration",
+      "scope": "form",
+      "username": "#login",
+      "passwords": [
+        "#pass"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "synthetic": {
+    "username": "fixture_handle",
+    "passwordLength": 30
+  }
+}
+

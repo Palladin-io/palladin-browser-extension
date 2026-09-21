@@ -1,0 +1,49 @@
+{
+  "id": "finn-login-identifier-2026-09-16",
+  "service": "finn",
+  "flow": "login",
+  "source": {
+    "url": "https://login.vend.no/authn/email-login",
+    "observedAt": "2026-09-16",
+    "locale": "nb",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "Observed FINN homepage account link redirects to Vend email-first login; open field/button shadow roots retained. No email submitted.",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    }
+  },
+  "fidelity": {
+    "structure": "Observed form subtree, including public open shadow roots and slots where present; inert templates restore boundaries during replay",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "Editable/hidden field values, URLs, scripts, handlers and iframe content omitted; public input-button captions retained",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "#textfield",
+      "username": "#textfield",
+      "password": null
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "#textfield",
+          "kind": "email",
+          "purpose": "email",
+          "fieldId": "credential.username"
+        }
+      ]
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  },
+  "stage": "identifier"
+}

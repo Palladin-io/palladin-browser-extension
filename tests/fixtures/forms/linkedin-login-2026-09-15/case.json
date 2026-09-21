@@ -1,0 +1,61 @@
+{
+  "id": "linkedin-login-2026-09-15",
+  "service": "linkedin",
+  "flow": "login",
+  "source": {
+    "url": "https://www.linkedin.com/login/",
+    "observedAt": "2026-09-15",
+    "locale": "pl",
+    "method": "Playwright read-only DOM inspection in isolated session",
+    "state": "public form, no values read",
+    "viewport": {
+      "width": 1146,
+      "height": 483
+    }
+  },
+  "fidelity": {
+    "structure": "observed public #workspace subtree, including responsive hidden duplicate and formless controls; synthetic attributes attach recorded CSS",
+    "styles": "computed layout and visibility frozen per element",
+    "behavior": "post-submit not observed",
+    "redactions": [
+      "values, URLs, scripts, handlers, iframe content and SVG paths omitted",
+      "page shell omitted"
+    ]
+  },
+  "expected": {
+    "user": {
+      "anchor": "[id=\"«R77vvcjksop9h9j6»\"]",
+      "username": "[id=\"«R77vvcjksop9h9j6»\"]",
+      "password": "[id=\"«R1bvvcjksop9h9j6»\"]"
+    },
+    "agent": {
+      "fields": [
+        {
+          "selector": "[id=\"«R77vvcjksop9h9j6»\"]",
+          "kind": "email",
+          "purpose": "username",
+          "fieldId": "credential.username"
+        },
+        {
+          "selector": "[id=\"«R1bvvcjksop9h9j6»\"]",
+          "kind": "password",
+          "purpose": "current-password",
+          "fieldId": "credential.password"
+        }
+      ]
+    },
+    "capture": {
+      "kind": "login",
+      "scope": "#workspace",
+      "username": "[id=\"«R77vvcjksop9h9j6»\"]",
+      "passwords": [
+        "[id=\"«R1bvvcjksop9h9j6»\"]"
+      ]
+    }
+  },
+  "acceptance": {
+    "productionAuthentication": "not-tested",
+    "productionSubmission": "not-tested",
+    "playwrightProvider": "unsupported"
+  }
+}
