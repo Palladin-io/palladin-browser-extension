@@ -75,7 +75,18 @@ export function publicActionReferenceState(element: Element): readonly boolean[]
  * The caller still enforces native type, visibility, owner and uniqueness.
  */
 export function hasLoginActionLabel(element: Element): boolean {
-  return publicActionLabels(element).some(label => EXACT_LOGIN_ACTION.test(label) || LOCALIZED_LOGIN_ACTIONS.has(label));
+  const recognized = (label: string) => EXACT_LOGIN_ACTION.test(label) || LOCALIZED_LOGIN_ACTIONS.has(label);
+  const labels = publicActionLabels(element);
+  if (!labels.some(recognized)) return false;
+  // ARIA may override the accessible name, but must not hide a conflicting
+  // visible action (social sign-in, account creation, reset, etc.) from execution.
+  // Button.value is a submitted payload; only native input buttons expose it as
+  // their caption. Never read credential input values.
+  const caption = actionCaption(element);
+  const ownLabels = [element.getAttribute('aria-label') ?? '', caption,
+    element instanceof HTMLInputElement && ['submit', 'button'].includes(element.type) ? element.value : ''];
+  return [...labels, ...ownLabels].every(label => label !== null && label.length <= 512
+    && (!/[\p{L}\p{N}]/u.test(label) || recognized(label.trim().toLowerCase())));
 }
 
 export function isCredentialAction(element: Element): boolean {

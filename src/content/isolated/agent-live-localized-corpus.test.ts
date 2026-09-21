@@ -192,3 +192,37 @@ it.each(['remove', 'introduce'])('binds ID reference resolution even when its vi
     submitReady: ready.submitReady, expiresAt: Date.now() + 1000 }).ok).toBe(false);
   expect(clicked).not.toHaveBeenCalled();
 });
+
+// Synthetic hostile captions: independent public labels must agree on the
+// credential action even when ARIA would otherwise override the visible label.
+it.each([
+  '<button aria-label="Sign in">Continue with Google</button>',
+  '<input type="submit" aria-label="Sign in" value="Create account">',
+  '<button aria-label="Continue with Google">Sign in</button>',
+  '<button aria-labelledby="caption">Create account</button><span id="caption">Sign in</span>',
+  '<button aria-labelledby="caption">Continue with Google</button><span id="caption">Sign in</span>',
+  '<button aria-labelledby="missing" aria-label="Sign in">Reset password</button>',
+  '<button aria-label="Sign in">Delete account</button>',
+])('rejects conflicting public login action captions: %s', markup => {
+  document.body.innerHTML = `<form><input autocomplete="username"><input type="password" autocomplete="current-password">${markup}</form>`;
+  const action = document.querySelector('button,input[type=submit]')!;
+  expect(hasLoginActionLabel(action)).toBe(false);
+  expect(instance().inspect(url)).toBeNull();
+});
+it.each([
+  '<button aria-label="Sign in"><span>→</span></button>',
+  '<button aria-label="Sign in">Continue</button>',
+  '<input type="submit" aria-label="Sign in" value="Continue">',
+  '<button aria-labelledby="caption">→</button><span id="caption">Sign in</span>',
+])('preserves consistent captions and decoration-only icons: %s', markup => {
+  document.body.innerHTML = markup;
+  expect(hasLoginActionLabel(document.querySelector('button,input')!)).toBe(true);
+});
+
+it.each(['visible', 'aria'])('fails closed when a conflicting %s caption exceeds the bound', source => {
+  document.body.innerHTML = '<button aria-label="Sign in">Continue</button>';
+  const action = document.querySelector('button')!;
+  if (source === 'visible') action.textContent = 'Create account '.repeat(40);
+  else action.setAttribute('aria-label', 'Create account '.repeat(40));
+  expect(hasLoginActionLabel(action)).toBe(false);
+});
