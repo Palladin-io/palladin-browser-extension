@@ -107,6 +107,11 @@ data only.
 same `dist/chromium/` artifact. Firefox and Safari are manifest/platform adapters
 over the same extension core, not separate Palladin products.
 
+Public catalog icons follow the server selected in Settings, including HTTPS
+self-hosted servers with a base path. The server must support
+`GET /api/public-assets/{assetId}/revisions/{revision}/content`. No separate
+asset-host build variable is required; unavailable images use a local glyph.
+
 ## Security and contribution
 
 Read [`AGENTS.md`](AGENTS.md), [`CONTRIBUTING.md`](CONTRIBUTING.md), and

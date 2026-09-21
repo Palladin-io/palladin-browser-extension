@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { parsePublicAssetIconReference } from "@palladin/crypto";
+import { usePublicAssetImage } from "./PublicAssetImages";
 
 import {
   ENTRY_TYPE_CREDENTIAL,
@@ -15,16 +15,9 @@ export interface EntryIconProps {
   color?: string;
 }
 
-/**
- * Entry avatar shared by every popup row. Published catalog images are accepted
- * only from the same immutable origins as the web panel; encrypted/private
- * assets and failed images fall back to a local type icon without any network
- * lookup or broken-image placeholder.
- */
 export function EntryIcon({ name, type, icon, color }: EntryIconProps): React.JSX.Element {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
-  const publicAsset = parsePublicAssetIconReference(icon);
-  const imageUrl = publicAsset === null ? null : trustedPublicAssetUrl(publicAsset.url);
+  const imageUrl = usePublicAssetImage(icon);
   const style = color ? { backgroundColor: color, color: "#fff" } : undefined;
   const label = name.trim() || "Entry";
 
@@ -43,24 +36,6 @@ export function EntryIcon({ name, type, icon, color }: EntryIconProps): React.JS
       )}
     </span>
   );
-}
-
-function trustedPublicAssetUrl(value: string): string | null {
-  try {
-    const candidate = new URL(value);
-    if (candidate.username !== "" || candidate.password !== ""
-      || candidate.search !== "" || candidate.hash !== "") return null;
-    const bases = [
-      new URL("https://assets.palladin.io/"),
-      new URL("http://localhost:4566/palladin-local-public-assets/"),
-    ];
-    return bases.some((base) => candidate.origin === base.origin
-      && candidate.pathname.startsWith(base.pathname))
-      ? candidate.toString()
-      : null;
-  } catch {
-    return null;
-  }
 }
 
 function TypeIcon({ type }: { readonly type: EntryTypeCode }): React.JSX.Element {

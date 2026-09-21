@@ -7,6 +7,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { PublicAssetImages } from "./components/PublicAssetImages";
 import { Button } from "./components/Button";
 import { Header } from "./components/Header";
 import { Spinner } from "./components/Spinner";
@@ -236,12 +237,14 @@ export function App({
         );
       case "unlocked":
         return (
-          <UnlockedScreen
-            viewRevision={vaultViewRevision}
-            onLock={session.lock}
-            onSignOut={session.signOut}
-            onOpenSidePanel={panelAvailable ? () => openSidePanel() : undefined}
-          />
+          <PublicAssetImages client={serverClient}>
+            <UnlockedScreen
+              viewRevision={vaultViewRevision}
+              onLock={session.lock}
+              onSignOut={session.signOut}
+              onOpenSidePanel={panelAvailable ? () => openSidePanel() : undefined}
+            />
+          </PublicAssetImages>
         );
     }
   }

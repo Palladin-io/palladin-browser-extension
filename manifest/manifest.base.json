@@ -51,6 +51,6 @@
     "https://*/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; base-uri 'self'; img-src 'self' data: https://assets.palladin.io http://localhost:4566"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; base-uri 'self'; img-src 'self' data: blob:"
   }
 }
