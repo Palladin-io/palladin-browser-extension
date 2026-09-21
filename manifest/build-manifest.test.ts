@@ -68,7 +68,7 @@ describe("buildManifest (shared)", () => {
       "https://*/*",
     ]);
     expect(manifest.content_security_policy?.extension_pages).toBe(
-      "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; base-uri 'self'; img-src 'self' data: https://assets.palladin.io http://localhost:4566",
+      "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; base-uri 'self'; img-src 'self' data: blob:",
     );
     expect(manifest.content_security_policy?.extension_pages).not.toMatch(
       /(?:^|\s)'unsafe-eval'(?:\s|;|$)/,

@@ -83,7 +83,7 @@ describe("UnlockedScreen", () => {
     expect(screen.getAllByText("Example login").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("API token")).toBeInTheDocument();
     expect(screen.getAllByText("Vault: Personal").length).toBeGreaterThanOrEqual(2);
-    expect(container.querySelector('img[src="https://assets.palladin.io/github.png"]')).toBeInTheDocument();
+    expect(container.querySelector('img[src="https://assets.palladin.io/github.png"]')).not.toBeInTheDocument();
   });
 
   it("filters by query and hides the for-this-site section while searching", async () => {
