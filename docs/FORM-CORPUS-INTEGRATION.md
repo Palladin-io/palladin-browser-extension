@@ -227,3 +227,21 @@ This is an isolated next batch awaiting integration after the running PR51 revie
 it is not installed in the owner's extension and proves no production login or
 email delivery. Artifacts are in form-corpus/canva-action-observation-2026-09-21.json
 and form-corpus/2026-09-21-email-and-idref-action-replay.json.
+
+## Cloud review R1: conflicting public action captions
+
+The first review found that a generic ARIA login label could conceal a conflicting
+visible social/signup caption. Synthetic failing cases preceded the correction.
+All meaningful effective, ARIA and visible/public captions must now remain within
+the supported login vocabulary; decoration-only icons remain supported. Existing
+node, scope, caption-source and commit bindings still apply. Credential values
+are never read as action labels.
+
+Integrated verification: 3051 unit tests passed, no skips; typecheck and Chromium,
+Firefox and Safari builds passed. Seven recorded-viewport Chromium specimens
+(Amazon, Bilibili, Booking, Canva, CCC, Claude and Meczyki) passed, including
+Amazon's four visibility mutations and the twelve custom-control mutations.
+Hashes and detailed results are in
+`form-corpus/2026-09-21-review-r1-caption-regression.json`. These remain synthetic
+replays of observed specimens, not real authentication. The prior whole-corpus
+72/121 result predates this caption batch and is not a new full-corpus result.
