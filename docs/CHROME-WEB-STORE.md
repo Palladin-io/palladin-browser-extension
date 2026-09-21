@@ -9,47 +9,107 @@ control: anyone with the link can install the extension.
 Version `0.1.0` is the initial candidate. Preparing an archive does not complete
 the release gates in [STATUS.md](STATUS.md).
 
-## Current preparation (2026-09-21)
+## CI/CD
 
-The owner has no developer account yet and has not selected a production panel
-address. Panel URL must become user-configurable alongside API URL. Current
-links still use build-time `VITE_WEB_APP_URL`; shared unlock independently uses
-build-time API/origin pairs in `VITE_SHARED_UNLOCK_ENVIRONMENTS` and generated
-browser routing. An editable navigation URL alone must not silently authorize
-key transfer. Dynamic panel configuration and its shared-unlock trust boundary
-need implementation and validation before the final upload.
+Run **Actions -> Chrome Web Store -> Run workflow** on `main` only:
 
-A ZIP labelled `DRAFT-ID-ONLY` may be uploaded only to create the unpublished
-store item and retrieve its public key/ID. It retains the localhost panel-link
-fallback, has no configured shared-unlock environments, and is not a release
-candidate for review or installation by testers. Replace it before submission.
+| Operation | Result |
+| --- | --- |
+| `bootstrap` | ZIP for creating an unpublished store item; no Google authentication or upload. Panel remains localhost and shared unlock is unconfigured. Never submit this artifact. |
+| `package` | Release ZIP using the configured panel and shared-unlock environments; no upload. |
+| `upload` | Upload the verified release ZIP to the existing store item as a draft. |
+| `publish` | Upload the release ZIP and request normal Google review; publish automatically after approval using the item's existing visibility. |
 
-## Build and upload
+All modes run the same repository-native CI through reusable `test.yml`. A
+separate job builds the Chromium production channel, packages only its resources
+with deterministic ZIP metadata, and retains `package.zip`, SHA-256, source/build
+metadata and a production-dependency CycloneDX SBOM. Another job attaches GitHub
+build provenance to the ZIP. Download the `chrome-store-<run>-<attempt>` artifact
+from the workflow run. This GitHub provenance does not replace the runtime's
+independent Agent Inject artifact-attestation gate.
 
-1. Build from a reviewed commit on `main` after repository CI passes.
-2. Run `npm ci`, `npm audit --audit-level=high`, `npm run build`, and `npm test`,
-   plus the browser checks required by `.github/workflows/test.yml`.
-3. Set `VITE_WEB_APP_URL` to the confirmed production **web panel** URL and run
-   `npm run build:chromium`. The generic development fallback is localhost;
-   never upload a build using that fallback. Record the exact build environment,
-   including any reviewed `VITE_SHARED_UNLOCK_ENVIRONMENTS` configuration.
-4. Archive only the contents of `dist/chromium/`, with `manifest.json` at ZIP
-   root. Do not upload the repository, debug build, `.env` files, source maps,
-   browser profiles, credentials, or signing keys. Preserve the generated
-   manifest; source changes belong in `manifest/*.json`.
-5. Record the commit, artifact SHA-256, dependency SBOM (`npm sbom --sbom-format
-   cyclonedx`), build settings and check results alongside the archive.
-6. In the Chrome Developer Dashboard, create or open the existing Palladin item
-   and upload the ZIP as a draft. Obtain its Item ID and public key from Package.
-   Compare with the Chromium manifest and the runtime's compiled allowlist.
-   The development manifest key does not establish the store-assigned identity.
-   Any identity change needs coordinated extension/runtime review before release.
-7. Select **Unlisted** in Distribution. Complete the listing, Privacy practices,
-   and Test instructions. Provide a dedicated synthetic test account through
-   the dashboard's reviewer-only field, never through Git or a public listing.
-8. Complete the applicable release gates and test the exact installed artifact.
-   Submit for review only with accurate support claims and working instructions.
-   Store approval and actual publication are separate milestones.
+Only the store job can obtain Google credentials. It runs in the
+`chrome-web-store` environment and requests a short-lived access token through
+Workload Identity Federation (OIDC) and a dedicated service account. No service
+account JSON key, client secret or refresh token is needed. Dependency install,
+tests and builds run in other jobs. No npm dependencies run in the store job.
+All newly introduced Actions references are pinned to commit SHAs.
+
+Before upload, the script checks the artifact checksum/source, release gates,
+nonzero version, and exact manifest-derived Item ID. It obtains the store's
+public key through API v2 and compares identities before any mutation. It refuses
+an existing pending/staged submission, policy warnings, or an already-published
+version. Async upload processing has a two-minute deadline. Upload errors never
+lead to publication; mutations are not automatically retried. A publish request
+uses normal review and blocks on warnings. `PENDING_REVIEW` is not `PUBLISHED`.
+Keep manual dashboard changes out of an active upload/publish run.
+
+## One-time setup
+
+1. Register the publisher account and enable Google two-step verification.
+2. Merge this workflow through reviewed PR/CI. Run `bootstrap` on `main` and
+   download its ZIP. API v2 uploads update **existing** items; create the first
+   unpublished item in the Developer Dashboard with this bootstrap ZIP.
+3. Copy the Item ID and public key from Package. Reconcile the manifest and
+   runtime's compiled identity through coordinated PRs before uploading a release
+   artifact. Do not silently replace the key during packaging.
+4. Complete Store listing, Privacy, reviewer Test instructions and **Unlisted**
+   distribution. API publishing preserves existing visibility and cannot change
+   it. Google requires a manual publication after a visibility change; complete
+   that first publication with a final CI-built artifact after all release gates.
+5. Enable Chrome Web Store API, IAM Service Account Credentials API and Security
+   Token Service API in the selected GCP project. Create a dedicated service
+   account without project roles or downloadable keys. Add its email in the
+   Chrome Web Store publisher account settings; only one service account can be
+   linked to a publisher. This grants publisher-wide API access, while this
+   workflow additionally checks the configured exact Item ID.
+6. Create an OIDC Workload Identity Provider for GitHub. Map `google.subject` and
+   the repository ID, owner ID, ref, workflow ref and event-name claims. Require
+   the exact immutable repository/owner numeric IDs, `refs/heads/main`,
+   `Palladin-io/palladin-browser-extension/.github/workflows/chrome-web-store.yml@refs/heads/main`,
+   `workflow_dispatch`, and the subject
+   `repo:Palladin-io/palladin-browser-extension:environment:chrome-web-store`.
+   Grant only `roles/iam.workloadIdentityUser` on this service account to that
+   pool's `attribute.repository_id` principal set. Do not grant project-wide
+   Editor, Owner, Token Creator or access to runtime secrets.
+7. Create GitHub environment `chrome-web-store` with a deployment branch rule
+   allowing only branch `main`. Populate the variables below. Actual cloud IDs
+   belong in GitHub configuration, not runnable tracked examples.
+
+Repository variables (available to the secretless package job):
+
+| Variable | Value |
+| --- | --- |
+| `CWS_WEB_APP_URL` | Confirmed production HTTPS panel address; no localhost or placeholders. |
+| `CWS_SHARED_UNLOCK_ENVIRONMENTS` | Reviewed JSON pairs of `apiUrl` and `webOrigin`; empty disables the integration. |
+
+Environment `chrome-web-store` variables:
+
+| Variable | Value |
+| --- | --- |
+| `CWS_WORKLOAD_IDENTITY_PROVIDER` | Full `projects/<number>/locations/global/workloadIdentityPools/<pool>/providers/<provider>` resource name. |
+| `CWS_SERVICE_ACCOUNT` | Dedicated service account email linked to the publisher. |
+| `CWS_PUBLISHER_ID` | Publisher ID from Publisher -> Settings. |
+| `CWS_EXTENSION_ID` | Item ID assigned by the store and reconciled with the native runtime. |
+| `CWS_VISIBILITY` | `unlisted`, only after confirming it in the dashboard. API v2 does not expose visibility; this records the owner's configuration, not an API verification. |
+| `CWS_RELEASE_READY` | `true` only after the gates in `STATUS.md` and the release checklist are complete; absent/false blocks all automated uploads and submissions. |
+
+Every upload needs an incremented version in manifest/package/lockfile. After a
+bootstrap upload of `0.1.0`, use a higher version for the final package. If a run
+fails after a mutation, inspect its status in the dashboard before retrying.
+Rollback requires a new higher-version build of the reviewed previous source;
+do not try uploading a lower manifest version.
+
+## Current product gates
+
+The owner has registered a developer account and selected a GCP project. The
+production panel URL remains undecided. Its URL must become user-configurable
+alongside API URL; that feature is not implemented by this CI change. Current
+links use build-time `VITE_WEB_APP_URL`, while shared unlock independently uses
+API/origin pairs and generated browser routing. An editable navigation URL must
+not silently authorize key transfer. Dynamic configuration and its shared-unlock
+trust boundary still need implementation and validation before final release.
+The workflow keeps `CWS_RELEASE_READY` false until those existing gates close.
 
 ## Listing materials
 
@@ -90,3 +150,7 @@ submission; this document does not approve legal declarations.
 - [Images](https://developer.chrome.com/docs/webstore/images)
 - [Store identity and manifest key](https://developer.chrome.com/docs/extensions/reference/manifest/key)
 - [Version format](https://developer.chrome.com/docs/extensions/reference/manifest/version)
+
+- [Chrome Web Store API v2](https://developer.chrome.com/docs/webstore/using-api)
+- [Service account access](https://developer.chrome.com/docs/webstore/service-accounts)
+- [GitHub OIDC authentication](https://github.com/google-github-actions/auth)
