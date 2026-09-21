@@ -185,3 +185,18 @@ scenarios; both custom login replays and their 12 mutation checks passed. Read-o
 independent review found no blocker in the extension diff. The matching native
 change is separate; installed CLI and user extension were not replaced. Neither
 CI/cloud review, release nor regional corpus completion is implied.
+
+## Whole-corpus recorded-viewport baseline
+
+The complete rebuilt Chromium replay at code e75a0b5 processed all 200 rows:
+72/121 login screens passed; 49 failed (36 no-form, 8 challenge, 5 stale). All
+200 expected shield-count/closed-root checks passed. The 77 registration specimens
+and 2 non-auth negatives remain outside the live-login adapter. These are screen
+replays, not successful account flows, user fill/capture or geometric acceptance.
+
+`form-corpus/2026-09-21-recorded-viewport-baseline.json` contains every result,
+code/harness identity and limitations. The older baseline's height2000 prevents
+a direct comparison of totals. Disabled-action cases without recorded activation
+still fail full replay despite their separate discovery-only assertions. Source
+reductions, visibility, localized captions, challenges and extra account context
+must be diagnosed separately; this PR remains draft and the goal incomplete.
