@@ -1,0 +1,52 @@
+{
+  "note": "Observed specimen structure and recorded viewport (fallback 1200x900) with synthetic behavior. User shield results assert count and a closed shadow root only, not geometry or fill. No production login, native grant authorization or legacy registration executor is proved.",
+  "excludedDirectoriesWithoutCaseMetadata": [
+    "tests/fixtures/forms/allegro-login-ad-2026-09-20",
+    "tests/fixtures/forms/aws-root-identifier-2026-09-20",
+    "tests/fixtures/forms/doradcasmaku-capture-2026-09-16",
+    "tests/fixtures/forms/jetbrains-identifier-2026-09-20",
+    "tests/fixtures/forms/linkedin-capture-2026-09-15",
+    "tests/fixtures/forms/linkedin-login-2026-09-20",
+    "tests/fixtures/forms/proton-login-2026-09-20"
+  ],
+  "results": [
+    {
+      "id": "amazon-login-identifier-2026-09-15",
+      "service": "amazon",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass",
+      "actionVisibilityNegatives": [
+        {
+          "mutation": "covered",
+          "outcome": "pass"
+        },
+        {
+          "mutation": "hidden-label",
+          "outcome": "pass"
+        },
+        {
+          "mutation": "distant-label",
+          "outcome": "pass"
+        },
+        {
+          "mutation": "zero-opacity",
+          "outcome": "pass"
+        }
+      ]
+    }
+  ],
+  "observedAt": "2026-09-21",
+  "scope": "Unchanged Amazon identifier specimen; synthetic values and local submit counter. Four synthetic visibility attacks must reject and clear newly written values. No real submission or authentication.",
+  "sourceDigests": {
+    "src/content/isolated/login-controls.ts": "4f2f77fa4572ce3152cd237767528f6a621cc2d3c78304cef19af8151e4a0d69",
+    "src/content/isolated/agent-inject.ts": "69c07331b7a2c1e3b1ce7ede2bafb3809d49143270d67f0628513a82890ca765",
+    "src/content/isolated/agent-action-visibility.ts": "39c51c10648f827d5fe4489716fe20aff465660fd12442b30c008cf550bb9a81",
+    "src/content/isolated/agent-live-login.ts": "d36e03052084b392cfa377fc4cf41ddafd346d88586ab14fea01b0a0c9d6a700",
+    "src/content/isolated/agent-live-deferred.ts": "3f6b6974462cbe3225289ef199d32a5c864212c3491b2e597801299f112937e1",
+    "tests/browser/form-corpus.mjs": "f19d61cbeced16f79b6ee45c43ca7ae7be8bebf40067e9d4fa715cae53930e26",
+    "tests/fixtures/forms/amazon-login-identifier-2026-09-15/page.html": "e377424d43426613b0a2b5c09dc774023376a6c839c51dfa1bb603a71c42fc4b",
+    "tests/fixtures/forms/amazon-login-identifier-2026-09-15/page.css": "a5af4affeb88af59de9570383156495fadf4f9be40a45022aa1490c7b024034a"
+  }
+}

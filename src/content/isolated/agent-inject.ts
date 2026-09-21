@@ -6,6 +6,7 @@ import {
   type AgentInjectTransitionOutcome,
 } from "@shared/messaging";
 import { isSecurePage, matchesAgentInjectionTarget } from "@shared/security/domain";
+import { hasPaintedActionLabel } from './agent-action-visibility';
 
 type WritableControl = HTMLInputElement | HTMLTextAreaElement;
 
@@ -58,7 +59,7 @@ export function createAgentInjectDomAccess(
       }
       return style.display !== "none"
         && style.visibility !== "hidden"
-        && Number.parseFloat(style.opacity || "1") > 0.01
+        && (Number.parseFloat(style.opacity || "1") > 0.01 || hasPaintedActionLabel(element, view))
         && style.pointerEvents !== "none"
         && rect.width > 0
         && rect.height > 0

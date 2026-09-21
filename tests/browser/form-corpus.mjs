@@ -126,6 +126,36 @@ try {
       assert.equal(await page.evaluate(() => globalThis.corpusClicks), 1, 'Expected one native action');
       assert.equal((await send(target, commit)).ok, false, 'Consumed commit must not replay');
       row.agentLive = 'pass';
+      if (specimen.id === 'amazon-login-identifier-2026-09-15') {
+        // Synthetic attacks on the unchanged observed translucent native action.
+        // They test local enforcement, never production behavior or auth.
+        row.actionVisibilityNegatives = [];
+        for (const mutation of ['covered', 'hidden-label', 'distant-label', 'zero-opacity']) {
+          await page.goto(url);
+          const alteredTarget = await binding(url);
+          await page.evaluate(mutation => {
+            const action = document.querySelector('#ap_login_form input[type=submit]');
+            const label = document.querySelector('#continue-announce');
+            if (mutation === 'covered') {
+              const rect = action.getBoundingClientRect(), cover = document.createElement('div');
+              Object.assign(cover.style, { position: 'fixed', left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`, zIndex: '999999', background: 'white' });
+              document.body.append(cover);
+            }
+            if (mutation === 'hidden-label') label.style.display = 'none';
+            if (mutation === 'distant-label') label.style.transform = 'translateX(400px)';
+            if (mutation === 'zero-opacity') action.style.opacity = '0';
+          }, mutation);
+          const altered = await send(alteredTarget, { channel: 'palladin.agent-live/probe', documentId: alteredTarget.documentId, targetUrl: url });
+          if (altered.outcome === 'ready') {
+            const attempt = await send(alteredTarget, { channel: 'palladin.agent-live/deferred-fill', pendingId: 'c'.repeat(32), documentId: alteredTarget.documentId,
+              expectedDomain: 'forms.example.test', form: altered.form, expiresAt: Date.now() + 500, values });
+            assert.equal(attempt.ok, false, `${mutation} must not produce a committable action`);
+          } else assert.ok(['no-form', 'challenge'].includes(altered.outcome), `Unexpected probe outcome for ${mutation}`);
+          assert.equal(await page.evaluate(() => globalThis.corpusClicks), 0);
+          assert.equal(await page.locator('#ap_email_login').inputValue(), '', 'Rejected preparation must clear its synthetic write');
+          row.actionVisibilityNegatives.push({ mutation, outcome: 'pass' });
+        }
+      }
     } catch (error) { row.agentLive = 'fail'; row.agentError = error.message.split('\n')[0]; }
     finally { console.log(`${row.id}: user=${row.userShield}, agent=${row.agentLive}`); }
   }

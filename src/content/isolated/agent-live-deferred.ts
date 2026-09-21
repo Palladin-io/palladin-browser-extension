@@ -4,7 +4,7 @@ import { sameLiveForm } from '@shared/messaging/agent-live';
 import { sameSubmitReady, type DeferredFillMessage, type DeferredFillOutcome, type DeferredCommitMessage, type SubmitReady } from '@shared/messaging/agent-deferred';
 import { matchesAgentInjectionTarget } from '@shared/security/domain';
 import { isFillable, loginTargetFor } from './credential-form-analysis';
-import { hasLoginActionLabel, isAccountCreationHeadingText, isIdentifiedUsername, isSubscriptionIdentity, isVisibleScopeHint, scopeInputs } from './login-controls';
+import { hasLoginActionLabel, publicActionLabels, isAccountCreationHeadingText, isIdentifiedUsername, isSubscriptionIdentity, isVisibleScopeHint, scopeInputs } from './login-controls';
 import { autocompleteTokens } from './form-semantics';
 import { actionCaption, composedForm, queryOpenElements } from './open-dom';
 import { hasLiveLoginObstacle } from './agent-live-obstacles';
@@ -226,10 +226,8 @@ function signature(scope: HTMLElement, fields: readonly DeferredField[]): string
     scope.ownerDocument.querySelector('base[target]')?.getAttribute('target'), ...fields.map(field => [field.fieldId, field.mode,
       ...['id','name','type','autocomplete','pattern','minlength','maxlength','form','required','disabled','readonly','aria-label','aria-labelledby'].map(key => field.input.getAttribute(key))])]);
 }
-function deferredActionCaption(element: HTMLElement): string | null {
-  return element instanceof HTMLInputElement && ['submit', 'button'].includes(element.type) ? element.value : actionCaption(element);
-}
-function actionSignature(action: HTMLElement): string { return JSON.stringify([action.tagName, ...['type','form','formaction','formtarget','formmethod','aria-label','aria-labelledby'].map(key => action.getAttribute(key)), deferredActionCaption(action)]); }
+function actionSignature(action: HTMLElement): string { return JSON.stringify([action.tagName, ...['type','form','formaction','formtarget','formmethod','aria-label','aria-labelledby'].map(key => action.getAttribute(key)), publicActionLabels(action),
+  action instanceof HTMLInputElement ? action.value : actionCaption(action)]); }
 function safeDestination(doc: Document, scope: HTMLElement, action: HTMLButtonElement | HTMLInputElement, url: string): boolean {
   if (!(scope instanceof HTMLFormElement)) return composedForm(action) === null && scope.contains(action);
   const destination = new URL((action.type === 'submit' ? action.getAttribute('formaction') : null) ?? scope.getAttribute('action') ?? url, doc.baseURI);

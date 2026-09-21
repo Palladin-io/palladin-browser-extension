@@ -131,3 +131,31 @@ scenarios passed. Full unit run:2972 total,2968 passed,4 failed,0 skipped. The s
 Bilibili/Meczyki explicit-action requirements remain RED. Read-only independent
 review accepted this bounded change without blockers. No installed user extension
 was replaced; this is a PR51 candidate.
+
+## Amazon action re-observation and regression
+
+A focused public Chrome inspection on2026-09-21 corrected the initial diagnosis:
+Amazon's submit input has no value attribute. Its accessible caption comes from
+`aria-labelledby`, and its opacity is0.01 over a visible sibling label occupying
+the same rectangle. The old specimen already preserves both facts. See
+`form-corpus/amazon-action-observation-2026-09-21.json`; no old HTML/CSS was rewritten.
+
+Shared action discovery now resolves a bounded, complete IDREF caption within
+the same Document/ShadowRoot. Execution signatures preserve both the referenced
+caption and the original button text/public input caption, rejecting mutation of
+either after preparation. A bounded native-action visibility exception requires
+a visible sibling label at the same bounds; opacity-zero controls, credential
+fields, missing/hidden/distant labels and page overlays remain blocked. This
+shared DOM helper applies to mapped Inject and live discovery, not only Amazon.
+
+The Amazon identifier specimen passes built Chromium fill, separate commit and
+replay denial at its recorded viewport. Four Chromium mutations (page cover,
+hidden label, moved label, zero-opacity action) reject preparation, never click
+and clear the synthetic write. Source hashes and results are recorded in
+`form-corpus/2026-09-21-amazon-aria-action-replay.json`.
+
+Concrete label and geometry REDs preceded production edits. Independent review
+caught and re-reviewed the own-caption binding regression. Full unit2993:
+2989 passed,4 existing Bilibili/Meczyki failures,0 skipped; typecheck passed.
+This is identifier-stage synthetic support, not production authentication, a new
+complete service or additional regional coverage.

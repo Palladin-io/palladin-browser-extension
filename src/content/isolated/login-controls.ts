@@ -37,7 +37,20 @@ const LOCALIZED_LOGIN_ACTIONS = new Set(['logowanie', 'συνέχεια', 'forts
   'prijavi se', 'entrar', 'log ind']);
 const EXACT_LOGIN_ACTION = /^(?:log\s*in|sign\s*in|continue|next|submit|zaloguj(?:\s+się)?|dalej|kontynuuj)$/i;
 
-function actionLabels(element: Element): string[] {
+export function publicActionLabels(element: Element): string[] {
+  const references = element.getAttribute('aria-labelledby');
+  if (references !== null) {
+    const root = element.getRootNode();
+    const ids = references.trim().split(/\s+/);
+    if (references.length > 512 || ids.length > 8 || !(root instanceof Document || root instanceof ShadowRoot)) return [];
+    const captions = ids.map(id => {
+      const label = root.getElementById(id);
+      return label ? actionCaption(label) : null;
+    });
+    if (captions.some(caption => caption === null)) return [];
+    const caption = captions.join(' ').trim().replace(/\s+/g, ' ').toLowerCase();
+    return caption.length <= 512 ? [caption] : [];
+  }
   const value = element instanceof HTMLInputElement && ['submit', 'button'].includes(element.type)
     ? element.value : null;
   return [element.getAttribute('aria-label'), actionCaption(element), value]
@@ -50,7 +63,7 @@ function actionLabels(element: Element): string[] {
  * The caller still enforces native type, visibility, owner and uniqueness.
  */
 export function hasLoginActionLabel(element: Element): boolean {
-  return actionLabels(element).some(label => EXACT_LOGIN_ACTION.test(label) || LOCALIZED_LOGIN_ACTIONS.has(label));
+  return publicActionLabels(element).some(label => EXACT_LOGIN_ACTION.test(label) || LOCALIZED_LOGIN_ACTIONS.has(label));
 }
 
 export function isCredentialAction(element: Element): boolean {
@@ -79,7 +92,7 @@ function isCredentialActionHint(element: Element): boolean {
     && ((element as HTMLButtonElement).form || (element.getAttribute('type') === 'submit'
       && element.getRootNode() instanceof ShadowRoot && composedForm(element)))
     && isVisibleScopeHint(element)) return true;
-  return actionLabels(element).some(label => AUTH_ACTION.test(label)
+  return publicActionLabels(element).some(label => AUTH_ACTION.test(label)
     || LOCALIZED_LOGIN_ACTIONS.has(label) || label === 'konto erstellen');
 }
 
