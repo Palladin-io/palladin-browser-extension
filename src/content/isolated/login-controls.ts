@@ -37,6 +37,22 @@ const LOCALIZED_LOGIN_ACTIONS = new Set(['logowanie', 'συνέχεια', 'forts
   'prijavi se', 'entrar', 'log ind', '登录', 'continue with email']);
 const EXACT_LOGIN_ACTION = /^(?:log\s*in|sign\s*in|continue|next|submit|zaloguj(?:\s+się)?|dalej|kontynuuj)$/i;
 
+/** Only the established font glyph and short non-letter symbols are decoration.
+ * aria-hidden alone does not make visible action text safe to ignore.
+ */
+function decorativeActionDescendant(element: Element): boolean {
+  const image = element.matches('img, svg');
+  const declared = element.getAttribute('aria-hidden') === 'true'
+    || (image && ['none', 'presentation'].includes(element.getAttribute('role') ?? ''));
+  if (!declared) return false;
+  if (!image && (element.childElementCount !== 0 || element.shadowRoot !== null || element.matches('slot')
+    || element.hasAttribute('aria-label') || element.hasAttribute('aria-labelledby'))) return false;
+  const caption = actionCaption(element);
+  if (caption === null || caption.length > 32) return false;
+  const glyph = caption.trim();
+  return glyph === 'person' || !/[\p{L}\p{N}]/u.test(glyph);
+}
+
 /** Bounded execution-only content: text plus independent semantic icon labels.
  * Explicitly referenced roots may be aria-hidden (e.g. native submit captions),
  * so only decorative descendants are skipped. This is not a full AccName engine.
@@ -59,8 +75,7 @@ function executionActionContent(element: Element): string[] | null {
       if (length > 512) return null;
     } else if (node instanceof Element) {
       if (node.matches('script, style, input, textarea')) continue;
-      if (node !== element && (node.getAttribute('aria-hidden') === 'true'
-        || (node.matches('img, svg') && ['none', 'presentation'].includes(node.getAttribute('role') ?? '')))) continue;
+      if (node !== element && decorativeActionDescendant(node)) continue;
       // Descendant IDREF naming is not yet supported by this execution adapter.
       // Fail closed rather than silently dropping a provider's semantic name.
       if (node !== element && (node.getAttribute('aria-labelledby') ?? '').trim() !== '') return null;

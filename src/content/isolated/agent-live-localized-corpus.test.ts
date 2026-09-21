@@ -269,6 +269,8 @@ it('keeps semantic labels in open shadow/slot content and excludes decorative su
   const icon = document.querySelector('#icon')!; icon.attachShadow({ mode: 'open' }).innerHTML = '<slot></slot>';
   expect(hasLoginActionLabel(document.querySelector('button')!)).toBe(false);
   icon.setAttribute('aria-hidden', 'true');
+  expect(hasLoginActionLabel(document.querySelector('button')!)).toBe(false); // A hidden wrapper is not proof its contents are decorative.
+  icon.querySelector('img')!.setAttribute('aria-hidden', 'true');
   expect(hasLoginActionLabel(document.querySelector('button')!)).toBe(true);
 });
 it.each(['nodes', 'semantic text'])('bounds execution descendant %s', bound => {
@@ -277,4 +279,36 @@ it.each(['nodes', 'semantic text'])('bounds execution descendant %s', bound => {
   if (bound === 'nodes') action.innerHTML = '<span></span>'.repeat(256);
   else action.innerHTML = `<img alt="${'x'.repeat(513)}">`;
   expect(hasLoginActionLabel(action)).toBe(false);
+});
+
+it.each(['Create account', 'Reset password', 'Delete account', 'Continue with Google', 'Unknown operation'])(
+  'rejects conflicting visible text even when aria-hidden: %s', caption => {
+    document.body.innerHTML = `<form><input autocomplete="username"><input type="password"><button aria-label="Sign in"><span aria-hidden="true">${caption}</span></button></form>`;
+    expect(hasLoginActionLabel(document.querySelector('button')!)).toBe(false);
+    expect(instance().inspect(url)).toBeNull();
+  });
+it.each([
+  '<span aria-hidden="true">person<img alt="Google"></span>',
+  '<span aria-hidden="true">person<svg role="img" aria-label="Google"></svg></span>',
+  '<span aria-hidden="true" aria-label="Create account">person</span>',
+  '<svg aria-hidden="true"><text>Create account</text></svg>',
+])('does not treat a meaningful subtree as a decorative glyph: %s', markup => {
+  document.body.innerHTML = `<button aria-label="Sign in">${markup}</button>`;
+  expect(hasLoginActionLabel(document.querySelector('button')!)).toBe(false);
+});
+it.each(['text', 'aria-hidden'])('rejects changes to a decorative text glyph before commit: %s', mutation => {
+  document.body.innerHTML = '<form><input autocomplete="username"><input type="password"><button aria-label="Sign in"><span id="glyph" aria-hidden="true">person</span></button></form>';
+  return (async () => {
+    const flow = instance(), form = flow.inspect(url); expect(form).not.toBeNull(); if (!form) return;
+    const clicked = vi.fn((event: Event) => event.preventDefault()); document.querySelector('button')!.addEventListener('click', clicked);
+    const ready = await flow.fillDeferred({ channel: 'palladin.agent-live/deferred-fill', pendingId: 'b'.repeat(32), documentId,
+      expectedDomain: 'forms.example.test', expiresAt: Date.now() + 10_000, form,
+      values: [{ entryFieldId: 'credential.username', value: 'fixture@example.test' }, { entryFieldId: 'credential.password', value: 'Fixture-only!42' }] });
+    expect(ready.ok).toBe(true); if (!ready.ok) return;
+    const glyph = document.querySelector('#glyph')!;
+    if (mutation === 'text') glyph.textContent = 'Create account'; else glyph.setAttribute('aria-hidden', 'false');
+    expect(flow.commitDeferred({ channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'forms.example.test',
+      submitReady: ready.submitReady, expiresAt: Date.now() + 1000 }).ok).toBe(false);
+    expect(clicked).not.toHaveBeenCalled();
+  })();
 });
