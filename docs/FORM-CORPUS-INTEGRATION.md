@@ -245,3 +245,21 @@ Hashes and detailed results are in
 `form-corpus/2026-09-21-review-r1-caption-regression.json`. These remain synthetic
 replays of observed specimens, not real authentication. The prior whole-corpus
 72/121 result predates this caption batch and is not a new full-corpus result.
+
+## Cloud review R2: semantic and decorative action icons
+
+Two further review regressions distinguished provider semantics from decoration.
+A bounded execution-only reader now includes descendant alt/ARIA labels and
+excludes explicitly decorative descendants. Semantic provider icons cannot hide
+behind a generic login caption, while aria-hidden icon-font text remains usable.
+Directly referenced hidden caption roots still support the observed Amazon action.
+The general actionCaption helper is unchanged; execution semantics are bound in
+both normal and deferred snapshots, including changes through open shadow/slots.
+Unimplemented descendant IDREF naming fails closed rather than dropping meaning.
+
+Eight failing assertions preceded the fix. Integrated validation: 3064 unit tests
+passed, no skips; typecheck and Chromium/Firefox/Safari builds passed; the same
+seven recorded-viewport Chromium specimens and sixteen mutation checks passed.
+Detailed hashes/results are in
+`form-corpus/2026-09-21-review-r2-icon-regression.json`. These checks do not rerun
+or complete the whole regional corpus and do not claim real-site authentication.
