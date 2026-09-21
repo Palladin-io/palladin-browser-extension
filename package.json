@@ -1,6 +1,6 @@
 {
   "name": "@palladin/browser-extension",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Palladin browser extension - user autofill and encrypted Vault access (Manifest V3).",
   "license": "Apache-2.0",
