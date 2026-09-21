@@ -46,15 +46,18 @@ try {
     }
     throw new Error('Synthetic document binding unavailable');
   }
-  for (const scenario of ['aws-spa', 'combined', 'carry', 'navigation']) {
+  for (const scenario of ['aws-spa', 'combined', 'combined-disabled', 'carry', 'navigation']) {
     await page.goto(`https://login.example.test/${scenario}`);
-    const stages = scenario === 'combined' ? [['credential.username', 'credential.password'], ['credential.totp']]
+    const stages = scenario.startsWith('combined') ? [['credential.username', 'credential.password'], ['credential.totp']]
       : [['credential.username'], scenario === 'carry' ? ['credential.username', 'credential.password'] : ['credential.password'], ['credential.totp']];
     for (const fields of stages) {
       const target = await binding();
       const probe = await send(target, { channel: 'palladin.agent-live/probe', documentId: target.documentId, targetUrl: target.url });
       assert.equal(probe.outcome, 'ready');
       assert.deepEqual(probe.form.steps[0].fields.map(field => field.entryFieldId), fields);
+      if (scenario === 'combined-disabled' && fields.includes('credential.password')) {
+        assert.equal(await page.locator('button').isDisabled(), true, 'Discovery must not activate the disabled native action');
+      }
       const message = { channel: 'palladin.agent-inject/step', documentId: target.documentId, expectedDomain: 'login.example.test', step: probe.form.steps[0],
         ...(scenario === 'carry' && fields.includes('credential.password') ? { requireExistingUsername: true } : {}),
         values: fields.map(entryFieldId => ({ entryFieldId, value: entryFieldId === 'credential.username' ? 'synthetic@example.test' : entryFieldId === 'credential.password' ? 'Synthetic-password!42' : '123456' })) };
@@ -64,6 +67,10 @@ try {
           expectedDomain: 'login.example.test', form: probe.form, values: message.values, expiresAt: Date.now() + 10_000,
           ...(message.requireExistingUsername ? { requireExistingUsername: true } : {}) });
         assert.equal(ready.ok, true);
+        if (scenario === 'combined-disabled') {
+          assert.equal(await page.evaluate(() => globalThis.submitEvents), 0, 'Writing fields must not submit');
+          assert.equal(await page.locator('button').isDisabled(), false, 'Only the synthetic framework activates the action');
+        }
         replayMessage = { channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'login.example.test', submitReady: ready.submitReady, expiresAt: Date.now() + 1000 };
         assert.deepEqual(await send(target, replayMessage), { ok: true });
       } else assert.deepEqual(await send(target, message), { ok: true });
@@ -178,14 +185,18 @@ function fixture(route) {
   const password = '<label>Password<input type="password" autocomplete="current-password"></label><button>Sign in</button>';
   const identity = '<label>Email<input autocomplete="username" type="email"></label>';
   const otp = '<label>Authenticator code<input autocomplete="one-time-code"></label><button>Verify</button>';
-  const stage = route === '/password' ? 1 : route === '/otp' ? 2 : route === '/done' ? 3 : route === '/combined' ? 1 : 0;
-  const body = route === '/combined' ? `<form>${identity}${password}</form>` : stage === 1 ? `<form>${password}</form>`
+  const combined = ['/combined', '/combined-disabled'].includes(route);
+  const stage = route === '/password' ? 1 : route === '/otp' ? 2 : route === '/done' ? 3 : combined ? 1 : 0;
+  const body = combined ? `<form>${identity}${route === '/combined-disabled' ? password.replace('<button>', '<button disabled>') : password}</form>` : stage === 1 ? `<form>${password}</form>`
     : stage === 2 ? `<form>${otp}</form>` : stage === 3 ? '<p>Neutral destination</p>' : html;
   return `<!doctype html><html><head><style>${stage === 0 ? css : ''}input,button{min-height:32px}label{display:block;margin:16px}</style></head><body>${body}<script>
-    globalThis.identityEvents=0; let stage=${stage}; const scenario=${JSON.stringify(route)};
+    globalThis.identityEvents=0;globalThis.submitEvents=0; let stage=${stage}; const scenario=${JSON.stringify(route)};
     const form=document.querySelector('form');
+    if(scenario==='/combined-disabled') form.addEventListener('input',()=>{
+      setTimeout(()=>{form.querySelector('button').disabled=[...form.querySelectorAll('input')].some(input=>!input.value)},50);
+    });
     if(form) form.addEventListener('submit',event=>{
-      event.preventDefault(); stage++;
+      event.preventDefault();submitEvents++; stage++;
       if(scenario==='/navigation'||['/password','/otp'].includes(scenario)){location.href=stage===1?'/password':stage===2?'/otp':'/done';return;}
       form.innerHTML=stage===1?${JSON.stringify(password)}:stage===2?${JSON.stringify(otp)}:'<p>Neutral destination</p>';
       if(scenario==='/carry'&&stage===1){form.insertAdjacentHTML('afterbegin',${JSON.stringify(identity)});const input=form.querySelector('input');input.value='synthetic@example.test';input.addEventListener('input',()=>identityEvents++);input.addEventListener('change',()=>identityEvents++);}

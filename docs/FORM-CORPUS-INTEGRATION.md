@@ -110,3 +110,24 @@ action expectations; they are not removed or marked passing.
 Machine-readable evidence lives in `docs/form-corpus/`: source fixture SHA256
 snapshot, qualified initial adapter baseline, and final five-case replay with
 production-file and harness digests. No current corpus-wide GREEN is claimed.
+
+## Combined login with an initially disabled action
+
+The current deferred adapter now prepares an unambiguous native form containing
+both username and password while its sole native login action remains disabled.
+It reuses shared login classification, rejects extra fields, registration and OTP,
+and never changes the disabled state itself. Only the page can activate the action;
+the existing separate, single-use commit still revalidates the live action.
+
+Four unmodified production specimens (Fandom, Filmweb, Twitch and Gazeta) reproduced
+missing initial discovery before the fix and now pass that assertion. Their
+post-input activation remains unobserved, so these results are discovery-only,
+not successful full specimen replays or real authentications. A separate synthetic
+Chromium scenario verifies asynchronous page activation, no submit during fill,
+separate commit, replay rejection and continuation to TOTP.
+
+Validation:82 deferred tests passed, typecheck passed, and all9 agent-live Chromium
+scenarios passed. Full unit run:2972 total,2968 passed,4 failed,0 skipped. The same
+Bilibili/Meczyki explicit-action requirements remain RED. Read-only independent
+review accepted this bounded change without blockers. No installed user extension
+was replaced; this is a PR51 candidate.

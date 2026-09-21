@@ -3,7 +3,7 @@ import { generateNonce, type AgentInjectForm, type AgentInjectStepOutcome } from
 import { sameLiveForm } from '@shared/messaging/agent-live';
 import { sameSubmitReady, type DeferredFillMessage, type DeferredFillOutcome, type DeferredCommitMessage, type SubmitReady } from '@shared/messaging/agent-deferred';
 import { matchesAgentInjectionTarget } from '@shared/security/domain';
-import { isFillable } from './credential-form-analysis';
+import { isFillable, loginTargetFor } from './credential-form-analysis';
 import { hasLoginActionLabel, isAccountCreationHeadingText, isIdentifiedUsername, isSubscriptionIdentity, isVisibleScopeHint, scopeInputs } from './login-controls';
 import { autocompleteTokens } from './form-semantics';
 import { actionCaption, composedForm, queryOpenElements } from './open-dom';
@@ -156,7 +156,7 @@ export class DeferredLiveLogin {
     // are checked separately and never mistaken for additional credential fields.
     const fields = inputs.filter(input => !['submit', 'button', 'reset', 'image'].includes(input.type) && isFillable(input));
     const input = fields[0];
-    if (fields.length !== 1 || !input || !this.dom.isVisible(input) || isSubscriptionIdentity(input)
+    if (![1, 2].includes(fields.length) || !input || fields.some(field => !this.dom.isVisible(field) || isSubscriptionIdentity(field))
       || inputs.some(field => autocompleteTokens(field).includes('new-password') || autocompleteTokens(field).includes('one-time-code'))
       || hasLiveLoginObstacle(this.doc, scope, this.dom)) return null;
     const headings = queryOpenElements(scope, 'header,h1,h2,h3,h4,h5,h6,legend').filter(node => isVisibleScopeHint(node));
@@ -164,6 +164,21 @@ export class DeferredLiveLogin {
       const text = (node.textContent ?? '').trim();
       return isAccountCreationHeadingText(text) || /create\s+(?:an?\s+)?account|sign\s*up|zarejestruj|utwórz\s+konto/i.test(text);
     })) return null;
+    if (fields.length === 2) {
+      const target = fields.map(loginTargetFor).find(candidate => candidate !== null);
+      if (!target?.username || !target.password || target.form !== scope
+        || !fields.includes(target.username) || !fields.includes(target.password)
+        || inputs.filter(field => field.type === 'password').length !== 1
+        || inputs.some(field => field !== target.username && isIdentifiedUsername(field))) return null;
+      // A disabled native login action is an observed initial state. A DIV hint
+      // alone does not authorize preparing a combined credential form.
+      const hints = queryOpenElements<HTMLButtonElement | HTMLInputElement>(scope, 'button,input[type="submit"],input[type="button"]')
+        .filter(action => composedForm(action) === scope && ['submit', 'button'].includes(action.type)
+          && this.dom.isVisible(action) && isVisibleScopeHint(action) && hasLoginActionLabel(action));
+      if (hints.length !== 1) return null;
+      return [{ input: target.username, fieldId: 'credential.username', mode: 'write' },
+        { input: target.password, fieldId: 'credential.password', mode: 'write' }];
+    }
     if (input.type === 'password') {
       if (!autocompleteTokens(input).includes('current-password') || inputs.filter(field => field.type === 'password').length !== 1) return null;
       const identities = inputs.filter(isIdentifiedUsername);
