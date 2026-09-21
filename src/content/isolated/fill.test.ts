@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
+import { observeNativeSubmit } from './manual-submit.test-helper';
 import { describe, expect, it, vi } from "vitest";
 
 import type { FillField, FillRequestMessage } from "@shared/messaging";
-import { loginTargetFor, performBoundFill, performFill } from "./fill";
+import { loginTargetFor, performBoundFill, performFill, performLoginTargetFill, submitFilledLoginTarget } from "./fill";
 
 const CREDS: FillField[] = [
   { kind: "username", value: "ada@example.com" },
@@ -280,6 +281,29 @@ describe("performFill", () => {
 });
 
 describe("performBoundFill", () => {
+  it.each(["username", "password"])("rejects a nonmatching %s before writing its empty companion", kind => {
+    const doc = mount('<form><input id="user"><input id="pass" type="password"></form>');
+    const username = doc.getElementById("user") as HTMLInputElement;
+    const password = doc.getElementById("pass") as HTMLInputElement;
+    const target = loginTargetFor(username)!;
+    (kind === "username" ? username : password).value = "different-synthetic-value";
+    const before = [username.value, password.value];
+    expect(performBoundFill(doc, bound(CREDS, { loginTargetId: "login-1" }), "https://example.com/login", "document-1", target))
+      .toEqual({ ok: false, reason: "no-form" });
+    expect([username.value, password.value]).toEqual(before);
+  });
+
+  it("rejects synchronous framework mutation of an already completed field", () => {
+    const doc = mount('<form><input id="user"><input id="pass" type="password"></form>');
+    const username = doc.getElementById("user") as HTMLInputElement;
+    const password = doc.getElementById("pass") as HTMLInputElement;
+    const target = loginTargetFor(username)!;
+    username.addEventListener("input", () => { username.value = ""; });
+    expect(performBoundFill(doc, bound(CREDS, { loginTargetId: "login-1" }), "https://example.com/login", "document-1", target))
+      .toEqual({ ok: false, reason: "no-form" });
+    expect(password.value).toBe("");
+  });
+
   it("refuses an inline target whose username was reassociated before the DOM write", () => {
     const doc = mount(`
       <form id="first"><input id="user"><input id="first-pass" type="password"></form>
@@ -337,10 +361,8 @@ describe("performBoundFill", () => {
     const login = doc.getElementById("login") as HTMLFormElement;
     const other = doc.getElementById("other") as HTMLFormElement;
     const loginSubmit = doc.getElementById("login-submit") as HTMLButtonElement;
-    const requestLogin = vi.fn();
-    const requestOther = vi.fn();
-    login.requestSubmit = requestLogin;
-    other.requestSubmit = requestOther;
+    const requestLogin = observeNativeSubmit(login);
+    const requestOther = observeNativeSubmit(other);
 
     expect(performBoundFill(
       doc,
@@ -355,8 +377,7 @@ describe("performBoundFill", () => {
   it("does not submit during an ordinary fill", () => {
     const doc = mount(`<form id="login"><input id="pass" type="password"></form>`);
     const form = doc.getElementById("login") as HTMLFormElement;
-    const requestSubmit = vi.fn();
-    form.requestSubmit = requestSubmit;
+    const requestSubmit = observeNativeSubmit(form);
 
     expect(performBoundFill(
       doc,
@@ -401,4 +422,38 @@ describe("performBoundFill", () => {
     )).toEqual({ ok: false, reason: "target-changed" });
     expect((doc.getElementById("pass") as HTMLInputElement).value).toBe("");
   });
+});
+
+
+describe('one-use isolated manual submit receipt', () => {
+  it('allows only one submit after the successful fill', async () => {
+    mount('<form><input autocomplete="username"><input type="password" autocomplete="current-password"><button type="submit">Sign in</button></form>');
+    const target = loginTargetFor(document.querySelector('input')! )!;
+    const submit = observeNativeSubmit(document.querySelector('form')!);
+    expect(performLoginTargetFill(target, CREDS)).toEqual({ ok: true });
+    expect(await submitFilledLoginTarget(target, () => true)).toBe(true);
+    expect(await submitFilledLoginTarget(target, () => true)).toBe(false);
+    expect(submit).toHaveBeenCalledTimes(1);
+  });
+
+  it('expires a receipt even when the worker reply is delayed', async () => {
+    vi.useFakeTimers();
+    try {
+      mount('<form><input autocomplete="username"><input type="password" autocomplete="current-password"><button type="submit">Sign in</button></form>');
+      const target = loginTargetFor(document.querySelector('input')!)!;
+      const submit = observeNativeSubmit(document.querySelector('form')!);
+      expect(performLoginTargetFill(target, CREDS)).toEqual({ ok: true });
+      await vi.advanceTimersByTimeAsync(5_001);
+      expect(await submitFilledLoginTarget(target, () => true)).toBe(false);
+      expect(submit).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
+});
+
+it('manual replacement stops if an input handler changes an unwritten field', () => {
+  mount('<form><input autocomplete="username" value="other-user"><input type="password" autocomplete="current-password" value="other-password"><button type="submit">Sign in</button></form>');
+  const target = loginTargetFor(document.querySelector('input')!)!;
+  target.username!.addEventListener('input', () => { target.password!.value = ''; });
+  expect(performLoginTargetFill(target, CREDS, 'manual')).toEqual({ ok: false, reason: 'no-form' });
+  expect(target.password!.value).toBe('');
 });

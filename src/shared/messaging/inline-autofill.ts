@@ -9,6 +9,7 @@ export type InlineAutofillCommand =
   | {
       readonly channel: typeof INLINE_AUTOFILL_CHANNEL;
       readonly type: "inline/fill";
+      readonly intent: "automatic" | "manual";
       readonly documentId: string;
       readonly vaultId: string;
       readonly entryId: string;
@@ -73,11 +74,13 @@ export function isInlineAutofillCommand(value: unknown): value is InlineAutofill
       "entryId",
       "scope",
       "loginTargetId",
+      "intent",
     ])
       && validOpaqueId(value.vaultId)
       && validOpaqueId(value.entryId)
       && validOpaqueId(value.loginTargetId)
-      && (value.scope === "exact" || value.scope === "related");
+      && (value.scope === "exact" || value.scope === "related")
+      && (value.intent === "manual" || (value.intent === "automatic" && value.scope === "exact"));
   }
   return false;
 }

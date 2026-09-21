@@ -24,6 +24,7 @@ export interface InlineAutofillDeps {
     entryId: string,
     scope: "exact" | "related",
     loginTargetId: string,
+    intent: "automatic" | "manual",
   ): Promise<FillResult>;
   readonly recency?: InlineAutofillRecency;
 }
@@ -110,6 +111,7 @@ export async function handleInlineAutofillContentMessage(
       raw.entryId,
       raw.scope,
       raw.loginTargetId,
+      raw.intent,
     );
     if (fill.status === "filled" && raw.scope === "exact") {
       deps.recency?.remember(source.url, raw.vaultId, raw.entryId);

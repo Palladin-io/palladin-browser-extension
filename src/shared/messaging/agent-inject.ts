@@ -166,13 +166,12 @@ export function parseAgentInjectForm(value: unknown): AgentInjectForm | null {
   if (value.version === 2) {
     if (value.steps.length !== 1) return null;
     const step = parseStep(value.steps[0], true);
-    const field = step?.fields[0];
-    if (!step || step.waitFor || step.fields.length !== 1 || field?.entryFieldId !== 'credential.username'
-      || field.control !== 'username' || step.submit.action !== 'deferred-native-click'
-      || !/^palladin-live:[a-f0-9]{32}:[a-f0-9]{32}$/.test(field.selector)
+    if (!step || step.waitFor || step.submit.action !== 'deferred-native-click'
       || !/^palladin-live:[a-f0-9]{32}:[a-f0-9]{32}$/.test(step.submit.selector)
-      || field.selector === step.submit.selector
-      || field.selector.split(':')[1] !== step.submit.selector.split(':')[1]) return null;
+      || !isDeferredCredentialFields(step.fields)
+      || new Set(step.fields.map(field => field.selector)).size !== step.fields.length
+      || step.fields.some(field => !/^palladin-live:[a-f0-9]{32}:[a-f0-9]{32}$/.test(field.selector)
+        || field.selector === step.submit.selector || field.selector.split(':')[1] !== step.submit.selector.split(':')[1])) return null;
     return { version: 2, steps: [step] };
   }
   if (value.version !== 1) return null;
@@ -187,6 +186,15 @@ export function parseAgentInjectForm(value: unknown): AgentInjectForm | null {
     steps.push(step);
   }
   return { version: 1, steps };
+}
+
+/** DOM bindings choose writable or comparison-only identity mode; the wire
+ * permits only the fixed username/password shapes, never arbitrary fields. */
+function isDeferredCredentialFields(fields: readonly AgentInjectFormField[]): boolean {
+  const username = (field: AgentInjectFormField | undefined) => field?.entryFieldId === 'credential.username' && field.control === 'username';
+  const password = (field: AgentInjectFormField | undefined) => field?.entryFieldId === 'credential.password' && field.control === 'password';
+  return fields.length === 1 ? username(fields[0]) || password(fields[0])
+    : fields.length === 2 && username(fields[0]) && password(fields[1]);
 }
 
 export function parseAgentInjectValues(

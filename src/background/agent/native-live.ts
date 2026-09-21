@@ -34,6 +34,7 @@ export async function advanceLiveChain(deps: AgentFillDeps, session: AgentProvid
   if (!deps.probeLiveLogin) return stop('provider-unavailable');
   let absent = 0;
   let absentDocument = '';
+  let absentSince = 0;
   const deadline = Math.min(Date.now() + 10_000, chain.expiresAt);
   const wait = deps.wait ?? ((ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms)));
   try {
@@ -55,14 +56,19 @@ export async function advanceLiveChain(deps: AgentFillDeps, session: AgentProvid
       if (report.outcome === 'challenge') return stop('challenge');
       if (report.outcome === 'no-form') {
         const document = `${tab.page.documentId}\n${tab.page.url}`;
-        absent = document === absentDocument ? absent + 1 : 1;
+        if (absent === 0 || document !== absentDocument) {
+          absent = 0;
+          absentSince = performance.now();
+        }
+        absent++;
         absentDocument = document;
-        // Stable absence is a terminal observation, never authentication proof.
-        if (absent >= 20) return stop('no-form');
+        // IPC latency varies: require elapsed stable absence, not twenty round trips.
+        // Fresh observations are terminal evidence of no form, never authentication proof.
+        if (absent >= 2 && performance.now() - absentSince >= 2_000) return stop('no-form');
         continue;
       }
       absent = 0;
-      if (report.form.version !== 1) return stop('challenge');
+      if (report.form.version !== 1 && report.form.version !== 2) return stop('challenge');
       const fields = report.form.steps[0]?.fields;
       if (report.form.steps.length !== 1 || !fields?.length
         || fields.some(field => !['credential.username', 'credential.password', 'credential.totp'].includes(field.entryFieldId))) return stop('challenge');

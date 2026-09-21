@@ -35,6 +35,7 @@ describe("credential capture worker", () => {
   let choices: CredentialCaptureChoices;
   const preferences = { isMuted: vi.fn(), mute: vi.fn(), isAutomatic: vi.fn(), setAutomatic: vi.fn() };
   const save = vi.fn();
+  const resolveChoices = vi.fn();
   const isCurrentDocument = vi.fn();
   const isSubmissionDocument = vi.fn();
 
@@ -43,6 +44,7 @@ describe("credential capture worker", () => {
     vi.resetAllMocks();
     session = { profileId: "api:user", generation: 1, unlocked: true };
     choices = { identical: false, targets: [createTarget, updateTarget], defaultIndex: 1 };
+    resolveChoices.mockImplementation(async () => choices);
     isCurrentDocument.mockResolvedValue(true);
     isSubmissionDocument.mockReturnValue(true);
     preferences.isMuted.mockResolvedValue(false);
@@ -50,7 +52,7 @@ describe("credential capture worker", () => {
     save.mockResolvedValue({ action: "updated", revision: "5" });
     coordinator = new CredentialCaptureCoordinator({
       getSession: async () => session, isCurrentDocument, isSubmissionDocument,
-      choices: async () => choices, save, preferences,
+      choices: resolveChoices, save, preferences,
     });
   });
   afterEach(() => { coordinator.clear(); vi.useRealTimers(); });
@@ -59,6 +61,71 @@ describe("credential capture worker", () => {
     expect(await coordinator.dispatch(submitted, source)).toEqual({ status: "accepted" });
     return prompt(await coordinator.dispatch(confirmed, source));
   }
+
+  it.each(['email', 'nickname'] as const)('requires explicit %s selection before matching targets and saving', async choice => {
+    choices = { identical: false, targets: [createTarget], defaultIndex: 0 };
+    const options = { email: 'contact@example.test', nickname: 'public-handle' };
+    await coordinator.dispatch(command({ type: 'submitted', submissionId: 'submission-123456789',
+      credential: { kind: 'registration', username: '', password: 'new', previousPassword: null, usernameOptions: options } }), source);
+    const initial = prompt(await coordinator.dispatch(confirmed, source));
+    expect(initial).toMatchObject({ targets: [], defaultTargetId: null, usernameSelection: { selected: null } });
+    expect(JSON.stringify(initial)).not.toContain('contact@example.test');
+    expect(JSON.stringify(initial)).not.toContain('public-handle');
+    expect(resolveChoices).not.toHaveBeenCalled();
+    expect(await coordinator.dispatch(command({ type: 'save', promptId: initial.id, targetId: 'forged-target-123456', autoUpdate: false }), source)).toEqual({ status: 'stale' });
+    expect(save).not.toHaveBeenCalled();
+    const selected = prompt(await coordinator.dispatch(command({ type: 'choose-username', promptId: initial.id, choice }), source));
+    expect(selected.usernameSelection).toEqual({ selected: choice });
+    expect(resolveChoices).toHaveBeenCalledWith({ kind: 'registration', username: options[choice], password: 'new', previousPassword: null }, source.url);
+    expect(save).not.toHaveBeenCalled();
+    await coordinator.dispatch(command({ type: 'save', promptId: selected.id, targetId: selected.defaultTargetId!, autoUpdate: false }), source);
+    expect(save.mock.calls[0]![0]).toEqual({ kind: 'registration', username: options[choice], password: 'new', previousPassword: null });
+  });
+  it('invalidates old write targets when switching the selected signup identity', async () => {
+    const options = { email: 'contact@example.test', nickname: 'handle' };
+    await coordinator.dispatch(command({ type: 'submitted', submissionId: 'submission-123456789',
+      credential: { kind: 'registration', username: '', password: 'new', previousPassword: null, usernameOptions: options } }), source);
+    const initial = prompt(await coordinator.dispatch(confirmed, source));
+    const email = prompt(await coordinator.dispatch(command({ type: 'choose-username', promptId: initial.id, choice: 'email' }), source));
+    const nickname = prompt(await coordinator.dispatch(command({ type: 'choose-username', promptId: initial.id, choice: 'nickname' }), source));
+    expect(nickname.defaultTargetId).not.toBe(email.defaultTargetId);
+    expect(await coordinator.dispatch(command({ type: 'save', promptId: email.id, targetId: email.defaultTargetId!, autoUpdate: false }), source)).toEqual({ status: 'stale' });
+    expect(save).not.toHaveBeenCalled();
+  });
+  it('keeps identity selection separate from save and hides alternatives while locked', async () => {
+    session = { ...session!, unlocked: false };
+    await coordinator.dispatch(command({ type: 'submitted', submissionId: 'submission-123456789',
+      credential: { kind: 'registration', username: '', password: 'new', previousPassword: null,
+        usernameOptions: { email: 'contact@example.test', nickname: 'handle' } } }), source);
+    const locked = prompt(await coordinator.dispatch(confirmed, source));
+    expect(locked.usernameSelection).toBeUndefined();
+    expect(locked.targets).toEqual([]);
+    expect(JSON.stringify(locked)).not.toContain('contact@example.test');
+    session = { ...session!, unlocked: true, generation: 2 };
+    const initial = prompt(await coordinator.dispatch(command({ type: 'get' }), source));
+    expect(initial.usernameSelection).toEqual({ selected: null });
+    expect(resolveChoices).not.toHaveBeenCalled();
+    expect(await coordinator.dispatch(command({ type: 'choose-username', promptId: 'wrong-prompt-123456', choice: 'email' }), source))
+      .toEqual({ status: 'stale' });
+    expect(resolveChoices).not.toHaveBeenCalled();
+    await coordinator.dispatch(command({ type: 'choose-username', promptId: initial.id, choice: 'email' }), source);
+    expect(resolveChoices).toHaveBeenCalledTimes(1);
+    expect(save).not.toHaveBeenCalled();
+  });
+  it.each(['locked', 'other-document', 'expired', 'profile-switch'])('rejects identity selection after %s', async reason => {
+    await coordinator.dispatch(command({ type: 'submitted', submissionId: 'submission-123456789',
+      credential: { kind: 'registration', username: '', password: 'new', previousPassword: null,
+        usernameOptions: { email: 'contact@example.test', nickname: 'handle' } } }), source);
+    const initial = prompt(await coordinator.dispatch(confirmed, source));
+    if (reason === 'locked') session = { ...session!, unlocked: false };
+    if (reason === 'expired') await vi.advanceTimersByTimeAsync(180001);
+    if (reason === 'profile-switch') session = { ...session!, profileId: 'other-user' };
+    const result = await coordinator.dispatch(command({ type: 'choose-username', promptId: initial.id, choice: 'email' }),
+      reason === 'other-document' ? { ...source, browserDocumentId: 'other-document' } : source);
+    expect(result.status === 'stale' || (result.status === 'prompt' && result.prompt === null)).toBe(true);
+    expect(resolveChoices).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  });
 
   it("joins email and password across two same-origin registration documents without saving early", async () => {
     await coordinator.dispatch(command({ type: "identifier", submissionId: "identifier-123456789", username: "alice@example.test" }), source);

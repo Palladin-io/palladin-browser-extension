@@ -1,16 +1,21 @@
-import { expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import wire from '../../../tests/fixtures/protocol/deferred-live-v2.json';
+import passwordWire from '../../../tests/fixtures/protocol/deferred-password-v2.json';
 import { handleNativeAgentMessage, type AgentFillDeps, type AgentProviderSession } from './native-provider';
 import { cancelPendingDeferred } from './native-deferred';
 import type { AgentInjectForm } from '@shared/messaging';
+let elapsed = 0;
+beforeEach(() => { elapsed = 0; vi.spyOn(performance, 'now').mockImplementation(() => elapsed); });
+afterEach(() => vi.restoreAllMocks());
 const url = 'https://login.example.test/', documentId = 'd'.repeat(32);
 function fixture() {
   const form = structuredClone(wire.inject.form) as AgentInjectForm;
   const page = { id: 7, page: { url, documentId } };
   const ready = { ...wire.submitReady.submitReady };
   const deps = {
+    currentAutomaticFillSession: vi.fn<() => string | null>(() => 'a'.repeat(32)),
     getActivePage: vi.fn(async () => page), getPageById: vi.fn(async () => page), inspectLiveLogin: vi.fn(async () => form),
-    probeLiveLogin: vi.fn(async () => ({ outcome: 'no-form' } as const)), wait: vi.fn(async () => {}),
+    probeLiveLogin: vi.fn<NonNullable<AgentFillDeps['probeLiveLogin']>>(async () => ({ outcome: 'no-form' } as const)), wait: vi.fn(async (ms: number) => { elapsed += ms; }),
     sendStep: vi.fn(async () => ({ ok: true } as const)), probeTransition: vi.fn(async () => ({ status: 'ready' } as const)),
     fillDeferred: vi.fn(async (_tab: number, message: { pendingId: string }) => ({ ok: true as const, submitReady: { ...ready, pendingId: message.pendingId, submitSelector: `palladin-live:${message.pendingId}:${'3'.repeat(32)}` } })),
     commitDeferred: vi.fn(async () => ({ ok: true } as const)), cancelDeferred: vi.fn(async () => {}),
@@ -26,11 +31,29 @@ it('requires a distinct commit after fill, counts one stage only after physical 
   const f = fixture(); await f.prepare();
   expect(await f.inject()).toMatchObject({ outcome: 'submit-ready' });
   expect(f.session.pendingSubmit!.chain.steps).toBe(0);
+  expect(f.deps.fillDeferred).toHaveBeenCalledWith(7, expect.objectContaining({ automaticFillSessionId: 'a'.repeat(32) }));
   expect(f.deps.commitDeferred).not.toHaveBeenCalled(); expect(f.deps.sendStep).not.toHaveBeenCalled();
   const commit = { ...wire.submit, submitReady: f.session.pendingSubmit!.ready, expiresAt: Date.now() + 5_000 };
   expect(await f.send(commit)).toMatchObject({ outcome: 'injected', continuation: { outcome: 'no-form' } });
   expect(await f.send(commit)).toMatchObject({ outcome: 'rejected' });
   expect(f.deps.fillDeferred).toHaveBeenCalledTimes(1); expect(f.deps.commitDeferred).toHaveBeenCalledTimes(1);
+});
+it('continues one deferred username into one fresh deferred password with the same chain and carried identity', async () => {
+  const f = fixture(); await f.prepare(); await f.inject();
+  const passwordForm = structuredClone(passwordWire.carriedUsername.inject.form) as AgentInjectForm;
+  f.deps.probeLiveLogin.mockResolvedValue({ outcome: 'ready', form: passwordForm });
+  expect(await f.commit()).toMatchObject({ outcome: 'injected', continuation: { outcome: 'ready', liveForm: passwordForm } });
+  const chain = f.session.liveChain!; expect(chain.steps).toBe(1);
+  const next = { ...structuredClone(passwordWire.carriedUsername.inject), transactionId: 'password-tx', expiresAt: Date.now() + 10_000 };
+  expect(await f.send(next)).toMatchObject({ outcome: 'submit-ready' });
+  expect(f.session.pendingSubmit!.chain).toBe(chain); expect(chain.steps).toBe(1);
+  expect(f.deps.fillDeferred).toHaveBeenLastCalledWith(7, expect.objectContaining({ requireExistingUsername: true }));
+  expect(f.deps.fillDeferred.mock.calls.at(-1)![1]).not.toHaveProperty('automaticFillSessionId');
+  const commit = { ...wire.submit, transactionId: 'password-commit', preparedTransactionId: 'password-tx', submitReady: f.session.pendingSubmit!.ready, expiresAt: Date.now() + 1000 };
+  // An unchanged password step after submission times out instead of replaying.
+  expect(await f.send(commit)).toMatchObject({ outcome: 'injected', continuation: { outcome: 'timeout' } });
+  expect(chain.steps).toBe(2); expect(f.deps.fillDeferred).toHaveBeenCalledTimes(2); expect(f.deps.commitDeferred).toHaveBeenCalledTimes(2);
+  expect(await f.send(commit)).toMatchObject({ outcome: 'rejected' });
 });
 it.each(['grantId','entryId','expectedDomain','preparedTransactionId','expired','replay','document','lost-response'])('fails closed on %s before/after the one commit', async mutation => {
   const f = fixture(); await f.prepare(); await f.inject();
@@ -60,4 +83,21 @@ it('accepts cancellation only for the current connection-owned tuple', async () 
   const pendingId = f.session.pendingSubmit!.pendingId;
   await f.send({ ...wire.cancel, pendingId: 'f'.repeat(32) }); expect(f.session.pendingSubmit).not.toBeNull();
   await f.send({ ...wire.cancel, pendingId }); expect(f.session.pendingSubmit).toBeNull(); expect(f.deps.cancelDeferred).toHaveBeenCalledTimes(1);
+});
+
+it('does not forward an automatic replacement epoch while the worker is locked or restarted', async () => {
+  const f = fixture(); f.deps.currentAutomaticFillSession.mockReturnValue(null);
+  await f.prepare(); await f.inject();
+  expect(f.deps.fillDeferred.mock.calls[0]![1]).not.toHaveProperty('automaticFillSessionId');
+  cancelPendingDeferred(f.deps, f.session);
+});
+
+it('never forwards automatic replacement provenance to a password-only continuation', async () => {
+  const f = fixture(); await f.prepare(); await f.inject();
+  const form = structuredClone(passwordWire.passwordOnly.inject.form) as AgentInjectForm;
+  f.deps.probeLiveLogin.mockResolvedValue({ outcome: 'ready', form });
+  expect(await f.commit()).toMatchObject({ outcome: 'injected', continuation: { outcome: 'ready' } });
+  expect(await f.send({ ...structuredClone(passwordWire.passwordOnly.inject), transactionId: 'password-only-tx', expiresAt: Date.now() + 10_000 })).toMatchObject({ outcome: 'submit-ready' });
+  expect(f.deps.fillDeferred.mock.calls.at(-1)![1]).not.toHaveProperty('automaticFillSessionId');
+  cancelPendingDeferred(f.deps, f.session);
 });

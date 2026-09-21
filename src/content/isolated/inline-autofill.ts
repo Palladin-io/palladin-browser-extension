@@ -1,3 +1,4 @@
+import { clearAutomaticFillProvenance, discardAutomaticFillProvenance } from './automatic-fill-provenance';
 import en from "../../popup/locales/en.json";
 import pl from "../../popup/locales/pl.json";
 import palladinIconUrl from "../../../icons/icon-32.png?inline";
@@ -16,10 +17,12 @@ import {
   type InlineAutofillCommand,
   type InlineAutofillSuggestion,
 } from "@shared/messaging";
+import { queryOpenElements } from "./open-dom";
 import {
+  discardLoginTargetFill,
   isCurrentLoginTarget,
   loginTargetFor,
-  submitLoginForm,
+  submitFilledLoginTarget,
   type LoginTarget,
 } from "./fill";
 
@@ -80,18 +83,35 @@ function mutationAffectsLoginDiscovery(record: MutationRecord): boolean {
   if (!(record.target instanceof Element)) return false;
   const target = record.target;
   if (record.attributeName === "form") return target instanceof HTMLInputElement;
-  if (record.attributeName === "id") return target instanceof HTMLFormElement;
+  if (record.attributeName === "id") return target instanceof HTMLFormElement || target instanceof HTMLInputElement;
   if (["class", "style", "hidden", "aria-hidden", "inert", "disabled", "open"]
     .includes(record.attributeName ?? "")) {
-    return target instanceof HTMLInputElement || target.querySelector("input") !== null;
+    // Ancestors may own inputs in open roots. Keep this callback O(records);
+    // the throttled scan decides whether a credential scope is affected.
+    return true;
   }
   return target instanceof HTMLInputElement;
 }
 
+// Native attachShadow does not emit a document MutationRecord. Probe only
+// eligible, already-seen hosts; never patch page prototypes or enter closed roots.
+// Native host names: https://dom.spec.whatwg.org/#valid-shadow-host-name
+const SHADOW_HOST_TAGS = new Set(['article', 'aside', 'blockquote', 'body', 'div', 'footer',
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'main', 'nav', 'p', 'section', 'span']);
+const SHADOW_PROBE_INTERVAL_MS = 250;
+const SHADOW_PROBE_BATCH = 256;
+
 class InlineAutofillController {
   private readonly widgets = new Map<HTMLInputElement, InlineWidget>();
   private observer: MutationObserver | null = null;
-  private scheduled = false;
+  private resizeObserver: ResizeObserver | null = null;
+  private readonly observedInputs = new Set<HTMLInputElement>();
+  private positionFrame: number | null = null;
+  private readonly layoutRoots = new Set<ShadowRoot>();
+  private scanTimer: ReturnType<typeof setTimeout> | null = null;
+  private shadowProbeTimer: ReturnType<typeof setTimeout> | null = null;
+  private shadowCandidates: WeakRef<Element>[] = [];
+  private shadowCursor = 0;
   private locale: UiLocale = "en";
   private theme: ThemePreference = "system";
   private stopped = false;
@@ -105,19 +125,47 @@ class InlineAutofillController {
   ) {}
 
   start(): void {
-    this.scan();
     const view = this.doc.defaultView;
     if (!view) return;
+    if (typeof view.ResizeObserver === "function") {
+      this.resizeObserver = new view.ResizeObserver(() => { this.scheduleScan(); this.reposition(); });
+    }
+    this.scan();
     this.observer = new view.MutationObserver((records) => {
-      if (records.some(mutationAffectsLoginDiscovery)) this.scheduleScan();
+      const pageRecords = records.filter(record => !(record.target instanceof Element && this.isOwnedSurface(record.target)));
+      if (pageRecords.some(mutationAffectsLoginDiscovery)) this.scheduleScan();
+      // Inputs can move without resizing when a sibling error appears. Do not
+      // observe our own positioning writes recursively or scan the whole form
+      // just because unrelated page text changed.
+      if (pageRecords.length > 0) {
+        this.scheduleReposition();
+      }
     });
-    this.observer.observe(this.doc.documentElement, {
+    this.observeOpenRoots();
+    view.addEventListener("scroll", this.reposition, true);
+    view.addEventListener("resize", this.handleResize);
+    this.doc.addEventListener("pointerdown", this.closeOutside, true);
+    this.doc.addEventListener("transitionend", this.handleLayoutEnd, true);
+    this.doc.addEventListener("animationend", this.handleLayoutEnd, true);
+    void this.loadPreferences();
+  }
+
+  private observeOpenRoots(): void {
+    if (!this.observer) return;
+    // Rebuild subscriptions from connected roots; removed components must not
+    // retain controls or trigger scans after their document subtree disappears.
+    this.observer.disconnect();
+    const options: MutationObserverInit = {
       childList: true,
       subtree: true,
+      characterData: true,
       attributes: true,
       attributeFilter: [
         "type",
         "autocomplete",
+        "name",
+        "role",
+        "aria-label",
         "disabled",
         "readonly",
         "hidden",
@@ -129,20 +177,82 @@ class InlineAutofillController {
         "id",
         "open",
       ],
-    });
-    view.addEventListener("scroll", this.reposition, true);
-    view.addEventListener("resize", this.handleResize);
-    this.doc.addEventListener("pointerdown", this.closeOutside, true);
-    void this.loadPreferences();
+    };
+    this.observer.observe(this.doc.documentElement, options);
+    const roots = new Set<ShadowRoot>();
+    const candidates: WeakRef<Element>[] = [];
+    for (const element of queryOpenElements(this.doc, '*')) {
+      if (this.isOwnedSurface(element)) continue;
+      const root = element.shadowRoot;
+      if (!root) {
+        if (element instanceof HTMLElement && (element.localName.includes('-') || SHADOW_HOST_TAGS.has(element.localName))) {
+          candidates.push(new WeakRef(element));
+        }
+        continue;
+      }
+      roots.add(root);
+      this.observer.observe(root, options);
+      if (!this.layoutRoots.has(root)) {
+        // Native transition/animation end events do not cross shadow boundaries.
+        root.addEventListener("transitionend", this.handleLayoutEnd, true);
+        root.addEventListener("animationend", this.handleLayoutEnd, true);
+        this.layoutRoots.add(root);
+      }
+    }
+    this.shadowCandidates = candidates;
+    // Retain the rotating cursor across unrelated scans, avoiding starvation of
+    // later hosts on a busy SPA. The normal scan removes disconnected hosts.
+    this.shadowCursor %= Math.max(1, candidates.length);
+    this.scheduleShadowProbe();
+    for (const root of this.layoutRoots) {
+      if (roots.has(root)) continue;
+      root.removeEventListener("transitionend", this.handleLayoutEnd, true);
+      root.removeEventListener("animationend", this.handleLayoutEnd, true);
+      this.layoutRoots.delete(root);
+    }
+  }
+
+  private scheduleShadowProbe(): void {
+    if (this.stopped || this.shadowProbeTimer !== null || this.shadowCandidates.length === 0) return;
+    this.shadowProbeTimer = setTimeout(() => {
+      this.shadowProbeTimer = null;
+      if (this.stopped) return;
+      const count = Math.min(SHADOW_PROBE_BATCH, this.shadowCandidates.length);
+      for (let index = 0; index < count; index++) {
+        const host = this.shadowCandidates[this.shadowCursor]?.deref();
+        this.shadowCursor = (this.shadowCursor + 1) % this.shadowCandidates.length;
+        // Cheap native property checks only: no DOM traversal or layout reads.
+        if (host?.isConnected && host.ownerDocument === this.doc && host.shadowRoot) this.scheduleScan();
+      }
+      this.scheduleShadowProbe();
+    }, SHADOW_PROBE_INTERVAL_MS);
   }
 
   stop(): void {
+    clearAutomaticFillProvenance(this.doc);
     this.stopped = true;
     this.observer?.disconnect();
+    if (this.scanTimer !== null) clearTimeout(this.scanTimer);
+    this.scanTimer = null;
+    if (this.shadowProbeTimer !== null) clearTimeout(this.shadowProbeTimer);
+    this.shadowProbeTimer = null;
+    this.shadowCandidates = [];
+    this.shadowCursor = 0;
+    this.resizeObserver?.disconnect();
+    this.observedInputs.clear();
     const view = this.doc.defaultView;
+    if (this.positionFrame !== null) view?.cancelAnimationFrame(this.positionFrame);
+    this.positionFrame = null;
     view?.removeEventListener("scroll", this.reposition, true);
     view?.removeEventListener("resize", this.handleResize);
     this.doc.removeEventListener("pointerdown", this.closeOutside, true);
+    this.doc.removeEventListener("transitionend", this.handleLayoutEnd, true);
+    this.doc.removeEventListener("animationend", this.handleLayoutEnd, true);
+    for (const root of this.layoutRoots) {
+      root.removeEventListener("transitionend", this.handleLayoutEnd, true);
+      root.removeEventListener("animationend", this.handleLayoutEnd, true);
+    }
+    this.layoutRoots.clear();
     for (const widget of this.widgets.values()) widget.destroy();
     this.widgets.clear();
   }
@@ -167,6 +277,7 @@ class InlineAutofillController {
   }
 
   clearSessionState(): void {
+    clearAutomaticFillProvenance(this.doc);
     for (const widget of this.widgets.values()) widget.clearSessionState();
   }
 
@@ -183,7 +294,8 @@ class InlineAutofillController {
 
   resolveLoginTarget(loginTargetId: string): LoginTarget | null {
     for (const widget of this.widgets.values()) {
-      if (widget.loginTargetId === loginTargetId) return widget.loginTarget;
+      const target = widget.takeFillTarget(loginTargetId);
+      if (target !== null) return target;
     }
     return null;
   }
@@ -191,6 +303,17 @@ class InlineAutofillController {
   private readonly reposition = (): void => {
     for (const widget of this.widgets.values()) widget.reposition();
   };
+
+  private scheduleReposition(): void {
+    const view = this.doc.defaultView;
+    if (!view?.requestAnimationFrame || this.positionFrame !== null || this.stopped) return;
+    this.positionFrame = view.requestAnimationFrame(() => {
+      this.positionFrame = null;
+      if (!this.stopped) this.reposition();
+    });
+  }
+
+  private readonly handleLayoutEnd = (): void => this.scheduleReposition();
 
   private readonly handleResize = (): void => {
     this.scheduleScan();
@@ -204,24 +327,33 @@ class InlineAutofillController {
   };
 
   private scheduleScan(): void {
-    if (this.scheduled || this.stopped) return;
-    this.scheduled = true;
-    queueMicrotask(() => {
-      this.scheduled = false;
+    if (this.scanTimer !== null || this.stopped) return;
+    // Fixed cadence, not a trailing debounce: a busy SPA cannot postpone
+    // discovery forever. Geometry updates stay independently frame-coalesced.
+    this.scanTimer = setTimeout(() => {
+      this.scanTimer = null;
       if (!this.stopped) this.scan();
-    });
+    }, 100);
   }
 
   private scan(): void {
+    if (this.automaticFillUrl !== null && this.automaticFillUrl !== this.doc.location.href) clearAutomaticFillProvenance(this.doc);
+    for (const input of this.observedInputs) {
+      if (!input.isConnected) { this.resizeObserver?.unobserve(input); this.observedInputs.delete(input); }
+    }
     for (const [input, widget] of this.widgets) {
       const currentTarget = input.isConnected ? loginTargetFor(input) : null;
       if (currentTarget === null || !widget.matchesLoginTarget(currentTarget)) {
         widget.destroy();
         this.widgets.delete(input);
-      }
+      } else widget.restoreHost();
     }
     if (this.widgets.size === 0) this.automaticFillUrl = null;
-    for (const input of this.doc.querySelectorAll<HTMLInputElement>("input")) {
+    for (const input of queryOpenElements<HTMLInputElement>(this.doc, 'input')) {
+      if (this.resizeObserver && !this.observedInputs.has(input)) {
+        this.resizeObserver.observe(input);
+        this.observedInputs.add(input);
+      }
       const loginTarget = loginTargetFor(input);
       if (loginTarget === null || this.widgets.has(input)) continue;
       const widget = new InlineWidget({
@@ -240,6 +372,7 @@ class InlineAutofillController {
       this.widgets.set(input, widget);
       widget.mount();
     }
+    this.observeOpenRoots();
     const currentUrl = this.doc.location.href;
     const first = this.widgets.values().next().value as InlineWidget | undefined;
     if (first !== undefined && this.automaticFillUrl !== currentUrl) {
@@ -276,6 +409,14 @@ interface InlineWidgetOptions {
   readonly closeOthers: () => void;
 }
 
+interface PendingInlineFill {
+  readonly id: string;
+  readonly target: LoginTarget;
+  readonly url: string;
+  readonly manual: boolean;
+  initialValues: string | null;
+}
+
 class InlineWidget {
   readonly host: HTMLElement;
   private readonly shadow: ShadowRoot;
@@ -289,6 +430,8 @@ class InlineWidget {
   private suggestionsInFlight: Promise<unknown> | null = null;
   private lastFilled: Pick<InlineAutofillSuggestion, "vaultId" | "entryId" | "name" | "updatedAt"> | null = null;
   private destroyed = false;
+  private nextFillOperation = 0;
+  private pendingFill: PendingInlineFill | null = null;
 
   constructor(private readonly options: InlineWidgetOptions) {
     const surface = createClosedSurface(options.doc, "palladin-autofill");
@@ -310,12 +453,23 @@ class InlineWidget {
     this.shadow.append(this.button, this.panel);
   }
 
-  get loginTarget(): LoginTarget {
-    return this.options.loginTarget;
+  /** A browser-bound delivery can consume only the exact locally initiated operation. */
+  takeFillTarget(id: string): LoginTarget | null {
+    const pending = this.pendingFill;
+    if (!pending || pending.id !== id || pending.initialValues === null) return null;
+    const initialValues = pending.initialValues;
+    pending.initialValues = null;
+    if (this.destroyed || this.options.doc.location.href !== pending.url
+      || !isCurrentLoginTarget(pending.target) || loginValueSnapshot(pending.target) !== initialValues) return null;
+    return pending.target;
   }
 
-  get loginTargetId(): string {
-    return this.options.loginTargetId;
+  private invalidatePendingFill(): void {
+    if (this.pendingFill) {
+      this.pendingFill.initialValues = null;
+      discardLoginTargetFill(this.pendingFill.target);
+    }
+    this.pendingFill = null;
   }
 
   matchesLoginTarget(target: LoginTarget): boolean {
@@ -329,13 +483,26 @@ class InlineWidget {
     this.options.doc.documentElement.append(this.host);
     this.options.input.addEventListener("focus", this.handleFocus);
     this.button.addEventListener("pointerdown", (event) => event.preventDefault());
-    this.button.addEventListener("click", () => void this.open());
+    this.button.addEventListener("click", () => {
+      // Only an explicit shield click leaves the page input, dismissing its native chooser.
+      this.button.focus({ preventScroll: true });
+      void this.open();
+    });
     this.reposition();
     this.options.doc.defaultView?.requestAnimationFrame?.(() => this.reposition());
   }
 
+  /** Restore only the owned host, preserving listeners, fill state and operation identity. */
+  restoreHost(): void {
+    if (this.destroyed || this.host.isConnected) return;
+    this.options.doc.documentElement.append(this.host);
+    this.reposition();
+  }
+
   destroy(): void {
+    discardAutomaticFillProvenance(this.options.loginTarget);
     this.destroyed = true;
+    this.invalidatePendingFill();
     this.invalidateSuggestions();
     this.options.input.removeEventListener("focus", this.handleFocus);
     this.host.remove();
@@ -361,6 +528,7 @@ class InlineWidget {
   }
 
   clearSessionState(): void {
+    this.invalidatePendingFill();
     this.lastFilled = null;
     this.automaticFillRetryRequested = false;
   }
@@ -461,7 +629,8 @@ class InlineWidget {
       return;
     }
     const initialValues = loginValueSnapshot(this.options.loginTarget);
-    if (initialValues !== "\u0000") return;
+    if ([this.options.loginTarget.username, this.options.loginTarget.password]
+      .some(input => input !== null && input.value !== "")) return;
     this.automaticFillInFlight = true;
     try {
       const raw = await this.loadSuggestions();
@@ -580,7 +749,10 @@ class InlineWidget {
     const title = this.createTitle();
     const list = this.options.doc.createElement("div");
     list.className = "list";
+    const identifiers = ambiguousSuggestionIdentifiers(entries, this.options.locale());
     for (const entry of entries) {
+      const identifier = identifiers.get(entry.entryId);
+      const suffix = identifier === undefined ? "" : ` · ${identifier}`;
       const row = this.options.doc.createElement("div");
       row.className = "option-row";
       const option = this.options.doc.createElement("button");
@@ -600,7 +772,8 @@ class InlineWidget {
         text.append(primary);
       }
       const detail = this.options.doc.createElement("small");
-      detail.textContent = suggestionDetail(entry, this.options.locale());
+      const detailText = suggestionDetail(entry, this.options.locale());
+      detail.textContent = identifier === undefined ? detailText : `${identifier} · ${detailText}`;
       text.append(detail);
       option.append(text);
       option.addEventListener("click", () => void this.fill(entry));
@@ -609,7 +782,7 @@ class InlineWidget {
       submit.type = "button";
       submit.className = "submit-login";
       submit.title = message(this.options.locale(), "inline.fillAndLogin");
-      submit.setAttribute("aria-label", `${submit.title}: ${entry.username || entry.name}`);
+      submit.setAttribute("aria-label", `${submit.title}: ${entry.username || entry.name}${suffix}`);
       const submitLabel = this.options.doc.createElement("span");
       submitLabel.textContent = message(this.options.locale(), "inline.logIn");
       submit.append(submitLabel);
@@ -662,45 +835,68 @@ class InlineWidget {
       if (!silent) this.renderStatus("inline.noForm");
       return false;
     }
-    if (!silent) this.renderStatus("inline.filling");
-    let raw: unknown;
+    if (!silent) discardAutomaticFillProvenance(this.options.loginTarget);
+    // The latest explicit choice supersedes a pending passive/explicit request.
+    // A passive retry cannot displace the user's outstanding choice.
+    if (silent && this.pendingFill?.manual) return false;
+    this.invalidatePendingFill();
+    const operation: PendingInlineFill = {
+      id: `${this.options.loginTargetId}:fill-${++this.nextFillOperation}`,
+      target: { ...this.options.loginTarget },
+      url: this.options.doc.location.href,
+      manual: !silent,
+      initialValues: loginValueSnapshot(this.options.loginTarget),
+    };
+    this.pendingFill = operation;
     try {
-      raw = await this.options.send({
-        channel: INLINE_AUTOFILL_CHANNEL,
-        type: "inline/fill",
-        documentId: this.options.documentId,
-        vaultId: entry.vaultId,
-        entryId: entry.entryId,
-        scope: entry.match,
-        loginTargetId: this.options.loginTargetId,
-      });
-    } catch {
-      raw = null;
+      if (!silent) this.renderStatus("inline.filling");
+      let raw: unknown;
+      try {
+        raw = await this.options.send({
+          channel: INLINE_AUTOFILL_CHANNEL,
+          type: "inline/fill",
+          intent: silent ? "automatic" : "manual",
+          documentId: this.options.documentId,
+          vaultId: entry.vaultId,
+          entryId: entry.entryId,
+          scope: entry.match,
+          loginTargetId: operation.id,
+        });
+      } catch {
+        raw = null;
+      }
+      if (this.pendingFill !== operation || this.destroyed) return false;
+      if (!isInlineAutofillResult(raw) || !raw.ok || raw.kind !== "fill") {
+        if (!silent) this.renderStatus("inline.unavailable");
+        return false;
+      }
+      if (raw.status === "filled" && submitAfterFill) {
+        if (!await submitFilledLoginTarget(operation.target,
+          () => !this.destroyed && this.pendingFill === operation && this.options.doc.location.href === operation.url)) {
+          if (!silent && !this.destroyed && this.pendingFill === operation) this.renderStatus("inline.noForm");
+          return false;
+        }
+      }
+      if (raw.status === "filled") {
+        this.lastFilled = {
+          vaultId: entry.vaultId,
+          entryId: entry.entryId,
+          name: entry.name,
+          updatedAt: entry.updatedAt,
+        };
+      }
+      if (!silent) {
+        this.renderStatus(raw.status === "filled"
+          ? "inline.filled"
+          : raw.status === "no-form"
+            ? "inline.noForm"
+            : raw.status === "unavailable" ? "inline.unavailable" : "inline.blocked");
+        if (raw.status === "filled") setTimeout(() => this.close(), 700);
+      }
+      return raw.status === "filled";
+    } finally {
+      if (this.pendingFill === operation) this.invalidatePendingFill();
     }
-    if (!isInlineAutofillResult(raw) || !raw.ok || raw.kind !== "fill") {
-      if (!silent) this.renderStatus("inline.unavailable");
-      return false;
-    }
-    if (raw.status === "filled" && submitAfterFill) {
-      submitLoginForm(this.options.loginTarget.password);
-    }
-    if (raw.status === "filled") {
-      this.lastFilled = {
-        vaultId: entry.vaultId,
-        entryId: entry.entryId,
-        name: entry.name,
-        updatedAt: entry.updatedAt,
-      };
-    }
-    if (!silent) {
-      this.renderStatus(raw.status === "filled"
-        ? "inline.filled"
-        : raw.status === "no-form"
-          ? "inline.noForm"
-          : raw.status === "unavailable" ? "inline.unavailable" : "inline.blocked");
-      if (raw.status === "filled") setTimeout(() => this.close(), 700);
-    }
-    return raw.status === "filled";
   }
 
   private renderStatus(key: InlineKey): void {
@@ -712,7 +908,7 @@ class InlineWidget {
 }
 
 function loginValueSnapshot(target: LoginTarget): string {
-  return `${target.username.value}\u0000${target.password.value}`;
+  return JSON.stringify([target.username?.value ?? null, target.password?.value ?? null]);
 }
 
 function message(locale: UiLocale, key: InlineKey): string {
@@ -733,6 +929,32 @@ export function suggestionDetail(entry: InlineAutofillSuggestion, locale: UiLoca
   return entry.match === "related"
     ? `${message(locale, "inline.related")}: ${entry.urlDomain} · ${vault}`
     : vault;
+}
+
+export function ambiguousSuggestionIdentifiers(
+  entries: readonly InlineAutofillSuggestion[],
+  locale: UiLocale,
+): ReadonlyMap<string, string> {
+  const groups = new Map<string, InlineAutofillSuggestion[]>();
+  for (const entry of entries) {
+    const key = JSON.stringify([
+      entry.username || entry.name,
+      displayEntryLabel(entry),
+      suggestionDetail(entry, locale),
+    ]).toLowerCase();
+    const group = groups.get(key) ?? [];
+    group.push(entry);
+    groups.set(key, group);
+  }
+  const identifiers = new Map<string, string>();
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    for (const entry of group) {
+      const id = entry.entryId;
+      identifiers.set(id, id.length > 15 ? `${id.slice(0, 8)}…${id.slice(-6)}` : id);
+    }
+  }
+  return identifiers;
 }
 
 function resolvedTheme(preference: ThemePreference, view: Window | null): "light" | "dark" {

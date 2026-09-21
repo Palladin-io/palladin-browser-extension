@@ -12,6 +12,7 @@ import { cacheBustContentLoaders } from '../../scripts/cache-bust-content-loader
 const directory = 'tests/fixtures/forms/aws-root-identifier-2026-09-18';
 const html = await readFile(`${directory}/page.html`, 'utf8');
 const css = await readFile(`${directory}/page.css`, 'utf8');
+const xPassword = await readFile('tests/fixtures/forms/x-deferred-password-2026-09-20.html', 'utf8');
 const allegro = await readFile('tests/fixtures/forms/allegro-login-ad-2026-09-20/page.html', 'utf8');
 const profile = await mkdtemp(path.join(tmpdir(), 'palladin-live-'));
 let context;
@@ -57,12 +58,20 @@ try {
       const message = { channel: 'palladin.agent-inject/step', documentId: target.documentId, expectedDomain: 'login.example.test', step: probe.form.steps[0],
         ...(scenario === 'carry' && fields.includes('credential.password') ? { requireExistingUsername: true } : {}),
         values: fields.map(entryFieldId => ({ entryFieldId, value: entryFieldId === 'credential.username' ? 'synthetic@example.test' : entryFieldId === 'credential.password' ? 'Synthetic-password!42' : '123456' })) };
-      assert.deepEqual(await send(target, message), { ok: true });
+      let replayMessage = message;
+      if (probe.form.version === 2) {
+        const ready = await send(target, { channel: 'palladin.agent-live/deferred-fill', pendingId: 'b'.repeat(32), documentId: target.documentId,
+          expectedDomain: 'login.example.test', form: probe.form, values: message.values, expiresAt: Date.now() + 10_000,
+          ...(message.requireExistingUsername ? { requireExistingUsername: true } : {}) });
+        assert.equal(ready.ok, true);
+        replayMessage = { channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'login.example.test', submitReady: ready.submitReady, expiresAt: Date.now() + 1000 };
+        assert.deepEqual(await send(target, replayMessage), { ok: true });
+      } else assert.deepEqual(await send(target, message), { ok: true });
       if (scenario === 'navigation') {
         const nextPath = fields.includes('credential.username') ? '/password' : fields.includes('credential.password') ? '/otp' : '/done';
         await page.waitForURL(url => url.pathname === nextPath, { waitUntil: 'domcontentloaded' });
       }
-      assert.equal((await send(await binding(), message)).ok, false, 'A consumed or old-document step cannot repeat');
+      assert.equal((await send(await binding(), replayMessage)).ok, false, 'A consumed or old-document step cannot repeat');
     }
     const target = await binding();
     assert.deepEqual(await send(target, { channel: 'palladin.agent-live/probe', documentId: target.documentId, targetUrl: target.url }), { outcome: 'no-form' });
@@ -91,8 +100,10 @@ try {
   await page.evaluate(() => { document.querySelector('[data-sitekey]').remove(); document.querySelector('form').addEventListener('submit', event => { event.preventDefault(); globalThis.syntheticSubmitted = true; }); });
   observed = await probe();
   assert.equal(observed.outcome, 'ready');
-  assert.deepEqual(await send(target, { channel: 'palladin.agent-inject/step', documentId: target.documentId, expectedDomain: 'login.example.test', step: observed.form.steps[0],
-    values: [{ entryFieldId: 'credential.username', value: 'synthetic@example.test' }, { entryFieldId: 'credential.password', value: 'Synthetic-password!42' }] }), { ok: true });
+  const observedReady = await send(target, { channel: 'palladin.agent-live/deferred-fill', pendingId: 'b'.repeat(32), documentId: target.documentId, expectedDomain: 'login.example.test', form: observed.form,
+    expiresAt: Date.now() + 10_000, values: [{ entryFieldId: 'credential.username', value: 'synthetic@example.test' }, { entryFieldId: 'credential.password', value: 'Synthetic-password!42' }] });
+  assert.equal(observedReady.ok, true);
+  assert.deepEqual(await send(target, { channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'login.example.test', submitReady: observedReady.submitReady, expiresAt: Date.now() + 1000 }), { ok: true });
   assert.equal(await page.evaluate(() => globalThis.syntheticSubmitted), true);
   console.log('PASS observed-allegro: unrelated ad frame, overlay/CAPTCHA rejection, native fill/submit');
   for (const expired of [false, true]) {
@@ -112,9 +123,49 @@ try {
     assert.equal(await page.evaluate(() => globalThis.submitEvents), expired ? 0 : 1);
   }
   console.log('PASS synthetic-deferred: fill once, real native-action rediscovery, separate commit, replay/expiry rejection');
+  for (const route of ['x-password-observed', 'queued-div']) {
+    // The sanitized subtree omits production layout classes/resources. A wide
+    // synthetic viewport keeps its unstyled SVG/button row visible; this is a
+    // mechanism replay, not a claim about the original page geometry.
+    await page.setViewportSize({ width: route === 'x-password-observed' ? 2600 : 1280, height: 2000 });
+    await page.goto(`https://login.example.test/${route}`);
+    const target = await binding();
+    const plan = await send(target, { channel: 'palladin.agent-live/probe', documentId: target.documentId, targetUrl: target.url });
+    assert.equal(plan.outcome, 'ready'); assert.equal(plan.form.version, 2);
+    const ready = await send(target, { channel: 'palladin.agent-live/deferred-fill', pendingId: 'c'.repeat(32), documentId: target.documentId,
+      expectedDomain: 'login.example.test', form: plan.form, expiresAt: Date.now() + 10_000,
+      values: [{ entryFieldId: 'credential.username', value: 'synthetic@example.test' }, { entryFieldId: 'credential.password', value: 'Synthetic-password!42' }] });
+    assert.equal(ready.ok, true, JSON.stringify({ ready, state: await page.evaluate(() => ({ identityEvents: globalThis.identityEvents,
+      controls: [...document.querySelectorAll('input,button')].map(element => { const rect = element.getBoundingClientRect(); return { tag: element.tagName, type: element.type,
+        disabled: element.disabled, filled: element instanceof HTMLInputElement && element.value.length > 0, rect: [rect.x,rect.y,rect.width,rect.height], opacity: getComputedStyle(element).opacity }; }) })) }));
+    assert.equal(await page.evaluate(() => globalThis.submitEvents), 0);
+    assert.deepEqual(await send(target, { channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'login.example.test', submitReady: ready.submitReady, expiresAt: Date.now() + 1000 }), { ok: true });
+    assert.deepEqual(await page.evaluate(() => [globalThis.submitEvents, globalThis.stateAccepted]), [1, true]);
+    if (route === 'x-password-observed') assert.equal(await page.evaluate(() => globalThis.identityEvents), 0);
+    console.log(`PASS ${route}: single deferred commit after queued state, identity preserved`);
+  }
+
 } finally { await context?.close(); await rm(profile, { recursive: true, force: true }); }
 
 function fixture(route) {
+  if (route === '/x-password-observed' || route === '/queued-div') {
+    const observed = route === '/x-password-observed';
+    const body = observed ? xPassword : '<div id="login"><input autocomplete="username"><input type="password" autocomplete="current-password"><button type="button">Sign in</button></div>';
+    return `<!doctype html><html><head><meta charset="utf-8"><style>input,button{min-height:32px;min-width:180px}</style></head><body>${body}<script>
+      // Synthetic handlers on observed structure, never production website JS.
+      globalThis.identityEvents=0;globalThis.submitEvents=0;globalThis.stateAccepted=false;
+      const identity=document.querySelector('input[autocomplete=username]'),password=document.querySelector('input[type=password]');
+      const observed=${JSON.stringify(observed)}; if(observed) identity.value='synthetic@example.test';
+      let stateIdentity=identity.value,statePassword='';
+      identity.addEventListener('input',()=>{identityEvents++;const value=identity.value;setTimeout(()=>stateIdentity=value,0)});
+      identity.addEventListener('change',()=>identityEvents++);
+      password.addEventListener('input',()=>{const value=password.value;setTimeout(()=>{statePassword=value;
+        if(observed) document.querySelector('form').insertAdjacentHTML('beforeend','<button type="submit">Continue</button>');},0)});
+      const complete=event=>{event.preventDefault();submitEvents++;stateAccepted=stateIdentity==='synthetic@example.test'&&statePassword==='Synthetic-password!42'};
+      if(observed) document.querySelector('form').addEventListener('submit',complete);else document.querySelector('button').addEventListener('click',complete);
+    </script></body></html>`;
+  }
+
   if (route === '/deferred-synthetic') return `<!doctype html><html><head><meta charset="utf-8"><style>form{width:400px}input,button{min-height:32px}input{display:block;margin:16px}</style></head><body>
     <form><input autocomplete="username"><input type="password" style="opacity:0"><div>Continue</div></form><script>
     // Synthetic mechanism only: no claim about X production post-input behavior.

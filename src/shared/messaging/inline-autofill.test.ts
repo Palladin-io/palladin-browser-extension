@@ -11,12 +11,12 @@ const documentId = "a".repeat(32);
 describe("inline autofill messages", () => {
   it("accepts exact list, fill, and open commands only", () => {
     expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/list", documentId })).toBe(true);
-    expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", documentId, vaultId: "v", entryId: "e", scope: "exact", loginTargetId: "login-1" })).toBe(true);
+    expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", intent: "manual", documentId, vaultId: "v", entryId: "e", scope: "exact", loginTargetId: "login-1" })).toBe(true);
     expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/open-palladin", documentId })).toBe(true);
     expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/list", documentId, extra: true })).toBe(false);
-    expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", documentId: "bad", vaultId: "v", entryId: "e", scope: "exact", loginTargetId: "login-1" })).toBe(false);
-    expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", documentId, vaultId: "v", entryId: "e", scope: "site-wide", loginTargetId: "login-1" })).toBe(false);
-    expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", documentId, vaultId: "v", entryId: "e", scope: "exact" })).toBe(false);
+    expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", intent: "manual", documentId: "bad", vaultId: "v", entryId: "e", scope: "exact", loginTargetId: "login-1" })).toBe(false);
+    expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", intent: "manual", documentId, vaultId: "v", entryId: "e", scope: "site-wide", loginTargetId: "login-1" })).toBe(false);
+    expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", intent: "manual", documentId, vaultId: "v", entryId: "e", scope: "exact" })).toBe(false);
   });
 
   it("accepts value-free strict responses", () => {
@@ -31,4 +31,20 @@ describe("inline autofill messages", () => {
     expect(isInlineAutofillResult({ ok: true, kind: "surface", status: "opened" })).toBe(true);
     expect(isInlineAutofillResult({ ok: true, kind: "fill", status: "filled", value: "secret" })).toBe(false);
   });
+});
+
+
+it('requires explicit intent and refuses automatic related-host selection', () => {
+  const fill = { channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', documentId: 'a'.repeat(32),
+    vaultId: 'v', entryId: 'e', scope: 'exact', loginTargetId: 'login-1' };
+  expect(isInlineAutofillCommand(fill)).toBe(false);
+  expect(isInlineAutofillCommand({ ...fill, intent: 'manual' })).toBe(true);
+  expect(isInlineAutofillCommand({ ...fill, intent: 'automatic' })).toBe(true);
+  expect(isInlineAutofillCommand({ ...fill, intent: 'automatic', scope: 'related' })).toBe(false);
+  expect(isInlineAutofillCommand({ ...fill, intent: 'unknown' })).toBe(false);
+});
+
+it('does not accept a caller-supplied automatic session marker', () => {
+  expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', intent: 'automatic', documentId,
+    vaultId: 'v', entryId: 'e', scope: 'exact', loginTargetId: 'login-1', automaticFillSessionId: 'a'.repeat(32) })).toBe(false);
 });

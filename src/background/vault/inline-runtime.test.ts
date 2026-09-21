@@ -75,7 +75,7 @@ describe("inline autofill content runtime", () => {
     const fill = vi.fn(async () => ({ status: "filled" }) as const);
     expect(await handleInlineAutofillContentMessage(deps({ fill }), {
       channel: INLINE_AUTOFILL_CHANNEL,
-      type: "inline/fill",
+      type: "inline/fill", intent: "manual",
       documentId,
       vaultId: "vault-1",
       entryId: "entry-1",
@@ -87,7 +87,7 @@ describe("inline autofill content runtime", () => {
       url: "https://accounts.example.com/login",
       documentId,
       browserDocumentId,
-    }, "vault-1", "entry-1", "exact", "login-1");
+    }, "vault-1", "entry-1", "exact", "login-1", "manual");
   });
 
   it("reports a network failure as temporary unavailability, not a security block", async () => {
@@ -95,7 +95,7 @@ describe("inline autofill content runtime", () => {
       fill: async (): Promise<FillResult> => ({ status: "blocked", reason: "network" }),
     }), {
       channel: INLINE_AUTOFILL_CHANNEL,
-      type: "inline/fill",
+      type: "inline/fill", intent: "manual",
       documentId,
       vaultId: "vault-1",
       entryId: "entry-1",
@@ -146,7 +146,7 @@ describe("inline autofill content runtime", () => {
 
     await handleInlineAutofillContentMessage(subject, {
       channel: INLINE_AUTOFILL_CHANNEL,
-      type: "inline/fill",
+      type: "inline/fill", intent: "manual",
       documentId,
       vaultId: "vault-1",
       entryId: "entry-2",
@@ -194,4 +194,14 @@ describe("inline autofill content runtime", () => {
     }, sender, "extension-id")).toBeNull();
     expect(subject.getStatus).not.toHaveBeenCalled();
   });
+});
+
+
+it('rejects an automatic related-host fill before delivery', async () => {
+  const fill = vi.fn();
+  expect(await handleInlineAutofillContentMessage(deps({ fill }), {
+    channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', intent: 'automatic', documentId,
+    vaultId: 'vault-1', entryId: 'entry-1', scope: 'related', loginTargetId: 'login-1',
+  }, sender, 'extension-id')).toBeNull();
+  expect(fill).not.toHaveBeenCalled();
 });

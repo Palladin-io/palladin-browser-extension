@@ -15,7 +15,7 @@ import time
 import urllib.error
 import urllib.request
 import urllib.parse
-from safari_webdriver import SafariPopup
+from safari_webdriver import SafariPopup, SafariDriverError
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--driver-url', default='http://127.0.0.1:55187')
@@ -220,7 +220,10 @@ def request(method, path, body=None):
             return json.load(response)['value']
     except urllib.error.HTTPError as error:
         value = json.load(error).get('value', {})
-        raise RuntimeError(value.get('error', 'webdriver-error')) from None
+        kind = value.get('error')
+        allowed = {'javascript error', 'no such window', 'stale element reference', 'timeout',
+            'script timeout', 'element not interactable', 'element click intercepted', 'unknown error'}
+        raise SafariDriverError(kind if kind in allowed else 'webdriver-error') from None
 
 session = None
 server = None
@@ -394,29 +397,42 @@ def run_product_channel(extension_id, diagnostic_handle, web_handle):
     stage = 'native-popup-view-authority'
     diagnostics_url = command('POST', '/execute/sync', {'script': "return browser.runtime.getURL('diagnostics.html')", 'args': []})
     navigate(diagnostics_url)
-    button = command('POST', '/element', {'using': 'css selector', 'value': '#open-popup'})
-    command('POST', '/element/' + button['element-6066-11e4-a52e-4f735466cecf'] + '/click', {})
+    popup = SafariPopup(command, diagnostic_handle, popup_url)
+    try:
+        popup.show()
+    finally:
+        observations['nativePopupPresentationStage'] = popup.last_stage
+        try: observations['nativePopupPresentation'] = popup.snapshot()
+        except Exception: observations['nativePopupPresentation'] = {'unavailable': True}
     native_popup = command('POST', '/execute/async', {'script': '''
       const done = arguments[arguments.length - 1];
       let attempt = 0;
+      let phase = 'view-lookup';
+      const failed = () => done({ observationFailed: true, reason: phase });
       const observe = async () => {
         if (typeof browser.extension?.getViews !== 'function') { done({ getViewsAvailable: false }); return; }
         const views = browser.extension.getViews({ type: 'popup' });
-        const popup = views.find(view => view.location.href === browser.runtime.getURL('src/popup/index.html'));
+        const popup = views.find(view => {
+          try { return !view.closed && view.location.href === browser.runtime.getURL('src/popup/index.html')
+            && view.document.readyState === 'complete' && view.document.hasFocus(); }
+          catch { return false; }
+        });
         if (!popup) {
           if (++attempt >= 30) { done({ getViewsAvailable: true, popupAvailable: false }); return; }
-          setTimeout(() => { void observe().catch(() => done({ observationFailed: true })); }, 100); return;
+          setTimeout(() => { void observe().catch(failed); }, 100); return;
         }
+        phase = 'port-probe';
         const sender = await new Promise((resolve, reject) => {
           const port = popup.browser.runtime.connect({ name: 'synthetic-internal-probe' });
           const timer = setTimeout(() => { port.disconnect(); reject(new Error('Diagnostic timeout')); }, 2000);
           port.onMessage.addListener(message => { clearTimeout(timer); resolve(message.sender); port.disconnect(); });
         });
+        phase = 'status-probe';
         const response = await popup.browser.runtime.sendMessage({ type: 'session/status' });
         done({ getViewsAvailable: true, popupAvailable: true, sender,
           signedOut: response?.ok === true && response.status === 'signed-out' });
       };
-      void observe().catch(() => done({ observationFailed: true }));
+      void observe().catch(failed);
     ''', 'args': []})
     observations['crossWindowPopupCall'] = native_popup
     assert native_popup.get('signedOut') is False and native_popup.get('popupAvailable') is True
@@ -429,8 +445,11 @@ def run_product_channel(extension_id, diagnostic_handle, web_handle):
       let attempt = 0;
       const observe = () => {
         try {
-          const popup = browser.extension.getViews({ type: 'popup' })
-            .find(view => view.location.href === browser.runtime.getURL('src/popup/index.html'));
+          const popup = browser.extension.getViews({ type: 'popup' }).find(view => {
+            try { return !view.closed && view.location.href === browser.runtime.getURL('src/popup/index.html')
+              && view.document.readyState === 'complete' && view.document.hasFocus(); }
+            catch { return false; }
+          });
           const result = popup?.syntheticPopupObservation;
           if (result && !result.pending) { done(result); return; }
           if (++attempt >= 30) { done({ observationTimeout: true, popupAvailable: !!popup }); return; }
@@ -445,7 +464,6 @@ def run_product_channel(extension_id, diagnostic_handle, web_handle):
     assert own_realm['sender']['id'] == extension_id
     checks.append('native-popup-reaches-unchanged-private-command-guard')
     stage = 'native-popup-product-ui-callback'
-    popup = SafariPopup(command, diagnostic_handle, popup_url)
     popup.show()
     popup.wait_text('Continue to Palladin')
     popup.click_button('Continue to Palladin')
@@ -623,7 +641,7 @@ except Exception as error:
         except (OSError, subprocess.TimeoutExpired):
             observations['ciScreenshotCaptured'] = False
     (out / 'failure.json').write_text(json.dumps({'stage': stage, 'checks': checks, 'observations': observations,
-        'errorType': type(error).__name__, 'fixtureSha256': fixture_hash,
+        'errorType': type(error).__name__, 'errorKind': error.kind if isinstance(error, SafariDriverError) else None, 'fixtureSha256': fixture_hash,
         'observedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}, indent=2))
     print('FAIL at ' + stage + '; value-free evidence recorded.')
     raise SystemExit(1) from None

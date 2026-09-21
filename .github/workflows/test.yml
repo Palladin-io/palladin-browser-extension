@@ -30,6 +30,12 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Verify bound live login stages
         run: npm run test:browser:agent-live
+      - name: Verify manual autofill and shield layout
+        run: npm run test:browser:inline
+      - name: Verify encrypted credential capture
+        run: npm run test:browser:capture
+      - name: Verify trusted multi-step and formless capture
+        run: node tests/browser/credential-submission.mjs
       - name: Probe shared-unlock platform trust signals
         run: npm run test:browser:shared-unlock-platform
       - name: Retain synthetic platform evidence

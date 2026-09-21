@@ -149,6 +149,7 @@ export interface VaultCommandDeps {
     submit: boolean,
     loginTargetId?: string,
     assertSessionCurrent?: () => void,
+    intent?: "automatic" | "manual",
   ): Promise<FillOutcome>;
   /** Schedule the clipboard wipe after a value was copied. */
   clipboard: { readonly available: boolean; arm(): void };
@@ -295,6 +296,7 @@ export async function fillInlineSelectedEntry(
   entryId: string,
   scope: "exact" | "related",
   loginTargetId: string,
+  intent: "automatic" | "manual",
 ): Promise<FillResult> {
   if (!isSecurePage(tab.url)) return { status: "blocked", reason: "insecure-page" };
   const meta = (await deps.data.getMetadata()).find(
@@ -305,10 +307,11 @@ export async function fillInlineSelectedEntry(
     return { status: "blocked", reason: "not-fillable" };
   }
   const related = scope === "related";
+  if (related && intent !== "manual") return { status: "blocked", reason: "domain-mismatch" };
   if (!matchesTab(tab.url, meta.urlDomain, related ? { exactSubdomain: false } : undefined)) {
     return { status: "blocked", reason: "domain-mismatch" };
   }
-  return fillPreparedEntry(deps, meta, tab, related, false, loginTargetId);
+  return fillPreparedEntry(deps, meta, tab, related, false, loginTargetId, intent);
 }
 
 async function openAndFillLogin(
@@ -355,6 +358,7 @@ async function fillPreparedEntry(
   allowRelatedDomain = false,
   submit = false,
   loginTargetId?: string,
+  intent?: "automatic" | "manual",
 ): Promise<FillResult> {
   // Re-check the origin gate at click time, not just when the list was drawn.
   if (meta.type === ENTRY_TYPE_CREDENTIAL && !matchesTab(
@@ -425,7 +429,9 @@ async function fillPreparedEntry(
   // broader registrable domain.
   const expectedDomain = allowRelatedDomain ? exactHttpsHost(tab.url) : currentDomain;
   if (expectedDomain === null) return { status: "blocked", reason: "domain-mismatch" };
-  const outcome = assertSessionCurrent
+  const outcome = intent !== undefined
+    ? await deps.sendFill(tab, expectedDomain, fields, submit, loginTargetId, assertSessionCurrent, intent)
+    : assertSessionCurrent
     ? await deps.sendFill(tab, expectedDomain, fields, submit, loginTargetId, assertSessionCurrent)
     : loginTargetId === undefined
     ? await deps.sendFill(tab, expectedDomain, fields, submit)

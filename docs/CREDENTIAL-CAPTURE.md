@@ -14,6 +14,34 @@ host/account match, otherwise Save in Personal. Registration defaults to Persona
 Change opens the optional target chooser; there are no editable text fields.
 The popup settings reuse the existing SettingsSection and Button controls.
 
+An identical nonempty username and password suppress a login proposal, including
+when the saved Credential belongs to another host of the same registrable domain
+(Public Suffix List, including private suffixes). This covers regional sign-in
+hosts even when a stale exact-host copy also exists. Equality is byte-exact; no
+case folding or password trimming is applied. This comparison only suppresses
+the prompt: related hosts never become update targets, and saves remain bound to
+the exact host. Registration and password-change comparisons remain exact-host.
+The capture currently has no binding to the Entry selected during autofill, so
+the equality check considers eligible saved Credentials within that domain.
+
+An ambiguous registration may supply two identity alternatives: email and
+nickname. The closed save surface asks which field is the login, with neither
+preselected and no Save/Update target before the choice. The alternatives stay
+in the existing bounded worker-memory capture; the surface receives only the
+selected field name, never the alternative values. Choosing a field resolves
+fresh write targets but does not save. Changing that choice invalidates the
+previous target handles. Saving remains a separate explicit action, with the
+same document, origin, profile, session and expiry checks. Locked prompts expose
+neither alternatives nor a selection. Both choices have English and Polish copy.
+
+The regional regression uses synthetic credentials and origins; it does not
+establish live AWS acceptance. A manual acceptance check must observe a fresh
+user-controlled submission, no Save/Update proposal after the outcome settles,
+and no Entry revision change. A CLI login alone is insufficient: Agent-managed
+controls are deliberately excluded from user credential capture. Do not inspect
+field values, storage or request bodies for this check. The three-second
+"Login saved" acknowledgement after an intentional save is not an update prompt.
+
 Design direction follows the existing extension: system font, 14px primary
 copy/12px secondary copy, left-aligned content, brand red primary action, existing
 light/dark palette (#E54645, #F3F5F8, #FFFFFF, #0C0E12, #16161A, #E8EAED).

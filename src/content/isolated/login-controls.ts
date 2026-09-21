@@ -33,6 +33,25 @@ export function scopeInputs(scope: CredentialScope): HTMLInputElement[] {
 export const ACTION_SELECTOR = 'button, input[type="submit"], input[type="button"], [role="button"], a.button:not([href]), div.btn_primary';
 const AUTH_ACTION = /(?:\blog\s*in\b|\bsign\s*in\b|\bsign\s*up\b|\bcontinue\b|\bnext\b|\bsubmit\b|\bregister\b|\bcreate\s+account\b|\bsave\b|zaloguj|zarejestruj|dalej|kontynuuj|zapisz|utwórz\s+konto)/i;
 
+const LOCALIZED_LOGIN_ACTIONS = new Set(['logowanie', 'συνέχεια', 'fortsett', 'fortsätt', 'continuar', 'weiter', 'anmelden']);
+const EXACT_LOGIN_ACTION = /^(?:log\s*in|sign\s*in|continue|next|submit|zaloguj(?:\s+się)?|dalej|kontynuuj)$/i;
+
+function actionLabels(element: Element): string[] {
+  const value = element instanceof HTMLInputElement && ['submit', 'button'].includes(element.type)
+    ? element.value : element.getAttribute('value');
+  return [element.getAttribute('aria-label'), actionCaption(element), value]
+    .filter((label): label is string => label !== null && label.length <= 512)
+    .map(label => label.trim().toLowerCase());
+}
+
+/** Execution uses the canonical login/continue labels, not the broader
+ * registration and social-provider hints that may identify a credential scope.
+ * The caller still enforces native type, visibility, owner and uniqueness.
+ */
+export function hasLoginActionLabel(element: Element): boolean {
+  return actionLabels(element).some(label => EXACT_LOGIN_ACTION.test(label) || LOCALIZED_LOGIN_ACTIONS.has(label));
+}
+
 export function isCredentialAction(element: Element): boolean {
   if (element.matches(':disabled, [aria-disabled="true"]') || !isVisibleScopeHint(element)) return false;
   if (element.matches('div.btn_primary.disabled, div.btn_primary.disable')) return false;
@@ -59,9 +78,8 @@ function isCredentialActionHint(element: Element): boolean {
     && ((element as HTMLButtonElement).form || (element.getAttribute('type') === 'submit'
       && element.getRootNode() instanceof ShadowRoot && composedForm(element)))
     && isVisibleScopeHint(element)) return true;
-  const labels = [element.getAttribute('aria-label'), actionCaption(element), element.getAttribute('value')];
-  return labels.some(label => label !== null && label.length <= 512
-    && (AUTH_ACTION.test(label) || ['logowanie', 'συνέχεια', 'fortsett', 'fortsätt', 'continuar', 'weiter', 'anmelden', 'konto erstellen'].includes(label.trim().toLowerCase())));
+  return actionLabels(element).some(label => AUTH_ACTION.test(label)
+    || LOCALIZED_LOGIN_ACTIONS.has(label) || label === 'konto erstellen');
 }
 
 /** Hidden transport inputs and provider submit buttons do not compete with an

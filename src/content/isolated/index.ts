@@ -128,7 +128,10 @@ if (extensionBuildTarget === "firefox" && window === window.top && location.prot
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (isDeferredFillMessage(message) || isDeferredCommitMessage(message) || isDeferredCancelMessage(message)) {
     if (_sender.id !== chrome.runtime.id || _sender.tab !== undefined) { sendResponse(null); return undefined; }
-    if (isDeferredFillMessage(message)) { void liveLogin.fillDeferred(message).then(sendResponse).catch(() => { liveLogin.clear(); sendResponse(null); }); return true; }
+    if (isDeferredFillMessage(message)) {
+      void liveLogin.fillDeferred(message).then(sendResponse).catch(() => { liveLogin.clear(); sendResponse(null); }).finally(() => wipeStepValues(message));
+      return true;
+    }
     if (isDeferredCommitMessage(message)) { sendResponse(liveLogin.commitDeferred(message)); return undefined; }
     liveLogin.cancelDeferred(message.pendingId); sendResponse({ ok: true }); return undefined;
   }
@@ -212,7 +215,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return undefined;
 });
 
-function wipeStepValues(message: AgentInjectStepMessage): void {
+function wipeStepValues(message: Pick<AgentInjectStepMessage, 'values'>): void {
   for (const field of message.values) (field as { value: string }).value = "";
 }
 

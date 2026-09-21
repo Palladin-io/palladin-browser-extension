@@ -49,6 +49,10 @@ export interface FillRequestMessage {
   readonly submit: boolean;
   /** Exact isolated-world login target for inline fills; null for popup and generated fills. */
   readonly loginTargetId: string | null;
+  /** Only inline manual choice permits replacing current page values. Missing stays no-overwrite. */
+  readonly intent?: "automatic" | "manual";
+  /** Private worker-issued unlocked epoch, only for automatic provenance. */
+  readonly automaticFillSessionId?: string;
   readonly fields: readonly FillField[];
 }
 
@@ -89,6 +93,8 @@ export function isFillRequestMessage(value: unknown): value is FillRequestMessag
     "submit",
     "loginTargetId",
     "fields",
+    "intent",
+    "automaticFillSessionId",
   ])) {
     return false;
   }
@@ -100,6 +106,8 @@ export function isFillRequestMessage(value: unknown): value is FillRequestMessag
     submit?: unknown;
     loginTargetId?: unknown;
     fields?: unknown;
+    intent?: unknown;
+    automaticFillSessionId?: unknown;
   };
   return (
     message.channel === FILL_REQUEST_CHANNEL &&
@@ -118,6 +126,10 @@ export function isFillRequestMessage(value: unknown): value is FillRequestMessag
       message.loginTargetId.length >= 1 &&
       message.loginTargetId.length <= 256
     )) &&
+    (message.intent === undefined || (message.loginTargetId !== null && message.submit === false
+      && (message.intent === "automatic" || message.intent === "manual"))) &&
+    (message.automaticFillSessionId === undefined || (message.intent === "automatic"
+      && typeof message.automaticFillSessionId === "string" && /^[a-f0-9]{32}$/.test(message.automaticFillSessionId))) &&
     Array.isArray(message.fields) &&
     message.fields.length >= 1 &&
     message.fields.length <= 8 &&

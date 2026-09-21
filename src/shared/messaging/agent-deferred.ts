@@ -17,6 +17,9 @@ export interface DeferredCancelRequest {
 export interface DeferredFillMessage {
   readonly channel: typeof DEFERRED_FILL; readonly pendingId: string; readonly documentId: string; readonly expectedDomain: string;
   readonly form: AgentInjectForm; readonly values: readonly AgentInjectFieldValue[]; readonly expiresAt: number;
+  readonly requireExistingUsername?: true;
+  /** Private worker-issued epoch; present only on the first native flow stage. */
+  readonly automaticFillSessionId?: string;
 }
 export interface DeferredCommitMessage { readonly channel: typeof DEFERRED_COMMIT; readonly expectedDomain: string; readonly expiresAt: number; readonly submitReady: SubmitReady }
 export type DeferredFillOutcome = { readonly ok: true; readonly submitReady: SubmitReady } | { readonly ok: false; readonly outcome: AgentInjectFailure };
@@ -41,9 +44,12 @@ export function parseDeferredCancel(raw: unknown): DeferredCancelRequest | null 
   return raw as unknown as DeferredCancelRequest;
 }
 export function isDeferredFillMessage(raw: unknown): raw is DeferredFillMessage {
-  if (!isRecord(raw) || !onlyKeys(raw, ['channel','pendingId','documentId','expectedDomain','form','values','expiresAt'])
+  if (!isRecord(raw) || !onlyKeys(raw, ['channel','pendingId','documentId','expectedDomain','form','values','expiresAt','requireExistingUsername','automaticFillSessionId'])
     || raw.channel !== DEFERRED_FILL || typeof raw.pendingId !== 'string' || !ID.test(raw.pendingId) || typeof raw.documentId !== 'string' || !ID.test(raw.documentId)
-    || !validExpectedDomain(raw.expectedDomain) || !validExpiry(raw.expiresAt)) return false;
+    || !validExpectedDomain(raw.expectedDomain) || !validExpiry(raw.expiresAt)
+    || (raw.requireExistingUsername !== undefined && raw.requireExistingUsername !== true)
+    || (raw.automaticFillSessionId !== undefined && (typeof raw.automaticFillSessionId !== 'string'
+      || !ID.test(raw.automaticFillSessionId) || raw.requireExistingUsername === true))) return false;
   const form = parseAgentInjectForm(raw.form);
   return form?.version === 2 && parseAgentInjectValues(raw.values, form) !== null;
 }

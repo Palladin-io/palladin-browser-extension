@@ -17,10 +17,17 @@ so it is not evidence of trusted user activity. The native extension surface's
 separate trusted activity channel records own input with its original timestamp.
 This preserves automatic exact-host autofill without adding a gesture gate.
 
-A standard login form must expose both a usable username/email control and a
-usable password control associated with the same `form`. A standalone email or
-username form never receives the inline launcher, suggestions, or automatic
-fill.
+Inline discovery uses the same credential-form analysis as native live login.
+It accepts an unambiguous username/email stage, a current-password stage, or a
+combined login stage, bound to one native form or one bounded credential scope.
+An unrelated standalone email field is not a login stage. Registration, password
+change, ambiguous actions and hidden or readonly controls remain excluded.
+
+Open shadow roots attached after startup are discovered through bounded probes of
+previously observed eligible hosts (at most 256 native property checks per 250 ms).
+Idle probes do not traverse the document or read layout. A newly found root schedules
+the normal throttled scan; closed roots stay inaccessible. Host references are weak,
+and stopping the controller cancels its probes and clears the candidate list.
 
 Requiring a blanket user gesture before every automatic exact-host fill changes
 the product behavior and must not be introduced as a security fix without a new
@@ -49,11 +56,10 @@ history outside the encrypted Vault.
 - active tab and page-load/browser document binding, rechecked before decrypt
   and DOM write;
 - an isolated-world target identity that binds the worker round-trip to the
-  exact username, password, and owning form discovered before decryption;
+  exact present username/password controls and owning scope discovered before decryption;
 - Credential type, username, and stored domain present;
-- rendered, non-zero-area, usable username/email and password controls
-  associated with the same form;
-- username and password controls are still empty when the suggestion response
+- rendered, non-zero-area, usable controls in the same detected credential scope;
+- every present login control is still empty when the automatic suggestion response
   returns;
 - one automatic fill per current URL/form lifecycle;
 - `submit: false` for every automatic fill;
@@ -64,6 +70,77 @@ A same-registrable-domain sibling is only a labelled related-site candidate. It
 always requires a closed-surface, per-Entry choice for one operation, and the
 final write is rebound to the exact live host. Cards, neutral custom fields,
 form submission, capture, save, and update also remain explicit actions.
+
+## Explicit manual choice
+
+A click on a particular Entry in the closed inline surface sends a typed `manual`
+intent through the authenticated worker/document channel. It may replace another
+account already present in the bound controls. `automatic` intent never overwrites
+existing values, never permits related-host selection and never submits. Missing
+inline intent is rejected; legacy worker fill messages do not gain replacement rights.
+
+Matching values are preserved without replaying input events. After each DOM write,
+control ownership and both completed and not-yet-written values are rechecked.
+Explicit “Fill and log in” consumes a one-use isolated-world receipt from that
+approved fill, waits one task for framework state, then rechecks URL, scope, control
+identity and approved values before submit. Each request has a one-use local
+operation identity and a value snapshot captured before contacting the worker.
+A new manual choice, session lock or widget removal invalidates earlier deliveries
+and pending submits; a passive retry cannot replace an outstanding manual choice. The receipt is memory-only and expires
+after five seconds. A formless scope requires exactly one enabled native credential
+button; arbitrary page DIV actions are not clicked. Submission is not proof of
+successful authentication.
+
+### Native manual action
+
+Explicit “Fill and log in” clicks one enabled, visible native action owned by the
+same detected credential scope. A native form uses its unique submit control;
+otherwise a unique native login/Continue/Next button is required. Ambiguous,
+hidden, disabled, foreign-form and arbitrary DIV actions are rejected. The manual
+adapter does not call bare `requestSubmit()`: that skips click handlers and can
+accidentally use a form's default GET behavior.
+
+During that synchronous click, a one-operation listener at the scope root runs
+after existing framework submit handlers. It cancels normally propagating default
+GET serialization, including omitted/invalid methods and a submitter's
+`formmethod` override, without stopping framework click or submit handlers. POST
+and native validation are preserved. The result means that the native action was
+dispatched, not that authentication succeeded. This is not a sandbox against
+scripts on the approved origin, which already observe the filled DOM values.
+A page handler that stops propagation can bypass this extra default-GET guard;
+it is not a universal guarantee against the page initiating a request.
+
+## Explicit agent choice after automatic user fill
+
+An authorized agent may choose a different Entry after passive user autofill has
+already populated the initial login stage. This does not enable automatic
+replacement. The isolated script records a one-use, memory-only receipt only
+when an authenticated worker automatic operation fills previously empty controls.
+The receipt binds the exact controls, credential scope, document, URL, current
+values and a private worker-issued unlocked-session marker. It expires after
+60 seconds. No Entry A value, hash or length is included in agent messages.
+
+Only the initial deferred agent stage can receive the current marker over the
+private worker-to-isolated channel. Public/native requests and inline callers
+cannot supply it. A locked or restarted worker has no marker; a fresh unlock
+creates a different one. Missing or differing markers reject replacement while
+ordinary empty-field agent fill remains available independently of user unlock.
+Carried identity, readonly/disabled controls and later stages never gain this
+permission. Existing origin, document, grant delivery and two-phase submit checks
+remain unchanged.
+
+The receipt is consumed before any agent write, also when the requested values
+already match. Manual choice, input/change events, session clearing, controller
+stop, target removal, navigation or expiry revoke it. A changed current tuple or
+scope fails closed; cancellation or failed fill cannot restore the receipt.
+This checks the current tuple and observed edit events. It cannot prove that an
+origin script never silently changed and restored a value without an event;
+scripts on the accepted origin already have access to the filled DOM.
+
+Regression evidence uses the observed AWS identifier structure with synthetic
+identities and framework behavior. Chromium replays actual worker automatic fill
+followed by a synthetic authorized agent choice, plus changed-session and user-edit
+negatives. That is separate from real-site acceptance.
 
 ## Accepted trust boundary
 

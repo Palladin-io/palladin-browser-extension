@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { observeNativeSubmit } from './manual-submit.test-helper';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -72,7 +73,7 @@ describe("inline autofill field discovery", () => {
     `;
     const login = document.querySelector("#login") as HTMLFormElement;
     const submit = document.querySelector("#submit") as HTMLButtonElement;
-    const requestSubmit = vi.spyOn(login, "requestSubmit").mockImplementation(() => undefined);
+    const requestSubmit = observeNativeSubmit(login);
 
     expect(submitLoginForm(document.querySelector("#username") as HTMLInputElement)).toBe(true);
     expect(requestSubmit).toHaveBeenCalledWith(submit);
@@ -336,7 +337,7 @@ describe("inline autofill field discovery", () => {
       type: "inline/fill",
       vaultId: "v1",
       entryId: "e1",
-      loginTargetId: expect.stringMatching(/^login-\d+$/),
+      loginTargetId: expect.any(String),
     })));
     subject.stop();
   });

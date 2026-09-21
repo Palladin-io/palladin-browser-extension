@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fixture from '../../../tests/fixtures/protocol/deferred-live-v2.json';
 import { parseAgentInjectionRequest, parseAgentInjectForm, isAgentInjectStepMessage, AGENT_INJECT_STEP_CHANNEL } from './agent-inject';
-import { parseDeferredSubmit, parseDeferredCancel, parseSubmitReady } from './agent-deferred';
+import { parseDeferredSubmit, parseDeferredCancel, parseSubmitReady, isDeferredFillMessage, DEFERRED_FILL } from './agent-deferred';
 describe('explicit deferred username-only wire', () => {
   it('accepts the frozen additive contract and rejects it on the ordinary DOM-step channel', () => {
     expect(parseAgentInjectionRequest(fixture.inject)).not.toBeNull(); expect(parseDeferredSubmit(fixture.submit)).not.toBeNull();
@@ -26,4 +26,15 @@ describe('explicit deferred username-only wire', () => {
     expect(parseDeferredSubmit({ ...fixture.submit, values: fixture.inject.values })).toBeNull();
     expect(parseDeferredCancel({ ...fixture.cancel, values: fixture.inject.values })).toBeNull();
   });
+});
+
+it('keeps automatic replacement metadata on the private worker channel only', () => {
+  const base = { channel: DEFERRED_FILL, pendingId: 'b'.repeat(32), documentId: 'd'.repeat(32), expectedDomain: fixture.inject.expectedDomain,
+    form: fixture.inject.form, values: fixture.inject.values, expiresAt: fixture.inject.expiresAt };
+  expect(isDeferredFillMessage(base)).toBe(true);
+  expect(isDeferredFillMessage({ ...base, automaticFillSessionId: 'a'.repeat(32) })).toBe(true);
+  for (const marker of [true, '', 'invalid']) expect(isDeferredFillMessage({ ...base, automaticFillSessionId: marker })).toBe(false);
+  expect(isDeferredFillMessage({ ...base, automaticFillSessionId: 'a'.repeat(32), requireExistingUsername: true })).toBe(false);
+  expect(parseAgentInjectionRequest({ ...fixture.inject, automaticFillSessionId: 'a'.repeat(32) })).toBeNull();
+  expect(parseAgentInjectionRequest({ ...fixture.inject, allowAutomaticReplacement: true })).toBeNull();
 });

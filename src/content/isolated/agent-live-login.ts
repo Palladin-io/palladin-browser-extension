@@ -1,4 +1,4 @@
-import { DeferredLiveLogin } from './agent-live-deferred';
+import { DeferredLiveLogin, type DeferredField } from './agent-live-deferred';
 import type { DeferredFillMessage, DeferredCommitMessage } from '@shared/messaging/agent-deferred';
 import { sameLiveStep, type LiveLoginProbe } from '@shared/messaging/agent-live';
 /** Experimental login discovery. Plans contain expiring isolated-world handles,
@@ -8,7 +8,7 @@ import { AGENT_FORM_INSPECT_CHANNEL, AGENT_FORM_LIMITS } from '@shared/messaging
 import { AgentFormRegistry } from './agent-form';
 import { performAgentInjectStep, type AgentInjectDomAccess } from './agent-inject';
 import { loginTargetFor, isFillable } from './credential-form-analysis';
-import { credentialScopeFor, isOneTimeCodeControl, scopeInputs } from './login-controls';
+import { credentialScopeFor, isEmailConfirmationControl, isIdentifiedUsername, isOneTimeCodeControl, isSubscriptionIdentity, isVisibleScopeHint, scopeInputs } from './login-controls';
 import { actionCaption, composedForm } from './open-dom';
 import { markAgentManagedControl, isAgentManagedControl, unmarkAgentManagedControl } from './agent-managed-controls';
 import { hasLiveLoginObstacle } from './agent-live-obstacles';
@@ -30,12 +30,37 @@ export class LiveLogin {
   }
   inspect(targetUrl: string): AgentInjectForm | null {
     const normal = this.inspectCurrent(targetUrl);
-    return normal ?? (this.inspectionOutcome === "challenge" ? null : this.deferred.inspect(targetUrl));
+    if (!normal) return this.inspectionOutcome === 'challenge' ? null : this.deferred.inspect(targetUrl);
+    if (normal.steps[0]!.fields.some(field => field.entryFieldId === 'credential.totp')) return normal;
+    const bindings = [...this.bindings];
+    const fields: DeferredField[] = normal.steps[0]!.fields.map(field => ({
+      input: bindings.find(binding => binding.selector === field.selector)!.element as HTMLInputElement,
+      fieldId: field.entryFieldId as DeferredField['fieldId'], mode: 'write',
+    }));
+    const scope = credentialScopeFor(fields[0]!.input);
+    const action = bindings.find(binding => binding.selector === normal.steps[0]!.submit.selector)?.element;
+    if (!scope || !(action instanceof HTMLButtonElement || action instanceof HTMLInputElement)) return null;
+    const carriedIdentities = () => scopeInputs(scope).filter(input => isIdentifiedUsername(input)
+      && !isSubscriptionIdentity(input) && !isEmailConfirmationControl(input) && (input.disabled || input.readOnly));
+    const identities = carriedIdentities();
+    const identity = identities[0];
+    if (identities.length > 1 || (identity && (fields.some(field => field.fieldId === 'credential.username')
+      || !this.dom.isVisible(identity) || !isVisibleScopeHint(identity)))) return null;
+    if (identity) fields.unshift({ input: identity, fieldId: 'credential.username', mode: 'compare' });
+    const currentIdentity = () => {
+      const current = carriedIdentities();
+      return current.length === identities.length && current.every((input, index) => input === identities[index]
+        && credentialScopeFor(input) === scope && this.dom.isVisible(input) && isVisibleScopeHint(input));
+    };
+    const expiresAt = this.expiresAt;
+    return this.deferred.bindKnown(targetUrl, scope, fields, action,
+      () => Date.now() < expiresAt && currentIdentity() && this.matchesBindings(targetUrl, normal, bindings), expiresAt - Date.now());
   }
   fillDeferred(message: DeferredFillMessage) { return this.deferred.fill(message); }
   commitDeferred(message: DeferredCommitMessage) { return this.deferred.commit(message); }
   cancelDeferred(pendingId: string) { this.deferred.cancel(pendingId); }
-  private inspectCurrent(targetUrl: string): AgentInjectForm | null {
+  /** Existing immediate discovery core, also used to revalidate deferred nodes. */
+  inspectCurrent(targetUrl: string): AgentInjectForm | null {
     this.clear();
     this.inspectionOutcome = 'no-form';
     const inspected = this.registry.inspect({ channel: AGENT_FORM_INSPECT_CHANNEL, documentId: this.documentId, targetUrl });
@@ -158,16 +183,19 @@ export class LiveLogin {
   }
   private hasCurrentBindings(): boolean {
     if (!this.plan || Date.now() >= this.expiresAt) return false;
+    return this.matchesBindings(this.targetUrl, this.plan, this.bindings);
+  }
+  private matchesBindings(targetUrl: string, plan: AgentInjectForm, bindings: typeof this.bindings): boolean {
     const current = new LiveLogin(this.doc, this.documentId, this.url, this.top, this.dom);
     try {
-      const form = current.inspect(this.targetUrl);
-      if (!form || current.bindings.length !== this.bindings.length) return false;
-      const fields = this.plan.steps[0]!.fields;
+      const form = current.inspectCurrent(targetUrl);
+      if (!form || current.bindings.length !== bindings.length) return false;
+      const fields = plan.steps[0]!.fields;
       const currentFields = form.steps[0]!.fields;
       return fields.length === currentFields.length
         && fields.every((field, index) => field.entryFieldId === currentFields[index]?.entryFieldId
           && field.control === currentFields[index]?.control)
-        && this.bindings.every((binding, index) => {
+        && bindings.every((binding, index) => {
           const latest = current.bindings[index];
           return latest?.element === binding.element && latest.owner === binding.owner
             && latest.signature === binding.signature;

@@ -36,6 +36,7 @@ export interface AgentTabState {
 }
 
 export interface AgentFillDeps {
+  currentAutomaticFillSession?(): string | null;
   fillDeferred?(tabId: number, message: DeferredFillMessage): Promise<DeferredFillOutcome | null>;
   commitDeferred?(tabId: number, message: DeferredCommitMessage): Promise<AgentInjectStepOutcome | null>;
   cancelDeferred?(tabId: number, pendingId: string): Promise<void>;
@@ -176,7 +177,7 @@ export async function handleNativeAgentMessage(
     return result(request.transactionId, 'rejected');
   }
   if (request.form.version === 2) {
-    const chain = request.continueLive === true && !priorChain ? bindLiveChain(prepared, priorChain, request) : null;
+    const chain = request.continueLive === true ? bindLiveChain(prepared, priorChain, request) : null;
     if (!chain) { wipeValues(request.values); return result(request.transactionId, 'rejected'); }
     return beginDeferredSubmit(deps, replay, session, prepared, chain, request);
   }

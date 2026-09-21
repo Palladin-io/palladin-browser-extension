@@ -87,44 +87,81 @@ checks the observed identifier plus generic combined login, carried username,
 password-only, authenticator, navigation, replay and challenge scenarios. It
 does not modify an installed extension or perform real authentication.
 
-## Deferred identifier submit
+## Deferred credential submit
 
-A form may expose its native submit only after the identifier is entered. An
-explicit live-only version-2 plan supports this initial stage for exactly one
-`credential.username` field, never passwords, TOTP or mixed fields. It requires a
-native form, one recognized editable identity, concrete credential context and no
-challenge or ambiguity. A public Continue caption is an intent hint, never an
-executable DIV or an invented button.
+Live username and password stages use one version-2 preparation/commit path.
+The existing normal-login discovery first binds its actual controls and native
+action, including supported form-less DIV scopes. An adapter preserves that
+classification, exact nodes, field modes and original snapshot lifetime while
+separating writes from submission. Authenticator-code stages keep the immediate
+version-1 path; saved version-1 maps are unchanged.
 
-The additive frozen wire example is `tests/fixtures/protocol/deferred-live-v2.json`:
+When no native action exists yet, bounded discovery supports a native form with
+one recognized username or one enabled `type=password` control explicitly marked
+`autocomplete=current-password`. It rejects registration, new-password, OTP,
+extra editable fields, challenges and ambiguous forms. A password stage may also
+show one disabled or readonly identity: it must already exactly match the
+runtime-approved username and is never written. A public Continue caption is
+only an intent hint, never an executable DIV or invented button.
 
-1. `prepare` returns version 2 with `deferred-native-click`; its opaque selector
-   binds a scope, not an existing action. Saved version-1 maps are unchanged.
-2. An authorized `inject` includes `expiresAt` and writes the identifier at most
-   once. It can wait up to five seconds to observe one enabled native action in
-   the original form. It returns `submit-ready` with `pendingId`, current URL,
-   document ID and the actual bound action reference. Nothing has been clicked.
+Allowed version-2 field lists are exactly username, password, or username followed
+by password. The mixed form does not itself grant permission to overwrite an
+identity: the DOM snapshot freezes each field's writable or comparison-only mode.
+An initially writable username/password form may fill both empty fields once.
+Matching existing values are preserved without input/change events. On a later
+password stage, the worker additionally requires any carried username to match
+an existing value even if the page leaves that control writable. Password and
+TOTP stages cannot repeat, and each continuation still requires a new field.
+
+Frozen wire examples are `tests/fixtures/protocol/deferred-live-v2.json` and
+`tests/fixtures/protocol/deferred-password-v2.json`:
+
+1. `prepare` or a fresh continuation returns version 2 with
+   `deferred-native-click`; its opaque selector binds the scope.
+2. An authorized `inject` includes `expiresAt` and fills each writable field at
+   most once, checking unchanged controls and earlier writes before the next.
+   Preparation yields one event-loop task so already queued input handlers can
+   update framework state. It then waits at most five seconds for one actual
+   enabled native action in the same scope. `submit-ready` returns only the
+   pending ID, URL, document ID and actual action reference. No click has occurred.
 3. Native rechecks the original delivery, lease and lifecycle, then sends a new
    value-free `submit` transaction with `preparedTransactionId`, the same
-   grant/Entry/domain, echoed `submitReady`, and the reauthorized `expiresAt`.
-4. The extension consumes the pending operation before a synchronous final
-   identity/control/scope/origin/destination/deadline check and one click. Only
-   this phase returns `injected` and advances the normal continuation counter.
+   grant/Entry/domain, echoed `submitReady` and reauthorized `expiresAt`.
+4. The extension consumes the pending operation before its synchronous final
+   identity/control/mode/scope/origin/destination/deadline validation and one click.
+   It re-runs the normal discovery core for adapter plans without creating a new
+   authorization or refreshing the original lifetime. Only this phase returns
+   `injected` and advances the continuation counter. No page wait follows the
+   final native authorization.
 
-A pending operation has one original deadline, capped at ten seconds by both
-wall time and `performance.now()`, and by the initial native expiry. Ready and
-commit messages cannot refresh it. The reauthorized commit expiry is also
-checked immediately before clicking, without an asynchronous wait. A native
-`cancel-submit`, connection/lifecycle loss, timeout, new preparation or invalid
-commit clears pending state. A late result cannot restore a disposed operation.
-Only the approved identifier remains in isolated-world memory for equality
-checking; nothing is persisted or emitted in the value-free ready/commit frames.
-A matching prefilled identity is preserved without input/change events. Failure
-clears a value written by this operation only while it still matches, preserving
-later user edits. Replay, replaced controls, changed identity, new CAPTCHA,
-foreign destinations, expiry and ambiguous actions all stop without a click.
+Pending lifetime is capped at ten seconds using both wall time and
+`performance.now()`, and by the initial native expiry. Ready and commit cannot
+refresh it. Cancel, connection/lifecycle loss, timeout, new preparation or invalid
+commit discards pending state. A late result cannot restore it. Expected values
+remain only in isolated-world memory while pending, never in ready/commit frames
+or persistent storage. Received field-value references are cleared when the fill
+message completes. Failure clears only values actually written by this operation
+that still match, preserving later user edits and pre-existing values.
 
-Opaque iframe contents and arbitrary DIV actions are not operated. If no real
-native action appears, this path stops instead of claiming a successful submit.
-The browser regression demonstrates synthetic deferred behavior and does not
-claim that X necessarily produces such a button after input.
+The observed X password fixture preserves its native form, disabled username,
+current-password control, unannotated Continue structure and visibility CSS.
+Its outer page/search form and resource/value attributes were omitted; this is
+not a full-page replay. Post-password-input native-button behavior is synthetic.
+The framework-state tests reproduce queued microtask/timer updates on native
+forms and DIV scopes; they are mechanism regressions, not captured LinkedIn HTML
+or production JavaScript. All physical submits require a newly authorized commit;
+no second-click retry or arbitrary DIV operation is added.
+
+
+### Initial stage after user autofill
+
+An explicit agent delivery can replace an unchanged tuple written by Palladin's
+previous automatic user fill, using the one-use isolated provenance described in
+[AUTOFILL-POLICY.md](AUTOFILL-POLICY.md#explicit-agent-choice-after-automatic-user-fill).
+The private worker-to-isolated deferred-fill message carries an optional current
+unlocked-session marker only on chain step zero and never with a carried-identity
+requirement. This is not a public/native protocol field, a new grant right, or a
+generic overwrite flag. Later stages, manual/pre-existing values, edited controls
+and expired/invalidated receipts remain fail-closed. The original native delivery,
+lease and one-call deadline are unchanged; submit still requires a separate fresh
+native commit authorization.

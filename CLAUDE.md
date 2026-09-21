@@ -198,6 +198,23 @@ backend. **No `*-viewed` events** - screen/tab views are covered generically.
   reason exercised (source, origin, non-bridge, direction, nonce, payload). The
   manifest builder has a smoke test asserting MV3 validity and least privilege.
 
+### Form regressions: mandatory TDD
+
+For every reported form detection, autofill, or credential-capture defect, follow
+[the form regression procedure](docs/FORM-REGRESSION-TDD.md). First reproduce the
+reported behavior with a fixture faithful to the observed production specimen
+(structure, attributes, relevant CSS and event sequence), replacing only sensitive
+data and documenting reductions. Obtain a failing assertion before changing
+production code. Do not label an invented approximation as a real-site repro.
+Reuse the same specimen across user and Agent adapters; record each adapter's
+expectations and support separately. Keep the regression test after the
+fix. Use real Chromium events for layout, navigation, trusted-action and save
+prompt defects; add a relevant negative case when broadening detection. Never
+capture real credentials, full authenticated DOM, HAR, cookies or tokens in test
+fixtures or reports. A green fixture is not proof that the real website works:
+record synthetic and real-site acceptance separately. Use the
+[report template](docs/FORM-REGRESSION-TEMPLATE.md).
+
 ## CI/CD
 
 GitHub Actions on pull requests to `main`:

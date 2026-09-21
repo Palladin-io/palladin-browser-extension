@@ -66,3 +66,20 @@ describe("fill message guards", () => {
     expect(isFillOutcome({ ok: false, reason: "target-changed" })).toBe(true);
   });
 });
+
+
+it('only accepts explicit replacement intent on a bound inline credential fill', () => {
+  expect(isFillRequestMessage({ ...request, intent: 'manual' })).toBe(false);
+  expect(isFillRequestMessage({ ...request, loginTargetId: 'login-1', intent: 'manual' })).toBe(true);
+  expect(isFillRequestMessage({ ...request, loginTargetId: 'login-1', intent: 'automatic' })).toBe(true);
+  expect(isFillRequestMessage({ ...request, loginTargetId: 'login-1', intent: 'unknown' })).toBe(false);
+  expect(isFillRequestMessage({ ...request, loginTargetId: 'login-1', intent: 'manual', submit: true })).toBe(false);
+});
+
+it('accepts the private epoch only on a bound automatic fill, never a manual capability', () => {
+  const base = { ...request, loginTargetId: 'login-1', intent: 'automatic', automaticFillSessionId: 'a'.repeat(32) };
+  expect(isFillRequestMessage(base)).toBe(true);
+  for (const mutation of [{ intent: 'manual' }, { intent: undefined }, { loginTargetId: null }, { submit: true }, { automaticFillSessionId: true }, { automaticFillSessionId: 'invalid' }]) {
+    expect(isFillRequestMessage({ ...base, ...mutation })).toBe(false);
+  }
+});

@@ -13,7 +13,7 @@ import { createClosedSurface } from "./closed-surface";
 
 type CopyKey = Extract<keyof typeof en, `captureToast.${string}`>;
 type WithoutDocument<T> = T extends CredentialCaptureCommand ? Omit<T, "channel" | "documentId"> : never;
-type ToastAction = WithoutDocument<Extract<CredentialCaptureCommand, { type: "save" | "dismiss" | "mute" | "unlock" }>>;
+type ToastAction = WithoutDocument<Extract<CredentialCaptureCommand, { type: "save" | "dismiss" | "mute" | "unlock" | 'choose-username' }>>;
 
 export class CredentialCaptureToast {
   private readonly surface: ReturnType<typeof createClosedSurface>;
@@ -125,6 +125,24 @@ export class CredentialCaptureToast {
       this.panel.append(this.note("captureToast.locked"),
         this.button(this.text("captureToast.unlock"), "primary", () => this.perform({ type: "unlock" })));
     } else {
+      if (prompt.usernameSelection) {
+        const identities = this.doc.createElement('div');
+        identities.className = 'choices';
+        identities.setAttribute('role', 'radiogroup');
+        identities.setAttribute('aria-label', this.text('captureToast.chooseUsername'));
+        this.panel.append(this.note('captureToast.chooseUsername'));
+        for (const choice of ['email', 'nickname'] as const) {
+          const option = this.button(this.text(choice === 'email' ? 'captureToast.email' : 'captureToast.nickname'), 'choice', () => {
+            this.choosing = false;
+            this.autoUpdate = false;
+            return this.perform({ type: 'choose-username', promptId: prompt.id, choice });
+          });
+          option.setAttribute('role', 'radio');
+          option.setAttribute('aria-checked', String(prompt.usernameSelection.selected === choice));
+          identities.append(option);
+        }
+        this.panel.append(identities);
+      }
       if (this.choosing) {
         const choices = this.doc.createElement("div");
         choices.className = "choices";
@@ -168,7 +186,7 @@ export class CredentialCaptureToast {
           : target.action === "update" ? "captureToast.update" : "captureToast.save", target.label), "primary", () =>
           this.perform({ type: "save", promptId: prompt.id, targetId: target.id,
             autoUpdate: target.action === "update" && this.autoUpdate })));
-      } else this.panel.append(this.note("captureToast.noVault"));
+      } else if (!prompt.usernameSelection || prompt.usernameSelection.selected !== null) this.panel.append(this.note("captureToast.noVault"));
       if (prompt.targets.length > 1) {
         const change = this.button(this.text("captureToast.change"), "secondary", () => {
           this.choosing = !this.choosing;
@@ -272,7 +290,7 @@ const STYLES = `
   .checkbox[aria-checked="true"]::before { content:"✓"; text-align:center; color:#fff; background:var(--cv-primary); border-color:var(--cv-primary); line-height:14px; }
   .choices { display:flex; flex-direction:column; gap:6px; max-height:220px; overflow:auto; margin-bottom:10px; }
   .choice { padding:9px 10px; min-height:36px; text-align:left; background:var(--cv-surface); color:var(--cv-t1); border:1px solid var(--cv-border); overflow-wrap:anywhere; }
-  .choice[aria-pressed="true"] { border-color:var(--cv-primary); }
+  .choice[aria-pressed="true"],.choice[aria-checked="true"] { border-color:var(--cv-primary); }
   .choice-vault { display:block; margin-top:3px; color:var(--cv-t2); font-size:12px; }
   .note { font-size:12px; color:var(--cv-t2); margin:8px 0; }
   .error { color:var(--cv-primary); }
