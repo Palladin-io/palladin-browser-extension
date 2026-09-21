@@ -1,0 +1,123 @@
+{
+  "note": "Observed specimen structure and recorded viewport (fallback 1200x900) with synthetic behavior. User shield results assert count and a closed shadow root only, not geometry or fill. No production login, native grant authorization or legacy registration executor is proved.",
+  "excludedDirectoriesWithoutCaseMetadata": [
+    "tests/fixtures/forms/allegro-login-ad-2026-09-20",
+    "tests/fixtures/forms/aws-root-identifier-2026-09-20",
+    "tests/fixtures/forms/doradcasmaku-capture-2026-09-16",
+    "tests/fixtures/forms/jetbrains-identifier-2026-09-20",
+    "tests/fixtures/forms/linkedin-capture-2026-09-15",
+    "tests/fixtures/forms/linkedin-login-2026-09-20",
+    "tests/fixtures/forms/proton-login-2026-09-20"
+  ],
+  "results": [
+    {
+      "id": "bilibili-login-2026-09-16",
+      "service": "bilibili",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass",
+      "customCommitNegatives": [
+        {
+          "mutation": "href-or-role",
+          "outcome": "pass"
+        },
+        {
+          "mutation": "class",
+          "outcome": "pass"
+        },
+        {
+          "mutation": "covered",
+          "outcome": "pass"
+        },
+        {
+          "mutation": "replacement",
+          "outcome": "pass"
+        },
+        {
+          "mutation": "extra-field",
+          "outcome": "pass"
+        },
+        {
+          "mutation": "caption",
+          "outcome": "pass"
+        }
+      ]
+    },
+    {
+      "id": "bilibili-registration-sms-2026-09-16",
+      "service": "bilibili",
+      "flow": "registration",
+      "stage": "verification",
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 1
+    },
+    {
+      "id": "meczyki-login-2026-09-16",
+      "service": "meczyki",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass",
+      "customCommitNegatives": [
+        {
+          "mutation": "href-or-role",
+          "outcome": "pass"
+        },
+        {
+          "mutation": "class",
+          "outcome": "pass"
+        },
+        {
+          "mutation": "covered",
+          "outcome": "pass"
+        },
+        {
+          "mutation": "replacement",
+          "outcome": "pass"
+        },
+        {
+          "mutation": "extra-field",
+          "outcome": "pass"
+        },
+        {
+          "mutation": "caption",
+          "outcome": "pass"
+        }
+      ]
+    },
+    {
+      "id": "meczyki-registration-2026-09-16",
+      "service": "meczyki",
+      "flow": "registration",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "unsupported-current-adapter",
+      "expectedAgentFieldCount": 4
+    }
+  ],
+  "sourceDigests": {
+    "bilibili-login-2026-09-16": {
+      "case.json": "33a5f1f8d36a741fc756e3652d8cc74a8320253fcad1dc023f57c051f3c514db",
+      "page.html": "72f33493fcff4695e71576f6f1c12a39b2e2b2058c68d2cae5f12a10dfa88d89",
+      "page.css": "3a5962669a0343b9223ce10be1fa0f2984c214cae81f5e551309a9071e81a81c"
+    },
+    "bilibili-registration-sms-2026-09-16": {
+      "case.json": "ea209e944d1b197112086653024e98a33a02b716d774534f107c92618e40a429",
+      "page.html": "ac64d225080504f776af6816770d9db19bf8d973bdad9b3e12bc1797d96a1396",
+      "page.css": "9f7ad0ac446210f4cde4832d759843aae263b738f5da73ca95351f28630ef32f"
+    },
+    "meczyki-login-2026-09-16": {
+      "case.json": "6e6c2608da502c7d83280a8b73d99916c332bbfb26482619ba24f467a756e950",
+      "page.html": "a23fb1ea6da24a36f8b8f093abe5ac868c1ffd480b439a9b4c12cdf37c6eda2b",
+      "page.css": "d35ad396cb6af2049a7a6cd13ed14477305249721d7ee219d8ff28655930206d"
+    },
+    "meczyki-registration-2026-09-16": {
+      "case.json": "a7bcc838794e8296427447d158179612ec0f4f9d09e8b25109000b2898b4dbb3",
+      "page.html": "063f22a9534789407252dbb4f4cdcaa3ca7e1e3b778c20cced7c5f8e87a19479",
+      "page.css": "f23082b6e3d297359f1db3a88521d1be6815c214f9eeb852960f9d45bd100b70"
+    }
+  },
+  "harnessSha256": "8a4a2ef733b215616462561f5f6c5a6e1f62902334b184d1b98c7e11bae0fcb5"
+}

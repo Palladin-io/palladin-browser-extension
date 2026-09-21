@@ -102,7 +102,8 @@ one recognized username or one enabled `type=password` control explicitly marked
 extra editable fields, challenges and ambiguous forms. A password stage may also
 show one disabled or readonly identity: it must already exactly match the
 runtime-approved username and is never written. A public Continue caption is
-only an intent hint, never an executable DIV or invented button.
+only an intent hint for the native-only action. Bounded custom controls use the
+separate action described below.
 
 Allowed version-2 field lists are exactly username, password, or username followed
 by password. The mixed form does not itself grant permission to overwrite an
@@ -165,3 +166,32 @@ generic overwrite flag. Later stages, manual/pre-existing values, edited control
 and expired/invalidated receipts remain fail-closed. The original native delivery,
 lease and one-call deadline are unchanged; submit still requires a separate fresh
 native commit authorization.
+
+## Bounded custom login actions (coordinated candidate)
+
+Version 2 can explicitly request `deferred-control-click` for the shared detector's
+already-observed `a.button:not([href])` and `div.btn_primary` controls with an exact
+login caption. This does not turn arbitrary DIVs, role buttons, navigation links,
+registration, SMS or TOTP into credential-submit actions. Chinese `登录` is a login
+caption; mixed login/registration `登录/注册` is not. The frozen shared fixture is
+`tests/fixtures/protocol/deferred-control-click-v2.json`.
+
+An enabled custom action retains its exact element binding. An initially disabled
+combined credential stage may await the page's activation within the existing
+lease; the extension never enables it. Sibling actions must resolve to the same
+unambiguous credential form through shared scope discovery. Extra editable inputs
+or another form cannot broaden that scope. Identity, class, role, href, target,
+download and public captions are checked again before commit, alongside existing
+visibility, overlay, values, document, domain and deadline checks.
+
+Both deferred actions use the same fill-once / native reauthorization / one-use
+commit protocol. `deferred-native-click` keeps its native-only meaning; replacing
+its button with a custom control cannot widen an issued authorization. Version-1
+maps and the immediate step channel reject both deferred actions. An older native
+runtime rejects the unknown new variant before delivery; there is no fallback.
+Deploy a matching runtime before exposing these new plans to live CLI tests.
+
+Destination checks validate the declared form owner and target origin. They cannot
+predict arbitrary page JavaScript run by a click handler. Every continuation is
+still bound to its authenticated origin and document; no cross-origin delivery
+permission is inferred from the click.

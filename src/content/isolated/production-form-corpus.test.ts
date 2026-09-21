@@ -111,10 +111,19 @@ for (const item of cases) {
         expect(describeAgentFormControl(field!, 'public-ref')).toMatchObject({ kind: expected.kind, purpose: expected.purpose });
       }
     });
-    // These source expectations used the former generic form-submit adapter.
-    // Preserve them as executable requirements on today's live-login adapter;
-    // an unavailable action is an explicit RED, never a restored legacy executor.
-    if (item.specimen.expected.agent.action) it('supports the recorded explicit action through the current live adapter', async () => {
+    // LiveLogin authorizes an existing credential, not account creation or SMS.
+    // Registration action requirements remain in case.json and the browser
+    // capability report as unsupported-current-adapter, never a login PASS.
+    if (item.specimen.expected.agent.action && item.specimen.flow !== 'login') it('keeps registration and SMS actions outside existing-credential login authority', () => {
+      mount();
+      const action = query<HTMLElement>(item.specimen.expected.agent.action!)!;
+      expect(action).not.toBeNull();
+      const clicked = vi.fn(); action.addEventListener('click', clicked);
+      const live = new LiveLogin(document, 'b'.repeat(32), () => window.location.href, () => true, { isVisible: isCaptureVisible });
+      try { expect(live.inspect(window.location.href)).toBeNull(); expect(clicked).not.toHaveBeenCalled(); }
+      finally { live.clear(); }
+    });
+    if (item.specimen.expected.agent.action && item.specimen.flow === 'login') it('supports the recorded explicit login action through the current live adapter', async () => {
       mount();
       const documentId = 'b'.repeat(32), targetUrl = window.location.href;
       const live = new LiveLogin(document, documentId, () => targetUrl, () => true, { isVisible: isCaptureVisible });
@@ -132,7 +141,7 @@ for (const item of cases) {
         const prepared = await live.fillDeferred({ channel: 'palladin.agent-live/deferred-fill', pendingId: 'c'.repeat(32),
           documentId, expectedDomain: 'forms.example.test', expiresAt: Date.now() + 10_000, form, values });
         expect(clicked).not.toHaveBeenCalled();
-        expect(prepared.ok, 'Recorded action did not become an executable native action').toBe(true);
+        expect(prepared.ok, 'Recorded login action did not become executable').toBe(true);
         if (!prepared.ok) return;
         const commit = { channel: 'palladin.agent-live/deferred-commit' as const, expectedDomain: 'forms.example.test',
           submitReady: prepared.submitReady, expiresAt: Date.now() + 1000 };

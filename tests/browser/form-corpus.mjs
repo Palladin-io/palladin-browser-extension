@@ -123,9 +123,41 @@ try {
       assert.equal(await page.evaluate(() => globalThis.corpusClicks), 0, 'Fill must never submit');
       const commit = { channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'forms.example.test', submitReady: ready.submitReady, expiresAt: Date.now() + 1000 };
       assert.equal((await send(target, commit)).ok, true, 'Fresh explicit commit rejected');
-      assert.equal(await page.evaluate(() => globalThis.corpusClicks), 1, 'Expected one native action');
+      assert.equal(await page.evaluate(() => globalThis.corpusClicks), 1, 'Expected one authorized action');
       assert.equal((await send(target, commit)).ok, false, 'Consumed commit must not replay');
       row.agentLive = 'pass';
+      if (['bilibili-login-2026-09-16', 'meczyki-login-2026-09-16'].includes(specimen.id)) {
+        assert.equal(probe.form.steps[0].submit.action, 'deferred-control-click');
+        row.customCommitNegatives = [];
+        for (const mutation of ['href-or-role', 'class', 'covered', 'replacement', 'extra-field', 'caption']) {
+          await page.goto(url);
+          const changedTarget = await binding(url);
+          const changedProbe = await send(changedTarget, { channel: 'palladin.agent-live/probe', documentId: changedTarget.documentId, targetUrl: url });
+          assert.equal(changedProbe.outcome, 'ready');
+          const prepared = await send(changedTarget, { channel: 'palladin.agent-live/deferred-fill', pendingId: 'c'.repeat(32),
+            documentId: changedTarget.documentId, expectedDomain: 'forms.example.test', form: changedProbe.form,
+            expiresAt: Date.now() + 10_000, values });
+          assert.equal(prepared.ok, true);
+          await page.evaluate(({ mutation, selector }) => {
+            const action = querySpecimen(document, selector)[0];
+            if (mutation === 'href-or-role') action.setAttribute(action.tagName === 'A' ? 'href' : 'role', 'navigation');
+            if (mutation === 'class') action.className = 'unrelated-action';
+            if (mutation === 'replacement') action.replaceWith(action.cloneNode(true));
+            if (mutation === 'caption') action.textContent = 'Create account';
+            if (mutation === 'extra-field') querySpecimen(document, 'input[type=password]')[0].insertAdjacentHTML('afterend', '<input name="account">');
+            if (mutation === 'covered') {
+              const rect = action.getBoundingClientRect(), cover = document.createElement('div');
+              Object.assign(cover.style, { position: 'fixed', left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px`, zIndex: '999999', background: 'white' });
+              document.body.append(cover);
+            }
+          }, { mutation, selector: specimen.expected.agent.action });
+          assert.equal((await send(changedTarget, { channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'forms.example.test',
+            submitReady: prepared.submitReady, expiresAt: Date.now() + 1000 })).ok, false, `${mutation}: changed action must not commit`);
+          assert.equal(await page.evaluate(() => globalThis.corpusClicks), 0);
+          assert.equal(await page.evaluate(expected => expected.every(field => querySpecimen(document, field.selector)[0].value === ''), expected), true);
+          row.customCommitNegatives.push({ mutation, outcome: 'pass' });
+        }
+      }
       if (specimen.id === 'amazon-login-identifier-2026-09-15') {
         // Synthetic attacks on the unchanged observed translucent native action.
         // They test local enforcement, never production behavior or auth.

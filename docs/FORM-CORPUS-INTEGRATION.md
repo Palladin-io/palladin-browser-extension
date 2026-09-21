@@ -159,3 +159,29 @@ caught and re-reviewed the own-caption binding regression. Full unit2993:
 2989 passed,4 existing Bilibili/Meczyki failures,0 skipped; typecheck passed.
 This is identifier-stage synthetic support, not production authentication, a new
 complete service or additional regional coverage.
+
+## Meczyki and Bilibili custom actions
+
+The unchanged login specimens reproduced two action-execution gaps. An explicit
+`deferred-control-click` variant now uses the existing bounded shared action
+classification, scope discovery and authorized fill/commit protocol. Meczyki's
+non-navigating styled anchor and Bilibili's sibling DIV login action both pass
+built Chromium replay at their recorded viewport. Bilibili uses only its recorded
+nonempty-field activation response. No production login or server response is
+inferred. Twelve Chromium mutations across the two specimens reject commit and
+clear synthetic writes: changed href/role, class, caption, overlay, replacement
+and an extra field. The shield check covers count and closed root, not geometry.
+
+The two remaining unit failures were a harness contract error: it sent signup and
+SMS-registration expectations to the existing-credential login adapter. Their
+replacement tests assert rejection by that adapter. Original HTML/CSS and action
+requirements remain unchanged; both browser rows explicitly remain
+`unsupported-current-adapter`. A separate generated-secret registration/capture
+executor and SMS source are missing capabilities. These are not successful
+registration cases and do not satisfy the owner's complete-flow requirement.
+
+Validation: 3023/3023 unit tests, no skips; typecheck; 9 existing agent Chromium
+scenarios; both custom login replays and their 12 mutation checks passed. Read-only
+independent review found no blocker in the extension diff. The matching native
+change is separate; installed CLI and user extension were not replaced. Neither
+CI/cloud review, release nor regional corpus completion is implied.

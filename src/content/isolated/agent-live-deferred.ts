@@ -4,20 +4,21 @@ import { sameLiveForm } from '@shared/messaging/agent-live';
 import { sameSubmitReady, type DeferredFillMessage, type DeferredFillOutcome, type DeferredCommitMessage, type SubmitReady } from '@shared/messaging/agent-deferred';
 import { matchesAgentInjectionTarget } from '@shared/security/domain';
 import { isFillable, loginTargetFor } from './credential-form-analysis';
-import { hasLoginActionLabel, publicActionLabels, isAccountCreationHeadingText, isIdentifiedUsername, isSubscriptionIdentity, isVisibleScopeHint, scopeInputs } from './login-controls';
+import { credentialScopeFor, hasLoginActionLabel, publicActionLabels, isAccountCreationHeadingText, isIdentifiedUsername, isSubscriptionIdentity, isVisibleScopeHint, scopeInputs } from './login-controls';
 import { autocompleteTokens } from './form-semantics';
 import { actionCaption, composedForm, queryOpenElements } from './open-dom';
 import { hasLiveLoginObstacle } from './agent-live-obstacles';
 import { isUsableAgentFormControl } from './agent-form-controls';
 import { writeControlValue, type AgentInjectDomAccess } from './agent-inject';
+import { isCustomLoginAction, isNativeLoginAction, LIVE_ACTION_SELECTOR, type LiveLoginAction } from './live-login-action';
 import { isAgentManagedControl, markAgentManagedControl, unmarkAgentManagedControl } from './agent-managed-controls';
 
 export interface DeferredField { readonly input: HTMLInputElement; readonly fieldId: 'credential.username' | 'credential.password'; readonly mode: 'write' | 'compare' }
-interface BoundStage { form: AgentInjectForm; scope: HTMLElement; fields: readonly DeferredField[]; signature: string; url: string; deadline: number; validate: (() => boolean) | undefined; action: HTMLButtonElement | HTMLInputElement | undefined }
+interface BoundStage { form: AgentInjectForm; scope: HTMLElement; fields: readonly DeferredField[]; signature: string; url: string; deadline: number; validate: (() => boolean) | undefined; action: LiveLoginAction | undefined; allowCustom: boolean }
 interface PendingField { field: DeferredField; expected: string; before: string; wrote: boolean; marked: boolean }
-interface Pending { bound: BoundStage; fields: PendingField[]; expectedDomain: string; expiresAt: number; deadline: number; timer: ReturnType<typeof setTimeout>; ready: SubmitReady; action: HTMLButtonElement | HTMLInputElement | null; actionSignature: string }
+interface Pending { bound: BoundStage; fields: PendingField[]; expectedDomain: string; expiresAt: number; deadline: number; timer: ReturnType<typeof setTimeout>; ready: SubmitReady; action: LiveLoginAction | null; actionSignature: string }
 
-/** Explicit credential-stage preparation, never an executable guess at a DIV.
+/** Explicit credential-stage preparation, custom controls require a distinct wire action.
  * Values remain in this document's isolated world until one reauthorized commit.
  */
 export class DeferredLiveLogin {
@@ -29,32 +30,40 @@ export class DeferredLiveLogin {
   inspect(targetUrl: string): AgentInjectForm | null {
     this.clear();
     if (!this.top() || targetUrl !== this.url() || new URL(targetUrl).protocol !== 'https:') return null;
-    const candidates = queryOpenElements<HTMLFormElement>(this.doc, 'form').flatMap(scope => {
+    const scopes = new Set<HTMLElement>(queryOpenElements<HTMLFormElement>(this.doc, 'form'));
+    for (const input of queryOpenElements<HTMLInputElement>(this.doc, 'input')) {
+      if (composedForm(input) || !isFillable(input)) continue;
+      const target = loginTargetFor(input);
+      if (target?.username && target.password) scopes.add(target.form);
+    }
+    const candidates = [...scopes].flatMap(scope => {
       const stage = this.stage(scope);
       if (!stage) return [];
-      const hint = queryOpenElements<HTMLElement>(scope, 'button,input[type="submit"],div,p,span').some(node => this.dom.isVisible(node) && hasLoginActionLabel(node));
-      if (!hint || this.actions(scope).length > 0) return [];
-      return [{ scope, fields: stage }];
+      const allowCustom = this.hints(scope).some(isCustomLoginAction);
+      const hint = allowCustom || queryOpenElements<HTMLElement>(scope, 'button,input[type="submit"],div,p,span')
+        .some(node => this.dom.isVisible(node) && hasLoginActionLabel(node));
+      if (!hint || this.actions(scope, allowCustom).length > 0) return [];
+      return [{ scope, fields: stage, allowCustom }];
     });
     if (candidates.length !== 1) return null;
-    const { scope, fields } = candidates[0]!;
-    return this.bind(targetUrl, scope, fields);
+    const { scope, fields, allowCustom } = candidates[0]!;
+    return this.bind(targetUrl, scope, fields, undefined, undefined, allowCustom);
   }
 
   /** Adapter for the existing normal-login discovery. It owns classification;
    * this path only freezes its actual nodes and defers the physical click. */
-  bindKnown(targetUrl: string, scope: HTMLElement, fields: readonly DeferredField[], action: HTMLButtonElement | HTMLInputElement, validate: () => boolean, remainingMs: number): AgentInjectForm {
+  bindKnown(targetUrl: string, scope: HTMLElement, fields: readonly DeferredField[], action: LiveLoginAction, validate: () => boolean, remainingMs: number): AgentInjectForm {
     this.clear();
-    const form = this.bind(targetUrl, scope, fields, action, validate);
+    const form = this.bind(targetUrl, scope, fields, action, validate, isCustomLoginAction(action));
     this.bound!.deadline = Math.min(this.bound!.deadline, performance.now() + Math.max(0, remainingMs));
     return form;
   }
-  private bind(targetUrl: string, scope: HTMLElement, fields: readonly DeferredField[], action?: HTMLButtonElement | HTMLInputElement, validate?: () => boolean): AgentInjectForm {
+  private bind(targetUrl: string, scope: HTMLElement, fields: readonly DeferredField[], action?: LiveLoginAction, validate?: () => boolean, allowCustom = false): AgentInjectForm {
     const snapshot = generateNonce();
     const form: AgentInjectForm = { version: 2, steps: [{ fields: fields.map(field => ({ entryFieldId: field.fieldId,
       control: field.fieldId === 'credential.password' ? 'password' : 'username', selector: `palladin-live:${snapshot}:${generateNonce()}` })),
-      submit: { action: 'deferred-native-click', selector: `palladin-live:${snapshot}:${generateNonce()}` } }] };
-    this.bound = { form, scope, fields, action, validate, signature: signature(scope, fields), url: targetUrl, deadline: performance.now() + 60_000 };
+      submit: { action: allowCustom ? 'deferred-control-click' : 'deferred-native-click', selector: `palladin-live:${snapshot}:${generateNonce()}` } }] };
+    this.bound = { form, scope, fields, action, allowCustom, validate, signature: signature(scope, fields), url: targetUrl, deadline: performance.now() + 60_000 };
     return form;
   }
 
@@ -142,7 +151,6 @@ export class DeferredLiveLogin {
     if (!this.top() || this.url() !== bound.url || performance.now() >= bound.deadline || !bound.scope.isConnected
       || bound.fields.some(field => !field.input.isConnected) || signature(bound.scope, bound.fields) !== bound.signature) return false;
     if (bound.validate) return bound.validate();
-    if (!(bound.scope instanceof HTMLFormElement)) return false;
     const fields = this.stage(bound.scope);
     return fields !== null && fields.length === bound.fields.length && fields.every((field, index) => {
       const previous = bound.fields[index];
@@ -150,7 +158,7 @@ export class DeferredLiveLogin {
     });
   }
   private sameValues(pending: Pending): boolean { return pending.fields.every(field => field.field.input.value === field.expected); }
-  private stage(scope: HTMLFormElement): DeferredField[] | null {
+  private stage(scope: HTMLElement): DeferredField[] | null {
     const inputs = scopeInputs(scope);
     // Covered editable fields still belong to this stage. Native action inputs
     // are checked separately and never mistaken for additional credential fields.
@@ -170,15 +178,13 @@ export class DeferredLiveLogin {
         || !fields.includes(target.username) || !fields.includes(target.password)
         || inputs.filter(field => field.type === 'password').length !== 1
         || inputs.some(field => field !== target.username && isIdentifiedUsername(field))) return null;
-      // A disabled native login action is an observed initial state. A DIV hint
-      // alone does not authorize preparing a combined credential form.
-      const hints = queryOpenElements<HTMLButtonElement | HTMLInputElement>(scope, 'button,input[type="submit"],input[type="button"]')
-        .filter(action => composedForm(action) === scope && ['submit', 'button'].includes(action.type)
-          && this.dom.isVisible(action) && isVisibleScopeHint(action) && hasLoginActionLabel(action));
+      // A bounded action may be disabled until both credentials are entered.
+      const hints = this.hints(scope);
       if (hints.length !== 1) return null;
       return [{ input: target.username, fieldId: 'credential.username', mode: 'write' },
         { input: target.password, fieldId: 'credential.password', mode: 'write' }];
     }
+    if (!(scope instanceof HTMLFormElement)) return null;
     if (input.type === 'password') {
       if (!autocompleteTokens(input).includes('current-password') || inputs.filter(field => field.type === 'password').length !== 1) return null;
       const identities = inputs.filter(isIdentifiedUsername);
@@ -192,15 +198,18 @@ export class DeferredLiveLogin {
     const loginHeading = headings.some(node => /^(?:sign\s*in|log\s*in|zaloguj(?:\s+się)?)$/i.test((node.textContent ?? '').trim()));
     return hiddenPassword || loginHeading ? [{ input, fieldId: 'credential.username', mode: 'write' }] : null;
   }
-  private actions(scope: HTMLElement): (HTMLButtonElement | HTMLInputElement)[] {
-    return queryOpenElements<HTMLButtonElement | HTMLInputElement>(this.doc, 'button,input[type="submit"],input[type="button"]')
-      .filter(action => (scope instanceof HTMLFormElement ? composedForm(action) === scope : scope.contains(action) && composedForm(action) === null) && ['submit','button'].includes(action.type) && isUsableAgentFormControl(action, this.dom)
-        && hasLoginActionLabel(action));
+  private hints(scope: HTMLElement): LiveLoginAction[] {
+    return queryOpenElements(this.doc, LIVE_ACTION_SELECTOR).filter((action): action is LiveLoginAction =>
+      (isNativeLoginAction(action) || isCustomLoginAction(action)) && credentialScopeFor(action) === scope
+      && this.dom.isVisible(action) && isVisibleScopeHint(action) && hasLoginActionLabel(action));
   }
-  private currentActions(bound: BoundStage): (HTMLButtonElement | HTMLInputElement)[] {
-    // Known actions retain the existing normal discovery's vocabulary and
-    // ambiguity/visibility checks through current(), not this narrower hint list.
-    return bound.action ? [bound.action] : this.actions(bound.scope);
+  private actions(scope: HTMLElement, allowCustom: boolean): LiveLoginAction[] {
+    return this.hints(scope).filter(action => (isNativeLoginAction(action) || allowCustom)
+      && isUsableAgentFormControl(action, this.dom));
+  }
+  private currentActions(bound: BoundStage): LiveLoginAction[] {
+    // Known actions retain normal discovery's ambiguity/visibility checks.
+    return bound.action ? [bound.action] : this.actions(bound.scope, bound.allowCustom);
   }
   private cleanup(pending: Pending): void {
     clearTimeout(pending.timer);
@@ -212,7 +221,7 @@ export class DeferredLiveLogin {
   }
 }
 /** Borrow only the immediate sole-form card, never page-wide promotional copy. */
-function cardHeadings(scope: HTMLFormElement): Element[] {
+function cardHeadings(scope: HTMLElement): Element[] {
   const card = scope.parentElement;
   if (!card || card === scope.ownerDocument.body || card === scope.ownerDocument.documentElement) return [];
   const forms = queryOpenElements(card, 'form');
@@ -227,10 +236,12 @@ function signature(scope: HTMLElement, fields: readonly DeferredField[]): string
       ...['id','name','type','autocomplete','pattern','minlength','maxlength','form','required','disabled','readonly','aria-label','aria-labelledby'].map(key => field.input.getAttribute(key))])]);
 }
 function actionSignature(action: HTMLElement): string { return JSON.stringify([action.tagName, ...['type','form','formaction','formtarget','formmethod','aria-label','aria-labelledby'].map(key => action.getAttribute(key)), publicActionLabels(action),
+  isCustomLoginAction(action) ? ['class','role','href','target','download'].map(key => action.getAttribute(key)) : null,
   action instanceof HTMLInputElement ? action.value : actionCaption(action)]); }
-function safeDestination(doc: Document, scope: HTMLElement, action: HTMLButtonElement | HTMLInputElement, url: string): boolean {
+function safeDestination(doc: Document, scope: HTMLElement, action: LiveLoginAction, url: string): boolean {
+  if (credentialScopeFor(action) !== scope) return false;
   if (!(scope instanceof HTMLFormElement)) return composedForm(action) === null && scope.contains(action);
-  const destination = new URL((action.type === 'submit' ? action.getAttribute('formaction') : null) ?? scope.getAttribute('action') ?? url, doc.baseURI);
-  const target = (action.type === 'submit' ? action.getAttribute('formtarget') : null) ?? scope.getAttribute('target') ?? doc.querySelector('base[target]')?.getAttribute('target') ?? '_self';
+  const destination = new URL((isNativeLoginAction(action) && action.type === 'submit' ? action.getAttribute('formaction') : null) ?? scope.getAttribute('action') ?? url, doc.baseURI);
+  const target = (isNativeLoginAction(action) && action.type === 'submit' ? action.getAttribute('formtarget') : null) ?? scope.getAttribute('target') ?? doc.querySelector('base[target]')?.getAttribute('target') ?? '_self';
   return destination.origin === new URL(url).origin && !destination.username && !destination.password && ['', '_self'].includes(target);
 }

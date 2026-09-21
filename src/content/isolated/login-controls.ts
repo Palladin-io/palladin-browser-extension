@@ -34,7 +34,7 @@ export const ACTION_SELECTOR = 'button, input[type="submit"], input[type="button
 const AUTH_ACTION = /(?:\blog\s*in\b|\bsign\s*in\b|\bsign\s*up\b|\bcontinue\b|\bnext\b|\bsubmit\b|\bregister\b|\bcreate\s+account\b|\bsave\b|zaloguj|zarejestruj|dalej|kontynuuj|zapisz|utwórz\s+konto)/i;
 
 const LOCALIZED_LOGIN_ACTIONS = new Set(['logowanie', 'συνέχεια', 'fortsett', 'fortsätt', 'continuar', 'weiter', 'anmelden',
-  'prijavi se', 'entrar', 'log ind']);
+  'prijavi se', 'entrar', 'log ind', '登录']);
 const EXACT_LOGIN_ACTION = /^(?:log\s*in|sign\s*in|continue|next|submit|zaloguj(?:\s+się)?|dalej|kontynuuj)$/i;
 
 export function publicActionLabels(element: Element): string[] {
