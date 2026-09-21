@@ -20,7 +20,7 @@ export function validateBuiltManifest(
   invariant(manifest.default_locale === "en", `${target}: unexpected default locale`);
   invariant(
     manifest.content_security_policy?.extension_pages
-      === "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; base-uri 'self'; img-src 'self' data: https://assets.palladin.io http://localhost:4566",
+      === "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; base-uri 'self'; img-src 'self' data: blob:",
     `${target}: unexpected extension-page CSP`,
   );
   for (const locale of ["en", "pl"]) {

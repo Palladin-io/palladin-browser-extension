@@ -178,10 +178,15 @@ reimplemented in popup, content-script, or service-worker handlers. Extension
 pages allow the narrow Manifest V3 CSP source `wasm-unsafe-eval` solely because
 that reviewed package instantiates its bundled WebAssembly module; generic
 `unsafe-eval`, remote scripts, and remote WebAssembly remain prohibited.
-Entry icons may load only from the immutable Palladin public-asset origin (or
-the fixed localhost asset origin in development), with no referrer; arbitrary
-remote image origins remain blocked by both URL validation and the extension
-page `img-src` CSP.
+Entry icons use the selected API's immutable public-content route by catalog
+asset ID and revision. The URL embedded in decrypted presentation is never
+fetched. The unlocked surface reads the server configuration once, fetches PNG
+bytes without credentials, referrers or redirects, bounds each image to 1 MiB,
+and renders a local blob. Unmount aborts requests and revokes blobs. The
+`img-src` CSP accepts only local resources, data and blobs; self-hosted APIs use
+the existing exact-origin permission granted when choosing the server, with no
+S3/CDN host permission. Deploy the backend content endpoint before these clients;
+unavailable images fall back locally without retry or catalog metadata lookup.
 
 ## Messaging contract
 
