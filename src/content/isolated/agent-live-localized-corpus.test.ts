@@ -226,3 +226,55 @@ it.each(['visible', 'aria'])('fails closed when a conflicting %s caption exceeds
   else action.setAttribute('aria-label', 'Create account '.repeat(40));
   expect(hasLoginActionLabel(action)).toBe(false);
 });
+
+it.each([
+  '<img alt="Google">',
+  '<svg role="img" aria-label="Google"></svg>',
+  '<svg role="img" aria-labelledby="provider"></svg><span id="provider" aria-hidden="true">Google</span>',
+])('rejects meaningful descendant provider semantics: %s', icon => {
+  document.body.innerHTML = `<form><input autocomplete="username"><input type="password"><button aria-label="Sign in">${icon}</button></form>`;
+  expect(hasLoginActionLabel(document.querySelector('button')!)).toBe(false);
+  expect(instance().inspect(url)).toBeNull();
+});
+it.each([
+  '<span aria-hidden="true">person</span>',
+  '<span aria-hidden="true">person</span>Sign in',
+  '<svg aria-hidden="true" aria-label="person"><title>person</title></svg>',
+])('ignores explicitly decorative descendant text: %s', icon => {
+  document.body.innerHTML = `<button aria-label="Sign in">${icon}</button>`;
+  expect(hasLoginActionLabel(document.querySelector('button')!)).toBe(true);
+});
+it.each(['alt', 'aria-label', 'decoration', 'root-IDREF'])('rejects a new descendant semantic label before commit: %s', async mutation => {
+  document.body.innerHTML = '<form><input autocomplete="username"><input type="password"><button aria-label="Sign in"><img id="icon" alt="" aria-hidden="true"></button></form>';
+  if (mutation === 'root-IDREF') {
+    document.querySelector('button')!.setAttribute('aria-labelledby', 'action-label');
+    document.querySelector('form')!.insertAdjacentHTML('beforeend', '<span id="action-label" aria-hidden="true">Sign in</span>');
+  }
+  const flow = instance(), form = flow.inspect(url); expect(form).not.toBeNull(); if (!form) return;
+  const clicked = vi.fn((event: Event) => event.preventDefault()); document.querySelector('button')!.addEventListener('click', clicked);
+  const ready = await flow.fillDeferred({ channel: 'palladin.agent-live/deferred-fill', pendingId: 'b'.repeat(32), documentId,
+    expectedDomain: 'forms.example.test', expiresAt: Date.now() + 10_000, form,
+    values: [{ entryFieldId: 'credential.username', value: 'fixture@example.test' }, { entryFieldId: 'credential.password', value: 'Fixture-only!42' }] });
+  expect(ready.ok).toBe(true); if (!ready.ok) return;
+  const icon = document.querySelector('#icon')!; icon.removeAttribute('aria-hidden');
+  // Also bind newly semantic *allowed* text, not only newly forbidden text.
+  icon.setAttribute(mutation === 'aria-label' ? 'aria-label' : 'alt', mutation === 'decoration' ? 'Continue' : 'Google');
+  expect(flow.commitDeferred({ channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'forms.example.test',
+    submitReady: ready.submitReady, expiresAt: Date.now() + 1000 }).ok).toBe(false);
+  expect(clicked).not.toHaveBeenCalled();
+});
+
+it('keeps semantic labels in open shadow/slot content and excludes decorative subtrees', () => {
+  document.body.innerHTML = '<button aria-label="Sign in"><span id="icon"><img alt="Google"></span></button>';
+  const icon = document.querySelector('#icon')!; icon.attachShadow({ mode: 'open' }).innerHTML = '<slot></slot>';
+  expect(hasLoginActionLabel(document.querySelector('button')!)).toBe(false);
+  icon.setAttribute('aria-hidden', 'true');
+  expect(hasLoginActionLabel(document.querySelector('button')!)).toBe(true);
+});
+it.each(['nodes', 'semantic text'])('bounds execution descendant %s', bound => {
+  document.body.innerHTML = '<button aria-label="Sign in"></button>';
+  const action = document.querySelector('button')!;
+  if (bound === 'nodes') action.innerHTML = '<span></span>'.repeat(256);
+  else action.innerHTML = `<img alt="${'x'.repeat(513)}">`;
+  expect(hasLoginActionLabel(action)).toBe(false);
+});

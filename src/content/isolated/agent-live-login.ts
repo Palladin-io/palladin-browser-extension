@@ -225,7 +225,7 @@ function liveControlSignature(element: LiveLoginAction): string {
     owner?.getAttribute('method'),
     element.ownerDocument.baseURI,
     element.ownerDocument.querySelector('base[target]')?.getAttribute('target'),
-    !(element instanceof HTMLInputElement) || ['submit', 'button'].includes(element.type) ? publicActionLabels(element) : null,
+    !(element instanceof HTMLInputElement) || ['submit', 'button'].includes(element.type) ? publicActionLabels(element, true) : null,
     !(element instanceof HTMLInputElement) || ['submit', 'button'].includes(element.type) ? publicActionReferenceState(element) : null,
     !(element instanceof HTMLInputElement) ? actionCaption(element)
       : ['submit', 'button'].includes(element.type) ? element.value : null,

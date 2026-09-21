@@ -235,7 +235,7 @@ function signature(scope: HTMLElement, fields: readonly DeferredField[]): string
     scope.ownerDocument.querySelector('base[target]')?.getAttribute('target'), ...fields.map(field => [field.fieldId, field.mode,
       ...['id','name','type','autocomplete','pattern','minlength','maxlength','form','required','disabled','readonly','aria-label','aria-labelledby'].map(key => field.input.getAttribute(key))])]);
 }
-function actionSignature(action: HTMLElement): string { return JSON.stringify([action.tagName, ...['type','form','formaction','formtarget','formmethod','aria-label','aria-labelledby'].map(key => action.getAttribute(key)), publicActionLabels(action), publicActionReferenceState(action),
+function actionSignature(action: HTMLElement): string { return JSON.stringify([action.tagName, ...['type','form','formaction','formtarget','formmethod','aria-label','aria-labelledby'].map(key => action.getAttribute(key)), publicActionLabels(action, true), publicActionReferenceState(action),
   isCustomLoginAction(action) ? ['class','role','href','target','download'].map(key => action.getAttribute(key)) : null,
   action instanceof HTMLInputElement ? action.value : actionCaption(action)]); }
 function safeDestination(doc: Document, scope: HTMLElement, action: LiveLoginAction, url: string): boolean {
