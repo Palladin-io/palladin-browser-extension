@@ -1,0 +1,69 @@
+{
+  "note": "Observed specimen structure and recorded viewport (fallback 1200x900) with synthetic behavior. User shield results assert count and a closed shadow root only, not geometry or fill. No production login, native grant authorization or legacy registration executor is proved.",
+  "excludedDirectoriesWithoutCaseMetadata": [
+    "tests/fixtures/forms/allegro-login-ad-2026-09-20",
+    "tests/fixtures/forms/aws-root-identifier-2026-09-20",
+    "tests/fixtures/forms/doradcasmaku-capture-2026-09-16",
+    "tests/fixtures/forms/jetbrains-identifier-2026-09-20",
+    "tests/fixtures/forms/linkedin-capture-2026-09-15",
+    "tests/fixtures/forms/linkedin-login-2026-09-20",
+    "tests/fixtures/forms/proton-login-2026-09-20"
+  ],
+  "results": [
+    {
+      "id": "booking-login-identifier-2026-09-15",
+      "service": "booking",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "canva-login-identifier-2026-09-15",
+      "service": "canva",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "ccc-login-2026-09-16",
+      "service": "ccc",
+      "flow": "login",
+      "stage": null,
+      "userShield": "pass",
+      "agentLive": "pass"
+    },
+    {
+      "id": "claude-login-identifier-2026-09-15",
+      "service": "claude",
+      "flow": "login",
+      "stage": "identifier",
+      "userShield": "pass",
+      "agentLive": "pass"
+    }
+  ],
+  "sourceDigests": {
+    "booking-login-identifier-2026-09-15": {
+      "page.html": "8f6d484564371b77bc9103c238eb5b1ee6f669926d3d33f88f87e24ac803b0a5",
+      "page.css": "13bf97d45af56c7fc047bb7dcdfe4c9061c0c3a4a5a67118fe140787b2b5ffd3",
+      "case.json": "857e14c4b4bc0881d966489c13517482124d7f324b3ea6c9e2a963d2d0f637a4"
+    },
+    "canva-login-identifier-2026-09-15": {
+      "page.html": "8d8921e46ac05730fdacea082c81e4585a9067f1a433ea48fd609919ef9b274f",
+      "page.css": "2277043cc6bc7d427a33cbb4b8006fb54529c6bcd58a3eb672b2072f738735ca",
+      "case.json": "4882814ab9b29be7312848226e153196bf3497386e609a58a01e7d47f69e6044"
+    },
+    "ccc-login-2026-09-16": {
+      "page.html": "d3c313d6208d52f17dfbce691ecc15e0cab76e8a1df6816e3d7a0772cd4942a7",
+      "page.css": "e29eb116ff7f094ec02ee5b03b5ec16ff859e3ca0006452e3889ed75b28a18c6",
+      "case.json": "55fa70c5bb7d135eceaf0edc5bef901298d664e8c0380fbf74c74b92c74bae6b"
+    },
+    "claude-login-identifier-2026-09-15": {
+      "page.html": "b2545a71cf067d388acede2db897cdf39df3b1c90533cddc01792d02ebddf8f1",
+      "page.css": "8f0e3e2b21b32573107e86a6a234248f5a4966c64fc90c1158a54fbd5400fafb",
+      "case.json": "9b3c183ca7552e57607bec6d72cea0ca04ebdb1fc2bafd773b71d91707b1a52a"
+    }
+  },
+  "harnessSha256": "8a4a2ef733b215616462561f5f6c5a6e1f62902334b184d1b98c7e11bae0fcb5"
+}

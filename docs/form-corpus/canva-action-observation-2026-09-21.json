@@ -1,0 +1,28 @@
+{
+  "observedAt": "2026-09-21",
+  "source": "https://www.canva.com/pl_pl/login/",
+  "method": "Read-only DOM projection of public form in owner-authorized Chrome test, after ordinary site logout, other-account selection and email method selection. No fields entered or read.",
+  "scope": "Focused native action/ID-reference observation; not a replacement full-form capture.",
+  "identifier": {
+    "tag": "INPUT",
+    "type": "text",
+    "name": "username",
+    "autocomplete": "username webauthn"
+  },
+  "action": {
+    "tag": "BUTTON",
+    "type": "submit",
+    "text": "Kontynuuj",
+    "nativeFormOwner": true,
+    "ariaLabel": null,
+    "ariaLabelledby": "_r_1l_",
+    "referencedIdExistsInDocument": false
+  },
+  "conclusion": "The unresolved IDREF pattern is present on the real public form, not merely inferred from the older reduced fixture.",
+  "limitations": [
+    "Polish current screen differs from the older English fixture; old HTML/CSS remain unchanged.",
+    "No submission, next stage or authentication observed.",
+    "No existing field values, cookies, storage, headers or credential contents were collected."
+  ],
+  "semanticReference": "https://www.w3.org/TR/2026/WD-accname-1.2-20260827/#computation-steps"
+}

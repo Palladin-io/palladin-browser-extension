@@ -34,28 +34,40 @@ export const ACTION_SELECTOR = 'button, input[type="submit"], input[type="button
 const AUTH_ACTION = /(?:\blog\s*in\b|\bsign\s*in\b|\bsign\s*up\b|\bcontinue\b|\bnext\b|\bsubmit\b|\bregister\b|\bcreate\s+account\b|\bsave\b|zaloguj|zarejestruj|dalej|kontynuuj|zapisz|utwórz\s+konto)/i;
 
 const LOCALIZED_LOGIN_ACTIONS = new Set(['logowanie', 'συνέχεια', 'fortsett', 'fortsätt', 'continuar', 'weiter', 'anmelden',
-  'prijavi se', 'entrar', 'log ind', '登录']);
+  'prijavi se', 'entrar', 'log ind', '登录', 'continue with email']);
 const EXACT_LOGIN_ACTION = /^(?:log\s*in|sign\s*in|continue|next|submit|zaloguj(?:\s+się)?|dalej|kontynuuj)$/i;
 
 export function publicActionLabels(element: Element): string[] {
   const references = element.getAttribute('aria-labelledby');
-  if (references !== null) {
+  if (references !== null && references.length > 512) return [];
+  if (references !== null && references.trim() !== '') {
     const root = element.getRootNode();
     const ids = references.trim().split(/\s+/);
-    if (references.length > 512 || ids.length > 8 || !(root instanceof Document || root instanceof ShadowRoot)) return [];
-    const captions = ids.map(id => {
-      const label = root.getElementById(id);
-      return label ? actionCaption(label) : null;
-    });
-    if (captions.some(caption => caption === null)) return [];
-    const caption = captions.join(' ').trim().replace(/\s+/g, ' ').toLowerCase();
-    return caption.length <= 512 ? [caption] : [];
+    if (ids.length > 8 || !(root instanceof Document || root instanceof ShadowRoot)) return [];
+    const labels = ids.map(id => root.getElementById(id));
+    if (labels.some(label => label !== null)) {
+      const captions = labels.map(label => label ? actionCaption(label) : null);
+      if (captions.some(caption => caption === null)) return [];
+      const caption = captions.join(' ').trim().replace(/\s+/g, ' ').toLowerCase();
+      return caption.length <= 512 ? [caption] : [];
+    }
   }
   const value = element instanceof HTMLInputElement && ['submit', 'button'].includes(element.type)
     ? element.value : null;
   return [element.getAttribute('aria-label'), actionCaption(element), value]
     .filter((label): label is string => label !== null && label.length <= 512)
     .map(label => label.trim().toLowerCase());
+}
+
+/** Bind the source of a caption as well as its text across deferred commit. */
+export function publicActionReferenceState(element: Element): readonly boolean[] | null {
+  const references = element.getAttribute('aria-labelledby');
+  if (references === null) return [];
+  if (references.length > 512) return null;
+  const ids = references.trim() ? references.trim().split(/\s+/) : [];
+  const root = element.getRootNode();
+  if (ids.length > 8 || !(root instanceof Document || root instanceof ShadowRoot)) return null;
+  return ids.map(id => root.getElementById(id) !== null);
 }
 
 /** Execution uses the canonical login/continue labels, not the broader

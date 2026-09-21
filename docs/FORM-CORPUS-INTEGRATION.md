@@ -200,3 +200,30 @@ a direct comparison of totals. Disabled-action cases without recorded activation
 still fail full replay despite their separate discovery-only assertions. Source
 reductions, visibility, localized captions, challenges and extra account context
 must be diagnosed separately; this PR remains draft and the goal incomplete.
+
+## Direct email captions and unresolved ARIA references
+
+Four unchanged specimens now pass built Chromium fill/commit/replay: Booking,
+Claude, CCC and Canva. Booking/Claude's exact `Continue with email` action was
+missing from the shared execution vocabulary. CCC's empty IDREF must not suppress
+its own public caption. A fresh read-only public Canva observation confirms its
+native submit actually references a missing element; this is not assumed to be a
+capture omission. The current Polish observation is separate from the older
+English specimen and does not rewrite it.
+
+The bounded resolver falls back to the control's public caption when no IDREF
+resolves. It retains same-root lookup, length/count bounds and rejection of a
+partly unresolved caption, without reading any editable value. This follows the
+valid-reference precondition in the W3C [Accessible Name computation draft](https://www.w3.org/TR/2026/WD-accname-1.2-20260827/#computation-steps);
+it is not an implementation of that whole algorithm. Both action signatures now
+also bind reference-resolution state, so adding/removing a label between fill
+and commit is rejected even when the caption text would remain identical.
+
+Seven initial label/fixture assertions and four follow-up Canva/reference assertions
+were RED before their respective edits. Final focused39 tests and full3038/3038
+unit tests passed with0 skips, as did typecheck and all four recorded-viewport
+Chromium replays. Independent read-only review accepted the bounded source diff.
+This is an isolated next batch awaiting integration after the running PR51 review;
+it is not installed in the owner's extension and proves no production login or
+email delivery. Artifacts are in form-corpus/canva-action-observation-2026-09-21.json
+and form-corpus/2026-09-21-email-and-idref-action-replay.json.

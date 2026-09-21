@@ -8,7 +8,7 @@ import { AGENT_FORM_INSPECT_CHANNEL, AGENT_FORM_LIMITS } from '@shared/messaging
 import { AgentFormRegistry } from './agent-form';
 import { performAgentInjectStep, type AgentInjectDomAccess } from './agent-inject';
 import { loginTargetFor, isFillable } from './credential-form-analysis';
-import { credentialScopeFor, hasLoginActionLabel, publicActionLabels, isEmailConfirmationControl, isIdentifiedUsername, isOneTimeCodeControl, isSubscriptionIdentity, isVisibleScopeHint, scopeInputs } from './login-controls';
+import { credentialScopeFor, hasLoginActionLabel, publicActionLabels, publicActionReferenceState, isEmailConfirmationControl, isIdentifiedUsername, isOneTimeCodeControl, isSubscriptionIdentity, isVisibleScopeHint, scopeInputs } from './login-controls';
 import { actionCaption, composedForm } from './open-dom';
 import { markAgentManagedControl, isAgentManagedControl, unmarkAgentManagedControl } from './agent-managed-controls';
 import { hasLiveLoginObstacle } from './agent-live-obstacles';
@@ -226,6 +226,7 @@ function liveControlSignature(element: LiveLoginAction): string {
     element.ownerDocument.baseURI,
     element.ownerDocument.querySelector('base[target]')?.getAttribute('target'),
     !(element instanceof HTMLInputElement) || ['submit', 'button'].includes(element.type) ? publicActionLabels(element) : null,
+    !(element instanceof HTMLInputElement) || ['submit', 'button'].includes(element.type) ? publicActionReferenceState(element) : null,
     !(element instanceof HTMLInputElement) ? actionCaption(element)
       : ['submit', 'button'].includes(element.type) ? element.value : null,
   ]);

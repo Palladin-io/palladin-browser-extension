@@ -4,7 +4,7 @@ import { sameLiveForm } from '@shared/messaging/agent-live';
 import { sameSubmitReady, type DeferredFillMessage, type DeferredFillOutcome, type DeferredCommitMessage, type SubmitReady } from '@shared/messaging/agent-deferred';
 import { matchesAgentInjectionTarget } from '@shared/security/domain';
 import { isFillable, loginTargetFor } from './credential-form-analysis';
-import { credentialScopeFor, hasLoginActionLabel, publicActionLabels, isAccountCreationHeadingText, isIdentifiedUsername, isSubscriptionIdentity, isVisibleScopeHint, scopeInputs } from './login-controls';
+import { credentialScopeFor, hasLoginActionLabel, publicActionLabels, publicActionReferenceState, isAccountCreationHeadingText, isIdentifiedUsername, isSubscriptionIdentity, isVisibleScopeHint, scopeInputs } from './login-controls';
 import { autocompleteTokens } from './form-semantics';
 import { actionCaption, composedForm, queryOpenElements } from './open-dom';
 import { hasLiveLoginObstacle } from './agent-live-obstacles';
@@ -235,7 +235,7 @@ function signature(scope: HTMLElement, fields: readonly DeferredField[]): string
     scope.ownerDocument.querySelector('base[target]')?.getAttribute('target'), ...fields.map(field => [field.fieldId, field.mode,
       ...['id','name','type','autocomplete','pattern','minlength','maxlength','form','required','disabled','readonly','aria-label','aria-labelledby'].map(key => field.input.getAttribute(key))])]);
 }
-function actionSignature(action: HTMLElement): string { return JSON.stringify([action.tagName, ...['type','form','formaction','formtarget','formmethod','aria-label','aria-labelledby'].map(key => action.getAttribute(key)), publicActionLabels(action),
+function actionSignature(action: HTMLElement): string { return JSON.stringify([action.tagName, ...['type','form','formaction','formtarget','formmethod','aria-label','aria-labelledby'].map(key => action.getAttribute(key)), publicActionLabels(action), publicActionReferenceState(action),
   isCustomLoginAction(action) ? ['class','role','href','target','download'].map(key => action.getAttribute(key)) : null,
   action instanceof HTMLInputElement ? action.value : actionCaption(action)]); }
 function safeDestination(doc: Document, scope: HTMLElement, action: LiveLoginAction, url: string): boolean {

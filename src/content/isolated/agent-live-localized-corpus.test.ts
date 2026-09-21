@@ -21,6 +21,7 @@ it.each([
   'record-login-2026-09-16',
   'tv2-login-2026-09-16', 'rte-login-2026-09-15',
   'amazon-login-identifier-2026-09-15',
+  'booking-login-identifier-2026-09-15', 'claude-login-identifier-2026-09-15', 'ccc-login-2026-09-16', 'canva-login-identifier-2026-09-15',
 ])('uses the observed localized/input action for %s', async id => {
   const base = `tests/fixtures/forms/${id}`;
   document.body.innerHTML = readFileSync(`${base}/page.html`, 'utf8');
@@ -126,10 +127,12 @@ it('resolves ID references only within the control tree and uses the whole acces
   expect(hasLoginActionLabel(action)).toBe(false);
   root.querySelector('span')!.remove();
   document.querySelector('#caption')!.textContent = 'Continue';
+  expect(hasLoginActionLabel(action)).toBe(true); // Own public value, never the other tree's label.
+  action.value = 'Delete account';
   expect(hasLoginActionLabel(action)).toBe(false);
 });
 
-it.each(['', 'missing', Array(9).fill('caption').join(' '), 'x'.repeat(513)])('rejects empty, unresolved or excessive action references: %s', references => {
+it.each([Array(9).fill('caption').join(' '), 'x'.repeat(513), ' '.repeat(513)])('rejects excessive action references: %s', references => {
   document.body.innerHTML = '<input type="submit" value="Continue"><span id="caption">Continue</span>';
   const action = document.querySelector('input')!; action.setAttribute('aria-labelledby', references);
   expect(hasLoginActionLabel(action)).toBe(false);
@@ -146,4 +149,46 @@ it('recognizes Aftonbladet text without activating its observed disabled action'
   expect(action.disabled).toBe(true);
   instance().inspect(url);
   expect(action.disabled).toBe(true); expect(click).not.toHaveBeenCalled();
+});
+
+it.each(['', '   '])('uses its own public caption for an empty aria-labelledby attribute: %j', references => {
+  document.body.innerHTML = '<button>Sign in</button>';
+  const action = document.querySelector('button')!; action.setAttribute('aria-labelledby', references);
+  expect(hasLoginActionLabel(action)).toBe(true);
+  action.textContent = 'Continue with Google';
+  expect(hasLoginActionLabel(action)).toBe(false);
+});
+it.each(['Continue with email', 'CONTINUE WITH EMAIL'])('recognizes the recorded direct email action %s', caption => {
+  document.body.innerHTML = '<button></button>';
+  document.querySelector('button')!.textContent = caption;
+  expect(hasLoginActionLabel(document.querySelector('button')!)).toBe(true);
+});
+it.each(['Continue with email or Google', 'Continue with email and create account', 'Send reset email', 'Continue with Apple', 'Continue with SSO'])(
+  'does not extend the direct email action to %s', caption => {
+    document.body.innerHTML = '<button></button>';
+    document.querySelector('button')!.textContent = caption;
+    expect(hasLoginActionLabel(document.querySelector('button')!)).toBe(false);
+  });
+
+it('falls back to its own caption only when none of the ID references resolves', () => {
+  document.body.innerHTML = '<button aria-labelledby="missing">Continue</button><span id="provider">with Google</span>';
+  const action = document.querySelector('button')!;
+  expect(hasLoginActionLabel(action)).toBe(true);
+  action.setAttribute('aria-labelledby', 'missing provider');
+  expect(hasLoginActionLabel(action)).toBe(false);
+});
+it.each(['remove', 'introduce'])('binds ID reference resolution even when its visible caption stays identical: %s', async mutation => {
+  document.body.innerHTML = '<form><input autocomplete="username"><input type="password"><button aria-labelledby="caption">Sign in</button></form>';
+  if (mutation === 'remove') document.querySelector('form')!.insertAdjacentHTML('beforeend', '<span id="caption">Sign in</span>');
+  const flow = instance(), form = flow.inspect(url); expect(form).not.toBeNull(); if (!form) return;
+  const clicked = vi.fn((event: Event) => event.preventDefault()); document.querySelector('button')!.addEventListener('click', clicked);
+  const ready = await flow.fillDeferred({ channel: 'palladin.agent-live/deferred-fill', pendingId: 'b'.repeat(32), documentId,
+    expectedDomain: 'forms.example.test', expiresAt: Date.now() + 10_000, form,
+    values: [{ entryFieldId: 'credential.username', value: 'fixture@example.test' }, { entryFieldId: 'credential.password', value: 'Fixture-only!42' }] });
+  expect(ready.ok).toBe(true); if (!ready.ok) return;
+  if (mutation === 'remove') document.querySelector('#caption')!.remove();
+  else document.querySelector('form')!.insertAdjacentHTML('beforeend', '<span id="caption">Sign in</span>');
+  expect(flow.commitDeferred({ channel: 'palladin.agent-live/deferred-commit', expectedDomain: 'forms.example.test',
+    submitReady: ready.submitReady, expiresAt: Date.now() + 1000 }).ok).toBe(false);
+  expect(clicked).not.toHaveBeenCalled();
 });
