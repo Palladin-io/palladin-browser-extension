@@ -7,6 +7,7 @@ const archive = Buffer.from('synthetic archive bytes');
 const id = extensionId(manifest.key);
 const env = { CWS_RELEASE_READY: 'true', CWS_VISIBILITY: 'unlisted', CWS_PUBLISHER_ID: 'test-publisher',
   CWS_EXTENSION_ID: id, CWS_ACCESS_TOKEN: 'synthetic-token', GITHUB_SHA: 'a'.repeat(40),
+  CWS_API_URL: 'https://api.palladin.io', CWS_WEB_APP_URL: 'https://panel.example.org',
   CWS_CHANNEL: 'stable', GITHUB_REF: 'refs/tags/v0.1.0' };
 const metadata = { bootstrap: false, channel: 'stable', apiUrl: 'https://api.palladin.io', webAppUrl: 'https://panel.example.org',
   version: '0.1.0', commit: env.GITHUB_SHA, publicKey: manifest.key,
@@ -52,6 +53,24 @@ describe('Chrome Web Store release boundary', () => {
     expect(() => validateRelease(beta, archive, { ...settings, GITHUB_RUN_NUMBER: '65535' })).toThrow();
     expect(() => validateRelease(beta, archive, { ...settings, GITHUB_REF: 'refs/tags/v0.1.0' })).toThrow();
     expect(() => validateRelease(beta, archive, { ...settings, CWS_CHANNEL: 'stable' })).toThrow();
+  });
+  it('uploads the selected staging artifact without changing the store channel', async () => {
+    const request = fake(status, success);
+    const staging = { ...metadata, apiUrl: 'https://api.stage.palladin.io', webAppUrl: 'https://stage.palladin.io' };
+    expect(await uploadRelease({ operation: 'upload', metadata: staging, archive,
+      env: { ...env, CWS_API_URL: staging.apiUrl, CWS_WEB_APP_URL: staging.webAppUrl }, request,
+    })).toBe('UPLOADED_DRAFT');
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+  it.each([
+    { CWS_API_URL: '' }, { CWS_API_URL: 'https://api.stage.palladin.io' },
+    { CWS_WEB_APP_URL: '' }, { CWS_WEB_APP_URL: 'https://stage.palladin.io' },
+  ])('rejects deployment URL drift before contacting Google: %j', async patch => {
+    const request = fake(status, success);
+    await expect(uploadRelease({ operation: 'upload', metadata, archive,
+      env: { ...env, ...patch }, request,
+    })).rejects.toThrow('configuration mismatch');
+    expect(request).not.toHaveBeenCalled();
   });
   it('never publishes after an upload failure', async () => {
     const request = fake(status, { uploadState: 'FAILED' });
