@@ -29,6 +29,20 @@ export function validateRelease(metadata, archive, env) {
     || parts.some(part => Number(part) > 65535) || !parts.some(part => Number(part) > 0)) {
     throw new ReleaseError('Invalid release version');
   }
+  if (metadata.channel !== env.CWS_CHANNEL || !['stable', 'beta'].includes(metadata.channel)) {
+    throw new ReleaseError('Artifact and store channels differ');
+  }
+  if (metadata.channel === 'stable' && (!/^refs\/tags\/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(env.GITHUB_REF ?? '')
+    || env.GITHUB_REF !== `refs/tags/v${metadata.version}`)) {
+    throw new ReleaseError('Stable store uploads require a matching release tag');
+  }
+  if (metadata.channel === 'beta') {
+    const number = Number(env.GITHUB_RUN_NUMBER);
+    if (env.GITHUB_REF !== 'refs/heads/main' || !Number.isSafeInteger(number) || number < 1 || number > 4294967295
+      || metadata.version !== `0.0.${Math.floor(number / 65536)}.${number % 65536}`) {
+      throw new ReleaseError('Beta store uploads require main and the current CI run version');
+    }
+  }
   if (extensionId(metadata.publicKey) !== env.CWS_EXTENSION_ID) {
     throw new ReleaseError('Store Item ID differs from the reviewed manifest/native-runtime identity');
   }

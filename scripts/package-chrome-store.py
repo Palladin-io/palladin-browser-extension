@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 from urllib.parse import urlsplit
 import zipfile
@@ -13,6 +14,9 @@ def configuration(env):
     operation = env.get("RELEASE_OPERATION", "")
     if operation not in {"bootstrap", "package", "upload", "publish"}:
         raise ValueError("Select a Chrome Web Store operation")
+    channel = env.get("PALLADIN_STORE_CHANNEL", "stable")
+    if channel not in {"stable", "beta"}:
+        raise ValueError("Select stable or beta")
     api = env.get("VITE_API_URL", "")
     panel = env.get("VITE_WEB_APP_URL", "")
     if api != "https://api.palladin.io":
@@ -23,11 +27,39 @@ def configuration(env):
                 or url.query or url.fragment or url.hostname in {"localhost", "127.0.0.1", "::1"}
                 or url.hostname.endswith((".localhost", ".invalid", ".example", ".test"))):
             raise ValueError("Configure CWS_WEB_APP_URL with the production HTTPS panel URL")
-    return {"bootstrap": operation == "bootstrap", "apiUrl": api, "webAppUrl": panel,
+    return {"bootstrap": operation == "bootstrap", "channel": channel, "apiUrl": api, "webAppUrl": panel,
             "sharedUnlockEnvironments": json.loads(env.get("VITE_SHARED_UNLOCK_ENVIRONMENTS") or "[]")}
 
 
-def package(root, config, commit):
+def validate_source(root, config, env):
+    ref = env.get("GITHUB_REF", "")
+    operation = env.get("RELEASE_OPERATION")
+    version = json.loads((root / "package.json").read_text())["version"]
+    manifest = json.loads((root / "manifest/manifest.base.json").read_text())
+    lock = json.loads((root / "package-lock.json").read_text())
+    if any(value != version for value in [manifest["version"], lock["version"], lock["packages"][""]["version"]]):
+        raise ValueError("Manifest, package and lockfile versions must match")
+    if config["channel"] == "beta":
+        if ref != "refs/heads/main":
+            raise ValueError("Beta releases require main")
+        number = int(env.get("GITHUB_RUN_NUMBER", "0"))
+        if not 1 <= number <= 4294967295:
+            raise ValueError("Beta requires a positive 32-bit CI run number")
+        return f"0.0.{number // 65536}.{number % 65536}"
+    if ref.startswith("refs/tags/") or operation in {"upload", "publish"}:
+        if not re.fullmatch(r"refs/tags/v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", ref) or ref != f"refs/tags/v{version}":
+            raise ValueError("Stable releases require a vX.Y.Z tag matching the source version")
+        commit = env.get("GITHUB_SHA", "")
+        if not re.fullmatch(r"[0-9a-f]{40}", commit):
+            raise ValueError("Missing source commit")
+        subprocess.run(["git", "merge-base", "--is-ancestor", commit, "origin/main"],
+                       cwd=root, check=True, capture_output=True)
+    elif ref != "refs/heads/main":
+        raise ValueError("Bootstrap and package operations require main or a release tag")
+    return version
+
+
+def package(root, config, commit, expected_version):
     source = root / "dist/chromium"
     manifest = json.loads((source / "manifest.json").read_text())
     version = manifest.get("version", "")
@@ -35,8 +67,8 @@ def package(root, config, commit):
     if (not re.fullmatch(r"(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){0,3}", version)
             or any(int(v) > 65535 for v in parts) or not any(int(v) for v in parts)):
         raise ValueError("Chrome requires a valid nonzero manifest version")
-    if version != json.loads((root / "package.json").read_text())["version"]:
-        raise ValueError("Manifest and package versions differ")
+    if version != expected_version:
+        raise ValueError("Manifest version differs from the selected release")
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise ValueError("GITHUB_SHA must identify the built source commit")
     files = sorted(source.rglob("*"))
@@ -59,7 +91,7 @@ def package(root, config, commit):
                 bundle.writestr(info, path.read_bytes())
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     metadata = {**config, "version": version, "commit": commit, "sha256": digest,
-                "publicKey": manifest["key"]}
+                "publicKey": manifest.get("key", "")}
     (output / "release.json").write_text(json.dumps(metadata, indent=2) + "\n")
     (output / "package.zip.sha256").write_text(f"{digest}  package.zip\n")
     (output / "README.txt").write_text(
@@ -71,7 +103,8 @@ def package(root, config, commit):
 if __name__ == "__main__":
     try:
         config = configuration(os.environ)
+        expected_version = validate_source(Path.cwd(), config, os.environ)
         if "--check-config" not in sys.argv:
-            package(Path.cwd(), config, os.environ.get("GITHUB_SHA", ""))
-    except (ValueError, KeyError, OSError):
+            package(Path.cwd(), config, os.environ.get("GITHUB_SHA", ""), expected_version)
+    except (ValueError, KeyError, OSError, subprocess.CalledProcessError):
         sys.exit("Chrome packaging failed: check release configuration, version and built files")

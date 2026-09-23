@@ -1,5 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { validateSharedUnlockRouting } from "./validate-built-manifest.mjs";
+import { validateSharedUnlockRouting, validateStoreIdentity } from "./validate-built-manifest.mjs";
+
+describe("built store identity gate", () => {
+  const beta = { name: "__MSG_extensionBetaName__", description: "__MSG_extensionBetaDescription__", key: "beta-public-key" };
+  it("requires the beta artifact to match independent build configuration", () => {
+    expect(() => validateStoreIdentity(beta, "chromium", { publicKey: beta.key })).not.toThrow();
+    expect(() => validateStoreIdentity(beta, "chromium", { publicKey: "different-public-key" })).toThrow();
+    expect(() => validateStoreIdentity(beta, "chromium")).toThrow();
+    expect(() => validateStoreIdentity(beta, "firefox", { publicKey: beta.key })).toThrow();
+  });
+  it("allows an absent beta key only during unpublished item registration", () => {
+    const bootstrap = { ...beta, key: undefined };
+    expect(() => validateStoreIdentity(bootstrap, "chromium", { bootstrap: true })).not.toThrow();
+    expect(() => validateStoreIdentity(bootstrap, "chromium", { bootstrap: false })).toThrow();
+    expect(() => validateStoreIdentity(beta, "chromium", { bootstrap: true })).toThrow();
+  });
+});
 const environments = [{ apiUrl: "https://api.example.test", webOrigin: "https://app.example.test:8443" }];
 const manifest = { permissions: ["webNavigation"], externally_connectable: {
   ids: [], matches: ["https://app.example.test/*"], accepts_tls_channel_id: false,

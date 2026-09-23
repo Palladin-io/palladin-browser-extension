@@ -10,13 +10,14 @@ export function validateBuiltManifest(
   outputName = target,
   channel = "production",
   sharedUnlockEnvironments = [],
+  beta,
 ) {
   const outputDirectory = resolve(root, "dist", outputName);
   const manifestPath = resolve(outputDirectory, "manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 
   invariant(manifest.manifest_version === 3, `${target}: expected Manifest V3`);
-  invariant(manifest.name === "__MSG_extensionName__", `${target}: unexpected extension name`);
+  validateStoreIdentity(manifest, target, beta);
   invariant(manifest.default_locale === "en", `${target}: unexpected default locale`);
   invariant(
     manifest.content_security_policy?.extension_pages
@@ -72,7 +73,6 @@ function validateContentLoaders(manifest, outputDirectory, target) {
 }
 
 function validateChromium(manifest, outputDirectory, channel, sharedUnlockConfigured) {
-  invariant(typeof manifest.key === "string", "chromium: missing stable extension key");
   invariant(manifest.minimum_chrome_version === "116", "chromium: wrong version floor");
   invariant(
     sameSet(manifest.permissions, [
@@ -104,6 +104,19 @@ function validateChromium(manifest, outputDirectory, channel, sharedUnlockConfig
     existsSync(resolve(outputDirectory, "src/offscreen/index.html")),
     "chromium: offscreen clipboard document is missing",
   );
+}
+
+export function validateStoreIdentity(manifest, target, beta) {
+  invariant(manifest.name === (beta ? "__MSG_extensionBetaName__" : "__MSG_extensionName__"),
+    `${target}: unexpected extension name`);
+  if (beta) {
+    invariant(target === "chromium", "beta: unsupported browser target");
+    invariant(manifest.description === "__MSG_extensionBetaDescription__", "beta: missing testing description");
+    invariant(Boolean(beta.publicKey) || beta.bootstrap === true, "beta: missing configured public key");
+    invariant(manifest.key === (beta.publicKey || undefined), "beta: artifact key differs from build configuration");
+  } else if (target === "chromium") {
+    invariant(typeof manifest.key === "string", "chromium: missing stable extension key");
+  }
 }
 
 function validateNativeHostName(outputDirectory, channel) {

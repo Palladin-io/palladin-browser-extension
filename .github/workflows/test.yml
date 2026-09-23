@@ -4,8 +4,6 @@ name: Test
 # used, so this workflow runs safely on pull requests from forks.
 on:
   workflow_call:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
 

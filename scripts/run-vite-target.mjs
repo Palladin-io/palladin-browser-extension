@@ -39,7 +39,11 @@ for (const target of selected) {
     const outputName = channel === "debug" ? `${target}-debug` : target;
     cacheBustContentLoaders(root, outputName);
     const configured = loadEnv("production", root, "VITE_SHARED_UNLOCK_").VITE_SHARED_UNLOCK_ENVIRONMENTS;
-    validateBuiltManifest(root, target, outputName, channel, JSON.parse(configured?.trim() || "[]"));
+    const beta = process.env.PALLADIN_STORE_CHANNEL === "beta" ? {
+      publicKey: process.env.CWS_BETA_PUBLIC_KEY,
+      bootstrap: process.env.RELEASE_OPERATION === "bootstrap",
+    } : undefined;
+    validateBuiltManifest(root, target, outputName, channel, JSON.parse(configured?.trim() || "[]"), beta);
   }
 }
 

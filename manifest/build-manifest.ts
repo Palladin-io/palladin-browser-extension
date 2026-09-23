@@ -1,6 +1,7 @@
 import { sharedUnlockWebMatches, type SharedUnlockEnvironment } from "../src/shared/config/shared-unlock-environments";
 import sharedUnlock from "./manifest.chromium.shared-unlock.json" with { type: "json" };
 import { FIREFOX_SHARED_UNLOCK_BRIDGE_PATH } from "../src/shared/messaging/shared-unlock-firefox";
+import { createPublicKey } from "node:crypto";
 
 import type { ManifestV3Export } from "@crxjs/vite-plugin";
 
@@ -59,12 +60,37 @@ function isPlainObject(value: unknown): value is Json {
   );
 }
 
-export function buildManifest(target: BuildTarget = "chromium", sharedUnlockEnvironments: readonly SharedUnlockEnvironment[] = []): ManifestV3Export {
+export interface ChromeBetaBuild {
+  runNumber: number;
+  publicKey?: string | undefined;
+  bootstrap: boolean;
+}
+
+export function buildManifest(target: BuildTarget = "chromium", sharedUnlockEnvironments: readonly SharedUnlockEnvironment[] = [], beta?: ChromeBetaBuild): ManifestV3Export {
   const overlay = overlays[target];
   if (!overlay) {
     throw new Error(`Unknown build target: ${target}`);
   }
   const manifest = deepMerge(base as unknown as Json, overlay);
+  if (beta) {
+    if (target !== "chromium" || !Number.isSafeInteger(beta.runNumber) || beta.runNumber < 1 || beta.runNumber > 4294967295) {
+      throw new Error("Chrome beta requires a positive 32-bit CI run number and the Chromium target");
+    }
+    if (!beta.bootstrap && !beta.publicKey) throw new Error("Configure the Chrome Web Store beta public key");
+    if (beta.publicKey) {
+      const key = createPublicKey({ key: Buffer.from(beta.publicKey, "base64"), format: "der", type: "spki" });
+      const canonical = key.export({ format: "der", type: "spki" }).toString("base64");
+      if (canonical !== beta.publicKey || canonical === chromium.key) throw new Error("Beta requires its own canonical store public key");
+      manifest.key = canonical;
+    } else {
+      // The first unpublished item receives its identity from the store.
+      delete manifest.key;
+    }
+    manifest.version = `0.0.${Math.floor(beta.runNumber / 65536)}.${beta.runNumber % 65536}`;
+    manifest.version_name = `${base.version}-beta.${beta.runNumber}`;
+    manifest.name = "__MSG_extensionBetaName__";
+    manifest.description = "__MSG_extensionBetaDescription__";
+  }
   if (target === "safari") {
     // Safari rejects port-bearing host patterns; runtime API/origin checks retain exact ports.
     manifest.host_permissions = (manifest.host_permissions as string[]).map(pattern => pattern.replace(/^(https?:\/\/[^/:]+):\d+\//, "$1/"));

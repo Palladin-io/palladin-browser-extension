@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, generateKeyPairSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -12,6 +12,7 @@ import {
 // values as a bag of known fields so platform invariants stay explicit.
 interface Manifest {
   manifest_version: number;
+  version?: string;
   name: string;
   default_locale?: string;
   key?: string;
@@ -48,6 +49,31 @@ interface Manifest {
 const manifests = Object.fromEntries(
   BUILD_TARGETS.map((target) => [target, buildManifest(target) as unknown as Manifest]),
 ) as Record<BuildTarget, Manifest>;
+
+describe("Chrome Web Store beta", () => {
+  const publicKey = generateKeyPairSync("rsa", { modulusLength: 2048 }).publicKey
+    .export({ format: "der", type: "spki" }).toString("base64");
+  it("has a separate identity, localized beta label and monotonic CI version", () => {
+    const first = buildManifest("chromium", [], { publicKey, runNumber: 65535, bootstrap: false });
+    const next = buildManifest("chromium", [], { publicKey, runNumber: 65536, bootstrap: false }) as unknown as Manifest;
+    expect(first).toMatchObject({ name: "__MSG_extensionBetaName__", description: "__MSG_extensionBetaDescription__",
+      key: publicKey, version: "0.0.0.65535" });
+    expect(next.version).toBe("0.0.1.0");
+    expect(next.permissions).toEqual(manifests.chromium.permissions);
+  });
+  it("omits the stable identity only for a beta bootstrap", () => {
+    expect(buildManifest("chromium", [], { runNumber: 1, bootstrap: true })).not.toHaveProperty("key");
+    expect(() => buildManifest("chromium", [], { runNumber: 1, bootstrap: false })).toThrow();
+    expect(() => buildManifest("chromium", [], { runNumber: 1, publicKey: manifests.chromium.key, bootstrap: false })).toThrow();
+  });
+  it.each([0, 1.5, 4294967296])("rejects invalid beta sequence %s", runNumber => {
+    expect(() => buildManifest("chromium", [], { runNumber, publicKey, bootstrap: false })).toThrow();
+  });
+  it("rejects a malformed public key or a different browser target", () => {
+    expect(() => buildManifest("chromium", [], { runNumber: 1, publicKey: "invalid", bootstrap: false })).toThrow();
+    expect(() => buildManifest("firefox", [], { runNumber: 1, publicKey, bootstrap: false })).toThrow();
+  });
+});
 
 describe("buildManifest (shared)", () => {
   it.each(BUILD_TARGETS)("builds a valid %s MV3 manifest", (target) => {

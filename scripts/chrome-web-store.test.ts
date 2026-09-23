@@ -6,8 +6,9 @@ import { extensionId, uploadRelease, validateRelease } from './chrome-web-store.
 const archive = Buffer.from('synthetic archive bytes');
 const id = extensionId(manifest.key);
 const env = { CWS_RELEASE_READY: 'true', CWS_VISIBILITY: 'unlisted', CWS_PUBLISHER_ID: 'test-publisher',
-  CWS_EXTENSION_ID: id, CWS_ACCESS_TOKEN: 'synthetic-token', GITHUB_SHA: 'a'.repeat(40) };
-const metadata = { bootstrap: false, apiUrl: 'https://api.palladin.io', webAppUrl: 'https://panel.example.org',
+  CWS_EXTENSION_ID: id, CWS_ACCESS_TOKEN: 'synthetic-token', GITHUB_SHA: 'a'.repeat(40),
+  CWS_CHANNEL: 'stable', GITHUB_REF: 'refs/tags/v0.1.0' };
+const metadata = { bootstrap: false, channel: 'stable', apiUrl: 'https://api.palladin.io', webAppUrl: 'https://panel.example.org',
   version: '0.1.0', commit: env.GITHUB_SHA, publicKey: manifest.key,
   sha256: createHash('sha256').update(archive).digest('hex') };
 const identity = { name: `publishers/test-publisher/items/${id}`, itemId: id };
@@ -32,14 +33,25 @@ describe('Chrome Web Store release boundary', () => {
   });
   it.each([
     { bootstrap: true }, { commit: 'b'.repeat(40) }, { sha256: 'bad' }, { version: '0.0.0' },
+    { channel: 'beta' },
   ])('rejects an invalid artifact before network access: %j', patch => {
     expect(() => validateRelease({ ...metadata, ...patch }, archive, env)).toThrow();
   });
   it.each([
     { CWS_EXTENSION_ID: 'b'.repeat(32) }, { CWS_RELEASE_READY: '' },
     { CWS_VISIBILITY: 'public' }, { CWS_PUBLISHER_ID: '../another' },
+    { GITHUB_REF: 'refs/heads/main' }, { GITHUB_REF: 'refs/tags/v0.2.0' },
+    { GITHUB_REF: 'refs/tags/v0.1.0-rc.1' },
   ])('requires the reviewed deployment and exact item: %j', patch => {
     expect(() => validateRelease(metadata, archive, { ...env, ...patch })).toThrow();
+  });
+  it('accepts a beta only for the selected beta environment and exact main run', () => {
+    const beta = { ...metadata, channel: 'beta', version: '0.0.1.0' };
+    const settings = { ...env, CWS_CHANNEL: 'beta', GITHUB_REF: 'refs/heads/main', GITHUB_RUN_NUMBER: '65536' };
+    expect(() => validateRelease(beta, archive, settings)).not.toThrow();
+    expect(() => validateRelease(beta, archive, { ...settings, GITHUB_RUN_NUMBER: '65535' })).toThrow();
+    expect(() => validateRelease(beta, archive, { ...settings, GITHUB_REF: 'refs/tags/v0.1.0' })).toThrow();
+    expect(() => validateRelease(beta, archive, { ...settings, CWS_CHANNEL: 'stable' })).toThrow();
   });
   it('never publishes after an upload failure', async () => {
     const request = fake(status, { uploadState: 'FAILED' });
