@@ -2,6 +2,12 @@
   "extensionName": {
     "message": "Palladin"
   },
+  "extensionBetaName": {
+    "message": "Palladin BETA"
+  },
+  "extensionBetaDescription": {
+    "message": "Rozszerzenie do testów beta. Menedżer haseł Palladin z autouzupełnianiem i dostępem do zaszyfrowanego sejfu."
+  },
   "extensionDescription": {
     "message": "Menedżer haseł Palladin z autouzupełnianiem i dostępem do zaszyfrowanego sejfu. Zero-knowledge: klucze nigdy nie opuszczają Twojego urządzenia."
   },

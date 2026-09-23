@@ -1,0 +1,137 @@
+name: Chrome Web Store
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'bootstrap/package = ZIP; upload = draft; publish = submit for review. Stable uploads require a vX.Y.Z tag.'
+        type: choice
+        options: [bootstrap, package, upload, publish]
+        default: bootstrap
+        required: true
+      channel:
+        description: 'Bootstrap/package either channel on main; beta uploads from main, stable uploads from vX.Y.Z.'
+        type: choice
+        options: [stable, beta]
+        default: stable
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chrome-web-store-${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' && 'beta' || 'stable') || inputs.channel }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    uses: ./.github/workflows/test.yml
+
+  package:
+    needs: verify
+    if: github.repository == 'Palladin-io/palladin-browser-extension'
+    outputs:
+      channel: ${{ steps.context.outputs.channel }}
+      artifact: ${{ steps.context.outputs.artifact }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RELEASE_OPERATION: ${{ github.event_name == 'push' && 'publish' || inputs.operation }}
+      PALLADIN_STORE_CHANNEL: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' && 'beta' || 'stable') || inputs.channel }}
+      CWS_BETA_PUBLIC_KEY: ${{ vars.CWS_BETA_PUBLIC_KEY }}
+      VITE_API_URL: https://api.palladin.io
+      VITE_WEB_APP_URL: ${{ inputs.operation == 'bootstrap' && 'http://localhost:5173' || vars.CWS_WEB_APP_URL }}
+      VITE_SHARED_UNLOCK_ENVIRONMENTS: ${{ inputs.operation == 'bootstrap' && '[]' || vars.CWS_SHARED_UNLOCK_ENVIRONMENTS }}
+      VITE_POSTHOG_KEY: ''
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Validate source, channel, version and configuration
+        run: python3 scripts/package-chrome-store.py --check-config
+      - name: Record the selected store channel
+        id: context
+        run: |
+          echo "channel=$PALLADIN_STORE_CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "artifact=chrome-store-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+      - run: npm ci
+      - run: npm run build:chromium
+      - name: Package the exact Chromium build
+        run: python3 scripts/package-chrome-store.py
+      - name: Record dependency inventory
+        run: npm sbom --omit=dev --sbom-format cyclonedx > dist/chrome-store/sbom.cdx.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: chrome-store-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist/chrome-store/
+          if-no-files-found: error
+          retention-days: 30
+
+  provenance:
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ needs.package.outputs.artifact }}
+          path: release
+      - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: release/package.zip
+
+  store:
+    needs: [package, provenance]
+    if: github.event_name == 'push' || inputs.operation == 'upload' || inputs.operation == 'publish'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ${{ needs.package.outputs.channel == 'beta' && 'chrome-web-store-beta' || 'chrome-web-store' }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      CWS_CHANNEL: ${{ needs.package.outputs.channel }}
+      CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+      CWS_EXTENSION_ID: ${{ vars.CWS_EXTENSION_ID }}
+      CWS_RELEASE_READY: ${{ vars.CWS_RELEASE_READY }}
+      CWS_VISIBILITY: ${{ vars.CWS_VISIBILITY }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ needs.package.outputs.artifact }}
+          path: release
+      - name: Validate artifact before requesting Google credentials
+        run: node scripts/chrome-web-store.mjs check release
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        id: auth
+        with:
+          workload_identity_provider: ${{ vars.CWS_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.CWS_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          access_token_lifetime: 600s
+          create_credentials_file: false
+          export_environment_variables: false
+      - name: Upload or submit the verified package
+        env:
+          CWS_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          CWS_OPERATION: ${{ github.event_name == 'push' && 'publish' || inputs.operation }}
+        run: node scripts/chrome-web-store.mjs "$CWS_OPERATION" release

@@ -12,6 +12,13 @@ import { firefoxCanonicalManifestResource } from "./manifest/firefox-canonical-r
 const target = resolveBuildTarget(process.env.PALLADIN_TARGET);
 const channel = resolveExtensionBuildChannel(process.env.PALLADIN_CHANNEL);
 const outputName = channel === "debug" ? `${target}-debug` : target;
+const storeChannel = process.env.PALLADIN_STORE_CHANNEL;
+if (storeChannel && storeChannel !== "stable" && storeChannel !== "beta") throw new Error("Unknown store channel");
+const beta = storeChannel === "beta" ? {
+  runNumber: Number(process.env.GITHUB_RUN_NUMBER),
+  publicKey: process.env.CWS_BETA_PUBLIC_KEY,
+  bootstrap: process.env.RELEASE_OPERATION === "bootstrap",
+} : undefined;
 
 export default defineConfig(({ mode }) => {
   const configured = loadEnv(mode, process.cwd(), "VITE_SHARED_UNLOCK_");
@@ -31,7 +38,7 @@ export default defineConfig(({ mode }) => {
       react(),
       ...(target === "firefox" && sharedUnlockEnvironments.length > 0 ? [firefoxCanonicalManifestResource()] : []),
       crx({
-        manifest: buildManifest(target, sharedUnlockEnvironments),
+        manifest: buildManifest(target, sharedUnlockEnvironments, beta),
         // CRXJS needs its Firefox mode to retain and bundle background.scripts;
         // Safari consumes the same service-worker packaging shape as Chromium.
         browser: target === "firefox" ? "firefox" : "chrome",
