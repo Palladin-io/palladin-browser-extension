@@ -56,8 +56,10 @@ All modes run the same repository-native CI through reusable `test.yml`. A
 separate job builds the Chromium production channel, packages only its resources
 with deterministic ZIP metadata, and retains `package.zip`, SHA-256, source/build
 metadata and a production-dependency CycloneDX SBOM. Another job attaches GitHub
-build provenance to the ZIP. Download the `chrome-store-<run>-<attempt>` artifact
-from the workflow run. This GitHub provenance does not replace the runtime's
+build provenance to the ZIP. The ZIP manifest omits the development-only `key`
+field, which CWS rejects on upload. The unpacked build keeps it, and release
+metadata retains the public key for the uploader identity checks. Download the
+`chrome-store-<run>-<attempt>` artifact from the workflow run. This GitHub provenance does not replace the runtime's
 independent Agent Inject artifact-attestation gate.
 
 Only the store job can obtain Google credentials. It runs in the
@@ -86,8 +88,10 @@ Keep manual dashboard changes out of an active upload/publish run.
    stable key; set `CWS_BETA_PUBLIC_KEY` to the new beta key and the beta
    environment Item ID accordingly. Reconcile the manifest and
    runtime's compiled identity through coordinated PRs before uploading a release
-   artifact. Stable keeps the reviewed manifest key. Beta key injection is
-   explicit at manifest build time; it rejects the stable key and the uploader
+   artifact. CWS assigns the identity for both new items; the existing stable
+   development key does not reserve a store ID. Replace it with the assigned
+   stable public key through a coordinated identity update before release. Beta
+   key injection is explicit at manifest build time; it rejects the stable key and the uploader
    verifies it against the independently configured beta Item ID and store key.
 4. Complete Store listing, Privacy, reviewer Test instructions and **Unlisted**
    distribution. API publishing preserves existing visibility and cannot change
@@ -157,7 +161,9 @@ The workflow keeps `CWS_RELEASE_READY` false until those existing gates close.
 
 Upload a ZIP, not a locally signed CRX. Chrome Web Store packages/signs its store
 distribution; the pipeline does not create or store a signing private key. The
-manifest `key` is public and preserves the extension ID. Google service-account
+manifest `key` is public and keeps an unpacked development build on the assigned
+store ID once reconciled. It is retained outside the upload ZIP; CWS owns the
+identity/signing of the uploaded item. Google service-account
 authentication is separate: OIDC yields a short-lived upload token without a
 service-account JSON key. GitHub provenance is also separate from Chrome signing
 and does not satisfy Palladin's Agent Inject artifact-attestation gate.
