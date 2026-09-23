@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto'
-import { describe, expect, it } from 'vitest'
+import { forceCloseDatabase } from 'fake-indexeddb'
+import { describe, expect, it, vi } from 'vitest'
 
 import type {
   EncryptedVaultSummary,
@@ -124,7 +125,40 @@ async function install(
 }
 
 describe('encrypted Protocol 2 current-entry cache', () => {
-  it('clears the disposable v4 policy-1 database during the v5 upgrade', async () => {
+  it('reopens an abnormally closed connection for reads and profile cleanup', async () => {
+    const open = vi.spyOn(indexedDB, 'open')
+    try {
+      const subject = cache()
+      await install(subject, 'installed', '1', [head('1')])
+      const database = open.mock.results[0]!.value.result as IDBDatabase
+      const closed = new Promise<void>((resolve) => database.addEventListener('close', () => resolve()))
+      // fake-indexeddb's helper accepts a connection but declares a constructor type.
+      forceCloseDatabase(database as unknown as Parameters<typeof forceCloseDatabase>[0])
+      await closed
+
+      expect(await subject.listActiveStates(userId)).toHaveLength(1)
+      expect((await subject.readActiveEntry(userId, vaultId, entryId, observedAt))?.item).toEqual(head('1'))
+      await subject.removeProfile(userId)
+      expect(await subject.listActiveStates(userId)).toEqual([])
+    } finally {
+      open.mockRestore()
+    }
+  })
+
+  it('allows the next operation to retry a failed database open', async () => {
+    const open = vi.spyOn(indexedDB, 'open').mockImplementationOnce(() => {
+      throw new DOMException('Backing store temporarily unavailable', 'UnknownError')
+    })
+    try {
+      const subject = cache()
+      await expect(subject.listActiveStates(userId)).rejects.toMatchObject({ name: 'UnknownError' })
+      await expect(subject.listActiveStates(userId)).resolves.toEqual([])
+    } finally {
+      open.mockRestore()
+    }
+  })
+
+  it('recovers a blocked v5 upgrade without retaining connections that prevent cache deletion', async () => {
     const databaseName = `palladin-vault-ciphertext-cache-test-${++databaseSequence}`
     const legacy = await new Promise<IDBDatabase>((resolve, reject) => {
       const operation = indexedDB.open(databaseName, 4)
@@ -150,11 +184,19 @@ describe('encrypted Protocol 2 current-entry cache', () => {
       transaction.oncomplete = () => resolve()
       transaction.onerror = () => reject(transaction.error)
     })
+    const subject = new IndexedDbProtocol2Cache(databaseName)
+    await expect(subject.getActiveState(userId, vaultId)).rejects.toThrow('upgrade is blocked')
     legacy.close()
 
-    const subject = new IndexedDbProtocol2Cache(databaseName)
     expect(await subject.getActiveState(userId, vaultId)).toBeNull()
     expect(await subject.readActiveItemPage(userId, vaultId, null, 100, observedAt)).toBeNull()
+    await new Promise<void>((resolve, reject) => {
+      const deletion = indexedDB.deleteDatabase(databaseName)
+      deletion.onsuccess = () => resolve()
+      deletion.onerror = () => reject(deletion.error)
+      deletion.onblocked = () => reject(new Error('Cache retained an obsolete connection'))
+    })
+    expect(await subject.getActiveState(userId, vaultId)).toBeNull()
   })
 
   it('keeps the active namespace visible until snapshot plus closing delta commit', async () => {

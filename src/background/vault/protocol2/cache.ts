@@ -168,6 +168,7 @@ async function abortTransaction(
 function openDatabase(databaseName: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const operation = indexedDB.open(databaseName, DATABASE_VERSION)
+    let blocked = false
     operation.onupgradeneeded = (event) => {
       const database = operation.result
       if (event.oldVersion === 0) {
@@ -180,9 +181,15 @@ function openDatabase(databaseName: string): Promise<IDBDatabase> {
         operation.transaction!.objectStore(ITEM_STORE).clear()
       }
     }
-    operation.onsuccess = () => resolve(operation.result)
+    operation.onsuccess = () => {
+      if (blocked) operation.result.close()
+      else resolve(operation.result)
+    }
     operation.onerror = () => reject(operation.error ?? new Error('Unable to open Vault ciphertext cache'))
-    operation.onblocked = () => reject(new Error('Vault ciphertext cache upgrade is blocked'))
+    operation.onblocked = () => {
+      blocked = true
+      reject(new Error('Vault ciphertext cache upgrade is blocked'))
+    }
   })
 }
 
@@ -292,7 +299,23 @@ export class IndexedDbProtocol2Cache implements MemberSyncCache {
   ) {}
 
   private getDatabase(): Promise<IDBDatabase> {
-    this.database ??= openDatabase(this.databaseName)
+    if (this.database === null) {
+      const opening = openDatabase(this.databaseName).then((database) => {
+        const invalidate = () => {
+          if (this.database === opening) this.database = null
+        }
+        database.addEventListener('close', invalidate)
+        database.addEventListener('versionchange', () => {
+          database.close()
+          invalidate()
+        })
+        return database
+      }).catch((error: unknown) => {
+        if (this.database === opening) this.database = null
+        throw error
+      })
+      this.database = opening
+    }
     return this.database
   }
 
