@@ -19,7 +19,9 @@ export function validateRelease(metadata, archive, env) {
   }
   if (!/^[a-zA-Z0-9_-]+$/.test(env.CWS_PUBLISHER_ID ?? '')
     || !/^[a-p]{32}$/.test(env.CWS_EXTENSION_ID ?? '')) throw new ReleaseError('Configure the store publisher and item IDs');
-  if (metadata.bootstrap !== false || metadata.apiUrl !== 'https://api.palladin.io'
+  if (metadata.bootstrap !== false
+    || !['https://api.palladin.io', 'https://api.stage.palladin.io'].includes(env.CWS_API_URL)
+    || metadata.apiUrl !== env.CWS_API_URL || metadata.webAppUrl !== env.CWS_WEB_APP_URL
     || metadata.commit !== env.GITHUB_SHA || !/^[0-9a-f]{40}$/.test(metadata.commit ?? '')
     || metadata.sha256 !== createHash('sha256').update(archive).digest('hex')) {
     throw new ReleaseError('Release artifact identity, checksum or configuration mismatch');

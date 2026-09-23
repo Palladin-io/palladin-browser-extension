@@ -19,14 +19,14 @@ def configuration(env):
         raise ValueError("Select stable or beta")
     api = env.get("VITE_API_URL", "")
     panel = env.get("VITE_WEB_APP_URL", "")
-    if api != "https://api.palladin.io":
-        raise ValueError("This release requires the production API")
+    if api not in {"https://api.palladin.io", "https://api.stage.palladin.io"}:
+        raise ValueError("Configure CWS_API_URL with the staging or production API")
     if operation != "bootstrap":
         url = urlsplit(panel)
         if (url.scheme != "https" or not url.hostname or url.username or url.password
                 or url.query or url.fragment or url.hostname in {"localhost", "127.0.0.1", "::1"}
                 or url.hostname.endswith((".localhost", ".invalid", ".example", ".test"))):
-            raise ValueError("Configure CWS_WEB_APP_URL with the production HTTPS panel URL")
+            raise ValueError("Configure CWS_WEB_APP_URL with the selected HTTPS panel URL")
     return {"bootstrap": operation == "bootstrap", "channel": channel, "apiUrl": api, "webAppUrl": panel,
             "sharedUnlockEnvironments": json.loads(env.get("VITE_SHARED_UNLOCK_ENVIRONMENTS") or "[]")}
 
@@ -99,7 +99,7 @@ def package(root, config, commit, expected_version):
     (output / "release.json").write_text(json.dumps(metadata, indent=2) + "\n")
     (output / "package.zip.sha256").write_text(f"{digest}  package.zip\n")
     (output / "README.txt").write_text(
-        "DRAFT ITEM REGISTRATION ONLY. Do not submit or publish. Panel is not configured.\n"
+        "DRAFT ITEM REGISTRATION ONLY. Do not submit or publish. Release gates are incomplete.\n"
         if config["bootstrap"] else "Release candidate. Store upload, review and publication are separate states.\n")
     print("Created Chrome ZIP, checksum and release metadata" + (" (bootstrap only)" if config["bootstrap"] else ""))
 

@@ -62,6 +62,19 @@ describe('Chrome archive packaging', () => {
     expect(JSON.parse(names)).toEqual(['manifest.json', 'worker.js']);
     expect(JSON.parse(readFileSync(join(root, 'dist/chrome-store/release.json'), 'utf8')).bootstrap).toBe(true);
   });
+  it('records the staging defaults in a configured stable package', () => {
+    const root = fixture();
+    execFileSync('python3', [script], { cwd: root, env: { ...env,
+      VITE_API_URL: 'https://api.stage.palladin.io', VITE_WEB_APP_URL: 'https://stage.palladin.io' } });
+    expect(JSON.parse(readFileSync(join(root, 'dist/chrome-store/release.json'), 'utf8'))).toMatchObject({
+      bootstrap: false, channel: 'stable', apiUrl: 'https://api.stage.palladin.io', webAppUrl: 'https://stage.palladin.io',
+    });
+  });
+  it.each(['', 'http://api.stage.palladin.io', 'https://unexpected.example.org'])(
+    'rejects an unset or unsupported store API: %s', apiUrl => {
+      expect(spawnSync('python3', [script, '--check-config'], { cwd: fixture(),
+        env: { ...env, VITE_API_URL: apiUrl } }).status).not.toBe(0);
+    });
   it('accepts a stable tag on main and refuses an unmerged feature commit', () => {
     const { root, git, sha } = gitFixture();
     const settings = { ...env, RELEASE_OPERATION: 'publish', GITHUB_REF: 'refs/tags/v0.1.0', GITHUB_SHA: sha };

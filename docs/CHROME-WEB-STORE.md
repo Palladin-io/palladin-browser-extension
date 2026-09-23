@@ -1,8 +1,10 @@
 # Chrome Web Store release
 
 The first distribution is Chrome Web Store **Unlisted** (installation by link),
-with `https://api.palladin.io` as the default API. Settings retains the existing
-server selector, including staging and custom HTTPS servers. Other browser
+with `https://api.stage.palladin.io` as the default API and
+`https://stage.palladin.io` as the panel for the first release. These defaults are
+injected through GitHub repository variables. Settings retains the existing
+server selector, including production and custom HTTPS servers. Other browser
 stores are out of scope for this release. Unlisted is visibility, not access
 control: anyone with the link can install the extension.
 
@@ -28,9 +30,9 @@ PR before creating its tag. Do not move or reuse release tags.
 CWS does not provide an installable prerelease track within one item. Beta has
 its own Item ID and public key, with Google's required BETA name/testing label.
 An approved staged submission is unpublished; testers cannot install it as a
-separate track. Both beta and stable use the production API by default, with the
-existing server selector. The beta channel does not grant any additional native
-runtime or shared-unlock trust; its separate identity must be explicitly reviewed
+separate track. Both beta and stable use the API and panel selected in deployment
+configuration, with the existing server selector. The beta channel does not grant
+any additional native runtime or shared-unlock trust; its separate identity must be explicitly reviewed
 and configured in those integrations. It is not the local debug runtime channel.
 
 A push submits a candidate, not an immediate installation. If a previous version
@@ -47,7 +49,7 @@ selecting `channel` (`stable` or `beta`) and an operation:
 
 | Operation | Allowed source | Result |
 | --- | --- | --- |
-| `bootstrap` | `main` (either channel) | ZIP for creating an unpublished item; no Google credentials/upload. Panel remains localhost and shared unlock is unconfigured. Never submit this artifact. |
+| `bootstrap` | `main` (either channel) | ZIP for creating an unpublished item; no Google credentials/upload. API and panel use the configured defaults; shared unlock is unconfigured. Never submit this artifact. |
 | `package` | `main`, or a matching stable tag | Configured ZIP only; no upload. |
 | `upload` | `main` for beta, matching tag for stable | Upload as draft, e.g. before the first manual publication. |
 | `publish` | `main` for beta, matching tag for stable | Upload and request review, publishing automatically after approval. Inspect store status before retrying. |
@@ -70,8 +72,9 @@ tests and builds run in other jobs. No npm dependencies run in the store job.
 All newly introduced Actions references are pinned to commit SHAs.
 
 Before upload, the script checks the artifact checksum/source, release gates,
-nonzero version, and exact manifest-derived Item ID. It obtains the store's
-public key through API v2 and compares identities before any mutation. It refuses
+nonzero version, exact manifest-derived Item ID, and that its API/panel URLs match
+the deployment variables. A configuration change requires a new matching package.
+It obtains the store's public key through API v2 and compares identities before any mutation. It refuses
 an existing pending/staged submission, policy warnings, or an already-published
 version. Async upload processing has a two-minute deadline. Upload errors never
 lead to publication; mutations are not automatically retried. A publish request
@@ -124,8 +127,14 @@ Repository variables (available to the secretless package job):
 | Variable | Value |
 | --- | --- |
 | `CWS_BETA_PUBLIC_KEY` | Canonical base64 DER public key from the separate beta item. Public configuration, never a private key. Required except beta bootstrap. |
-| `CWS_WEB_APP_URL` | Confirmed production HTTPS panel address; no localhost or placeholders. |
+| `CWS_API_URL` | Selected staging or production API; required for every package operation. |
+| `CWS_WEB_APP_URL` | Selected HTTPS panel address; no localhost or placeholders for release packages. |
 | `CWS_SHARED_UNLOCK_ENVIRONMENTS` | Reviewed JSON pairs of `apiUrl` and `webOrigin`; empty disables the integration. |
+
+Changing these defaults takes effect in a newly built extension version; it does
+not migrate accounts or Vaults between servers or replace a saved server choice.
+Keep URL variables at repository scope so packaging and store validation use the
+same values. Changing navigation URLs does not authorize shared unlock.
 
 Each environment (`chrome-web-store-beta` and `chrome-web-store`) has its own variables:
 
@@ -148,8 +157,9 @@ do not try uploading a lower manifest version.
 ## Current product gates
 
 The owner has registered a developer account, selected a GCP project and linked
-the service account to the publisher. Both store items still need creation. The
-production panel URL remains undecided. Its URL must become user-configurable
+the service account to the publisher. The stable item exists as an unpublished
+draft; the beta item still needs creation. The first release uses staging; the
+production panel URL remains undecided. The panel URL must become user-configurable
 alongside API URL; that feature is not implemented by this CI change. Current
 links use build-time `VITE_WEB_APP_URL`, while shared unlock independently uses
 API/origin pairs and generated browser routing. An editable navigation URL must
