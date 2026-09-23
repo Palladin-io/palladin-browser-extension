@@ -33,6 +33,24 @@ function gitFixture() {
 afterEach(() => directories.splice(0).forEach(path => rmSync(path, { recursive: true, force: true })));
 
 describe('Chrome archive packaging', () => {
+  it.each([
+    ['stable', 'bootstrap'], ['stable', 'package'],
+    ['beta', 'bootstrap'], ['beta', 'package'],
+  ])('omits the development key from the %s %s ZIP while preserving identity metadata', (channel, operation) => {
+    const root = fixture();
+    const built = { ...manifest, version: channel === 'beta' ? '0.0.0.1' : '0.1.0' };
+    const original = JSON.stringify(built);
+    writeFileSync(join(root, 'dist/chromium/manifest.json'), original);
+    execFileSync('python3', [script], { cwd: root, env: { ...env,
+      PALLADIN_STORE_CHANNEL: channel, RELEASE_OPERATION: operation, GITHUB_RUN_NUMBER: '1' } });
+    const uploaded = JSON.parse(execFileSync('python3', ['-c',
+      'import zipfile;print(zipfile.ZipFile("dist/chrome-store/package.zip").read("manifest.json").decode())'],
+    { cwd: root }).toString());
+    const { key, ...expected } = built;
+    expect(uploaded).toEqual(expected);
+    expect(readFileSync(join(root, 'dist/chromium/manifest.json'), 'utf8')).toBe(original);
+    expect(JSON.parse(readFileSync(join(root, 'dist/chrome-store/release.json'), 'utf8')).publicKey).toBe(key);
+  });
   it('creates a deterministic ZIP rooted at manifest.json and marks bootstrap artifacts', () => {
     const root = fixture();
     const settings = { ...env, RELEASE_OPERATION: 'bootstrap', VITE_WEB_APP_URL: 'http://localhost:5173' };

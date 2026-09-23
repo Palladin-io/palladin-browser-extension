@@ -82,13 +82,17 @@ def package(root, config, commit, expected_version):
     output = root / "dist/chrome-store"
     output.mkdir(parents=True, exist_ok=True)
     archive = output / "package.zip"
+    # CWS assigns/signs the store identity; key is only for unpacked development.
+    store_manifest = {name: value for name, value in manifest.items() if name != "key"}
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
         for path in files:
             if path.is_file():
                 info = zipfile.ZipInfo(path.relative_to(source).as_posix(), (1980, 1, 1, 0, 0, 0))
                 info.compress_type = zipfile.ZIP_DEFLATED
                 info.external_attr = 0o100644 << 16
-                bundle.writestr(info, path.read_bytes())
+                data = ((json.dumps(store_manifest, indent=2) + "\n").encode()
+                        if info.filename == "manifest.json" else path.read_bytes())
+                bundle.writestr(info, data)
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     metadata = {**config, "version": version, "commit": commit, "sha256": digest,
                 "publicKey": manifest.get("key", "")}
