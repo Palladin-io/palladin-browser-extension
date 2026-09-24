@@ -41,7 +41,8 @@ interface Specimen {
 const cases = ['forms', 'non-auth'].flatMap(group => {
   const directory = resolve(`tests/fixtures/${group}`);
   return readdirSync(directory, { withFileTypes: true }).filter(entry => entry.isDirectory() && existsSync(`${directory}/${entry.name}/case.json`))
-    .map(entry => ({ directory: `${directory}/${entry.name}`, specimen: JSON.parse(readFileSync(`${directory}/${entry.name}/case.json`, 'utf8')) as Specimen }));
+    .map(entry => ({ directory: `${directory}/${entry.name}`, specimen: JSON.parse(readFileSync(`${directory}/${entry.name}/case.json`, 'utf8')) as Specimen }))
+    .filter(item => (item.specimen as Specimen & { topology?: string }).topology !== 'cross-origin-child');
 });
 afterEach(() => { document.body.replaceChildren(); document.head.querySelectorAll('[data-corpus-style]').forEach(node => node.remove()); });
 

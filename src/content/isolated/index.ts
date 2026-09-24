@@ -45,7 +45,7 @@ import {
 import { performBoundFill } from "./fill";
 import { createReconnectingWorkerPort } from "./worker-port";
 import { createSessionKeepalive } from "./session-keepalive";
-import { startInlineAutofill } from "./inline-autofill";
+import { inlineAutofillFrameAllowed, startInlineAutofillIfAllowed } from "./inline-autofill";
 import { startCredentialCapture } from "./credential-capture";
 import { extensionBuildTarget } from "@shared/config/build-target";
 import { FIREFOX_LEGACY_FILL_PORT } from "../../shared/messaging/firefox-legacy-fill";
@@ -99,9 +99,7 @@ const passwordCapture = startPasswordCaptureDetection(
   },
   window.top === window,
 );
-const inlineAutofill = window.top === window
-  ? startInlineAutofill(document, documentId)
-  : null;
+const inlineAutofill = startInlineAutofillIfAllowed(document, documentId);
 let credentialCapture = window.top === window && window.location.protocol === "https:"
   ? startCredentialCapture(document, documentId) : null;
 const agentInjectDom = createAgentInjectDomAccess(
@@ -201,6 +199,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return undefined;
   }
   if (!isFillRequestMessage(message)) return undefined;
+  if (message.loginTargetId !== null && !inlineAutofillFrameAllowed(document)) {
+    sendResponse({ ok: false, reason: 'target-changed' } satisfies FillOutcome);
+    return undefined;
+  }
   const loginTarget = message.loginTargetId === null
     ? null
     : inlineAutofill?.resolveLoginTarget(message.loginTargetId) ?? null;

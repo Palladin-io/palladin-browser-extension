@@ -103,16 +103,17 @@ function refreshBadge(): void {
 }
 
 /**
- * Invalidate extension-owned UI and top-frame content surfaces. Lifecycle
+ * Invalidate extension-owned UI and content surfaces. Lifecycle
  * events are value-free. `runtime.sendMessage` updates popup/side-panel pages;
- * the explicit tab delivery wakes already-mounted inline autofill controllers.
+ * the tab delivery wakes already-mounted inline autofill controllers, including
+ * Apple's same-origin sign-in iframe.
  */
 function publishSurfaceState(event: ReturnType<typeof sessionChanged> | ReturnType<typeof vaultChanged>): void {
   void chrome.runtime.sendMessage(event).catch(() => undefined);
   void chrome.tabs.query({}).then(async (tabs) => {
     await Promise.all(tabs.map(async (tab) => {
       if (typeof tab.id !== "number") return;
-      await chrome.tabs.sendMessage(tab.id, event, { frameId: 0 }).catch(() => undefined);
+      await chrome.tabs.sendMessage(tab.id, event).catch(() => undefined);
     }));
   }).catch(() => undefined);
 }

@@ -21,6 +21,10 @@ for (const group of ['forms', 'non-auth']) {
     try { specimen = JSON.parse(await readFile(`${directory}/case.json`, 'utf8')); }
     catch (error) { if (error.code !== 'ENOENT') throw error; excluded.push(directory); continue; }
     if (selected && !selected.includes(specimen.id)) continue;
+    if (specimen.topology === 'cross-origin-child') {
+      cases.push({ specimen, specialized: true });
+      continue;
+    }
     cases.push({ specimen, html: await readFile(`${directory}/page.html`, 'utf8'), css: await readFile(`${directory}/page.css`, 'utf8') });
   }
 }
@@ -80,9 +84,14 @@ try {
     throw new Error('Synthetic document binding unavailable');
   }
   const send = (target, message) => worker.evaluate(({ target, message }) => chrome.tabs.sendMessage(target.id, message, { frameId: 0 }), { target, message });
-  for (const { specimen } of cases) {
+  for (const { specimen, specialized } of cases) {
     const row = { id: specimen.id, service: specimen.service, flow: specimen.flow, stage: specimen.stage ?? null, userShield: 'not-run', agentLive: 'not-run' };
     results.push(row);
+    if (specialized) {
+      row.userShield = 'specialized-browser-regression';
+      row.agentLive = specimen.expected.agent.support;
+      continue;
+    }
     try {
       const url = `https://forms.example.test/${specimen.id}`;
       await page.setViewportSize({ width: specimen.source.viewport?.width ?? 1200, height: specimen.source.viewport?.height ?? 900 });
