@@ -18,6 +18,7 @@ import {
   type InlineAutofillSuggestion,
 } from "@shared/messaging";
 import { queryOpenElements } from "./open-dom";
+import { extensionBuildTarget, type ExtensionBuildTarget } from "@shared/config/build-target";
 import {
   discardLoginTargetFill,
   isCurrentLoginTarget,
@@ -28,10 +29,12 @@ import {
 
 type Send = (command: InlineAutofillCommand) => Promise<unknown>;
 
-export function inlineAutofillFrameAllowed(doc: Document): boolean {
+export function inlineAutofillFrameAllowed(doc: Document, target: ExtensionBuildTarget = extensionBuildTarget): boolean {
   const view = doc.defaultView;
   if (view === null) return false;
   if (view.top === view) return true;
+  // Firefox's supported legacy Port authenticates only the top document.
+  if (target === 'firefox') return false;
   try {
     return view.location.protocol === 'https:'
       && view.location.hostname === 'idmsa.apple.com'

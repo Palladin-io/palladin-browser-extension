@@ -32,6 +32,9 @@ checks the browser-authored top and child URLs before serving the frame. On the
 identifier step Palladin may fill only the identifier. After Apple reveals the
 password step, the user must explicitly choose a Credential; the password is filled only when the
 widget's existing account identifier matches that Credential's username.
+Firefox child frames do not mount this launcher: its supported legacy fill
+transport authenticates only the top document. Direct top-frame IDMSA sign-in
+remains eligible.
 
 Open shadow roots attached after startup are discovered through bounded probes of
 previously observed eligible hosts (at most 256 native property checks per 250 ms).

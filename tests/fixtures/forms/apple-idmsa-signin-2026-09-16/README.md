@@ -15,5 +15,7 @@ worker-to-child fill. The same specimen records the Agent adapter as unsupported
 its top-frame probe reports `challenge` and it cannot fill the cross-origin child.
 `case.json` records both adapter expectations. The generic single-origin corpus
 reports this topology separately; `tests/browser/inline-autofill.mjs` runs it.
+Firefox's legacy Port authenticates only the top document; its child frame does
+not mount a shield until a reviewed frame-bound transport is available.
 Passing the fixture is not a real Apple account login; installed-artifact
 acceptance with a test account remains a separate release gate.

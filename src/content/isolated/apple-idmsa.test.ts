@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // @ts-expect-error jsdom is provided by the test environment without TypeScript declarations.
 import { JSDOM, ResourceLoader } from 'jsdom';
 import { loginTargetFor, performLoginTargetFill, submitFilledLoginTarget } from './fill';
-import { startInlineAutofill, startInlineAutofillIfAllowed } from './inline-autofill';
+import { inlineAutofillFrameAllowed, startInlineAutofill, startInlineAutofillIfAllowed } from './inline-autofill';
 
 function appleForm(doc: Document = document) {
   doc.body.innerHTML = `
@@ -47,6 +47,8 @@ describe('Apple IDMSA inline login', () => {
     const sameOrigin = top.window.document.querySelector('iframe')!;
     await new Promise<void>(resolve => sameOrigin.addEventListener('load', () => resolve(), { once: true }));
     const child = sameOrigin.contentDocument!;
+    expect(inlineAutofillFrameAllowed(child, 'firefox')).toBe(false);
+    expect(inlineAutofillFrameAllowed(top.window.document, 'firefox')).toBe(true);
     // Each content script runs with its frame's DOM constructors. Match that
     // realm when invoking the production controller from this parent test.
     for (const name of ['Element', 'HTMLElement', 'HTMLInputElement', 'HTMLButtonElement',
