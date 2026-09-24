@@ -115,9 +115,18 @@ application adapter. Other browser/OS/distributed-artifact acceptance remains op
   Agent profile/grant/credential only after exactly one admitted extension
   reports `ready`. Plaintext and TOFU fallbacks do not exist.
 - Chromium Extension ID does not distinguish a Web Store install from an
-  unpacked build reusing the public manifest key. The current automatic path is
-  therefore development-only; production Runtime builds fail closed until an
-  independent signed-artifact provenance mechanism is reviewed.
+  unpacked build reusing the public manifest key. On 2026-09-24 the owner accepted
+  Google-signed Chrome plus its exact compiled extension origin as the first
+  Chrome/macOS Agent Inject trust boundary. Local same-ID extension/profile
+  replacement is outside that boundary: such an extension can receive values
+  from an approved Inject operation and remove its own page checks. The host
+  still verifies its signed Chrome parent before state/secret access and binds
+  the signed session to the browser-supplied origin. Grants, approvals, secure
+  storage, version policy, encrypted transport and trusted-extension page checks
+  remain required. Independent store-artifact attestation is future hardening,
+  not a current guarantee. Release acceptance still requires an updated signed
+  macOS Runtime and installed-browser tests of the exact builds; the extension
+  package alone does not establish production Agent Inject support.
 - Development compatibility targets current Chrome, Chromium, Brave, Edge, and
   Opera MV3 builds. Store certification and version support are not yet claimed.
 - Inline login suggestions are implemented beside standard username/email
