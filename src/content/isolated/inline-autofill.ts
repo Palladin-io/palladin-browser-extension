@@ -348,7 +348,9 @@ class InlineAutofillController {
         this.widgets.delete(input);
       } else widget.restoreHost();
     }
-    if (this.widgets.size === 0) this.automaticFillUrl = null;
+    if (this.widgets.size === 0 && this.doc.location.hostname !== 'idmsa.apple.com') {
+      this.automaticFillUrl = null;
+    }
     for (const input of queryOpenElements<HTMLInputElement>(this.doc, 'input')) {
       if (this.resizeObserver && !this.observedInputs.has(input)) {
         this.resizeObserver.observe(input);
@@ -623,7 +625,8 @@ class InlineWidget {
    * Related sibling hosts remain explicit-only and can never enter this path.
    */
   async autoFillPreferredExact(): Promise<void> {
-    if (this.automaticFillCompleted || this.destroyed) return;
+    if (this.automaticFillCompleted || this.destroyed
+      || this.options.loginTarget.accountIdentity !== undefined) return;
     if (this.automaticFillInFlight) {
       this.automaticFillRetryRequested = true;
       return;

@@ -99,7 +99,18 @@ const passwordCapture = startPasswordCaptureDetection(
   },
   window.top === window,
 );
-const inlineAutofill = window.top === window
+function inlineAutofillFrameAllowed(): boolean {
+  if (window.top === window) return true;
+  try {
+    return window.location.protocol === 'https:'
+      && window.location.hostname === 'idmsa.apple.com'
+      && window.top?.location.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+const inlineAutofill = inlineAutofillFrameAllowed()
   ? startInlineAutofill(document, documentId)
   : null;
 let credentialCapture = window.top === window && window.location.protocol === "https:"
@@ -201,6 +212,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return undefined;
   }
   if (!isFillRequestMessage(message)) return undefined;
+  if (message.loginTargetId !== null && !inlineAutofillFrameAllowed()) {
+    sendResponse({ ok: false, reason: 'target-changed' } satisfies FillOutcome);
+    return undefined;
+  }
   const loginTarget = message.loginTargetId === null
     ? null
     : inlineAutofill?.resolveLoginTarget(message.loginTargetId) ?? null;

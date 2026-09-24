@@ -135,9 +135,10 @@ export function inlineAutofillSource(
   sender: chrome.runtime.MessageSender,
   extensionId: string,
 ): ActiveTab | null {
-  if (sender.id !== extensionId || sender.frameId !== 0) return null;
+  if (sender.id !== extensionId || typeof sender.frameId !== 'number' || sender.frameId < 0) return null;
   if (typeof sender.tab?.id !== "number" || typeof sender.tab.url !== "string") return null;
   if (typeof sender.url !== "string" || !sameHttpsOrigin(sender.url, sender.tab.url)) return null;
+  if (sender.frameId !== 0 && new URL(sender.url).hostname !== 'idmsa.apple.com') return null;
   if (typeof sender.documentId !== "string" || sender.documentId.length === 0) return null;
   return {
     id: sender.tab.id,

@@ -175,13 +175,32 @@ describe("inline autofill content runtime", () => {
     expect(cleared).toMatchObject({ entries: [{ entryId: "entry-1" }, { entryId: "entry-2" }] });
   });
 
-  it("rejects frames and origin mismatches before reading state", async () => {
+  it("allows Apple's same-origin child frame and rejects unrelated frames", async () => {
     const subject = deps();
+    const appleSender = {
+      ...sender,
+      frameId: 1,
+      url: 'https://idmsa.apple.com/appleauth/auth/signin',
+      tab: { id: 7, url: 'https://idmsa.apple.com/IDMSWebAuth/signin' },
+    } as chrome.runtime.MessageSender;
+    expect(await handleInlineAutofillContentMessage(subject, {
+      channel: INLINE_AUTOFILL_CHANNEL,
+      type: "inline/list",
+      documentId,
+    }, appleSender, 'extension-id'))
+      .toMatchObject({ ok: true, kind: 'suggestions', status: 'ready' });
+    vi.mocked(subject.getStatus).mockClear();
     expect(await handleInlineAutofillContentMessage(subject, {
       channel: INLINE_AUTOFILL_CHANNEL,
       type: "inline/list",
       documentId,
     }, { ...sender, frameId: 1 }, "extension-id")).toEqual({ ok: false, code: "unavailable" });
+    expect(await handleInlineAutofillContentMessage(subject, {
+      channel: INLINE_AUTOFILL_CHANNEL,
+      type: "inline/list",
+      documentId,
+    }, { ...appleSender, url: 'https://other.example.com/login' }, 'extension-id'))
+      .toEqual({ ok: false, code: 'unavailable' });
     expect(subject.getStatus).not.toHaveBeenCalled();
   });
 

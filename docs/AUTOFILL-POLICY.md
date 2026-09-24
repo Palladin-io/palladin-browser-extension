@@ -23,6 +23,13 @@ combined login stage, bound to one native form or one bounded credential scope.
 An unrelated standalone email field is not a login stage. Registration, password
 change, ambiguous actions and hidden or readonly controls remain excluded.
 
+Apple's `idmsa.apple.com` sign-in widget is a site-specific exception to the
+top-frame rule. Its same-origin iframe can show the inline launcher when the
+top page is also `idmsa.apple.com` over HTTPS. On the identifier step Palladin
+may fill only the identifier. After Apple reveals the password step, the user
+must explicitly choose a Credential; the password is filled only when the
+widget's existing account identifier matches that Credential's username.
+
 Open shadow roots attached after startup are discovered through bounded probes of
 previously observed eligible hosts (at most 256 native property checks per 250 ms).
 Idle probes do not traverse the document or read layout. A newly found root schedules
@@ -51,7 +58,8 @@ history outside the encrypted Vault.
 
 ## Non-negotiable gates
 
-- top frame and browser-authored sender identity;
+- top-frame origin and browser-authored sender identity; only Apple's
+  same-origin `idmsa.apple.com` child frame may host the inline launcher;
 - HTTPS and exact normalized stored host;
 - active tab and page-load/browser document binding, rechecked before decrypt
   and DOM write;
