@@ -50,7 +50,7 @@ function observe(coordinator: CaptureCoordinator): boolean {
 }
 
 describe("CaptureCoordinator", () => {
-  it('generates once for the observed document without saving a Vault entry', async () => {
+  it('rejects a repeated operation but permits a fresh explicit generation without saving a Vault entry', async () => {
     const { coordinator, sendFill, savePassword } = harness();
     observe(coordinator);
     const command = { channel: GENERATE_PASSWORD_CHANNEL, documentId: DOCUMENT_ID,
@@ -63,6 +63,9 @@ describe("CaptureCoordinator", () => {
     expect(savePassword).not.toHaveBeenCalled();
     expect((await coordinator.generate(command, source)).status).toBe('blocked');
     expect(sendFill).toHaveBeenCalledTimes(1);
+    expect((await coordinator.generate({ ...command, operationId: 'another_operation_0123456789' }, source)).status).toBe('filled');
+    expect(sendFill).toHaveBeenCalledTimes(2);
+    expect(savePassword).not.toHaveBeenCalled();
   });
 
   it('rejects generation for substituted candidate, document, tab, or origin', async () => {

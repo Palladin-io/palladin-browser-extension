@@ -1,8 +1,7 @@
 # Strong password suggestions and local recovery
 
-CVT-664 / CVT-665 / CVT-666; candidate implementation, pending the reviewed
-`@palladin/crypto` 0.10.0 registry release (CVT-670). The existing lockfile must not
-be presented as a reproducible build of these new APIs before that cutover.
+CVT-664 / CVT-665 / CVT-666; uses the reviewed `@palladin/crypto` 0.10.0
+registry release (CVT-670).
 
 On a top-frame HTTPS form explicitly marked `autocomplete="new-password"`,
 focusing an empty new-password field offers a 20-character CSPRNG password with
@@ -45,6 +44,6 @@ Verification: `node tests/browser/generator.mjs` exercises a native Chromium
 popup, a trusted inline click, both password fields, absence of automatic Vault
 writes, ciphertext-only storage and reveal after browser restart. Unit tests
 cover scope substitution, corrupt history, capacity, failed persistence,
-concurrent writes, lock during read and cancellation/replay. Local verification
-uses the candidate shared-crypto build; release must repeat from the published
-registry dependency. Firefox/Safari device acceptance remains separate.
+concurrent writes, lock during read and cancellation/replay. Validation installs
+the exact published registry dependency. Firefox/Safari device acceptance remains
+separate.

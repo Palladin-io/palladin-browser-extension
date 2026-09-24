@@ -63,6 +63,7 @@ interface PendingCapture {
   readonly kind: CaptureDetectedMessage["kind"];
   readonly observedAt: number;
   readonly filled: boolean;
+  readonly generationOperationId?: string;
 }
 
 function httpsOrigin(url: string): string | null {
@@ -90,9 +91,10 @@ export class CaptureCoordinator {
 
   async generate(command: GeneratePasswordCommand, source: CaptureSource): Promise<CaptureGeneratedFillResult> {
     const prompt = this.livePrompt(source.tabId);
-    if (!prompt || prompt.filled || prompt.candidateId !== command.candidateId
+    if (!prompt || prompt.generationOperationId === command.operationId || prompt.candidateId !== command.candidateId
       || prompt.documentId !== command.documentId || prompt.browserDocumentId !== source.browserDocumentId
       || prompt.origin !== httpsOrigin(source.url)) return this.blocked('stale-prompt');
+    this.pendingByTab.set(source.tabId, { ...prompt, generationOperationId: command.operationId });
     return this.fillGenerated(prompt.id, generatePassword({ length: 20, digits: true, symbols: true }), command.operationId);
   }
 
