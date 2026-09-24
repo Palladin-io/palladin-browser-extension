@@ -20,6 +20,10 @@ const beta = storeChannel === "beta" ? {
   bootstrap: process.env.RELEASE_OPERATION === "bootstrap",
 } : undefined;
 
+const stablePublicKey = storeChannel === "stable"
+  ? process.env.CWS_STABLE_PUBLIC_KEY || (process.env.RELEASE_OPERATION === "bootstrap" ? undefined : "")
+  : undefined;
+
 export default defineConfig(({ mode }) => {
   const configured = loadEnv(mode, process.cwd(), "VITE_SHARED_UNLOCK_");
   const sharedUnlockEnvironments = parseSharedUnlockEnvironments(configured.VITE_SHARED_UNLOCK_ENVIRONMENTS);
@@ -38,7 +42,7 @@ export default defineConfig(({ mode }) => {
       react(),
       ...(target === "firefox" && sharedUnlockEnvironments.length > 0 ? [firefoxCanonicalManifestResource()] : []),
       crx({
-        manifest: buildManifest(target, sharedUnlockEnvironments, beta),
+        manifest: buildManifest(target, sharedUnlockEnvironments, beta, stablePublicKey),
         // CRXJS needs its Firefox mode to retain and bundle background.scripts;
         // Safari consumes the same service-worker packaging shape as Chromium.
         browser: target === "firefox" ? "firefox" : "chrome",

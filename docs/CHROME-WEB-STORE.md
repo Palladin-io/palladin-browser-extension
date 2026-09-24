@@ -61,8 +61,9 @@ metadata and a production-dependency CycloneDX SBOM. Another job attaches GitHub
 build provenance to the ZIP. The ZIP manifest omits the development-only `key`
 field, which CWS rejects on upload. The unpacked build keeps it, and release
 metadata retains the public key for the uploader identity checks. Download the
-`chrome-store-<run>-<attempt>` artifact from the workflow run. This GitHub provenance does not replace the runtime's
-independent Agent Inject artifact-attestation gate.
+`chrome-store-<run>-<attempt>` artifact from the workflow run. This GitHub provenance attests the ZIP build; it does not identify the extension
+invoking a native host. The accepted Chrome/macOS caller boundary is documented
+in `STATUS.md` and still needs installed-runtime acceptance.
 
 Only the store job can obtain Google credentials. It runs in the
 `chrome-web-store-beta` (main) or `chrome-web-store` (tags) environment and requests a short-lived access token through
@@ -92,9 +93,11 @@ Keep manual dashboard changes out of an active upload/publish run.
    environment Item ID accordingly. Reconcile the manifest and
    runtime's compiled identity through coordinated PRs before uploading a release
    artifact. CWS assigns the identity for both new items; the existing stable
-   development key does not reserve a store ID. Replace it with the assigned
-   stable public key through a coordinated identity update before release. Beta
-   key injection is explicit at manifest build time; it rejects the stable key and the uploader
+   development key does not reserve a store ID. Set `CWS_STABLE_PUBLIC_KEY` to
+   the assigned stable public key and reconcile the store ID with native
+   integrations before release. Stable store builds use
+   this key; builds without a store channel retain the development identity. Beta
+   key injection is explicit at manifest build time; it rejects the development key and the uploader
    verifies it against the independently configured beta Item ID and store key.
 4. Complete Store listing, Privacy, reviewer Test instructions and **Unlisted**
    distribution. API publishing preserves existing visibility and cannot change
@@ -126,6 +129,7 @@ Repository variables (available to the secretless package job):
 
 | Variable | Value |
 | --- | --- |
+| `CWS_STABLE_PUBLIC_KEY` | Canonical base64 DER public key from the stable item. Required for stable package/upload/publish; bootstrap may omit it. Public build configuration, never a private key. |
 | `CWS_BETA_PUBLIC_KEY` | Canonical base64 DER public key from the separate beta item. Public configuration, never a private key. Required except beta bootstrap. |
 | `CWS_API_URL` | Selected staging or production API; required for every package operation. |
 | `CWS_WEB_APP_URL` | Selected HTTPS panel address; no localhost or placeholders for release packages. |
@@ -176,7 +180,9 @@ store ID once reconciled. It is retained outside the upload ZIP; CWS owns the
 identity/signing of the uploaded item. Google service-account
 authentication is separate: OIDC yields a short-lived upload token without a
 service-account JSON key. GitHub provenance is also separate from Chrome signing
-and does not satisfy Palladin's Agent Inject artifact-attestation gate.
+and does not attest which local extension called Agent Inject. The approved
+Chrome/macOS trust model uses signed Chrome plus the exact extension origin,
+with the same-ID local-replacement limitation documented in `STATUS.md`.
 
 ## Listing materials
 
@@ -204,8 +210,11 @@ Suggested Polish description:
 > wypełnienie nie wysyła formularza. Serwer Palladin wybierzesz w ustawieniach.
 > Dostępne są interfejsy polski i angielski oraz motywy systemowy, jasny i ciemny.
 
-These drafts do not claim production Agent Inject support. Its independent
-artifact-attestation gate remains open in `STATUS.md`. Confirm the public privacy
+These drafts do not claim production Agent Inject support. The first release
+requires working Agent Inject on Chrome/macOS with an updated signed Runtime,
+installed-build acceptance and accurate reviewer instructions. Its accepted
+browser-identity boundary and local-replacement limitation are in `STATUS.md`.
+Confirm the public privacy
 policy URL, required disclosures, support contact and reviewer access before
 submission; this document does not approve legal declarations.
 
