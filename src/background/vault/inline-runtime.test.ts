@@ -4,6 +4,7 @@ import { INLINE_AUTOFILL_CHANNEL } from "@shared/messaging";
 import type { FillResult } from "./commands";
 import type { EntryMetadata } from "./entry-metadata";
 import {
+  appleInlineFrameStillAuthorized,
   handleInlineAutofillContentMessage,
   InMemoryInlineAutofillRecency,
   type InlineAutofillDeps,
@@ -175,14 +176,77 @@ describe("inline autofill content runtime", () => {
     expect(cleared).toMatchObject({ entries: [{ entryId: "entry-1" }, { entryId: "entry-2" }] });
   });
 
-  it("rejects frames and origin mismatches before reading state", async () => {
+  it("allows Apple's same-origin child frame and rejects unrelated frames", async () => {
     const subject = deps();
+    const appleSender = {
+      ...sender,
+      frameId: 1,
+      url: 'https://idmsa.apple.com/appleauth/auth/signin',
+      tab: { id: 7, url: 'https://idmsa.apple.com/IDMSWebAuth/signin' },
+    } as chrome.runtime.MessageSender;
+    expect(await handleInlineAutofillContentMessage(subject, {
+      channel: INLINE_AUTOFILL_CHANNEL,
+      type: "inline/list",
+      documentId,
+    }, appleSender, 'extension-id'))
+      .toMatchObject({ ok: true, kind: 'suggestions', status: 'ready' });
+    const fill = vi.fn(async () => ({ status: 'filled' }) as const);
+    expect(await handleInlineAutofillContentMessage(deps({ fill }), {
+      channel: INLINE_AUTOFILL_CHANNEL,
+      type: 'inline/fill', intent: 'manual', documentId,
+      vaultId: 'vault-1', entryId: 'entry-1', scope: 'exact', loginTargetId: 'login-1',
+    }, appleSender, 'extension-id')).toMatchObject({ ok: true, kind: 'fill', status: 'filled' });
+    expect(fill).toHaveBeenCalledWith({
+      id: 7, url: appleSender.url, documentId, browserDocumentId,
+    }, 'vault-1', 'entry-1', 'exact', 'login-1', 'manual');
+    const accountAppleSender = {
+      ...appleSender,
+      url: 'https://idmsa.apple.com/appleauth/auth/authorize/signin',
+      tab: { id: 7, url: 'https://account.apple.com/sign-in' },
+    } as chrome.runtime.MessageSender;
+    expect(await handleInlineAutofillContentMessage(subject, {
+      channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', documentId,
+    }, accountAppleSender, 'extension-id'))
+      .toMatchObject({ ok: true, kind: 'suggestions', status: 'ready' });
+    fill.mockClear();
+    expect(await handleInlineAutofillContentMessage(deps({ fill }), {
+      channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', intent: 'manual', documentId,
+      vaultId: 'vault-1', entryId: 'entry-1', scope: 'exact', loginTargetId: 'login-1',
+    }, accountAppleSender, 'extension-id'))
+      .toMatchObject({ ok: true, kind: 'fill', status: 'filled' });
+    expect(fill).toHaveBeenCalledWith({
+      id: 7, url: accountAppleSender.url, documentId, browserDocumentId,
+    }, 'vault-1', 'entry-1', 'exact', 'login-1', 'manual');
+    expect(await handleInlineAutofillContentMessage(subject, {
+      channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', documentId,
+    }, { ...accountAppleSender, tab: { id: 7, url: 'https://other.example.com/sign-in' } as chrome.tabs.Tab }, 'extension-id'))
+      .toEqual({ ok: false, code: 'unavailable' });
+    vi.mocked(subject.getStatus).mockClear();
     expect(await handleInlineAutofillContentMessage(subject, {
       channel: INLINE_AUTOFILL_CHANNEL,
       type: "inline/list",
       documentId,
     }, { ...sender, frameId: 1 }, "extension-id")).toEqual({ ok: false, code: "unavailable" });
+    expect(await handleInlineAutofillContentMessage(subject, {
+      channel: INLINE_AUTOFILL_CHANNEL,
+      type: "inline/list",
+      documentId,
+    }, { ...appleSender, url: 'https://other.example.com/login' }, 'extension-id'))
+      .toEqual({ ok: false, code: 'unavailable' });
     expect(subject.getStatus).not.toHaveBeenCalled();
+  });
+
+  it('rechecks the live Apple top URL after the initial sender check', async () => {
+    const frameUrl = 'https://idmsa.apple.com/appleauth/auth/authorize/signin';
+    let topUrl = 'https://account.apple.com/sign-in';
+    const readCurrentTopUrl = vi.fn(async () => topUrl);
+    expect(await appleInlineFrameStillAuthorized(frameUrl, 7, readCurrentTopUrl)).toBe(true);
+    topUrl = 'https://account.apple.com/account';
+    expect(await appleInlineFrameStillAuthorized(frameUrl, 7, readCurrentTopUrl)).toBe(false);
+    topUrl = 'https://other.example.com/sign-in';
+    expect(await appleInlineFrameStillAuthorized(frameUrl, 7, readCurrentTopUrl)).toBe(false);
+    expect(readCurrentTopUrl).toHaveBeenCalledTimes(3);
+    expect(readCurrentTopUrl).toHaveBeenCalledWith(7);
   });
 
   it("leaves the user-gesture surface command to the synchronous background adapter", async () => {

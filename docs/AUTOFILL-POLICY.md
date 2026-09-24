@@ -23,6 +23,19 @@ combined login stage, bound to one native form or one bounded credential scope.
 An unrelated standalone email field is not a login stage. Registration, password
 change, ambiguous actions and hidden or readonly controls remain excluded.
 
+Apple's `idmsa.apple.com` sign-in widget is a site-specific exception to the
+top-frame rule. Its iframe can show the inline launcher when the top page is
+also `idmsa.apple.com` over HTTPS, or for the observed
+`https://account.apple.com/sign-in` top page and
+`https://idmsa.apple.com/appleauth/auth/authorize/signin` child. The worker
+checks the browser-authored top and child URLs before serving the frame. On the
+identifier step Palladin may fill only the identifier. After Apple reveals the
+password step, the user must explicitly choose a Credential; the password is filled only when the
+widget's existing account identifier matches that Credential's username.
+Firefox child frames do not mount this launcher: its supported legacy fill
+transport authenticates only the top document. Direct top-frame IDMSA sign-in
+remains eligible.
+
 Open shadow roots attached after startup are discovered through bounded probes of
 previously observed eligible hosts (at most 256 native property checks per 250 ms).
 Idle probes do not traverse the document or read layout. A newly found root schedules
@@ -51,7 +64,10 @@ history outside the encrypted Vault.
 
 ## Non-negotiable gates
 
-- top frame and browser-authored sender identity;
+- top-frame origin and browser-authored sender identity; only Apple's
+  same-origin `idmsa.apple.com` child frame or the exact observed
+  `account.apple.com/sign-in` → `idmsa.apple.com/appleauth/auth/authorize/signin`
+  pair may host the inline launcher;
 - HTTPS and exact normalized stored host;
 - active tab and page-load/browser document binding, rechecked before decrypt
   and DOM write;

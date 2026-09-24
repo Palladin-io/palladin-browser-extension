@@ -18,6 +18,7 @@ import {
   type InlineAutofillSuggestion,
 } from "@shared/messaging";
 import { queryOpenElements } from "./open-dom";
+import { extensionBuildTarget, type ExtensionBuildTarget } from "@shared/config/build-target";
 import {
   discardLoginTargetFill,
   isCurrentLoginTarget,
@@ -27,6 +28,46 @@ import {
 } from "./fill";
 
 type Send = (command: InlineAutofillCommand) => Promise<unknown>;
+
+export function inlineAutofillFrameAllowed(doc: Document, target: ExtensionBuildTarget = extensionBuildTarget): boolean {
+  const view = doc.defaultView;
+  if (view === null) return false;
+  if (view.top === view) return true;
+  // Firefox's supported legacy Port authenticates only the top document.
+  if (target === 'firefox') return false;
+  try {
+    return view.location.protocol === 'https:'
+      && view.location.hostname === 'idmsa.apple.com'
+      && (view.top?.location.origin === view.location.origin
+        || appleAccountParent(doc.referrer, view.location.pathname));
+  } catch {
+    return view.location.protocol === 'https:'
+      && view.location.hostname === 'idmsa.apple.com'
+      && appleAccountParent(doc.referrer, view.location.pathname);
+  }
+}
+
+function appleAccountParent(referrer: string, childPath: string): boolean {
+  try {
+    const parent = new URL(referrer);
+    // The browser-provided referrer permits mounting the UI. The worker still
+    // authorizes the browser-authored top tab URL before releasing any value.
+    return parent.origin === 'https://account.apple.com'
+      && childPath === '/appleauth/auth/authorize/signin';
+  } catch {
+    return false;
+  }
+}
+
+export function startInlineAutofillIfAllowed(
+  doc: Document,
+  documentId: string,
+  send?: Send,
+): ReturnType<typeof startInlineAutofill> | null {
+  if (!inlineAutofillFrameAllowed(doc)) return null;
+  return send === undefined ? startInlineAutofill(doc, documentId) : startInlineAutofill(doc, documentId, send);
+}
+
 type InlineKey =
   | "inline.open"
   | "inline.title"
@@ -344,11 +385,16 @@ class InlineAutofillController {
     for (const [input, widget] of this.widgets) {
       const currentTarget = input.isConnected ? loginTargetFor(input) : null;
       if (currentTarget === null || !widget.matchesLoginTarget(currentTarget)) {
+        if (this.doc.location.hostname === 'idmsa.apple.com' && !widget.didCompleteAutomaticFill()) {
+          this.automaticFillUrl = null;
+        }
         widget.destroy();
         this.widgets.delete(input);
       } else widget.restoreHost();
     }
-    if (this.widgets.size === 0) this.automaticFillUrl = null;
+    if (this.widgets.size === 0 && this.doc.location.hostname !== 'idmsa.apple.com') {
+      this.automaticFillUrl = null;
+    }
     for (const input of queryOpenElements<HTMLInputElement>(this.doc, 'input')) {
       if (this.resizeObserver && !this.observedInputs.has(input)) {
         this.resizeObserver.observe(input);
@@ -475,7 +521,12 @@ class InlineWidget {
   matchesLoginTarget(target: LoginTarget): boolean {
     return target.username === this.options.loginTarget.username
       && target.password === this.options.loginTarget.password
+      && target.accountIdentity === this.options.loginTarget.accountIdentity
       && target.form === this.options.loginTarget.form;
+  }
+
+  didCompleteAutomaticFill(): boolean {
+    return this.automaticFillCompleted;
   }
 
   mount(): void {
@@ -623,7 +674,8 @@ class InlineWidget {
    * Related sibling hosts remain explicit-only and can never enter this path.
    */
   async autoFillPreferredExact(): Promise<void> {
-    if (this.automaticFillCompleted || this.destroyed) return;
+    if (this.automaticFillCompleted || this.destroyed
+      || this.options.loginTarget.accountIdentity !== undefined) return;
     if (this.automaticFillInFlight) {
       this.automaticFillRetryRequested = true;
       return;

@@ -12,6 +12,7 @@ export interface LoginTarget {
   readonly username: HTMLInputElement | null;
   readonly password: HTMLInputElement | null;
   readonly form: CredentialScope;
+  readonly accountIdentity?: HTMLInputElement;
 }
 
 /** Fail closed for disabled, hidden, or page-CSS-hidden controls. */
@@ -59,6 +60,8 @@ export function isFillable(input: FillControl): boolean {
 /** One launcher per unambiguous login step, including password-only screens. */
 export function loginTargetFor(input: HTMLInputElement): LoginTarget | null {
   if (!isFillable(input)) return null;
+  const apple = appleLoginTargetFor(input);
+  if (apple !== undefined) return apple;
   const form = credentialScopeFor(input);
   if (!form) return null;
   const all = scopeInputs(form);
@@ -84,13 +87,32 @@ export function loginTargetFor(input: HTMLInputElement): LoginTarget | null {
   return { username, password, form };
 }
 
+function appleLoginTargetFor(input: HTMLInputElement): LoginTarget | null | undefined {
+  if (input.ownerDocument.location.origin !== 'https://idmsa.apple.com') return undefined;
+  const username = input.ownerDocument.getElementById('account_name_text_field');
+  const password = input.ownerDocument.getElementById('password_text_field');
+  const form = username instanceof HTMLInputElement ? username.closest<HTMLElement>('#sign_in_form') : null;
+  if (!(username instanceof HTMLInputElement) || !(password instanceof HTMLInputElement)
+    || username.type !== 'text' || password.type !== 'password'
+    || form === null || form !== password.closest('#sign_in_form')) return undefined;
+  const passwordVisible = !form.classList.contains('hide-password') && isFillable(password);
+  if (input === username && isFillable(username) && !passwordVisible) {
+    return { username, password: null, form };
+  }
+  if (input === password && passwordVisible && username.value !== '') {
+    return { username: null, password, form, accountIdentity: username };
+  }
+  return null;
+}
+
 /** Revalidate the same controls and scope immediately before a DOM write. */
 export function isCurrentLoginTarget(target: LoginTarget): boolean {
   const anchor = target.username ?? target.password;
   if (!anchor?.isConnected || !target.form.isConnected) return false;
   const current = loginTargetFor(anchor);
   return current !== null && current.form === target.form
-    && current.username === target.username && current.password === target.password;
+    && current.username === target.username && current.password === target.password
+    && current.accountIdentity === target.accountIdentity;
 }
 
 

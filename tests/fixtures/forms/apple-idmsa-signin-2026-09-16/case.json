@@ -1,0 +1,32 @@
+{
+  "id": "apple-idmsa-signin-2026-09-16",
+  "service": "apple",
+  "flow": "login",
+  "stage": "cross-frame",
+  "topology": "cross-origin-child",
+  "source": {
+    "url": "https://idmsa.apple.com/appleauth/auth/authorize/signin",
+    "observedAt": "2026-09-16",
+    "locale": "en",
+    "method": "Playwright read-only DOM inspection in a separate fresh unauthenticated context",
+    "parentUrl": "https://account.apple.com/sign-in"
+  },
+  "expected": {
+    "user": {
+      "support": "supported",
+      "platforms": "Chromium and Safari child frames; Firefox child frames unsupported until a frame-bound transport is reviewed",
+      "identifier": "#account_name_text_field",
+      "password": "#password_text_field"
+    },
+    "agent": {
+      "support": "unsupported",
+      "reason": "The live Agent adapter is bound to the top frame and does not fill cross-origin child controls.",
+      "topFrameProbe": "challenge"
+    },
+    "capture": null
+  },
+  "acceptance": {
+    "syntheticChromium": "user shield and explicit fill pass; Agent top-frame probe reports challenge",
+    "productionAuthentication": "not-tested"
+  }
+}

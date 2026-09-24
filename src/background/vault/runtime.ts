@@ -24,6 +24,7 @@ import type { AlarmScheduler } from "../session/auto-lock";
 import { sessionManager } from "../session/runtime";
 import { browserDocumentIdForTab } from "../tab-documents";
 import { legacyFirefoxDocuments } from "./firefox-legacy-runtime";
+import { appleInlineFrameStillAuthorized } from "./inline-runtime";
 import { VaultDataError } from "./errors";
 import { ClipboardGuard } from "./clipboard-guard";
 import { clearClipboard } from "./clipboard-runtime";
@@ -145,6 +146,23 @@ async function sendFill(
       expectedOrigin, expectedDomain, submit, ...provenance, loginTargetId: loginTargetId ?? null, fields, ...(intent === undefined ? {} : { intent }) }, assertSession) ?? { ok: false, reason: "target-changed" };
   }
   try {
+    if (loginTargetId !== undefined && !await appleInlineFrameStillAuthorized(
+      target.url,
+      target.id,
+      async (tabId) => {
+        const topDocumentId = browserDocumentIdForTab(tabId);
+        if (topDocumentId === null) return undefined;
+        const response = await chrome.tabs.sendMessage(
+          tabId,
+          { channel: TAB_URL_REQUEST_CHANNEL },
+          { documentId: topDocumentId },
+        );
+        return browserDocumentIdForTab(tabId) === topDocumentId && isTabUrlResponse(response)
+          ? response.url : undefined;
+      },
+    )) {
+      return { ok: false, reason: "target-changed" };
+    }
     const outcome = await chrome.tabs.sendMessage(
       target.id,
       {

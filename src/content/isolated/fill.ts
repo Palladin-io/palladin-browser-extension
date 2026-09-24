@@ -121,8 +121,11 @@ export function performLoginTargetFill(
   const initial = new Map([target.username, target.password].filter((input): input is HTMLInputElement => input !== null)
     .map(input => [input, input.value] as const));
   const expected = (input: HTMLInputElement) => controls.find(control => control.input === input)?.value;
+  const expectedAccount = fields.find(field => field.kind === 'username')?.value;
+  const accountMatches = () => target.accountIdentity === undefined
+    || (expectedAccount !== undefined && target.accountIdentity.value === expectedAccount);
   const completed: typeof controls = [];
-  const compatible = () => isCurrentLoginTarget(target)
+  const compatible = () => isCurrentLoginTarget(target) && accountMatches()
     && [target.username, target.password].every(input => {
       if (input === null) return true;
       const done = completed.find(control => control.input === input);
@@ -158,7 +161,11 @@ const fillReceipts = new WeakMap<LoginTarget, FillReceipt>();
 const FILL_RECEIPT_TTL_MS = 5_000;
 
 function targetValues(target: LoginTarget): string {
-  return JSON.stringify([target.username?.value ?? null, target.password?.value ?? null]);
+  return JSON.stringify([
+    target.username?.value ?? null,
+    target.password?.value ?? null,
+    target.accountIdentity?.value ?? null,
+  ]);
 }
 export function discardLoginTargetFill(target: LoginTarget): void {
   const receipt = fillReceipts.get(target);
