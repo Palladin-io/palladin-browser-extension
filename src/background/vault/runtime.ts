@@ -149,7 +149,17 @@ async function sendFill(
     if (loginTargetId !== undefined && !await appleInlineFrameStillAuthorized(
       target.url,
       target.id,
-      async (tabId) => (await chrome.tabs.get(tabId)).url,
+      async (tabId) => {
+        const topDocumentId = browserDocumentIdForTab(tabId);
+        if (topDocumentId === null) return undefined;
+        const response = await chrome.tabs.sendMessage(
+          tabId,
+          { channel: TAB_URL_REQUEST_CHANNEL },
+          { documentId: topDocumentId },
+        );
+        return browserDocumentIdForTab(tabId) === topDocumentId && isTabUrlResponse(response)
+          ? response.url : undefined;
+      },
     )) {
       return { ok: false, reason: "target-changed" };
     }

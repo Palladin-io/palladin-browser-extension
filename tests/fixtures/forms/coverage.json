@@ -1143,7 +1143,7 @@
       "selection": "global-ranking",
       "login": "pending",
       "registration": "unsupported-cross-origin-frame",
-      "fixtures": [],
+      "fixtures": ["apple-idmsa-signin-2026-09-16"],
       "regions": [
         "global",
         "poland"

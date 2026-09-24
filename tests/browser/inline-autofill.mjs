@@ -23,9 +23,10 @@ const proton = await readFile('tests/fixtures/forms/proton-login-2026-09-20/page
 const linkedin = await readFile('tests/fixtures/forms/linkedin-login-2026-09-20/page.html', 'utf8');
 const aws = await readFile('tests/fixtures/forms/aws-root-identifier-2026-09-20/page.html', 'utf8');
 const jetbrains = await readFile('tests/fixtures/forms/jetbrains-identifier-2026-09-20/page.html', 'utf8');
+const apple = await readFile('tests/fixtures/forms/apple-idmsa-signin-2026-09-16/page.html', 'utf8');
 try {
   const vault = api.vaults[0];
-  for (const host of ['proton.example.test', 'jetbrains.example.test', 'linkedin.example.test', 'aws.example.test']) {
+  for (const host of ['proton.example.test', 'jetbrains.example.test', 'linkedin.example.test', 'aws.example.test', 'idmsa.apple.com']) {
     const entryId = randomUUID();
     const secret = { schema: 'palladin.member-secret.v1', entryType: 'credential', memberLabel: host,
       agentLabel: null, discoverable: false, description: null, icon: null, color: null, agentFieldAccess: { memberLabel: 'never', agentLabel: 'never', description: 'never', icon: 'never', color: 'never',
@@ -40,7 +41,7 @@ try {
       agentDiscoveryRevision: null, agentDiscoveryRevisionHighWatermark: '0', deliveryPolicy: 'standard',
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
   }
-  vault.detail.memberSequence = '5'; vault.detail.entryCount = 4;
+  vault.detail.memberSequence = '6'; vault.detail.entryCount = 5;
   const extension = path.join(profile, 'dist/chromium');
   await promisify(execFile)(process.execPath, ['node_modules/vite/bin/vite.js', 'build', '--outDir', extension], {
     env: { ...process.env, PALLADIN_TARGET: 'chromium', PALLADIN_CHANNEL: 'production', VITE_API_URL: api.url, VITE_POSTHOG_KEY: '' }, maxBuffer: 4 * 1024 * 1024,
@@ -50,7 +51,22 @@ try {
     viewport: { width: 1200, height: 850 }, locale: 'en-US',
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--remote-debugging-port=0'] });
   await context.route('https://**/*', route => {
-    const host = new URL(route.request().url()).hostname;
+    const url = new URL(route.request().url());
+    const host = url.hostname;
+    if (host === 'account.apple.com' && url.pathname === '/sign-in') {
+      return route.fulfill({ contentType: 'text/html; charset=utf-8', body:
+        '<!doctype html><title>Apple sign-in fixture</title><iframe title="Apple sign-in" style="width:640px;height:360px" src="https://idmsa.apple.com/appleauth/auth/authorize/signin"></iframe>' });
+    }
+    if (host === 'idmsa.apple.com' && url.pathname === '/appleauth/auth/authorize/signin') {
+      return route.fulfill({ contentType: 'text/html; charset=utf-8', body:
+        `<!doctype html><style>body{margin:40px}#sign_in_form{width:420px}input{display:block;width:380px;height:40px;margin:12px 0}.hide-password #password_text_field{display:none}</style>${apple}<script>
+        document.querySelector('#sign-in').addEventListener('click', () => document.querySelector('#sign_in_form').classList.remove('hide-password'));
+        </script>` });
+    }
+    if (host === 'other.example.test' && url.pathname === '/apple-frame') {
+      return route.fulfill({ contentType: 'text/html; charset=utf-8', body:
+        '<!doctype html><iframe title="Foreign Apple frame" style="width:640px;height:360px" src="https://idmsa.apple.com/appleauth/auth/authorize/signin"></iframe>' });
+    }
     if (!host.endsWith('.example.test')) return route.abort();
     return route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<style>body{margin:60px}form{width:450px}input:not([type=checkbox]){display:block;width:400px;height:40px;margin:12px 0}button{min-height:35px}</style>${host.startsWith('proton') ? proton : host.startsWith('linkedin') ? linkedin : jetbrains}<script>globalThis.submissions=0;document.querySelector('form')?.addEventListener('submit',event=>{if(event.defaultPrevented)return;event.preventDefault();globalThis.submissions++})</script>` });
   });
@@ -88,6 +104,29 @@ try {
         && shield.right < field.right && shield.left > field.left;
     }, selector), `shield aligned to ${selector}`);
   };
+  await page.goto('https://account.apple.com/sign-in');
+  const appleFrame = page.frameLocator('iframe');
+  await wait(async () => await appleFrame.locator('#account_name_text_field').inputValue() === username,
+    'Apple cross-origin child receives exact-host identifier fill');
+  assert.equal(await appleFrame.locator('#password_text_field').inputValue(), '');
+  assert.equal(await appleFrame.locator('palladin-autofill').count(), 1);
+  await appleFrame.locator('#sign-in').click();
+  await wait(async () => await appleFrame.locator('#password_text_field').isVisible()
+    && await appleFrame.locator('palladin-autofill').count() === 1,
+  'Apple password step retains one shield');
+  assert.equal(await appleFrame.locator('#password_text_field').inputValue(), '');
+  await appleFrame.locator('palladin-autofill').click();
+  await page.waitForTimeout(150);
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await wait(async () => await appleFrame.locator('#password_text_field').inputValue() === password,
+    'Apple child receives explicit password fill');
+  await page.goto('https://other.example.test/apple-frame');
+  await wait(async () => await page.frameLocator('iframe').locator('#account_name_text_field').count() === 1,
+    'foreign top loaded the Apple specimen');
+  assert.equal(await page.frameLocator('iframe').locator('palladin-autofill').count(), 0);
+  console.log('PASS: installed Chromium extension mounts and fills the observed Apple child frame; foreign top denied');
   // Observed AWS structure, synthetic framework handlers. Real AWS uses a
   // type=submit Next with a click handler; requestSubmit skips that handler.
   const awsRequests = [];
