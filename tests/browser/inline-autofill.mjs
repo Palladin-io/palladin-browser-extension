@@ -111,17 +111,47 @@ try {
   assert.equal(await appleFrame.locator('#password_text_field').inputValue(), '');
   assert.equal(await appleFrame.locator('palladin-autofill').count(), 1);
   await appleFrame.locator('#sign-in').click();
-  await wait(async () => await appleFrame.locator('#password_text_field').isVisible()
-    && await appleFrame.locator('palladin-autofill').count() === 1,
+  await wait(async () => {
+    if (!await appleFrame.locator('#password_text_field').isVisible()
+      || await appleFrame.locator('palladin-autofill').count() !== 1) return false;
+    const field = await appleFrame.locator('#password_text_field').boundingBox();
+    const shield = await appleFrame.locator('palladin-autofill').boundingBox();
+    return Math.abs(field.y + field.height / 2 - shield.y - shield.height / 2) < 1;
+  },
   'Apple password step retains one shield');
   assert.equal(await appleFrame.locator('#password_text_field').inputValue(), '');
-  await appleFrame.locator('palladin-autofill').click();
-  await page.waitForTimeout(150);
-  await page.keyboard.press('Tab');
-  await page.keyboard.press('Tab');
-  await page.keyboard.press('Enter');
+  const frameTree = await cdp.send('Page.getFrameTree');
+  const appleFrameId = frameTree.frameTree.childFrames?.[0]?.frame.id;
+  const clickApple = async name => {
+    let node;
+    await wait(async () => {
+      node = (await cdp.send('Accessibility.getFullAXTree', { frameId: appleFrameId })).nodes.find(candidate =>
+        !candidate.ignored && candidate.role?.value === 'button' && candidate.name?.value === name);
+      return Boolean(node);
+    }, `Apple child action: ${name}`);
+    const { model } = await cdp.send('DOM.getBoxModel', { backendNodeId: node.backendDOMNodeId });
+    const box = await page.locator('iframe').boundingBox();
+    await page.mouse.click(box.x + (model.content[0] + model.content[4]) / 2,
+      box.y + (model.content[1] + model.content[5]) / 2);
+  };
+  await clickApple('Open Palladin suggestions');
+  await clickApple(`Fill and log in: ${username}`);
   await wait(async () => await appleFrame.locator('#password_text_field').inputValue() === password,
     'Apple child receives explicit password fill');
+  const agentOutcome = await worker.evaluate(async () => {
+    for (const tab of await chrome.tabs.query({})) {
+      try {
+        const current = await chrome.tabs.sendMessage(tab.id, { channel: 'palladin.tab/current-url' }, { frameId: 0 });
+        if (current.url !== 'https://account.apple.com/sign-in') continue;
+        const probe = await chrome.tabs.sendMessage(tab.id, {
+          channel: 'palladin.agent-live/probe', documentId: current.documentId, targetUrl: current.url,
+        }, { frameId: 0 });
+        return probe.outcome;
+      } catch { /* Other extension or browser pages have no top-frame content handler. */ }
+    }
+    return 'missing-top-frame';
+  });
+  assert.equal(agentOutcome, 'challenge', 'Agent adapter must not fill the Apple child from the top frame');
   await page.goto('https://other.example.test/apple-frame');
   await wait(async () => await page.frameLocator('iframe').locator('#account_name_text_field').count() === 1,
     'foreign top loaded the Apple specimen');

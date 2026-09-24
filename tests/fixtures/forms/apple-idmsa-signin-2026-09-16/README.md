@@ -11,6 +11,9 @@ values, cookies and authentication responses are excluded.
 
 The browser regression exercises the built extension on both browser-routed
 origins with a synthetic encrypted Credential. It checks the user shield and
-worker-to-child fill. Agent Inject is outside this user-autofill regression.
+worker-to-child fill. The same specimen records the Agent adapter as unsupported:
+its top-frame probe reports `challenge` and it cannot fill the cross-origin child.
+`case.json` records both adapter expectations. The generic single-origin corpus
+reports this topology separately; `tests/browser/inline-autofill.mjs` runs it.
 Passing the fixture is not a real Apple account login; installed-artifact
 acceptance with a test account remains a separate release gate.
