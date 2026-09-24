@@ -515,6 +515,7 @@ class InlineWidget {
   matchesLoginTarget(target: LoginTarget): boolean {
     return target.username === this.options.loginTarget.username
       && target.password === this.options.loginTarget.password
+      && target.accountIdentity === this.options.loginTarget.accountIdentity
       && target.form === this.options.loginTarget.form;
   }
 

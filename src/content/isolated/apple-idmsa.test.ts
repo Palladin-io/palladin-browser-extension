@@ -160,6 +160,32 @@ describe('Apple IDMSA inline login', () => {
     expect(password.value).toBe('secret');
   });
 
+  it('rebuilds the password shield when Apple replaces the account control', async () => {
+    const { username, password, form } = appleForm();
+    username.value = 'member@example.com';
+    form.classList.remove('hide-password');
+    Object.assign(globalThis, {
+      chrome: { storage: { local: { get: vi.fn(async () => ({})) } }, i18n: { getUILanguage: () => 'en' } },
+    });
+    const subject = startInlineAutofill(document, 'a'.repeat(32), vi.fn(async () => null));
+    try {
+      const oldShield = document.querySelector('palladin-autofill');
+      expect(oldShield).not.toBeNull();
+      const replacement = username.cloneNode() as HTMLInputElement;
+      replacement.value = username.value;
+      username.replaceWith(replacement);
+      await vi.waitFor(() => {
+        const newShield = document.querySelector('palladin-autofill');
+        expect(newShield).not.toBeNull();
+        expect(newShield).not.toBe(oldShield);
+      });
+      expect(document.querySelectorAll('palladin-autofill')).toHaveLength(1);
+      expect(loginTargetFor(password)?.accountIdentity).toBe(replacement);
+    } finally {
+      subject.stop();
+    }
+  });
+
   it('does not automatically fill the password stage', async () => {
     const { username, form } = appleForm();
     username.value = 'member@example.com';
