@@ -269,6 +269,7 @@
   "card.note": "Zapisz właściciela karty, numer, datę ważności i adres rozliczeniowy w zaszyfrowanym sejfie.",
   "card.label": "Nazwa karty",
   "card.cardholder": "Imię i nazwisko właściciela",
+  "card.cvv": "CVV / CVC",
   "card.number": "Numer karty",
   "card.expiryMonth": "Miesiąc ważności",
   "card.expiryYear": "Rok ważności",

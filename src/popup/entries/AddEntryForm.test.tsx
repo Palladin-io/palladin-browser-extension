@@ -117,9 +117,11 @@ describe("AddEntryForm", () => {
     await user.type(screen.getByLabelText("Card number"), "4111 1111 1111 1111");
     await user.type(screen.getByLabelText("Expiry month"), "08");
     await user.type(screen.getByLabelText("Expiry year"), "2030");
+    await user.type(screen.getByLabelText("CVV / CVC"), "012");
     await user.click(screen.getByRole("button", { name: "Save entry" }));
-    await waitFor(() => expect(saveEntry).toHaveBeenLastCalledWith(expect.objectContaining({ entryType: "creditCard", label: "Personal card" })));
-    expect(screen.queryByLabelText(/security|verification|cvv|cvc|pin/i)).not.toBeInTheDocument();
+    await waitFor(() => expect(saveEntry).toHaveBeenLastCalledWith(expect.objectContaining({ entryType: "creditCard", label: "Personal card", cvv: "012" })));
+    expect(screen.getByLabelText("CVV / CVC")).toHaveAttribute("type", "password");
+    expect(screen.getByLabelText("CVV / CVC")).toHaveValue("");
   });
 
   it("surfaces a failed save without clearing the draft", async () => {

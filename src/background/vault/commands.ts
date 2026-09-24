@@ -395,6 +395,7 @@ async function fillPreparedEntry(
     const fields: FillField[] = [
       { kind: "cardholder", value: card.cardholderName },
       { kind: "card-number", value: card.cardNumber },
+      ...(card.cvv ? [{ kind: "card-cvv", value: card.cvv } as const] : []),
       { kind: "card-expiry-month", value: card.expiryMonth },
       { kind: "card-expiry-year", value: card.expiryYear },
       { kind: "card-expiry", value: `${card.expiryMonth}/${card.expiryYear.slice(-2)}` },
@@ -627,7 +628,7 @@ function isManualEntrySaveInput(value: unknown): value is ManualEntrySaveInput {
           || entry.interpreter === "node" || entry.interpreter === "python");
     case "creditCard":
       return hasOnlyKeys(entry, [
-        "entryType", "label", "cardholderName", "cardNumber", "expiryMonth",
+        "entryType", "label", "cardholderName", "cardNumber", "cvv", "expiryMonth",
         "expiryYear", "billingAddress", "notes", "customFields",
       ]) && isCreditCardSaveInput(Object.fromEntries(
         Object.entries(entry).filter(([key]) => key !== "entryType"),
@@ -664,11 +665,12 @@ function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[])
 function isCreditCardSaveInput(value: unknown): value is CreditCardSaveInput {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const card = value as Record<string, unknown>;
-  const keys = ["label", "cardholderName", "cardNumber", "expiryMonth", "expiryYear", "billingAddress", "notes", "customFields"];
+  const keys = ["label", "cardholderName", "cardNumber", "cvv", "expiryMonth", "expiryYear", "billingAddress", "notes", "customFields"];
   if (!Object.keys(card).every((key) => keys.includes(key))) return false;
   return typeof card.label === "string" && card.label.trim().length > 0 && card.label.length <= 256
     && typeof card.cardholderName === "string" && card.cardholderName.length <= 256
     && typeof card.cardNumber === "string" && /^[0-9 -]{8,32}$/.test(card.cardNumber)
+    && (card.cvv === undefined || (typeof card.cvv === "string" && /^\d{3,4}$/.test(card.cvv)))
     && typeof card.expiryMonth === "string" && /^(0[1-9]|1[0-2])$/.test(card.expiryMonth)
     && typeof card.expiryYear === "string" && /^[0-9]{4}$/.test(card.expiryYear)
     && (card.billingAddress === undefined

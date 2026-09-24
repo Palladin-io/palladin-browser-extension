@@ -429,6 +429,8 @@ The overlay sets its own important-priority system font stack and does not
 inherit typography from the visited site. Its surface reuses the web panel's
 light/dark notification gradients.
 
+Manual Payment card supports optional `cvv` (3–4 ASCII digits), masked by default and encrypted in MemberSecret. Its Agent policy is always `never`. Explicit card Fill binds to the live HTTPS host/document and maps CVV only to `cc-csc`; it never submits. Old cards without CVV remain readable.
+
 Manual Add entry supports neutral `text`, `multiline`, and `concealed` custom
 fields. IDs are stable `custom:<uuid>` values inside canonical MemberSecret;
 all extension-created custom-field access is `never` until a later explicit

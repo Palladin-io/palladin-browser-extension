@@ -18,6 +18,7 @@ const USERNAME_TYPES = new Set(["text", "email", "tel", ""]);
 const CARD_AUTOCOMPLETE_KIND: Readonly<Record<string, FillField["kind"]>> = {
   "cc-name": "cardholder",
   "cc-number": "card-number",
+  "cc-csc": "card-cvv",
   "cc-exp-month": "card-expiry-month",
   "cc-exp-year": "card-expiry-year",
   "cc-exp": "card-expiry",
@@ -288,8 +289,7 @@ function performCardFill(doc: Document, fields: readonly FillField[]): FillOutco
       && tokens.includes("billing")) {
       kind = "billing-address";
     }
-    // Deliberately ignore cc-csc and every label/name heuristic. A neutral
-    // custom field must never become payment authentication data by accident.
+    // Only standard autocomplete tokens select card fields; custom labels are not authority.
     if (kind === undefined || filledKinds.has(kind)) continue;
     const value = values.get(kind);
     if (value === undefined || value.length === 0) continue;
