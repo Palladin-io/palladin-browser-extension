@@ -27,6 +27,29 @@ import {
 } from "./fill";
 
 type Send = (command: InlineAutofillCommand) => Promise<unknown>;
+
+export function inlineAutofillFrameAllowed(doc: Document): boolean {
+  const view = doc.defaultView;
+  if (view === null) return false;
+  if (view.top === view) return true;
+  try {
+    return view.location.protocol === 'https:'
+      && view.location.hostname === 'idmsa.apple.com'
+      && view.top?.location.origin === view.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+export function startInlineAutofillIfAllowed(
+  doc: Document,
+  documentId: string,
+  send?: Send,
+): ReturnType<typeof startInlineAutofill> | null {
+  if (!inlineAutofillFrameAllowed(doc)) return null;
+  return send === undefined ? startInlineAutofill(doc, documentId) : startInlineAutofill(doc, documentId, send);
+}
+
 type InlineKey =
   | "inline.open"
   | "inline.title"

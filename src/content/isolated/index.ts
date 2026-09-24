@@ -45,7 +45,7 @@ import {
 import { performBoundFill } from "./fill";
 import { createReconnectingWorkerPort } from "./worker-port";
 import { createSessionKeepalive } from "./session-keepalive";
-import { startInlineAutofill } from "./inline-autofill";
+import { inlineAutofillFrameAllowed, startInlineAutofillIfAllowed } from "./inline-autofill";
 import { startCredentialCapture } from "./credential-capture";
 import { extensionBuildTarget } from "@shared/config/build-target";
 import { FIREFOX_LEGACY_FILL_PORT } from "../../shared/messaging/firefox-legacy-fill";
@@ -99,20 +99,7 @@ const passwordCapture = startPasswordCaptureDetection(
   },
   window.top === window,
 );
-function inlineAutofillFrameAllowed(): boolean {
-  if (window.top === window) return true;
-  try {
-    return window.location.protocol === 'https:'
-      && window.location.hostname === 'idmsa.apple.com'
-      && window.top?.location.origin === window.location.origin;
-  } catch {
-    return false;
-  }
-}
-
-const inlineAutofill = inlineAutofillFrameAllowed()
-  ? startInlineAutofill(document, documentId)
-  : null;
+const inlineAutofill = startInlineAutofillIfAllowed(document, documentId);
 let credentialCapture = window.top === window && window.location.protocol === "https:"
   ? startCredentialCapture(document, documentId) : null;
 const agentInjectDom = createAgentInjectDomAccess(
@@ -212,7 +199,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return undefined;
   }
   if (!isFillRequestMessage(message)) return undefined;
-  if (message.loginTargetId !== null && !inlineAutofillFrameAllowed()) {
+  if (message.loginTargetId !== null && !inlineAutofillFrameAllowed(document)) {
     sendResponse({ ok: false, reason: 'target-changed' } satisfies FillOutcome);
     return undefined;
   }

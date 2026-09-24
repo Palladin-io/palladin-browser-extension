@@ -160,7 +160,11 @@ const fillReceipts = new WeakMap<LoginTarget, FillReceipt>();
 const FILL_RECEIPT_TTL_MS = 5_000;
 
 function targetValues(target: LoginTarget): string {
-  return JSON.stringify([target.username?.value ?? null, target.password?.value ?? null]);
+  return JSON.stringify([
+    target.username?.value ?? null,
+    target.password?.value ?? null,
+    target.accountIdentity?.value ?? null,
+  ]);
 }
 export function discardLoginTargetFill(target: LoginTarget): void {
   const receipt = fillReceipts.get(target);

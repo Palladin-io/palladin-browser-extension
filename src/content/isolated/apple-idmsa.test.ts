@@ -2,11 +2,13 @@
 // @vitest-environment-options {"url":"https://idmsa.apple.com/appleauth/auth/signin"}
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { loginTargetFor, performLoginTargetFill } from './fill';
-import { startInlineAutofill } from './inline-autofill';
+// @ts-expect-error jsdom is provided by the test environment without TypeScript declarations.
+import { JSDOM, ResourceLoader } from 'jsdom';
+import { loginTargetFor, performLoginTargetFill, submitFilledLoginTarget } from './fill';
+import { startInlineAutofill, startInlineAutofillIfAllowed } from './inline-autofill';
 
-function appleForm() {
-  document.body.innerHTML = `
+function appleForm(doc: Document = document) {
+  doc.body.innerHTML = `
     <div id="sign_in_form" class="hide-password">
       <input id="account_name_text_field" type="text" autocomplete="username webauthn">
       <input id="password_text_field" type="password" autocomplete="off">
@@ -14,15 +16,46 @@ function appleForm() {
     </div>
   `;
   return {
-    username: document.querySelector<HTMLInputElement>('#account_name_text_field')!,
-    password: document.querySelector<HTMLInputElement>('#password_text_field')!,
-    form: document.querySelector<HTMLElement>('#sign_in_form')!,
+    username: doc.querySelector<HTMLInputElement>('#account_name_text_field')!,
+    password: doc.querySelector<HTMLInputElement>('#password_text_field')!,
+    form: doc.querySelector<HTMLElement>('#sign_in_form')!,
   };
 }
 
 afterEach(() => document.body.replaceChildren());
 
 describe('Apple IDMSA inline login', () => {
+  it('starts inside a same-origin iframe and rejects a foreign-origin iframe', async () => {
+    Object.assign(globalThis, {
+      chrome: { storage: { local: { get: vi.fn(async () => ({})) } }, i18n: { getUILanguage: () => 'en' } },
+    });
+    const loader = new class extends ResourceLoader {
+      fetch(): Promise<Buffer> {
+        return Promise.resolve(Buffer.from('<!doctype html><body><input id="account_name_text_field"></body>'));
+      }
+    }();
+    const top = new JSDOM('<iframe src="https://idmsa.apple.com/appleauth/auth/signin"></iframe>', {
+      url: 'https://idmsa.apple.com/IDMSWebAuth/signin', resources: loader,
+    });
+    const sameOrigin = top.window.document.querySelector('iframe')!;
+    await new Promise<void>(resolve => sameOrigin.addEventListener('load', () => resolve(), { once: true }));
+    const child = sameOrigin.contentDocument!;
+    const subject = startInlineAutofillIfAllowed(child, 'a'.repeat(32), vi.fn(async () => null));
+    try {
+      expect(subject).not.toBeNull();
+      const foreign = top.window.document.createElement('iframe');
+      foreign.src = 'https://other.example.com/login';
+      top.window.document.body.append(foreign);
+      await new Promise<void>(resolve => foreign.addEventListener('load', () => resolve(), { once: true }));
+      expect(startInlineAutofillIfAllowed(foreign.contentDocument!, 'b'.repeat(32), vi.fn(async () => null)))
+        .toBeNull();
+      expect(foreign.contentDocument!.querySelector('palladin-autofill')).toBeNull();
+    } finally {
+      subject?.stop();
+      top.window.close();
+    }
+  });
+
   it('shows the launcher on the identifier step and never fills the hidden password', () => {
     const { username, password } = appleForm();
     Object.assign(globalThis, {
@@ -81,5 +114,22 @@ describe('Apple IDMSA inline login', () => {
     } finally {
       subject.stop();
     }
+  });
+
+  it('refuses submit if Apple changes the account after the password fill', async () => {
+    const { username, password, form } = appleForm();
+    username.value = 'member@example.com';
+    form.classList.remove('hide-password');
+    const target = loginTargetFor(password)!;
+    const action = document.querySelector<HTMLButtonElement>('#sign-in')!;
+    const click = vi.spyOn(action, 'click');
+    expect(performLoginTargetFill(target, [
+      { kind: 'username', value: 'member@example.com' },
+      { kind: 'password', value: 'secret' },
+    ], 'manual')).toEqual({ ok: true });
+    const submission = submitFilledLoginTarget(target, () => true);
+    username.value = 'other@example.com';
+    expect(await submission).toBe(false);
+    expect(click).not.toHaveBeenCalled();
   });
 });

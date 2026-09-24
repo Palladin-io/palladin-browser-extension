@@ -189,6 +189,15 @@ describe("inline autofill content runtime", () => {
       documentId,
     }, appleSender, 'extension-id'))
       .toMatchObject({ ok: true, kind: 'suggestions', status: 'ready' });
+    const fill = vi.fn(async () => ({ status: 'filled' }) as const);
+    expect(await handleInlineAutofillContentMessage(deps({ fill }), {
+      channel: INLINE_AUTOFILL_CHANNEL,
+      type: 'inline/fill', intent: 'manual', documentId,
+      vaultId: 'vault-1', entryId: 'entry-1', scope: 'exact', loginTargetId: 'login-1',
+    }, appleSender, 'extension-id')).toMatchObject({ ok: true, kind: 'fill', status: 'filled' });
+    expect(fill).toHaveBeenCalledWith({
+      id: 7, url: appleSender.url, documentId, browserDocumentId,
+    }, 'vault-1', 'entry-1', 'exact', 'login-1', 'manual');
     vi.mocked(subject.getStatus).mockClear();
     expect(await handleInlineAutofillContentMessage(subject, {
       channel: INLINE_AUTOFILL_CHANNEL,
