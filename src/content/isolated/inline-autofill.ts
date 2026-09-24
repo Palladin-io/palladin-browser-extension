@@ -382,6 +382,9 @@ class InlineAutofillController {
     for (const [input, widget] of this.widgets) {
       const currentTarget = input.isConnected ? loginTargetFor(input) : null;
       if (currentTarget === null || !widget.matchesLoginTarget(currentTarget)) {
+        if (this.doc.location.hostname === 'idmsa.apple.com' && !widget.didCompleteAutomaticFill()) {
+          this.automaticFillUrl = null;
+        }
         widget.destroy();
         this.widgets.delete(input);
       } else widget.restoreHost();
@@ -517,6 +520,10 @@ class InlineWidget {
       && target.password === this.options.loginTarget.password
       && target.accountIdentity === this.options.loginTarget.accountIdentity
       && target.form === this.options.loginTarget.form;
+  }
+
+  didCompleteAutomaticFill(): boolean {
+    return this.automaticFillCompleted;
   }
 
   mount(): void {

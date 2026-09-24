@@ -186,6 +186,31 @@ describe('Apple IDMSA inline login', () => {
     }
   });
 
+  it('retries an unfinished identifier autofill after Apple replaces its input', async () => {
+    const { username } = appleForm();
+    Object.assign(globalThis, {
+      chrome: { storage: { local: { get: vi.fn(async () => ({})) } }, i18n: { getUILanguage: () => 'en' } },
+    });
+    let resolveFirst!: (value: unknown) => void;
+    let lists = 0;
+    const send = vi.fn(async () => {
+      lists += 1;
+      if (lists === 1) return await new Promise<unknown>(resolve => { resolveFirst = resolve; });
+      return { ok: true, kind: 'suggestions', status: 'ready', entries: [] };
+    });
+    const subject = startInlineAutofill(document, 'a'.repeat(32), send);
+    try {
+      expect(send).toHaveBeenCalledTimes(1);
+      const replacement = username.cloneNode() as HTMLInputElement;
+      username.replaceWith(replacement);
+      await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+      expect(document.querySelectorAll('palladin-autofill')).toHaveLength(1);
+    } finally {
+      resolveFirst({ ok: true, kind: 'suggestions', status: 'ready', entries: [] });
+      subject.stop();
+    }
+  });
+
   it('does not automatically fill the password stage', async () => {
     const { username, form } = appleForm();
     username.value = 'member@example.com';
