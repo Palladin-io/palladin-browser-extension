@@ -269,6 +269,7 @@
   "card.note": "Save cardholder, card number, expiry, and billing details in your encrypted vault.",
   "card.label": "Card label",
   "card.cardholder": "Cardholder name",
+  "card.cvv": "CVV / CVC",
   "card.number": "Card number",
   "card.expiryMonth": "Expiry month",
   "card.expiryYear": "Expiry year",

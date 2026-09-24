@@ -172,3 +172,7 @@ requirement for the canonical first exact-host fill is the documented UX choice.
 Tests must continue to cover automatic fill without focus/user activation,
 preference promotion and lock reset, existing-value protection, no repeat fill,
 related-host exclusion, and no automatic submit.
+
+## Card verification codes
+
+The explicit extension-owned card Fill action may include optional CVV/CVC from encrypted MemberSecret. Only the standard `cc-csc` autocomplete token selects its target. The same top-frame HTTPS, current document and exact live-host checks apply; card fills never submit. Labels and neutral custom fields do not authorize CVV filling.

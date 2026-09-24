@@ -23,6 +23,7 @@ const INITIAL = {
   interpreter: "bash" as Interpreter,
   cardholderName: "",
   cardNumber: "",
+  cvv: "",
   expiryMonth: "",
   expiryYear: "",
   billingAddress: "",
@@ -116,6 +117,7 @@ export function AddEntryForm({ client }: { readonly client: VaultClient }): Reac
       {entryType === "creditCard" ? <>
         <EntryField label={t("card.cardholder")} value={draft.cardholderName} onChange={(value) => update("cardholderName", value)} required autoComplete="cc-name" />
         <EntryField label={t("card.number")} value={draft.cardNumber} onChange={(value) => update("cardNumber", value)} required autoComplete="cc-number" inputMode="numeric" pattern="[0-9 -]{8,32}" maxLength={32} />
+        <EntryField label={t("card.cvv")} value={draft.cvv} onChange={(value) => update("cvv", value)} autoComplete="off" type="password" inputMode="numeric" pattern="[0-9]{3,4}" maxLength={4} />
         <div className="entry-form-expiry">
           <EntryField label={t("card.expiryMonth")} value={draft.expiryMonth} onChange={(value) => update("expiryMonth", value)} required autoComplete="cc-exp-month" inputMode="numeric" pattern="(0[1-9]|1[0-2])" placeholder={t("card.expiryMonthPlaceholder")} />
           <EntryField label={t("card.expiryYear")} value={draft.expiryYear} onChange={(value) => update("expiryYear", value)} required autoComplete="cc-exp-year" inputMode="numeric" pattern="[0-9]{4}" placeholder={t("card.expiryYearPlaceholder")} />
@@ -156,6 +158,7 @@ function toSaveInput(
         ...common,
         cardholderName: draft.cardholderName,
         cardNumber: draft.cardNumber,
+        ...(draft.cvv.trim() ? { cvv: draft.cvv.trim() } : {}),
         expiryMonth: draft.expiryMonth,
         expiryYear: draft.expiryYear,
         ...(draft.billingAddress ? { billingAddress: draft.billingAddress } : {}),

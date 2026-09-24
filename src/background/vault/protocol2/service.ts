@@ -80,6 +80,7 @@ export interface CreditCardSaveInput {
   readonly label: string
   readonly cardholderName: string
   readonly cardNumber: string
+  readonly cvv?: string
   readonly expiryMonth: string
   readonly expiryYear: string
   readonly billingAddress?: string
@@ -1465,6 +1466,7 @@ function creditCardSecret(input: CreditCardSaveInput): MemberSecretV1 {
       entryType: 'never',
       'creditCard.cardholderName': 'never',
       'creditCard.cardNumber': 'never',
+      ...(input.cvv?.trim() ? { 'creditCard.cvv': 'never' as const } : {}),
       'creditCard.expiryMonth': 'never',
       'creditCard.expiryYear': 'never',
       'creditCard.billingAddress': 'never',
@@ -1473,6 +1475,7 @@ function creditCardSecret(input: CreditCardSaveInput): MemberSecretV1 {
     content: {
       cardholderName: input.cardholderName.trim(),
       cardNumber: input.cardNumber,
+      ...(input.cvv?.trim() ? { cvv: input.cvv.trim() } : {}),
       expiryMonth: input.expiryMonth,
       expiryYear: input.expiryYear,
       billingAddress: input.billingAddress?.trim() || null,

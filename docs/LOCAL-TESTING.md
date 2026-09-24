@@ -258,14 +258,16 @@ test value `4111111111111111`; it is not a real payment card.
    each type. Confirm the saved field order and values are preserved, every entry appears in the
    Vault list and no plaintext is logged or persisted by the popup.
 3. For Payment card, use a dummy label, cardholder, card number, future expiry,
-   and optional billing address.
+   optional CVV such as `012`, and optional billing address.
 4. Open a controlled HTTPS checkout form containing `cc-name`, `cc-number`,
    `cc-exp-month`, `cc-exp-year`, and a separate `cc-csc` input.
 5. Expand the card entry and click **Fill**.
 6. Confirm cardholder, PAN, expiry, and supported billing controls are filled.
-7. Confirm the `cc-csc`/CVV/CVC and PIN controls remain empty.
+7. Confirm `cc-csc` receives the saved CVV only after Fill. A card without CVV leaves it empty. PIN and label-only lookalikes remain empty.
 
-There is no dedicated CVV/CVC or PIN field, capture rule, or autofill heuristic.
+CVV is an optional masked 3–4 digit input saved inside encrypted MemberSecret.
+It fills only standard `cc-csc` controls through the explicit card action.
+There is no card capture rule or dedicated PIN field.
 A neutral custom field is not interpreted as payment authentication data.
 
 ## 8. Test first-run password-manager guidance

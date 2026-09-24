@@ -250,7 +250,7 @@ describe("performFill", () => {
     expect((doc.getElementById("billing") as HTMLTextAreaElement).value).toBe("12 Computing Lane");
   });
 
-  it("never detects or fills payment authentication fields or label-based lookalikes", () => {
+  it("fills explicit CVV only into cc-csc and ignores label-based lookalikes", () => {
     const doc = mount(`
       <form>
         <input id="standard-code" autocomplete="cc-csc" />
@@ -261,7 +261,9 @@ describe("performFill", () => {
     `);
 
     expect(performFill(doc, CARD)).toEqual({ ok: false, reason: "no-form" });
-    for (const id of ["standard-code", "named-code", "named-pin", "custom-code"]) {
+    expect(performFill(doc, [...CARD, { kind: "card-cvv", value: "012" }])).toEqual({ ok: true });
+    expect((doc.getElementById("standard-code") as HTMLInputElement).value).toBe("012");
+    for (const id of ["named-code", "named-pin", "custom-code"]) {
       expect((doc.getElementById(id) as HTMLInputElement).value).toBe("");
     }
   });

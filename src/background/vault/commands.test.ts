@@ -493,6 +493,7 @@ describe("credit card commands", () => {
           content: {
             cardholderName: "Ada Lovelace",
             cardNumber: "4111111111111111",
+            cvv: "012",
             expiryMonth: "08",
             expiryYear: "2030",
             billingAddress: "12 Computing Lane",
@@ -525,6 +526,7 @@ describe("credit card commands", () => {
     }, "checkout.shop.test", [
       { kind: "cardholder", value: "Ada Lovelace" },
       { kind: "card-number", value: "4111111111111111" },
+      { kind: "card-cvv", value: "012" },
       { kind: "card-expiry-month", value: "08" },
       { kind: "card-expiry-year", value: "2030" },
       { kind: "card-expiry", value: "08/30" },
@@ -580,6 +582,12 @@ describe("credit card commands", () => {
       notes: "Primary",
     };
     expect(isVaultCommand({ type: "vault/entry-save", entry: { entryType: "creditCard", ...card } })).toBe(true);
+    for (const cvv of ["012", "0123"]) {
+      expect(isVaultCommand({ type: "vault/entry-save", entry: { entryType: "creditCard", ...card, cvv } })).toBe(true);
+    }
+    for (const cvv of ["", "12", "12345", "1a2", 123]) {
+      expect(isVaultCommand({ type: "vault/entry-save", entry: { entryType: "creditCard", ...card, cvv } })).toBe(false);
+    }
     expect(isVaultCommand({
       type: "vault/entry-save",
       entry: {

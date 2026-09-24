@@ -949,7 +949,7 @@ describe('Protocol2VaultDataService canonical password capture', () => {
     })).resolves.toEqual({ status: 'blocked', reason: 'grant-refresh-required' })
   })
 
-  it('creates a canonical card with only cardholder, PAN, expiry, billing, notes, and neutral custom fields', async () => {
+  it('creates a canonical card with only cardholder, PAN, optional CVV, expiry, billing, notes, and neutral custom fields', async () => {
     const { service, client } = harness()
     await service.refresh()
 
@@ -958,6 +958,7 @@ describe('Protocol2VaultDataService canonical password capture', () => {
       label: 'Personal card',
       cardholderName: 'Ada Lovelace',
       cardNumber: '4111 1111 1111 1111',
+      cvv: '012',
       expiryMonth: '08',
       expiryYear: '2030',
       billingAddress: '12 Computing Lane',
@@ -968,9 +969,11 @@ describe('Protocol2VaultDataService canonical password capture', () => {
     expect(secret).toMatchObject({
       entryType: 'creditCard',
       discoverable: false,
+      agentFieldAccess: { 'creditCard.cvv': 'never' },
       content: {
         cardholderName: 'Ada Lovelace',
         cardNumber: '4111111111111111',
+        cvv: '012',
         expiryMonth: '08',
         expiryYear: '2030',
         billingAddress: '12 Computing Lane',
@@ -983,6 +986,7 @@ describe('Protocol2VaultDataService canonical password capture', () => {
       'cardNumber',
       'cardholderName',
       'customFields',
+      'cvv',
       'expiryMonth',
       'expiryYear',
       'notes',
