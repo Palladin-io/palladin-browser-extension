@@ -138,8 +138,7 @@ export function inlineAutofillSource(
   if (sender.id !== extensionId || typeof sender.frameId !== 'number' || sender.frameId < 0) return null;
   if (typeof sender.tab?.id !== "number" || typeof sender.tab.url !== "string") return null;
   if (typeof sender.url !== "string"
-    || !(sameHttpsOrigin(sender.url, sender.tab.url)
-      || appleAccountFrame(sender.url, sender.tab.url))) return null;
+    || !inlineAutofillFramePairAllowed(sender.url, sender.tab.url)) return null;
   if (sender.frameId !== 0 && new URL(sender.url).hostname !== 'idmsa.apple.com') return null;
   if (typeof sender.documentId !== "string" || sender.documentId.length === 0) return null;
   return {
@@ -150,7 +149,8 @@ export function inlineAutofillSource(
   };
 }
 
-function appleAccountFrame(frameUrl: string, tabUrl: string): boolean {
+export function inlineAutofillFramePairAllowed(frameUrl: string, tabUrl: string): boolean {
+  if (sameHttpsOrigin(frameUrl, tabUrl)) return true;
   try {
     const frame = new URL(frameUrl);
     const tab = new URL(tabUrl);
@@ -158,6 +158,20 @@ function appleAccountFrame(frameUrl: string, tabUrl: string): boolean {
       && frame.pathname === '/appleauth/auth/authorize/signin'
       && tab.origin === 'https://account.apple.com'
       && tab.pathname === '/sign-in';
+  } catch {
+    return false;
+  }
+}
+
+export async function appleInlineFrameStillAuthorized(
+  frameUrl: string,
+  tabId: number,
+  currentTabUrl: (tabId: number) => Promise<string | undefined>,
+): Promise<boolean> {
+  try {
+    if (new URL(frameUrl).origin !== 'https://idmsa.apple.com') return true;
+    const topUrl = await currentTabUrl(tabId);
+    return typeof topUrl === 'string' && inlineAutofillFramePairAllowed(frameUrl, topUrl);
   } catch {
     return false;
   }

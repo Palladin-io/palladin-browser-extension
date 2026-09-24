@@ -4,6 +4,7 @@ import { INLINE_AUTOFILL_CHANNEL } from "@shared/messaging";
 import type { FillResult } from "./commands";
 import type { EntryMetadata } from "./entry-metadata";
 import {
+  appleInlineFrameStillAuthorized,
   handleInlineAutofillContentMessage,
   InMemoryInlineAutofillRecency,
   type InlineAutofillDeps,
@@ -233,6 +234,19 @@ describe("inline autofill content runtime", () => {
     }, { ...appleSender, url: 'https://other.example.com/login' }, 'extension-id'))
       .toEqual({ ok: false, code: 'unavailable' });
     expect(subject.getStatus).not.toHaveBeenCalled();
+  });
+
+  it('rechecks the live Apple top URL after the initial sender check', async () => {
+    const frameUrl = 'https://idmsa.apple.com/appleauth/auth/authorize/signin';
+    let topUrl = 'https://account.apple.com/sign-in';
+    const readCurrentTopUrl = vi.fn(async () => topUrl);
+    expect(await appleInlineFrameStillAuthorized(frameUrl, 7, readCurrentTopUrl)).toBe(true);
+    topUrl = 'https://account.apple.com/account';
+    expect(await appleInlineFrameStillAuthorized(frameUrl, 7, readCurrentTopUrl)).toBe(false);
+    topUrl = 'https://other.example.com/sign-in';
+    expect(await appleInlineFrameStillAuthorized(frameUrl, 7, readCurrentTopUrl)).toBe(false);
+    expect(readCurrentTopUrl).toHaveBeenCalledTimes(3);
+    expect(readCurrentTopUrl).toHaveBeenCalledWith(7);
   });
 
   it("leaves the user-gesture surface command to the synchronous background adapter", async () => {
