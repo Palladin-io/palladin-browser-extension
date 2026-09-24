@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { CAPTURE_DETECTED_CHANNEL } from "@shared/messaging/capture";
+import { CAPTURE_DETECTED_CHANNEL, GENERATE_PASSWORD_CHANNEL } from "@shared/messaging/capture";
 import type { GeneratedPasswordSaveResult } from "../vault/protocol2/service";
 
 import { CaptureCoordinator, type CaptureTab } from "./coordinator";
@@ -50,6 +50,36 @@ function observe(coordinator: CaptureCoordinator): boolean {
 }
 
 describe("CaptureCoordinator", () => {
+  it('generates once for the observed document without saving a Vault entry', async () => {
+    const { coordinator, sendFill, savePassword } = harness();
+    observe(coordinator);
+    const command = { channel: GENERATE_PASSWORD_CHANNEL, documentId: DOCUMENT_ID,
+      candidateId: CANDIDATE_ID, operationId: 'operation_0123456789abcdef' };
+    const source = { tabId: TAB.id, url: TAB.url, browserDocumentId: BROWSER_DOCUMENT_ID };
+    expect((await coordinator.generate(command, source)).status).toBe('filled');
+    expect(sendFill).toHaveBeenCalledWith(TAB.id, BROWSER_DOCUMENT_ID, expect.objectContaining({
+      operationId: command.operationId, value: expect.stringMatching(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{20}$/),
+    }));
+    expect(savePassword).not.toHaveBeenCalled();
+    expect((await coordinator.generate(command, source)).status).toBe('blocked');
+    expect(sendFill).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects generation for substituted candidate, document, tab, or origin', async () => {
+    const { coordinator, sendFill } = harness();
+    observe(coordinator);
+    const command = { channel: GENERATE_PASSWORD_CHANNEL, documentId: DOCUMENT_ID,
+      candidateId: CANDIDATE_ID, operationId: 'operation_0123456789abcdef' };
+    const source = { tabId: TAB.id, url: TAB.url, browserDocumentId: BROWSER_DOCUMENT_ID };
+    for (const [request, sender] of [
+      [{ ...command, candidateId: 'other_candidate_0123456789' }, source],
+      [{ ...command, documentId: 'other_document_0123456789' }, source],
+      [command, { ...source, tabId: 8 }],
+      [command, { ...source, browserDocumentId: 'other' }],
+      [command, { ...source, url: 'https://other.example.com/signup' }],
+    ] as const) expect((await coordinator.generate(request, sender)).status).toBe('blocked');
+    expect(sendFill).not.toHaveBeenCalled();
+  });
   it("exposes only safe prompt metadata for the still-bound active tab", async () => {
     const { coordinator } = harness();
     expect(observe(coordinator)).toBe(true);

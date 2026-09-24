@@ -107,6 +107,10 @@ function setFieldValue(input: HTMLInputElement, value: string): void {
 
 export class PasswordCaptureController {
   private candidates = new Map<string, LiveCandidate>();
+  private pendingGeneration: { candidateId: string; operationId: string } | null = null;
+
+  authorizeGeneration(candidateId: string, operationId: string): void { this.pendingGeneration = { candidateId, operationId }; }
+  cancelGeneration(): void { this.pendingGeneration = null; }
 
   constructor(
     private readonly doc: Document,
@@ -114,6 +118,11 @@ export class PasswordCaptureController {
     private readonly documentId: string,
     private readonly createId: CaptureIdFactory = () => crypto.randomUUID(),
   ) {}
+
+  candidateFor(input: HTMLInputElement): { id: string; kind: CaptureFormKind } | null {
+    const candidate = [...this.candidates.values()].find(item => item.newPasswordFields.includes(input));
+    return candidate && input.value === '' ? { id: candidate.id, kind: candidate.kind } : null;
+  }
 
   /**
    * Re-scan the document and return only newly observed candidates. Existing
@@ -156,6 +165,13 @@ export class PasswordCaptureController {
 
   /** Fill only the previously classified `new-password` fields. */
   fill(request: CaptureFillRequestMessage): CaptureFillOutcome {
+    if (request.operationId !== undefined) {
+      const pending = this.pendingGeneration;
+      this.pendingGeneration = null;
+      if (pending?.candidateId !== request.candidateId || pending.operationId !== request.operationId) {
+        return { ok: false, reason: 'stale-candidate' };
+      }
+    }
     if (request.expectedDocumentId !== this.documentId) {
       return { ok: false, reason: "stale-candidate" };
     }
@@ -180,11 +196,26 @@ export class PasswordCaptureController {
       return { ok: false, reason: "stale-candidate" };
     }
 
-    if (current.newPasswordFields.length === 0) return { ok: false, reason: "no-form" };
-    for (const input of current.newPasswordFields) setFieldValue(input, request.value);
+    if (current.newPasswordFields.length === 0 || current.newPasswordFields.some(input =>
+      input.value !== '' || (input.maxLength >= 0 && request.value.length > input.maxLength)
+      || (input.minLength > 0 && request.value.length < input.minLength)
+      || input.pattern !== '')) {
+      return { ok: false, reason: 'no-form' };
+    }
+    for (const input of current.newPasswordFields) {
+      // The previous field's input handler may have replaced or hidden the form.
+      if (!input.isConnected || !isCandidateField(input) || input.value !== ''
+        || secureOrigin(this.currentUrl()) !== request.expectedOrigin
+        || (request.operationId !== undefined && (!input.checkVisibility?.({ checkOpacity: true, checkVisibilityCSS: true })
+          || input.getBoundingClientRect().width === 0 || input.getBoundingClientRect().height === 0))) {
+        return { ok: false, reason: 'no-form' };
+      }
+      setFieldValue(input, request.value);
+    }
     return { ok: true };
   }
 }
+
 
 export interface CaptureDetectionHandle {
   readonly controller: PasswordCaptureController;

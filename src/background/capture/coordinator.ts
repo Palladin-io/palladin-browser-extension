@@ -22,6 +22,8 @@ import type {
   SaveGeneratedPasswordInput,
 } from "../vault/protocol2/service";
 import { registrableDomain } from "@shared/security/domain";
+import { generatePassword } from '@palladin/crypto';
+import type { GeneratePasswordCommand } from '@shared/messaging/capture';
 
 const PROMPT_TTL_MS = 5 * 60_000;
 
@@ -84,6 +86,14 @@ export class CaptureCoordinator {
   constructor(private readonly deps: CaptureCoordinatorDeps) {
     this.now = deps.now ?? Date.now;
     this.createId = deps.createId ?? defaultId;
+  }
+
+  async generate(command: GeneratePasswordCommand, source: CaptureSource): Promise<CaptureGeneratedFillResult> {
+    const prompt = this.livePrompt(source.tabId);
+    if (!prompt || prompt.filled || prompt.candidateId !== command.candidateId
+      || prompt.documentId !== command.documentId || prompt.browserDocumentId !== source.browserDocumentId
+      || prompt.origin !== httpsOrigin(source.url)) return this.blocked('stale-prompt');
+    return this.fillGenerated(prompt.id, generatePassword({ length: 20, digits: true, symbols: true }), command.operationId);
   }
 
   observe(message: CaptureDetectedMessage, source: CaptureSource): boolean {
@@ -167,6 +177,7 @@ export class CaptureCoordinator {
   private async fillGenerated(
     promptId: string,
     value: string,
+    operationId?: string,
   ): Promise<CaptureGeneratedFillResult> {
     const tab = await this.deps.getActiveTab();
     if (tab === null) return this.blocked("stale-prompt");
@@ -194,6 +205,7 @@ export class CaptureCoordinator {
       candidateId: prompt.candidateId,
       expectedOrigin: prompt.origin,
       value,
+      ...(operationId === undefined ? {} : { operationId }),
     });
     if (outcome.ok) {
       this.pendingByTab.set(prompt.tabId, { ...prompt, filled: true, observedAt: this.now() });

@@ -970,7 +970,7 @@ function createBrandIcon(doc: Document): HTMLImageElement {
   return image;
 }
 
-const INLINE_STYLES = `
+export const INLINE_STYLES = `
   :host { color-scheme: light; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   :host([data-theme="dark"]) { color-scheme: dark; }
   * { box-sizing: border-box; }

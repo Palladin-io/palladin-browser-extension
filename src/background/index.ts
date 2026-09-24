@@ -31,6 +31,10 @@ import {
 import { openSidePanel } from "@shared/browser/side-panel";
 import { isCredentialCaptureCommand } from "@shared/messaging/credential-capture";
 import { isCaptureSettingsCommand } from "@shared/messaging/capture-settings";
+import { isGeneratorHistoryCommand } from "@shared/messaging/generator-history";
+import { handleGeneratorHistory } from "./generator/runtime";
+import { isGeneratePasswordCommand } from '@shared/messaging/capture';
+import { handleGeneratePassword } from './capture/runtime';
 import { handleCaptureSettings } from "./capture/settings-runtime";
 import { credentialCaptureCoordinator, credentialCaptureSource } from "./capture/credential-runtime";
 
@@ -149,6 +153,7 @@ function unavailableDuringServerChange(raw: unknown): unknown {
   if (type.startsWith("capture/")) {
     return { ok: false, code: "unavailable", message: "Server change in progress" };
   }
+  if (type.startsWith("generator-history/")) return { ok: false, code: "unavailable" };
   return null;
 }
 
@@ -265,6 +270,11 @@ chrome.runtime.onConnect.addListener((port) => {
 // Content scripts may report only a shape-only, top-frame new-password
 // candidate. This listener has a separate sender gate from the popup channel.
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
+  if (isGeneratePasswordCommand(raw)) {
+    void withServerOperation(() => handleGeneratePassword(raw, sender)).then(sendResponse,
+      () => sendResponse({ status: 'blocked', reason: 'stale-prompt', saveAvailable: false }));
+    return true;
+  }
   const result = handleCaptureContentRuntimeMessage(raw, sender, chrome.runtime.id);
   if (result === null) return false;
   sendResponse(result);
@@ -422,6 +432,10 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
       }
       if (isCaptureSettingsCommand(raw)) {
         sendResponse(await handleCaptureSettings(raw));
+        return;
+      }
+      if (isGeneratorHistoryCommand(raw)) {
+        sendResponse(await handleGeneratorHistory(raw));
         return;
       }
       const sessionResult = await handleRuntimeMessage(sessionManager, raw);
