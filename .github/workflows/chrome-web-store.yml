@@ -41,6 +41,7 @@ jobs:
     env:
       RELEASE_OPERATION: ${{ github.event_name == 'push' && 'publish' || inputs.operation }}
       PALLADIN_STORE_CHANNEL: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' && 'beta' || 'stable') || inputs.channel }}
+      CWS_STABLE_PUBLIC_KEY: ${{ vars.CWS_STABLE_PUBLIC_KEY }}
       CWS_BETA_PUBLIC_KEY: ${{ vars.CWS_BETA_PUBLIC_KEY }}
       VITE_API_URL: ${{ vars.CWS_API_URL }}
       VITE_WEB_APP_URL: ${{ vars.CWS_WEB_APP_URL }}
