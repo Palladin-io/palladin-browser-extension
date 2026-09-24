@@ -50,6 +50,25 @@ const manifests = Object.fromEntries(
   BUILD_TARGETS.map((target) => [target, buildManifest(target) as unknown as Manifest]),
 ) as Record<BuildTarget, Manifest>;
 
+describe("Chrome Web Store stable", () => {
+  const publicKey = generateKeyPairSync("rsa", { modulusLength: 2048 }).publicKey
+    .export({ format: "der", type: "spki" }).toString("base64");
+  it("uses the assigned store identity without changing local development or permissions", () => {
+    const release = buildManifest("chromium", [], undefined, publicKey);
+    expect(release).toEqual({ ...manifests.chromium, key: publicKey });
+    expect(buildManifest("chromium")).toEqual(manifests.chromium);
+  });
+  it.each(["", "invalid", publicKey + "\n", manifests.chromium.key])(
+    "rejects missing, malformed, noncanonical or development keys", key => {
+      expect(() => buildManifest("chromium", [], undefined, key)).toThrow();
+    });
+  it("rejects a stable key on another target or a beta build", () => {
+    expect(() => buildManifest("firefox", [], undefined, publicKey)).toThrow();
+    expect(() => buildManifest("safari", [], undefined, publicKey)).toThrow();
+    expect(() => buildManifest("chromium", [], { runNumber: 1, bootstrap: true }, publicKey)).toThrow();
+  });
+});
+
 describe("Chrome Web Store beta", () => {
   const publicKey = generateKeyPairSync("rsa", { modulusLength: 2048 }).publicKey
     .export({ format: "der", type: "spki" }).toString("base64");

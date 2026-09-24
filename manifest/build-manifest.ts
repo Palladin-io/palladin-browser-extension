@@ -66,12 +66,21 @@ export interface ChromeBetaBuild {
   bootstrap: boolean;
 }
 
-export function buildManifest(target: BuildTarget = "chromium", sharedUnlockEnvironments: readonly SharedUnlockEnvironment[] = [], beta?: ChromeBetaBuild): ManifestV3Export {
+export function buildManifest(target: BuildTarget = "chromium", sharedUnlockEnvironments: readonly SharedUnlockEnvironment[] = [], beta?: ChromeBetaBuild, stablePublicKey?: string): ManifestV3Export {
   const overlay = overlays[target];
   if (!overlay) {
     throw new Error(`Unknown build target: ${target}`);
   }
   const manifest = deepMerge(base as unknown as Json, overlay);
+  if (stablePublicKey !== undefined) {
+    if (target !== "chromium" || beta || !stablePublicKey) {
+      throw new Error("Configure the Chrome Web Store stable public key for a stable Chromium build");
+    }
+    const key = createPublicKey({ key: Buffer.from(stablePublicKey, "base64"), format: "der", type: "spki" });
+    const canonical = key.export({ format: "der", type: "spki" }).toString("base64");
+    if (canonical !== stablePublicKey || canonical === chromium.key) throw new Error("Stable requires its assigned canonical store public key");
+    manifest.key = canonical;
+  }
   if (beta) {
     if (target !== "chromium" || !Number.isSafeInteger(beta.runNumber) || beta.runNumber < 1 || beta.runNumber > 4294967295) {
       throw new Error("Chrome beta requires a positive 32-bit CI run number and the Chromium target");

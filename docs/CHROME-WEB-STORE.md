@@ -92,9 +92,11 @@ Keep manual dashboard changes out of an active upload/publish run.
    environment Item ID accordingly. Reconcile the manifest and
    runtime's compiled identity through coordinated PRs before uploading a release
    artifact. CWS assigns the identity for both new items; the existing stable
-   development key does not reserve a store ID. Replace it with the assigned
-   stable public key through a coordinated identity update before release. Beta
-   key injection is explicit at manifest build time; it rejects the stable key and the uploader
+   development key does not reserve a store ID. Set `CWS_STABLE_PUBLIC_KEY` to
+   the assigned stable public key and reconcile the store ID with native
+   integrations before release. Stable store builds use
+   this key; builds without a store channel retain the development identity. Beta
+   key injection is explicit at manifest build time; it rejects the development key and the uploader
    verifies it against the independently configured beta Item ID and store key.
 4. Complete Store listing, Privacy, reviewer Test instructions and **Unlisted**
    distribution. API publishing preserves existing visibility and cannot change
@@ -126,6 +128,7 @@ Repository variables (available to the secretless package job):
 
 | Variable | Value |
 | --- | --- |
+| `CWS_STABLE_PUBLIC_KEY` | Canonical base64 DER public key from the stable item. Required for stable package/upload/publish; bootstrap may omit it. Public build configuration, never a private key. |
 | `CWS_BETA_PUBLIC_KEY` | Canonical base64 DER public key from the separate beta item. Public configuration, never a private key. Required except beta bootstrap. |
 | `CWS_API_URL` | Selected staging or production API; required for every package operation. |
 | `CWS_WEB_APP_URL` | Selected HTTPS panel address; no localhost or placeholders for release packages. |
