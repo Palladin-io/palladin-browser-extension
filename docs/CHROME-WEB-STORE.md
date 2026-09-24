@@ -61,8 +61,9 @@ metadata and a production-dependency CycloneDX SBOM. Another job attaches GitHub
 build provenance to the ZIP. The ZIP manifest omits the development-only `key`
 field, which CWS rejects on upload. The unpacked build keeps it, and release
 metadata retains the public key for the uploader identity checks. Download the
-`chrome-store-<run>-<attempt>` artifact from the workflow run. This GitHub provenance does not replace the runtime's
-independent Agent Inject artifact-attestation gate.
+`chrome-store-<run>-<attempt>` artifact from the workflow run. This GitHub provenance attests the ZIP build; it does not identify the extension
+invoking a native host. The accepted Chrome/macOS caller boundary is documented
+in `STATUS.md` and still needs installed-runtime acceptance.
 
 Only the store job can obtain Google credentials. It runs in the
 `chrome-web-store-beta` (main) or `chrome-web-store` (tags) environment and requests a short-lived access token through
@@ -179,7 +180,9 @@ store ID once reconciled. It is retained outside the upload ZIP; CWS owns the
 identity/signing of the uploaded item. Google service-account
 authentication is separate: OIDC yields a short-lived upload token without a
 service-account JSON key. GitHub provenance is also separate from Chrome signing
-and does not satisfy Palladin's Agent Inject artifact-attestation gate.
+and does not attest which local extension called Agent Inject. The approved
+Chrome/macOS trust model uses signed Chrome plus the exact extension origin,
+with the same-ID local-replacement limitation documented in `STATUS.md`.
 
 ## Listing materials
 
@@ -207,8 +210,11 @@ Suggested Polish description:
 > wypełnienie nie wysyła formularza. Serwer Palladin wybierzesz w ustawieniach.
 > Dostępne są interfejsy polski i angielski oraz motywy systemowy, jasny i ciemny.
 
-These drafts do not claim production Agent Inject support. Its independent
-artifact-attestation gate remains open in `STATUS.md`. Confirm the public privacy
+These drafts do not claim production Agent Inject support. The first release
+requires working Agent Inject on Chrome/macOS with an updated signed Runtime,
+installed-build acceptance and accurate reviewer instructions. Its accepted
+browser-identity boundary and local-replacement limitation are in `STATUS.md`.
+Confirm the public privacy
 policy URL, required disclosures, support contact and reviewer access before
 submission; this document does not approve legal declarations.
 

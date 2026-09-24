@@ -127,9 +127,13 @@ clears the local encrypted cache.
 - Automated checks currently cover generated manifests, TypeScript, and bundle
   creation. They do not replace installed-browser or store-review testing.
 - Chromium Native Messaging supplies the extension ID but not reliable store
-  provenance. An unpacked build can reuse the public manifest key and ID, so the
-  current Runtime enables Agent Inject only in development builds. Production
-  remains fail-closed pending independent signed-artifact attestation.
+  provenance. The owner-approved Chrome/macOS boundary is Google-signed Chrome
+  plus the exact compiled extension origin. A locally installed or replaced
+  unpacked extension with the same public key and ID can receive approved Inject
+  values and remove its own page checks; that local replacement is outside this
+  boundary. Independent store-artifact attestation is possible future hardening,
+  not a current gate. Release still requires an updated signed runtime and
+  acceptance of the exact installed builds; a generated ZIP does not prove either.
 - Chromium has a fixed manifest-key-derived extension origin. The current
   Runtime allowlists that exact origin and attests Google Chrome on macOS.
   Firefox must use its stable Gecko ID through `allowed_extensions`; Safari must
