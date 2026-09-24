@@ -31,7 +31,14 @@ describe('Apple IDMSA inline login', () => {
     });
     const loader = new class extends ResourceLoader {
       fetch(): Promise<Buffer> {
-        return Promise.resolve(Buffer.from('<!doctype html><body><input id="account_name_text_field"></body>'));
+        // The iframe keeps Apple's sign-in scope, field IDs, visibility class, and staged action.
+        // Styling and Apple scripts are omitted because discovery and fill use only these DOM contracts.
+        return Promise.resolve(Buffer.from(`<!doctype html><body>
+          <div id="sign_in_form" class="hide-password">
+            <input id="account_name_text_field" type="text" autocomplete="username webauthn">
+            <input id="password_text_field" type="password" autocomplete="off">
+            <button id="sign-in" type="button">Continue</button>
+          </div></body>`));
       }
     }();
     const top = new JSDOM('<iframe src="https://idmsa.apple.com/appleauth/auth/signin"></iframe>', {
@@ -40,9 +47,26 @@ describe('Apple IDMSA inline login', () => {
     const sameOrigin = top.window.document.querySelector('iframe')!;
     await new Promise<void>(resolve => sameOrigin.addEventListener('load', () => resolve(), { once: true }));
     const child = sameOrigin.contentDocument!;
+    // Each content script runs with its frame's DOM constructors. Match that
+    // realm when invoking the production controller from this parent test.
+    for (const name of ['Element', 'HTMLElement', 'HTMLInputElement', 'HTMLButtonElement',
+      'HTMLFormElement', 'HTMLTextAreaElement', 'HTMLSelectElement', 'HTMLSlotElement', 'ShadowRoot'] as const) {
+      vi.stubGlobal(name, child.defaultView![name]);
+    }
     const subject = startInlineAutofillIfAllowed(child, 'a'.repeat(32), vi.fn(async () => null));
     try {
       expect(subject).not.toBeNull();
+      expect(child.querySelectorAll('palladin-autofill')).toHaveLength(1);
+      const username = child.querySelector<HTMLInputElement>('#account_name_text_field')!;
+      const password = child.querySelector<HTMLInputElement>('#password_text_field')!;
+      const target = loginTargetFor(username);
+      expect(target).toMatchObject({ username, password: null });
+      expect(performLoginTargetFill(target!, [
+        { kind: 'username', value: 'member@example.com' },
+        { kind: 'password', value: 'secret' },
+      ])).toEqual({ ok: true });
+      expect(username.value).toBe('member@example.com');
+      expect(password.value).toBe('');
       const foreign = top.window.document.createElement('iframe');
       foreign.src = 'https://other.example.com/login';
       top.window.document.body.append(foreign);
@@ -52,6 +76,7 @@ describe('Apple IDMSA inline login', () => {
       expect(foreign.contentDocument!.querySelector('palladin-autofill')).toBeNull();
     } finally {
       subject?.stop();
+      vi.unstubAllGlobals();
       top.window.close();
     }
   });
