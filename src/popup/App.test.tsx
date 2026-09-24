@@ -396,7 +396,7 @@ describe("popup state machine", () => {
     try {
       const view = render(<App surface={surface} client={makeClient({ getStatus })} />);
       expect(await screen.findByRole("heading", { name: "Your vault" })).toBeInTheDocument();
-      expect(disconnected).toBeTypeOf("function");
+      await waitFor(() => expect(disconnected).toBeTypeOf("function"));
       act(() => disconnected?.());
       expect(screen.queryByRole("heading", { name: "Your vault" })).not.toBeInTheDocument();
       await waitFor(() => expect(getStatus).toHaveBeenCalledTimes(2));
