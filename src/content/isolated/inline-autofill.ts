@@ -35,7 +35,22 @@ export function inlineAutofillFrameAllowed(doc: Document): boolean {
   try {
     return view.location.protocol === 'https:'
       && view.location.hostname === 'idmsa.apple.com'
-      && view.top?.location.origin === view.location.origin;
+      && (view.top?.location.origin === view.location.origin
+        || appleAccountParent(doc.referrer, view.location.pathname));
+  } catch {
+    return view.location.protocol === 'https:'
+      && view.location.hostname === 'idmsa.apple.com'
+      && appleAccountParent(doc.referrer, view.location.pathname);
+  }
+}
+
+function appleAccountParent(referrer: string, childPath: string): boolean {
+  try {
+    const parent = new URL(referrer);
+    // The browser-provided referrer permits mounting the UI. The worker still
+    // authorizes the browser-authored top tab URL before releasing any value.
+    return parent.origin === 'https://account.apple.com'
+      && childPath === '/appleauth/auth/authorize/signin';
   } catch {
     return false;
   }

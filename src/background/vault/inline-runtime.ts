@@ -137,7 +137,9 @@ export function inlineAutofillSource(
 ): ActiveTab | null {
   if (sender.id !== extensionId || typeof sender.frameId !== 'number' || sender.frameId < 0) return null;
   if (typeof sender.tab?.id !== "number" || typeof sender.tab.url !== "string") return null;
-  if (typeof sender.url !== "string" || !sameHttpsOrigin(sender.url, sender.tab.url)) return null;
+  if (typeof sender.url !== "string"
+    || !(sameHttpsOrigin(sender.url, sender.tab.url)
+      || appleAccountFrame(sender.url, sender.tab.url))) return null;
   if (sender.frameId !== 0 && new URL(sender.url).hostname !== 'idmsa.apple.com') return null;
   if (typeof sender.documentId !== "string" || sender.documentId.length === 0) return null;
   return {
@@ -146,6 +148,19 @@ export function inlineAutofillSource(
     documentId: command.documentId,
     browserDocumentId: sender.documentId,
   };
+}
+
+function appleAccountFrame(frameUrl: string, tabUrl: string): boolean {
+  try {
+    const frame = new URL(frameUrl);
+    const tab = new URL(tabUrl);
+    return frame.origin === 'https://idmsa.apple.com'
+      && frame.pathname === '/appleauth/auth/authorize/signin'
+      && tab.origin === 'https://account.apple.com'
+      && tab.pathname === '/sign-in';
+  } catch {
+    return false;
+  }
 }
 
 function sameHttpsOrigin(left: string, right: string): boolean {

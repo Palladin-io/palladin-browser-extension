@@ -81,6 +81,44 @@ describe('Apple IDMSA inline login', () => {
     }
   });
 
+  it('mounts the shield in the observed account.apple.com sign-in iframe', async () => {
+    Object.assign(globalThis, {
+      chrome: { storage: { local: { get: vi.fn(async () => ({})) } }, i18n: { getUILanguage: () => 'en' } },
+    });
+    const loader = new class extends ResourceLoader {
+      fetch(): Promise<Buffer> { return Promise.resolve(Buffer.from('<!doctype html><body></body>')); }
+    }();
+    const top = new JSDOM('<iframe src="https://idmsa.apple.com/appleauth/auth/authorize/signin"></iframe>', {
+      url: 'https://account.apple.com/sign-in', resources: loader,
+    });
+    const frame = top.window.document.querySelector('iframe')!;
+    await new Promise<void>(resolve => frame.addEventListener('load', () => resolve(), { once: true }));
+    const child = frame.contentDocument!;
+    Object.defineProperty(child, 'referrer', { value: 'https://account.apple.com/' });
+    const { username, password } = appleForm(child);
+    for (const name of ['Element', 'HTMLElement', 'HTMLInputElement', 'HTMLButtonElement',
+      'HTMLFormElement', 'HTMLTextAreaElement', 'HTMLSelectElement', 'HTMLSlotElement', 'ShadowRoot'] as const) {
+      vi.stubGlobal(name, child.defaultView![name]);
+    }
+    const subject = startInlineAutofillIfAllowed(child, 'a'.repeat(32), vi.fn(async () => null));
+    try {
+      expect(subject).not.toBeNull();
+      expect(child.querySelectorAll('palladin-autofill')).toHaveLength(1);
+      const target = loginTargetFor(username);
+      expect(target).toMatchObject({ username, password: null });
+      expect(performLoginTargetFill(target!, [
+        { kind: 'username', value: 'member@example.com' },
+        { kind: 'password', value: 'secret' },
+      ])).toEqual({ ok: true });
+      expect(username.value).toBe('member@example.com');
+      expect(password.value).toBe('');
+    } finally {
+      subject?.stop();
+      vi.unstubAllGlobals();
+      top.window.close();
+    }
+  });
+
   it('shows the launcher on the identifier step and never fills the hidden password', () => {
     const { username, password } = appleForm();
     Object.assign(globalThis, {

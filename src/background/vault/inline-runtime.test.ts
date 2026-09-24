@@ -198,6 +198,28 @@ describe("inline autofill content runtime", () => {
     expect(fill).toHaveBeenCalledWith({
       id: 7, url: appleSender.url, documentId, browserDocumentId,
     }, 'vault-1', 'entry-1', 'exact', 'login-1', 'manual');
+    const accountAppleSender = {
+      ...appleSender,
+      url: 'https://idmsa.apple.com/appleauth/auth/authorize/signin',
+      tab: { id: 7, url: 'https://account.apple.com/sign-in' },
+    } as chrome.runtime.MessageSender;
+    expect(await handleInlineAutofillContentMessage(subject, {
+      channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', documentId,
+    }, accountAppleSender, 'extension-id'))
+      .toMatchObject({ ok: true, kind: 'suggestions', status: 'ready' });
+    fill.mockClear();
+    expect(await handleInlineAutofillContentMessage(deps({ fill }), {
+      channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', intent: 'manual', documentId,
+      vaultId: 'vault-1', entryId: 'entry-1', scope: 'exact', loginTargetId: 'login-1',
+    }, accountAppleSender, 'extension-id'))
+      .toMatchObject({ ok: true, kind: 'fill', status: 'filled' });
+    expect(fill).toHaveBeenCalledWith({
+      id: 7, url: accountAppleSender.url, documentId, browserDocumentId,
+    }, 'vault-1', 'entry-1', 'exact', 'login-1', 'manual');
+    expect(await handleInlineAutofillContentMessage(subject, {
+      channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', documentId,
+    }, { ...accountAppleSender, tab: { id: 7, url: 'https://other.example.com/sign-in' } as chrome.tabs.Tab }, 'extension-id'))
+      .toEqual({ ok: false, code: 'unavailable' });
     vi.mocked(subject.getStatus).mockClear();
     expect(await handleInlineAutofillContentMessage(subject, {
       channel: INLINE_AUTOFILL_CHANNEL,

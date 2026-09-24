@@ -1141,7 +1141,7 @@
       "id": "apple",
       "domain": "apple.com",
       "selection": "global-ranking",
-      "login": "unsupported-cross-origin-frame",
+      "login": "pending",
       "registration": "unsupported-cross-origin-frame",
       "fixtures": [],
       "regions": [
@@ -1157,7 +1157,7 @@
         "login": {
           "source": "https://account.apple.com/sign-in",
           "observedAt": "2026-09-16",
-          "reason": "Public sign-in embeds https://idmsa.apple.com/appleauth/auth/authorize/signin. The current top-frame-only adapter cannot fill the actual login frame; no authentication started."
+          "reason": "Public sign-in embeds https://idmsa.apple.com/appleauth/auth/authorize/signin. The iframe route has automated coverage; installed-artifact login with a test account remains pending."
         }
       },
       "regionalVariants": "Only recorded locales and states tested; other regional variants unverified."
