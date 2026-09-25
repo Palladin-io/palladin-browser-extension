@@ -27,8 +27,12 @@ def configuration(env):
                 or url.query or url.fragment or url.hostname in {"localhost", "127.0.0.1", "::1"}
                 or url.hostname.endswith((".localhost", ".invalid", ".example", ".test"))):
             raise ValueError("Configure CWS_WEB_APP_URL with the selected HTTPS panel URL")
+    environments = json.loads(env.get("VITE_SHARED_UNLOCK_ENVIRONMENTS") or "[]")
+    if operation != "bootstrap" and (not isinstance(environments, list)
+            or {"apiUrl": api, "webOrigin": panel} not in environments):
+        raise ValueError("Configure CWS_SHARED_UNLOCK_ENVIRONMENTS for the selected API and panel")
     return {"bootstrap": operation == "bootstrap", "channel": channel, "apiUrl": api, "webAppUrl": panel,
-            "sharedUnlockEnvironments": json.loads(env.get("VITE_SHARED_UNLOCK_ENVIRONMENTS") or "[]")}
+            "sharedUnlockEnvironments": environments}
 
 
 def validate_source(root, config, env):

@@ -8,7 +8,9 @@ import manifest from '../manifest/manifest.chromium.json';
 const script = resolve('scripts/package-chrome-store.py');
 const directories: string[] = [];
 const env = { ...process.env, RELEASE_OPERATION: 'package', VITE_API_URL: 'https://api.palladin.io',
-  VITE_WEB_APP_URL: 'https://panel.example.org', VITE_SHARED_UNLOCK_ENVIRONMENTS: '[]', GITHUB_SHA: 'a'.repeat(40),
+  VITE_WEB_APP_URL: 'https://panel.example.org',
+  VITE_SHARED_UNLOCK_ENVIRONMENTS: JSON.stringify([{ apiUrl: 'https://api.palladin.io', webOrigin: 'https://panel.example.org' }]),
+  GITHUB_SHA: 'a'.repeat(40),
   GITHUB_REF: 'refs/heads/main', PALLADIN_STORE_CHANNEL: 'stable' };
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'palladin-store-package-')); directories.push(root);
@@ -33,6 +35,11 @@ function gitFixture() {
 afterEach(() => directories.splice(0).forEach(path => rmSync(path, { recursive: true, force: true })));
 
 describe('Chrome archive packaging', () => {
+  it.each(['', '[]', JSON.stringify([{ apiUrl: 'https://api.stage.palladin.io', webOrigin: 'https://stage.palladin.io' }])])(
+    'rejects a release without shared unlock for its selected API and panel: %s', environments => {
+      expect(spawnSync('python3', [script, '--check-config'], { cwd: fixture(),
+        env: { ...env, VITE_SHARED_UNLOCK_ENVIRONMENTS: environments } }).status).not.toBe(0);
+    });
   it.each([
     ['stable', 'bootstrap'], ['stable', 'package'],
     ['beta', 'bootstrap'], ['beta', 'package'],
@@ -53,7 +60,7 @@ describe('Chrome archive packaging', () => {
   });
   it('creates a deterministic ZIP rooted at manifest.json and marks bootstrap artifacts', () => {
     const root = fixture();
-    const settings = { ...env, RELEASE_OPERATION: 'bootstrap', VITE_WEB_APP_URL: 'http://localhost:5173' };
+    const settings = { ...env, RELEASE_OPERATION: 'bootstrap', VITE_WEB_APP_URL: 'http://localhost:5173', VITE_SHARED_UNLOCK_ENVIRONMENTS: '[]' };
     execFileSync('python3', [script], { cwd: root, env: settings });
     const first = readFileSync(join(root, 'dist/chrome-store/package.zip'));
     execFileSync('python3', [script], { cwd: root, env: settings });
@@ -65,9 +72,11 @@ describe('Chrome archive packaging', () => {
   it('records the staging defaults in a configured stable package', () => {
     const root = fixture();
     execFileSync('python3', [script], { cwd: root, env: { ...env,
-      VITE_API_URL: 'https://api.stage.palladin.io', VITE_WEB_APP_URL: 'https://stage.palladin.io' } });
+      VITE_API_URL: 'https://api.stage.palladin.io', VITE_WEB_APP_URL: 'https://stage.palladin.io',
+      VITE_SHARED_UNLOCK_ENVIRONMENTS: JSON.stringify([{ apiUrl: 'https://api.stage.palladin.io', webOrigin: 'https://stage.palladin.io' }]) } });
     expect(JSON.parse(readFileSync(join(root, 'dist/chrome-store/release.json'), 'utf8'))).toMatchObject({
       bootstrap: false, channel: 'stable', apiUrl: 'https://api.stage.palladin.io', webAppUrl: 'https://stage.palladin.io',
+      sharedUnlockEnvironments: [{ apiUrl: 'https://api.stage.palladin.io', webOrigin: 'https://stage.palladin.io' }],
     });
   });
   it.each(['', 'http://api.stage.palladin.io', 'https://unexpected.example.org'])(

@@ -11,6 +11,14 @@ control: anyone with the link can install the extension.
 Version `0.1.0` is the initial candidate. Preparing an archive does not complete
 the release gates in [STATUS.md](STATUS.md).
 
+Non-bootstrap packaging requires `CWS_SHARED_UNLOCK_ENVIRONMENTS` to include the
+exact `apiUrl` / `webOrigin` pair selected by `CWS_API_URL` / `CWS_WEB_APP_URL`.
+Set this public JSON in deployment variables, never in generic build defaults.
+The Web build must separately select this channel's reviewed Item ID through
+`STAGING_VITE_SHARED_UNLOCK_EXTENSION_ID`. Changing either configuration requires
+rebuilding its artifact; selecting the API in extension settings alone does not
+enable the browser channel. Bootstrap archives intentionally remain unconfigured.
+
 ## CI/CD
 
 Two separate **Unlisted** items provide installable channels:
@@ -133,7 +141,7 @@ Repository variables (available to the secretless package job):
 | `CWS_BETA_PUBLIC_KEY` | Canonical base64 DER public key from the separate beta item. Public configuration, never a private key. Required except beta bootstrap. |
 | `CWS_API_URL` | Selected staging or production API; required for every package operation. |
 | `CWS_WEB_APP_URL` | Selected HTTPS panel address; no localhost or placeholders for release packages. |
-| `CWS_SHARED_UNLOCK_ENVIRONMENTS` | Reviewed JSON pairs of `apiUrl` and `webOrigin`; empty disables the integration. |
+| `CWS_SHARED_UNLOCK_ENVIRONMENTS` | Reviewed JSON pairs of `apiUrl` and `webOrigin`; must include the selected API/panel pair for non-bootstrap artifacts. |
 
 Changing these defaults takes effect in a newly built extension version; it does
 not migrate accounts or Vaults between servers or replace a saved server choice.
