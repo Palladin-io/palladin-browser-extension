@@ -188,6 +188,15 @@ the existing exact-origin permission granted when choosing the server, with no
 S3/CDN host permission. Deploy the backend content endpoint before these clients;
 unavailable images fall back locally without retry or catalog metadata lookup.
 
+New captured, generated-password and manually added Credentials resolve the exact
+public hostname through the authenticated website-icon catalog before sealing
+MemberSecret and MemberIndex. Only the hostname leaves the client, never the
+page path, query, username or password. Pending catalog jobs are polled within a
+five-second budget; failed/unavailable icons do not prevent credential saving.
+Password updates preserve the existing icon. Capture rechecks authorization after
+catalog preparation; manual creation rejects a changed unlock session. Existing
+entries without icons can use the web panel's explicit missing-icon repair flow.
+
 ## Messaging contract
 
 Messages should form a discriminated union with runtime validation at each

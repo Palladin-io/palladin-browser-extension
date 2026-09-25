@@ -42,7 +42,7 @@ describe('captured Credential canonical writer', () => {
   let privateKey: Uint8Array | null
   const client = {
     listVaults: vi.fn(), getVault: vi.fn(), getEntry: vi.fn(), getActiveGrants: vi.fn(),
-    issueEntryCreationChallenge: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(),
+    issueEntryCreationChallenge: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), resolveWebsiteIcon: vi.fn(),
   }
   const data = { refresh: vi.fn(), getMetadata: vi.fn() }
   const canWrite = vi.fn()
@@ -51,6 +51,7 @@ describe('captured Credential canonical writer', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     privateKey = new Uint8Array(32).fill(3)
+    client.resolveWebsiteIcon.mockResolvedValue(null)
     client.listVaults.mockResolvedValue([{ id: VAULT }])
     client.getVault.mockResolvedValue({ id: VAULT, organizationId: ORG, isDefault: true,
       currentKeyEpoch: { vaultKeyVersion: 1, vdkVersion: 1, manifestSigningKeyVersion: 2 },
@@ -153,8 +154,23 @@ describe('captured Credential canonical writer', () => {
     expect(client.getActiveGrants).not.toHaveBeenCalled()
     expect(JSON.stringify(client.createEntry.mock.calls)).not.toContain('new-pass')
   })
+  it.each(['www.reddit.com', 'accounts.example.com'])('seals the catalog icon for a captured registration on %s', async host => {
+    const icon = { kind: 'publicAsset', assetId: ENTRY, revision: 2, url: 'https://assets.example.com/reddit.png' }
+    client.resolveWebsiteIcon.mockResolvedValue(icon)
+    await writer.save({ ...credential, kind: 'registration' }, `https://${host}/register?private=ignored`,
+      { action: 'create', vaultId: VAULT, label: 'Personal', vaultLabel: 'Personal' }, authorized)
+    expect(cryptoMocks.sealCanonicalCredentialEntry.mock.calls[0]![1]).toMatchObject({ icon })
+    expect(client.resolveWebsiteIcon).toHaveBeenCalledWith('token', host)
+  })
+  it('does not commit if the session locks during icon preparation', async () => {
+    client.resolveWebsiteIcon.mockImplementation(async () => { privateKey = null; return null })
+    await expect(writer.save(credential, url,
+      { action: 'create', vaultId: VAULT, label: 'Personal', vaultLabel: 'Personal' }, authorized))
+      .rejects.toThrow('Capture authorization changed')
+    expect(client.createEntry).not.toHaveBeenCalled()
+  })
   it('preserves all non-password fields, visibility policy, delivery policy and revision fences', async () => {
-    const original = { ...secret, description: 'preserve me', content: { ...secret.content, notes: 'keep notes' } }
+    const original = { ...secret, icon: { kind: 'glyph', value: 'key' }, description: 'preserve me', content: { ...secret.content, notes: 'keep notes' } }
     cryptoMocks.openCurrentMemberSecret.mockResolvedValue(original)
     await writer.save(credential, url, target, authorized)
     expect(cryptoMocks.sealCanonicalCredentialEntry.mock.calls[0]![1]).toEqual({ ...original,

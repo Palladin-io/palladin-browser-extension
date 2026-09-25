@@ -1,4 +1,4 @@
-import type { CanonicalEntryEnvelopes, buildCanonicalGrantEnvelope, ScriptExecutionEncryptedPackageV1 } from '@palladin/crypto'
+import type { currentVaultPlaintext, CanonicalEntryEnvelopes, buildCanonicalGrantEnvelope, ScriptExecutionEncryptedPackageV1 } from '@palladin/crypto'
 import type { EntryGrantContext } from './grant-context'
 import { z } from 'zod'
 
@@ -166,6 +166,48 @@ export class Protocol2VaultClient {
       if (error instanceof VaultClientError) throw error
       throw new VaultClientError('network', 'Vault response failed strict validation')
     }
+  }
+
+  async resolveWebsiteIcon(
+    accessToken: string,
+    input: string,
+  ): Promise<currentVaultPlaintext.PublicAssetVaultIconV1 | null> {
+    let hostname: string
+    try {
+      hostname = new URL(input.includes('://') ? input : `https://${input}`).hostname.toLowerCase().replace(/\.$/, '')
+    } catch { return null }
+    if (hostname.length > 253 || !hostname.includes('.') || hostname.endsWith('.local')
+      || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)
+      || !hostname.split('.').every(label => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))) return null
+
+    // Branding is optional: a stalled catalog must never prevent saving a password.
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5_000)
+    try {
+      while (!controller.signal.aborted) {
+        const response = await this.request('/api/public-assets/website-icons/ensure', accessToken, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ hostnames: [hostname] }),
+          credentials: 'omit', referrerPolicy: 'no-referrer', redirect: 'error',
+          signal: controller.signal,
+        })
+        if (!response.ok) return null
+        const body = await readBoundedJson(response) as { items: Array<{
+          hostname: string; status: string;
+          asset: { id: string; revision: number; url: string } | null;
+        }> }
+        const item = body.items.find(candidate => candidate.hostname === hostname)
+        if (item?.status === 'ready' && item.asset) {
+          return { kind: 'publicAsset', assetId: item.asset.id, revision: item.asset.revision, url: item.asset.url }
+        }
+        if (item?.status !== 'pending') return null
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+    } catch (error) {
+      if (error instanceof VaultClientError && error.code === 'unauthorized') throw error
+    } finally { clearTimeout(timeout) }
+    return null
   }
 
   async listVaults(accessToken: string, signal?: AbortSignal): Promise<EncryptedVaultListSummary[]> {

@@ -523,6 +523,14 @@ export class Protocol2VaultDataService implements VaultDataSource {
     const vault = [...this.currentVaults.values()].find((candidate) => candidate.isDefault)
       ?? [...this.currentVaults.values()][0]
     if (vault === undefined) throw new VaultDataError('network', 'No Vault is available')
+    if (secret.entryType === 'credential' && secret.icon === null && secret.content.urlDomain) {
+      const hostname = secret.content.urlDomain
+      const icon = await this.withAuth(token => this.deps.client.resolveWebsiteIcon(token, hostname))
+      secret = { ...secret, icon: icon ?? null }
+    }
+    if (this.deps.session.getPrivateKey() !== privateKey || await this.deps.session.getUserId() !== userId) {
+      throw new VaultDataError('locked', 'Session changed while preparing Entry')
+    }
     const entryId = await this.withAuth((token) =>
       this.deps.client.issueEntryCreationChallenge(token, vault.id))
     let vaultKey: Uint8Array | null = null

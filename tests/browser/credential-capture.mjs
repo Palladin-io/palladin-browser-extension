@@ -124,6 +124,9 @@ try {
       assert.equal(secret.content.username, 'alice')
       assert.equal(secret.content.password, password)
       assert.equal(secret.content.urlDomain, `${host}.example.test`)
+      assert.deepEqual(secret.icon, { kind: 'publicAsset',
+        assetId: '88888888-8888-4888-8888-888888888888', revision: 1,
+        url: 'https://assets.example.test/fixture.png' })
       assert(!JSON.stringify(write.request).includes(password))
       assert.equal(await page.locator('palladin-capture').evaluate((host) => host.shadowRoot), null)
       console.log(`PASS: ${mode} ${kind}, one-click save to Personal, actual encrypted mutation`)
