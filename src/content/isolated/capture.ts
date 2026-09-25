@@ -215,9 +215,9 @@ export class PasswordCaptureController {
     const written: HTMLInputElement[] = [];
     const visibility = request.operationId === undefined ? null : createAgentInjectDomAccess(this.doc, this.isTrustedOverlay);
     const rollback = (): CaptureFillOutcome => {
-      const live = candidate.form.isConnected
-        ? [...candidate.form.querySelectorAll<HTMLInputElement>('input[type="password"]')]
-        : [];
+      // A controlled page may replace the whole form after the first event.
+      const live = [...this.doc.querySelectorAll<HTMLInputElement>('input[type="password"]')]
+        .filter(field => autocompletePurpose(field) === 'new');
       const cleared = [...new Set([...written, ...live])].filter(field => field.value === request.value);
       for (const field of cleared) setNativeFieldValue(field, '');
       for (const field of cleared) if (field.isConnected) emitFieldEvents(field);

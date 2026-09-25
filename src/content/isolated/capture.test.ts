@@ -87,6 +87,28 @@ describe("PasswordCaptureController", () => {
     expect(form.querySelector<HTMLInputElement>('#confirm')?.value).toBe('');
     expect(controlled).toBe('');
   });
+  it('clears a generated value after the page replaces the whole form', () => {
+    document.body.innerHTML = '<form><input id="first" type="password" autocomplete="new-password"><input id="confirm" type="password" autocomplete="new-password"></form>';
+    const original = document.querySelector('form')!;
+    let controlled = '';
+    original.addEventListener('input', event => {
+      const field = event.target as HTMLInputElement;
+      if (field.id !== 'first') return;
+      controlled = field.value;
+      const replacement = document.createElement('form');
+      replacement.innerHTML = `<input id="first" type="password" autocomplete="new-password" value="${controlled}"><input id="confirm" type="password" autocomplete="new-password">`;
+      replacement.addEventListener('input', replacementEvent => {
+        if ((replacementEvent.target as HTMLInputElement).id === 'first') controlled = (replacementEvent.target as HTMLInputElement).value;
+      });
+      original.replaceWith(replacement);
+    });
+    const capture = controller(); capture.scan();
+    expect(capture.fill({ channel: CAPTURE_FILL_CHANNEL, expectedDocumentId: DOCUMENT_ID,
+      candidateId: CANDIDATE_ID, expectedOrigin: 'https://accounts.example.com', value: 'synthetic-strong-password' })).toEqual({ ok: false, reason: 'no-form' });
+    expect(document.querySelector<HTMLInputElement>('#first')?.value).toBe('');
+    expect(document.querySelector<HTMLInputElement>('#confirm')?.value).toBe('');
+    expect(controlled).toBe('');
+  });
   it('does not overwrite existing values or silently truncate a generated password', () => {
     for (const attribute of ['value="user-entered"', 'maxlength="12"', 'pattern="[0-9]+"']) {
       document.body.innerHTML = `<form><input type="password" autocomplete="new-password" ${attribute}></form>`;

@@ -106,7 +106,14 @@ function isHistoryRecord(value: unknown): value is HistoryRecord {
   const record = value as Record<string, unknown>;
   return typeof record.id === 'string' && /^[0-9a-f-]{36}$/.test(record.id)
     && (record.origin === null || (typeof record.origin === 'string' && record.origin.length <= 2048
-      && URL.canParse(record.origin) && new URL(record.origin).protocol === 'https:' && new URL(record.origin).origin === record.origin))
+      && isHttpsOrigin(record.origin)))
     && typeof record.value === 'string' && record.value.length >= 8 && record.value.length <= 4096
     && typeof record.createdAt === 'number' && Number.isSafeInteger(record.createdAt) && record.createdAt > 0;
+}
+
+function isHttpsOrigin(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.origin === value;
+  } catch { return false; }
 }

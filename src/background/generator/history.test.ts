@@ -56,6 +56,20 @@ describe('generator history', () => {
     expect(await fresh.reveal(item!.id)).toBe('synthetic-password-A');
   });
 
+  it('opens site-associated history without URL.canParse at older browser floors', async () => {
+    const { history } = setup();
+    await history.remember('synthetic-password-A', 'https://shop.example.test');
+    const descriptor = Object.getOwnPropertyDescriptor(URL, 'canParse');
+    Object.defineProperty(URL, 'canParse', { configurable: true, value: undefined });
+    try {
+      const [item] = await history.list();
+      expect(await history.reveal(item!.id)).toBe('synthetic-password-A');
+    } finally {
+      if (descriptor) Object.defineProperty(URL, 'canParse', descriptor);
+      else Reflect.deleteProperty(URL, 'canParse');
+    }
+  });
+
   it('serializes concurrent writes without losing either recovery copy', async () => {
     const { history } = setup();
     await Promise.all([history.remember('synthetic-password-A', null), history.remember('synthetic-password-B', null)]);
