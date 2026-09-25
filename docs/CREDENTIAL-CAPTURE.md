@@ -132,6 +132,10 @@ is allowed within the original lifetime.
 
 ## Browser acceptance evidence
 
+The candidate strong-password inline flow and encrypted local recovery are
+documented in [GENERATOR-HISTORY.md](GENERATOR-HISTORY.md). Their dependency
+release and browser acceptance gates are separate from the capture evidence below.
+
 `npm run test:browser:capture` builds production Chromium into a disposable
 profile and exercises real trusted mouse/keyboard input, the native action popup,
 closed-shadow toast and real shared crypto. HTTPS test pages and a synthetic

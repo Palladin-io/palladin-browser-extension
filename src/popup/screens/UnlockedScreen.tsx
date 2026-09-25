@@ -10,6 +10,7 @@ import { EntryList } from "../components/EntryList";
 import { ListSkeleton } from "../components/ListSkeleton";
 import { SearchBar } from "../components/SearchBar";
 import { GeneratorPanel } from "../generator/GeneratorPanel";
+import { GeneratorHistoryPanel } from '../generator/GeneratorHistoryPanel';
 import { createVaultClient, type VaultClient } from "../vault/client";
 import { filterEntries } from "../vault/filter";
 import { useVaultList } from "../vault/useVaultList";
@@ -56,7 +57,7 @@ export function UnlockedScreen({
   const capture = useCapturePrompt(promptClient);
   const list = useVaultList(client, viewRevision);
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<"vault" | "generator" | "add-entry">("vault");
+  const [view, setView] = useState<"vault" | "generator" | "add-entry" | "history">("vault");
   const [capturePrompt, setCapturePrompt] = useState(capture.prompt);
 
   const searching = query.trim().length > 0;
@@ -81,10 +82,11 @@ export function UnlockedScreen({
       <div className="vault-tabs" role="tablist" aria-label={t("vault.popupView")}>
         <button type="button" role="tab" aria-selected={view === "vault"} onClick={() => setView("vault")}>{t("vault.tab")}</button>
         <button type="button" role="tab" aria-selected={view === "generator"} onClick={() => setView("generator")}>{t("vault.generatorTab")}</button>
+        <button type="button" role="tab" aria-selected={view === 'history'} onClick={() => setView('history')}>{t('history.title')}</button>
         <button type="button" role="tab" aria-selected={view === "add-entry"} onClick={() => setView("add-entry")}>{t("vault.addEntryTab")}</button>
       </div>
 
-      {view === "add-entry" ? <AddEntryForm client={client} /> : view === "generator" ? (
+      {view === 'history' ? <GeneratorHistoryPanel client={client} /> : view === "add-entry" ? <AddEntryForm client={client} /> : view === "generator" ? (
         capturePrompt === null ? <GeneratorPanel client={client} /> : (
           <GeneratorPanel
             client={client}

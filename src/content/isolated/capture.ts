@@ -9,11 +9,13 @@
 
 import {
   CAPTURE_DETECTED_CHANNEL,
+  GENERATED_PASSWORD_LENGTH,
   type CaptureDetectedMessage,
   type CaptureFillOutcome,
   type CaptureFillRequestMessage,
   type CaptureFormKind,
 } from "@shared/messaging/capture";
+import { createAgentInjectDomAccess } from './agent-inject';
 
 interface DetectedForm {
   readonly form: HTMLFormElement;
@@ -93,20 +95,29 @@ function secureOrigin(url: string): string | null {
   }
 }
 
-/** React-compatible setter without relaying the generated value to main world. */
-function setFieldValue(input: HTMLInputElement, value: string): void {
+function emitFieldEvents(input: HTMLInputElement): void {
   const view = input.ownerDocument.defaultView;
-  const prototype = view?.HTMLInputElement.prototype ?? HTMLInputElement.prototype;
-  const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
-  if (setter) setter.call(input, value);
-  else input.value = value;
   const EventConstructor = view?.Event ?? Event;
   input.dispatchEvent(new EventConstructor("input", { bubbles: true }));
   input.dispatchEvent(new EventConstructor("change", { bubbles: true }));
 }
 
+function setNativeFieldValue(input: HTMLInputElement, value: string): void {
+  const view = input.ownerDocument.defaultView;
+  const prototype = view?.HTMLInputElement.prototype ?? HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+  if (setter) setter.call(input, value);
+  else input.value = value;
+}
+
 export class PasswordCaptureController {
   private candidates = new Map<string, LiveCandidate>();
+  private pendingGeneration: { candidateId: string; operationId: string } | null = null;
+  private isTrustedOverlay: (element: Element) => boolean = () => false;
+
+  authorizeGeneration(candidateId: string, operationId: string): void { this.pendingGeneration = { candidateId, operationId }; }
+  cancelGeneration(): void { this.pendingGeneration = null; }
+  trustOverlay(isTrustedOverlay: (element: Element) => boolean): void { this.isTrustedOverlay = isTrustedOverlay; }
 
   constructor(
     private readonly doc: Document,
@@ -114,6 +125,14 @@ export class PasswordCaptureController {
     private readonly documentId: string,
     private readonly createId: CaptureIdFactory = () => crypto.randomUUID(),
   ) {}
+
+  candidateFor(input: HTMLInputElement): { id: string; kind: CaptureFormKind } | null {
+    const candidate = [...this.candidates.values()].find(item => item.newPasswordFields.includes(input));
+    return candidate && candidate.newPasswordFields.every(field => field.value === ''
+      && (field.maxLength < 0 || field.maxLength >= GENERATED_PASSWORD_LENGTH)
+      && (field.minLength <= 0 || field.minLength <= GENERATED_PASSWORD_LENGTH)
+      && field.pattern === '') ? { id: candidate.id, kind: candidate.kind } : null;
+  }
 
   /**
    * Re-scan the document and return only newly observed candidates. Existing
@@ -156,6 +175,13 @@ export class PasswordCaptureController {
 
   /** Fill only the previously classified `new-password` fields. */
   fill(request: CaptureFillRequestMessage): CaptureFillOutcome {
+    if (request.operationId !== undefined) {
+      const pending = this.pendingGeneration;
+      this.pendingGeneration = null;
+      if (pending?.candidateId !== request.candidateId || pending.operationId !== request.operationId) {
+        return { ok: false, reason: 'stale-candidate' };
+      }
+    }
     if (request.expectedDocumentId !== this.documentId) {
       return { ok: false, reason: "stale-candidate" };
     }
@@ -180,11 +206,44 @@ export class PasswordCaptureController {
       return { ok: false, reason: "stale-candidate" };
     }
 
-    if (current.newPasswordFields.length === 0) return { ok: false, reason: "no-form" };
-    for (const input of current.newPasswordFields) setFieldValue(input, request.value);
+    if (current.newPasswordFields.length === 0 || current.newPasswordFields.some(input =>
+      input.value !== '' || (input.maxLength >= 0 && request.value.length > input.maxLength)
+      || (input.minLength > 0 && request.value.length < input.minLength)
+      || input.pattern !== '')) {
+      return { ok: false, reason: 'no-form' };
+    }
+    const written: HTMLInputElement[] = [];
+    const visibility = request.operationId === undefined ? null : createAgentInjectDomAccess(this.doc, this.isTrustedOverlay);
+    const rollback = (): CaptureFillOutcome => {
+      // A controlled page may replace the whole form after the first event.
+      const live = [...this.doc.querySelectorAll<HTMLInputElement>('input[type="password"]')]
+        .filter(field => autocompletePurpose(field) === 'new');
+      const cleared = [...new Set([...written, ...live])].filter(field => field.value === request.value);
+      for (const field of cleared) setNativeFieldValue(field, '');
+      for (const field of cleared) if (field.isConnected) emitFieldEvents(field);
+      return { ok: false, reason: 'no-form' };
+    };
+    // Stage the whole pair before page event handlers can re-render either field.
+    for (const input of current.newPasswordFields) {
+      if (!input.isConnected || !isCandidateField(input) || input.value !== ''
+        || secureOrigin(this.currentUrl()) !== request.expectedOrigin
+        || (visibility !== null && !visibility.isVisible(input))) {
+        return rollback();
+      }
+      setNativeFieldValue(input, request.value);
+      written.push(input);
+    }
+    for (const input of written) {
+      if (!input.isConnected || input.value !== request.value) return rollback();
+      emitFieldEvents(input);
+      const live = candidate.form.isConnected ? detectForm(candidate.form) : null;
+      if (live === null || !sameFields(live.newPasswordFields, written)
+        || written.some(field => field.value !== request.value || !field.isConnected)) return rollback();
+    }
     return { ok: true };
   }
 }
+
 
 export interface CaptureDetectionHandle {
   readonly controller: PasswordCaptureController;

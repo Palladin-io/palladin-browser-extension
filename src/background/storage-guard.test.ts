@@ -35,6 +35,7 @@ const FORBIDDEN: readonly {
       PUBLIC_SERVER_CONFIG_STORE,
       SEALED_SESSION_STORE,
       CAPTURE_PREFERENCES,
+      join('generator', 'runtime.ts'),
     ],
   },
   { label: "storage.sync", pattern: /\bstorage\.sync\b/ },

@@ -22,6 +22,7 @@ import { serverConfig } from "../config/server-runtime";
 import { hasVaultManagePermission } from "../capture/permissions";
 import type { AlarmScheduler } from "../session/auto-lock";
 import { sessionManager } from "../session/runtime";
+import { generatorHistory } from "../generator/runtime";
 import { browserDocumentIdForTab } from "../tab-documents";
 import { legacyFirefoxDocuments } from "./firefox-legacy-runtime";
 import { appleInlineFrameStillAuthorized } from "./inline-runtime";
@@ -138,6 +139,18 @@ async function sendFill(
 ): Promise<FillOutcome> {
   const expectedOrigin = httpsOrigin(target.url);
   if (expectedOrigin === null) return { ok: false, reason: "target-changed" };
+  const generated = fields.find(field => field.kind === 'generated');
+  if (generated) {
+    const assertCurrent = captureFillSession();
+    await generatorHistory.remember(generated.value, expectedOrigin);
+    assertCurrent();
+    const active = await getActiveTab();
+    assertCurrent();
+    if (active?.id !== target.id || active.documentId !== target.documentId
+      || active.browserDocumentId !== target.browserDocumentId
+      || active.legacyFirefoxRouteId !== target.legacyFirefoxRouteId
+      || httpsOrigin(active.url) !== expectedOrigin) return { ok: false, reason: "target-changed" };
+  }
   const marker = intent === "automatic" ? automaticFillSession.current() : null;
   const provenance = marker === null ? {} : { automaticFillSessionId: marker };
   if (target.documentTransport === "legacy-firefox-port") {

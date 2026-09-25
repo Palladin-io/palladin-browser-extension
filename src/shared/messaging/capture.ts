@@ -19,6 +19,19 @@ const MAX_GENERATED_VALUE_LENGTH = 4096;
 
 export const CAPTURE_DETECTED_CHANNEL = "palladin.capture/detected" as const;
 export const CAPTURE_FILL_CHANNEL = "palladin.capture/fill" as const;
+export const GENERATE_PASSWORD_CHANNEL = 'palladin.capture/generate' as const;
+export const GENERATOR_SUGGESTIONS_KEY = 'palladin.generator.suggestions-enabled';
+export const GENERATED_PASSWORD_LENGTH = 20;
+export interface GeneratePasswordCommand {
+  readonly channel: typeof GENERATE_PASSWORD_CHANNEL;
+  readonly documentId: string;
+  readonly candidateId: string;
+  readonly operationId: string;
+}
+export function isGeneratePasswordCommand(value: unknown): value is GeneratePasswordCommand {
+  return isRecord(value) && hasOnlyKeys(value, ['channel', 'documentId', 'candidateId', 'operationId'])
+    && value.channel === GENERATE_PASSWORD_CHANNEL && isOpaqueId(value.documentId) && isOpaqueId(value.candidateId) && isOpaqueId(value.operationId);
+}
 
 /** Shape-only observation sent isolated content script -> worker. */
 export interface CaptureDetectedMessage {
@@ -39,6 +52,7 @@ export interface CaptureFillRequestMessage {
   readonly candidateId: string;
   readonly expectedOrigin: string;
   readonly value: string;
+  readonly operationId?: string;
 }
 
 export type CaptureFillFailureReason = "stale-candidate" | "origin-changed" | "no-form";
@@ -134,7 +148,7 @@ export function isCaptureDetectedMessage(value: unknown): value is CaptureDetect
 export function isCaptureFillRequestMessage(value: unknown): value is CaptureFillRequestMessage {
   if (
     !isRecord(value) ||
-    !hasOnlyKeys(value, ["channel", "expectedDocumentId", "candidateId", "expectedOrigin", "value"])
+    !hasOnlyKeys(value, ["channel", "expectedDocumentId", "candidateId", "expectedOrigin", "value", "operationId"])
   ) {
     return false;
   }
@@ -147,7 +161,7 @@ export function isCaptureFillRequestMessage(value: unknown): value is CaptureFil
     value.expectedOrigin.length <= 2048 &&
     typeof value.value === "string" &&
     value.value.length >= 8 &&
-    value.value.length <= MAX_GENERATED_VALUE_LENGTH
+    value.value.length <= MAX_GENERATED_VALUE_LENGTH && (value.operationId === undefined || isOpaqueId(value.operationId))
   );
 }
 

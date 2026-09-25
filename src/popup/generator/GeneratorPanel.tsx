@@ -9,7 +9,7 @@ import {
   generatePassword,
   type PassphraseSeparator,
 } from "@palladin/crypto";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { clipboardCopyAvailable } from "@shared/config/build-target";
 import type { CaptureGeneratedFillResult, CaptureSaveResult } from "@shared/messaging/capture";
@@ -17,6 +17,8 @@ import type { CaptureGeneratedFillResult, CaptureSaveResult } from "@shared/mess
 import { Button } from "../components/Button";
 import { useI18n, type Translate } from "../i18n";
 import type { VaultClient } from "../vault/client";
+import { historyCommand } from './history-client';
+import { GENERATOR_SUGGESTIONS_KEY } from '@shared/messaging/capture';
 
 type GeneratorMode = "password" | "passphrase";
 type ActionStatus = "idle" | "copied" | "filled" | "saved" | "no-form" | "blocked" | "error";
@@ -55,6 +57,17 @@ export function GeneratorPanel({
   );
   const [status, setStatus] = useState<ActionStatus>("idle");
   const [saveReady, setSaveReady] = useState(false);
+  const [suggestions, setSuggestions] = useState(true);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      void chrome.storage.local.get(GENERATOR_SUGGESTIONS_KEY).then(values => {
+        if (mounted.current) setSuggestions(values[GENERATOR_SUGGESTIONS_KEY] !== false);
+      }).catch(() => { if (mounted.current) setStatus('error'); });
+    }
+    return () => { mounted.current = false; };
+  }, []);
 
   function regenerate(nextMode = mode): void {
     setStatus("idle");
@@ -73,6 +86,8 @@ export function GeneratorPanel({
 
   async function copy(): Promise<void> {
     try {
+      await historyCommand({ type: 'generator-history/remember', value });
+      if (!mounted.current) return;
       await navigator.clipboard.writeText(value);
       await client.armClipboardClear();
       setStatus("copied");
@@ -110,6 +125,11 @@ export function GeneratorPanel({
 
   return (
     <div className="generator">
+      <Check label={t('generator.suggestions')} checked={suggestions} onChange={value => {
+        void chrome.storage.local.set({ [GENERATOR_SUGGESTIONS_KEY]: value }).then(() => {
+          if (mounted.current) setSuggestions(value);
+        }, () => { if (mounted.current) setStatus('error'); });
+      }} />
       <div className="generator-mode" role="group" aria-label={t("generator.type")}>
         <button type="button" className={mode === "password" ? "generator-mode-active" : ""} onClick={() => changeMode("password")}>{t("generator.password")}</button>
         <button type="button" className={mode === "passphrase" ? "generator-mode-active" : ""} onClick={() => changeMode("passphrase")}>{t("generator.passphrase")}</button>
