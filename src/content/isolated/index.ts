@@ -37,6 +37,7 @@ import {
 import { isCaptureFillRequestMessage } from "@shared/messaging/capture";
 
 import { startPasswordCaptureDetection } from "./capture";
+import { startGeneratorSuggestion } from './generator-suggestion';
 import {
   createAgentInjectDomAccess,
   inspectAgentInjectTransition,
@@ -100,11 +101,14 @@ const passwordCapture = startPasswordCaptureDetection(
   window.top === window,
 );
 const inlineAutofill = startInlineAutofillIfAllowed(document, documentId);
+const generatorSuggestion = window.top === window && window.location.protocol === 'https:'
+  ? startGeneratorSuggestion(document, documentId, passwordCapture.controller) : null;
 let credentialCapture = window.top === window && window.location.protocol === "https:"
   ? startCredentialCapture(document, documentId) : null;
 const agentInjectDom = createAgentInjectDomAccess(
   document,
   (element) => (inlineAutofill?.isOwnedSurface(element) ?? false)
+    || (generatorSuggestion?.isOwnedSurface(element) ?? false)
     || (credentialCapture?.isOwnedSurface(element) ?? false),
 );
 
@@ -152,7 +156,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       inlineAutofill?.handleVaultChanged();
     } else {
       inlineAutofill?.invalidateSuggestions();
-      if (message.status !== "unlocked") inlineAutofill?.clearSessionState();
+      if (message.status !== "unlocked") { inlineAutofill?.clearSessionState(); generatorSuggestion?.hide(); }
     }
     if (message.type === "surface/session-changed" && message.status === "unlocked") {
       inlineAutofill?.retryAutomaticFill();
@@ -249,6 +253,7 @@ window.addEventListener("pageshow", (event: PageTransitionEvent) => {
 window.addEventListener("pagehide", () => sessionKeepalive.stop());
 window.addEventListener("pagehide", () => { credentialCapture?.stop(); credentialCapture = null; });
 window.addEventListener("unload", () => inlineAutofill?.stop(), { once: true });
+window.addEventListener('unload', () => generatorSuggestion?.stop(), { once: true });
 
 // Handshake: hand the session nonce to the main-world slot so it can talk back.
 window.postMessage(

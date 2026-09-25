@@ -68,7 +68,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   // `userEvent.setup()` provides a working navigator.clipboard stub; the copy
   // test reads it back. We only need to stub chrome for the deep-link buttons.
-  Object.assign(globalThis, { chrome: { tabs: { create: vi.fn() } } });
+  Object.assign(globalThis, { chrome: { tabs: { create: vi.fn() }, runtime: { sendMessage: vi.fn(async () => ({ ok: true })) } } });
 });
 
 const noop = async (): Promise<void> => {};

@@ -33,6 +33,8 @@ jobs:
         run: npm run test:browser:inline
       - name: Verify encrypted credential capture
         run: npm run test:browser:capture
+      - name: Verify generated password recovery across browser restart
+        run: npm run test:browser:generator
       - name: Verify trusted multi-step and formless capture
         run: node tests/browser/credential-submission.mjs
       - name: Probe shared-unlock platform trust signals

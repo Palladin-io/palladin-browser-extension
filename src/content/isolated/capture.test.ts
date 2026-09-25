@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CAPTURE_FILL_CHANNEL } from "@shared/messaging/capture";
 
@@ -18,6 +18,52 @@ beforeEach(() => {
 });
 
 describe("PasswordCaptureController", () => {
+  it('does not release an inline password into a field hidden during generation', () => {
+    document.body.innerHTML = '<form><input type="password" autocomplete="new-password"></form>';
+    const input = document.querySelector('input')!;
+    input.checkVisibility = () => false;
+    const capture = controller(); capture.scan();
+    capture.authorizeGeneration(CANDIDATE_ID, 'operation_0123456789abcdef');
+    expect(capture.fill({ channel: CAPTURE_FILL_CHANNEL, expectedDocumentId: DOCUMENT_ID,
+      candidateId: CANDIDATE_ID, expectedOrigin: 'https://accounts.example.com', value: 'synthetic-strong-password',
+      operationId: 'operation_0123456789abcdef' })).toEqual({ ok: false, reason: 'no-form' });
+    expect(input.value).toBe('');
+  });
+
+  it('rechecks the confirmation field after the first input handler runs', () => {
+    document.body.innerHTML = '<form><input id="first" type="password" autocomplete="new-password"><input id="confirm" type="password" autocomplete="new-password"></form>';
+    const first = document.querySelector<HTMLInputElement>('#first')!;
+    const confirm = document.querySelector<HTMLInputElement>('#confirm')!;
+    first.addEventListener('input', () => { confirm.value = 'user-entered'; });
+    const capture = controller(); capture.scan();
+    expect(capture.fill({ channel: CAPTURE_FILL_CHANNEL, expectedDocumentId: DOCUMENT_ID,
+      candidateId: CANDIDATE_ID, expectedOrigin: 'https://accounts.example.com', value: 'synthetic-strong-password' })).toEqual({ ok: false, reason: 'no-form' });
+    expect(confirm.value).toBe('user-entered');
+  });
+  it('does not overwrite existing values or silently truncate a generated password', () => {
+    for (const attribute of ['value="user-entered"', 'maxlength="12"', 'pattern="[0-9]+"']) {
+      document.body.innerHTML = `<form><input type="password" autocomplete="new-password" ${attribute}></form>`;
+      const capture = controller(); capture.scan();
+      expect(capture.fill({ channel: CAPTURE_FILL_CHANNEL, expectedDocumentId: DOCUMENT_ID,
+        candidateId: CANDIDATE_ID, expectedOrigin: 'https://accounts.example.com', value: 'synthetic-strong-password' })).toEqual({ ok: false, reason: 'no-form' });
+    }
+  });
+
+  it('rejects a cancelled or replayed inline generation operation', () => {
+    document.body.innerHTML = '<form><input type="password" autocomplete="new-password"></form>';
+    const input = document.querySelector('input')!;
+    input.checkVisibility = () => true;
+    vi.spyOn(input, 'getBoundingClientRect').mockReturnValue(new DOMRect(20, 20, 200, 40));
+    const capture = controller(); capture.scan();
+    const request = { channel: CAPTURE_FILL_CHANNEL, expectedDocumentId: DOCUMENT_ID,
+      candidateId: CANDIDATE_ID, expectedOrigin: 'https://accounts.example.com', value: 'synthetic-strong-password', operationId: 'operation_0123456789abcdef' };
+    capture.authorizeGeneration(CANDIDATE_ID, request.operationId);
+    capture.cancelGeneration();
+    expect(capture.fill(request)).toEqual({ ok: false, reason: 'stale-candidate' });
+    capture.authorizeGeneration(CANDIDATE_ID, request.operationId);
+    expect(capture.fill(request)).toEqual({ ok: true });
+    expect(capture.fill(request)).toEqual({ ok: false, reason: 'stale-candidate' });
+  });
   it("detects an explicit registration form without reading or sending values", () => {
     document.body.innerHTML = `
       <form><input type="password" autocomplete="new-password" value="page-secret"></form>

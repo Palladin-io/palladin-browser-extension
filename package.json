@@ -27,6 +27,7 @@
     "test:watch": "vitest",
     "test:browser:inline": "node tests/browser/inline-autofill.mjs",
     "test:browser:capture": "node tests/browser/credential-capture.mjs",
+    "test:browser:generator": "node tests/browser/generator.mjs",
     "test:browser:shared-unlock-platform": "node tests/browser/shared-unlock-platform-probe.mjs",
     "test:browser:shared-unlock-firefox-boundary": "python3 tests/browser/shared-unlock-firefox-boundary.py",
     "test:browser:shared-unlock-chromium-channel": "node tests/browser/shared-unlock-chromium-channel.mjs",
@@ -37,7 +38,7 @@
   },
   "dependencies": {
     "@microsoft/signalr": "10.0.0",
-    "@palladin/crypto": "0.9.0",
+    "@palladin/crypto": "0.10.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tldts": "^7.4.11",

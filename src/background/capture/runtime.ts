@@ -12,6 +12,9 @@ import { TAB_URL_REQUEST_CHANNEL, isTabUrlResponse } from "@shared/messaging";
 import { CaptureCoordinator, type CaptureSource, type CaptureTab } from "./coordinator";
 import { browserDocumentIdForTab } from "../tab-documents";
 import { vaultData } from "../vault/runtime";
+import { generatorHistory, generatorSuggestionsEnabled } from "../generator/runtime";
+import { sessionManager } from "../session/runtime";
+import { isGeneratePasswordCommand, type CaptureGeneratedFillResult } from '@shared/messaging/capture';
 
 async function getActiveTab(): Promise<CaptureTab | null> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -40,6 +43,10 @@ async function getActiveTab(): Promise<CaptureTab | null> {
 export const captureCoordinator = new CaptureCoordinator({
   getActiveTab,
   async sendFill(tabId, browserDocumentId, message) {
+    const keys = sessionManager.getKeys();
+    if (keys === null) return { ok: false, reason: "stale-candidate" };
+    await generatorHistory.remember(message.value, message.expectedOrigin);
+    if (sessionManager.getKeys() !== keys) return { ok: false, reason: "stale-candidate" };
     const raw = await chrome.tabs.sendMessage(tabId, message, { documentId: browserDocumentId });
     return isCaptureFillOutcome(raw) ? raw : { ok: false, reason: "no-form" };
   },
@@ -86,4 +93,17 @@ export function handleCaptureContentRuntimeMessage(
 export function handleCapturePopupRuntimeMessage(raw: unknown): Promise<CapturePopupResult> | null {
   if (!isCapturePopupCommand(raw)) return null;
   return captureCoordinator.dispatch(raw);
+}
+
+export async function handleGeneratePassword(raw: unknown, sender: chrome.runtime.MessageSender): Promise<CaptureGeneratedFillResult | null> {
+  if (!isGeneratePasswordCommand(raw)) return null;
+  const source = captureSourceFromSender(sender, chrome.runtime.id);
+  const keys = sessionManager.getKeys();
+  if (!source || keys === null || (sender.documentLifecycle !== undefined && sender.documentLifecycle !== 'active')) {
+    return { status: 'blocked', reason: 'stale-prompt', saveAvailable: false };
+  }
+  if (!(await generatorSuggestionsEnabled()) || sessionManager.getKeys() !== keys) {
+    return { status: 'blocked', reason: 'stale-prompt', saveAvailable: false };
+  }
+  return captureCoordinator.generate(raw, source);
 }
