@@ -23,7 +23,7 @@ import type {
 } from "../vault/protocol2/service";
 import { registrableDomain } from "@shared/security/domain";
 import { generatePassword } from '@palladin/crypto';
-import type { GeneratePasswordCommand } from '@shared/messaging/capture';
+import { GENERATED_PASSWORD_LENGTH, type GeneratePasswordCommand } from '@shared/messaging/capture';
 
 const PROMPT_TTL_MS = 5 * 60_000;
 
@@ -95,7 +95,7 @@ export class CaptureCoordinator {
       || prompt.documentId !== command.documentId || prompt.browserDocumentId !== source.browserDocumentId
       || prompt.origin !== httpsOrigin(source.url)) return this.blocked('stale-prompt');
     this.pendingByTab.set(source.tabId, { ...prompt, generationOperationId: command.operationId });
-    return this.fillGenerated(prompt.id, generatePassword({ length: 20, digits: true, symbols: true }), command.operationId);
+    return this.fillGenerated(prompt.id, generatePassword({ length: GENERATED_PASSWORD_LENGTH, digits: true, symbols: true }), command.operationId);
   }
 
   observe(message: CaptureDetectedMessage, source: CaptureSource): boolean {

@@ -4,20 +4,22 @@ import { GeneratorHistory, GeneratorHistoryError, GENERATOR_HISTORY_CAPACITY, ty
 function setup() {
   const data: Record<string, unknown> = {};
   let generation = 0;
+  let locked = false;
   let accountId = '00000000-0000-4000-8000-000000000001';
   const storage = {
     get: vi.fn(async (keys: string[]) => Object.fromEntries(keys.filter(key => key in data).map(key => [key, data[key]]))),
     set: vi.fn(async (values: Record<string, unknown>) => { Object.assign(data, values); }),
     remove: vi.fn(async (keys: string[]) => { keys.forEach(key => { delete data[key]; }); }),
   };
-  const session = async (): Promise<HistorySession> => {
+  const session = vi.fn(async (): Promise<HistorySession> => {
+    if (locked) throw new GeneratorHistoryError('locked');
     const captured = generation;
     return { accountId, apiUrl: 'https://api.example.test', privateKey: new Uint8Array(32).fill(7),
       assertCurrent: () => { if (captured !== generation) throw new GeneratorHistoryError('locked'); } };
-  };
-  return { data, storage, history: new GeneratorHistory(storage, session),
+  });
+  return { data, storage, session, history: new GeneratorHistory(storage, session),
     restart: () => new GeneratorHistory(storage, session),
-    lock: () => { generation++; },
+    lock: () => { generation++; locked = true; },
     switchAccount: () => { generation++; accountId = '00000000-0000-4000-8000-000000000002'; } };
 }
 
@@ -89,6 +91,23 @@ describe('generator history', () => {
     const read = storage.get.getMockImplementation()!;
     storage.get.mockImplementationOnce(async keys => { const data = await read(keys); lock(); return data; });
     await expect(history.reveal(item!.id)).rejects.toMatchObject({ code: 'locked' });
+  });
+
+  it('does not acquire key material for queued work before the prior action completes', async () => {
+    const { history, storage, session, lock } = setup();
+    await history.remember('synthetic-password-A', null);
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const originalGet = storage.get.getMockImplementation()!;
+    storage.get.mockImplementationOnce(async keys => { await gate; return originalGet(keys); });
+    const first = history.list();
+    await vi.waitFor(() => expect(storage.get).toHaveBeenCalledTimes(2));
+    const second = history.list();
+    expect(session).toHaveBeenCalledTimes(2);
+    lock();
+    release();
+    await expect(first).rejects.toMatchObject({ code: 'locked' });
+    await expect(second).rejects.toMatchObject({ code: 'locked' });
   });
 
   it('does not erase or overwrite corrupt history when adding a new password', async () => {

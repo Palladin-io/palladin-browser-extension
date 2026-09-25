@@ -47,6 +47,10 @@ export const captureCoordinator = new CaptureCoordinator({
     if (keys === null) return { ok: false, reason: "stale-candidate" };
     await generatorHistory.remember(message.value, message.expectedOrigin);
     if (sessionManager.getKeys() !== keys) return { ok: false, reason: "stale-candidate" };
+    const active = await getActiveTab();
+    if (active?.id !== tabId || active.browserDocumentId !== browserDocumentId
+      || active.documentId !== message.expectedDocumentId
+      || !sameHttpsOrigin(active.url, message.expectedOrigin)) return { ok: false, reason: "stale-candidate" };
     const raw = await chrome.tabs.sendMessage(tabId, message, { documentId: browserDocumentId });
     return isCaptureFillOutcome(raw) ? raw : { ok: false, reason: "no-form" };
   },

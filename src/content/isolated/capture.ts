@@ -9,11 +9,13 @@
 
 import {
   CAPTURE_DETECTED_CHANNEL,
+  GENERATED_PASSWORD_LENGTH,
   type CaptureDetectedMessage,
   type CaptureFillOutcome,
   type CaptureFillRequestMessage,
   type CaptureFormKind,
 } from "@shared/messaging/capture";
+import { createAgentInjectDomAccess } from './agent-inject';
 
 interface DetectedForm {
   readonly form: HTMLFormElement;
@@ -95,14 +97,19 @@ function secureOrigin(url: string): string | null {
 
 /** React-compatible setter without relaying the generated value to main world. */
 function setFieldValue(input: HTMLInputElement, value: string): void {
+  setNativeFieldValue(input, value);
+  const view = input.ownerDocument.defaultView;
+  const EventConstructor = view?.Event ?? Event;
+  input.dispatchEvent(new EventConstructor("input", { bubbles: true }));
+  input.dispatchEvent(new EventConstructor("change", { bubbles: true }));
+}
+
+function setNativeFieldValue(input: HTMLInputElement, value: string): void {
   const view = input.ownerDocument.defaultView;
   const prototype = view?.HTMLInputElement.prototype ?? HTMLInputElement.prototype;
   const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
   if (setter) setter.call(input, value);
   else input.value = value;
-  const EventConstructor = view?.Event ?? Event;
-  input.dispatchEvent(new EventConstructor("input", { bubbles: true }));
-  input.dispatchEvent(new EventConstructor("change", { bubbles: true }));
 }
 
 export class PasswordCaptureController {
@@ -121,7 +128,10 @@ export class PasswordCaptureController {
 
   candidateFor(input: HTMLInputElement): { id: string; kind: CaptureFormKind } | null {
     const candidate = [...this.candidates.values()].find(item => item.newPasswordFields.includes(input));
-    return candidate && input.value === '' ? { id: candidate.id, kind: candidate.kind } : null;
+    return candidate && candidate.newPasswordFields.every(field => field.value === ''
+      && (field.maxLength < 0 || field.maxLength >= GENERATED_PASSWORD_LENGTH)
+      && (field.minLength <= 0 || field.minLength <= GENERATED_PASSWORD_LENGTH)
+      && field.pattern === '') ? { id: candidate.id, kind: candidate.kind } : null;
   }
 
   /**
@@ -202,16 +212,23 @@ export class PasswordCaptureController {
       || input.pattern !== '')) {
       return { ok: false, reason: 'no-form' };
     }
+    const written: HTMLInputElement[] = [];
+    const visibility = request.operationId === undefined ? null : createAgentInjectDomAccess(this.doc);
+    const rollback = (): CaptureFillOutcome => {
+      for (const field of written) if (field.value === request.value) setNativeFieldValue(field, '');
+      return { ok: false, reason: 'no-form' };
+    };
     for (const input of current.newPasswordFields) {
       // The previous field's input handler may have replaced or hidden the form.
       if (!input.isConnected || !isCandidateField(input) || input.value !== ''
         || secureOrigin(this.currentUrl()) !== request.expectedOrigin
-        || (request.operationId !== undefined && (!input.checkVisibility?.({ checkOpacity: true, checkVisibilityCSS: true })
-          || input.getBoundingClientRect().width === 0 || input.getBoundingClientRect().height === 0))) {
-        return { ok: false, reason: 'no-form' };
+        || (visibility !== null && !visibility.isVisible(input))) {
+        return rollback();
       }
       setFieldValue(input, request.value);
+      written.push(input);
     }
+    if (current.newPasswordFields.some(input => input.value !== request.value || !input.isConnected)) return rollback();
     return { ok: true };
   }
 }

@@ -25,7 +25,8 @@ export const generatorHistory = new GeneratorHistory({
   const accountId = await sessionManager.getUserId();
   assertCurrent();
   if (accountId === null || keys === null) throw new GeneratorHistoryError('locked');
-  return { accountId, apiUrl, privateKey: new Uint8Array(keys.privateKey), assertCurrent };
+  // The session manager wipes this same buffer on lock, including while history work is queued.
+  return { accountId, apiUrl, privateKey: keys.privateKey, assertCurrent };
 });
 
 export async function handleGeneratorHistory(command: GeneratorHistoryCommand): Promise<GeneratorHistoryResult> {

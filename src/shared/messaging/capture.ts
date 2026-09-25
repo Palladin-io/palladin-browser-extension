@@ -21,6 +21,7 @@ export const CAPTURE_DETECTED_CHANNEL = "palladin.capture/detected" as const;
 export const CAPTURE_FILL_CHANNEL = "palladin.capture/fill" as const;
 export const GENERATE_PASSWORD_CHANNEL = 'palladin.capture/generate' as const;
 export const GENERATOR_SUGGESTIONS_KEY = 'palladin.generator.suggestions-enabled';
+export const GENERATED_PASSWORD_LENGTH = 20;
 export interface GeneratePasswordCommand {
   readonly channel: typeof GENERATE_PASSWORD_CHANNEL;
   readonly documentId: string;

@@ -55,10 +55,9 @@ export class GeneratorHistory {
   }
 
   private async run<T>(action: (session: HistorySession) => Promise<T>): Promise<T> {
-    const session = await this.session();
-    // Capture authorization before joining the queue so a delayed action cannot cross accounts.
     const result = this.pending.then(async () => {
       try {
+        const session = await this.session();
         session.assertCurrent();
         const value = await action(session);
         session.assertCurrent();
@@ -66,7 +65,7 @@ export class GeneratorHistory {
       } catch (error) {
         if (error instanceof GeneratorHistoryError) throw error;
         throw new GeneratorHistoryError('unavailable');
-      } finally { wipe(session.privateKey); }
+      }
     });
     this.pending = result.catch(() => undefined);
     return result;
