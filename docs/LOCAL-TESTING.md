@@ -297,12 +297,15 @@ changes between builds:
 ./packaging/macos/scripts/development-runtime.sh run -- browser install
 ```
 
-`browser install` writes the exact Google Chrome Native Messaging manifest. Its
-`allowed_origins` contains only the compiled Palladin development Extension ID; it
-does not accept an Extension ID from CLI arguments or message payloads. The
-source-development manifest and extension both use `io.palladin.debug`; the
-packaged release channel uses `io.palladin` and remains fail-closed today. The
-installer removes the retired `io.palladin.browser_bridge` manifest.
+`browser install` writes the exact Google Chrome Native Messaging manifest for
+`io.palladin`, shared by development and release builds. A store extension may
+connect to a development CLI. The command selects its executable for subsequent
+Chrome connections and replaces any previous selection; it does not change the
+runtime's secure-storage mode. Its compiled `allowed_origins` includes the store
+ID and, in debug builds only, the development ID. Neither CLI arguments nor
+message payloads can add an origin. The installer removes the retired
+`io.palladin.browser_bridge` and `io.palladin.debug` manifests. Rebuild an older
+debug extension before reconnecting because it still requests the retired host.
 
 1. Do not open the Palladin popup and do not sign in to the extension. Agent
    Inject must be independent of its Vault/account state.

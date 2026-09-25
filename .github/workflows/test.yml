@@ -24,6 +24,8 @@ jobs:
       - name: Audit dependencies (report moderate/low)
         run: npm audit || true
       - run: npm run build
+      - name: Verify debug Chromium uses the shared native host
+        run: npm run build:chromium:debug
       - run: npm test
       - name: Install Chromium for shared-unlock browser checks
         run: npx playwright install --with-deps chromium

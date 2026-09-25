@@ -3,7 +3,6 @@ import { parseDeferredSubmit, parseDeferredCancel, type DeferredFillMessage, typ
 import { sameLiveForm } from '@shared/messaging/agent-live';
 import type { LiveLoginProbe, LiveContinuation } from '@shared/messaging/agent-live';
 import { bindLiveChain, advanceLiveChain, type LiveChain } from './native-live';
-import { nativeHostNameForChannel } from "@shared/config/build-channel";
 import {
   AGENT_INJECT_PROTOCOL,
   parseAgentInjectionRequest,
@@ -18,7 +17,7 @@ import {
   type AgentInjectWaitFor,
 } from "@shared/messaging";
 import { isSecurePage, matchesAgentInjectionTarget } from "@shared/security/domain";
-export const NATIVE_HOST_NAME = nativeHostNameForChannel(__PALLADIN_CHANNEL__);
+export const NATIVE_HOST_NAME = "io.palladin";
 
 const TRANSITION_POLL_MS = 100;
 const DEFAULT_TRANSITION_TIMEOUT_MS = 20_000;

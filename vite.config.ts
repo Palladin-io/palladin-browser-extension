@@ -30,7 +30,6 @@ export default defineConfig(({ mode }) => {
   return {
     define: {
       __PALLADIN_TARGET__: JSON.stringify(target),
-      __PALLADIN_CHANNEL__: JSON.stringify(channel),
       __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__: JSON.stringify(sharedUnlockEnvironments),
     },
     resolve: {

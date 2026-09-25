@@ -53,10 +53,12 @@ clears the local encrypted cache.
   The native-host allowlist is locked to the resulting exact origin
   `chrome-extension://hmljnknogdeonphikmeofcbkikmpokba/`; changing the manifest
   key is therefore a cross-component protocol and packaging change.
-- Packaged Chromium builds connect to `io.palladin`; the explicit
-  `build:chromium:debug` artifact connects only to `io.palladin.debug`. The host
-  name is routing, while the exact browser-authored Extension ID remains the
-  authorization boundary.
+- Packaged and debug Chromium builds connect to the same `io.palladin` host.
+  The store extension may use a development CLI. `palladin browser install`
+  selects the local executable; the host name does not attest its build or
+  secure-storage mode. Chrome parent verification and the exact browser-authored
+  Extension ID remain required. Reinstall the updated CLI host and rebuild older
+  debug extension artifacts that still request `io.palladin.debug`.
 - The artifact requests `offscreen` because Chromium's service worker delegates
   timed clipboard clearing to a short-lived offscreen document.
 - The shared `scripting` permission is used only with `activeTab`, after explicit
