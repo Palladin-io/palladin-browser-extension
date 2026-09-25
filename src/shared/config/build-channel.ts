@@ -14,7 +14,3 @@ export function resolveExtensionBuildChannel(
     `Unknown extension build channel: ${channel}. Expected one of: ${EXTENSION_BUILD_CHANNELS.join(", ")}`,
   );
 }
-
-export function nativeHostNameForChannel(channel: ExtensionBuildChannel): string {
-  return channel === "debug" ? "io.palladin.debug" : "io.palladin";
-}

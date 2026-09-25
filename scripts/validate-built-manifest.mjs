@@ -120,8 +120,8 @@ export function validateStoreIdentity(manifest, target, beta) {
 }
 
 function validateNativeHostName(outputDirectory, channel) {
-  const expected = channel === "debug" ? "io.palladin.debug" : "io.palladin";
-  const rejected = channel === "debug" ? "io.palladin" : "io.palladin.debug";
+  const expected = "io.palladin";
+  const rejected = "io.palladin.debug";
   const javascript = javascriptFiles(outputDirectory)
     .map((path) => readFileSync(path, "utf8"))
     .join("\n");
@@ -131,7 +131,7 @@ function validateNativeHostName(outputDirectory, channel) {
   );
   invariant(
     !javascript.includes(JSON.stringify(rejected)),
-    `chromium: ${channel} artifact contains the other Native Host channel`,
+    `chromium: ${channel} artifact contains the retired debug Native Host name`,
   );
 }
 
