@@ -101,8 +101,9 @@ export class Protocol2CredentialWriter {
       discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, opened.vaultKey)
       if (target.action === 'create') {
         const entryId = await this.withAuth((token) => this.deps.client.issueEntryCreationChallenge(token, vault.id))
-        const secret = createCapturedCredentialSecret({ label: site.hostname, username: credential.username,
-          password: credential.password, url: site.origin, urlDomain: site.hostname })
+        const icon = await this.withAuth(token => this.deps.client.resolveWebsiteIcon(token, site.hostname))
+        const secret = { ...createCapturedCredentialSecret({ label: site.hostname, username: credential.username,
+          password: credential.password, url: site.origin, urlDomain: site.hostname }), icon: icon ?? null }
         const material = await sealCanonicalCredentialEntry({ organizationId: vault.organizationId, vaultId: vault.id,
           entryId, revision: '1', vaultKeyVersion: vault.currentKeyEpoch.vaultKeyVersion,
           vdkVersion: vault.currentKeyEpoch.vdkVersion, memberKeyGeneration: vault.memberKeyGeneration,

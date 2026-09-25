@@ -26,6 +26,7 @@ export async function createCaptureApi() {
   const vaults = []
   const writes = []
   const requests = []
+  const iconHosts = new Set()
   const errors = []
   let rejectNextUpdate = false
   for (const name of ['Personal', 'Team']) {
@@ -117,6 +118,18 @@ export async function createCaptureApi() {
         kdfSalt: bootstrap.kdfSalt, credentialRevision: 1, privateKeyWrapRevision: 1, deviceWrapperMetadata: null } })
       if (url.pathname.startsWith('/hubs/')) return send(null, 404)
       if (req.headers.authorization !== `Bearer ${accessToken}`) return send(null, 401)
+      if (url.pathname === '/api/public-assets/website-icons/ensure') {
+        assert.deepEqual(Object.keys(request), ['hostnames'])
+        return send({ items: request.hostnames.map(hostname => {
+          assert.match(hostname, /^(?:[a-z0-9-]+\.)+example\.test$/)
+          const ready = iconHosts.has(hostname)
+          iconHosts.add(hostname)
+          return { hostname, status: ready ? 'ready' : 'pending', asset: ready ? {
+            id: '88888888-8888-4888-8888-888888888888', revision: 1,
+            url: 'https://assets.example.test/fixture.png',
+          } : null }
+        }) })
+      }
       if (url.pathname === '/api/vaults') return send({ total: vaults.length, vaults: vaults.map(({ detail }) => {
         const { organizationId: _org, metadataRevision: _rev, vaultAgentMessagePublicKey: _msg, vaultManifestSigningPublicKey: _sign, ...summary } = detail
         return summary

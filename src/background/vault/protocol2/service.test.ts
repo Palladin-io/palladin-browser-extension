@@ -144,6 +144,7 @@ function harness(
   }
   const client = {
     listVaults: vi.fn(async () => [vault]),
+    resolveWebsiteIcon: vi.fn<Protocol2VaultClient['resolveWebsiteIcon']>(async () => null),
     delta: vi.fn(async () => ({
       deltaUpperBound: '1',
       appliedThroughSequence: '1',
@@ -198,11 +199,12 @@ function harness(
     removeProfile: vi.fn(async () => undefined),
     clearAll: vi.fn(async () => undefined),
   }
+  const privateKey = new Uint8Array(32).fill(3)
   const session: Protocol2SessionAccessor = {
     getAccessToken: async () => 'token',
     refreshAccessToken: async () => null,
     getUserId: async () => USER_ID,
-    getPrivateKey: () => new Uint8Array(32).fill(3),
+    getPrivateKey: () => privateKey,
   }
   const service = new Protocol2VaultDataService({
     client: client as unknown as Protocol2VaultClient,
@@ -211,7 +213,7 @@ function harness(
     now,
     monotonicNow,
   })
-  return { service, client, cache, active }
+  return { service, client, cache, active, session }
 }
 
 beforeEach(() => {
@@ -799,6 +801,8 @@ describe('Protocol2VaultDataService canonical password capture', () => {
 
   it('creates with a server-issued Entry id and empty grant envelopes after explicit save', async () => {
     const { service, client } = harness()
+    const icon = { kind: 'publicAsset' as const, assetId: ENTRY_ID, revision: 1, url: 'https://assets.example.com/icon.png' }
+    client.resolveWebsiteIcon.mockResolvedValue(icon)
     await service.refresh()
 
     await expect(service.saveGeneratedPassword({
@@ -812,6 +816,7 @@ describe('Protocol2VaultDataService canonical password capture', () => {
     expect(cryptoMocks.sealCanonicalEntry.mock.calls[0]?.[1]).toMatchObject({
       entryType: 'credential',
       discoverable: false,
+      icon,
       content: {
         password: 'generated-password',
         urlDomain: 'accounts.example.com',
@@ -822,6 +827,16 @@ describe('Protocol2VaultDataService canonical password capture', () => {
       entryId: ENTRY_ID,
       deliveryPolicy: 'standard',
     }))
+  })
+
+  it('does not save a generated credential after locking during icon preparation', async () => {
+    const { service, client, session } = harness()
+    await service.refresh()
+    client.resolveWebsiteIcon.mockImplementation(async () => { session.getPrivateKey = () => null; return null })
+    await expect(service.saveGeneratedPassword({ kind: 'registration', site: 'example.com',
+      url: 'https://accounts.example.com/register', password: 'generated-password' }))
+      .rejects.toMatchObject({ code: 'locked' })
+    expect(client.createEntry).not.toHaveBeenCalled()
   })
 
   it('updates the unique matching credential and preserves its other fields', async () => {
