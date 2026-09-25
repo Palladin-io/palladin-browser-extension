@@ -103,6 +103,7 @@ const passwordCapture = startPasswordCaptureDetection(
 const inlineAutofill = startInlineAutofillIfAllowed(document, documentId);
 const generatorSuggestion = window.top === window && window.location.protocol === 'https:'
   ? startGeneratorSuggestion(document, documentId, passwordCapture.controller) : null;
+passwordCapture.controller.trustOverlay(element => generatorSuggestion?.isOwnedSurface(element) ?? false);
 let credentialCapture = window.top === window && window.location.protocol === "https:"
   ? startCredentialCapture(document, documentId) : null;
 const agentInjectDom = createAgentInjectDomAccess(

@@ -144,6 +144,12 @@ async function sendFill(
     const assertCurrent = captureFillSession();
     await generatorHistory.remember(generated.value, expectedOrigin);
     assertCurrent();
+    const active = await getActiveTab();
+    assertCurrent();
+    if (active?.id !== target.id || active.documentId !== target.documentId
+      || active.browserDocumentId !== target.browserDocumentId
+      || active.legacyFirefoxRouteId !== target.legacyFirefoxRouteId
+      || httpsOrigin(active.url) !== expectedOrigin) return { ok: false, reason: "target-changed" };
   }
   const marker = intent === "automatic" ? automaticFillSession.current() : null;
   const provenance = marker === null ? {} : { automaticFillSessionId: marker };

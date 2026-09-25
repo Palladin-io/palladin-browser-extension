@@ -95,9 +95,7 @@ function secureOrigin(url: string): string | null {
   }
 }
 
-/** React-compatible setter without relaying the generated value to main world. */
-function setFieldValue(input: HTMLInputElement, value: string): void {
-  setNativeFieldValue(input, value);
+function emitFieldEvents(input: HTMLInputElement): void {
   const view = input.ownerDocument.defaultView;
   const EventConstructor = view?.Event ?? Event;
   input.dispatchEvent(new EventConstructor("input", { bubbles: true }));
@@ -115,9 +113,11 @@ function setNativeFieldValue(input: HTMLInputElement, value: string): void {
 export class PasswordCaptureController {
   private candidates = new Map<string, LiveCandidate>();
   private pendingGeneration: { candidateId: string; operationId: string } | null = null;
+  private isTrustedOverlay: (element: Element) => boolean = () => false;
 
   authorizeGeneration(candidateId: string, operationId: string): void { this.pendingGeneration = { candidateId, operationId }; }
   cancelGeneration(): void { this.pendingGeneration = null; }
+  trustOverlay(isTrustedOverlay: (element: Element) => boolean): void { this.isTrustedOverlay = isTrustedOverlay; }
 
   constructor(
     private readonly doc: Document,
@@ -213,22 +213,33 @@ export class PasswordCaptureController {
       return { ok: false, reason: 'no-form' };
     }
     const written: HTMLInputElement[] = [];
-    const visibility = request.operationId === undefined ? null : createAgentInjectDomAccess(this.doc);
+    const visibility = request.operationId === undefined ? null : createAgentInjectDomAccess(this.doc, this.isTrustedOverlay);
     const rollback = (): CaptureFillOutcome => {
-      for (const field of written) if (field.value === request.value) setNativeFieldValue(field, '');
+      const live = candidate.form.isConnected
+        ? [...candidate.form.querySelectorAll<HTMLInputElement>('input[type="password"]')]
+        : [];
+      const cleared = [...new Set([...written, ...live])].filter(field => field.value === request.value);
+      for (const field of cleared) setNativeFieldValue(field, '');
+      for (const field of cleared) if (field.isConnected) emitFieldEvents(field);
       return { ok: false, reason: 'no-form' };
     };
+    // Stage the whole pair before page event handlers can re-render either field.
     for (const input of current.newPasswordFields) {
-      // The previous field's input handler may have replaced or hidden the form.
       if (!input.isConnected || !isCandidateField(input) || input.value !== ''
         || secureOrigin(this.currentUrl()) !== request.expectedOrigin
         || (visibility !== null && !visibility.isVisible(input))) {
         return rollback();
       }
-      setFieldValue(input, request.value);
+      setNativeFieldValue(input, request.value);
       written.push(input);
     }
-    if (current.newPasswordFields.some(input => input.value !== request.value || !input.isConnected)) return rollback();
+    for (const input of written) {
+      if (!input.isConnected || input.value !== request.value) return rollback();
+      emitFieldEvents(input);
+      const live = candidate.form.isConnected ? detectForm(candidate.form) : null;
+      if (live === null || !sameFields(live.newPasswordFields, written)
+        || written.some(field => field.value !== request.value || !field.isConnected)) return rollback();
+    }
     return { ok: true };
   }
 }
