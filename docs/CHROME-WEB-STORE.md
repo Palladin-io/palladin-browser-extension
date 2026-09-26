@@ -124,11 +124,15 @@ Keep manual dashboard changes out of an active upload/publish run.
    workflow additionally checks the configured exact Item ID.
 6. Create an OIDC Workload Identity Provider for GitHub. Require the exact
    immutable repository/owner numeric IDs and event `push` or `workflow_dispatch`.
+   Read the repository's current `sub_claim_prefix` from the GitHub Actions OIDC
+   customization API (`GET /repos/{owner}/{repo}/actions/oidc/customization/sub`).
+   New repositories use immutable subjects containing owner/repository numeric
+   IDs; do not reconstruct a legacy name-only subject or disable immutable IDs.
    Bind the exact workflow path and ref, with two allowed combinations:
    - `refs/heads/main`, workflow ref ending `@refs/heads/main`, environment subject
-     `repo:Palladin-io/palladin-browser-extension:environment:chrome-web-store-beta`.
+     `<sub_claim_prefix>:environment:chrome-web-store-beta`.
    - `refs/tags/vX.Y.Z`, workflow ref ending with that exact tag ref, environment
-     subject `repo:Palladin-io/palladin-browser-extension:environment:chrome-web-store`.
+     subject `<sub_claim_prefix>:environment:chrome-web-store`.
    Grant only `roles/iam.workloadIdentityUser` on the service account to the pool's
    immutable repository ID principal set. No project-wide roles or runtime secrets.
 7. Configure deployment rules: `chrome-web-store-beta` allows only branch `main`;
@@ -246,3 +250,4 @@ submission; this document does not approve legal declarations.
 
 - [API staged publication](https://developer.chrome.com/docs/webstore/api/reference/rest/v2/publishers.items/publish)
 - [API read-only status](https://developer.chrome.com/docs/webstore/api/reference/rest/v2/publishers.items/fetchStatus)
+- [GitHub immutable OIDC subjects](https://docs.github.com/en/actions/reference/security/oidc#immutable-subject-claims)
