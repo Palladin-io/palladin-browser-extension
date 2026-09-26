@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, createPublicKey } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import manifest from '../manifest/manifest.chromium.json';
 import { extensionId, fetchStoreStatus, uploadRelease, validateRelease } from './chrome-web-store.mjs';
@@ -159,7 +159,7 @@ describe('staged review and read-only status', () => {
       submittedItemRevisionStatus: { state: 'PENDING_REVIEW', distributionChannels: [{ crxVersion: '0.1.0' }] },
     });
     expect(await fetchStoreStatus({ env: { ...env, CWS_RELEASE_READY: 'false' }, request })).toEqual({
-      published: { state: 'PUBLISHED', versions: ['0.0.9'] },
+      publicKeyFormat: 'BASE64_DER', published: { state: 'PUBLISHED', versions: ['0.0.9'] },
       submitted: { state: 'PENDING_REVIEW', versions: ['0.1.0'] }, takenDown: false, warned: false,
     });
     expect(request).toHaveBeenCalledTimes(1);
@@ -168,7 +168,7 @@ describe('staged review and read-only status', () => {
   it('does not emit arbitrary status/version text', async () => {
     const request = fake({ submittedItemRevisionStatus: { state: 'secret text',
       distributionChannels: [{ crxVersion: 'secret text' }] } });
-    expect(await fetchStoreStatus({ env, request })).toEqual({ published: null,
+    expect(await fetchStoreStatus({ env, request })).toEqual({ publicKeyFormat: 'MISSING', published: null,
       submitted: { state: 'UNKNOWN', versions: ['UNKNOWN'] }, takenDown: false, warned: false });
   });
   it('rejects a substituted status item', async () => {
@@ -180,4 +180,24 @@ describe('staged review and read-only status', () => {
       await expect(fetchStoreStatus({ env: { ...env, ...patch }, request })).rejects.toThrow();
       expect(request).not.toHaveBeenCalled();
     });
+});
+
+
+describe('store public-key encoding', () => {
+  const pem = createPublicKey({ key: Buffer.from(manifest.key, 'base64'), format: 'der', type: 'spki' })
+    .export({ format: 'pem', type: 'spki' }).toString();
+  it('compares the complete public key independently of PEM/base64 DER encoding', async () => {
+    expect(extensionId(pem)).toBe(id);
+    expect(await run(fake({ ...status, publicKey: pem }, success))).toBe('UPLOADED_DRAFT');
+  });
+  it('reports the encoding without returning the key', async () => {
+    const result = await fetchStoreStatus({ env, request: fake({ ...status, publicKey: pem }) });
+    expect(result.publicKeyFormat).toBe('PEM');
+    expect(JSON.stringify(result)).not.toContain(pem);
+  });
+  it.each([undefined, '', 'not a key', '-----BEGIN PRIVATE KEY-----'])('rejects malformed/missing keys without a raw crypto error', async publicKey => {
+    const request = fake({ ...status, publicKey }, success);
+    await expect(run(request)).rejects.toThrow('Invalid extension public key');
+    expect(request).toHaveBeenCalledTimes(1);
+  });
 });

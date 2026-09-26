@@ -8,7 +8,7 @@ server selector, including production and custom HTTPS servers. Other browser
 stores are out of scope for this release. Unlisted is visibility, not access
 control: anyone with the link can install the extension.
 
-Version `0.1.1` is the next candidate after the initial `0.1.0` draft. Preparing an archive does not complete
+Version `0.1.2` is the next candidate after the initial `0.1.0` draft. Preparing an archive does not complete
 the release gates in [STATUS.md](STATUS.md).
 
 Non-bootstrap packaging requires `CWS_SHARED_UNLOCK_ENVIRONMENTS` to include the
@@ -89,7 +89,7 @@ All newly introduced Actions references are pinned to commit SHAs.
 Before upload, the script checks the artifact checksum/source, release gates,
 nonzero version, exact manifest-derived Item ID, and that its API/panel URLs match
 the deployment variables. A configuration change requires a new matching package.
-It obtains the store's public key through API v2 and compares identities before any mutation. It refuses
+It obtains the store's public key through API v2, normalizes public PEM/base64 DER to SPKI DER, and compares the complete key and derived Item ID before any mutation. It refuses
 an existing pending/staged submission except explicit publication of the matching approved stable version, policy warnings, or an already-published
 version. Async upload processing has a two-minute deadline. Upload errors never
 lead to publication; mutations are not automatically retried. Submission uses normal review and blocks on warnings. Stable tag pushes select `review` (`STAGED_PUBLISH`). A later explicit `publish` releases an approved candidate after `CWS_RELEASE_READY=true`. Keep the same tag and deployment configuration; do not replace its package in the dashboard between review and publication. The API exposes the approved version and identity, not its archive checksum. `PENDING_REVIEW` is not `PUBLISHED`.
@@ -124,11 +124,15 @@ Keep manual dashboard changes out of an active upload/publish run.
    workflow additionally checks the configured exact Item ID.
 6. Create an OIDC Workload Identity Provider for GitHub. Require the exact
    immutable repository/owner numeric IDs and event `push` or `workflow_dispatch`.
+   Read the repository's current `sub_claim_prefix` from the GitHub Actions OIDC
+   customization API (`GET /repos/{owner}/{repo}/actions/oidc/customization/sub`).
+   New repositories use immutable subjects containing owner/repository numeric
+   IDs; do not reconstruct a legacy name-only subject or disable immutable IDs.
    Bind the exact workflow path and ref, with two allowed combinations:
    - `refs/heads/main`, workflow ref ending `@refs/heads/main`, environment subject
-     `repo:Palladin-io/palladin-browser-extension:environment:chrome-web-store-beta`.
+     `<sub_claim_prefix>:environment:chrome-web-store-beta`.
    - `refs/tags/vX.Y.Z`, workflow ref ending with that exact tag ref, environment
-     subject `repo:Palladin-io/palladin-browser-extension:environment:chrome-web-store`.
+     subject `<sub_claim_prefix>:environment:chrome-web-store`.
    Grant only `roles/iam.workloadIdentityUser` on the service account to the pool's
    immutable repository ID principal set. No project-wide roles or runtime secrets.
 7. Configure deployment rules: `chrome-web-store-beta` allows only branch `main`;
@@ -246,3 +250,4 @@ submission; this document does not approve legal declarations.
 
 - [API staged publication](https://developer.chrome.com/docs/webstore/api/reference/rest/v2/publishers.items/publish)
 - [API read-only status](https://developer.chrome.com/docs/webstore/api/reference/rest/v2/publishers.items/fetchStatus)
+- [GitHub immutable OIDC subjects](https://docs.github.com/en/actions/reference/security/oidc#immutable-subject-claims)

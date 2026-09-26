@@ -6,10 +6,19 @@ import { pathToFileURL } from 'node:url';
 // Only these controlled messages may enter CI logs; native/API errors stay private.
 class ReleaseError extends Error {}
 
+function publicKeyDer(publicKey) {
+  try {
+    const input = publicKey.startsWith('-----BEGIN PUBLIC KEY-----')
+      ? { key: publicKey, format: 'pem', type: 'spki' }
+      : { key: Buffer.from(publicKey, 'base64'), format: 'der', type: 'spki' };
+    return createPublicKey(input).export({ format: 'der', type: 'spki' });
+  } catch {
+    throw new ReleaseError('Invalid extension public key; expected SPKI in base64 DER or public PEM format');
+  }
+}
+
 export function extensionId(publicKey) {
-  const key = createPublicKey({ key: Buffer.from(publicKey, 'base64'), format: 'der', type: 'spki' });
-  const der = key.export({ format: 'der', type: 'spki' });
-  return createHash('sha256').update(der).digest('hex').slice(0, 32)
+  return createHash('sha256').update(publicKeyDer(publicKey)).digest('hex').slice(0, 32)
     .replace(/[0-9a-f]/g, digit => String.fromCharCode(97 + parseInt(digit, 16)));
 }
 
@@ -103,7 +112,9 @@ export async function fetchStoreStatus({ env, request = fetch }) {
       versions: (value.distributionChannels ?? []).map(channel =>
         /^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){0,3}$/.test(channel.crxVersion) ? channel.crxVersion : 'UNKNOWN') };
   }
-  return { published: revision(status.publishedItemRevisionStatus),
+  const publicKeyFormat = typeof status.publicKey !== 'string' || !status.publicKey ? 'MISSING'
+    : status.publicKey.startsWith('-----BEGIN PUBLIC KEY-----') ? 'PEM' : 'BASE64_DER';
+  return { publicKeyFormat, published: revision(status.publishedItemRevisionStatus),
     submitted: revision(status.submittedItemRevisionStatus),
     takenDown: status.takenDown === true, warned: status.warned === true };
 }
@@ -115,7 +126,7 @@ export async function uploadRelease({ operation, metadata, archive, env,
   const call = storeClient(env, request);
   const status = await call(`/v2/${name}:fetchStatus`);
   if (extensionId(status.publicKey) !== env.CWS_EXTENSION_ID
-    || status.publicKey !== metadata.publicKey) throw new ReleaseError('Store public key differs from the release manifest');
+    || !publicKeyDer(status.publicKey).equals(publicKeyDer(metadata.publicKey))) throw new ReleaseError('Store public key differs from the release manifest');
   if (status.takenDown || status.warned) throw new ReleaseError('Resolve the store policy status before uploading');
   const staged = operation === 'publish' && status.submittedItemRevisionStatus?.state === 'STAGED'
     && status.submittedItemRevisionStatus.distributionChannels?.length > 0
