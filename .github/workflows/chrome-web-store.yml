@@ -184,6 +184,7 @@ jobs:
           create_credentials_file: false
           export_environment_variables: false
       - name: Read store status without uploading or publishing
+        shell: bash
         env:
           CWS_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: node scripts/chrome-web-store.mjs status | tee -a "$GITHUB_STEP_SUMMARY"
