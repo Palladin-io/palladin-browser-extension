@@ -8,7 +8,7 @@ server selector, including production and custom HTTPS servers. Other browser
 stores are out of scope for this release. Unlisted is visibility, not access
 control: anyone with the link can install the extension.
 
-Version `0.1.1` is the next candidate after the initial `0.1.0` draft. Preparing an archive does not complete
+Version `0.1.2` is the next candidate after the initial `0.1.0` draft. Preparing an archive does not complete
 the release gates in [STATUS.md](STATUS.md).
 
 Non-bootstrap packaging requires `CWS_SHARED_UNLOCK_ENVIRONMENTS` to include the
@@ -89,7 +89,7 @@ All newly introduced Actions references are pinned to commit SHAs.
 Before upload, the script checks the artifact checksum/source, release gates,
 nonzero version, exact manifest-derived Item ID, and that its API/panel URLs match
 the deployment variables. A configuration change requires a new matching package.
-It obtains the store's public key through API v2 and compares identities before any mutation. It refuses
+It obtains the store's public key through API v2, normalizes public PEM/base64 DER to SPKI DER, and compares the complete key and derived Item ID before any mutation. It refuses
 an existing pending/staged submission except explicit publication of the matching approved stable version, policy warnings, or an already-published
 version. Async upload processing has a two-minute deadline. Upload errors never
 lead to publication; mutations are not automatically retried. Submission uses normal review and blocks on warnings. Stable tag pushes select `review` (`STAGED_PUBLISH`). A later explicit `publish` releases an approved candidate after `CWS_RELEASE_READY=true`. Keep the same tag and deployment configuration; do not replace its package in the dashboard between review and publication. The API exposes the approved version and identity, not its archive checksum. `PENDING_REVIEW` is not `PUBLISHED`.
