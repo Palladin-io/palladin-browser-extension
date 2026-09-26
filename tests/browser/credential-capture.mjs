@@ -270,6 +270,8 @@ try {
 
   await submit({ host: 'muted-login', kind: 'login', mode: 'spa', username: 'alice', password: 'Synthetic-muted!' })
   await click('button', "Don't ask for this site")
+  // Navigation must follow the acknowledged preference write, not just pointer dispatch.
+  await wait(async () => await page.locator('palladin-capture').count() === 0, 'site mute acknowledged')
   await submit({ host: 'muted-login', kind: 'login', mode: 'classic', username: 'alice', password: 'Synthetic-muted-again!' })
   await absent()
   assert.equal(api.writes.length, before)
@@ -327,6 +329,8 @@ try {
   popup = await openNativePopup(worker, profile, extensionId)
   await popup.fill('input[type="password"]', api.password)
   await popup.click('Unlock')
+  // Focusing the page closes the real popup; keep it alive until unlock completes.
+  await popup.waitButton('Lock')
   await page.bringToFront()
   await click('button', 'Save in Personal')
   await wait(() => api.writes.length === before + 1, 'locked capture continues after real popup unlock')
