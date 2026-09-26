@@ -91,7 +91,23 @@ function storeClient(env, request) {
         headers: { Authorization: `Bearer ${env.CWS_ACCESS_TOKEN}`, ...options.headers } });
     } catch { throw new ReleaseError('Chrome Web Store network request failed; inspect store status before retrying'); }
     // Never print an OAuth token, request headers, or an arbitrary API error body.
-    if (!response.ok) throw new ReleaseError(`Chrome Web Store request failed (HTTP ${response.status})`);
+    if (!response.ok) {
+      const stage = path.startsWith('/upload/') ? 'upload' : path.endsWith(':publish') ? 'publish' : 'status';
+      let body = '';
+      try { body = JSON.stringify(await response.json()); } catch { /* Non-JSON errors carry no safe hints. */ }
+      // Only fixed labels reach logs. Google's text may include submitted listing or account data.
+      const hints = [
+        [/visibility|distribution|developer dashboard|manually/i, 'CHECK_DASHBOARD_DISTRIBUTION'],
+        [/privacy|disclos|single purpose|justification/i, 'CHECK_PRIVACY_DECLARATIONS'],
+        [/listing|screenshot|description|icon|category/i, 'CHECK_STORE_LISTING'],
+        [/version|manifest|package|zip/i, 'CHECK_PACKAGE'],
+        [/uploadType|upload_type|media upload/i, 'CHECK_UPLOAD_PROTOCOL'],
+        [/two.?step|2.?step|verification/i, 'CHECK_PUBLISHER_VERIFICATION'],
+        [/review|pending|staged/i, 'CHECK_REVIEW_STATE'],
+        [/warning/i, 'VALIDATION_WARNINGS'],
+      ].filter(([pattern]) => pattern.test(body)).map(([, hint]) => hint);
+      throw new ReleaseError(`Chrome Web Store ${stage} request failed (HTTP ${response.status}); hints: ${hints.join(', ') || 'NONE'}`);
+    }
     let result;
     try { result = await response.json(); } catch { throw new ReleaseError('Chrome Web Store returned invalid JSON'); }
     if (result.name !== name || result.itemId !== env.CWS_EXTENSION_ID) {
@@ -114,7 +130,10 @@ export async function fetchStoreStatus({ env, request = fetch }) {
   }
   const publicKeyFormat = typeof status.publicKey !== 'string' || !status.publicKey ? 'MISSING'
     : status.publicKey.startsWith('-----BEGIN PUBLIC KEY-----') ? 'PEM' : 'BASE64_DER';
-  return { publicKeyFormat, published: revision(status.publishedItemRevisionStatus),
+  const uploadStates = ['UPLOAD_STATE_UNSPECIFIED', 'SUCCEEDED', 'IN_PROGRESS', 'FAILED', 'NOT_FOUND'];
+  const lastUpload = status.lastAsyncUploadState === undefined ? null
+    : uploadStates.includes(status.lastAsyncUploadState) ? status.lastAsyncUploadState : 'UNKNOWN';
+  return { publicKeyFormat, lastUpload, published: revision(status.publishedItemRevisionStatus),
     submitted: revision(status.submittedItemRevisionStatus),
     takenDown: status.takenDown === true, warned: status.warned === true };
 }

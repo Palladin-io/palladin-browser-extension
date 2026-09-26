@@ -108,7 +108,7 @@ describe('Chrome Web Store release boundary', () => {
   });
   it('does not expose the API response body on authorization errors', async () => {
     const request = vi.fn(async () => new Response('synthetic-sensitive-response', { status: 401 }));
-    await expect(run(request)).rejects.toThrow('Chrome Web Store request failed (HTTP 401)');
+    await expect(run(request)).rejects.toMatchObject({ message: 'Chrome Web Store status request failed (HTTP 401); hints: NONE' });
     expect(request).toHaveBeenCalledTimes(1);
   });
 });
@@ -159,7 +159,7 @@ describe('staged review and read-only status', () => {
       submittedItemRevisionStatus: { state: 'PENDING_REVIEW', distributionChannels: [{ crxVersion: '0.1.0' }] },
     });
     expect(await fetchStoreStatus({ env: { ...env, CWS_RELEASE_READY: 'false' }, request })).toEqual({
-      publicKeyFormat: 'BASE64_DER', published: { state: 'PUBLISHED', versions: ['0.0.9'] },
+      publicKeyFormat: 'BASE64_DER', lastUpload: null, published: { state: 'PUBLISHED', versions: ['0.0.9'] },
       submitted: { state: 'PENDING_REVIEW', versions: ['0.1.0'] }, takenDown: false, warned: false,
     });
     expect(request).toHaveBeenCalledTimes(1);
@@ -168,7 +168,7 @@ describe('staged review and read-only status', () => {
   it('does not emit arbitrary status/version text', async () => {
     const request = fake({ submittedItemRevisionStatus: { state: 'secret text',
       distributionChannels: [{ crxVersion: 'secret text' }] } });
-    expect(await fetchStoreStatus({ env, request })).toEqual({ publicKeyFormat: 'MISSING', published: null,
+    expect(await fetchStoreStatus({ env, request })).toEqual({ publicKeyFormat: 'MISSING', lastUpload: null, published: null,
       submitted: { state: 'UNKNOWN', versions: ['UNKNOWN'] }, takenDown: false, warned: false });
   });
   it('rejects a substituted status item', async () => {
@@ -199,5 +199,35 @@ describe('store public-key encoding', () => {
     const request = fake({ ...status, publicKey }, success);
     await expect(run(request)).rejects.toThrow('Invalid extension public key');
     expect(request).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe('safe store failure diagnostics', () => {
+  it('identifies a rejected publication after a successful upload without leaking the body', async () => {
+    const request = fake();
+    request.mockResolvedValueOnce(new Response(JSON.stringify({ ...identity, ...status })));
+    request.mockResolvedValueOnce(new Response(JSON.stringify({ ...identity, ...success })));
+    request.mockResolvedValueOnce(new Response(JSON.stringify({ error: {
+      message: 'Visibility must be confirmed manually in the developer dashboard. synthetic-private-account-data',
+    } }), { status: 400 }));
+    await expect(run(request, 'review')).rejects.toMatchObject({ message:
+      'Chrome Web Store publish request failed (HTTP 400); hints: CHECK_DASHBOARD_DISTRIBUTION' });
+    expect(request).toHaveBeenCalledTimes(3);
+  });
+  it('emits no arbitrary error message when a classification is unknown', async () => {
+    const request = vi.fn(async () => new Response(JSON.stringify({ error: {
+      message: 'synthetic-token synthetic-sensitive-value',
+    } }), { status: 400 }));
+    await expect(fetchStoreStatus({ env, request })).rejects.toMatchObject({ message:
+      'Chrome Web Store status request failed (HTTP 400); hints: NONE' });
+  });
+  it.each(['SUCCEEDED', 'IN_PROGRESS', 'FAILED', 'NOT_FOUND'])('reports the asynchronous upload state %s', async lastAsyncUploadState => {
+    expect((await fetchStoreStatus({ env, request: fake({ ...status, lastAsyncUploadState }) })).lastUpload)
+      .toBe(lastAsyncUploadState);
+  });
+  it('does not copy an unknown upload-state value to logs', async () => {
+    expect((await fetchStoreStatus({ env, request: fake({ ...status, lastAsyncUploadState: 'synthetic-sensitive-value' }) })).lastUpload)
+      .toBe('UNKNOWN');
   });
 });
