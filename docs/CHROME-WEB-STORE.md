@@ -8,7 +8,7 @@ server selector, including production and custom HTTPS servers. Other browser
 stores are out of scope for this release. Unlisted is visibility, not access
 control: anyone with the link can install the extension.
 
-Version `0.1.2` is the next candidate after the initial `0.1.0` draft. Preparing an archive does not complete
+Version `0.1.3` is the next candidate after the initial `0.1.0` draft. Preparing an archive does not complete
 the release gates in [STATUS.md](STATUS.md).
 
 Non-bootstrap packaging requires `CWS_SHARED_UNLOCK_ENVIRONMENTS` to include the
@@ -77,7 +77,7 @@ metadata retains the public key for the uploader identity checks. Download the
 invoking a native host. The accepted Chrome/macOS caller boundary is documented
 in `STATUS.md` and still needs installed-runtime acceptance.
 
-Only the store and read-only status jobs can obtain Google credentials. Status requests only the `chromewebstore.readonly` scope, skips package CI, and emits bounded states/versions and policy flags without public keys or arbitrary API text. The existing tag/main environment and WIF restrictions also apply to status; stable status cannot run from main.
+Only the store and read-only status jobs can obtain Google credentials. Status requests only the `chromewebstore.readonly` scope, skips package CI, and emits bounded states/versions, last asynchronous upload state, public-key encoding and policy flags without public keys or arbitrary API text. Rejected requests identify the operation and emit fixed keyword-based hints only; hints guide dashboard inspection and are not a definitive diagnosis. The existing tag/main environment and WIF restrictions also apply to status; stable status cannot run from main.
 
 The store mutation job obtains Google credentials separately. It runs in the
 `chrome-web-store-beta` (main) or `chrome-web-store` (tags) environment and requests a short-lived access token through
