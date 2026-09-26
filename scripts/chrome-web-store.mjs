@@ -13,12 +13,13 @@ export function extensionId(publicKey) {
     .replace(/[0-9a-f]/g, digit => String.fromCharCode(97 + parseInt(digit, 16)));
 }
 
-export function validateRelease(metadata, archive, env) {
-  if (env.CWS_RELEASE_READY !== 'true' || env.CWS_VISIBILITY !== 'unlisted') {
+export function validateRelease(metadata, archive, env, operation = 'publish') {
+  if (!['upload', 'review', 'publish'].includes(operation)) throw new ReleaseError('Select upload, review or publish');
+  if ((operation !== 'review' && env.CWS_RELEASE_READY !== 'true') || env.CWS_VISIBILITY !== 'unlisted') {
     throw new ReleaseError('Complete the release gates and confirm Unlisted in the store environment');
   }
-  if (!/^[a-zA-Z0-9_-]+$/.test(env.CWS_PUBLISHER_ID ?? '')
-    || !/^[a-p]{32}$/.test(env.CWS_EXTENSION_ID ?? '')) throw new ReleaseError('Configure the store publisher and item IDs');
+  validateStore(env);
+  if (operation === 'review' && env.CWS_CHANNEL !== 'stable') throw new ReleaseError('Staged review requires the stable channel');
   if (metadata.bootstrap !== false
     || !['https://api.palladin.io', 'https://api.stage.palladin.io'].includes(env.CWS_API_URL)
     || metadata.apiUrl !== env.CWS_API_URL || metadata.webAppUrl !== env.CWS_WEB_APP_URL
@@ -59,15 +60,21 @@ function compareVersions(left, right) {
   return 0;
 }
 
-export async function uploadRelease({ operation, metadata, archive, env,
-  request = fetch, sleep = ms => new Promise(done => setTimeout(done, ms)) }) {
-  validateRelease(metadata, archive, env);
-  if (!['upload', 'publish'].includes(operation) || !env.CWS_ACCESS_TOKEN) {
-    throw new ReleaseError('Select upload or publish and supply a short-lived access token');
+function validateStore(env) {
+  if (!/^[a-zA-Z0-9_-]+$/.test(env.CWS_PUBLISHER_ID ?? '')
+    || !/^[a-p]{32}$/.test(env.CWS_EXTENSION_ID ?? '')) throw new ReleaseError('Configure the store publisher and item IDs');
+  if (!((env.CWS_CHANNEL === 'beta' && env.GITHUB_REF === 'refs/heads/main')
+    || (env.CWS_CHANNEL === 'stable' && /^refs\/tags\/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(env.GITHUB_REF ?? '')))) {
+    throw new ReleaseError('Select main for beta or a release tag for stable');
   }
+}
+
+function storeClient(env, request) {
+  validateStore(env);
+  if (!env.CWS_ACCESS_TOKEN) throw new ReleaseError('Supply a short-lived access token');
   const name = `publishers/${env.CWS_PUBLISHER_ID}/items/${env.CWS_EXTENSION_ID}`;
   const base = 'https://chromewebstore.googleapis.com';
-  async function call(path, options = {}) {
+  return async function call(path, options = {}) {
     let response;
     try {
       response = await request(`${base}${path}`, { ...options, redirect: 'error',
@@ -82,12 +89,38 @@ export async function uploadRelease({ operation, metadata, archive, env,
       throw new ReleaseError('Chrome Web Store returned a different item identity');
     }
     return result;
+  };
+}
+
+export async function fetchStoreStatus({ env, request = fetch }) {
+  const call = storeClient(env, request);
+  const status = await call(`/v2/publishers/${env.CWS_PUBLISHER_ID}/items/${env.CWS_EXTENSION_ID}:fetchStatus`);
+  // Emit only finite status vocabulary and numeric versions, never arbitrary API text.
+  const states = ['ITEM_STATE_UNSPECIFIED', 'PENDING_REVIEW', 'STAGED', 'PUBLISHED', 'PUBLISHED_TO_TESTERS', 'REJECTED', 'CANCELLED'];
+  function revision(value) {
+    if (!value) return null;
+    return { state: states.includes(value.state) ? value.state : 'UNKNOWN',
+      versions: (value.distributionChannels ?? []).map(channel =>
+        /^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){0,3}$/.test(channel.crxVersion) ? channel.crxVersion : 'UNKNOWN') };
   }
+  return { published: revision(status.publishedItemRevisionStatus),
+    submitted: revision(status.submittedItemRevisionStatus),
+    takenDown: status.takenDown === true, warned: status.warned === true };
+}
+
+export async function uploadRelease({ operation, metadata, archive, env,
+  request = fetch, sleep = ms => new Promise(done => setTimeout(done, ms)) }) {
+  validateRelease(metadata, archive, env, operation);
+  const name = `publishers/${env.CWS_PUBLISHER_ID}/items/${env.CWS_EXTENSION_ID}`;
+  const call = storeClient(env, request);
   const status = await call(`/v2/${name}:fetchStatus`);
   if (extensionId(status.publicKey) !== env.CWS_EXTENSION_ID
     || status.publicKey !== metadata.publicKey) throw new ReleaseError('Store public key differs from the release manifest');
   if (status.takenDown || status.warned) throw new ReleaseError('Resolve the store policy status before uploading');
-  if (['PENDING_REVIEW', 'STAGED'].includes(status.submittedItemRevisionStatus?.state)) {
+  const staged = operation === 'publish' && status.submittedItemRevisionStatus?.state === 'STAGED'
+    && status.submittedItemRevisionStatus.distributionChannels?.length > 0
+    && status.submittedItemRevisionStatus.distributionChannels.every(channel => channel.crxVersion === metadata.version);
+  if (['PENDING_REVIEW', 'STAGED'].includes(status.submittedItemRevisionStatus?.state) && !staged) {
     throw new ReleaseError('An existing submission is under review or staged; finish it before uploading');
   }
   for (const channel of status.publishedItemRevisionStatus?.distributionChannels ?? []) {
@@ -95,24 +128,27 @@ export async function uploadRelease({ operation, metadata, archive, env,
       throw new ReleaseError('Increase the manifest version above the published version');
     }
   }
-  const uploaded = await call(`/upload/v2/${name}:upload`, {
-    method: 'POST', headers: { 'Content-Type': 'application/zip' }, body: archive,
-  });
-  if (uploaded.uploadState === 'SUCCEEDED' && uploaded.crxVersion !== metadata.version) {
-    throw new ReleaseError('Uploaded version differs from the release artifact');
+  if (!staged) {
+    const uploaded = await call(`/upload/v2/${name}:upload`, {
+      method: 'POST', headers: { 'Content-Type': 'application/zip' }, body: archive,
+    });
+    if (uploaded.uploadState === 'SUCCEEDED' && uploaded.crxVersion !== metadata.version) {
+      throw new ReleaseError('Uploaded version differs from the release artifact');
+    }
+    let state = uploaded.uploadState;
+    for (let attempt = 0; state === 'IN_PROGRESS' && attempt < 24; attempt++) {
+      await sleep(5_000);
+      state = (await call(`/v2/${name}:fetchStatus`)).lastAsyncUploadState;
+    }
+    if (state !== 'SUCCEEDED') throw new ReleaseError('Upload failed or did not finish within two minutes; no publication requested');
   }
-  let state = uploaded.uploadState;
-  for (let attempt = 0; state === 'IN_PROGRESS' && attempt < 24; attempt++) {
-    await sleep(5_000);
-    state = (await call(`/v2/${name}:fetchStatus`)).lastAsyncUploadState;
-  }
-  if (state !== 'SUCCEEDED') throw new ReleaseError('Upload failed or did not finish within two minutes; no publication requested');
   if (operation === 'upload') return 'UPLOADED_DRAFT';
   const published = await call(`/v2/${name}:publish`, { method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ publishType: 'DEFAULT_PUBLISH', skipReview: false, blockOnWarnings: true }),
+    body: JSON.stringify({ publishType: operation === 'review' ? 'STAGED_PUBLISH' : 'DEFAULT_PUBLISH', skipReview: false, blockOnWarnings: true }),
   });
-  if (!['PENDING_REVIEW', 'PUBLISHED'].includes(published.state)) {
+  const expectedStates = operation === 'review' ? ['PENDING_REVIEW', 'STAGED'] : ['PENDING_REVIEW', 'PUBLISHED'];
+  if (!expectedStates.includes(published.state)) {
     throw new ReleaseError('Unexpected publication state; inspect the dashboard before retrying');
   }
   return published.state;
@@ -121,12 +157,18 @@ export async function uploadRelease({ operation, metadata, archive, env,
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try {
     const [operation, directory] = process.argv.slice(2);
-    const metadata = JSON.parse(await readFile(resolve(directory, 'release.json'), 'utf8'));
-    const archive = await readFile(resolve(directory, 'package.zip'));
-    validateRelease(metadata, archive, process.env);
-    const state = operation === 'check' ? 'ARTIFACT_VERIFIED'
-      : await uploadRelease({ operation, metadata, archive, env: process.env });
-    console.log(`Chrome Web Store: ${state}`);
+    if (operation === 'status' || operation === 'status-check') {
+      validateStore(process.env);
+      console.log(operation === 'status-check' ? 'Chrome Web Store: CONFIGURATION_VERIFIED'
+        : `Chrome Web Store: ${JSON.stringify(await fetchStoreStatus({ env: process.env }))}`);
+    } else {
+      const metadata = JSON.parse(await readFile(resolve(directory, 'release.json'), 'utf8'));
+      const archive = await readFile(resolve(directory, 'package.zip'));
+      validateRelease(metadata, archive, process.env, operation === 'check' ? process.env.CWS_OPERATION : operation);
+      const state = operation === 'check' ? 'ARTIFACT_VERIFIED'
+        : await uploadRelease({ operation, metadata, archive, env: process.env });
+      console.log(`Chrome Web Store: ${state}`);
+    }
   } catch (error) {
     console.error(error instanceof ReleaseError ? error.message
       : 'Chrome Web Store operation failed. Check artifact identity and dashboard status. No automatic retry.');

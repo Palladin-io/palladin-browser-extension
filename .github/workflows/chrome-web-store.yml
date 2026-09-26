@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: 'bootstrap/package = ZIP; upload = draft; publish = submit for review. Stable uploads require a vX.Y.Z tag.'
+        description: 'status = inspect; bootstrap/package = ZIP; upload = draft; review = stage after review; publish = release.'
         type: choice
-        options: [bootstrap, package, upload, publish]
+        options: [status, bootstrap, package, upload, review, publish]
         default: bootstrap
         required: true
       channel:
@@ -28,18 +28,21 @@ concurrency:
 
 jobs:
   verify:
+    if: inputs.operation != 'status'
     uses: ./.github/workflows/test.yml
 
   package:
     needs: verify
-    if: github.repository == 'Palladin-io/palladin-browser-extension'
+    if: >-
+      github.repository == 'Palladin-io/palladin-browser-extension' &&
+      !(github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CWS_BETA_PUBLIC_KEY == '')
     outputs:
       channel: ${{ steps.context.outputs.channel }}
       artifact: ${{ steps.context.outputs.artifact }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      RELEASE_OPERATION: ${{ github.event_name == 'push' && 'publish' || inputs.operation }}
+      RELEASE_OPERATION: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' && 'publish' || 'review') || inputs.operation }}
       PALLADIN_STORE_CHANNEL: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' && 'beta' || 'stable') || inputs.channel }}
       CWS_STABLE_PUBLIC_KEY: ${{ vars.CWS_STABLE_PUBLIC_KEY }}
       CWS_BETA_PUBLIC_KEY: ${{ vars.CWS_BETA_PUBLIC_KEY }}
@@ -95,7 +98,7 @@ jobs:
 
   store:
     needs: [package, provenance]
-    if: github.event_name == 'push' || inputs.operation == 'upload' || inputs.operation == 'publish'
+    if: github.event_name == 'push' || inputs.operation == 'upload' || inputs.operation == 'review' || inputs.operation == 'publish'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: ${{ needs.package.outputs.channel == 'beta' && 'chrome-web-store-beta' || 'chrome-web-store' }}
@@ -103,6 +106,7 @@ jobs:
       contents: read
       id-token: write
     env:
+      CWS_OPERATION: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' && 'publish' || 'review') || inputs.operation }}
       CWS_CHANNEL: ${{ needs.package.outputs.channel }}
       CWS_API_URL: ${{ vars.CWS_API_URL }}
       CWS_WEB_APP_URL: ${{ vars.CWS_WEB_APP_URL }}
@@ -136,5 +140,51 @@ jobs:
       - name: Upload or submit the verified package
         env:
           CWS_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
-          CWS_OPERATION: ${{ github.event_name == 'push' && 'publish' || inputs.operation }}
         run: node scripts/chrome-web-store.mjs "$CWS_OPERATION" release
+
+  beta-setup:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CWS_BETA_PUBLIC_KEY == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Report the missing beta item
+        run: |
+          echo '::notice::Beta store submission is not configured. Create its separate item and configure CWS_BETA_PUBLIC_KEY; stable releases remain tag-based.'
+          echo 'Beta upload skipped: configure the separate beta item following docs/CHROME-WEB-STORE.md. This run did not submit an extension.' >> "$GITHUB_STEP_SUMMARY"
+
+  status:
+    if: github.repository == 'Palladin-io/palladin-browser-extension' && inputs.operation == 'status'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: ${{ inputs.channel == 'beta' && 'chrome-web-store-beta' || 'chrome-web-store' }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      CWS_CHANNEL: ${{ inputs.channel }}
+      CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+      CWS_EXTENSION_ID: ${{ vars.CWS_EXTENSION_ID }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Validate channel and identity before requesting Google credentials
+        run: node scripts/chrome-web-store.mjs status-check
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        id: auth
+        with:
+          workload_identity_provider: ${{ vars.CWS_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.CWS_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore.readonly
+          access_token_lifetime: 600s
+          create_credentials_file: false
+          export_environment_variables: false
+      - name: Read store status without uploading or publishing
+        shell: bash
+        env:
+          CWS_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: node scripts/chrome-web-store.mjs status | tee -a "$GITHUB_STEP_SUMMARY"
