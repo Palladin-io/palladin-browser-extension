@@ -84,9 +84,9 @@ describe('Chrome archive packaging', () => {
       expect(spawnSync('python3', [script, '--check-config'], { cwd: fixture(),
         env: { ...env, VITE_API_URL: apiUrl } }).status).not.toBe(0);
     });
-  it('accepts a stable tag on main and refuses an unmerged feature commit', () => {
+  it.each(['publish', 'review'])('accepts a stable tag on main and refuses an unmerged feature commit for %s', operation => {
     const { root, git, sha } = gitFixture();
-    const settings = { ...env, RELEASE_OPERATION: 'publish', GITHUB_REF: 'refs/tags/v0.1.0', GITHUB_SHA: sha };
+    const settings = { ...env, RELEASE_OPERATION: operation, GITHUB_REF: 'refs/tags/v0.1.0', GITHUB_SHA: sha };
     expect(spawnSync('python3', [script, '--check-config'], { cwd: root, env: settings }).status).toBe(0);
     git('checkout', '-b', 'feature');
     git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-m', 'unreviewed');
@@ -96,6 +96,8 @@ describe('Chrome archive packaging', () => {
   it.each(['refs/heads/main', 'refs/tags/v0.2.0', 'refs/tags/v0.1.0-rc.1'])('rejects stable publishing with ref %s', ref => {
     expect(spawnSync('python3', [script, '--check-config'], { cwd: fixture(),
       env: { ...env, RELEASE_OPERATION: 'publish', GITHUB_REF: ref } }).status).not.toBe(0);
+    expect(spawnSync('python3', [script, '--check-config'], { cwd: fixture(),
+      env: { ...env, RELEASE_OPERATION: 'review', GITHUB_REF: ref } }).status).not.toBe(0);
   });
   it('rejects version drift in the lockfile before building', () => {
     const root = fixture();

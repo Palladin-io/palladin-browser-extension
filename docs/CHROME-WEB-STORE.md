@@ -8,7 +8,7 @@ server selector, including production and custom HTTPS servers. Other browser
 stores are out of scope for this release. Unlisted is visibility, not access
 control: anyone with the link can install the extension.
 
-Version `0.1.0` is the initial candidate. Preparing an archive does not complete
+Version `0.1.1` is the next candidate after the initial `0.1.0` draft. Preparing an archive does not complete
 the release gates in [STATUS.md](STATUS.md).
 
 Non-bootstrap packaging requires `CWS_SHARED_UNLOCK_ENVIRONMENTS` to include the
@@ -26,7 +26,9 @@ Two separate **Unlisted** items provide installable channels:
 | Trigger | Store item | Version | Result |
 | --- | --- | --- | --- |
 | Push/merge to `main` | Palladin BETA | `0.0.<run / 65536>.<run % 65536>` (integer division) | Run CI, upload and submit for normal review; automatically publish after approval. |
-| Push `vX.Y.Z` | Palladin | `X.Y.Z` | Require the tag version in manifest/package/lockfile and a commit reachable from `main`; run CI, upload and submit for review. |
+| Push `vX.Y.Z` | Palladin | `X.Y.Z` | Require the tag version in manifest/package/lockfile and a commit reachable from `main`; run CI, upload and submit for staged review. Approval alone does not publish. |
+
+Until the separate beta item/public key is configured, a main push runs CI and reports that beta submission was skipped; it does not fail packaging or submit to the stable item. Manual beta packaging still requires its key.
 
 The beta counter is the workflow's `github.run_number`, independent of the stable
 version. For example, run 65535 is `0.0.0.65535`; run 65536 is `0.0.1.0`.
@@ -44,8 +46,8 @@ any additional native runtime or shared-unlock trust; its separate identity must
 and configured in those integrations. It is not the local debug runtime channel.
 
 A push submits a candidate, not an immediate installation. If a previous version
-is pending review or staged, the job fails without replacing it or cancelling
-review. Its tested ZIP remains in Actions for 30 days. After resolving the store
+is pending review or staged, an upload/review job fails without replacing it or cancelling
+review. An explicit stable `publish` can release the matching staged version after the live release gates pass; it does not upload again. Its tested ZIP remains in Actions for 30 days. After resolving the store
 status, rerun the relevant failed job only if its version is still newer than the
 published version, or dispatch the latest `main` beta. There is no automatic
 review cancellation, retry queue, GitHub prerelease, or store submission for PRs.
@@ -57,12 +59,14 @@ selecting `channel` (`stable` or `beta`) and an operation:
 
 | Operation | Allowed source | Result |
 | --- | --- | --- |
+| `status` | `main` for beta, an existing stable release tag for stable | Read current published/submitted states and versions; no build, upload or mutation. |
 | `bootstrap` | `main` (either channel) | ZIP for creating an unpublished item; no Google credentials/upload. API and panel use the configured defaults; shared unlock is unconfigured. Never submit this artifact. |
 | `package` | `main`, or a matching stable tag | Configured ZIP only; no upload. |
 | `upload` | `main` for beta, matching tag for stable | Upload as draft, e.g. before the first manual publication. |
-| `publish` | `main` for beta, matching tag for stable | Upload and request review, publishing automatically after approval. Inspect store status before retrying. |
+| `review` | Matching stable tag | Upload and request `STAGED_PUBLISH`: approval keeps the candidate unpublished, even while `CWS_RELEASE_READY=false`. |
+| `publish` | `main` for beta, matching tag for stable | With `CWS_RELEASE_READY=true`, release the matching staged stable version without uploading again; otherwise upload and request review with automatic publication after approval. |
 
-All modes run the same repository-native CI through reusable `test.yml`. A
+All packaging and mutation modes run the same repository-native CI through reusable `test.yml`. A
 separate job builds the Chromium production channel, packages only its resources
 with deterministic ZIP metadata, and retains `package.zip`, SHA-256, source/build
 metadata and a production-dependency CycloneDX SBOM. Another job attaches GitHub
@@ -73,7 +77,9 @@ metadata retains the public key for the uploader identity checks. Download the
 invoking a native host. The accepted Chrome/macOS caller boundary is documented
 in `STATUS.md` and still needs installed-runtime acceptance.
 
-Only the store job can obtain Google credentials. It runs in the
+Only the store and read-only status jobs can obtain Google credentials. Status requests only the `chromewebstore.readonly` scope, skips package CI, and emits bounded states/versions and policy flags without public keys or arbitrary API text. The existing tag/main environment and WIF restrictions also apply to status; stable status cannot run from main.
+
+The store mutation job obtains Google credentials separately. It runs in the
 `chrome-web-store-beta` (main) or `chrome-web-store` (tags) environment and requests a short-lived access token through
 Workload Identity Federation (OIDC) and a dedicated service account. No service
 account JSON key, client secret or refresh token is needed. Dependency install,
@@ -84,10 +90,9 @@ Before upload, the script checks the artifact checksum/source, release gates,
 nonzero version, exact manifest-derived Item ID, and that its API/panel URLs match
 the deployment variables. A configuration change requires a new matching package.
 It obtains the store's public key through API v2 and compares identities before any mutation. It refuses
-an existing pending/staged submission, policy warnings, or an already-published
+an existing pending/staged submission except explicit publication of the matching approved stable version, policy warnings, or an already-published
 version. Async upload processing has a two-minute deadline. Upload errors never
-lead to publication; mutations are not automatically retried. A publish request
-uses normal review and blocks on warnings. `PENDING_REVIEW` is not `PUBLISHED`.
+lead to publication; mutations are not automatically retried. Submission uses normal review and blocks on warnings. Stable tag pushes select `review` (`STAGED_PUBLISH`). A later explicit `publish` releases an approved candidate after `CWS_RELEASE_READY=true`. Keep the same tag and deployment configuration; do not replace its package in the dashboard between review and publication. The API exposes the approved version and identity, not its archive checksum. `PENDING_REVIEW` is not `PUBLISHED`.
 Keep manual dashboard changes out of an active upload/publish run.
 
 ## One-time setup
@@ -157,7 +162,7 @@ Each environment (`chrome-web-store-beta` and `chrome-web-store`) has its own va
 | `CWS_PUBLISHER_ID` | Publisher ID from Publisher -> Settings. |
 | `CWS_EXTENSION_ID` | That channel's distinct Item ID assigned by the store and reconciled with integrations. |
 | `CWS_VISIBILITY` | `unlisted`, only after confirming it in the dashboard. API v2 does not expose visibility; this records the owner's configuration, not an API verification. |
-| `CWS_RELEASE_READY` | `true` only after the gates in `STATUS.md` and the release checklist are complete; absent/false blocks all automated uploads and submissions. |
+| `CWS_RELEASE_READY` | `true` only after the gates in `STATUS.md` and the release checklist are complete; absent/false blocks draft `upload` and live `publish`. Stable `review` is permitted while false because Google keeps an approved submission unpublished. All identity, source, configuration, visibility and policy checks still apply. |
 
 Stable uploads need an incremented version in manifest/package/lockfile. After
 a stable bootstrap upload of `0.1.0`, use a higher version for the final package.
@@ -169,15 +174,14 @@ do not try uploading a lower manifest version.
 ## Current product gates
 
 The owner has registered a developer account, selected a GCP project and linked
-the service account to the publisher. The stable item exists as an unpublished
-draft; the beta item still needs creation. The first release uses staging; the
+the service account to the publisher. The stable item exists; use the status workflow on its release tag for the current review/publication state. The beta item still needs creation. The first release uses staging; the
 production panel URL remains undecided. The panel URL must become user-configurable
 alongside API URL; that feature is not implemented by this CI change. Current
 links use build-time `VITE_WEB_APP_URL`, while shared unlock independently uses
 API/origin pairs and generated browser routing. An editable navigation URL must
 not silently authorize key transfer. Dynamic configuration and its shared-unlock
 trust boundary still need implementation and validation before final release.
-The workflow keeps `CWS_RELEASE_READY` false until those existing gates close.
+The workflow keeps `CWS_RELEASE_READY` false until those existing gates close. This blocks live distribution, while staged Google review can proceed independently; submitting for review is not installed-runtime acceptance.
 
 ## Signing
 
@@ -239,3 +243,6 @@ submission; this document does not approve legal declarations.
 - [Chrome Web Store API v2](https://developer.chrome.com/docs/webstore/using-api)
 - [Service account access](https://developer.chrome.com/docs/webstore/service-accounts)
 - [GitHub OIDC authentication](https://github.com/google-github-actions/auth)
+
+- [API staged publication](https://developer.chrome.com/docs/webstore/api/reference/rest/v2/publishers.items/publish)
+- [API read-only status](https://developer.chrome.com/docs/webstore/api/reference/rest/v2/publishers.items/fetchStatus)

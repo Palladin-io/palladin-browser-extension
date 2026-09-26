@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import manifest from '../manifest/manifest.chromium.json';
-import { extensionId, uploadRelease, validateRelease } from './chrome-web-store.mjs';
+import { extensionId, fetchStoreStatus, uploadRelease, validateRelease } from './chrome-web-store.mjs';
 
 const archive = Buffer.from('synthetic archive bytes');
 const id = extensionId(manifest.key);
@@ -111,4 +111,73 @@ describe('Chrome Web Store release boundary', () => {
     await expect(run(request)).rejects.toThrow('Chrome Web Store request failed (HTTP 401)');
     expect(request).toHaveBeenCalledTimes(1);
   });
+});
+
+
+describe('staged review and read-only status', () => {
+  it('submits for staged review with the live release gate closed', async () => {
+    const request = fake(status, success, { state: 'PENDING_REVIEW' });
+    expect(await uploadRelease({ operation: 'review', metadata, archive,
+      env: { ...env, CWS_RELEASE_READY: 'false' }, request })).toBe('PENDING_REVIEW');
+    expect(request).toHaveBeenLastCalledWith(expect.stringContaining(':publish'), expect.objectContaining({
+      body: JSON.stringify({ publishType: 'STAGED_PUBLISH', skipReview: false, blockOnWarnings: true }),
+    }));
+  });
+  it.each(['publish', 'upload', 'unknown'])('keeps the readiness gate for %s', async operation => {
+    const request = fake(status, success);
+    await expect(uploadRelease({ operation, metadata, archive,
+      env: { ...env, CWS_RELEASE_READY: 'false' }, request })).rejects.toThrow();
+    expect(request).not.toHaveBeenCalled();
+  });
+  it.each([
+    { CWS_VISIBILITY: 'public' }, { GITHUB_REF: 'refs/heads/main' },
+    { CWS_API_URL: 'https://api.stage.palladin.io' }, { CWS_EXTENSION_ID: 'b'.repeat(32) },
+  ])('preserves release identity checks for staged review: %j', async patch => {
+    const request = fake(status, success);
+    await expect(uploadRelease({ operation: 'review', metadata, archive,
+      env: { ...env, CWS_RELEASE_READY: 'false', ...patch }, request })).rejects.toThrow();
+    expect(request).not.toHaveBeenCalled();
+  });
+  it('publishes the matching approved version without another upload', async () => {
+    const request = fake({ ...status, submittedItemRevisionStatus: { state: 'STAGED',
+      distributionChannels: [{ crxVersion: metadata.version }] } }, { state: 'PUBLISHED' });
+    expect(await run(request, 'publish')).toBe('PUBLISHED');
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request).toHaveBeenLastCalledWith(expect.stringContaining(':publish'), expect.objectContaining({
+      body: JSON.stringify({ publishType: 'DEFAULT_PUBLISH', skipReview: false, blockOnWarnings: true }),
+    }));
+  });
+  it.each(['0.0.9', '0.2.0'])('does not release a different staged version %s', async crxVersion => {
+    const request = fake({ ...status, submittedItemRevisionStatus: { state: 'STAGED',
+      distributionChannels: [{ crxVersion }] } });
+    await expect(run(request, 'publish')).rejects.toThrow('existing submission');
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+  it('reads status with the live gate closed and emits only selected value-free data', async () => {
+    const request = fake({ ...status, arbitraryText: 'do not log',
+      publishedItemRevisionStatus: { state: 'PUBLISHED', distributionChannels: [{ crxVersion: '0.0.9' }] },
+      submittedItemRevisionStatus: { state: 'PENDING_REVIEW', distributionChannels: [{ crxVersion: '0.1.0' }] },
+    });
+    expect(await fetchStoreStatus({ env: { ...env, CWS_RELEASE_READY: 'false' }, request })).toEqual({
+      published: { state: 'PUBLISHED', versions: ['0.0.9'] },
+      submitted: { state: 'PENDING_REVIEW', versions: ['0.1.0'] }, takenDown: false, warned: false,
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith(expect.stringContaining(':fetchStatus'), expect.not.objectContaining({ method: 'POST' }));
+  });
+  it('does not emit arbitrary status/version text', async () => {
+    const request = fake({ submittedItemRevisionStatus: { state: 'secret text',
+      distributionChannels: [{ crxVersion: 'secret text' }] } });
+    expect(await fetchStoreStatus({ env, request })).toEqual({ published: null,
+      submitted: { state: 'UNKNOWN', versions: ['UNKNOWN'] }, takenDown: false, warned: false });
+  });
+  it('rejects a substituted status item', async () => {
+    await expect(fetchStoreStatus({ env, request: fake({ itemId: 'b'.repeat(32) }) })).rejects.toThrow('different item');
+  });
+  it.each([{ CWS_EXTENSION_ID: '../other' }, { CWS_CHANNEL: 'stable', GITHUB_REF: 'refs/heads/main' }])(
+    'rejects invalid status configuration before contacting Google: %j', async patch => {
+      const request = fake(status);
+      await expect(fetchStoreStatus({ env: { ...env, ...patch }, request })).rejects.toThrow();
+      expect(request).not.toHaveBeenCalled();
+    });
 });

@@ -12,11 +12,13 @@ import zipfile
 
 def configuration(env):
     operation = env.get("RELEASE_OPERATION", "")
-    if operation not in {"bootstrap", "package", "upload", "publish"}:
+    if operation not in {"bootstrap", "package", "upload", "review", "publish"}:
         raise ValueError("Select a Chrome Web Store operation")
     channel = env.get("PALLADIN_STORE_CHANNEL", "stable")
     if channel not in {"stable", "beta"}:
         raise ValueError("Select stable or beta")
+    if operation == "review" and channel != "stable":
+        raise ValueError("Staged review requires the stable channel")
     api = env.get("VITE_API_URL", "")
     panel = env.get("VITE_WEB_APP_URL", "")
     if api not in {"https://api.palladin.io", "https://api.stage.palladin.io"}:
@@ -50,7 +52,7 @@ def validate_source(root, config, env):
         if not 1 <= number <= 4294967295:
             raise ValueError("Beta requires a positive 32-bit CI run number")
         return f"0.0.{number // 65536}.{number % 65536}"
-    if ref.startswith("refs/tags/") or operation in {"upload", "publish"}:
+    if ref.startswith("refs/tags/") or operation in {"upload", "review", "publish"}:
         if not re.fullmatch(r"refs/tags/v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", ref) or ref != f"refs/tags/v{version}":
             raise ValueError("Stable releases require a vX.Y.Z tag matching the source version")
         commit = env.get("GITHUB_SHA", "")
