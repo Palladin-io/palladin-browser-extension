@@ -12,7 +12,7 @@ import { TAB_URL_REQUEST_CHANNEL, isTabUrlResponse } from "@shared/messaging";
 import { CaptureCoordinator, type CaptureSource, type CaptureTab } from "./coordinator";
 import { browserDocumentIdForTab } from "../tab-documents";
 import { vaultData } from "../vault/runtime";
-import { generatorHistory, generatorSuggestionsEnabled } from "../generator/runtime";
+import { generatorSuggestionsEnabled } from "../generator/runtime";
 import { sessionManager } from "../session/runtime";
 import { isGeneratePasswordCommand, type CaptureGeneratedFillResult } from '@shared/messaging/capture';
 
@@ -45,9 +45,8 @@ export const captureCoordinator = new CaptureCoordinator({
   async sendFill(tabId, browserDocumentId, message) {
     const keys = sessionManager.getKeys();
     if (keys === null) return { ok: false, reason: "stale-candidate" };
-    await generatorHistory.remember(message.value, message.expectedOrigin);
-    if (sessionManager.getKeys() !== keys) return { ok: false, reason: "stale-candidate" };
     const active = await getActiveTab();
+    if (sessionManager.getKeys() !== keys) return { ok: false, reason: "stale-candidate" };
     if (active?.id !== tabId || active.browserDocumentId !== browserDocumentId
       || active.documentId !== message.expectedDocumentId
       || !sameHttpsOrigin(active.url, message.expectedOrigin)) return { ok: false, reason: "stale-candidate" };

@@ -1,14 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CAPTURE_DETECTED_CHANNEL } from '@shared/messaging/capture';
 import { captureCoordinator } from './runtime';
-import { generatorHistory } from '../generator/runtime';
 import { sessionManager } from '../session/runtime';
 import { registerTopFrameDocument } from '../tab-documents';
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('generated fill runtime boundary', () => {
-  it('does not release a persisted password after the user changes active tabs', async () => {
+  it('does not release a generated password after the user changes active tabs', async () => {
     const documentId = '0123456789abcdef0123456789abcdef';
     const browserDocumentId = 'browser-document-1';
     const url = 'https://accounts.example.com/register';
@@ -27,8 +26,10 @@ describe('generated fill runtime boundary', () => {
     });
     vi.stubGlobal('chrome', { tabs: { query: vi.fn(async () => [{ id: activeTab }]), sendMessage } });
     const keys = { privateKey: new Uint8Array(32) };
-    vi.spyOn(sessionManager, 'getKeys').mockReturnValue(keys as ReturnType<typeof sessionManager.getKeys>);
-    vi.spyOn(generatorHistory, 'remember').mockImplementation(async () => { activeTab = 8; });
+    vi.spyOn(sessionManager, 'getKeys').mockImplementation(() => {
+      activeTab = 8;
+      return keys as ReturnType<typeof sessionManager.getKeys>;
+    });
     try {
       expect(captureCoordinator.observe({ channel: CAPTURE_DETECTED_CHANNEL, documentId,
         candidateId: 'candidate_0123456789abcdef', kind: 'registration' },

@@ -35,7 +35,7 @@ jobs:
         run: npm run test:browser:inline
       - name: Verify encrypted credential capture
         run: npm run test:browser:capture
-      - name: Verify generated password recovery across browser restart
+      - name: Verify generated password fill without local history
         run: npm run test:browser:generator
       - name: Verify trusted multi-step and formless capture
         run: node tests/browser/credential-submission.mjs

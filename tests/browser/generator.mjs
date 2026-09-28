@@ -14,11 +14,6 @@ const api = await createCaptureApi();
 const profile = await mkdtemp(path.join(tmpdir(), 'palladin-generator-'));
 let context;
 let popup;
-async function waitForReveal(value) {
-  const deadline = Date.now() + 10000;
-  while (!(await popup.hasText(value)) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
-  assert(await popup.hasText(value), 'History reveals the original generated value');
-}
 try {
   const extension = path.join(profile, 'dist/chromium');
   await promisify(execFile)(process.execPath, ['node_modules/vite/bin/vite.js', 'build', '--outDir', extension], {
@@ -74,29 +69,14 @@ try {
   assert.equal(api.writes.length, 0, 'Generation must not create a Vault entry');
   const stored = await worker.evaluate(() => chrome.storage.local.get(null));
   const historyKeys = Object.keys(stored).filter(key => key.startsWith('palladin.generator-history.v1:'));
-  assert.equal(historyKeys.length, 1);
+  assert.equal(historyKeys.length, 0);
   assert(!JSON.stringify(stored).includes(generated), 'Persistent storage must contain no generated plaintext');
-  assert(!JSON.stringify(stored[historyKeys[0]]).includes('register.example.test'), 'Origin metadata must be encrypted');
-  console.log('PASS: trusted inline action fills both fields only after encrypted recovery persistence');
+  console.log('PASS: trusted inline action fills both fields without local password history');
   await page.getByRole('button', { name: 'Register', exact: true }).click();
   await page.getByRole('status').filter({ hasText: 'Account created' }).waitFor();
   popup.close();
   popup = await openNativePopup(worker, profile, extensionId);
-  await popup.click('Password history', 'tab');
-  await popup.waitText('register.example.test');
-  await popup.click('Reveal');
-  await waitForReveal(generated);
-  popup.close();
-  await context.close();
-  context = await launch();
-  const restartedWorker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
-  popup = await openNativePopup(restartedWorker, profile, extensionId);
-  await popup.fill('input[type=password]', api.password);
-  await popup.click('Unlock');
-  await popup.click('Password history', 'tab');
-  await popup.click('Reveal');
-  await waitForReveal(generated);
-  console.log('PASS: history survives actual browser restart and requires fresh unlock');
+  assert(!(await popup.hasText('Password history')), 'No standalone password history tab');
 } finally {
   popup?.close(); await context?.close(); await api.close(); await rm(profile, { recursive: true, force: true });
 }
