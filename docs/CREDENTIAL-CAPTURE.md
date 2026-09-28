@@ -132,7 +132,7 @@ is allowed within the original lifetime.
 
 ## Browser acceptance evidence
 
-The candidate strong-password inline flow and encrypted local recovery are
+The strong-password inline flow and explicit Entry persistence are
 documented in [GENERATOR-HISTORY.md](GENERATOR-HISTORY.md). Their dependency
 release and browser acceptance gates are separate from the capture evidence below.
 

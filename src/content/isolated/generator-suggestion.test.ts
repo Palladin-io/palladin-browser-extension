@@ -6,7 +6,7 @@ import { startGeneratorSuggestion } from './generator-suggestion';
 
 afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
-it('keeps the suggestion during a history write but cancels it when disabled', async () => {
+it('keeps the suggestion during an unrelated storage write but cancels it when disabled', async () => {
   const addListener = vi.fn();
   vi.stubGlobal('chrome', {
     i18n: { getUILanguage: () => 'en' },
@@ -24,7 +24,7 @@ it('keeps the suggestion during a history write but cancels it when disabled', a
     const surface = document.querySelector('palladin-autofill');
     expect(surface).not.toBeNull();
     const changes = addListener.mock.calls[0]![0];
-    changes({ 'palladin.generator-history.v1:test': { newValue: { version: 1, ciphertext: 'synthetic' } } }, 'local');
+    changes({ 'unrelated-preference': { newValue: { version: 1, ciphertext: 'synthetic' } } }, 'local');
     expect(surface!.isConnected).toBe(true);
     changes({ [GENERATOR_SUGGESTIONS_KEY]: { newValue: false } }, 'local');
     expect(surface!.isConnected).toBe(false);

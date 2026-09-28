@@ -31,8 +31,6 @@ import {
 import { openSidePanel } from "@shared/browser/side-panel";
 import { isCredentialCaptureCommand } from "@shared/messaging/credential-capture";
 import { isCaptureSettingsCommand } from "@shared/messaging/capture-settings";
-import { isGeneratorHistoryCommand } from "@shared/messaging/generator-history";
-import { handleGeneratorHistory } from "./generator/runtime";
 import { isGeneratePasswordCommand } from '@shared/messaging/capture';
 import { handleGeneratePassword } from './capture/runtime';
 import { handleCaptureSettings } from "./capture/settings-runtime";
@@ -154,7 +152,6 @@ function unavailableDuringServerChange(raw: unknown): unknown {
   if (type.startsWith("capture/")) {
     return { ok: false, code: "unavailable", message: "Server change in progress" };
   }
-  if (type.startsWith("generator-history/")) return { ok: false, code: "unavailable" };
   return null;
 }
 
@@ -433,10 +430,6 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
       }
       if (isCaptureSettingsCommand(raw)) {
         sendResponse(await handleCaptureSettings(raw));
-        return;
-      }
-      if (isGeneratorHistoryCommand(raw)) {
-        sendResponse(await handleGeneratorHistory(raw));
         return;
       }
       const sessionResult = await handleRuntimeMessage(sessionManager, raw);

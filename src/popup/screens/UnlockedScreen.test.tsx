@@ -74,6 +74,20 @@ beforeEach(() => {
 const noop = async (): Promise<void> => {};
 
 describe("UnlockedScreen", () => {
+  it("offers only Entry browsing, generation and creation, and copies without history storage", async () => {
+    const client = makeClient();
+    const user = userEvent.setup();
+    render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={client} captureClient={makeCaptureClient()} />);
+    await screen.findByText("All items");
+    expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["Vault", "Generator", "Add entry"]);
+    await user.click(screen.getByRole("tab", { name: "Generator" }));
+    vi.mocked(chrome.runtime.sendMessage).mockClear();
+    await user.click(screen.getByRole("button", { name: "Copy" }));
+    expect(await navigator.clipboard.readText()).not.toBe("");
+    expect(client.armClipboardClear).toHaveBeenCalledOnce();
+    expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
+  });
+
   it("renders the for-this-site and all-items sections", async () => {
     const { container } = render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={makeClient()} />);
 

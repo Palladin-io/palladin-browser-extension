@@ -17,7 +17,6 @@ import type { CaptureGeneratedFillResult, CaptureSaveResult } from "@shared/mess
 import { Button } from "../components/Button";
 import { useI18n, type Translate } from "../i18n";
 import type { VaultClient } from "../vault/client";
-import { historyCommand } from './history-client';
 import { GENERATOR_SUGGESTIONS_KEY } from '@shared/messaging/capture';
 
 type GeneratorMode = "password" | "passphrase";
@@ -86,7 +85,6 @@ export function GeneratorPanel({
 
   async function copy(): Promise<void> {
     try {
-      await historyCommand({ type: 'generator-history/remember', value });
       if (!mounted.current) return;
       await navigator.clipboard.writeText(value);
       await client.armClipboardClear();
