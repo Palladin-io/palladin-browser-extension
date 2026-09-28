@@ -234,7 +234,7 @@
   "generator.blocked": "Fill is available only on a secure active page",
   "generator.error": "Action failed - try again",
   "generator.captureNote": "Detected form on {site}. Fill first, then explicitly save the generated value.",
-  "generator.memoryNote": "Used passwords stay encrypted on this device until you delete them. Up to 200 entries; nothing is automatically removed. This is not a saved login.",
+  "generator.memoryNote": "Generated passwords are not saved automatically. Save the password to an Entry to keep it before closing this view.",
   "entry.note": "Create a login, API key, script, or payment card in your encrypted vault.",
   "entry.type": "Entry type",
   "entry.typeCredential": "Login",

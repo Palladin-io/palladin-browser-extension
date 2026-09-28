@@ -234,7 +234,7 @@
   "generator.blocked": "Wypełnianie jest dostępne tylko na bezpiecznej aktywnej stronie",
   "generator.error": "Operacja nie powiodła się - spróbuj ponownie",
   "generator.captureNote": "Wykryto formularz na {site}. Najpierw wypełnij, a następnie jawnie zapisz wygenerowaną wartość.",
-  "generator.memoryNote": "Użyte hasła pozostają zaszyfrowane na tym urządzeniu do usunięcia. Limit 200 pozycji; nic nie jest usuwane automatycznie. To nie jest zapisane konto.",
+  "generator.memoryNote": "Wygenerowane hasła nie zapisują się automatycznie. Przed zamknięciem tego widoku zapisz hasło w Entry, aby je zachować.",
   "entry.note": "Utwórz dane logowania, klucz API, skrypt lub kartę płatniczą w zaszyfrowanym sejfie.",
   "entry.type": "Typ wpisu",
   "entry.typeCredential": "Dane logowania",
