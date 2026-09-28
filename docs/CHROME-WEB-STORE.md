@@ -26,7 +26,7 @@ Two separate **Unlisted** items provide installable channels:
 | Trigger | Store item | Version | Result |
 | --- | --- | --- | --- |
 | Push/merge to `main` | Palladin BETA | `0.0.<run / 65536>.<run % 65536>` (integer division) | Run CI, upload and submit for normal review; automatically publish after approval. |
-| Push `vX.Y.Z` | Palladin | `X.Y.Z` | Require the tag version in manifest/package/lockfile and a commit reachable from `main`; run CI, upload and submit for staged review. Approval alone does not publish. |
+| Push `vX.Y.Z` | Palladin | `X.Y.Z` | Require the tag version in manifest/package/lockfile and a commit reachable from `main`; run CI and upload. With `CWS_RELEASE_READY=true`, submit for automatic publication after Google approval; otherwise submit for staged review without publication. |
 
 Until the separate beta item/public key is configured, a main push runs CI and reports that beta submission was skipped; it does not fail packaging or submit to the stable item. Manual beta packaging still requires its key.
 
@@ -92,7 +92,7 @@ the deployment variables. A configuration change requires a new matching package
 It obtains the store's public key through API v2, normalizes public PEM/base64 DER to SPKI DER, and compares the complete key and derived Item ID before any mutation. It refuses
 an existing pending/staged submission except explicit publication of the matching approved stable version, policy warnings, or an already-published
 version. Async upload processing has a two-minute deadline. Upload errors never
-lead to publication; mutations are not automatically retried. Submission uses normal review and blocks on warnings. Stable tag pushes select `review` (`STAGED_PUBLISH`). A later explicit `publish` releases an approved candidate after `CWS_RELEASE_READY=true`. Keep the same tag and deployment configuration; do not replace its package in the dashboard between review and publication. The API exposes the approved version and identity, not its archive checksum. `PENDING_REVIEW` is not `PUBLISHED`.
+lead to publication; mutations are not automatically retried. Submission uses normal review and blocks on warnings. Stable tag pushes select `publish` (`DEFAULT_PUBLISH`) only when the protected store environment has `CWS_RELEASE_READY=true`; otherwise they select `review` (`STAGED_PUBLISH`). Google automatically publishes an approved `DEFAULT_PUBLISH` submission without another workflow run. Changing the gate after a staged submission does not promote it automatically: use explicit `publish` on the same tag after approval. Existing immutable tags retain their original workflow behavior; create future release tags from a commit containing this automation. Keep the same tag and deployment configuration; do not replace its package in the dashboard between review and publication. The API exposes the approved version and identity, not its archive checksum. `PENDING_REVIEW` is not `PUBLISHED`.
 Keep manual dashboard changes out of an active upload/publish run.
 
 ## One-time setup
