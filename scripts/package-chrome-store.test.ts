@@ -93,11 +93,59 @@ describe('Chrome archive packaging', () => {
     expect(spawnSync('python3', [script, '--check-config'], { cwd: root,
       env: { ...settings, GITHUB_SHA: git('rev-parse', 'HEAD') } }).status).not.toBe(0);
   });
-  it.each(['refs/heads/main', 'refs/tags/v0.2.0', 'refs/tags/v0.1.0-rc.1'])('rejects stable publishing with ref %s', ref => {
+  it.each(['refs/heads/main', 'refs/tags/0.2.0', 'refs/tags/v0.1.0-rc.1'])('rejects stable publishing with ref %s', ref => {
     expect(spawnSync('python3', [script, '--check-config'], { cwd: fixture(),
       env: { ...env, RELEASE_OPERATION: 'publish', GITHUB_REF: ref } }).status).not.toBe(0);
     expect(spawnSync('python3', [script, '--check-config'], { cwd: fixture(),
       env: { ...env, RELEASE_OPERATION: 'review', GITHUB_REF: ref } }).status).not.toBe(0);
+  });
+  it('derives the stable package version from the tag without changing other source fields', () => {
+    const { root, sha } = gitFixture();
+    const files = ['package.json', 'package-lock.json', 'manifest/manifest.base.json'];
+    const originals = files.map(name => {
+      const document = JSON.parse(readFileSync(join(root, name), 'utf8'));
+      document.name = 'synthetic-package';
+      if (name === 'package-lock.json') document.packages.dependency = { version: '9.8.7' };
+      writeFileSync(join(root, name), JSON.stringify(document));
+      return document;
+    });
+    const settings = { ...env, RELEASE_OPERATION: 'review', GITHUB_REF: 'refs/tags/v0.2.0', GITHUB_SHA: sha };
+    execFileSync('python3', [script, '--check-config'], { cwd: root, env: settings });
+    files.forEach((name, index) => expect(JSON.parse(readFileSync(join(root, name), 'utf8'))).toEqual(originals[index]));
+    execFileSync('python3', [script, '--prepare-release'], { cwd: root, env: settings });
+    files.forEach((name, index) => {
+      const expected = structuredClone(originals[index]);
+      expected.version = '0.2.0';
+      if (name === 'package-lock.json') expected.packages[''].version = '0.2.0';
+      expect(JSON.parse(readFileSync(join(root, name), 'utf8'))).toEqual(expected);
+    });
+    // A stale build must not be uploaded just because the source has been stamped.
+    expect(spawnSync('python3', [script], { cwd: root, env: settings }).status).not.toBe(0);
+    const prepared = JSON.parse(readFileSync(join(root, 'manifest/manifest.base.json'), 'utf8'));
+    writeFileSync(join(root, 'dist/chromium/manifest.json'), JSON.stringify({ ...manifest, version: prepared.version }));
+    execFileSync('python3', [script], { cwd: root, env: settings });
+    const uploaded = JSON.parse(execFileSync('python3', ['-c',
+      'import zipfile;print(zipfile.ZipFile("dist/chrome-store/package.zip").read("manifest.json").decode())'],
+    { cwd: root }).toString());
+    expect(uploaded.version).toBe('0.2.0');
+    expect(JSON.parse(readFileSync(join(root, 'dist/chrome-store/release.json'), 'utf8'))).toMatchObject({
+      version: '0.2.0', commit: sha,
+    });
+  });
+  it.each(['v0.0.0', 'v65536.1.0', 'v0.65536.0', 'v0.1.65536', 'v01.2.3', 'v0.2.0-rc.1'])(
+    'rejects an invalid stable version before changing source files: %s', tag => {
+      const { root, sha } = gitFixture();
+      const original = readFileSync(join(root, 'package.json'), 'utf8');
+      expect(spawnSync('python3', [script, '--prepare-release'], { cwd: root,
+        env: { ...env, GITHUB_REF: `refs/tags/${tag}`, GITHUB_SHA: sha } }).status).not.toBe(0);
+      expect(readFileSync(join(root, 'package.json'), 'utf8')).toBe(original);
+    });
+  it.each(['stable', 'beta'])('leaves main source versions unchanged when preparing %s', channel => {
+    const root = fixture();
+    const original = readFileSync(join(root, 'package.json'), 'utf8');
+    execFileSync('python3', [script, '--prepare-release'], { cwd: root,
+      env: { ...env, PALLADIN_STORE_CHANNEL: channel, GITHUB_RUN_NUMBER: '123' } });
+    expect(readFileSync(join(root, 'package.json'), 'utf8')).toBe(original);
   });
   it('rejects version drift in the lockfile before building', () => {
     const root = fixture();

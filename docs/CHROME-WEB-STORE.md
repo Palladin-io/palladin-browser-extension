@@ -8,8 +8,8 @@ server selector, including production and custom HTTPS servers. Other browser
 stores are out of scope for this release. Unlisted is visibility, not access
 control: anyone with the link can install the extension.
 
-Version `0.1.3` is the next candidate after the initial `0.1.0` draft. Preparing an archive does not complete
-the release gates in [STATUS.md](STATUS.md).
+Preparing an archive or publishing a GitHub Release does not complete the
+release gates in [STATUS.md](STATUS.md). Check the store status separately.
 
 Non-bootstrap packaging requires `CWS_SHARED_UNLOCK_ENVIRONMENTS` to include the
 exact `apiUrl` / `webOrigin` pair selected by `CWS_API_URL` / `CWS_WEB_APP_URL`.
@@ -26,7 +26,7 @@ Two separate **Unlisted** items provide installable channels:
 | Trigger | Store item | Version | Result |
 | --- | --- | --- | --- |
 | Push/merge to `main` | Palladin BETA | `0.0.<run / 65536>.<run % 65536>` (integer division) | Run CI, upload and submit for normal review; automatically publish after approval. |
-| Push `vX.Y.Z` | Palladin | `X.Y.Z` | Require the tag version in manifest/package/lockfile and a commit reachable from `main`; run CI and upload. With `CWS_RELEASE_READY=true`, submit for automatic publication after Google approval; otherwise submit for staged review without publication. |
+| Publish a stable GitHub Release tagged `vX.Y.Z` | Palladin | `X.Y.Z` | Require a commit reachable from `main`; run CI, stamp the tag version into build inputs, build and upload. With `CWS_RELEASE_READY=true`, submit for automatic publication after Google approval; otherwise submit for staged review without publication. |
 
 Until the separate beta item/public key is configured, a main push runs CI and reports that beta submission was skipped; it does not fail packaging or submit to the stable item. Manual beta packaging still requires its key.
 
@@ -34,8 +34,24 @@ The beta counter is the workflow's `github.run_number`, independent of the stabl
 version. For example, run 65535 is `0.0.0.65535`; run 65536 is `0.0.1.0`.
 `version_name` also includes the source version and beta run. Re-running the same
 run keeps the same version. Do not reset/rename the workflow without planning a
-monotonic version migration. The stable source version is incremented through a
-PR before creating its tag. Do not move or reuse release tags.
+monotonic version migration.
+
+To release stable, open **Releases -> Draft a new release**, create a new tag
+such as `v0.1.4` targeting reviewed `main`, then **Publish release** without
+marking it as a prerelease. The tag is the only version input: its three numeric
+parts must each be 0..65535 and the version must be nonzero and newer than the
+store version. The release title and notes do not determine the package version.
+CI verifies that the checked-in manifest/package/lockfile versions agree, then
+stamps the tag version into those build inputs in its disposable checkout before
+building. Dependency versions are unchanged; CI does not commit version bumps.
+The built manifest must match the tag and the artifact records the source commit.
+Local builds and main/beta builds keep their existing version behavior.
+
+Drafts, GitHub prereleases and tag pushes alone do not submit stable packages.
+Publishing the release emits `release.published`; merely editing its title/notes
+does not rebuild it. Use a new stable release instead of promoting a GitHub
+prerelease. Create new tags from reviewed main containing this workflow; existing
+immutable tags keep their old workflow behavior. Do not move or reuse tags.
 
 CWS does not provide an installable prerelease track within one item. Beta has
 its own Item ID and public key, with Google's required BETA name/testing label.
@@ -45,7 +61,7 @@ configuration, with the existing server selector. The beta channel does not gran
 any additional native runtime or shared-unlock trust; its separate identity must be explicitly reviewed
 and configured in those integrations. It is not the local debug runtime channel.
 
-A push submits a candidate, not an immediate installation. If a previous version
+A main push or stable GitHub Release submits a candidate, not an immediate installation. If a previous version
 is pending review or staged, an upload/review job fails without replacing it or cancelling
 review. An explicit stable `publish` can release the matching staged version after the live release gates pass; it does not upload again. Its tested ZIP remains in Actions for 30 days. After resolving the store
 status, rerun the relevant failed job only if its version is still newer than the
@@ -92,7 +108,7 @@ the deployment variables. A configuration change requires a new matching package
 It obtains the store's public key through API v2, normalizes public PEM/base64 DER to SPKI DER, and compares the complete key and derived Item ID before any mutation. It refuses
 an existing pending/staged submission except explicit publication of the matching approved stable version, policy warnings, or an already-published
 version. Async upload processing has a two-minute deadline. Upload errors never
-lead to publication; mutations are not automatically retried. Submission uses normal review and blocks on warnings. Stable tag pushes select `publish` (`DEFAULT_PUBLISH`) only when the protected store environment has `CWS_RELEASE_READY=true`; otherwise they select `review` (`STAGED_PUBLISH`). Google automatically publishes an approved `DEFAULT_PUBLISH` submission without another workflow run. Changing the gate after a staged submission does not promote it automatically: use explicit `publish` on the same tag after approval. Existing immutable tags retain their original workflow behavior; create future release tags from a commit containing this automation. Keep the same tag and deployment configuration; do not replace its package in the dashboard between review and publication. The API exposes the approved version and identity, not its archive checksum. `PENDING_REVIEW` is not `PUBLISHED`.
+lead to publication; mutations are not automatically retried. Submission uses normal review and blocks on warnings. Stable GitHub Releases select `publish` (`DEFAULT_PUBLISH`) only when the protected store environment has `CWS_RELEASE_READY=true`; otherwise they select `review` (`STAGED_PUBLISH`). Google automatically publishes an approved `DEFAULT_PUBLISH` submission without another workflow run. Changing the gate after a staged submission does not promote it automatically: use explicit `publish` on the same tag after approval. Existing immutable tags retain their original workflow behavior; create future release tags from a commit containing this automation. Keep the same tag and deployment configuration; do not replace its package in the dashboard between review and publication. The API exposes the approved version and identity, not its archive checksum. `PENDING_REVIEW` is not `PUBLISHED`.
 Keep manual dashboard changes out of an active upload/publish run.
 
 ## One-time setup
@@ -123,16 +139,18 @@ Keep manual dashboard changes out of an active upload/publish run.
    linked to a publisher. This grants publisher-wide API access, while this
    workflow additionally checks the configured exact Item ID.
 6. Create an OIDC Workload Identity Provider for GitHub. Require the exact
-   immutable repository/owner numeric IDs and event `push` or `workflow_dispatch`.
+   immutable repository/owner numeric IDs and the event/ref combinations below.
    Read the repository's current `sub_claim_prefix` from the GitHub Actions OIDC
    customization API (`GET /repos/{owner}/{repo}/actions/oidc/customization/sub`).
    New repositories use immutable subjects containing owner/repository numeric
    IDs; do not reconstruct a legacy name-only subject or disable immutable IDs.
    Bind the exact workflow path and ref, with two allowed combinations:
-   - `refs/heads/main`, workflow ref ending `@refs/heads/main`, environment subject
+   - Events `push` or `workflow_dispatch`: `refs/heads/main`, workflow ref ending
+     `@refs/heads/main`, environment subject
      `<sub_claim_prefix>:environment:chrome-web-store-beta`.
-   - `refs/tags/vX.Y.Z`, workflow ref ending with that exact tag ref, environment
-     subject `<sub_claim_prefix>:environment:chrome-web-store`.
+   - Events `release` or `workflow_dispatch` (also `push` for recovery of older
+     immutable tags): `refs/tags/vX.Y.Z`, workflow ref ending with that exact tag ref,
+     environment subject `<sub_claim_prefix>:environment:chrome-web-store`.
    Grant only `roles/iam.workloadIdentityUser` on the service account to the pool's
    immutable repository ID principal set. No project-wide roles or runtime secrets.
 7. Configure deployment rules: `chrome-web-store-beta` allows only branch `main`;
@@ -168,7 +186,7 @@ Each environment (`chrome-web-store-beta` and `chrome-web-store`) has its own va
 | `CWS_VISIBILITY` | `unlisted`, only after confirming it in the dashboard. API v2 does not expose visibility; this records the owner's configuration, not an API verification. |
 | `CWS_RELEASE_READY` | `true` only after the gates in `STATUS.md` and the release checklist are complete; absent/false blocks draft `upload` and live `publish`. Stable `review` is permitted while false because Google keeps an approved submission unpublished. All identity, source, configuration, visibility and policy checks still apply. |
 
-Stable uploads need an incremented version in manifest/package/lockfile. After
+Stable uploads take their incremented version from the `vX.Y.Z` tag. After
 a stable bootstrap upload of `0.1.0`, use a higher version for the final package.
 Beta versions increment automatically with new workflow runs. If a run
 fails after a mutation, inspect its status in the dashboard before retrying.
@@ -251,3 +269,5 @@ submission; this document does not approve legal declarations.
 - [API staged publication](https://developer.chrome.com/docs/webstore/api/reference/rest/v2/publishers.items/publish)
 - [API read-only status](https://developer.chrome.com/docs/webstore/api/reference/rest/v2/publishers.items/fetchStatus)
 - [GitHub immutable OIDC subjects](https://docs.github.com/en/actions/reference/security/oidc#immutable-subject-claims)
+
+- [GitHub Release workflow events](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#release)
