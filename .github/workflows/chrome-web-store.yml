@@ -24,7 +24,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: chrome-web-store-${{ github.event_name == 'release' && 'stable' || github.event_name == 'push' && 'beta' || inputs.channel }}
+  group: chrome-web-store-${{ github.event_name == 'release' && github.event.release.prerelease && 'prerelease' || github.event_name == 'release' && 'stable' || github.event_name == 'push' && 'beta' || inputs.channel }}
   cancel-in-progress: false
 
 jobs:

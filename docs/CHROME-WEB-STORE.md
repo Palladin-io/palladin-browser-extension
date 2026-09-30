@@ -48,6 +48,8 @@ The built manifest must match the tag and the artifact records the source commit
 Local builds and main/beta builds keep their existing version behavior.
 
 Drafts, GitHub prereleases and tag pushes alone do not submit stable packages.
+Prerelease events use a separate concurrency group so they cannot replace a
+queued stable release.
 Publishing the release emits `release.published`; merely editing its title/notes
 does not rebuild it. Use a new stable release instead of promoting a GitHub
 prerelease. Create new tags from reviewed main containing this workflow; existing
