@@ -3,7 +3,8 @@ name: Chrome Web Store
 on:
   push:
     branches: [main]
-    tags: ['v*']
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       operation:
@@ -23,12 +24,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: chrome-web-store-${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' && 'beta' || 'stable') || inputs.channel }}
+  group: chrome-web-store-${{ github.event_name == 'release' && github.event.release.prerelease && 'prerelease' || github.event_name == 'release' && 'stable' || github.event_name == 'push' && 'beta' || inputs.channel }}
   cancel-in-progress: false
 
 jobs:
   verify:
-    if: inputs.operation != 'status'
+    if: inputs.operation != 'status' && (github.event_name != 'release' || !github.event.release.prerelease)
     uses: ./.github/workflows/test.yml
 
   package:
@@ -42,8 +43,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      RELEASE_OPERATION: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' && 'publish' || 'review') || inputs.operation }}
-      PALLADIN_STORE_CHANNEL: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' && 'beta' || 'stable') || inputs.channel }}
+      RELEASE_OPERATION: ${{ github.event_name == 'release' && 'review' || github.event_name == 'push' && 'publish' || inputs.operation }}
+      PALLADIN_STORE_CHANNEL: ${{ github.event_name == 'release' && 'stable' || github.event_name == 'push' && 'beta' || inputs.channel }}
       CWS_STABLE_PUBLIC_KEY: ${{ vars.CWS_STABLE_PUBLIC_KEY }}
       CWS_BETA_PUBLIC_KEY: ${{ vars.CWS_BETA_PUBLIC_KEY }}
       VITE_API_URL: ${{ vars.CWS_API_URL }}
@@ -59,8 +60,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Validate source, channel, version and configuration
-        run: python3 scripts/package-chrome-store.py --check-config
+      - name: Validate configuration and prepare the release version
+        run: python3 scripts/package-chrome-store.py --prepare-release
       - name: Record the selected store channel
         id: context
         run: |
@@ -98,7 +99,7 @@ jobs:
 
   store:
     needs: [package, provenance]
-    if: github.event_name == 'push' || inputs.operation == 'upload' || inputs.operation == 'review' || inputs.operation == 'publish'
+    if: github.event_name == 'release' || github.event_name == 'push' || inputs.operation == 'upload' || inputs.operation == 'review' || inputs.operation == 'publish'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: ${{ needs.package.outputs.channel == 'beta' && 'chrome-web-store-beta' || 'chrome-web-store' }}
@@ -106,7 +107,7 @@ jobs:
       contents: read
       id-token: write
     env:
-      CWS_OPERATION: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' && 'publish' || 'review') || inputs.operation }}
+      CWS_OPERATION: ${{ github.event_name == 'release' && 'review' || github.event_name == 'push' && 'publish' || inputs.operation }}
       CWS_CHANNEL: ${{ needs.package.outputs.channel }}
       CWS_API_URL: ${{ vars.CWS_API_URL }}
       CWS_WEB_APP_URL: ${{ vars.CWS_WEB_APP_URL }}
@@ -125,8 +126,8 @@ jobs:
         with:
           name: ${{ needs.package.outputs.artifact }}
           path: release
-      - name: Select automatic publication for release-ready tags
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      - name: Select automatic publication for a release-ready GitHub Release
+        if: github.event_name == 'release'
         run: |
           if [ "$CWS_RELEASE_READY" = 'true' ]; then
             echo 'CWS_OPERATION=publish' >> "$GITHUB_ENV"
@@ -155,7 +156,7 @@ jobs:
     steps:
       - name: Report the missing beta item
         run: |
-          echo '::notice::Beta store submission is not configured. Create its separate item and configure CWS_BETA_PUBLIC_KEY; stable releases remain tag-based.'
+          echo '::notice::Beta store submission is not configured. Create its separate item and configure CWS_BETA_PUBLIC_KEY; stable releases start from a published GitHub Release.'
           echo 'Beta upload skipped: configure the separate beta item following docs/CHROME-WEB-STORE.md. This run did not submit an extension.' >> "$GITHUB_STEP_SUMMARY"
 
   status:

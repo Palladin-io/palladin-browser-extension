@@ -53,8 +53,10 @@ def validate_source(root, config, env):
             raise ValueError("Beta requires a positive 32-bit CI run number")
         return f"0.0.{number // 65536}.{number % 65536}"
     if ref.startswith("refs/tags/") or operation in {"upload", "review", "publish"}:
-        if not re.fullmatch(r"refs/tags/v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", ref) or ref != f"refs/tags/v{version}":
-            raise ValueError("Stable releases require a vX.Y.Z tag matching the source version")
+        if not re.fullmatch(r"refs/tags/v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", ref):
+            raise ValueError("Stable releases require a vX.Y.Z tag")
+        version = ref.removeprefix("refs/tags/v")
+        validate_version(version)
         commit = env.get("GITHUB_SHA", "")
         if not re.fullmatch(r"[0-9a-f]{40}", commit):
             raise ValueError("Missing source commit")
@@ -65,14 +67,30 @@ def validate_source(root, config, env):
     return version
 
 
-def package(root, config, commit, expected_version):
-    source = root / "dist/chromium"
-    manifest = json.loads((source / "manifest.json").read_text())
-    version = manifest.get("version", "")
+def validate_version(version):
     parts = version.split(".")
     if (not re.fullmatch(r"(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){0,3}", version)
             or any(int(v) > 65535 for v in parts) or not any(int(v) for v in parts)):
         raise ValueError("Chrome requires a valid nonzero manifest version")
+
+
+def prepare_release(root, config, env, version):
+    if config["channel"] != "stable" or not env.get("GITHUB_REF", "").startswith("refs/tags/"):
+        return
+    for name in ["package.json", "package-lock.json", "manifest/manifest.base.json"]:
+        path = root / name
+        document = json.loads(path.read_text())
+        document["version"] = version
+        if name == "package-lock.json":
+            document["packages"][""]["version"] = version
+        path.write_text(json.dumps(document, indent=2) + "\n")
+
+
+def package(root, config, commit, expected_version):
+    source = root / "dist/chromium"
+    manifest = json.loads((source / "manifest.json").read_text())
+    version = manifest.get("version", "")
+    validate_version(version)
     if version != expected_version:
         raise ValueError("Manifest version differs from the selected release")
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
@@ -114,7 +132,9 @@ if __name__ == "__main__":
     try:
         config = configuration(os.environ)
         expected_version = validate_source(Path.cwd(), config, os.environ)
-        if "--check-config" not in sys.argv:
+        if "--prepare-release" in sys.argv:
+            prepare_release(Path.cwd(), config, os.environ, expected_version)
+        elif "--check-config" not in sys.argv:
             package(Path.cwd(), config, os.environ.get("GITHUB_SHA", ""), expected_version)
     except (ValueError, KeyError, OSError, subprocess.CalledProcessError):
         sys.exit("Chrome packaging failed: check release configuration, version and built files")
