@@ -1,14 +1,4 @@
-/**
- * A grouped list rendered in 100-item batches. The next batch is loaded when
- * its sentinel reaches the scroll viewport; the button remains a keyboard and
- * compatibility fallback when IntersectionObserver is unavailable.
- *
- * Full virtualisation (react-window et al.) is not worth its weight in a 340px
- * popup that renders a handful of visible rows and collapses the rest behind
- * expandable drawers — it would add a dependency and complexity for no felt gain.
- * Capping the initial render at {@link CAP} and revealing the tail on demand
- * keeps the first paint cheap even for large vaults.
- */
+/** Group by domain and progressively reveal large lists without decrypting every account. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -72,7 +62,6 @@ interface DomainGroup {
   readonly kind: "domain";
   readonly domain: string;
   readonly entries: EntryMetadata[];
-  readonly selectedId?: string | undefined;
   readonly onSelect?: ((entry: EntryMetadata) => void) | undefined;
 }
 

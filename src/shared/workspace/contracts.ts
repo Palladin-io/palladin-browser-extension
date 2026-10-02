@@ -40,7 +40,7 @@ export interface OrgGrant {
   entryLabel?: string | null;
   scriptPackageRevision?: string | null;
   reason?: string | null;
-  encryptedReason?: unknown | null;
+  encryptedReason?: unknown;
   expiresAt?: string | null;
   queryLimit?: number | null;
   queryCount?: number | null;
