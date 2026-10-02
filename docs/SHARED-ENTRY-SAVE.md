@@ -18,9 +18,12 @@ The popup/side panel shows only Entry identity and destination Vault names.
 Saving requires an explicit extension-owned confirmation. The worker checks all
 bindings again immediately before the encrypted create request. The canonical
 writer creates a new independent Entry and the normal Member sync distributes
-its ciphertext. The web page never receives a trusted save receipt from the
-extension: page messages are observable/spoofable by page scripts, so success is
-shown only in extension-owned UI.
+its ciphertext. The extension-owned UI shows the authoritative confirmation.
+The page can ask the worker to reconcile the original handoff ID from the same
+browser document: pending, explicitly cancelled, saved, or unknown. A confirmed
+cancellation enables the alternate web-account save; unknown remains blocked
+to avoid a duplicate. The page response is presentation-only and not a trusted
+backend save receipt, because page messages are observable/spoofable by page scripts.
 
 Unsupported snapshots fail as a whole. In particular, this extension writer
 cannot yet persist a Key URL; a received `key.url` is rejected instead of
