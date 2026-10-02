@@ -23,11 +23,13 @@ const states: Record<string, TranslationKey> = {
 const shortId = (value: string) => `${value.slice(0, 8)}…${value.slice(-6)}`;
 export function GrantsPanel({
   client,
+  revision,
   entries,
   entryId,
   vaultId,
 }: {
   client: WorkspaceClient;
+  revision: number;
   entries: readonly EntryMetadata[];
   entryId?: string | undefined;
   vaultId?: string | undefined;
@@ -84,25 +86,22 @@ export function GrantsPanel({
     } catch {
       if (mounted.current && run === generation.current) setError(true);
     } finally {
-      if (mounted.current && run === generation.current && !quiet)
+      if (mounted.current && run === generation.current)
         setBusy(false);
     }
   }
-  const pollingAllowed = useRef(true);
-  pollingAllowed.current = !selected && !busy;
   useEffect(() => {
     setItems([]);
     setSelected(null);
     setReview(null);
     void load();
-    const timer = setInterval(() => {
-      if (pollingAllowed.current) void load(undefined, true);
-    }, 30_000);
     return () => {
-      clearInterval(timer);
       generation.current++;
     };
   }, [client, status, entryId, vaultId]);
+  useEffect(() => {
+    if (!selected) void load(undefined, true);
+  }, [revision]);
   async function select(grant: OrgGrant) {
     setSelected(grant);
     setReview(null);

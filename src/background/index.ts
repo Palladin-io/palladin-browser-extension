@@ -87,7 +87,11 @@ const vaultInvalidations = new VaultInvalidationCoordinator({
   ),
   changed: () => publishSurfaceState(vaultChanged()),
 });
+function publishWorkspaceChanged(): void {
+  void chrome.runtime.sendMessage({ type: 'workspace/changed' }).catch(() => undefined);
+}
 const vaultRealtime = new VaultRealtimeConnection({
+  workspaceChanged: publishWorkspaceChanged,
   apiUrl: () => serverConfig.apiUrl,
   accessToken: () => sessionManager.getAccessToken(),
   invalidation: (raw) => vaultInvalidations.accept(raw),
@@ -436,6 +440,8 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
       const workspaceResult = await workspaceService.handle(raw);
       if (workspaceResult !== null) {
         sendResponse(workspaceResult);
+        if (workspaceResult.ok && typeof raw === 'object' && raw !== null && 'type' in raw
+          && ['workspace/approve-grant', 'workspace/deny', 'workspace/revoke-grant'].includes(String(raw.type))) publishWorkspaceChanged();
         return;
       }
       const sessionResult = await handleRuntimeMessage(sessionManager, raw);

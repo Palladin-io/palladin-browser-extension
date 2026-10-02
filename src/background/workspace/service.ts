@@ -126,6 +126,8 @@ export class WorkspaceService {
       return params.toString();
     };
     switch (command.type) {
+      case 'workspace/grant-summary':
+        return { path: '/api/grants/summary', method: 'GET' };
       case 'workspace/review-grant':
       case 'workspace/approve-grant':
       case 'workspace/detail':

@@ -1,3 +1,4 @@
+import { usePendingGrants } from '../workspace/usePendingGrants';
 import { GrantsPanel } from '../workspace/GrantsPanel';
 import { SharingPanel } from '../workspace/SharingPanel';
 import { AuditPanel } from '../workspace/AuditPanel';
@@ -67,6 +68,7 @@ export function UnlockedScreen({
     [captureClient],
   );
   const workspaceClient = useMemo(() => createWorkspaceClient(), []);
+  const pendingGrants = usePendingGrants(workspaceClient);
   const capture = useCapturePrompt(promptClient);
   const list = useVaultList(client, viewRevision);
   const [query, setQuery] = useState('');
@@ -154,6 +156,9 @@ export function UnlockedScreen({
           }}
         >
           {t('workspace.grants')}
+          {pendingGrants.badge ? (
+            <span className="pending-count">{pendingGrants.badge}</span>
+          ) : null}
         </button>
         <button
           type="button"
@@ -188,6 +193,7 @@ export function UnlockedScreen({
         ) : null}
         {view === 'grants' ? (
           <GrantsPanel
+            revision={pendingGrants.revision}
             client={workspaceClient}
             entries={list.all}
             entryId={scope?.id}

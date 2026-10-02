@@ -776,3 +776,5 @@ html[data-extension-surface='side-panel'] .popup-header {
 .vault-footer > .link-btn {
   margin-right: auto;
 }
+
+.pending-count { display:inline-flex; min-width:18px; height:18px; align-items:center; justify-content:center; margin-left:6px; padding:0 4px; font-size:10px; border-radius:4px; background:var(--cv-selection); color:var(--cv-t1); }

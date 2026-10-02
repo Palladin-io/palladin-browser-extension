@@ -129,6 +129,7 @@ export interface VaultRealtimeConnectionDeps {
   accessToken(): Promise<string | null>;
   invalidation(raw: unknown): void;
   repair(): void;
+  workspaceChanged?(): void;
   connectivity?(connected: boolean): void;
 }
 
@@ -169,10 +170,14 @@ export class VaultRealtimeConnection {
     connection.on("ReceiveVaultSyncInvalidation", (raw: unknown) => {
       this.deps.invalidation(raw);
     });
+    connection.on('ReceiveNotification', () => {
+      if (this.desired && generation === this.generation) this.deps.workspaceChanged?.();
+    });
     connection.onreconnecting(() => this.deps.connectivity?.(false));
     connection.onreconnected(() => {
       this.deps.connectivity?.(true);
       this.deps.repair();
+      this.deps.workspaceChanged?.();
     });
     connection.onclose(() => {
       this.deps.connectivity?.(false);

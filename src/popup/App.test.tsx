@@ -342,13 +342,13 @@ describe("popup state machine", () => {
   });
 
   it("keeps a persistent side panel in sync with value-free worker lifecycle events", async () => {
-    let messageListener: ((raw: unknown) => void) | undefined;
-    const removeListener = vi.fn();
+    const messageListeners = new Set<(raw: unknown) => void>();
+    const removeListener = vi.fn((listener: (raw: unknown) => void) => messageListeners.delete(listener));
     vi.stubGlobal("chrome", {
       runtime: {
         onMessage: {
           addListener: vi.fn((listener: (raw: unknown) => void) => {
-            messageListener = listener;
+            messageListeners.add(listener);
           }),
           removeListener,
         },
@@ -368,10 +368,10 @@ describe("popup state machine", () => {
       );
       expect(await screen.findByRole("heading", { name: "Your vault" })).toBeInTheDocument();
 
-      act(() => messageListener?.(sessionChanged("locked")));
+      act(() => messageListeners.forEach(listener => listener(sessionChanged("locked"))));
       expect(await screen.findByRole("heading", { name: "Unlock" })).toBeInTheDocument();
       unmount();
-      expect(removeListener).toHaveBeenCalledOnce();
+      expect(messageListeners.size).toBe(0);
     } finally {
       vi.unstubAllGlobals();
     }
