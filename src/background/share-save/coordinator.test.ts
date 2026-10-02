@@ -19,11 +19,12 @@ function setup(vaults: readonly { id: string; name: string }[] = [{ id: vaultId,
   const save = vi.fn(async (_snapshot: ShareSnapshot, _vaultId: string, assertCurrent: () => Promise<void>) => {
     await assertCurrent(); return true;
   });
+  const onExpired = vi.fn();
   const deps: ShareSaveDeps = { now: () => state.now, keys: () => state.keys,
     userId: async () => state.userId, apiUrl: () => state.apiUrl,
-    currentSource: async () => state.current, vaults: async () => vaults,
+    currentSource: async () => state.current, onExpired, vaults: async () => vaults,
     canManage: async () => true, save };
-  return { coordinator: new ShareSaveCoordinator(deps), state, save };
+  return { coordinator: new ShareSaveCoordinator(deps), state, save, onExpired };
 }
 
 describe('extension-owned share confirmation', () => {
@@ -64,6 +65,21 @@ describe('extension-owned share confirmation', () => {
     await coordinator.prepare(source, snapshot);
     expect(coordinator.clearTab(source.tabId)).toBe(true);
     expect(await coordinator.view()).toBeNull();
+  });
+
+  it('clears only the replaced document and notifies when a pending handoff expires', async () => {
+    vi.useFakeTimers();
+    try {
+      const { coordinator, onExpired } = setup();
+      await coordinator.prepare(source, snapshot);
+      expect(coordinator.clearDocument(source.tabId, 'different-document')).toBe(false);
+      expect(coordinator.clearReplacedDocument(source.tabId, 'new-document')).toBe(true);
+      expect(await coordinator.view()).toBeNull();
+      await coordinator.prepare(source, snapshot);
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(await coordinator.view()).toBeNull();
+      expect(onExpired).toHaveBeenCalledOnce();
+    } finally { vi.useRealTimers(); }
   });
 
   it('does not retain a snapshot when no destination Vault is available', async () => {

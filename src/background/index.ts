@@ -96,6 +96,7 @@ const shareSave = new ShareSaveCoordinator({
   currentSource: (source) => verifyLiveShareDocument(source,
     () => chrome.tabs.sendMessage(source.tabId,
       { channel: TAB_URL_REQUEST_CHANNEL }, { documentId: source.documentId }), isTabUrlResponse),
+  onExpired: publishShareSaveChanged,
   vaults: () => vaultData.sharedCopyVaults(),
   save: async (snapshot, vaultId, assertCurrent) => {
     const secret = sharedCopySecret(snapshot);
@@ -290,8 +291,10 @@ chrome.runtime.onConnect.addListener((port) => {
   }
   const unregisterDocument = registerTopFrameDocument(port, chrome.runtime.id);
   if (unregisterDocument !== null) {
+    if (shareSave.clearReplacedDocument(port.sender!.tab!.id!, port.sender!.documentId!)) publishShareSaveChanged();
     port.onDisconnect.addListener(() => {
       credentialCaptureCoordinator.documentDisconnected(port.sender!.tab!.id!, port.sender!.documentId!);
+      if (shareSave.clearDocument(port.sender!.tab!.id!, port.sender!.documentId!)) publishShareSaveChanged();
       unregisterDocument();
     });
     if (typeof port.sender?.url === "string") credentialCaptureCoordinator.documentConnected(
@@ -348,7 +351,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   if (shareSave.clearTab(tabId)) publishShareSaveChanged();
 });
 chrome.tabs.onUpdated.addListener((tabId, change) => {
-  if (change.url && shareSave.clearTab(tabId)) publishShareSaveChanged();
+  if ((change.url || change.status === 'loading') && shareSave.clearTab(tabId)) publishShareSaveChanged();
   if (change.status) credentialCaptureCoordinator.navigationUpdated(tabId, change.status);
   if (change.url) credentialCaptureCoordinator.navigation(tabId, change.url);
 });

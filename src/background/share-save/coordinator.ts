@@ -15,6 +15,7 @@ export interface ShareSaveDeps {
   userId(): Promise<string | null>;
   apiUrl(): string;
   currentSource(source: ShareSource): Promise<boolean>;
+  onExpired(): void;
   vaults(): Promise<readonly { id: string; name: string }[]>;
   canManage(): Promise<boolean>;
   save(snapshot: ShareSnapshot, vaultId: string, assertCurrent: () => Promise<void>): Promise<boolean>;
@@ -45,6 +46,16 @@ export class ShareSaveCoordinator {
     this.clear();
     return true;
   }
+  clearDocument(tabId: number, documentId: string): boolean {
+    if (this.pending?.source.tabId !== tabId || this.pending.source.documentId !== documentId) return false;
+    this.clear();
+    return true;
+  }
+  clearReplacedDocument(tabId: number, documentId: string): boolean {
+    if (this.pending?.source.tabId !== tabId || this.pending.source.documentId === documentId) return false;
+    this.clear();
+    return true;
+  }
 
   async status(source: ShareSource): Promise<'unavailable' | 'locked' | 'ready'> {
     if (!await this.deps.currentSource(source) || source.apiUrl !== this.deps.apiUrl()) return 'unavailable';
@@ -66,7 +77,12 @@ export class ShareSaveCoordinator {
     const userId = await this.deps.userId();
     if (!keys || !userId || !await this.deps.currentSource(source)) return 'unavailable';
     this.pending = { id: crypto.randomUUID(), source, snapshot, keys, userId, preparedAt: this.deps.now() };
-    this.expiry = setTimeout(() => this.clear(), 120_000);
+    const prepared = this.pending;
+    this.expiry = setTimeout(() => {
+      if (this.pending !== prepared) return;
+      this.clear();
+      this.deps.onExpired();
+    }, 120_000);
     return 'pending';
   }
 
