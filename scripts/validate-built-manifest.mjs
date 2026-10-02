@@ -73,7 +73,7 @@ function validateContentLoaders(manifest, outputDirectory, target) {
 }
 
 function validateChromium(manifest, outputDirectory, channel, sharedUnlockConfigured) {
-  invariant(manifest.minimum_chrome_version === "116", "chromium: wrong version floor");
+  invariant(manifest.minimum_chrome_version === "120", "chromium: wrong version floor");
   invariant(
     sameSet(manifest.permissions, [
       ...commonPermissions,
