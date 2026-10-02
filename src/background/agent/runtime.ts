@@ -40,8 +40,8 @@ const REPLAY_KEY = "agentInjectTransactionIds";
 const RECONNECT_DELAY_KEY = "nativeAgentReconnectDelayMinutes";
 const MAX_REPLAY_IDS = 1_024;
 const RECONNECT_ALARM = "palladin.native-agent.reconnect";
-const INITIAL_RECONNECT_DELAY_MINUTES = 0.5;
-const MAX_RECONNECT_DELAY_MINUTES = 15;
+// Keep host recovery inside the CLI's 45-second credential-free preparation budget.
+const RECONNECT_DELAY_MINUTES = 0.5;
 const HANDSHAKE_TIMEOUT_MS = 10_000;
 const MAX_SECURE_FRAME_LENGTH = 2 * 1024 * 1024;
 const TAB_PROBE_TIMEOUT_MS = 2_000;
@@ -79,8 +79,7 @@ let secureChannel: InjectSecureChannel | null = null;
 let connectionAttempt: Promise<void> | null = null;
 let handshakeTimeout: ReturnType<typeof globalThis.setTimeout> | null = null;
 let lifecycleVersion = 0;
-let reconnectDelayMinutes = INITIAL_RECONNECT_DELAY_MINUTES;
-let reconnectDelayLoad: Promise<void> | null = null;
+let lastImmediateReconnectAt: number | null = null;
 
 const agentFillDeps: AgentFillDeps = {
   currentAutomaticFillSession: () => automaticFillSession.current(),
@@ -165,15 +164,20 @@ export function connectNativeAgentProviderIfDue(): void {
 
 export async function connectNativeAgentProviderIfDueNow(): Promise<void> {
   const expectedLifecycle = lifecycleVersion;
-  await loadReconnectDelay();
-  if (lifecycleVersion !== expectedLifecycle) return;
   let pending: chrome.alarms.Alarm | undefined;
   try {
     pending = await chrome.alarms.get(RECONNECT_ALARM);
   } catch {
     return;
   }
-  if (lifecycleVersion !== expectedLifecycle || pending !== undefined) return;
+  if (lifecycleVersion !== expectedLifecycle) return;
+  if (pending !== undefined) {
+    // Old versions persisted alarms up to 15 minutes into the future.
+    if (pending.scheduledTime - Date.now() > RECONNECT_DELAY_MINUTES * 60_000) {
+      scheduleNativeAgentReconnect(expectedLifecycle);
+    }
+    return;
+  }
   await connectNativeAgentProviderForLifecycle(expectedLifecycle);
 }
 
@@ -191,7 +195,6 @@ export async function connectNativeAgentProviderNow(): Promise<void> {
 async function connectNativeAgentProviderForLifecycle(
   expectedLifecycle: number,
 ): Promise<void> {
-  await loadReconnectDelay();
   if (lifecycleVersion !== expectedLifecycle) return;
   if (nativePort !== null) return;
   if (connectionAttempt !== null) return connectionAttempt;
@@ -239,12 +242,16 @@ async function openNativeAgentProvider(expectedLifecycle: number): Promise<void>
       if (nativePort !== port) return;
       providerSession.prepared = null;
       providerSession.liveChain = null;
-      const immediateHandoff = terminalSent;
+      const now = Date.now();
+      const immediateHandoff = terminalSent || (secureChannel !== null
+        && (lastImmediateReconnectAt === null
+          || now - lastImmediateReconnectAt >= RECONNECT_DELAY_MINUTES * 60_000));
       terminalSent = false;
       disposeSecureSession(port);
       if (immediateHandoff) {
-        // One fresh idle host after our terminal response. It has no prepared
-        // operation or handoff credit, so failure falls back to the usual alarm.
+        // Recreate an idle provider, never its operation. Limit crash recovery
+        // even when a broken host authenticates successfully before exiting.
+        lastImmediateReconnectAt = now;
         void Promise.resolve(connectionAttempt).then(() => connectNativeAgentProviderForLifecycle(expectedLifecycle));
       } else scheduleNativeAgentReconnect(expectedLifecycle);
     });
@@ -260,8 +267,7 @@ async function openNativeAgentProvider(expectedLifecycle: number): Promise<void>
 /** Stop reconnects and synchronously dispose all ephemeral channel material. */
 export function disconnectNativeAgentProvider(): void {
   lifecycleVersion += 1;
-  reconnectDelayMinutes = INITIAL_RECONNECT_DELAY_MINUTES;
-  reconnectDelayLoad = Promise.resolve();
+  lastImmediateReconnectAt = null;
   // A stale in-flight attempt observes the lifecycle change and disposes its
   // own client. Clearing this slot permits a later explicit reconnect.
   connectionAttempt = null;
@@ -320,8 +326,6 @@ async function handleSecureNativeMessage(
     secureChannel = channel;
     clientSession = null;
     clearHandshakeTimeout();
-    reconnectDelayMinutes = INITIAL_RECONNECT_DELAY_MINUTES;
-    reconnectDelayLoad = Promise.resolve();
     void chrome.alarms.clear(RECONNECT_ALARM);
     void chrome.storage.session.remove(RECONNECT_DELAY_KEY);
     return;
@@ -361,38 +365,7 @@ function isTerminalCompletion(response: { readonly type?: unknown; readonly outc
 
 function scheduleNativeAgentReconnect(expectedLifecycle: number): void {
   if (lifecycleVersion !== expectedLifecycle) return;
-  chrome.alarms.create(RECONNECT_ALARM, { delayInMinutes: reconnectDelayMinutes });
-  reconnectDelayMinutes = Math.min(
-    reconnectDelayMinutes * 2,
-    MAX_RECONNECT_DELAY_MINUTES,
-  );
-  void chrome.storage.session
-    .set({ [RECONNECT_DELAY_KEY]: reconnectDelayMinutes })
-    .catch(() => undefined);
-}
-
-function loadReconnectDelay(): Promise<void> {
-  if (reconnectDelayLoad === null) {
-    const expectedLifecycle = lifecycleVersion;
-    reconnectDelayLoad = (async () => {
-      try {
-        const stored = await chrome.storage.session.get(RECONNECT_DELAY_KEY);
-        if (lifecycleVersion !== expectedLifecycle) return;
-        const delay = stored[RECONNECT_DELAY_KEY];
-        if (typeof delay === "number"
-          && Number.isFinite(delay)
-          && delay >= INITIAL_RECONNECT_DELAY_MINUTES
-          && delay <= MAX_RECONNECT_DELAY_MINUTES) {
-          reconnectDelayMinutes = delay;
-        }
-      } catch {
-        if (lifecycleVersion === expectedLifecycle) {
-          reconnectDelayMinutes = INITIAL_RECONNECT_DELAY_MINUTES;
-        }
-      }
-    })();
-  }
-  return reconnectDelayLoad;
+  chrome.alarms.create(RECONNECT_ALARM, { delayInMinutes: RECONNECT_DELAY_MINUTES });
 }
 
 function armHandshakeTimeout(port: chrome.runtime.Port, expectedLifecycle: number): void {
@@ -402,7 +375,9 @@ function armHandshakeTimeout(port: chrome.runtime.Port, expectedLifecycle: numbe
     if (nativePort === port
       && lifecycleVersion === expectedLifecycle
       && secureChannel === null) {
-      disconnectSecurePort(port);
+      // The handshake deadline already throttled this failed attempt. Adding
+      // the alarm delay would exhaust the caller's preparation budget.
+      disconnectSecurePort(port, true);
     }
   }, HANDSHAKE_TIMEOUT_MS);
 }
@@ -457,17 +432,20 @@ export function parseSecureFrame(value: unknown): InjectSecureFrame | null {
   return frame as unknown as InjectSecureFrame;
 }
 
-function disconnectSecurePort(port: chrome.runtime.Port): void {
+function disconnectSecurePort(port: chrome.runtime.Port, handshakeTimedOut = false): void {
   if (nativePort !== port) return;
+  const expectedLifecycle = lifecycleVersion;
   // Dispose first so the asynchronous onDisconnect callback cannot schedule a
   // duplicate retry for the same failed session.
   disposeSecureSession(port);
   try {
     port.disconnect();
   } catch {
-    // The channel is already disposed; retry remains owned by the alarm below.
+    // The channel is already disposed; recovery is scheduled below.
   }
-  scheduleNativeAgentReconnect(lifecycleVersion);
+  if (handshakeTimedOut) {
+    void Promise.resolve(connectionAttempt).then(() => connectNativeAgentProviderForLifecycle(expectedLifecycle));
+  } else scheduleNativeAgentReconnect(expectedLifecycle);
 }
 
 function disposeSecureSession(port?: chrome.runtime.Port): void {

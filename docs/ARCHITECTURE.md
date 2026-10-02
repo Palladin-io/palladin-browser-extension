@@ -122,6 +122,21 @@ idle/absolute limits. Invalidated extension contexts do not reconnect.
   signed ephemeral transcript. This session-local check is not the authority
   that lets the Runtime release a credential—the browser/platform identity
   boundary is.
+- A disconnected authenticated host is replaced immediately, including its idle
+  timeout, without restoring the previous prepared operation. Repeated authenticated
+  crashes may trigger at most one immediate recovery per 30 seconds; a successfully
+  delivered terminal Inject result retains its immediate handoff. Authentication or
+  protocol rejection does not gain immediate recovery. A handshake that reaches
+  its 10-second timeout gets a fresh attempt immediately: the timeout itself
+  throttles retries, and adding an alarm delay would exhaust preparation time.
+- After other host failures, the extension schedules a new connection attempt in 30
+  seconds, including after repeated failures. Chromium requires version 120 or newer
+  for this alarm interval. This leaves room for the authenticated
+  handshake inside the CLI's 45-second credential-free preparation wait. Worker
+  startup shortens legacy alarms scheduled farther ahead; ordinary wakes preserve
+  an already bounded alarm rather than postponing it. Chrome may delay alarm delivery,
+  so this is a scheduling bound, not a wall-clock guarantee. Failed credential-bearing
+  operations are never replayed by reconnect.
 - The owner-only local socket has one exclusive listener, so at most one host
   process can be the provider for an Inject operation. A missing provider or a
   competing host fails before credential access. Uninstall revokes the lifecycle

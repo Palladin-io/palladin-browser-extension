@@ -154,7 +154,7 @@ describe("buildManifest (chromium)", () => {
       .join("");
     // The native-host allowlist and signed session transcript depend on this ID.
     expect(extensionId).toBe("hmljnknogdeonphikmeofcbkikmpokba");
-    expect(manifest.minimum_chrome_version).toBe("116");
+    expect(manifest.minimum_chrome_version).toBe("120");
     expect(manifest.browser_specific_settings).toBeUndefined();
   });
 
