@@ -15,6 +15,7 @@ import { filterEntries } from "../vault/filter";
 import { useVaultList } from "../vault/useVaultList";
 import { webAppUrl } from "@shared/config/web-app";
 import { useI18n } from "../i18n";
+import { ShareSavePrompt, usePendingShareSave } from '../share-save/ShareSavePrompt';
 
 /**
  * The unlocked home: search, the entries for the current site, and the full
@@ -58,9 +59,18 @@ export function UnlockedScreen({
   const [query, setQuery] = useState("");
   const [view, setView] = useState<"vault" | "generator" | "add-entry">("vault");
   const [capturePrompt, setCapturePrompt] = useState(capture.prompt);
+  const pendingShare = usePendingShareSave(viewRevision);
+  const [shareDismissed, setShareDismissed] = useState<string | null>(null);
 
   const searching = query.trim().length > 0;
   const results = useMemo(() => filterEntries(list.all, query), [list.all, query]);
+
+  if (pendingShare && pendingShare.id !== shareDismissed) {
+    return <section className="vault">
+      <ShareSavePrompt pending={pendingShare} onDone={() => setShareDismissed(pendingShare.id)} />
+      <UnlockedFooter onLock={onLock} onSignOut={onSignOut} onOpenSidePanel={onOpenSidePanel} />
+    </section>;
+  }
 
   return (
     <section className="vault">

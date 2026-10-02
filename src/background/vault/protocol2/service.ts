@@ -504,6 +504,30 @@ export class Protocol2VaultDataService implements VaultDataSource {
       : { status: 'blocked', reason: 'grant-refresh-required' }
   }
 
+  /** Extension-owned confirmation options. Names are decrypted only in worker memory. */
+  async sharedCopyVaults(): Promise<readonly { id: string; name: string }[]> {
+    if (this.currentVaults.size === 0) await this.refresh()
+    const privateKey = this.deps.session.getPrivateKey()
+    const userId = await this.deps.session.getUserId()
+    if (!privateKey || !userId) throw new VaultDataError('locked', 'Session is locked')
+    const options: { id: string; name: string }[] = []
+    for (const vault of this.currentVaults.values()) {
+      const opened = await openProjectionVault({ ...vault, memberVaultKey: vault.memberVaultKey }, privateKey, userId)
+      try { options.push({ id: vault.id, name: opened.metadata.name }) }
+      finally { wipe(opened.vaultKey) }
+    }
+    return options
+  }
+
+  async saveSharedCopy(secret: MemberSecretV1, vaultId: string, assertCurrent: () => Promise<void>): Promise<ManualEntrySaveResult> {
+    if (this.currentVaults.size === 0) await this.refresh()
+    if (!this.currentVaults.has(vaultId)) throw new VaultDataError('network', 'Destination Vault is unavailable')
+    const result = await this.createCanonicalEntry(secret, vaultId, assertCurrent)
+    return result.status === 'created'
+      ? { status: 'saved' }
+      : { status: 'blocked', reason: 'grant-refresh-required' }
+  }
+
   private async createCredential(
     site: string,
     origin: string,
@@ -515,13 +539,16 @@ export class Protocol2VaultDataService implements VaultDataSource {
 
   private async createCanonicalEntry(
     secret: MemberSecretV1,
+    selectedVaultId?: string,
+    assertCurrent?: () => Promise<void>,
   ): Promise<Extract<GeneratedPasswordSaveResult, { status: 'created' | 'blocked' }>> {
     const privateKey = this.deps.session.getPrivateKey()
     if (privateKey === null) throw new VaultDataError('locked', 'Session is locked')
     const userId = await this.deps.session.getUserId()
     if (userId === null) throw new VaultDataError('not-authenticated', 'No session')
-    const vault = [...this.currentVaults.values()].find((candidate) => candidate.isDefault)
-      ?? [...this.currentVaults.values()][0]
+    const vault = selectedVaultId ? this.currentVaults.get(selectedVaultId)
+      : [...this.currentVaults.values()].find((candidate) => candidate.isDefault)
+        ?? [...this.currentVaults.values()][0]
     if (vault === undefined) throw new VaultDataError('network', 'No Vault is available')
     if (secret.entryType === 'credential' && secret.icon === null && secret.content.urlDomain) {
       const hostname = secret.content.urlDomain
@@ -548,12 +575,15 @@ export class Protocol2VaultDataService implements VaultDataSource {
         memberKeyGeneration: vault.memberKeyGeneration,
       }, secret, vaultKey, discoveryKey, 1)
       try {
-        await this.withAuth((token) => this.deps.client.createEntry(token, {
-          vaultId: vault.id,
-          entryId,
-          ...material,
-          deliveryPolicy: 'standard',
-        }))
+        await this.withAuth(async (token) => {
+          await assertCurrent?.()
+          return this.deps.client.createEntry(token, {
+            vaultId: vault.id,
+            entryId,
+            ...material,
+            deliveryPolicy: 'standard',
+          })
+        })
       } catch (error) {
         if (error instanceof Protocol2MutationConflictError) {
           return { status: 'blocked', reason: 'grant-refresh-required' }

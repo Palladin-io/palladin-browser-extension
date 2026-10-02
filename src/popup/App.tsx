@@ -110,6 +110,10 @@ export function App({
   useEffect(() => {
     if (typeof chrome === "undefined" || !chrome.runtime?.onMessage) return;
     const onMessage = (raw: unknown): void => {
+      if (raw && typeof raw === 'object' && 'type' in raw && raw.type === 'share-save/changed') {
+        setVaultViewRevision((revision) => revision + 1);
+        return;
+      }
       if (!isSurfaceStateEvent(raw)) return;
       if (raw.type === "surface/session-changed") session.synchronize(raw.status);
       setVaultViewRevision((revision) => revision + 1);

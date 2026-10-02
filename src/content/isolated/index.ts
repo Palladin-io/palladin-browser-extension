@@ -51,6 +51,11 @@ import { startCredentialCapture } from "./credential-capture";
 import { extensionBuildTarget } from "@shared/config/build-target";
 import { FIREFOX_LEGACY_FILL_PORT } from "../../shared/messaging/firefox-legacy-fill";
 import { startLegacyFirefoxFill } from "./firefox-legacy-fill";
+import { startShareSaveBridge } from './share-save';
+
+if (window === window.top) {
+  startShareSaveBridge(window, message => chrome.runtime.sendMessage(message));
+}
 
 const sessionNonce = generateNonce();
 const documentId = generateNonce();
