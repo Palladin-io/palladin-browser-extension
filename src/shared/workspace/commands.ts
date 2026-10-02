@@ -29,6 +29,7 @@ const protection = {
 
 // This is a browser-message boundary, not validation of first-party API state.
 export const workspaceCommandSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('workspace/grant-summary') }).strict(),
   z
     .object({
       type: z.literal('workspace/review-grant'),
@@ -144,6 +145,14 @@ export interface GrantReview {
   methods: number;
 }
 export interface WorkspaceResults {
+  'workspace/grant-summary': {
+    pending: number;
+    active: number;
+    expired: number;
+    revoked: number;
+    consumed: number;
+    denied: number;
+  };
   'workspace/review-grant': GrantReview;
   'workspace/approve-grant': null;
   'workspace/detail': { revision: string; fields: EntryFieldView[] };

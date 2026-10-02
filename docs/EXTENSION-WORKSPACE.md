@@ -12,8 +12,10 @@ before approval. Approval verifies the signed encrypted reason, re-opens the cur
 Entry, binds the envelope to the requested Agent and reviewed revision, and supports
 time, use-count or until-revoked policies. Granular fields and methods are explicit;
 Script execution uses the same package builder as the existing credential writer.
-Deny and revoke use their existing backend endpoints. A visible request view repairs
-its list every 30 seconds when the user is not reviewing a request.
+Deny and revoke use their existing backend endpoints. The Agent access tab shows a
+pending-request count. Authenticated SignalR notifications carry only a value-free
+workspace invalidation to the popup, which fetches authoritative REST state; a
+30-second foreground poll repairs missed notifications. An open review is preserved.
 
 Sharing sends a complete encrypted snapshot. Supported options are 1/24/72/168 hours,
 unlimited or 1–100 receipts, anyone-with-link or up to 20 distinct named recipients,

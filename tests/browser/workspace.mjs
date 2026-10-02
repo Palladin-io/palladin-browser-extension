@@ -16,6 +16,7 @@ const api = await createCaptureApi({ workspaceHandler: async ({ method, url, req
   if (url.pathname === '/api/account/shared-unlock') { send({ sharedUnlockEnabled: false, revision: 1 }); return true; }
   if (url.pathname === '/api/organization/member-directory') { send({ items: [{ userId, displayName: 'Synthetic owner' }] }); return true; }
   if (url.pathname === '/api/audit-logs') { send({ items: [{ id: randomUUID(), eventType: 'entry.created', actorType: 'user', userId, vaultId: vaults[0].detail.id, entryId: [...vaults[0].entries.keys()][0] ?? null, metadata: {}, createdAt: new Date().toISOString() }], nextCursor: null }); return true; }
+  if (url.pathname === '/api/grants/summary') { send({ pending: 0, active: 0, expired: 0, revoked: 0, consumed: 0, denied: 0 }); return true; }
   if (url.pathname === '/api/grants') { send({ items: [], nextCursor: null }); return true; }
   const match = /^\/api\/vaults\/([^/]+)\/entries\/([^/]+)\/sharing(?:\/(.*))?$/.exec(url.pathname);
   if (!match) return false;
