@@ -441,5 +441,8 @@
   "share.confirmSecret": "Potwierdź hasło lub PIN",
   "share.emailsHint": "Do 20 adresów e-mail oddzielonych przecinkami",
   "share.inputError": "Sprawdź adresy e-mail i potwierdź zabezpieczenie. Hasło wymaga co najmniej 8 znaków, PIN co najmniej 6 cyfr bez prostych sekwencji i powtórzeń.",
-  "share.action": "Udostępnij"
+  "share.action": "Udostępnij",
+  "share.locked": "Zablokowane",
+  "share.suspended": "Wstrzymane",
+  "share.unknownStatus": "Nieznany stan"
 }

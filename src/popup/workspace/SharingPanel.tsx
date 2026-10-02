@@ -11,8 +11,17 @@ import type {
 import type { WorkspaceCommand } from '../../shared/workspace/commands';
 import type { WorkspaceClient } from './client';
 import type { VaultClient } from '../vault/client';
-import { useI18n } from '../i18n';
+import { useI18n, type TranslationKey } from '../i18n';
 import { Button } from '../components/Button';
+
+const shareStates: Record<string, TranslationKey> = {
+  active: 'grant.active',
+  revoked: 'grant.revoked',
+  expired: 'grant.expired',
+  consumed: 'grant.consumed',
+  locked: 'share.locked',
+  suspended: 'share.suspended',
+};
 
 type CreateCommand = Extract<
   WorkspaceCommand,
@@ -96,7 +105,10 @@ export function SharingPanel({
       setCursor(page.nextCursor);
     } catch {
       if (generation.current === revision && alive.current) setError(true);
-    } finally { if (generation.current === revision && alive.current) setLoadingList(false); }
+    } finally {
+      if (generation.current === revision && alive.current)
+        setLoadingList(false);
+    }
   }
   function reset() {
     for (const operationId of operations.current)
@@ -465,7 +477,9 @@ export function SharingPanel({
           {error ? <p role="alert">{t('workspace.error')}</p> : null}
           <h3>{t('share.existing')}</h3>
           {!items.length ? (
-            <p className="workspace-empty">{t(loadingList ? 'workspace.loading' : 'share.empty')}</p>
+            <p className="workspace-empty">
+              {t(loadingList ? 'workspace.loading' : 'share.empty')}
+            </p>
           ) : (
             items.map((item) => (
               <article className="share-row" key={item.shareId}>
@@ -478,28 +492,32 @@ export function SharingPanel({
                     · {t('share.deliveries', { count: item.deliveryCount })}
                   </p>
                   <small>
-                    {item.status}
+                    {t(shareStates[item.status] ?? 'share.unknownStatus')}
                     {item.sourceChanged ? ` · ${t('share.sourceChanged')}` : ''}
                   </small>
                 </div>
-                {item.status === 'active' ? (
+                {['active', 'locked', 'suspended', 'consumed'].includes(
+                  item.status,
+                ) ? (
                   <div className="workspace-actions">
-                    <Button
-                      variant="subtle"
-                      disabled={busy}
-                      onClick={() => {
-                        reset();
-                        setProtection(
-                          item.protection === 'pin' ||
-                            item.protection === 'password'
-                            ? item.protection
-                            : 'none',
-                        );
-                        setChanging(item.shareId);
-                      }}
-                    >
-                      {t('share.changeProtection')}
-                    </Button>
+                    {item.status === 'active' ? (
+                      <Button
+                        variant="subtle"
+                        disabled={busy}
+                        onClick={() => {
+                          reset();
+                          setProtection(
+                            item.protection === 'pin' ||
+                              item.protection === 'password'
+                              ? item.protection
+                              : 'none',
+                          );
+                          setChanging(item.shareId);
+                        }}
+                      >
+                        {t('share.changeProtection')}
+                      </Button>
+                    ) : null}
                     <Button
                       variant="subtle"
                       disabled={busy}
