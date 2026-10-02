@@ -375,7 +375,9 @@ function armHandshakeTimeout(port: chrome.runtime.Port, expectedLifecycle: numbe
     if (nativePort === port
       && lifecycleVersion === expectedLifecycle
       && secureChannel === null) {
-      disconnectSecurePort(port);
+      // The handshake deadline already throttled this failed attempt. Adding
+      // the alarm delay would exhaust the caller's preparation budget.
+      disconnectSecurePort(port, true);
     }
   }, HANDSHAKE_TIMEOUT_MS);
 }
@@ -430,17 +432,20 @@ export function parseSecureFrame(value: unknown): InjectSecureFrame | null {
   return frame as unknown as InjectSecureFrame;
 }
 
-function disconnectSecurePort(port: chrome.runtime.Port): void {
+function disconnectSecurePort(port: chrome.runtime.Port, handshakeTimedOut = false): void {
   if (nativePort !== port) return;
+  const expectedLifecycle = lifecycleVersion;
   // Dispose first so the asynchronous onDisconnect callback cannot schedule a
   // duplicate retry for the same failed session.
   disposeSecureSession(port);
   try {
     port.disconnect();
   } catch {
-    // The channel is already disposed; retry remains owned by the alarm below.
+    // The channel is already disposed; recovery is scheduled below.
   }
-  scheduleNativeAgentReconnect(lifecycleVersion);
+  if (handshakeTimedOut) {
+    void Promise.resolve(connectionAttempt).then(() => connectNativeAgentProviderForLifecycle(expectedLifecycle));
+  } else scheduleNativeAgentReconnect(expectedLifecycle);
 }
 
 function disposeSecureSession(port?: chrome.runtime.Port): void {

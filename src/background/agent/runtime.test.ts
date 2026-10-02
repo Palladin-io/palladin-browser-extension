@@ -307,38 +307,26 @@ describe("secure Native Messaging frame boundary", () => {
     } finally { mocked.mockRestore(); }
   });
 
-  it("retries when the native host never sends a session offer", async () => {
+  it.each([false, true])("retries a timed-out handshake without adding an alarm delay (offer: %s)", async offered => {
     vi.useFakeTimers();
-    const { native, alarmsCreate } = stubChrome();
-
+    const { native, connectNative, alarmsCreate } = stubChrome();
+    const next = fakeNativePort();
+    connectNative.mockReturnValueOnce(native.port).mockReturnValue(next.port);
     await connectNativeAgentProviderNow();
+    if (offered) {
+      native.emitMessage(secureSessionContract.offer);
+      await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledOnce());
+    }
     await vi.advanceTimersByTimeAsync(10_000);
 
     expect(native.disconnect).toHaveBeenCalledOnce();
-    expect(alarmsCreate).toHaveBeenCalledWith(
-      "palladin.native-agent.reconnect",
-      { delayInMinutes: 0.5 },
-    );
-  });
-
-  it("retries when an offered session never reaches signed readiness", async () => {
-    vi.useFakeTimers();
-    const { native, alarmsCreate } = stubChrome();
-    await connectNativeAgentProviderNow();
-    native.emitMessage({
-      protocol: INJECT_PROVIDER_PROTOCOL,
-      type: "session.offer",
-      hostSigningPublicKey: PUBLIC_KEY,
-    });
-    await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledOnce());
-
-    await vi.advanceTimersByTimeAsync(10_000);
-
-    expect(native.disconnect).toHaveBeenCalledOnce();
-    expect(alarmsCreate).toHaveBeenCalledWith(
-      "palladin.native-agent.reconnect",
-      { delayInMinutes: 0.5 },
-    );
+    expect(connectNative).toHaveBeenCalledTimes(2);
+    expect(alarmsCreate).not.toHaveBeenCalled();
+    expect(next.postMessage).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(9_000);
+    expect(connectNative).toHaveBeenCalledTimes(2); // Timeout recovery cannot busy-loop.
+    next.emitDisconnect(); // A fast failure of the replacement uses the normal alarm.
+    expect(alarmsCreate).toHaveBeenCalledWith("palladin.native-agent.reconnect", { delayInMinutes: 0.5 });
   });
 
   it("fails a hung public tab probe closed within a bounded time", async () => {

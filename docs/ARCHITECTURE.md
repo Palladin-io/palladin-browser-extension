@@ -126,7 +126,9 @@ idle/absolute limits. Invalidated extension contexts do not reconnect.
   timeout, without restoring the previous prepared operation. Repeated authenticated
   crashes may trigger at most one immediate recovery per 30 seconds; a successfully
   delivered terminal Inject result retains its immediate handoff. Authentication or
-  protocol failures do not gain immediate recovery.
+  protocol rejection does not gain immediate recovery. A handshake that reaches
+  its 10-second timeout gets a fresh attempt immediately: the timeout itself
+  throttles retries, and adding an alarm delay would exhaust preparation time.
 - After other host failures, the extension schedules a new connection attempt in 30
   seconds, including after repeated failures. Chromium requires version 120 or newer
   for this alarm interval. This leaves room for the authenticated
