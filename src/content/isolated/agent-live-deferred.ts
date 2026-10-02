@@ -35,6 +35,10 @@ export class DeferredLiveLogin {
       if (composedForm(input) || !isFillable(input)) continue;
       const target = loginTargetFor(input);
       if (target?.username && target.password) scopes.add(target.form);
+      else if (isIdentifiedUsername(input) || (target?.password === input && target.accountIdentity)) {
+        const scope = credentialScopeFor(input);
+        if (scope) scopes.add(scope);
+      }
     }
     const candidates = [...scopes].flatMap(scope => {
       const stage = this.stage(scope);
@@ -184,18 +188,25 @@ export class DeferredLiveLogin {
       return [{ input: target.username, fieldId: 'credential.username', mode: 'write' },
         { input: target.password, fieldId: 'credential.password', mode: 'write' }];
     }
-    if (!(scope instanceof HTMLFormElement)) return null;
     if (input.type === 'password') {
-      if (!autocompleteTokens(input).includes('current-password') || inputs.filter(field => field.type === 'password').length !== 1) return null;
+      const carried = loginTargetFor(input)?.accountIdentity;
+      if (!(scope instanceof HTMLFormElement) && (!carried || this.hints(scope).length !== 1
+        || !isNativeLoginAction(this.hints(scope)[0]!))) return null;
+      if ((!autocompleteTokens(input).includes('current-password') && !carried)
+        || inputs.filter(field => field.type === 'password').length !== 1) return null;
       const identities = inputs.filter(isIdentifiedUsername);
       const identity = identities[0] ?? null;
-      if (identities.length > 1 || (identity && (!(identity.disabled || identity.readOnly) || !this.dom.isVisible(identity)
+      if ((carried && identity !== carried) || identities.length > 1 || (identity && (!(identity.disabled || identity.readOnly) || !this.dom.isVisible(identity)
         || !isVisibleScopeHint(identity) || isSubscriptionIdentity(identity)))) return null;
       return [...(identity ? [{ input: identity, fieldId: 'credential.username' as const, mode: 'compare' as const }] : []), { input, fieldId: 'credential.password', mode: 'write' }];
     }
     if (!isIdentifiedUsername(input)) return null;
     const hiddenPassword = inputs.some(field => field.type === 'password' && !isFillable(field));
     const loginHeading = headings.some(node => /^(?:sign\s*in|log\s*in|zaloguj(?:\s+się)?)$/i.test((node.textContent ?? '').trim()));
+    // A form-less identifier needs a hidden existing-password field and one
+    // explicit native login action in this same bounded credential scope.
+    if (!(scope instanceof HTMLFormElement) && (!hiddenPassword || this.hints(scope).length !== 1
+      || !isNativeLoginAction(this.hints(scope)[0]!))) return null;
     return hiddenPassword || loginHeading ? [{ input, fieldId: 'credential.username', mode: 'write' }] : null;
   }
   private hints(scope: HTMLElement): LiveLoginAction[] {

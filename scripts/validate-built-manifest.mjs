@@ -50,7 +50,7 @@ export function validateBuiltManifest(
   validateContentLoaders(manifest, outputDirectory, target);
 
   validateSharedUnlockRouting(manifest, target, sharedUnlockEnvironments);
-  if (target === "chromium") validateChromium(manifest, outputDirectory, channel, sharedUnlockEnvironments.length > 0);
+  if (target === "chromium") validateChromium(manifest, outputDirectory, channel);
   if (target === "firefox") validateFirefox(manifest, outputDirectory, sharedUnlockEnvironments.length > 0);
   if (target === "safari") validateSafari(manifest, outputDirectory, sharedUnlockEnvironments.length > 0);
 }
@@ -72,7 +72,7 @@ function validateContentLoaders(manifest, outputDirectory, target) {
   }
 }
 
-function validateChromium(manifest, outputDirectory, channel, sharedUnlockConfigured) {
+function validateChromium(manifest, outputDirectory, channel) {
   invariant(manifest.minimum_chrome_version === "120", "chromium: wrong version floor");
   invariant(
     sameSet(manifest.permissions, [
@@ -80,7 +80,7 @@ function validateChromium(manifest, outputDirectory, channel, sharedUnlockConfig
       "offscreen",
       "nativeMessaging",
       "sidePanel",
-      ...(sharedUnlockConfigured ? ["webNavigation"] : []),
+      "webNavigation",
     ]),
     "chromium: unexpected permissions",
   );
@@ -231,7 +231,7 @@ export function validateSharedUnlockRouting(manifest, target, environments = [])
       new RegExp("^" + pattern.split("*").map(part => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$").test(resource))));
   if (environments.length === 0) {
     invariant(manifest.externally_connectable === undefined, `${target}: unexpected external route`);
-    invariant(!manifest.permissions?.includes("webNavigation"), `${target}: unexpected navigation permission`);
+    invariant(target === "chromium" || !manifest.permissions?.includes("webNavigation"), `${target}: unexpected navigation permission`);
     invariant(resourceRoutes.length === 0, `${target}: unexpected public bridge/manifest route`);
     return;
   }

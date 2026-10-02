@@ -34,7 +34,14 @@ export interface AgentTabState {
   readonly page: AgentPage | null;
 }
 
+export interface PreparedFrame {
+  readonly page: AgentTabState;
+  readonly form: AgentInjectForm;
+  readonly deps: AgentFillDeps;
+}
+
 export interface AgentFillDeps {
+  prepareFrame?(top: AgentTabState, isActive: () => boolean): Promise<PreparedFrame | null>;
   currentAutomaticFillSession?(): string | null;
   fillDeferred?(tabId: number, message: DeferredFillMessage): Promise<DeferredFillOutcome | null>;
   commitDeferred?(tabId: number, message: DeferredCommitMessage): Promise<AgentInjectStepOutcome | null>;
@@ -69,6 +76,7 @@ export interface PreparedAgentPage {
 }
 
 export interface AgentProviderSession {
+  boundDeps?: AgentFillDeps;
   pendingSubmit?: PendingDeferredSubmit | null;
   liveChain?: LiveChain | null;
   prepared: PreparedAgentPage | null;
@@ -116,6 +124,9 @@ export async function handleNativeAgentMessage(
   session: AgentProviderSession,
   raw: unknown,
 ): Promise<AgentInjectionResult | AgentPrepareResult> {
+  const rootDeps = deps;
+  const prepare = parseAgentPrepareRequest(raw);
+  deps = session.boundDeps ?? deps;
   const commit = parseDeferredSubmit(raw);
   if (commit) return commitDeferredSubmit(deps, replay, session, commit);
   const cancel = parseDeferredCancel(raw);
@@ -124,8 +135,9 @@ export async function handleNativeAgentMessage(
     return result(cancel.transactionId, 'rejected');
   }
   cancelPendingDeferred(deps, session);
-  const prepare = parseAgentPrepareRequest(raw);
   if (prepare !== null) {
+    delete session.boundDeps;
+    deps = rootDeps;
     session.liveChain = null;
     const tab = prepare.targetTabId === undefined
       ? await deps.getActivePage()
@@ -143,14 +155,20 @@ export async function handleNativeAgentMessage(
       return prepareResult(prepare.nonce, null, "target-url-mismatch");
     }
     if (prepare.liveDetection === true) {
-      const form = await deps.inspectLiveLogin?.(tab.id, tab.page.documentId, tab.page.url);
+      let form = await deps.inspectLiveLogin?.(tab.id, tab.page.documentId, tab.page.url);
+      const frame = !form ? await rootDeps.prepareFrame?.(tab, () => true) : null;
+      const target = frame?.page ?? tab;
+      if (frame) form = frame.form;
       const after = await deps.getPageById(tab.id);
-      if (!form || !after?.page || after.id !== tab.id || after.page.documentId !== tab.page.documentId || after.page.url !== tab.page.url) {
+      if (!form || !target.page || target.id !== tab.id || !after?.page || after.id !== tab.id || after.page.documentId !== tab.page.documentId || after.page.url !== tab.page.url) {
         session.prepared = null;
         return prepareResult(prepare.nonce, null, 'provider-unavailable');
       }
-      session.prepared = { tabId: tab.id, documentId: tab.page.documentId, liveForm: form, liveOrigin: new URL(tab.page.url).origin };
-      return { ...prepareResult(prepare.nonce, tab.page.url, 'ready'), liveForm: form };
+      if (frame) session.boundDeps = frame.deps;
+      session.prepared = { tabId: target.id, documentId: target.page.documentId, liveForm: form, liveOrigin: new URL(target.page.url).origin };
+      // currentUrl is the credential document, not necessarily the outer tab.
+      // The native runtime verifies it against the authenticated Entry host.
+      return { ...prepareResult(prepare.nonce, target.page.url, 'ready'), liveForm: form };
     }
     session.prepared = { tabId: tab.id, documentId: tab.page.documentId };
     return prepareResult(prepare.nonce, tab.page.url, "ready");

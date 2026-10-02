@@ -1,3 +1,5 @@
+import { isAgentFrameListRequest } from '@shared/messaging/agent-frame';
+import { agentLoginFrameAllowed, visibleLoginFrameUrls } from './agent-frame';
 import { isDeferredFillMessage, isDeferredCommitMessage, isDeferredCancelMessage } from '@shared/messaging/agent-deferred';
 import { LiveLogin, LIVE_SELECTOR_PREFIX } from './agent-live-login';
 import { isLiveInspectMessage, isLiveProbeMessage } from '@shared/messaging/agent-live';
@@ -113,7 +115,7 @@ const agentInjectDom = createAgentInjectDomAccess(
     || (credentialCapture?.isOwnedSurface(element) ?? false),
 );
 
-const liveLogin = new LiveLogin(document, documentId, () => window.location.href, () => window.top === window, agentInjectDom);
+const liveLogin = new LiveLogin(document, documentId, () => window.location.href, () => agentLoginFrameAllowed(window), agentInjectDom);
 
 if (extensionBuildTarget === "firefox" && window === window.top && location.protocol === "https:") {
   startLegacyFirefoxFill(window, documentId, () => chrome.runtime.connect({ name: FIREFOX_LEGACY_FILL_PORT }),
@@ -129,6 +131,11 @@ if (extensionBuildTarget === "firefox" && window === window.top && location.prot
 // written into the page's inputs but is NEVER forwarded to the main-world script
 // (see the Port relay below, which explicitly excludes fill traffic).
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (isAgentFrameListRequest(message)) {
+    sendResponse(_sender.id === chrome.runtime.id && _sender.tab === undefined
+      ? visibleLoginFrameUrls(document, agentInjectDom) : null);
+    return undefined;
+  }
   if (isDeferredFillMessage(message) || isDeferredCommitMessage(message) || isDeferredCancelMessage(message)) {
     if (_sender.id !== chrome.runtime.id || _sender.tab !== undefined) { sendResponse(null); return undefined; }
     if (isDeferredFillMessage(message)) {
@@ -184,6 +191,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return undefined;
   }
   if (isAgentInjectStepMessage(message)) {
+    if (_sender.id !== chrome.runtime.id || _sender.tab !== undefined) { wipeStepValues(message); sendResponse(null); return undefined; }
     try {
       if (message.step.fields.some(field => field.selector.startsWith(LIVE_SELECTOR_PREFIX))) {
         sendResponse(liveLogin.fill(message));

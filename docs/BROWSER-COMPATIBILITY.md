@@ -64,9 +64,11 @@ clears the local encrypted cache.
 - The shared `scripting` permission is used only with `activeTab`, after explicit
   popup unlock, to install the fixed value-free liveness bootstrap into an
   already-open top frame. It cannot widen host access and never injects secrets.
-- An explicitly configured shared-unlock Chromium build adds `webNavigation`
-  and configured external Web hosts to bind the current top-level document. Empty
-  configuration adds neither. The pre-release bootstrap exchanges hello/ready and account/link control frames,
+- Chromium includes `webNavigation` for on-demand browser-authored Agent frame
+  and document checks. It does not subscribe to browsing-history events.
+  An explicitly configured shared-unlock build also uses this permission and
+  adds configured external Web hosts to bind the current top-level document.
+  Empty shared-unlock configuration adds no external Web hosts. The pre-release bootstrap exchanges hello/ready and account/link control frames,
   and invokes source/receiver orchestration; shared closing/expiry barriers and
   full Identity/Entry E2E remain release gates;
   full acceptance remains pending; actual Identity/Entry/lifecycle results for

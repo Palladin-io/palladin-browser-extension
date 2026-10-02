@@ -250,8 +250,12 @@ traffic then travels only in sequence-checked AEAD `secure` frames. The Runtime
 sends `prepare` before opening the Agent profile, grant, or credential. A browser framework supplies the
 `targetTabId` and exact `targetUrl` snapshot during secretless preparation. The
 extension independently resolves only that WebExtensions tab ID, requires the
-observed top-frame URL to match, and pins its document ID. It re-resolves that
-same tab and validates replay state, document, HTTPS origin, and the authenticated
+observed top-frame URL to match, and pins its document ID. Live detection may
+select the sole direct same-site HTTPS login frame under the bounded rules in
+[Agent live login](AGENT-LIVE-LOGIN.md). In that case `currentUrl` is the child
+credential document; its browser document ID is the dispatch destination while
+the outer tab/document remain pinned. It re-resolves that same tab and validates
+replay state, document, HTTPS origin, and the authenticated
 runtime-provided target domain before fill and before submit. Every fill message
 also carries the expected isolated-world page-load document ID, which the content
 script checks before its first DOM write. The routing pair is never authorization.

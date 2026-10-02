@@ -144,7 +144,9 @@ src/
 ## Manifest & Permissions
 
 - **Least privilege.** Shared permissions are `storage`, `activeTab`, `alarms`,
-  and `scripting`; Chromium adds `nativeMessaging`, `offscreen`, and `sidePanel`.
+  and `scripting`; Chromium adds `nativeMessaging`, `offscreen`, `sidePanel`, and `webNavigation`.
+  `webNavigation` is used only for on-demand Agent login frame/document identity
+  checks; the Agent path installs no navigation listeners or history collection.
   Firefox and Safari must not request `nativeMessaging` until their own reviewed
   native bridge adapters exist. Host permissions are restricted to the Palladin
   API origins.

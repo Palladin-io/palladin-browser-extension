@@ -18,7 +18,7 @@ contains a one-step `liveForm`. Each authorized `inject` can request
 
 `no-form` means only two seconds of stable absence of supported login controls.
 It does not prove authentication. Unknown screens, CAPTCHA, SMS/recovery codes,
-framed forms and unsupported widgets are not automated. A cross-origin redirect,
+unsupported frames and widgets are not automated. A cross-origin redirect,
 including a sibling host after login, stops continuation and releases no further
 values. The caller may separately verify its public destination.
 
@@ -30,6 +30,31 @@ CAPTCHA/challenge markers remain blocking, as do covered controls, an incomplete
 plan or competing native credential forms. This is not a claim about opaque
 frame contents; a required verification step remains the website's responsibility
 and is not bypassed. The generic registry retains its global obstacle report.
+
+When the top document has no supported plan, Chromium can prepare one visible,
+unsandboxed, direct same-site HTTPS iframe. Both DOM and browser frame inventories
+must contain exactly that one child (no nested or additional frames). This narrow
+rule makes the visibility-to-browser-document association unambiguous. The
+browser-issued parent document ID, child frame ID, URL and active lifecycle are
+checked on each operation; dispatch targets the exact browser document ID.
+Replacement, changed URL, hidden/sandboxed frame or additional frames fail closed.
+Same-URL child document renewal is allowed only between committed stages. The
+outer document and exact outer URL remain pinned throughout the operation.
+
+`targetUrl` still identifies the caller-selected outer tab. `prepare.result.currentUrl`
+identifies the selected credential document, which can be the child. The native
+runtime checks this URL against the authenticated Entry host before releasing any
+values; the worker and isolated world repeat that host gate. No wire field or
+runtime grant policy changes. Native lifecycle gating also wraps the selected
+frame dependencies, and cancellation targets the original document even when it
+becomes hidden. No credential-bearing request is broadcast or retried.
+
+The observed Apple identifier fixture and reductions are recorded in
+[its regression report](../tests/fixtures/forms/apple-id-2026-10-02/README.md).
+Form-less identifier stages require a hidden existing-password field and exactly
+one native login action in the same bounded scope; registration and unrelated
+fields remain excluded. Synthetic Chromium acceptance is separate from an
+installed extension completing authentication at Apple.
 
 After posting its own encrypted terminal injection result, the extension permits
 one immediate connection to a fresh idle native host when that session closes.
