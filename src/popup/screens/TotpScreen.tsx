@@ -38,7 +38,7 @@ export function TotpScreen({ onSubmitTotp, onBack }: TotpScreenProps): React.JSX
   }
 
   return (
-    <section>
+    <section className="auth-form-panel">
       <h2 className="screen-title">{t("auth.totp.title")}</h2>
       <p className="screen-subtitle">{t("auth.totp.subtitle")}</p>
       <form className="form" onSubmit={handleSubmit} noValidate>

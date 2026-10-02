@@ -202,6 +202,16 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
           saveDisabled: form.querySelector('button[type="submit"]')?.disabled };
       })()`)
     },
+    // Test-only HTML selection for non-security presentation preferences.
+    async select(selector, value) {
+      await wait(() => evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`), selector)
+      await evaluate(`(() => {
+        const select = document.querySelector(${JSON.stringify(selector)});
+        select.value = ${JSON.stringify(value)};
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      })()`)
+      await wait(() => evaluate(`document.querySelector(${JSON.stringify(selector)}).value === ${JSON.stringify(value)}`), 'selected option applied')
+    },
     async hasText(text) { return evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`) },
     // Exercise the same private command as CopyButton, inside the real native
     // popup sender boundary. Only a boolean leaves the browser; no clipboard,

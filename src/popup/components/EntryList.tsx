@@ -23,9 +23,11 @@ export const CAP = 100;
 export interface EntryListProps {
   client: VaultClient;
   entries: EntryMetadata[];
+  selectedId?: string | undefined;
+  onSelect?: ((entry: EntryMetadata) => void) | undefined;
 }
 
-export function EntryList({ client, entries }: EntryListProps): React.JSX.Element {
+export function EntryList({ client, entries, selectedId, onSelect }: EntryListProps): React.JSX.Element {
   const { t } = useI18n();
   const [visibleCount, setVisibleCount] = useState(CAP);
   const loadMoreRef = useRef<HTMLButtonElement | null>(null);
@@ -53,9 +55,9 @@ export function EntryList({ client, entries }: EntryListProps): React.JSX.Elemen
   return (
     <div className="entry-list">
       {visible.map((item) => item.kind === "entry" ? (
-        <EntryRow key={`${item.entry.vaultId}:${item.entry.id}`} client={client} entry={item.entry} />
+        <EntryRow key={`${item.entry.vaultId}:${item.entry.id}`} client={client} entry={item.entry} selected={selectedId === `${item.entry.vaultId}:${item.entry.id}`} onSelect={onSelect} />
       ) : (
-        <DomainEntryGroup key={item.domain} client={client} domain={item.domain} entries={item.entries} />
+        <DomainEntryGroup key={item.domain} client={client} domain={item.domain} entries={item.entries} selectedId={selectedId} onSelect={onSelect} />
       ))}
       {hidden > 0 ? (
         <button ref={loadMoreRef} type="button" className="show-more" onClick={showNext}>
@@ -70,6 +72,8 @@ interface DomainGroup {
   readonly kind: "domain";
   readonly domain: string;
   readonly entries: EntryMetadata[];
+  readonly selectedId?: string | undefined;
+  readonly onSelect?: ((entry: EntryMetadata) => void) | undefined;
 }
 
 interface SingleEntry {
@@ -115,10 +119,14 @@ function DomainEntryGroup({
   client,
   domain,
   entries,
+  selectedId,
+  onSelect,
 }: {
   readonly client: VaultClient;
   readonly domain: string;
   readonly entries: EntryMetadata[];
+  readonly selectedId?: string | undefined;
+  readonly onSelect?: ((entry: EntryMetadata) => void) | undefined;
 }): React.JSX.Element {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -161,6 +169,8 @@ function DomainEntryGroup({
               key={`${entry.vaultId}:${entry.id}`}
               client={client}
               entry={entry}
+              selected={selectedId === `${entry.vaultId}:${entry.id}`}
+              onSelect={onSelect}
               grouped
               revealUsername
             />

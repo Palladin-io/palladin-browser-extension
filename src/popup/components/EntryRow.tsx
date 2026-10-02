@@ -22,13 +22,15 @@ import { TotpBadge } from "./TotpBadge";
 import { useI18n } from "../i18n";
 
 export interface EntryRowProps {
+  selected?: boolean | undefined;
+  onSelect?: ((entry: EntryMetadata) => void) | undefined;
   client: VaultClient;
   entry: EntryMetadata;
   grouped?: boolean;
   revealUsername?: boolean;
 }
 
-export function EntryRow({ client, entry, grouped = false, revealUsername = false }: EntryRowProps): React.JSX.Element {
+export function EntryRow({ client, entry, selected, onSelect, grouped = false, revealUsername = false }: EntryRowProps): React.JSX.Element {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -89,8 +91,9 @@ export function EntryRow({ client, entry, grouped = false, revealUsername = fals
       <button
         type="button"
         className="entry-head"
-        onClick={() => setOpen((value) => !value)}
-        aria-expanded={open}
+        onClick={() => onSelect ? onSelect(entry) : setOpen((value) => !value)}
+        aria-pressed={onSelect ? selected : undefined}
+        aria-expanded={onSelect ? undefined : open}
       >
         <EntryIcon
           name={entry.name}

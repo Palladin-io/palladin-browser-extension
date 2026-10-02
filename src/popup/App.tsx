@@ -175,9 +175,9 @@ export function App({
   }, [session.phase, session.retryInit]);
 
   return (
-    <main className={settingsOpen ? "popup popup-settings" : "popup"} data-surface={surface}>
+    <main className={settingsOpen ? "popup popup-settings" : "popup"} data-surface={surface} data-phase={settingsOpen ? "settings" : session.phase}>
       <SharedUnlockNotice unlocked={session.phase === 'unlocked'} />
-      <Header
+      {session.phase !== "unlocked" || settingsOpen || onboardingStatus !== "completed" ? <Header
         status={onboardingStatus === "completed" ? headerStatus(session.phase) : undefined}
         contextLabel={onboardingStatus === "pending"
           ? "onboarding.managers.eyebrow"
@@ -186,7 +186,7 @@ export function App({
         {...(onboardingStatus === "completed"
           ? { onToggleSettings: () => setSettingsOpen((open) => !open) }
           : {})}
-      />
+      /> : null}
       {onboardingStatus === "loading" ? (
         <div className="centered">
           <Spinner />
@@ -249,6 +249,7 @@ export function App({
         return (
           <PublicAssetImages client={serverClient}>
             <UnlockedScreen
+              onOpenSettings={() => setSettingsOpen(true)}
               viewRevision={vaultViewRevision}
               shareRevision={shareViewRevision}
               onLock={session.lock}
