@@ -1,3 +1,4 @@
+import { prepareLoginFrame } from './frame-routing';
 import { automaticFillSession } from '../session/automatic-fill-session';
 import { DEFERRED_CANCEL, parseSubmitReady, type DeferredFillMessage, type DeferredFillOutcome, type DeferredCommitMessage } from '@shared/messaging/agent-deferred';
 import { cancelPendingDeferred } from './native-deferred';
@@ -82,6 +83,10 @@ let lifecycleVersion = 0;
 let lastImmediateReconnectAt: number | null = null;
 
 const agentFillDeps: AgentFillDeps = {
+  prepareFrame: (top, isActive) => prepareLoginFrame(top, {
+    frames: tabId => settleWithin(chrome.webNavigation.getAllFrames({ tabId }), TAB_PROBE_TIMEOUT_MS),
+    send: (tabId, documentId, message) => settleWithin(chrome.tabs.sendMessage(tabId, message, { documentId }), 5_500),
+  }, isActive).catch(() => null),
   currentAutomaticFillSession: () => automaticFillSession.current(),
   fillDeferred, commitDeferred, cancelDeferred,
   inspectLiveLogin,
@@ -98,6 +103,11 @@ export function gateAgentFillDeps(
   isActive: () => boolean,
 ): AgentFillDeps {
   return {
+    async prepareFrame(top, parentActive) {
+      if (!isActive() || !deps.prepareFrame) return null;
+      const prepared = await deps.prepareFrame(top, () => isActive() && parentActive());
+      return isActive() && prepared ? { ...prepared, deps: gateAgentFillDeps(prepared.deps, isActive) } : null;
+    },
     currentAutomaticFillSession: () => isActive() ? deps.currentAutomaticFillSession?.() ?? null : null,
     async fillDeferred(tabId, message) {
       if (!isActive() || !deps.fillDeferred) return null;

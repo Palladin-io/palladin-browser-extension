@@ -168,6 +168,7 @@ describe("buildManifest (chromium)", () => {
         "alarms",
         "offscreen",
         "nativeMessaging",
+        "webNavigation",
         "scripting",
         "sidePanel",
       ]),
@@ -254,7 +255,7 @@ describe("configured Chromium shared-unlock route", () => {
     const configured = buildManifest("chromium", pairs) as unknown as Manifest;
     expect(configured.permissions).toContain("webNavigation");
     expect(configured.externally_connectable).toEqual({ ids: [], matches: ["https://app.example.test/*"], accepts_tls_channel_id: false });
-    expect((buildManifest("chromium") as unknown as Manifest).permissions).not.toContain("webNavigation");
+    expect((buildManifest("chromium") as unknown as Manifest).permissions).toContain("webNavigation");
     expect((buildManifest("chromium") as unknown as Manifest).externally_connectable).toBeUndefined();
   });
   it("gives configured Firefox its own exact-host resource and private bridge route", () => {

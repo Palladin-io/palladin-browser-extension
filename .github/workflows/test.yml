@@ -31,6 +31,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Verify bound live login stages
         run: npm run test:browser:agent-live
+      - name: Verify framed Agent login boundaries
+        run: npm run test:browser:agent-frames
       - name: Verify manual autofill and shield layout
         run: npm run test:browser:inline
       - name: Verify encrypted credential capture
