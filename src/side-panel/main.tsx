@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "../popup/App";
 import { PopupPreferencesProvider } from "../popup/preferences";
 import "../popup/popup.css";
+import "../popup/redesign.css";
 
 const container = document.getElementById("root");
 if (!container) throw new Error("side-panel root element missing");

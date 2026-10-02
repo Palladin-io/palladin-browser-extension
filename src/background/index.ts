@@ -1,3 +1,4 @@
+import { workspaceService } from './workspace/runtime';
 import { automaticFillSession } from './session/automatic-fill-session';
 import { isSharedUnlockLinkSettingsCommand } from '../shared/messaging/shared-unlock-link-settings';
 import { handleSharedUnlockLinkSettings } from './shared-unlock/link-settings-runtime';
@@ -146,7 +147,7 @@ function unavailableDuringServerChange(raw: unknown): unknown {
   if (type.startsWith("session/")) {
     return { ok: false, code: "network", message: "Server change in progress" };
   }
-  if (type.startsWith("vault/")) {
+  if (type.startsWith("vault/") || type.startsWith("workspace/")) {
     return { ok: false, code: "network", message: "Server change in progress" };
   }
   if (type.startsWith("capture/")) {
@@ -430,6 +431,11 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
       }
       if (isCaptureSettingsCommand(raw)) {
         sendResponse(await handleCaptureSettings(raw));
+        return;
+      }
+      const workspaceResult = await workspaceService.handle(raw);
+      if (workspaceResult !== null) {
+        sendResponse(workspaceResult);
         return;
       }
       const sessionResult = await handleRuntimeMessage(sessionManager, raw);

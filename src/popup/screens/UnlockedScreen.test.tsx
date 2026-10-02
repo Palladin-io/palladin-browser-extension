@@ -68,19 +68,21 @@ beforeEach(() => {
   vi.clearAllMocks();
   // `userEvent.setup()` provides a working navigator.clipboard stub; the copy
   // test reads it back. We only need to stub chrome for the deep-link buttons.
-  Object.assign(globalThis, { chrome: { tabs: { create: vi.fn() }, runtime: { sendMessage: vi.fn(async () => ({ ok: true })) } } });
+  Object.assign(globalThis, { chrome: { tabs: { create: vi.fn() }, runtime: { sendMessage: vi.fn(async (command: { type: string }) => command.type === 'workspace/detail'
+    ? { ok: true, data: { revision: '1', fields: [{ id: 'credential.username', label: '', type: 'text', value: 'ada@example.com' }, { id: 'credential.password', label: '', type: 'concealed', value: null }] } }
+    : command.type === 'workspace/field' ? { ok: true, data: { value: 's3cr3t' } } : { ok: true }) } } });
 });
 
 const noop = async (): Promise<void> => {};
 
 describe("UnlockedScreen", () => {
-  it("offers only Entry browsing, generation and creation, and copies without history storage", async () => {
+  it("offers management tabs and opens the generator from the toolbar without storing generated values", async () => {
     const client = makeClient();
     const user = userEvent.setup();
     render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={client} captureClient={makeCaptureClient()} />);
     await screen.findByText("All items");
-    expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["Vault", "Generator", "Add entry"]);
-    await user.click(screen.getByRole("tab", { name: "Generator" }));
+    expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["Vault", "Agent access", "Sharing", "Logs"]);
+    await user.click(screen.getByRole("button", { name: "Generator" }));
     vi.mocked(chrome.runtime.sendMessage).mockClear();
     await user.click(screen.getByRole("button", { name: "Copy" }));
     expect(await navigator.clipboard.readText()).not.toBe("");
@@ -203,7 +205,7 @@ describe("UnlockedScreen", () => {
     vi.unstubAllGlobals();
   }, 15_000);
 
-  it("reveals the username of a single credential only after its row is expanded", async () => {
+  it("loads credential details only after selecting its row", async () => {
     const credentialUsername = vi.fn(async () => "ada@example.com");
     render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={makeClient({ credentialUsername })} />);
     const user = userEvent.setup();
@@ -213,7 +215,7 @@ describe("UnlockedScreen", () => {
     await user.click(rows[rows.length - 1]);
 
     expect(await screen.findByText("ada@example.com")).toBeInTheDocument();
-    expect(credentialUsername).toHaveBeenCalledWith("v1", "cred");
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: "workspace/detail", vaultId: "v1", entryId: "cred" });
   });
 
   it("shows an empty state when the search matches nothing", async () => {
@@ -235,9 +237,9 @@ describe("UnlockedScreen", () => {
     await user.click(rows[rows.length - 1]);
 
     await user.click(screen.getByRole("button", { name: "Copy password" }));
-    await waitFor(() => expect(client.reveal).toHaveBeenCalledWith("v1", "cred", "password"));
+    await waitFor(() => expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: "workspace/field", vaultId: "v1", entryId: "cred", fieldId: "credential.password" }));
     // The Copied label proves writeText resolved; the clipboard holds the secret.
-    expect(await screen.findByRole("button", { name: "Copied" })).toBeInTheDocument();
+    expect(await screen.findByText("Copied")).toBeInTheDocument();
     expect(await navigator.clipboard.readText()).toBe("s3cr3t");
   });
 
@@ -294,7 +296,7 @@ describe("UnlockedScreen", () => {
     render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={client} />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("tab", { name: "Generator" }));
+    await user.click(screen.getByRole("button", { name: "Generator" }));
     const generated = screen.getByLabelText("Generated value").textContent ?? "";
     expect(generated.length).toBeGreaterThanOrEqual(8);
 
@@ -312,7 +314,7 @@ describe("UnlockedScreen", () => {
     render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={client} />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("tab", { name: "Generator" }));
+    await user.click(screen.getByRole("button", { name: "Generator" }));
     const syncCallsBeforeGeneration = vi.mocked(client.sync).mock.calls.length;
     await user.click(screen.getByRole("button", { name: "Passphrase" }));
     expect(screen.getByLabelText("Generated value").textContent?.split("-")).toHaveLength(6);
