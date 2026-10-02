@@ -58,7 +58,7 @@
     "jsdom": "^25.0.1",
     "libsodium-wrappers": "0.8.4",
     "playwright": "1.63.0",
-    "typescript": "^5.7.0",
+    "typescript": "^7.0.2",
     "vite": "^6.3.5",
     "vitest": "^4.1.11"
   }
