@@ -92,6 +92,7 @@ export function App({
   >("loading");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [vaultViewRevision, setVaultViewRevision] = useState(0);
+  const [shareViewRevision, setShareViewRevision] = useState(0);
   const panelAvailable = surface === "popup" && supportsSidePanel(extensionBuildTarget);
 
   useEffect(() => {
@@ -110,8 +111,15 @@ export function App({
   useEffect(() => {
     if (typeof chrome === "undefined" || !chrome.runtime?.onMessage) return;
     const onMessage = (raw: unknown): void => {
+      if (raw && typeof raw === 'object' && 'type' in raw && raw.type === 'share-save/changed') {
+        setShareViewRevision((revision) => revision + 1);
+        return;
+      }
       if (!isSurfaceStateEvent(raw)) return;
-      if (raw.type === "surface/session-changed") session.synchronize(raw.status);
+      if (raw.type === "surface/session-changed") {
+        session.synchronize(raw.status);
+        setShareViewRevision((revision) => revision + 1);
+      }
       setVaultViewRevision((revision) => revision + 1);
     };
     chrome.runtime.onMessage.addListener(onMessage);
@@ -129,7 +137,10 @@ export function App({
     let timer: ReturnType<typeof setTimeout> | null = null;
     const refresh = (): void => {
       if (timer !== null) clearTimeout(timer);
-      timer = setTimeout(() => setVaultViewRevision((revision) => revision + 1), 120);
+      timer = setTimeout(() => {
+        setVaultViewRevision((revision) => revision + 1);
+        setShareViewRevision((revision) => revision + 1);
+      }, 120);
     };
     const onUpdated = (
       _tabId: number,
@@ -240,6 +251,7 @@ export function App({
           <PublicAssetImages client={serverClient}>
             <UnlockedScreen
               viewRevision={vaultViewRevision}
+              shareRevision={shareViewRevision}
               onLock={session.lock}
               onSignOut={session.signOut}
               onOpenSidePanel={panelAvailable ? () => openSidePanel() : undefined}

@@ -21,6 +21,8 @@ import {
   isBridgeMessage,
   isInlineAutofillCommand,
   isSessionLivenessPing,
+  isTabUrlResponse,
+  TAB_URL_REQUEST_CHANNEL,
   sessionChanged,
   vaultChanged,
 } from "@shared/messaging";
@@ -59,6 +61,11 @@ import { SessionLivenessPublisher } from "./session/liveness";
 import { ensureActiveTabSessionLiveness } from "./session/active-tab-liveness";
 import { sessionAutoLock, sessionManager } from "./session/runtime";
 import { registerTopFrameDocument } from "./tab-documents";
+import { browserDocumentIdForTab, verifyLiveShareDocument } from './tab-documents';
+import { sharePageResponse, sharePopupCommand, SHARE_SAVE_CHANNEL } from '../shared/messaging/share-save';
+import { ShareSaveCoordinator, type ShareSource } from './share-save/coordinator';
+import { sharedCopySecret } from './vault/shared-copy';
+import { hasVaultManagePermission } from './capture/permissions';
 import { logger } from "./telemetry/logger";
 import { isTrustedExtensionPage } from "./trusted-sender";
 import { fillInlineSelectedEntry, handleVaultRuntimeMessage } from "./vault/commands";
@@ -80,6 +87,41 @@ const SYNC_PERIOD_MINUTES = 15;
 const serverOperations = new ServerOperationBarrier();
 const sessionLiveness = new SessionLivenessPublisher();
 const inlineAutofillRecency = new InMemoryInlineAutofillRecency();
+const shareSave = new ShareSaveCoordinator({
+  now: () => Date.now(),
+  keys: () => sessionManager.getKeys(),
+  userId: () => sessionManager.getUserId(),
+  apiUrl: () => serverConfig.apiUrl,
+  canManage: async () => hasVaultManagePermission(await sessionManager.getAccessToken()),
+  currentSource: (source) => verifyLiveShareDocument(source,
+    () => chrome.tabs.sendMessage(source.tabId,
+      { channel: TAB_URL_REQUEST_CHANNEL }, { documentId: source.documentId }), isTabUrlResponse),
+  onExpired: publishShareSaveChanged,
+  vaults: () => vaultData.sharedCopyVaults(),
+  save: async (snapshot, vaultId, assertCurrent) => {
+    const secret = sharedCopySecret(snapshot);
+    const result = await vaultData.saveSharedCopy(secret, vaultId, assertCurrent);
+    if (result.status !== 'saved') return false;
+    publishSurfaceState(vaultChanged());
+    return true;
+  },
+});
+
+function shareSource(sender: chrome.runtime.MessageSender): ShareSource | null {
+  if (sender.id !== chrome.runtime.id || sender.frameId !== 0
+    || typeof sender.tab?.id !== 'number' || sender.tab.incognito
+    || typeof sender.documentId !== 'string' || !sender.documentId
+    || browserDocumentIdForTab(sender.tab.id) !== sender.documentId || !sender.url) return null;
+  try {
+    const url = new URL(sender.url);
+    if (!/^\/share\/[0-9a-f-]{36}$/.test(url.pathname)) return null;
+    const environment = __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__.find(item =>
+      item.webOrigin === url.origin && item.apiUrl === serverConfig.apiUrl);
+    if (!environment || sender.origin !== environment.webOrigin) return null;
+    return { tabId: sender.tab.id, documentId: sender.documentId,
+      url: sender.url, webOrigin: environment.webOrigin, apiUrl: environment.apiUrl };
+  } catch { return null; }
+}
 const vaultInvalidations = new VaultInvalidationCoordinator({
   apply: (vaultId, removed) => withServerOperation(
     () => vaultData.applyRealtimeInvalidation(vaultId, removed),
@@ -120,6 +162,10 @@ function publishSurfaceState(event: ReturnType<typeof sessionChanged> | ReturnTy
   }).catch(() => undefined);
 }
 
+function publishShareSaveChanged(): void {
+  void chrome.runtime.sendMessage({ type: 'share-save/changed' }).catch(() => undefined);
+}
+
 function runServerOperation(operation: () => Promise<void>, warning: string): void {
   const lease = serverOperations.tryAcquire();
   if (lease === null) return;
@@ -157,6 +203,8 @@ function unavailableDuringServerChange(raw: unknown): unknown {
 
 sessionManager.hooks.onUnlocked(() => automaticFillSession.unlocked());
 sessionManager.hooks.onLocked(() => automaticFillSession.locked());
+sessionManager.hooks.onLocked(() => shareSave.clear());
+sessionManager.hooks.onUnlocked(() => shareSave.clear());
 
 // Clear legacy badge text after each committed session transition.
 sessionManager.hooks.onUnlocked(() => refreshBadge());
@@ -243,8 +291,10 @@ chrome.runtime.onConnect.addListener((port) => {
   }
   const unregisterDocument = registerTopFrameDocument(port, chrome.runtime.id);
   if (unregisterDocument !== null) {
+    if (shareSave.clearReplacedDocument(port.sender!.tab!.id!, port.sender!.documentId!)) publishShareSaveChanged();
     port.onDisconnect.addListener(() => {
       credentialCaptureCoordinator.documentDisconnected(port.sender!.tab!.id!, port.sender!.documentId!);
+      if (shareSave.clearDocument(port.sender!.tab!.id!, port.sender!.documentId!)) publishShareSaveChanged();
       unregisterDocument();
     });
     if (typeof port.sender?.url === "string") credentialCaptureCoordinator.documentConnected(
@@ -260,6 +310,25 @@ chrome.runtime.onConnect.addListener((port) => {
     // The Port is isolated from the page, but the content script forwards
     // page-adjacent traffic — validate the shape before acting.
     if (!isBridgeMessage(raw)) return;
+    if (raw.type === 'share-save/request') {
+      void (async () => {
+        await initializeServerConfig();
+        const source = shareSource(port.sender!);
+        const status = !source ? 'unavailable' : raw.request.type === 'status'
+          ? await shareSave.status(source) : raw.request.type === 'reconcile'
+            ? await shareSave.reconcile(source, raw.request.requestId)
+            : await shareSave.prepare(source, raw.request.snapshot, raw.request.requestId);
+        if (status === 'pending') publishShareSaveChanged();
+        port.postMessage({ type: 'share-save/response', response: sharePageResponse.parse({ channel: SHARE_SAVE_CHANNEL,
+          type: 'response', requestId: raw.request.requestId, status }) });
+        if (status === 'pending') void chrome.action.openPopup?.().catch(() => undefined);
+      })().catch(() => {
+        try { port.postMessage({ type: 'share-save/response', response: { channel: SHARE_SAVE_CHANNEL,
+          type: 'response', requestId: raw.request.requestId, status: 'unavailable' } }); } catch { /* closed Port */ }
+      });
+      return;
+    }
+    if (raw.type === 'share-save/response') return;
     const reply = routePortMessage(raw);
     if (reply) port.postMessage(reply);
   });
@@ -280,7 +349,11 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => credentialCaptureCoordinator.clearTab(tabId));
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (shareSave.clearTab(tabId)) publishShareSaveChanged();
+});
 chrome.tabs.onUpdated.addListener((tabId, change) => {
+  if ((change.url || change.status === 'loading') && shareSave.clearTab(tabId)) publishShareSaveChanged();
   if (change.status) credentialCaptureCoordinator.navigationUpdated(tabId, change.status);
   if (change.url) credentialCaptureCoordinator.navigation(tabId, change.url);
 });
@@ -367,6 +440,22 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 // to capture and then the vault command surface.
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isTrustedExtensionPage(sender, chrome.runtime.id, chrome.runtime.getURL(""))) return false;
+  const shareCommand = sharePopupCommand.safeParse(raw);
+  if (shareCommand.success) {
+    void (async () => {
+      if (shareCommand.data.type === 'share-save/get') return { ok: true, pending: await shareSave.view() };
+      if (shareCommand.data.type === 'share-save/cancel') {
+        shareSave.cancel(shareCommand.data.pendingId);
+        publishShareSaveChanged();
+        return { ok: true };
+      }
+      const lease = serverOperations.tryAcquire();
+      if (!lease) return { ok: false, status: 'failed' };
+      try { return { ok: true, status: await shareSave.confirm(shareCommand.data.pendingId, shareCommand.data.vaultId) }; }
+      finally { lease.release(); publishShareSaveChanged(); }
+    })().then(sendResponse, () => sendResponse({ ok: false, status: 'failed' }));
+    return true;
+  }
   if (isSharedUnlockLinkSettingsCommand(raw)) {
     const lease = serverOperations.tryAcquire();
     if (lease === null) { sendResponse({ ok: false, code: 'unavailable' }); return false; }

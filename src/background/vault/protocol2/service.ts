@@ -1,4 +1,6 @@
 import {
+  currentVaultPlaintext,
+  openCurrentMemberSecret,
   openMemberIndex,
   openMemberSecret,
   openVaultProjection,
@@ -6,6 +8,7 @@ import {
   presentationIconReference,
   projectAgentDiscovery,
   sealCanonicalEntry,
+  sealCurrentCanonicalEntry,
   wipe,
   type AgentFieldAccess,
   type MemberSecretV1,
@@ -409,7 +412,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
         ...cached.active.vault,
         memberVaultKey: cached.active.memberVaultKey,
       }, privateKey, userId)
-      return await openMemberSecret(cached.item.entryKey, cached.item.memberSecret, vaultKey, {
+      return await openCurrentMemberSecret(cached.item.entryKey, cached.item.memberSecret, vaultKey, {
         organizationId: cached.active.accessContext.organizationId,
         vaultId,
         entryId,
@@ -498,7 +501,31 @@ export class Protocol2VaultDataService implements VaultDataSource {
         break
       }
     }
-    const result = await this.createCanonicalEntry(secret)
+    const result = await this.createCanonicalEntry({ kind: 'legacy', secret })
+    return result.status === 'created'
+      ? { status: 'saved' }
+      : { status: 'blocked', reason: 'grant-refresh-required' }
+  }
+
+  /** Extension-owned confirmation options. Names are decrypted only in worker memory. */
+  async sharedCopyVaults(): Promise<readonly { id: string; name: string }[]> {
+    if (this.currentVaults.size === 0) await this.refresh()
+    const privateKey = this.deps.session.getPrivateKey()
+    const userId = await this.deps.session.getUserId()
+    if (!privateKey || !userId) throw new VaultDataError('locked', 'Session is locked')
+    const options: { id: string; name: string }[] = []
+    for (const vault of this.currentVaults.values()) {
+      const opened = await openProjectionVault({ ...vault, memberVaultKey: vault.memberVaultKey }, privateKey, userId)
+      try { options.push({ id: vault.id, name: opened.metadata.name }) }
+      finally { wipe(opened.vaultKey) }
+    }
+    return options
+  }
+
+  async saveSharedCopy(secret: currentVaultPlaintext.MemberSecretV1, vaultId: string, assertCurrent: () => Promise<void>): Promise<ManualEntrySaveResult> {
+    if (this.currentVaults.size === 0) await this.refresh()
+    if (!this.currentVaults.has(vaultId)) throw new VaultDataError('network', 'Destination Vault is unavailable')
+    const result = await this.createCanonicalEntry({ kind: 'current', secret }, vaultId, assertCurrent)
     return result.status === 'created'
       ? { status: 'saved' }
       : { status: 'blocked', reason: 'grant-refresh-required' }
@@ -510,23 +537,26 @@ export class Protocol2VaultDataService implements VaultDataSource {
     host: string,
     password: string,
   ): Promise<GeneratedPasswordSaveResult> {
-    return this.createCanonicalEntry(credentialSecret(site, origin, host, password))
+    return this.createCanonicalEntry({ kind: 'legacy', secret: credentialSecret(site, origin, host, password) })
   }
 
   private async createCanonicalEntry(
-    secret: MemberSecretV1,
+    entry: { kind: 'legacy'; secret: MemberSecretV1 } | { kind: 'current'; secret: currentVaultPlaintext.MemberSecretV1 },
+    selectedVaultId?: string,
+    assertCurrent?: () => Promise<void>,
   ): Promise<Extract<GeneratedPasswordSaveResult, { status: 'created' | 'blocked' }>> {
     const privateKey = this.deps.session.getPrivateKey()
     if (privateKey === null) throw new VaultDataError('locked', 'Session is locked')
     const userId = await this.deps.session.getUserId()
     if (userId === null) throw new VaultDataError('not-authenticated', 'No session')
-    const vault = [...this.currentVaults.values()].find((candidate) => candidate.isDefault)
-      ?? [...this.currentVaults.values()][0]
+    const vault = selectedVaultId ? this.currentVaults.get(selectedVaultId)
+      : [...this.currentVaults.values()].find((candidate) => candidate.isDefault)
+        ?? [...this.currentVaults.values()][0]
     if (vault === undefined) throw new VaultDataError('network', 'No Vault is available')
-    if (secret.entryType === 'credential' && secret.icon === null && secret.content.urlDomain) {
-      const hostname = secret.content.urlDomain
+    if (entry.secret.entryType === 'credential' && entry.secret.icon === null && entry.secret.content.urlDomain) {
+      const hostname = entry.secret.content.urlDomain
       const icon = await this.withAuth(token => this.deps.client.resolveWebsiteIcon(token, hostname))
-      secret = { ...secret, icon: icon ?? null }
+      entry = { ...entry, secret: { ...entry.secret, icon: icon ?? null } }
     }
     if (this.deps.session.getPrivateKey() !== privateKey || await this.deps.session.getUserId() !== userId) {
       throw new VaultDataError('locked', 'Session changed while preparing Entry')
@@ -538,7 +568,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
     try {
       vaultKey = await openProjectionVaultKey(vault, privateKey, userId)
       discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, vaultKey)
-      const material = await sealCanonicalEntry({
+      const coordinates = {
         organizationId: vault.memberVaultKey.wrappedVaultKey.descriptor.scope.organizationId,
         vaultId: vault.id,
         entryId,
@@ -546,14 +576,20 @@ export class Protocol2VaultDataService implements VaultDataSource {
         vaultKeyVersion: vault.currentKeyEpoch.vaultKeyVersion,
         vdkVersion: vault.currentKeyEpoch.vdkVersion,
         memberKeyGeneration: vault.memberKeyGeneration,
-      }, secret, vaultKey, discoveryKey, 1)
+      }
+      const material = entry.kind === 'current'
+        ? await sealCurrentCanonicalEntry(coordinates, entry.secret, vaultKey, discoveryKey, 1)
+        : await sealCanonicalEntry(coordinates, entry.secret, vaultKey, discoveryKey, 1)
       try {
-        await this.withAuth((token) => this.deps.client.createEntry(token, {
-          vaultId: vault.id,
-          entryId,
-          ...material,
-          deliveryPolicy: 'standard',
-        }))
+        await this.withAuth(async (token) => {
+          await assertCurrent?.()
+          return this.deps.client.createEntry(token, {
+            vaultId: vault.id,
+            entryId,
+            ...material,
+            deliveryPolicy: 'standard',
+          })
+        })
       } catch (error) {
         if (error instanceof Protocol2MutationConflictError) {
           return { status: 'blocked', reason: 'grant-refresh-required' }
