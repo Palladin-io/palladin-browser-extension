@@ -62,7 +62,7 @@ describe('extension-owned share confirmation', () => {
     coordinator.cancel(pending!.id);
     expect(await coordinator.view()).toBeNull();
     await coordinator.prepare(source, snapshot);
-    coordinator.clearTab(source.tabId);
+    expect(coordinator.clearTab(source.tabId)).toBe(true);
     expect(await coordinator.view()).toBeNull();
   });
 

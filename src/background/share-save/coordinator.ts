@@ -40,8 +40,10 @@ export class ShareSaveCoordinator {
     if (this.expiry !== null) clearTimeout(this.expiry);
     this.expiry = null;
   }
-  clearTab(tabId: number): void {
-    if (this.pending?.source.tabId === tabId) this.clear();
+  clearTab(tabId: number): boolean {
+    if (this.pending?.source.tabId !== tabId) return false;
+    this.clear();
+    return true;
   }
 
   async status(source: ShareSource): Promise<'unavailable' | 'locked' | 'ready'> {

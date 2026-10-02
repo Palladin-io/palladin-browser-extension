@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import brandLogoUrl from "../../../icons/logo-source.png";
 
 import { CapturePrompt } from "../capture/CapturePrompt";
@@ -32,6 +32,7 @@ export interface UnlockedScreenProps {
    * the screen itself stays mounted so search, expansion and scroll survive.
    */
   viewRevision?: number;
+  shareRevision?: number;
   /** Present only in the compact popup on targets with a browser-owned panel. */
   onOpenSidePanel?: (() => Promise<boolean>) | undefined;
   /** Injected in tests; defaults to the real `chrome.runtime` vault channel. */
@@ -44,6 +45,7 @@ export function UnlockedScreen({
   onLock,
   onSignOut,
   viewRevision = 0,
+  shareRevision = 0,
   onOpenSidePanel,
   vaultClient,
   captureClient,
@@ -59,15 +61,22 @@ export function UnlockedScreen({
   const [query, setQuery] = useState("");
   const [view, setView] = useState<"vault" | "generator" | "add-entry">("vault");
   const [capturePrompt, setCapturePrompt] = useState(capture.prompt);
-  const pendingShare = usePendingShareSave(viewRevision);
+  const pendingShare = usePendingShareSave(shareRevision);
+  const [heldShare, setHeldShare] = useState<typeof pendingShare>(null);
   const [shareDismissed, setShareDismissed] = useState<string | null>(null);
+  useEffect(() => {
+    if (pendingShare && heldShare && pendingShare.id !== heldShare.id) setHeldShare(null);
+  }, [pendingShare, heldShare]);
+  const visibleShare = pendingShare ?? heldShare;
 
   const searching = query.trim().length > 0;
   const results = useMemo(() => filterEntries(list.all, query), [list.all, query]);
 
-  if (pendingShare && pendingShare.id !== shareDismissed) {
+  if (visibleShare && visibleShare.id !== shareDismissed) {
     return <section className="vault">
-      <ShareSavePrompt key={pendingShare.id} pending={pendingShare} onDone={() => setShareDismissed(pendingShare.id)} />
+      <ShareSavePrompt key={visibleShare.id} pending={visibleShare}
+        onSaveStart={() => setHeldShare(visibleShare)} onSaveFailed={() => setHeldShare(null)}
+        onDone={() => { setHeldShare(null); setShareDismissed(visibleShare.id); }} />
       <UnlockedFooter onLock={onLock} onSignOut={onSignOut} onOpenSidePanel={onOpenSidePanel} />
     </section>;
   }

@@ -40,17 +40,21 @@ export function usePendingShareSave(revision: number, client: ShareSaveClient = 
   return pending;
 }
 
-export function ShareSavePrompt({ pending, onDone, client = browserShareSaveClient }:
-  { pending: ShareSaveView; onDone(): void; client?: ShareSaveClient }): React.JSX.Element {
+export function ShareSavePrompt({ pending, onDone, onSaveStart, onSaveFailed, client = browserShareSaveClient }:
+  { pending: ShareSaveView; onDone(): void; onSaveStart?(): void; onSaveFailed?(): void;
+    client?: ShareSaveClient }): React.JSX.Element {
   const { t } = useI18n();
   const [vaultId, setVaultId] = useState(pending.vaults[0]?.id ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [saved, setSaved] = useState(false);
   const save = async () => {
+    onSaveStart?.();
     setBusy(true); setError(false);
-    try { if (await client.confirm(pending.id, vaultId)) setSaved(true); else setError(true); }
-    catch { setError(true); }
+    try {
+      if (await client.confirm(pending.id, vaultId)) setSaved(true);
+      else { setError(true); onSaveFailed?.(); }
+    } catch { setError(true); onSaveFailed?.(); }
     finally { setBusy(false); }
   };
   return <section className="share-save-prompt" aria-labelledby="share-save-title">

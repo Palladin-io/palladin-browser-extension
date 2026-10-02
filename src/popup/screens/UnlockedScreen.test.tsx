@@ -74,6 +74,47 @@ beforeEach(() => {
 const noop = async (): Promise<void> => {};
 
 describe("UnlockedScreen", () => {
+  it('keeps the acknowledged success until Done despite vault and pending invalidations', async () => {
+    const pending = { id: '11111111-1111-4111-8111-111111111111', title: 'Shared login',
+      entryType: 'credential', vaults: [{ id: '22222222-2222-4222-8222-222222222222', name: 'Personal' }] };
+    let current: typeof pending | null = pending;
+    let finishConfirm: ((value: { ok: boolean; status: string }) => void) | undefined;
+    vi.mocked(chrome.runtime.sendMessage).mockImplementation(async (raw: unknown) => {
+      if (raw && typeof raw === 'object' && 'type' in raw && raw.type === 'share-save/get') {
+        return { ok: true, pending: current };
+      }
+      if (raw && typeof raw === 'object' && 'type' in raw && raw.type === 'share-save/confirm') {
+        current = null;
+        return new Promise(resolve => { finishConfirm = resolve; });
+      }
+      return { ok: true };
+    });
+    const props = { onLock: noop, onSignOut: noop, vaultClient: makeClient(), captureClient: makeCaptureClient() };
+    const page = render(<UnlockedScreen {...props} viewRevision={0} shareRevision={0} />);
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Save to my vault' }));
+    page.rerender(<UnlockedScreen {...props} viewRevision={1} shareRevision={1} />);
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Save shared entry' })).toBeInTheDocument());
+    await act(async () => { finishConfirm?.({ ok: true, status: 'saved' }); });
+    expect(await screen.findByRole('heading', { name: 'Saved to your vault' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Saved to your vault' })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.queryByRole('heading', { name: 'Saved to your vault' })).not.toBeInTheDocument();
+  });
+
+  it('removes an unconfirmed prompt after another surface cancels it', async () => {
+    const pending = { id: '11111111-1111-4111-8111-111111111111', title: 'Shared login',
+      entryType: 'credential', vaults: [{ id: '22222222-2222-4222-8222-222222222222', name: 'Personal' }] };
+    let current: typeof pending | null = pending;
+    vi.mocked(chrome.runtime.sendMessage).mockImplementation(async (raw: unknown) => raw && typeof raw === 'object'
+      && 'type' in raw && raw.type === 'share-save/get' ? { ok: true, pending: current } : { ok: true });
+    const props = { onLock: noop, onSignOut: noop, vaultClient: makeClient(), captureClient: makeCaptureClient() };
+    const page = render(<UnlockedScreen {...props} shareRevision={0} />);
+    expect(await screen.findByRole('heading', { name: 'Save shared entry' })).toBeInTheDocument();
+    current = null;
+    page.rerender(<UnlockedScreen {...props} shareRevision={1} />);
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Save shared entry' })).not.toBeInTheDocument());
+  });
+
   it("offers only Entry browsing, generation and creation, and copies without history storage", async () => {
     const client = makeClient();
     const user = userEvent.setup();

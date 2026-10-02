@@ -161,6 +161,10 @@ function publishSurfaceState(event: ReturnType<typeof sessionChanged> | ReturnTy
   }).catch(() => undefined);
 }
 
+function publishShareSaveChanged(): void {
+  void chrome.runtime.sendMessage({ type: 'share-save/changed' }).catch(() => undefined);
+}
+
 function runServerOperation(operation: () => Promise<void>, warning: string): void {
   const lease = serverOperations.tryAcquire();
   if (lease === null) return;
@@ -309,7 +313,7 @@ chrome.runtime.onConnect.addListener((port) => {
         const source = shareSource(port.sender!);
         const status = !source ? 'unavailable' : raw.request.type === 'status'
           ? await shareSave.status(source) : await shareSave.prepare(source, raw.request.snapshot);
-        if (status === 'pending') void chrome.runtime.sendMessage({ type: 'share-save/changed' }).catch(() => undefined);
+        if (status === 'pending') publishShareSaveChanged();
         port.postMessage({ type: 'share-save/response', response: sharePageResponse.parse({ channel: SHARE_SAVE_CHANNEL,
           type: 'response', requestId: raw.request.requestId, status }) });
         if (status === 'pending') void chrome.action.openPopup?.().catch(() => undefined);
@@ -340,9 +344,11 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => credentialCaptureCoordinator.clearTab(tabId));
-chrome.tabs.onRemoved.addListener((tabId) => shareSave.clearTab(tabId));
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (shareSave.clearTab(tabId)) publishShareSaveChanged();
+});
 chrome.tabs.onUpdated.addListener((tabId, change) => {
-  if (change.url) shareSave.clearTab(tabId);
+  if (change.url && shareSave.clearTab(tabId)) publishShareSaveChanged();
   if (change.status) credentialCaptureCoordinator.navigationUpdated(tabId, change.status);
   if (change.url) credentialCaptureCoordinator.navigation(tabId, change.url);
 });
@@ -434,12 +440,14 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
     void (async () => {
       if (shareCommand.data.type === 'share-save/get') return { ok: true, pending: await shareSave.view() };
       if (shareCommand.data.type === 'share-save/cancel') {
-        shareSave.cancel(shareCommand.data.pendingId); return { ok: true };
+        shareSave.cancel(shareCommand.data.pendingId);
+        publishShareSaveChanged();
+        return { ok: true };
       }
       const lease = serverOperations.tryAcquire();
       if (!lease) return { ok: false, status: 'failed' };
       try { return { ok: true, status: await shareSave.confirm(shareCommand.data.pendingId, shareCommand.data.vaultId) }; }
-      finally { lease.release(); }
+      finally { lease.release(); publishShareSaveChanged(); }
     })().then(sendResponse, () => sendResponse({ ok: false, status: 'failed' }));
     return true;
   }
