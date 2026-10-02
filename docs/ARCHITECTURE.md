@@ -122,7 +122,12 @@ idle/absolute limits. Invalidated extension contexts do not reconnect.
   signed ephemeral transcript. This session-local check is not the authority
   that lets the Runtime release a credential—the browser/platform identity
   boundary is.
-- After a host failure, the extension schedules a new connection attempt in 30
+- A disconnected authenticated host is replaced immediately, including its idle
+  timeout, without restoring the previous prepared operation. Repeated authenticated
+  crashes may trigger at most one immediate recovery per 30 seconds; a successfully
+  delivered terminal Inject result retains its immediate handoff. Authentication or
+  protocol failures do not gain immediate recovery.
+- After other host failures, the extension schedules a new connection attempt in 30
   seconds, including after repeated failures. Chromium requires version 120 or newer
   for this alarm interval. This leaves room for the authenticated
   handshake inside the CLI's 45-second credential-free preparation wait. Worker

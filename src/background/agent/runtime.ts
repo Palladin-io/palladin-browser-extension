@@ -79,6 +79,7 @@ let secureChannel: InjectSecureChannel | null = null;
 let connectionAttempt: Promise<void> | null = null;
 let handshakeTimeout: ReturnType<typeof globalThis.setTimeout> | null = null;
 let lifecycleVersion = 0;
+let lastImmediateReconnectAt: number | null = null;
 
 const agentFillDeps: AgentFillDeps = {
   currentAutomaticFillSession: () => automaticFillSession.current(),
@@ -241,12 +242,16 @@ async function openNativeAgentProvider(expectedLifecycle: number): Promise<void>
       if (nativePort !== port) return;
       providerSession.prepared = null;
       providerSession.liveChain = null;
-      const immediateHandoff = terminalSent;
+      const now = Date.now();
+      const immediateHandoff = terminalSent || (secureChannel !== null
+        && (lastImmediateReconnectAt === null
+          || now - lastImmediateReconnectAt >= RECONNECT_DELAY_MINUTES * 60_000));
       terminalSent = false;
       disposeSecureSession(port);
       if (immediateHandoff) {
-        // One fresh idle host after our terminal response. It has no prepared
-        // operation or handoff credit, so failure falls back to the usual alarm.
+        // Recreate an idle provider, never its operation. Limit crash recovery
+        // even when a broken host authenticates successfully before exiting.
+        lastImmediateReconnectAt = now;
         void Promise.resolve(connectionAttempt).then(() => connectNativeAgentProviderForLifecycle(expectedLifecycle));
       } else scheduleNativeAgentReconnect(expectedLifecycle);
     });
@@ -262,6 +267,7 @@ async function openNativeAgentProvider(expectedLifecycle: number): Promise<void>
 /** Stop reconnects and synchronously dispose all ephemeral channel material. */
 export function disconnectNativeAgentProvider(): void {
   lifecycleVersion += 1;
+  lastImmediateReconnectAt = null;
   // A stale in-flight attempt observes the lifecycle change and disposes its
   // own client. Clearing this slot permits a later explicit reconnect.
   connectionAttempt = null;
