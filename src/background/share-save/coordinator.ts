@@ -51,16 +51,18 @@ export class ShareSaveCoordinator {
   }
 
   async prepare(source: ShareSource, snapshot: ShareSnapshot): Promise<'unavailable' | 'locked' | 'pending'> {
+    if (this.committing) return 'unavailable';
+    this.clear();
     const status = await this.status(source);
     if (status !== 'ready') return status;
     if (new TextEncoder().encode(JSON.stringify(snapshot)).byteLength > 262_144) return 'unavailable';
     // Validate all fields before retaining any page plaintext. The canonical
     // conversion also rejects unsupported fields such as a key URL.
     try { sharedCopySecret(snapshot); } catch { return 'unavailable'; }
+    if ((await this.deps.vaults()).length === 0) return 'unavailable';
     const keys = this.deps.keys();
     const userId = await this.deps.userId();
     if (!keys || !userId || !await this.deps.currentSource(source)) return 'unavailable';
-    this.clear();
     this.pending = { id: crypto.randomUUID(), source, snapshot, keys, userId, preparedAt: this.deps.now() };
     this.expiry = setTimeout(() => this.clear(), 120_000);
     return 'pending';

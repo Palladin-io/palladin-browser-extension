@@ -9,7 +9,7 @@ const snapshot: ShareSnapshot = { schema: 'palladin.entry-share.v1', title: 'Syn
   entryType: 'credential', fields: [{ id: 'credential.password', label: '', type: 'concealed', value: 'synthetic' }] };
 const vaultId = '22222222-2222-4222-8222-222222222222';
 
-function setup() {
+function setup(vaults: readonly { id: string; name: string }[] = [{ id: vaultId, name: 'Personal' }]) {
   const keys = {};
   const state = { now: 1_000, keys: keys as object | null, current: true, userId: 'member',
     apiUrl: source.apiUrl };
@@ -18,7 +18,7 @@ function setup() {
   });
   const deps: ShareSaveDeps = { now: () => state.now, keys: () => state.keys,
     userId: async () => state.userId, apiUrl: () => state.apiUrl,
-    currentSource: async () => state.current, vaults: async () => [{ id: vaultId, name: 'Personal' }],
+    currentSource: async () => state.current, vaults: async () => vaults,
     canManage: async () => true, save };
   return { coordinator: new ShareSaveCoordinator(deps), state, save };
 }
@@ -61,5 +61,12 @@ describe('extension-owned share confirmation', () => {
     await coordinator.prepare(source, snapshot);
     coordinator.clearTab(source.tabId);
     expect(await coordinator.view()).toBeNull();
+  });
+
+  it('does not retain a snapshot when no destination Vault is available', async () => {
+    const { coordinator, save } = setup([]);
+    expect(await coordinator.prepare(source, snapshot)).toBe('unavailable');
+    expect(await coordinator.view()).toBeNull();
+    expect(save).not.toHaveBeenCalled();
   });
 });
