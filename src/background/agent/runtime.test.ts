@@ -218,7 +218,7 @@ describe("secure Native Messaging frame boundary", () => {
       type: "session.open",
     }));
   });
-  it.each([true, false])('prepares the next CLI only after a posted terminal result (%s), then backs off a new failure', async delivered => {
+  it.each([true, false])('replaces the authenticated host after terminal delivery or response loss (%s) without replay', async delivered => {
     const { native, connectNative, alarmsCreate } = stubChrome();
     const next = fakeNativePort();
     connectNative.mockReturnValueOnce(native.port).mockReturnValue(next.port);
@@ -245,52 +245,88 @@ describe("secure Native Messaging frame boundary", () => {
       native.emitMessage(secureSessionContract.firstHostFrame);
       await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledTimes(3));
       native.emitDisconnect();
-      if (!delivered) {
-        await Promise.resolve();
-        expect(connectNative).toHaveBeenCalledTimes(1);
-        expect(alarmsCreate).toHaveBeenCalledWith('palladin.native-agent.reconnect', { delayInMinutes: 0.5 });
-        return;
-      }
       await vi.waitFor(() => expect(connectNative).toHaveBeenCalledTimes(2), { timeout: 500 });
       expect(alarmsCreate).not.toHaveBeenCalled();
+      expect(next.postMessage).not.toHaveBeenCalled();
       next.emitDisconnect();
       expect(alarmsCreate).toHaveBeenCalledWith('palladin.native-agent.reconnect', { delayInMinutes: 0.5 });
       expect(connectNative).toHaveBeenCalledTimes(2);
     } finally { mocked.mockRestore(); }
   });
 
-  it("retries when the native host never sends a session offer", async () => {
-    vi.useFakeTimers();
-    const { native, alarmsCreate } = stubChrome();
+  it.each([false, true])("replaces an authenticated idle host without replay unless explicitly stopped (%s)", async stop => {
+    const { native, connectNative, alarmsCreate } = stubChrome();
+    const next = fakeNativePort();
+    connectNative.mockReturnValueOnce(native.port).mockReturnValue(next.port);
+    const channels = [0, 1].map(() => ({
+      open: vi.fn(), seal: vi.fn(), dispose: vi.fn(),
+    }));
+    let sessionNumber = 0;
+    const mocked = vi.spyOn(palladinCrypto, "createInjectClientSession").mockImplementation(async () => {
+      const channel = channels[sessionNumber++];
+      return { openFrame: secureSessionContract.open,
+        acceptReady: async () => channel, dispose: vi.fn(),
+      } as unknown as InjectClientSession;
+    });
+    try {
+      await connectNativeAgentProviderNow();
+      native.emitMessage(secureSessionContract.offer);
+      await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledOnce());
+      native.emitMessage(secureSessionContract.ready);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      native.emitDisconnect();
+      if (stop) {
+        disconnectNativeAgentProvider();
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(connectNative).toHaveBeenCalledOnce();
+        expect(alarmsCreate).not.toHaveBeenCalled();
+        return;
+      }
 
-    await connectNativeAgentProviderNow();
-    await vi.advanceTimersByTimeAsync(10_000);
+      await vi.waitFor(() => expect(connectNative).toHaveBeenCalledTimes(2), { timeout: 500 });
+      expect(channels[0]?.dispose).toHaveBeenCalledOnce();
+      expect(alarmsCreate).not.toHaveBeenCalled();
+      expect(next.postMessage).not.toHaveBeenCalled();
 
-    expect(native.disconnect).toHaveBeenCalledOnce();
-    expect(alarmsCreate).toHaveBeenCalledWith(
-      "palladin.native-agent.reconnect",
-      { delayInMinutes: 0.5 },
-    );
+      next.emitMessage(secureSessionContract.offer);
+      await vi.waitFor(() => expect(next.postMessage).toHaveBeenCalledOnce());
+      next.emitMessage(secureSessionContract.ready);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      native.emitDisconnect(); // A late event from the old port cannot dispose the new channel.
+      native.emitMessage(secureSessionContract.firstHostFrame);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(channels[1]?.dispose).not.toHaveBeenCalled();
+      expect(channels[0]?.open).not.toHaveBeenCalled();
+      expect(channels[1]?.open).not.toHaveBeenCalled();
+      expect(next.postMessage).toHaveBeenCalledOnce(); // Only a fresh handshake, no old operation.
+
+      next.emitDisconnect(); // A host which repeatedly dies just after handshake must not spin.
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(connectNative).toHaveBeenCalledTimes(2);
+      expect(alarmsCreate).toHaveBeenCalledWith("palladin.native-agent.reconnect", { delayInMinutes: 0.5 });
+    } finally { mocked.mockRestore(); }
   });
 
-  it("retries when an offered session never reaches signed readiness", async () => {
+  it.each([false, true])("retries a timed-out handshake without adding an alarm delay (offer: %s)", async offered => {
     vi.useFakeTimers();
-    const { native, alarmsCreate } = stubChrome();
+    const { native, connectNative, alarmsCreate } = stubChrome();
+    const next = fakeNativePort();
+    connectNative.mockReturnValueOnce(native.port).mockReturnValue(next.port);
     await connectNativeAgentProviderNow();
-    native.emitMessage({
-      protocol: INJECT_PROVIDER_PROTOCOL,
-      type: "session.offer",
-      hostSigningPublicKey: PUBLIC_KEY,
-    });
-    await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledOnce());
-
+    if (offered) {
+      native.emitMessage(secureSessionContract.offer);
+      await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledOnce());
+    }
     await vi.advanceTimersByTimeAsync(10_000);
 
     expect(native.disconnect).toHaveBeenCalledOnce();
-    expect(alarmsCreate).toHaveBeenCalledWith(
-      "palladin.native-agent.reconnect",
-      { delayInMinutes: 0.5 },
-    );
+    expect(connectNative).toHaveBeenCalledTimes(2);
+    expect(alarmsCreate).not.toHaveBeenCalled();
+    expect(next.postMessage).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(9_000);
+    expect(connectNative).toHaveBeenCalledTimes(2); // Timeout recovery cannot busy-loop.
+    next.emitDisconnect(); // A fast failure of the replacement uses the normal alarm.
+    expect(alarmsCreate).toHaveBeenCalledWith("palladin.native-agent.reconnect", { delayInMinutes: 0.5 });
   });
 
   it("fails a hung public tab probe closed within a bounded time", async () => {
@@ -315,7 +351,7 @@ describe("secure Native Messaging frame boundary", () => {
   });
 
   it("does not bypass a pending reconnect alarm after a service-worker wake", async () => {
-    const { connectNative, alarmsGet } = stubChrome();
+    const { connectNative, alarmsGet, alarmsCreate } = stubChrome();
     alarmsGet.mockResolvedValue({
       name: "palladin.native-agent.reconnect",
       scheduledTime: Date.now() + 30_000,
@@ -324,10 +360,47 @@ describe("secure Native Messaging frame boundary", () => {
     await connectNativeAgentProviderIfDueNow();
 
     expect(connectNative).not.toHaveBeenCalled();
+    expect(alarmsCreate).not.toHaveBeenCalled();
   });
 
-  it("restores the next reconnect delay after a service-worker restart", async () => {
-    const { connectNative, alarmsCreate, storageGet, storageSet } = stubChrome();
+  it("recovers within the CLI preparation budget after repeated host failures", async () => {
+    vi.useFakeTimers();
+    const { connectNative, alarmsCreate, native } = stubChrome();
+    let hostAvailable = false;
+    connectNative.mockImplementation(() => {
+      if (!hostAvailable) throw new Error("native host unavailable");
+      return native.port;
+    });
+    alarmsCreate.mockImplementation((name: string, alarm: { delayInMinutes: number }) => {
+      setTimeout(() => handleNativeAgentAlarm(name), alarm.delayInMinutes * 60_000);
+    });
+
+    await connectNativeAgentProviderNow();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(connectNative).toHaveBeenCalledTimes(2);
+    hostAvailable = true; // Runtime has been installed/repaired; CLI starts its 45-second wait.
+    await vi.advanceTimersByTimeAsync(35_000);
+    expect(connectNative).toHaveBeenCalledTimes(3);
+    expect(native.disconnect).not.toHaveBeenCalled();
+  });
+
+  it("shortens an old long reconnect alarm on worker startup", async () => {
+    const { connectNative, alarmsGet, alarmsCreate } = stubChrome();
+    alarmsGet.mockResolvedValue({
+      name: "palladin.native-agent.reconnect",
+      scheduledTime: Date.now() + 15 * 60_000,
+    });
+
+    await connectNativeAgentProviderIfDueNow();
+
+    expect(connectNative).not.toHaveBeenCalled();
+    expect(alarmsCreate).toHaveBeenCalledWith(
+      "palladin.native-agent.reconnect", { delayInMinutes: 0.5 },
+    );
+  });
+
+  it("ignores legacy persisted backoff after a service-worker restart", async () => {
+    const { connectNative, alarmsCreate, storageGet } = stubChrome();
     connectNative.mockImplementation(() => {
       throw new Error("native host unavailable");
     });
@@ -339,27 +412,24 @@ describe("secure Native Messaging frame boundary", () => {
 
     expect(alarmsCreate).toHaveBeenCalledWith(
       "palladin.native-agent.reconnect",
-      { delayInMinutes: 4 },
+      { delayInMinutes: 0.5 },
     );
-    expect(storageSet).toHaveBeenCalledWith({
-      nativeAgentReconnectDelayMinutes: 8,
-    });
     freshRuntime.disconnectNativeAgentProvider();
   });
 
   it("does not reverse explicit teardown while startup state is loading", async () => {
-    const { connectNative, alarmsCreate, storageGet } = stubChrome();
-    let releaseStorageRead: ((value: Record<string, unknown>) => void) | undefined;
-    storageGet.mockImplementationOnce(() => new Promise<Record<string, unknown>>((resolve) => {
-      releaseStorageRead = resolve;
+    const { connectNative, alarmsCreate, alarmsGet } = stubChrome();
+    let releaseAlarmRead: ((value: undefined) => void) | undefined;
+    alarmsGet.mockImplementationOnce(() => new Promise<undefined>((resolve) => {
+      releaseAlarmRead = resolve;
     }));
     vi.resetModules();
     const freshRuntime = await import("./runtime");
     const startup = freshRuntime.connectNativeAgentProviderIfDueNow();
-    await vi.waitFor(() => expect(storageGet).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(alarmsGet).toHaveBeenCalledOnce());
 
     freshRuntime.disconnectNativeAgentProvider();
-    releaseStorageRead?.({ nativeAgentReconnectDelayMinutes: 8 });
+    releaseAlarmRead?.(undefined);
     await startup;
 
     expect(connectNative).not.toHaveBeenCalled();
@@ -380,42 +450,6 @@ describe("secure Native Messaging frame boundary", () => {
     handleNativeAgentAlarm("palladin.native-agent.reconnect", false);
 
     expect(connectNative).not.toHaveBeenCalled();
-  });
-
-  it("backs off repeated connection failures and resets after lifecycle teardown", async () => {
-    const { connectNative, alarmsCreate, storageSet } = stubChrome();
-    connectNative.mockImplementation(() => {
-      throw new Error("native host unavailable");
-    });
-
-    await connectNativeAgentProviderNow();
-    await connectNativeAgentProviderNow();
-
-    expect(alarmsCreate).toHaveBeenNthCalledWith(
-      1,
-      "palladin.native-agent.reconnect",
-      { delayInMinutes: 0.5 },
-    );
-    expect(storageSet).toHaveBeenNthCalledWith(1, {
-      nativeAgentReconnectDelayMinutes: 1,
-    });
-    expect(storageSet).toHaveBeenNthCalledWith(2, {
-      nativeAgentReconnectDelayMinutes: 2,
-    });
-    expect(alarmsCreate).toHaveBeenNthCalledWith(
-      2,
-      "palladin.native-agent.reconnect",
-      { delayInMinutes: 1 },
-    );
-
-    disconnectNativeAgentProvider();
-    await connectNativeAgentProviderNow();
-
-    expect(alarmsCreate).toHaveBeenNthCalledWith(
-      3,
-      "palladin.native-agent.reconnect",
-      { delayInMinutes: 0.5 },
-    );
   });
 
   it("disconnects and disposes a channel with an invalid signed transcript", async () => {

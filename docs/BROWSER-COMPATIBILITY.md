@@ -9,7 +9,7 @@ credentials.
 
 | Target | Development floor | Artifact | Current status |
 |--------|-------------------|----------|----------------|
-| Chromium | Chrome 116-compatible MV3 | `dist/chromium/` | Development baseline for Chrome, Chromium, Brave, Edge, and Opera |
+| Chromium | Chrome 120-compatible MV3 | `dist/chromium/` | Development baseline for Chrome, Chromium, Brave, Edge, and Opera |
 | Firefox | Firefox desktop 140 | `dist/firefox/` | Shared-unlock Identity/Entry/lifecycle tests pass on140/155 on macOS arm64; full platform/distribution acceptance is pending |
 | Safari | Safari 16.4 | `dist/safari/` | Web-extension resources only; Xcode conversion, containing app, and installed-browser validation are pending |
 
