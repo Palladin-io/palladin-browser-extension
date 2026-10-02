@@ -38,7 +38,7 @@ export const sharePageRequest = z.discriminatedUnion('type', [
 export type SharePageRequest = z.infer<typeof sharePageRequest>;
 export const sharePageResponse = z.strictObject({
   channel: z.literal(SHARE_SAVE_CHANNEL), type: z.literal('response'), requestId,
-  status: z.enum(['unavailable', 'locked', 'ready', 'pending', 'saved', 'failed']),
+  status: z.enum(['unavailable', 'locked', 'ready', 'pending']),
 });
 export type SharePageResponse = z.infer<typeof sharePageResponse>;
 

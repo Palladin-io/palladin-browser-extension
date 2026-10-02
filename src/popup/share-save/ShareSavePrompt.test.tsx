@@ -39,4 +39,15 @@ describe('extension-owned share confirmation', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Save to my vault' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not save this entry');
   });
+
+  it('starts a new confirmation when a different pending entry replaces a saved one', async () => {
+    const c = client(true);
+    const { rerender } = render(<ShareSavePrompt key={pending.id} pending={pending} onDone={() => undefined} client={c} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Save to my vault' }));
+    expect(await screen.findByRole('heading', { name: 'Saved to your vault' })).toBeInTheDocument();
+    const next = { ...pending, id: '44444444-4444-4444-8444-444444444444', title: 'Next entry' };
+    rerender(<ShareSavePrompt key={next.id} pending={next} onDone={() => undefined} client={c} />);
+    expect(screen.getByRole('heading', { name: 'Save shared entry' })).toBeInTheDocument();
+    expect(screen.getByText('Next entry')).toBeInTheDocument();
+  });
 });

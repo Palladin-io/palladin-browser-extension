@@ -20,6 +20,10 @@ export function routePortMessage(message: BridgeMessage): BridgeMessage | null {
       // Slot for the passkey interceptor (CVT-362). No-op until that strategy
       // exists; recorded here without any credential data.
       return null;
+    case 'share-save/request':
+    case 'share-save/response':
+      // The worker entry point handles these with sender binding and an async reply.
+      return null;
     default: {
       const _exhaustive: never = message;
       return _exhaustive;

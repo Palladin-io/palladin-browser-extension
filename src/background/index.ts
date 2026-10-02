@@ -62,7 +62,7 @@ import { ensureActiveTabSessionLiveness } from "./session/active-tab-liveness";
 import { sessionAutoLock, sessionManager } from "./session/runtime";
 import { registerTopFrameDocument } from "./tab-documents";
 import { browserDocumentIdForTab } from './tab-documents';
-import { sharePageRequest, sharePageResponse, sharePopupCommand, SHARE_SAVE_CHANNEL } from '../shared/messaging/share-save';
+import { sharePageResponse, sharePopupCommand, SHARE_SAVE_CHANNEL } from '../shared/messaging/share-save';
 import { ShareSaveCoordinator, type ShareSource } from './share-save/coordinator';
 import { sharedCopySecret } from './vault/shared-copy';
 import { hasVaultManagePermission } from './capture/permissions';
@@ -310,6 +310,23 @@ chrome.runtime.onConnect.addListener((port) => {
     // The Port is isolated from the page, but the content script forwards
     // page-adjacent traffic — validate the shape before acting.
     if (!isBridgeMessage(raw)) return;
+    if (raw.type === 'share-save/request') {
+      void (async () => {
+        await initializeServerConfig();
+        const source = shareSource(port.sender!);
+        const status = !source ? 'unavailable' : raw.request.type === 'status'
+          ? await shareSave.status(source) : await shareSave.prepare(source, raw.request.snapshot);
+        if (status === 'pending') void chrome.runtime.sendMessage({ type: 'share-save/changed' }).catch(() => undefined);
+        port.postMessage({ type: 'share-save/response', response: sharePageResponse.parse({ channel: SHARE_SAVE_CHANNEL,
+          type: 'response', requestId: raw.request.requestId, status }) });
+        if (status === 'pending') void chrome.action.openPopup?.().catch(() => undefined);
+      })().catch(() => {
+        try { port.postMessage({ type: 'share-save/response', response: { channel: SHARE_SAVE_CHANNEL,
+          type: 'response', requestId: raw.request.requestId, status: 'unavailable' } }); } catch { /* closed Port */ }
+      });
+      return;
+    }
+    if (raw.type === 'share-save/response') return;
     const reply = routePortMessage(raw);
     if (reply) port.postMessage(reply);
   });
@@ -335,23 +352,6 @@ chrome.tabs.onUpdated.addListener((tabId, change) => {
   if (change.url) shareSave.clearTab(tabId);
   if (change.status) credentialCaptureCoordinator.navigationUpdated(tabId, change.status);
   if (change.url) credentialCaptureCoordinator.navigation(tabId, change.url);
-});
-
-chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
-  const parsed = sharePageRequest.safeParse(raw);
-  if (!parsed.success) return false;
-  void (async () => {
-    await initializeServerConfig();
-    const source = shareSource(sender);
-    const status = !source ? 'unavailable' : parsed.data.type === 'status'
-      ? await shareSave.status(source) : await shareSave.prepare(source, parsed.data.snapshot);
-    if (status === 'pending') void chrome.runtime.sendMessage({ type: 'share-save/changed' }).catch(() => undefined);
-    sendResponse(sharePageResponse.parse({ channel: SHARE_SAVE_CHANNEL,
-      type: 'response', requestId: parsed.data.requestId, status }));
-    if (status === 'pending') void chrome.action.openPopup?.().catch(() => undefined);
-  })().catch(() => sendResponse({ channel: SHARE_SAVE_CHANNEL, type: 'response',
-    requestId: parsed.data.requestId, status: 'unavailable' }));
-  return true;
 });
 
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
