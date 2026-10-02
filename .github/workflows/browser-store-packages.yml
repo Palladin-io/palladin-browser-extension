@@ -1,0 +1,77 @@
+name: Firefox and Edge store packages
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-store-packages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.repository == 'Palladin-io/palladin-browser-extension' && (github.event_name != 'release' || !github.event.release.prerelease)
+    uses: ./.github/workflows/test.yml
+
+  package:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RELEASE_OPERATION: package
+      VITE_API_URL: ${{ vars.CWS_API_URL }}
+      VITE_WEB_APP_URL: ${{ vars.CWS_WEB_APP_URL }}
+      VITE_SHARED_UNLOCK_ENVIRONMENTS: ${{ vars.CWS_SHARED_UNLOCK_ENVIRONMENTS }}
+      VITE_POSTHOG_KEY: ''
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Validate release ancestry and stamp the tag version
+        run: python3 scripts/package-chrome-store.py --prepare-release
+      - run: npm ci
+      - name: Build the shared Chromium artifact for Edge
+        env:
+          PALLADIN_STORE_CHANNEL: stable
+          CWS_STABLE_PUBLIC_KEY: ${{ vars.CWS_STABLE_PUBLIC_KEY }}
+        run: npm run build:chromium
+      - name: Package Edge resources with store-assigned identity
+        run: |
+          python3 scripts/package-chrome-store.py
+          mv dist/chrome-store dist/edge-store
+      - run: npm run build:firefox
+      - name: Validate Firefox with Mozilla's linter
+        run: npx --yes web-ext@10.7.0 lint --source-dir dist/firefox --output json > dist/firefox-lint.json
+      - name: Package Firefox and matching reviewer sources
+        run: python3 scripts/package-firefox-store.py
+      - name: Rebuild the AMO sources and compare every packaged byte
+        run: |
+          mkdir -p "$RUNNER_TEMP/amo-reviewer"
+          unzip -q dist/firefox-store/sources.zip -d "$RUNNER_TEMP/amo-reviewer"
+          (cd "$RUNNER_TEMP/amo-reviewer" && node reviewer-build.mjs)
+          diff -r dist/firefox "$RUNNER_TEMP/amo-reviewer/dist/firefox"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: browser-stores-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            dist/edge-store/
+            dist/firefox-store/
+            dist/firefox-lint.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Report distribution state
+        run: |
+          {
+            echo 'Firefox and Edge candidates packaged; nothing uploaded, signed, submitted or published.'
+            echo 'Create Mozilla AMO and Microsoft Partner Center publisher accounts using docs/BROWSER-STORES.md.'
+            echo 'Brave installs the existing Chrome Web Store listing. Agent Inject remains Chrome/macOS-only.'
+          } >> "$GITHUB_STEP_SUMMARY"

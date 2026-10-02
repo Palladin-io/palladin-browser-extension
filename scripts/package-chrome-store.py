@@ -1,4 +1,4 @@
-"""Package only the built Chromium resources; never repository or environment files."""
+"""Package only built extension resources; never repository or environment files."""
 import hashlib
 import json
 import os
@@ -86,8 +86,10 @@ def prepare_release(root, config, env, version):
         path.write_text(json.dumps(document, indent=2) + "\n")
 
 
-def package(root, config, commit, expected_version):
-    source = root / "dist/chromium"
+def package(root, config, commit, expected_version, target="chromium"):
+    if target not in {"chromium", "firefox"}:
+        raise ValueError("Unsupported store target")
+    source = root / "dist" / target
     manifest = json.loads((source / "manifest.json").read_text())
     version = manifest.get("version", "")
     validate_version(version)
@@ -103,7 +105,7 @@ def package(root, config, commit, expected_version):
         if (path.is_symlink() or any(part.startswith(".") for part in relative.parts)
                 or path.suffix not in {"", ".js", ".json", ".html", ".css", ".png", ".svg", ".wasm"}):
             raise ValueError("Unexpected file in Chromium build; refusing to package")
-    output = root / "dist/chrome-store"
+    output = root / "dist" / ("chrome-store" if target == "chromium" else "firefox-store")
     output.mkdir(parents=True, exist_ok=True)
     archive = output / "package.zip"
     # CWS assigns/signs the store identity; key is only for unpacked development.
@@ -115,7 +117,7 @@ def package(root, config, commit, expected_version):
                 info.compress_type = zipfile.ZIP_DEFLATED
                 info.external_attr = 0o100644 << 16
                 data = ((json.dumps(store_manifest, indent=2) + "\n").encode()
-                        if info.filename == "manifest.json" else path.read_bytes())
+                        if info.filename == "manifest.json" and target == "chromium" else path.read_bytes())
                 bundle.writestr(info, data)
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     metadata = {**config, "version": version, "commit": commit, "sha256": digest,
@@ -125,7 +127,7 @@ def package(root, config, commit, expected_version):
     (output / "README.txt").write_text(
         "DRAFT ITEM REGISTRATION ONLY. Do not submit or publish. Release gates are incomplete.\n"
         if config["bootstrap"] else "Release candidate. Store upload, review and publication are separate states.\n")
-    print("Created Chrome ZIP, checksum and release metadata" + (" (bootstrap only)" if config["bootstrap"] else ""))
+    print(f"Created {target} ZIP, checksum and release metadata" + (" (bootstrap only)" if config["bootstrap"] else ""))
 
 
 if __name__ == "__main__":
