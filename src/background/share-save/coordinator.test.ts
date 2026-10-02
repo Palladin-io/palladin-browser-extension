@@ -105,7 +105,7 @@ describe('extension-owned share confirmation', () => {
     const original = await coordinator.view();
     const rejected = { ...snapshot, entryType: 'key' as const, fields: [
       { id: 'key.value', label: '', type: 'concealed' as const, value: 'synthetic' },
-      { id: 'key.url', label: '', type: 'text' as const, value: 'https://example.test' },
+      { id: 'key.url', label: '', type: 'concealed' as const, value: 'https://example.test' },
     ] };
     expect(await coordinator.prepare(source, rejected)).toBe('unavailable');
     expect(await coordinator.view()).toEqual(original);

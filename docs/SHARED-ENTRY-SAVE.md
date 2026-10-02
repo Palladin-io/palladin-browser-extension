@@ -25,8 +25,10 @@ cancellation enables the alternate web-account save; unknown remains blocked
 to avoid a duplicate. The page response is presentation-only and not a trusted
 backend save receipt, because page messages are observable/spoofable by page scripts.
 
-Unsupported snapshots fail as a whole. In particular, this extension writer
-cannot yet persist a Key URL; a received `key.url` is rejected instead of
-silently dropping it. The web-account save path remains available as fallback.
+Unsupported snapshots fail as a whole. Received Key entries preserve an optional
+`key.url` with its field-access policy in the current Vault plaintext model; the
+extension uses the current canonical writer for shared copies and the current
+reader for Entry reveal. Existing legacy Entry ciphertext remains readable. The
+web-account save path remains available as fallback.
 
 This is a draft feature branch, not a merged or browser-accepted release.

@@ -26,10 +26,14 @@ describe('received Entry conversion', () => {
     expect(secret.discoverable).toBe(true);
   });
 
-  it('rejects a key URL while the extension canonical writer lacks it', () => {
-    expect(() => sharedCopySecret({ schema: 'palladin.entry-share.v1', title: 'API key', entryType: 'key', fields: [
+  it('preserves a Key URL under its native policy instead of dropping it', () => {
+    const secret = sharedCopySecret({ schema: 'palladin.entry-share.v1', title: 'API key', entryType: 'key', fields: [
       field('key.value', 'concealed', 'synthetic-key'), field('key.url', 'text', 'https://example.com'),
-    ] })).toThrow('Invalid shared copy');
+    ] });
+    expect(secret.entryType).toBe('key');
+    if (secret.entryType !== 'key') throw new Error('wrong type');
+    expect(secret.content).toMatchObject({ value: 'synthetic-key', url: 'https://example.com' });
+    expect(secret.agentFieldAccess['key.url']).toBe('onGrantValue');
   });
 
   it('rejects malformed and duplicate fields without partial mutation', () => {

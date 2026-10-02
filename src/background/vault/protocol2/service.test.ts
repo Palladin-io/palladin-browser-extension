@@ -14,16 +14,19 @@ import type {
   OfflineAccessContext,
 } from './contracts'
 import { Protocol2VaultDataService, type Protocol2SessionAccessor } from './service'
+import { sharedCopySecret } from '../shared-copy'
 
 const cryptoMocks = vi.hoisted(() => ({
   openMemberIndex: vi.fn(),
   openMemberSecret: vi.fn(),
+  openCurrentMemberSecret: vi.fn(),
   openVaultProjection: vi.fn(async () => ({
     metadata: { name: 'Personal' },
     vaultKey: new Uint8Array(32).fill(1),
   })),
   openVaultDerivedEnvelope: vi.fn(async () => new Uint8Array(32).fill(2)),
   sealCanonicalEntry: vi.fn(),
+  sealCurrentCanonicalEntry: vi.fn(),
   wipe: vi.fn(),
 }))
 
@@ -219,6 +222,7 @@ function harness(
 beforeEach(() => {
   vi.clearAllMocks()
   cryptoMocks.sealCanonicalEntry.mockResolvedValue(material())
+  cryptoMocks.sealCurrentCanonicalEntry.mockResolvedValue(material())
   cryptoMocks.openMemberIndex.mockResolvedValue({
     entryType: 'credential',
     memberLabel: 'Example',
@@ -229,7 +233,7 @@ beforeEach(() => {
     urlDomain: 'accounts.example.com',
     customIndex: [],
   })
-  cryptoMocks.openMemberSecret.mockResolvedValue({
+  const credentialSecret = {
     schema: 'palladin.member-secret.v1',
     entryType: 'credential',
     memberLabel: 'Example',
@@ -261,6 +265,30 @@ beforeEach(() => {
       notes: null,
       customFields: [],
     },
+  }
+  cryptoMocks.openMemberSecret.mockResolvedValue(credentialSecret)
+  cryptoMocks.openCurrentMemberSecret.mockResolvedValue(credentialSecret)
+})
+
+describe('received Entry copy through the current writer', () => {
+  it('encrypts the whole Key URL in the recipient Vault and reads it back through the current parser', async () => {
+    const { service, client } = harness([head])
+    await service.refresh()
+    const secret = sharedCopySecret({ schema: 'palladin.entry-share.v1', entryType: 'key', title: 'API key', fields: [
+      { id: 'key.value', label: '', type: 'concealed', value: 'synthetic-key' },
+      { id: 'key.url', label: '', type: 'text', value: 'https://example.test/key' },
+    ] })
+    await expect(service.saveSharedCopy(secret, VAULT_ID, async () => undefined)).resolves.toEqual({ status: 'saved' })
+    expect(cryptoMocks.sealCurrentCanonicalEntry.mock.calls[0]?.[1]).toMatchObject({
+      entryType: 'key', content: { value: 'synthetic-key', url: 'https://example.test/key' },
+      agentFieldAccess: { 'key.url': 'onGrantValue' },
+    })
+    expect(cryptoMocks.sealCanonicalEntry).not.toHaveBeenCalled()
+    expect(client.createEntry).toHaveBeenCalledOnce()
+    cryptoMocks.openCurrentMemberSecret.mockResolvedValueOnce(secret)
+    await expect(service.revealEntry(VAULT_ID, ENTRY_ID)).resolves.toMatchObject({
+      entryType: 'key', content: { url: 'https://example.test/key' },
+    })
   })
 })
 
@@ -682,7 +710,7 @@ describe('Protocol2VaultDataService canonical password capture', () => {
 
   it('purges ciphertext when authenticated MemberSecret opening fails', async () => {
     const { service, cache } = harness([head])
-    cryptoMocks.openMemberSecret.mockRejectedValueOnce(new Error('authentication failed'))
+    cryptoMocks.openCurrentMemberSecret.mockRejectedValueOnce(new Error('authentication failed'))
 
     await expect(service.revealEntry(VAULT_ID, ENTRY_ID))
       .rejects.toMatchObject({ code: 'decrypt-failed' })

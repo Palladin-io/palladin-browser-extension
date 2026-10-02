@@ -1,6 +1,8 @@
-import { defaultCredentialAgentFieldAccess, encodeMemberSecret, parseOtpauthUri, wipe,
-  type AgentFieldAccess, type MemberSecretV1 } from '@palladin/crypto';
+import { currentVaultPlaintext, defaultCredentialAgentFieldAccess, parseOtpauthUri, wipe } from '@palladin/crypto';
 import { shareSnapshot, type ShareSnapshot } from '../../shared/messaging/share-save';
+
+type AgentFieldAccess = currentVaultPlaintext.AgentFieldAccess;
+type MemberSecretV1 = currentVaultPlaintext.MemberSecretV1;
 
 /** A received page snapshot is untrusted even though its page belongs to Palladin. */
 export function sharedCopySecret(raw: unknown): MemberSecretV1 {
@@ -61,12 +63,10 @@ export function sharedCopySecret(raw: unknown): MemberSecretV1 {
       notes: value('notes'), customFields,
     } };
   } else if (source.entryType === 'key') {
-    // The extension's current canonical writer cannot store key.url. Refuse
-    // the whole copy until that writer is upgraded; never discard the field.
-    if (value('key.url') !== null) throw new Error('Invalid shared copy');
-    Object.assign(policy, { 'key.value': 'onGrantValue' });
+    const url = value('key.url');
+    Object.assign(policy, { 'key.value': 'onGrantValue', ...(url !== null ? { 'key.url': 'onGrantValue' } : {}) });
     secret = { ...common, entryType: 'key', agentFieldAccess: policy, content: {
-      value: value('key.value') ?? '', notes: value('notes'), customFields,
+      value: value('key.value') ?? '', url, notes: value('notes'), customFields,
     } };
   } else if (source.entryType === 'script') {
     const interpreter = value('script.interpreter');
@@ -96,7 +96,7 @@ export function sharedCopySecret(raw: unknown): MemberSecretV1 {
   }
   // The canonical package is the independent storage contract; encoding before
   // mutation catches unsupported values instead of dropping individual fields.
-  const encoded = encodeMemberSecret(secret);
+  const encoded = currentVaultPlaintext.encodeMemberSecret(secret);
   wipe(encoded);
   return secret;
 }
