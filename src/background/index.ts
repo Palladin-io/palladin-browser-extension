@@ -315,7 +315,9 @@ chrome.runtime.onConnect.addListener((port) => {
         await initializeServerConfig();
         const source = shareSource(port.sender!);
         const status = !source ? 'unavailable' : raw.request.type === 'status'
-          ? await shareSave.status(source) : await shareSave.prepare(source, raw.request.snapshot);
+          ? await shareSave.status(source) : raw.request.type === 'reconcile'
+            ? await shareSave.reconcile(source, raw.request.requestId)
+            : await shareSave.prepare(source, raw.request.snapshot, raw.request.requestId);
         if (status === 'pending') publishShareSaveChanged();
         port.postMessage({ type: 'share-save/response', response: sharePageResponse.parse({ channel: SHARE_SAVE_CHANNEL,
           type: 'response', requestId: raw.request.requestId, status }) });

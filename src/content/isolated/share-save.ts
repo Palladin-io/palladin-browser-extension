@@ -21,6 +21,9 @@ export function startShareSaveBridge(page: Window, send: (message: unknown) => P
         page.postMessage(valid.data, page.location.origin);
       }
     }).catch(() => {
+      // A prepare may have reached the worker before the reply was lost. Let
+      // the page deadline classify it as uncertain rather than rejected.
+      if (parsed.data.type === 'prepare' || parsed.data.type === 'reconcile') return;
       page.postMessage({ channel: SHARE_SAVE_CHANNEL, type: 'response',
         requestId: parsed.data.requestId, status: 'unavailable' }, page.location.origin);
     });

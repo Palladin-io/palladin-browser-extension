@@ -66,6 +66,23 @@ describe('extension-owned share confirmation', () => {
     expect(coordinator.clearTab(source.tabId)).toBe(true);
     expect(await coordinator.view()).toBeNull();
   });
+  it('reconciles only the same browser document and handoff after cancellation or save', async () => {
+    const { coordinator } = setup();
+    const cancelledId = '11111111-1111-4111-8111-111111111112';
+    await coordinator.prepare(source, snapshot, cancelledId);
+    expect(await coordinator.reconcile(source, cancelledId)).toBe('pending');
+    const pending = await coordinator.view();
+    coordinator.cancel(pending!.id);
+    expect(await coordinator.reconcile(source, cancelledId)).toBe('cancelled');
+    expect(await coordinator.reconcile(source, 'other-request')).toBe('unknown');
+    expect(await coordinator.reconcile({ ...source, documentId: 'other-document' }, cancelledId)).toBe('unknown');
+    const savedId = '11111111-1111-4111-8111-111111111113';
+    await coordinator.prepare(source, snapshot, savedId);
+    const next = await coordinator.view();
+    expect(await coordinator.confirm(next!.id, vaultId)).toBe('saved');
+    expect(await coordinator.reconcile(source, savedId)).toBe('saved');
+    expect(await coordinator.reconcile(source, cancelledId)).toBe('unknown');
+  });
 
   it('clears only the replaced document and notifies when a pending handoff expires', async () => {
     vi.useFakeTimers();
@@ -80,6 +97,26 @@ describe('extension-owned share confirmation', () => {
       expect(await coordinator.view()).toBeNull();
       expect(onExpired).toHaveBeenCalledOnce();
     } finally { vi.useRealTimers(); }
+  });
+
+  it('keeps the old confirmation when a replacement is rejected', async () => {
+    const { coordinator } = setup();
+    await coordinator.prepare(source, snapshot);
+    const original = await coordinator.view();
+    const rejected = { ...snapshot, entryType: 'key' as const, fields: [
+      { id: 'key.value', label: '', type: 'concealed' as const, value: 'synthetic' },
+      { id: 'key.url', label: '', type: 'text' as const, value: 'https://example.test' },
+    ] };
+    expect(await coordinator.prepare(source, rejected)).toBe('unavailable');
+    expect(await coordinator.view()).toEqual(original);
+  });
+
+  it('notifies open surfaces if view observes expiry before its timer fires', async () => {
+    const { coordinator, state, onExpired } = setup();
+    await coordinator.prepare(source, snapshot);
+    state.now += 120_001;
+    expect(await coordinator.view()).toBeNull();
+    expect(onExpired).toHaveBeenCalledOnce();
   });
 
   it('does not retain a snapshot when no destination Vault is available', async () => {

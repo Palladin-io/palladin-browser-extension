@@ -33,4 +33,19 @@ describe('isolated share bridge', () => {
     expect(send).not.toHaveBeenCalled();
     stop();
   });
+  it('does not call a failed prepare unavailable when its worker outcome is unknown', async () => {
+    window.history.replaceState(null, '', `/share/${id}`);
+    const send = vi.fn(async () => { throw new Error('lost worker response'); });
+    const post = vi.spyOn(window, 'postMessage');
+    const stop = startShareSaveBridge(window, send, () => true);
+    window.dispatchEvent(new MessageEvent('message', { source: window, origin: window.location.origin,
+      data: { channel: SHARE_SAVE_CHANNEL, type: 'prepare', requestId, snapshot: {
+        schema: 'palladin.entry-share.v1', title: 'Synthetic', entryType: 'key',
+        fields: [{ id: 'key.value', label: '', type: 'concealed', value: 'synthetic' }],
+      } } }));
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce());
+    await Promise.resolve();
+    expect(post).not.toHaveBeenCalled();
+    stop();
+  });
 });

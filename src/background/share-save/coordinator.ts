@@ -23,6 +23,7 @@ export interface ShareSaveDeps {
 
 interface PendingShare {
   readonly id: string;
+  readonly pageRequestId: string;
   readonly source: ShareSource;
   readonly snapshot: ShareSnapshot;
   readonly keys: object;
@@ -32,6 +33,7 @@ interface PendingShare {
 
 export class ShareSaveCoordinator {
   private pending: PendingShare | null = null;
+  private lastOutcome: { source: ShareSource; requestId: string; status: 'cancelled' | 'saved'; at: number } | null = null;
   private committing = false;
   private expiry: ReturnType<typeof setTimeout> | null = null;
   constructor(private readonly deps: ShareSaveDeps) {}
@@ -40,6 +42,21 @@ export class ShareSaveCoordinator {
     this.pending = null;
     if (this.expiry !== null) clearTimeout(this.expiry);
     this.expiry = null;
+  }
+  private remember(status: 'cancelled' | 'saved', value: PendingShare): void {
+    this.lastOutcome = { source: value.source, requestId: value.pageRequestId, status, at: this.deps.now() };
+  }
+  async reconcile(source: ShareSource, requestId: string): Promise<'pending' | 'cancelled' | 'saved' | 'unknown'> {
+    if (source.apiUrl !== this.deps.apiUrl() || !await this.deps.currentSource(source)) return 'unknown';
+    const sameSource = (other: ShareSource) => other.tabId === source.tabId && other.documentId === source.documentId
+      && other.url === source.url && other.webOrigin === source.webOrigin && other.apiUrl === source.apiUrl;
+    if (this.pending?.pageRequestId === requestId && sameSource(this.pending.source)) {
+      try { this.assertCurrent(this.pending); return 'pending'; }
+      catch { /* An expired or invalid confirmation is not pending. */ }
+    }
+    const result = this.lastOutcome;
+    return result && result.requestId === requestId && sameSource(result.source)
+      && this.deps.now() >= result.at && this.deps.now() - result.at <= 900_000 ? result.status : 'unknown';
   }
   clearTab(tabId: number): boolean {
     if (this.pending?.source.tabId !== tabId) return false;
@@ -63,9 +80,8 @@ export class ShareSaveCoordinator {
     return await this.deps.canManage() ? 'ready' : 'unavailable';
   }
 
-  async prepare(source: ShareSource, snapshot: ShareSnapshot): Promise<'unavailable' | 'locked' | 'pending'> {
+  async prepare(source: ShareSource, snapshot: ShareSnapshot, pageRequestId: string = crypto.randomUUID()): Promise<'unavailable' | 'locked' | 'pending'> {
     if (this.committing) return 'unavailable';
-    this.clear();
     const status = await this.status(source);
     if (status !== 'ready') return status;
     if (new TextEncoder().encode(JSON.stringify(snapshot)).byteLength > 262_144) return 'unavailable';
@@ -76,10 +92,13 @@ export class ShareSaveCoordinator {
     const keys = this.deps.keys();
     const userId = await this.deps.userId();
     if (!keys || !userId || !await this.deps.currentSource(source)) return 'unavailable';
-    this.pending = { id: crypto.randomUUID(), source, snapshot, keys, userId, preparedAt: this.deps.now() };
+    // Do not discard an existing confirmation when a replacement is rejected.
+    this.clear();
+    this.pending = { id: crypto.randomUUID(), pageRequestId, source, snapshot, keys, userId, preparedAt: this.deps.now() };
     const prepared = this.pending;
     this.expiry = setTimeout(() => {
       if (this.pending !== prepared) return;
+      if (!this.committing) this.remember('cancelled', prepared);
       this.clear();
       this.deps.onExpired();
     }, 120_000);
@@ -87,10 +106,14 @@ export class ShareSaveCoordinator {
   }
 
   private assertCurrent(value: PendingShare): void {
-    if (this.pending !== value || this.deps.now() - value.preparedAt > 120_000
+    const expired = this.deps.now() - value.preparedAt > 120_000;
+    const wasCurrent = this.pending === value;
+    if (!wasCurrent || expired
       || this.deps.now() < value.preparedAt || this.deps.keys() !== value.keys
       || this.deps.apiUrl() !== value.source.apiUrl) {
       this.clear();
+      if (expired && wasCurrent && !this.committing) this.remember('cancelled', value);
+      if (expired && wasCurrent) this.deps.onExpired();
       throw new Error('Share handoff is no longer current');
     }
   }
@@ -121,7 +144,10 @@ export class ShareSaveCoordinator {
   }
 
   cancel(id: string): void {
-    if (this.pending?.id === id && !this.committing) this.clear();
+    if (this.pending?.id === id && !this.committing) {
+      this.remember('cancelled', this.pending);
+      this.clear();
+    }
   }
 
   async confirm(id: string, vaultId: string): Promise<'saved' | 'failed'> {
@@ -134,6 +160,7 @@ export class ShareSaveCoordinator {
       if (!vaults.some(vault => vault.id === vaultId)) return 'failed';
       this.assertCurrent(value);
       const saved = await this.deps.save(value.snapshot, vaultId, () => this.assertLive(value));
+      if (saved) this.remember('saved', value);
       return saved ? 'saved' : 'failed';
     } catch { return 'failed'; }
     finally { this.clear(); this.committing = false; }

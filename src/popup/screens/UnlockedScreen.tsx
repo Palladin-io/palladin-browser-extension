@@ -75,7 +75,7 @@ export function UnlockedScreen({
   if (visibleShare && visibleShare.id !== shareDismissed) {
     return <section className="vault">
       <ShareSavePrompt key={visibleShare.id} pending={visibleShare}
-        onSaveStart={() => setHeldShare(visibleShare)} onSaveFailed={() => setHeldShare(null)}
+        onSaveStart={() => setHeldShare(visibleShare)}
         onDone={() => { setHeldShare(null); setShareDismissed(visibleShare.id); }} />
       <UnlockedFooter onLock={onLock} onSignOut={onSignOut} onOpenSidePanel={onOpenSidePanel} />
     </section>;

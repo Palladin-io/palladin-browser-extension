@@ -45,11 +45,12 @@ export const sharePageRequest = z.discriminatedUnion('type', [
   z.strictObject({ channel: z.literal(SHARE_SAVE_CHANNEL), type: z.literal('status'), requestId }),
   z.strictObject({ channel: z.literal(SHARE_SAVE_CHANNEL), type: z.literal('prepare'), requestId,
     snapshot: shareSnapshot }),
+  z.strictObject({ channel: z.literal(SHARE_SAVE_CHANNEL), type: z.literal('reconcile'), requestId }),
 ]);
 export type SharePageRequest = z.infer<typeof sharePageRequest>;
 export const sharePageResponse = z.strictObject({
   channel: z.literal(SHARE_SAVE_CHANNEL), type: z.literal('response'), requestId,
-  status: z.enum(['unavailable', 'locked', 'ready', 'pending']),
+  status: z.enum(['unavailable', 'locked', 'ready', 'pending', 'cancelled', 'saved', 'unknown']),
 });
 export type SharePageResponse = z.infer<typeof sharePageResponse>;
 

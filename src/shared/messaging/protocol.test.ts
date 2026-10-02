@@ -32,7 +32,7 @@ describe('share-save Port vocabulary', () => {
     } })).toBe(false);
     expect(isBridgeMessage({ type: 'share-save/response', response: {
       channel: 'palladin.entry-share.extension-save.v1', type: 'response', requestId, status: 'saved',
-    } })).toBe(false);
+    } })).toBe(true);
   });
 });
 
