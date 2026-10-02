@@ -40,6 +40,27 @@ describe('received Entry conversion', () => {
     expect(() => sharedCopySecret({ ...base, fields: [field('credential.totp', 'totp', 'bad')] })).toThrow();
   });
 
+  it('rejects missing native fields instead of creating a truncated Entry', () => {
+    const common = { schema: 'palladin.entry-share.v1', title: 'Synthetic entry' };
+    const cases = [
+      { entryType: 'credential', fields: [field('credential.url', 'text', 'https://example.com')] },
+      { entryType: 'key', fields: [field('notes', 'multiline', 'Only a note')] },
+      { entryType: 'script', fields: [field('script.interpreter', 'text', 'bash')] },
+      { entryType: 'creditCard', fields: [field('creditCard.cardNumber', 'concealed', '4111111111111111')] },
+    ];
+    for (const candidate of cases) expect(() => sharedCopySecret({ ...common, ...candidate })).toThrow('Invalid shared copy');
+  });
+
+  it('preserves legitimately empty native values when their fields are present', () => {
+    const secret = sharedCopySecret({ schema: 'palladin.entry-share.v1', title: 'Empty login', entryType: 'credential', fields: [
+      field('credential.username', 'text', ''), field('credential.password', 'concealed', ''),
+    ] });
+    expect(secret.entryType).toBe('credential');
+    if (secret.entryType !== 'credential') throw new Error('wrong type');
+    expect(secret.content.username).toBe('');
+    expect(secret.content.password).toBe('');
+  });
+
   it('preserves card CVV and never exposes it to agents', () => {
     const secret = sharedCopySecret({ schema: 'palladin.entry-share.v1', title: 'Card', entryType: 'creditCard', fields: [
       field('creditCard.cardholderName', 'text', 'Ada'), field('creditCard.cardNumber', 'concealed', '4111111111111111'),

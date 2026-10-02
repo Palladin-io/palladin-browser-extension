@@ -25,7 +25,18 @@ export const shareSnapshot = z.strictObject({
 }).refine(value => new Set(value.fields.map(item => item.id)).size === value.fields.length)
   .refine(value => value.fields.every(item => item.id.startsWith('custom:') && item.id.length > 7
     || Object.hasOwn(nativeTypes, item.id) && nativeTypes[item.id] === item.type
-      && (item.id === 'notes' || item.id === 'description' || item.id.startsWith(`${value.entryType}.`))));
+      && (item.id === 'notes' || item.id === 'description' || item.id.startsWith(`${value.entryType}.`))))
+  // First-party share creation always emits these native fields, including
+  // legitimate empty strings. Their absence would otherwise be converted to
+  // empty values by the canonical writer and silently truncate the copy.
+  .refine(value => {
+    const ids = new Set(value.fields.map(item => item.id));
+    const required = value.entryType === 'credential' ? ['credential.username', 'credential.password']
+      : value.entryType === 'key' ? ['key.value']
+        : value.entryType === 'script' ? ['script.source', 'script.interpreter']
+          : ['creditCard.cardholderName', 'creditCard.cardNumber', 'creditCard.expiryMonth', 'creditCard.expiryYear'];
+    return required.every(id => ids.has(id));
+  });
 export type ShareSnapshot = z.infer<typeof shareSnapshot>;
 
 export const SHARE_SAVE_CHANNEL = 'palladin.entry-share.extension-save.v1';

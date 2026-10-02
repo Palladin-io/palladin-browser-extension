@@ -61,7 +61,7 @@ import { SessionLivenessPublisher } from "./session/liveness";
 import { ensureActiveTabSessionLiveness } from "./session/active-tab-liveness";
 import { sessionAutoLock, sessionManager } from "./session/runtime";
 import { registerTopFrameDocument } from "./tab-documents";
-import { browserDocumentIdForTab } from './tab-documents';
+import { browserDocumentIdForTab, verifyLiveShareDocument } from './tab-documents';
 import { sharePageResponse, sharePopupCommand, SHARE_SAVE_CHANNEL } from '../shared/messaging/share-save';
 import { ShareSaveCoordinator, type ShareSource } from './share-save/coordinator';
 import { sharedCopySecret } from './vault/shared-copy';
@@ -93,16 +93,9 @@ const shareSave = new ShareSaveCoordinator({
   userId: () => sessionManager.getUserId(),
   apiUrl: () => serverConfig.apiUrl,
   canManage: async () => hasVaultManagePermission(await sessionManager.getAccessToken()),
-  currentSource: async (source) => {
-    if (browserDocumentIdForTab(source.tabId) !== source.documentId) return false;
-    try {
-      const live: unknown = await chrome.tabs.sendMessage(source.tabId,
-        { channel: TAB_URL_REQUEST_CHANNEL }, { documentId: source.documentId });
-      if (!isTabUrlResponse(live)) return false;
-      const url = new URL(live.url);
-      return url.origin === source.webOrigin && url.pathname === new URL(source.url).pathname;
-    } catch { return false; }
-  },
+  currentSource: (source) => verifyLiveShareDocument(source,
+    () => chrome.tabs.sendMessage(source.tabId,
+      { channel: TAB_URL_REQUEST_CHANNEL }, { documentId: source.documentId }), isTabUrlResponse),
   vaults: () => vaultData.sharedCopyVaults(),
   save: async (snapshot, vaultId, assertCurrent) => {
     const secret = sharedCopySecret(snapshot);

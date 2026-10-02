@@ -6,7 +6,10 @@ const source: ShareSource = { tabId: 7, documentId: 'browser-document',
   url: 'https://stage.palladin.io/share/11111111-1111-4111-8111-111111111111',
   webOrigin: 'https://stage.palladin.io', apiUrl: 'https://api.stage.palladin.io' };
 const snapshot: ShareSnapshot = { schema: 'palladin.entry-share.v1', title: 'Synthetic login',
-  entryType: 'credential', fields: [{ id: 'credential.password', label: '', type: 'concealed', value: 'synthetic' }] };
+  entryType: 'credential', fields: [
+    { id: 'credential.username', label: '', type: 'text', value: '' },
+    { id: 'credential.password', label: '', type: 'concealed', value: 'synthetic' },
+  ] };
 const vaultId = '22222222-2222-4222-8222-222222222222';
 
 function setup(vaults: readonly { id: string; name: string }[] = [{ id: vaultId, name: 'Personal' }]) {
