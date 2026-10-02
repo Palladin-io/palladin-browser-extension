@@ -1,0 +1,150 @@
+import { describe, expect, it, vi } from 'vitest';
+import { WorkspaceService } from './service';
+
+const vaultId = '11111111-1111-4111-8111-111111111111';
+const grantId = '22222222-2222-4222-8222-222222222222';
+function setup() {
+  let keys: object | null = {};
+  let apiUrl = 'https://example.test';
+  const fetch = vi
+    .fn<typeof globalThis.fetch>()
+    .mockResolvedValue(Response.json({ items: [], nextCursor: null }));
+  const session = {
+    getKeys: () => keys,
+    getAccessToken: vi.fn(async () => 'test-token'),
+    refreshAccessToken: vi.fn(async () => 'fresh-test-token'),
+  };
+  const service = new WorkspaceService({
+    session,
+    apiUrl: () => apiUrl,
+    fetch,
+  });
+  return {
+    service,
+    fetch,
+    session,
+    lock: () => {
+      keys = null;
+      service.lock();
+    },
+    switchServer: () => {
+      apiUrl = 'https://other.test';
+    },
+  };
+}
+
+describe('workspace command boundary', () => {
+  it('rejects arbitrary paths and unknown operations without fetching', async () => {
+    const { service, fetch } = setup();
+    expect(
+      await service.handle({ type: 'workspace/fetch', path: '/api/admin' }),
+    ).toEqual({ ok: false, code: 'invalid' });
+    expect(
+      await service.handle({ type: 'workspace/grants', path: '/api/admin' }),
+    ).toEqual({ ok: false, code: 'invalid' });
+    expect(
+      await service.handle({
+        type: 'workspace/revoke-grant',
+        vaultId: '../admin',
+        grantId,
+      }),
+    ).toEqual({ ok: false, code: 'invalid' });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('preserves forward-compatible server rows and encodes the cursor', async () => {
+    const { service, fetch } = setup();
+    const page = {
+      items: [{ id: grantId, status: 'future-status' }],
+      nextCursor: null,
+    };
+    fetch.mockResolvedValue(Response.json(page));
+    expect(
+      await service.handle({
+        type: 'workspace/grants',
+        cursor: 'a&status=active',
+      }),
+    ).toEqual({ ok: true, data: page });
+    const url = new URL(String(fetch.mock.calls[0]?.[0]));
+    expect(url.searchParams.get('cursor')).toBe('a&status=active');
+    expect(url.searchParams.has('status')).toBe(false);
+  });
+
+  it('sends denial only to its scoped endpoint', async () => {
+    const { service, fetch } = setup();
+    expect(
+      await service.handle({
+        type: 'workspace/deny',
+        vaultId,
+        grantId,
+        reason: '  denied  ',
+      }),
+    ).toEqual({ ok: true, data: null });
+    expect(fetch).toHaveBeenCalledWith(
+      `https://example.test/api/vaults/${vaultId}/grants/${grantId}/deny`,
+      expect.objectContaining({
+        method: 'PUT',
+        body: '{"reason":"denied"}',
+        redirect: 'error',
+        credentials: 'omit',
+        cache: 'no-store',
+      }),
+    );
+  });
+
+  it('never fetches with a locked session', async () => {
+    const { service, fetch, lock } = setup();
+    lock();
+    expect(await service.handle({ type: 'workspace/audit' })).toEqual({
+      ok: false,
+      code: 'locked',
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('aborts pending work and suppresses a late response after locking', async () => {
+    const { service, fetch, lock } = setup();
+    let resolve!: (response: Response) => void;
+    fetch.mockImplementation(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    const result = service.handle({ type: 'workspace/members' });
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    lock();
+    expect(fetch.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+    resolve(
+      Response.json({
+        items: [{ userId: grantId, displayName: 'Synthetic member' }],
+      }),
+    );
+    expect(await result).toEqual({ ok: false, code: 'locked' });
+  });
+
+  it('suppresses a response if the configured server changes', async () => {
+    const { service, fetch, switchServer } = setup();
+    fetch.mockImplementation(async () => {
+      switchServer();
+      return Response.json({ items: [] });
+    });
+    expect(await service.handle({ type: 'workspace/grants' })).toEqual({
+      ok: false,
+      code: 'locked',
+    });
+  });
+
+  it('refreshes once after unauthorized, without leaking tokens in the reply', async () => {
+    const { service, fetch, session } = setup();
+    fetch
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(Response.json({ items: [], nextCursor: null }));
+    expect(await service.handle({ type: 'workspace/grants' })).toEqual({
+      ok: true,
+      data: { items: [], nextCursor: null },
+    });
+    expect(session.refreshAccessToken).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+});

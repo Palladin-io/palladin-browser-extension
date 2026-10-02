@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { SessionStatus } from "../../background/session/types";
 import brandLogoUrl from "../../../icons/logo-source.png";
 import { useI18n, type TranslationKey } from "../i18n";
@@ -9,6 +10,7 @@ import { useI18n, type TranslationKey } from "../i18n";
  * isn't known yet.
  */
 export interface HeaderProps {
+  children?: ReactNode;
   status?: SessionStatus | undefined;
   settingsOpen?: boolean;
   contextLabel?: TranslationKey | undefined;
@@ -22,6 +24,7 @@ const CHIP: Record<SessionStatus, { label: TranslationKey; dot: string }> = {
 };
 
 export function Header({
+  children,
   status,
   settingsOpen = false,
   contextLabel,
@@ -37,6 +40,7 @@ export function Header({
           <span>Palladin</span><span className="wordmark-tld">.io</span>
         </h1>
       </div>
+      {children}
       <div className="popup-header-actions">
         {contextLabel ? (
           <span className="header-context-label">{t(contextLabel)}</span>

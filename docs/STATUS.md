@@ -12,6 +12,13 @@ release gate below is complete.
 `main` and arrives through normal review; historical prototype branches are not
 release candidates.
 
+## Approved workspace redesign in progress
+
+The redesigned light/dark workspace adds in-extension grant review/approval,
+encrypted Entry sharing and organization logs. It is not release-ready: the
+additive shared SDK API must first be reviewed and released, then pinned from the
+registry with a clean-install build. See [workspace implementation and validation](EXTENSION-WORKSPACE.md).
+
 ## Shared unlock implementation in progress (CVT-583)
 
 The common Popup/Side Panel Settings surface now reads/writes the one Identity

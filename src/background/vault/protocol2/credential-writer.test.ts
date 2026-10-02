@@ -55,7 +55,7 @@ describe('captured Credential canonical writer', () => {
     client.listVaults.mockResolvedValue([{ id: VAULT }])
     client.getVault.mockResolvedValue({ id: VAULT, organizationId: ORG, isDefault: true,
       currentKeyEpoch: { vaultKeyVersion: 1, vdkVersion: 1, manifestSigningKeyVersion: 2 },
-      memberKeyGeneration: 1, discoveryKey: {}, vaultPrivateKeys: [{ descriptor: { purpose: 4, keyVersion: 2 } }] })
+      memberKeyGeneration: 1, discoveryKey: {}, vaultPrivateKeys: [{ descriptor: { purpose: 4, keyVersion: 2, scope: { organizationId: ORG, vaultId: VAULT } } }] })
     client.getEntry.mockResolvedValue(detail)
     client.getActiveGrants.mockResolvedValue([])
     client.issueEntryCreationChallenge.mockResolvedValue(ENTRY)

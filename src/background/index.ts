@@ -1,3 +1,4 @@
+import { workspaceService } from './workspace/runtime';
 import { automaticFillSession } from './session/automatic-fill-session';
 import { isSharedUnlockLinkSettingsCommand } from '../shared/messaging/shared-unlock-link-settings';
 import { handleSharedUnlockLinkSettings } from './shared-unlock/link-settings-runtime';
@@ -86,7 +87,11 @@ const vaultInvalidations = new VaultInvalidationCoordinator({
   ),
   changed: () => publishSurfaceState(vaultChanged()),
 });
+function publishWorkspaceChanged(): void {
+  void chrome.runtime.sendMessage({ type: 'workspace/changed' }).catch(() => undefined);
+}
 const vaultRealtime = new VaultRealtimeConnection({
+  workspaceChanged: publishWorkspaceChanged,
   apiUrl: () => serverConfig.apiUrl,
   accessToken: () => sessionManager.getAccessToken(),
   invalidation: (raw) => vaultInvalidations.accept(raw),
@@ -146,7 +151,7 @@ function unavailableDuringServerChange(raw: unknown): unknown {
   if (type.startsWith("session/")) {
     return { ok: false, code: "network", message: "Server change in progress" };
   }
-  if (type.startsWith("vault/")) {
+  if (type.startsWith("vault/") || type.startsWith("workspace/")) {
     return { ok: false, code: "network", message: "Server change in progress" };
   }
   if (type.startsWith("capture/")) {
@@ -430,6 +435,13 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
       }
       if (isCaptureSettingsCommand(raw)) {
         sendResponse(await handleCaptureSettings(raw));
+        return;
+      }
+      const workspaceResult = await workspaceService.handle(raw);
+      if (workspaceResult !== null) {
+        sendResponse(workspaceResult);
+        if (workspaceResult.ok && typeof raw === 'object' && raw !== null && 'type' in raw
+          && ['workspace/approve-grant', 'workspace/deny', 'workspace/revoke-grant'].includes(String(raw.type))) publishWorkspaceChanged();
         return;
       }
       const sessionResult = await handleRuntimeMessage(sessionManager, raw);
