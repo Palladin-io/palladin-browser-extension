@@ -12,36 +12,55 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        id: checkout
       - uses: actions/setup-node@v4
+        id: setup_node
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - name: npm ci
+        id: npm_ci
+        run: npm ci
       # Fail the build on any high/critical dependency advisory. Moderate/low
       # are surfaced but non-blocking. Run `npm audit fix` when this trips.
       - name: Audit dependencies (high/critical -> blocking)
+        id: audit_dependencies_high_critical_blocking
         run: npm audit --audit-level=high
       - name: Audit dependencies (report moderate/low)
+        id: audit_dependencies_report_moderate_low
         run: npm audit || true
-      - run: npm run build
+      - name: npm run build
+        id: npm_run_build
+        run: npm run build
       - name: Verify debug Chromium uses the shared native host
+        id: verify_debug_chromium_uses_the_shared_native_host
         run: npm run build:chromium:debug
-      - run: npm test
+      - name: npm test
+        id: npm_test
+        run: npm test
       - name: Install Chromium for shared-unlock browser checks
+        id: install_chromium_for_shared_unlock_browser_checks
         run: npx playwright install --with-deps chromium
       - name: Verify bound live login stages
+        id: verify_bound_live_login_stages
         run: npm run test:browser:agent-live
       - name: Verify manual autofill and shield layout
+        id: verify_manual_autofill_and_shield_layout
         run: npm run test:browser:inline
       - name: Verify encrypted credential capture
+        id: verify_encrypted_credential_capture
         run: npm run test:browser:capture
       - name: Verify generated password fill without local history
+        id: verify_generated_password_fill_without_local_history
         run: npm run test:browser:generator
       - name: Verify trusted multi-step and formless capture
+        id: verify_trusted_multi_step_and_formless_capture
         run: node tests/browser/credential-submission.mjs
       - name: Probe shared-unlock platform trust signals
+        id: probe_shared_unlock_platform_trust_signals
         run: npm run test:browser:shared-unlock-platform
       - name: Retain synthetic platform evidence
+        id: retain_synthetic_platform_evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: shared-unlock-platform-probe
@@ -50,11 +69,62 @@ jobs:
           retention-days: 7
 
       - name: Verify the actual configured shared-unlock Chromium channel
+        id: verify_the_actual_configured_shared_unlock_chromium
         run: npm run test:browser:shared-unlock-chromium-channel
       - name: Retain configured Chromium channel evidence
+        id: retain_configured_chromium_channel_evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: shared-unlock-chromium-channel
           path: test-results/shared-unlock-chromium-channel/
           if-no-files-found: error
           retention-days: 7
+
+      - name: Publish CI check summary
+        if: always()
+        shell: bash
+        env:
+          CHECKOUT: ${{ steps.checkout.outcome }}
+          SETUP_NODE: ${{ steps.setup_node.outcome }}
+          NPM_CI: ${{ steps.npm_ci.outcome }}
+          AUDIT_DEPENDENCIES_HIGH_CRITICAL_BLOCKING: ${{ steps.audit_dependencies_high_critical_blocking.outcome }}
+          AUDIT_DEPENDENCIES_REPORT_MODERATE_LOW: ${{ steps.audit_dependencies_report_moderate_low.outcome }}
+          NPM_RUN_BUILD: ${{ steps.npm_run_build.outcome }}
+          VERIFY_DEBUG_CHROMIUM_USES_THE_SHARED_NATIVE_HOST: ${{ steps.verify_debug_chromium_uses_the_shared_native_host.outcome }}
+          NPM_TEST: ${{ steps.npm_test.outcome }}
+          INSTALL_CHROMIUM_FOR_SHARED_UNLOCK_BROWSER_CHECKS: ${{ steps.install_chromium_for_shared_unlock_browser_checks.outcome }}
+          VERIFY_BOUND_LIVE_LOGIN_STAGES: ${{ steps.verify_bound_live_login_stages.outcome }}
+          VERIFY_MANUAL_AUTOFILL_AND_SHIELD_LAYOUT: ${{ steps.verify_manual_autofill_and_shield_layout.outcome }}
+          VERIFY_ENCRYPTED_CREDENTIAL_CAPTURE: ${{ steps.verify_encrypted_credential_capture.outcome }}
+          VERIFY_GENERATED_PASSWORD_FILL_WITHOUT_LOCAL_HISTORY: ${{ steps.verify_generated_password_fill_without_local_history.outcome }}
+          VERIFY_TRUSTED_MULTI_STEP_AND_FORMLESS_CAPTURE: ${{ steps.verify_trusted_multi_step_and_formless_capture.outcome }}
+          PROBE_SHARED_UNLOCK_PLATFORM_TRUST_SIGNALS: ${{ steps.probe_shared_unlock_platform_trust_signals.outcome }}
+          RETAIN_SYNTHETIC_PLATFORM_EVIDENCE: ${{ steps.retain_synthetic_platform_evidence.outcome }}
+          VERIFY_THE_ACTUAL_CONFIGURED_SHARED_UNLOCK_CHROMIUM: ${{ steps.verify_the_actual_configured_shared_unlock_chromium.outcome }}
+          RETAIN_CONFIGURED_CHROMIUM_CHANNEL_EVIDENCE: ${{ steps.retain_configured_chromium_channel_evidence.outcome }}
+        run: |
+          {
+            printf '## CI checks\n\nPlatform: Linux (ubuntu-latest)\n\n'
+            printf '| Check | Result |\n| --- | --- |\n'
+            printf '| %s | %s |\n' 'Checkout' "${CHECKOUT:-not run}"
+            printf '| %s | %s |\n' 'Set up Node.js' "${SETUP_NODE:-not run}"
+            printf '| %s | %s |\n' 'npm ci' "${NPM_CI:-not run}"
+            printf '| %s | %s |\n' 'Audit dependencies (high/critical -> blocking)' "${AUDIT_DEPENDENCIES_HIGH_CRITICAL_BLOCKING:-not run}"
+            printf '| %s | %s |\n' 'Audit dependencies (report moderate/low)' "${AUDIT_DEPENDENCIES_REPORT_MODERATE_LOW:-not run}"
+            printf '| %s | %s |\n' 'npm run build' "${NPM_RUN_BUILD:-not run}"
+            printf '| %s | %s |\n' 'Verify debug Chromium uses the shared native host' "${VERIFY_DEBUG_CHROMIUM_USES_THE_SHARED_NATIVE_HOST:-not run}"
+            printf '| %s | %s |\n' 'npm test' "${NPM_TEST:-not run}"
+            printf '| %s | %s |\n' 'Install Chromium for shared-unlock browser checks' "${INSTALL_CHROMIUM_FOR_SHARED_UNLOCK_BROWSER_CHECKS:-not run}"
+            printf '| %s | %s |\n' 'Verify bound live login stages' "${VERIFY_BOUND_LIVE_LOGIN_STAGES:-not run}"
+            printf '| %s | %s |\n' 'Verify manual autofill and shield layout' "${VERIFY_MANUAL_AUTOFILL_AND_SHIELD_LAYOUT:-not run}"
+            printf '| %s | %s |\n' 'Verify encrypted credential capture' "${VERIFY_ENCRYPTED_CREDENTIAL_CAPTURE:-not run}"
+            printf '| %s | %s |\n' 'Verify generated password fill without local history' "${VERIFY_GENERATED_PASSWORD_FILL_WITHOUT_LOCAL_HISTORY:-not run}"
+            printf '| %s | %s |\n' 'Verify trusted multi-step and formless capture' "${VERIFY_TRUSTED_MULTI_STEP_AND_FORMLESS_CAPTURE:-not run}"
+            printf '| %s | %s |\n' 'Probe shared-unlock platform trust signals' "${PROBE_SHARED_UNLOCK_PLATFORM_TRUST_SIGNALS:-not run}"
+            printf '| %s | %s |\n' 'Retain synthetic platform evidence' "${RETAIN_SYNTHETIC_PLATFORM_EVIDENCE:-not run}"
+            printf '| %s | %s |\n' 'Verify the actual configured shared-unlock Chromium channel' "${VERIFY_THE_ACTUAL_CONFIGURED_SHARED_UNLOCK_CHROMIUM:-not run}"
+            printf '| %s | %s |\n' 'Retain configured Chromium channel evidence' "${RETAIN_CONFIGURED_CHROMIUM_CHANNEL_EVIDENCE:-not run}"
+            printf '\n[Open workflow logs](%s/%s/actions/runs/%s/attempts/%s)\n' \
+              "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+            printf '\nFailure details stay in the failing check log; this report contains only check outcomes.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
