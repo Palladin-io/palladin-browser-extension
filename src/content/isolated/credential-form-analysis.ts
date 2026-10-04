@@ -9,6 +9,7 @@ import { credentialScopeFor, scopeInputs, usernameCandidates, isIdentifiedUserna
 type FillControl = HTMLInputElement | HTMLTextAreaElement;
 
 export interface LoginTarget {
+  readonly sourceDocument: Document;
   readonly username: HTMLInputElement | null;
   readonly password: HTMLInputElement | null;
   readonly form: CredentialScope;
@@ -62,6 +63,8 @@ export function loginTargetFor(input: HTMLInputElement): LoginTarget | null {
   if (!isFillable(input)) return null;
   const apple = appleLoginTargetFor(input);
   if (apple !== undefined) return apple;
+  const tomojdom = tomojdomLoginTargetFor(input);
+  if (tomojdom !== undefined) return tomojdom;
   const form = credentialScopeFor(input);
   if (!form) return null;
   const all = scopeInputs(form);
@@ -84,7 +87,25 @@ export function loginTargetFor(input: HTMLInputElement): LoginTarget | null {
     if (all.some((field) => field.type === "password" && autocompleteTokens(field).includes('new-password'))) return null;
   }
   if (input !== (username ?? password)) return null;
-  return { username, password, form };
+  return { username, password, form, sourceDocument: input.ownerDocument };
+}
+
+function tomojdomLoginTargetFor(input: HTMLInputElement): LoginTarget | null | undefined {
+  if (input.ownerDocument.location.origin !== 'https://tomojdom.pl') return undefined;
+  const form = input.closest<HTMLElement>('#modules > .tmd-area');
+  if (form === null || input.form !== null) return null;
+  const usernames = form.querySelectorAll<HTMLInputElement>('input[type="text"][autocomplete="username email"]');
+  const passwords = form.querySelectorAll<HTMLInputElement>('input[type="password"][autocomplete="current-password"]');
+  if (usernames.length !== 1 || passwords.length !== 1) return null;
+  const username = usernames[0]!;
+  const password = passwords[0]!;
+  if (username.form !== null || password.form !== null || !isFillable(username)) return null;
+  const passwordVisible = isFillable(password);
+  if (input === username && !passwordVisible) return { username, password: null, form, sourceDocument: input.ownerDocument };
+  if (input === password && passwordVisible && username.value !== '') {
+    return { username: null, password, form, accountIdentity: username, sourceDocument: input.ownerDocument };
+  }
+  return null;
 }
 
 function appleLoginTargetFor(input: HTMLInputElement): LoginTarget | null | undefined {
@@ -97,10 +118,10 @@ function appleLoginTargetFor(input: HTMLInputElement): LoginTarget | null | unde
     || form === null || form !== password.closest('#sign_in_form')) return undefined;
   const passwordVisible = !form.classList.contains('hide-password') && isFillable(password);
   if (input === username && isFillable(username) && !passwordVisible) {
-    return { username, password: null, form };
+    return { username, password: null, form, sourceDocument: input.ownerDocument };
   }
   if (input === password && passwordVisible && username.value !== '') {
-    return { username: null, password, form, accountIdentity: username };
+    return { username: null, password, form, accountIdentity: username, sourceDocument: input.ownerDocument };
   }
   return null;
 }
@@ -108,9 +129,12 @@ function appleLoginTargetFor(input: HTMLInputElement): LoginTarget | null | unde
 /** Revalidate the same controls and scope immediately before a DOM write. */
 export function isCurrentLoginTarget(target: LoginTarget): boolean {
   const anchor = target.username ?? target.password;
-  if (!anchor?.isConnected || !target.form.isConnected) return false;
+  if (!anchor?.isConnected || !target.form.isConnected
+    || target.form.ownerDocument !== target.sourceDocument
+    || [target.username, target.password, target.accountIdentity].some(control =>
+      control != null && (!control.isConnected || control.ownerDocument !== target.sourceDocument))) return false;
   const current = loginTargetFor(anchor);
-  return current !== null && current.form === target.form
+  return current !== null && current.sourceDocument === target.sourceDocument && current.form === target.form
     && current.username === target.username && current.password === target.password
     && current.accountIdentity === target.accountIdentity;
 }

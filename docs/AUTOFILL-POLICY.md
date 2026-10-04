@@ -36,6 +36,18 @@ Firefox child frames do not mount this launcher: its supported legacy fill
 transport authenticates only the top document. Direct top-frame IDMSA sign-in
 remains eligible.
 
+The observed `https://tomojdom.pl` login panel has no native form and initially
+hides every login action. An exact-origin adapter binds its unique identifier
+and current-password controls to the same `#modules > .tmd-area` container.
+It fills only the identifier at first. Once the site reveals the password,
+the launcher moves to that field and explicit password fill requires the
+panel's existing identifier to match the selected Credential. Popup Fill uses
+the same target validation. Automatic fill never clicks a login, email-code or
+saved-key action. Other origins do not receive this exception. LiveKid's
+observed form-less login uses the existing generic credential-scope analysis.
+Every inline target retains its source Document; adopting its container or
+controls into another Document invalidates it even when the origin is unchanged.
+
 Open shadow roots attached after startup are discovered through bounded probes of
 previously observed eligible hosts (at most 256 native property checks per 250 ms).
 Idle probes do not traverse the document or read layout. A newly found root schedules
