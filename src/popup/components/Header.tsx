@@ -1,4 +1,3 @@
-import { RotatingWelcome } from "./RotatingWelcome";
 import { PopupIcon } from "./PopupIcon";
 import type { ReactNode } from "react";
 import type { SessionStatus } from "../../background/session/types";
@@ -44,7 +43,6 @@ export function Header({
           <span>Palladin</span><span className="wordmark-tld">.io</span>
         </h1>
       </div>
-      {authBrand ? <RotatingWelcome /> : null}
       {children}
       <div className="popup-header-actions">
         {contextLabel ? (

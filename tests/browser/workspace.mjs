@@ -59,8 +59,8 @@ try {
   const brand = await popup.brandTypography();
   assert(brand.family.startsWith('Inter') && brand.loaded, 'Auth wordmark must render the bundled web Inter font');
   assert.equal(brand.weight, '800');
-  assert.equal(brand.size, '30px');
-  assert.equal(brand.spacing, '-0.3px');
+  assert.equal(brand.size, '23px');
+  assert.equal(brand.spacing, '-0.23px');
   await popup.waitText('Zero-knowledge by design.');
   await popup.screenshot(path.join(output, 'sign-in-light.png'));
   await popup.fill('input[type=email]', api.email); await popup.fill('input[type=password]', api.password); await popup.click('Sign in');

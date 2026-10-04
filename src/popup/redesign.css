@@ -879,17 +879,27 @@ html:not([data-extension-surface='side-panel']):has(.popup[data-phase='settings'
   line-height: normal;
   letter-spacing: -0.01em;
 }
-.popup-header.auth-brand-header {
-  gap: 0;
-  padding-bottom: 24px;
+.popup:has(> .auth-brand-header) { padding: 0; justify-content: flex-start; }
+.popup > .popup-header.auth-brand-header {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  min-height: 68px;
+  padding: 16px 24px;
+  gap: 12px;
+  border-bottom: 1px solid var(--cv-border);
 }
-.popup-header.auth-brand-header .brand-lockup {
-  flex-direction: column;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-.popup-header.auth-brand-header .brand-logo { width: 72px; height: 72px; }
-.popup-header.auth-brand-header .wordmark { font-size: 30px; }
+.popup .popup-header.auth-brand-header .brand-lockup { flex-direction: row; gap: 10px; margin: 0; }
+.popup .popup-header.auth-brand-header .brand-logo { width: 32px; height: 36px; }
+.popup-header.auth-brand-header .wordmark { font-size: 23px; }
+.popup .popup-header.auth-brand-header .popup-header-actions { position: static; margin-left: auto; }
+.popup:has(> .auth-brand-header) .auth-form-panel { margin: 28px auto 24px; max-width: 356px; padding: 0 12px; }
+.popup:has(> .auth-brand-header) .auth-form-panel .form { gap: 12px; }
+.popup:has(> .auth-brand-header) .auth-form-panel .form > .btn[type='submit'] { margin-top: 0; }
+.popup:has(> .auth-brand-header) .auth-form-panel .screen-subtitle { margin-bottom: 20px; }
+.popup:has(> .auth-brand-header) .auth-registration { margin-top: 16px; }
+.auth-form-panel > .auth-brand-tagline { margin-bottom: 24px; }
 .auth-brand-tagline {
   margin: 0;
   min-height: 18px;
