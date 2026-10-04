@@ -62,6 +62,8 @@ export function loginTargetFor(input: HTMLInputElement): LoginTarget | null {
   if (!isFillable(input)) return null;
   const apple = appleLoginTargetFor(input);
   if (apple !== undefined) return apple;
+  const tomojdom = tomojdomLoginTargetFor(input);
+  if (tomojdom !== undefined) return tomojdom;
   const form = credentialScopeFor(input);
   if (!form) return null;
   const all = scopeInputs(form);
@@ -85,6 +87,24 @@ export function loginTargetFor(input: HTMLInputElement): LoginTarget | null {
   }
   if (input !== (username ?? password)) return null;
   return { username, password, form };
+}
+
+function tomojdomLoginTargetFor(input: HTMLInputElement): LoginTarget | null | undefined {
+  if (input.ownerDocument.location.origin !== 'https://tomojdom.pl') return undefined;
+  const form = input.closest<HTMLElement>('#modules > .tmd-area');
+  if (form === null || input.form !== null) return null;
+  const usernames = form.querySelectorAll<HTMLInputElement>('input[type="text"][autocomplete="username email"]');
+  const passwords = form.querySelectorAll<HTMLInputElement>('input[type="password"][autocomplete="current-password"]');
+  if (usernames.length !== 1 || passwords.length !== 1) return null;
+  const username = usernames[0]!;
+  const password = passwords[0]!;
+  if (username.form !== null || password.form !== null || !isFillable(username)) return null;
+  const passwordVisible = isFillable(password);
+  if (input === username && !passwordVisible) return { username, password: null, form };
+  if (input === password && passwordVisible && username.value !== '') {
+    return { username: null, password, form, accountIdentity: username };
+  }
+  return null;
 }
 
 function appleLoginTargetFor(input: HTMLInputElement): LoginTarget | null | undefined {
