@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { handleConnectionCommand, isConnectionCommand } from './connection-commands';
+import { handleConnectionCommand, isConnectionCommand, saveConnectionSharingPreference } from './connection-commands';
 import { ServerConfigStore } from './server-config-store';
 import type { Connection } from '../../shared/config/connection';
 const connection: Connection = { name: 'Own', apiUrl: 'https://api.example.test', webUrl: 'https://panel.example.test', sharedUnlockEnabled: true, allowHttp: false };
@@ -34,6 +34,21 @@ describe('connection mutation boundary', () => {
     await expect(handleConnectionCommand(f.store, { type: 'config/connections/save',
       connection: { ...connection, sharedUnlockEnabled: false } }, f.access, f.retire, f.preference)).rejects.toThrow('Preference unavailable');
     expect(f.store.activeConnection).toEqual(connection);
+    expect(f.retire).not.toHaveBeenCalled();
+  });
+  it.each(['locked', 'unlocked', 'signed-out'] as const)('does not confuse %s with a saved account preference', async status => {
+    const f = fixture(); await f.store.saveConnection(connection);
+    const dispatch = vi.fn(async () => ({ ok: false as const, code: 'authentication-required' as const, locallyPaused: false }));
+    const save = handleConnectionCommand(f.store, { type: 'config/connections/save',
+      connection: { ...connection, sharedUnlockEnabled: false } }, f.access, f.retire,
+      enabled => saveConnectionSharingPreference(enabled, dispatch, async () => status));
+    if (status === 'signed-out') {
+      await expect(save).resolves.toMatchObject({ ok: true });
+      expect(f.store.activeConnection?.sharedUnlockEnabled).toBe(false);
+    } else {
+      await expect(save).rejects.toThrow('preference unavailable');
+      expect(f.store.activeConnection).toEqual(connection);
+    }
     expect(f.retire).not.toHaveBeenCalled();
   });
   it('never activates an unknown profile or accepts plaintext/session fields in configuration', async () => {

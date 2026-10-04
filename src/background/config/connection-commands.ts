@@ -1,3 +1,5 @@
+import type { SharedUnlockSettingsCommand, SharedUnlockSettingsResult } from '../../shared/messaging/shared-unlock-settings';
+import type { SessionStatus } from '../session/types';
 import { extensionBuildTarget } from "../../shared/config/build-target";
 import { connectionOrigins, parseConnection, type Connection, type ConnectionsState } from '../../shared/config/connection';
 import type { ServerConfigStore } from './server-config-store';
@@ -31,4 +33,17 @@ export async function handleConnectionCommand(store: ServerConfigStore, command:
     && previous.sharedUnlockEnabled !== next.sharedUnlockEnabled) await setSharingPreference(next.sharedUnlockEnabled);
   const state = command.type === 'config/connections/save' ? await store.saveConnection(next) : await store.activateConnection(next.apiUrl);
   return { ok: true, state, apiUrl: store.apiUrl, changed: true };
+}
+
+export async function saveConnectionSharingPreference(enabled: boolean,
+  dispatch: (command: SharedUnlockSettingsCommand) => Promise<SharedUnlockSettingsResult>,
+  getStatus: () => Promise<SessionStatus>): Promise<void> {
+  const current = await dispatch({ type: 'shared-unlock-settings/get' });
+  if (!current.ok) {
+    if (current.code === 'authentication-required' && await getStatus() === 'signed-out') return;
+    throw new Error('Shared unlock preference unavailable');
+  }
+  const saved = await dispatch({ type: 'shared-unlock-settings/set', contextId: current.contextId,
+    revision: current.revision, enabled });
+  if (!saved.ok) throw new Error('Shared unlock preference not saved');
 }

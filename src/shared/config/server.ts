@@ -1,3 +1,4 @@
+export const PRODUCTION_PANEL_URL = "https://palladin.io";
 export const PRODUCTION_API_URL = "https://api.palladin.io";
 export const STAGING_API_URL = "https://api.stage.palladin.io";
 export const LOCAL_API_URL = "http://localhost:5000";

@@ -73,6 +73,7 @@
   "settings.server.subtitle": "Configure your API and panel. Only one saved connection is active at a time.",
   "settings.server.url": "Server URL",
   "settings.server.warning": "Saving trusts the exact API and panel addresses above. Other domains and ports remain untrusted.",
+  "settings.server.productionName": "Palladin",
   "settings.server.production": "Use production",
   "settings.server.save": "Save and activate",
   "settings.server.readError": "Can't read the current server.",

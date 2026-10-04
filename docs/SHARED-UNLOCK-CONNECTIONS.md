@@ -27,7 +27,10 @@ Shared unlock starts enabled for a newly entered configuration. Disabling it
 cancels browser cooperation and saves the authenticated account preference through
 its existing revision-fenced endpoint. It does not lock/logout a completed own
 session. A failed preference save is shown as failure. Signed-out configuration
-stores only the local switch. Existing account OFF, MFA, expiry and independent
+stores only the local switch. A locked existing session without in-memory tokens
+cannot report a successful account-preference change; saving fails until it is
+unlocked. Use production restores the complete API/panel pair, preserving a
+matching saved production configuration when available. Existing account OFF, MFA, expiry and independent
 idle policies are retained. Manual lock/logout propagation uses the existing
 Identity lifecycle once a pair is active.
 
@@ -43,7 +46,7 @@ The native Chromium test proves default rejection, dynamic approval without an
 environment rebuild, exact-port/host/iframe rejection, document replacement and
 OFF/ON channel cancellation. It does not perform an Identity/MK handoff.
 
-The consumers pin the coordinated crypto 0.12.0 candidate. Its SHA-256/HKDF
+The consumers pin the published crypto 0.12.0 release. Its SHA-256/HKDF
 implementation preserves existing vectors without requiring SubtleCrypto. Web
 uses exclusive, empty IndexedDB transactions when Web Locks are unavailable;
 publication and local pause/link/expiry writes share the same transaction fence.
@@ -67,8 +70,8 @@ it does not test a real LAN transport. The panel build requires explicit
 `PALLADIN_ALLOW_INSECURE_HTTP_CONNECTIONS=true` for a remote HTTP API, separately
 from the user's extension consent. HTTPS remains the default.
 Full authenticated staging and platform acceptance remain separate rollout gates.
-The candidate was installed locally from npm cache against the registry lock;
-0.12.0 must be published and its registry integrity verified before consumer CI
-and release. Firefox/Safari builds are not runtime acceptance.
+Crypto 0.12.0 was published through the verified signed tag and trusted npm
+workflow. The consumer lock now uses its registry integrity, and registry-backed
+installation passed. Consumer CI and final deployment acceptance remain required. Firefox/Safari builds are not runtime acceptance.
 The original staging artifact additionally needs an ID matching the panel's
 independently configured distribution ID; changing routing alone cannot fix that.

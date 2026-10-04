@@ -1,4 +1,4 @@
-import { isConnectionCommand, handleConnectionCommand } from "./config/connection-commands";
+import { isConnectionCommand, handleConnectionCommand, saveConnectionSharingPreference } from "./config/connection-commands";
 import { automaticFillSession } from './session/automatic-fill-session';
 import { isSharedUnlockLinkSettingsCommand } from '../shared/messaging/shared-unlock-link-settings';
 import { handleSharedUnlockLinkSettings } from './shared-unlock/link-settings-runtime';
@@ -492,16 +492,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
         origins => chrome.permissions.contains({ origins }), async () => {
           await sessionManager.logout();
           await vaultData.clearAllCache();
-        }, async enabled => {
-          const current = await handleSharedUnlockSettings({ type: 'shared-unlock-settings/get' });
-          if (!current.ok) {
-            if (current.code === 'authentication-required') return;
-            throw new Error('Shared unlock preference unavailable');
-          }
-          const saved = await handleSharedUnlockSettings({ type: 'shared-unlock-settings/set', contextId: current.contextId,
-            revision: current.revision, enabled });
-          if (!saved.ok) throw new Error('Shared unlock preference not saved');
-        });
+        }, enabled => saveConnectionSharingPreference(enabled, handleSharedUnlockSettings, () => sessionManager.getStatus()));
       try {
         sendResponse(mutation ? await serverOperations.mutate(execute) : await execute());
       } catch { sendResponse({ ok: false, code: 'unavailable' }); }

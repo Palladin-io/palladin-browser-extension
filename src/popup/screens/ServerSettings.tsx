@@ -1,7 +1,7 @@
 import { parseConnection, type Connection } from "@shared/config/connection";
 import { useEffect, useState, type FormEvent } from "react";
 
-import { PRODUCTION_API_URL } from "@shared/config/server";
+import { PRODUCTION_API_URL, PRODUCTION_PANEL_URL } from "@shared/config/server";
 
 import { Button } from "../components/Button";
 import { FormInput } from "../components/FormInput";
@@ -127,7 +127,7 @@ export function ServerSettings({
         </p>
         {notice ? <p className="settings-notice" role="status">{notice}</p> : null}
         <div className="settings-actions">
-          <Button type="button" variant="ghost" onClick={() => { setInput(PRODUCTION_API_URL); setWebUrl(""); setName(""); setAllowHttp(false); setEnabled(true); }} disabled={busy}>
+          <Button type="button" variant="ghost" onClick={() => { loadConnection(saved.find(item => item.apiUrl === PRODUCTION_API_URL && item.webUrl === PRODUCTION_PANEL_URL) ?? { name: t("settings.server.productionName"), apiUrl: PRODUCTION_API_URL, webUrl: PRODUCTION_PANEL_URL, allowHttp: false, sharedUnlockEnabled: true }); }} disabled={busy}>
             {t("settings.server.production")}
           </Button>
           <Button type="submit" variant="accent" disabled={!canSave} loading={busy}>

@@ -73,6 +73,7 @@
   "settings.server.subtitle": "Skonfiguruj API i panel. Jednocześnie aktywne jest tylko jedno zapisane połączenie.",
   "settings.server.url": "Adres serwera",
   "settings.server.warning": "Zapisanie zatwierdza zaufanie do dokładnych adresów API i panelu powyżej. Inne domeny i porty pozostają niezaufane.",
+  "settings.server.productionName": "Palladin",
   "settings.server.production": "Użyj produkcji",
   "settings.server.save": "Zapisz i aktywuj",
   "settings.server.readError": "Nie można odczytać bieżącego serwera.",
