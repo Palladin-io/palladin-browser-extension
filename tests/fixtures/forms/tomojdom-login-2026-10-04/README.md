@@ -33,7 +33,7 @@ synthetic field dimensions and click counters, with all requests served locally.
   the bound fill also rejects a fresh foreign-document target. This is a
   synthetic DOM-adoption regression, not an observed action by the website.
 - User adapter: initial identifier-only target; password target carries the
-  existing account identity and is explicit-only. No automatic action click.
+  existing account identity. A prior successful automatic identifier fill can authorize one bound same-entry continuation; otherwise the password step is explicit-only. No automatic action click.
 - Agent adapter: no new Agent execution support is claimed by these tests;
   this specimen is shared for separate Agent inspection/acceptance.
 - Chromium: `npm run test:browser:inline` uses the built extension, encrypted
@@ -52,6 +52,6 @@ inner password block, while the adapter retains the outer panel. The local fix
 binds explicit submission to the single enabled login button in that password
 block; missing, duplicate, disabled and moved actions are rejected. This explains
 a submit error in the specimen, but does not yet prove why the user observed an
-empty password on the real page. Automatic password continuation is unchanged.
+empty password on the real page. A subsequent user request adds a memory-only, one-use continuation from a successful automatic identifier fill to the same account and panel. Synthetic stage tests cover the continuation and rejection of changed bindings, account, URL, session and pre-existing identifiers.
 The browser regression includes the explicit action with fake data; execution in
 this session is blocked by sandbox `listen EPERM` before Chromium launch.

@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { loginTargetFor, performBoundFill, performFill, performLoginTargetFill, submitFilledLoginTarget } from "./fill";
 import { startInlineAutofill } from "./inline-autofill";
-import type { FillField } from "@shared/messaging";
+import type { FillField, InlineAutofillCommand } from "@shared/messaging";
 import { readFileSync } from "node:fs";
 
 declare const jsdom: { reconfigure(options: { url: string }): void };
@@ -64,6 +64,58 @@ describe("tomojdom staged form-less login", () => {
       expect(click).not.toHaveBeenCalled();
     } finally { subject.stop(); }
   });
+
+  it.each(['same-account', 'changed-account', 'replaced-username', 'replaced-panel', 'navigation', 'lock', 'lock-pending', 'different-entry', 'different-suggestion-account', 'related-entry', 'prefilled'])(
+    'continues automatic identifier fill only for the bound same-account flow: %s', async (variant) => {
+      const { username, password, step, container } = mount();
+      vi.stubGlobal("chrome", { storage: { local: { get: async () => ({}) } }, i18n: { getUILanguage: () => "en" } });
+      if (variant === 'prefilled') username.value = '12345678';
+      let passwordStage = false;
+      const clicked = vi.fn(); container.addEventListener('click', clicked);
+      const send = vi.fn(async (command: InlineAutofillCommand) => {
+        if (command.type === 'inline/list' && passwordStage && variant === 'lock-pending') subject.clearSessionState();
+        if (command.type === 'inline/list') return {
+          ok: true, kind: 'suggestions', status: 'ready', entries: [{
+            vaultId: 'v1', entryId: passwordStage && variant === 'different-entry' ? 'e2' : 'e1',
+            name: 'Fixture', username: passwordStage && variant === 'different-suggestion-account' ? '87654321' : '12345678', vaultName: 'Test', urlDomain: 'tomojdom.pl',
+            updatedAt: '2026-10-04T00:00:00Z', match: passwordStage && variant === 'related-entry' ? 'related' : 'exact',
+          }],
+        };
+        if (command.type !== 'inline/fill') throw new Error('Unexpected command');
+        const target = subject.resolveLoginTarget(command.loginTargetId);
+        const result = target ? performLoginTargetFill(target, fields, 'automatic') : { ok: false };
+        return { ok: true, kind: 'fill', status: result.ok ? 'filled' : 'no-form' };
+      });
+      const subject = startInlineAutofill(document, 'a'.repeat(32), send);
+      try {
+        if (variant !== 'prefilled') await vi.waitFor(() => expect(username.value).toBe('12345678'));
+        // Let the initial worker reply complete before exposing the next stage.
+        await Promise.resolve(); await Promise.resolve();
+        passwordStage = true;
+        if (variant === 'changed-account') username.value = '87654321';
+        if (variant === 'replaced-username') {
+          const replacement = username.cloneNode() as HTMLInputElement;
+          replacement.value = username.value; username.replaceWith(replacement);
+        }
+        if (variant === 'navigation') jsdom.reconfigure({ url: 'https://tomojdom.pl/other-page' });
+        if (variant === 'lock') subject.clearSessionState();
+        if (variant === 'replaced-panel') {
+          const replacement = container.cloneNode(false) as HTMLElement;
+          replacement.append(...container.childNodes); container.replaceWith(replacement);
+        }
+        step.classList.remove('d-none');
+        if (variant === 'same-account') await vi.waitFor(() => expect(password.value).toBe('fixture-password'));
+        else await new Promise(resolve => setTimeout(resolve, 160));
+        expect(password.value).toBe(variant === 'same-account' ? 'fixture-password' : '');
+        subject.retryAutomaticFill();
+        await Promise.resolve();
+        expect(send.mock.calls.filter(([command]) => command.type === 'inline/fill')).toHaveLength(
+          variant === 'prefilled' ? 0 : variant === 'same-account' ? 2 : 1,
+        );
+        expect(clicked).not.toHaveBeenCalled();
+      } finally { subject.stop(); jsdom.reconfigure({ url: 'https://tomojdom.pl/en/' }); }
+    },
+  );
 
   it("fills only the initial identifier from the popup and not hidden password/recovery", () => {
     const { username, password, recovery, container } = mount();

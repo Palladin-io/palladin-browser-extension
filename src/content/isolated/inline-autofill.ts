@@ -158,6 +158,7 @@ class InlineAutofillController {
   private stopped = false;
   private automaticFillUrl: string | null = null;
   private nextLoginTargetId = 1;
+  private continuation: { target: LoginTarget; entry: InlineAutofillSuggestion; url: string } | null = null;
 
   constructor(
     private readonly doc: Document,
@@ -270,6 +271,7 @@ class InlineAutofillController {
   }
 
   stop(): void {
+    this.continuation = null;
     clearAutomaticFillProvenance(this.doc);
     this.stopped = true;
     this.observer?.disconnect();
@@ -318,6 +320,7 @@ class InlineAutofillController {
   }
 
   clearSessionState(): void {
+    this.continuation = null;
     clearAutomaticFillProvenance(this.doc);
     for (const widget of this.widgets.values()) widget.clearSessionState();
   }
@@ -378,6 +381,11 @@ class InlineAutofillController {
   }
 
   private scan(): void {
+    const continuation = this.continuation;
+    if (continuation && (this.doc.location.href !== continuation.url
+      || continuation.target.sourceDocument !== this.doc || !continuation.target.form.isConnected
+      || continuation.target.username?.ownerDocument !== this.doc
+      || continuation.target.username.value !== continuation.entry.username)) this.continuation = null;
     if (this.automaticFillUrl !== null && this.automaticFillUrl !== this.doc.location.href) clearAutomaticFillProvenance(this.doc);
     for (const input of this.observedInputs) {
       if (!input.isConnected) { this.resizeObserver?.unobserve(input); this.observedInputs.delete(input); }
@@ -411,12 +419,32 @@ class InlineAutofillController {
         send: this.send,
         locale: () => this.locale,
         theme: () => resolvedTheme(this.theme, this.doc.defaultView),
+        onManualFill: () => { this.continuation = null; },
+        onAutomaticFill: entry => {
+          if (this.doc.location.origin !== 'https://tomojdom.pl' || loginTarget.username === null
+            || loginTarget.password !== null || loginTarget.sourceDocument !== this.doc
+            || !loginTarget.username.isConnected
+            || loginTarget.username.value !== entry.username) return;
+          this.continuation = { target: loginTarget, entry, url: this.doc.location.href };
+          this.scheduleScan();
+        },
         closeOthers: () => {
           for (const other of this.widgets.values()) if (other !== widget) other.close();
         },
       });
       this.widgets.set(input, widget);
       widget.mount();
+      const continuation = this.continuation;
+      if (continuation && loginTarget.accountIdentity !== undefined) {
+        this.continuation = null;
+        if (loginTarget.form === continuation.target.form
+          && loginTarget.sourceDocument === continuation.target.sourceDocument
+          && loginTarget.accountIdentity === continuation.target.username
+          && loginTarget.accountIdentity.value === continuation.entry.username
+          && loginTarget.password?.value === '') {
+          void widget.autoFillPreferredExact(continuation.entry);
+        }
+      }
     }
     this.observeOpenRoots();
     const currentUrl = this.doc.location.href;
@@ -453,6 +481,8 @@ interface InlineWidgetOptions {
   readonly locale: () => UiLocale;
   readonly theme: () => "light" | "dark";
   readonly closeOthers: () => void;
+  readonly onAutomaticFill: (entry: InlineAutofillSuggestion) => void;
+  readonly onManualFill: () => void;
 }
 
 interface PendingInlineFill {
@@ -472,6 +502,7 @@ class InlineWidget {
   private automaticFillInFlight = false;
   private automaticFillRetryRequested = false;
   private automaticFillCompleted = false;
+  private sessionGeneration = 0;
   private suggestionGeneration = 0;
   private suggestionsInFlight: Promise<unknown> | null = null;
   private lastFilled: Pick<InlineAutofillSuggestion, "vaultId" | "entryId" | "name" | "updatedAt"> | null = null;
@@ -579,6 +610,7 @@ class InlineWidget {
   }
 
   clearSessionState(): void {
+    this.sessionGeneration += 1;
     this.invalidatePendingFill();
     this.lastFilled = null;
     this.automaticFillRetryRequested = false;
@@ -673,20 +705,24 @@ class InlineWidget {
    * results by session recency first and deterministic first match second.
    * Related sibling hosts remain explicit-only and can never enter this path.
    */
-  async autoFillPreferredExact(): Promise<void> {
+  async autoFillPreferredExact(continuation?: InlineAutofillSuggestion): Promise<void> {
     if (this.automaticFillCompleted || this.destroyed
-      || this.options.loginTarget.accountIdentity !== undefined) return;
+      || (this.options.loginTarget.accountIdentity !== undefined && continuation === undefined)) return;
+    if (continuation !== undefined && (this.options.doc.location.origin !== 'https://tomojdom.pl'
+      || this.options.loginTarget.accountIdentity?.value !== continuation.username)) return;
     if (this.automaticFillInFlight) {
       this.automaticFillRetryRequested = true;
       return;
     }
     const initialValues = loginValueSnapshot(this.options.loginTarget);
+    const generation = this.sessionGeneration;
+    const url = this.options.doc.location.href;
     if ([this.options.loginTarget.username, this.options.loginTarget.password]
       .some(input => input !== null && input.value !== "")) return;
     this.automaticFillInFlight = true;
     try {
       const raw = await this.loadSuggestions();
-      if (this.destroyed
+      if (this.destroyed || generation !== this.sessionGeneration || this.options.doc.location.href !== url
         || !isCurrentLoginTarget(this.options.loginTarget)
         || loginValueSnapshot(this.options.loginTarget) !== initialValues) {
         return;
@@ -697,9 +733,15 @@ class InlineWidget {
         return;
       }
       if (raw.status !== "ready") return;
-      const preferredExact = raw.entries.find((entry) => entry.match === "exact");
+      const preferredExact = raw.entries.find((entry) => entry.match === "exact"
+        && (continuation === undefined || (entry.entryId === continuation.entryId
+          && entry.vaultId === continuation.vaultId && entry.username === continuation.username)));
       if (preferredExact !== undefined) {
         this.automaticFillCompleted = await this.fill(preferredExact, false, true);
+        if (this.automaticFillCompleted && continuation === undefined
+          && generation === this.sessionGeneration && this.options.doc.location.href === url) {
+          this.options.onAutomaticFill(preferredExact);
+        }
       }
     } finally {
       this.automaticFillInFlight = false;
@@ -887,7 +929,11 @@ class InlineWidget {
       if (!silent) this.renderStatus("inline.noForm");
       return false;
     }
-    if (!silent) discardAutomaticFillProvenance(this.options.loginTarget);
+    if (!silent) {
+      this.sessionGeneration += 1;
+      this.options.onManualFill();
+      discardAutomaticFillProvenance(this.options.loginTarget);
+    }
     // The latest explicit choice supersedes a pending passive/explicit request.
     // A passive retry cannot displace the user's outstanding choice.
     if (silent && this.pendingFill?.manual) return false;

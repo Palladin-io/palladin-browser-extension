@@ -135,7 +135,9 @@ try {
   await page.evaluate(() => document.querySelector('input[type="password"]').parentElement.parentElement.classList.remove('d-none'));
   await aligned('input[type="password"]');
   assert.equal(await page.locator('palladin-autofill').count(), 1);
-  assert.equal(await page.locator('input[type="password"]').inputValue(), '');
+  await wait(async () => await page.locator('input[type="password"]').inputValue() === password,
+    'Tomojdom same-entry automatic password continuation');
+  assert.equal(await page.evaluate(() => globalThis.loginClicks), 0);
   await click('Open Palladin suggestions');
   let fillName;
   await wait(async () => {
