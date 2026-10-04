@@ -358,6 +358,11 @@ try {
   checks.push('actual-web-manual-password-login')
   stage = 'extension-automatic-unlock'
   popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId)
+  const configuredConnection = await popup.configureConnection({ name: 'Isolated Identity fixture', apiUrl,
+    webUrl: webOrigin, sharedUnlockEnabled: true, allowHttp: true })
+  requests.push({ check: 'connection-configuration-result', ...configuredConnection })
+  assert.equal(configuredConnection.ok, true)
+  checks.push('native-popup-approves-exact-api-panel-pair-with-http-consent')
   for (let attempt = 0; attempt < 200; attempt++) {
     if (await popup.hasText('Unlocked')) break
     if (await popup.hasButton('Continue to Palladin')) { await popup.click('Continue to Palladin'); break }
@@ -368,7 +373,14 @@ try {
   await popup.waitText('No entries yet')
   checks.push('extension-authoritative-empty-snapshot-before-entry-creation')
   stage = 'web-create-entry'
-  await page.getByRole('link', { name: 'Vaults', exact: true }).click()
+  const privacy = page.getByRole('dialog', { name: 'Privacy', exact: true })
+  if (await privacy.isVisible()) {
+    assert.equal(await privacy.getByRole('switch', { checked: true }).count(), 0)
+    await privacy.getByRole('button', { name: 'Save choice', exact: true }).click()
+    await privacy.waitFor({ state: 'hidden' })
+    checks.push('synthetic-account-declines-optional-consents-through-ui')
+  }
+  await page.locator('nav a[href="/vaults"]').click()
   await page.getByText('Personal', { exact: true }).first().click()
   await page.getByRole('button', { name: 'Add Entry', exact: true }).first().click()
   const entryPassword = 'Entry!' + randomBytes(24).toString('base64url')

@@ -175,6 +175,13 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
       await clickNode(node.backendNodeId)
       await command('Input.insertText', { text: value })
     },
+    async configureConnection(connection) {
+      const { result, exceptionDetails } = await command('Runtime.evaluate', {
+        expression: `(async () => { const r = await chrome.runtime.sendMessage(${JSON.stringify({ type: 'config/connections/save', connection })}); return { ok: r?.ok, code: r?.code } })()`,
+        awaitPromise: true, returnByValue: true,
+      });
+      return exceptionDetails ? { error: true } : result.value;
+    },
     async hasText(text) { return evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`) },
     // Exercise the same private command as CopyButton, inside the real native
     // popup sender boundary. Only a boolean leaves the browser; no clipboard,

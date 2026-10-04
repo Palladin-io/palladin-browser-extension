@@ -33,7 +33,7 @@ import type { SessionStatus } from "../background/session/types";
 import { extensionBuildTarget } from "@shared/config/build-target";
 import { openSidePanel, supportsSidePanel } from "@shared/browser/side-panel";
 import { isSurfaceStateEvent } from "@shared/messaging";
-import { webAppUrl } from "@shared/config/web-app";
+import { configuredPanelUrl } from "@shared/config/web-app";
 
 export type ExtensionSurface = "popup" | "side-panel";
 
@@ -200,7 +200,6 @@ export function App({
         />
       ) : settingsOpen ? (
         <SettingsScreen
-          serverClient={serverClient}
           onServerChanged={session.retryInit}
         />
       ) : renderPhase()}
@@ -263,7 +262,7 @@ export function App({
 }
 
 async function openRegistration(): Promise<void> {
-  const url = `${webAppUrl}/register`;
+  const url = await configuredPanelUrl("/register");
   if (typeof chrome !== "undefined" && chrome.tabs?.create) {
     await chrome.tabs.create({ url, active: true });
     return;

@@ -13,7 +13,7 @@ import { GeneratorPanel } from "../generator/GeneratorPanel";
 import { createVaultClient, type VaultClient } from "../vault/client";
 import { filterEntries } from "../vault/filter";
 import { useVaultList } from "../vault/useVaultList";
-import { webAppUrl } from "@shared/config/web-app";
+import { configuredPanelUrl } from "@shared/config/web-app";
 import { useI18n } from "../i18n";
 import { ShareSavePrompt, usePendingShareSave } from '../share-save/ShareSavePrompt';
 
@@ -219,7 +219,7 @@ function UnlockedFooter({
         <button
           type="button"
           className="link-btn link-btn--palladin"
-          onClick={() => chrome.tabs.create({ url: webAppUrl })}
+          onClick={() => void configuredPanelUrl().then(url => chrome.tabs.create({ url })).catch(() => {})}
         >
           <img className="footer-brand-logo" src={brandLogoUrl} alt="" aria-hidden="true" />
           {t("vault.openPalladin")}

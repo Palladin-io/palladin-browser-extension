@@ -4,7 +4,7 @@ import { SafariSharedUnlockRoute, type SafariSharedUnlockBrowserApi } from "./sa
 
 /** The Safari namespace supplies native IDs and direct external Ports. Missing
  * capabilities disable this channel without breaking independent manual unlock. */
-export function startSafariSharedUnlockBrowser(environments: readonly SharedUnlockEnvironment[],
+export function startSafariSharedUnlockBrowser(environments: readonly SharedUnlockEnvironment[] | (() => readonly SharedUnlockEnvironment[]),
   currentApiUrl: () => string, initialize: () => Promise<unknown> = async () => undefined,
   onReady?: (route: SafariSharedUnlockRoute) => void) {
   const native = (globalThis as typeof globalThis & { browser?: ExternalSharedUnlockBrowserApi }).browser;
@@ -23,7 +23,7 @@ export function startSafariSharedUnlockBrowser(environments: readonly SharedUnlo
     ...(typeof native.webNavigation.onTabReplaced?.addListener === "function"
       && typeof native.webNavigation.onTabReplaced?.removeListener === "function"
       ? { tabReplacedEvent: native.webNavigation.onTabReplaced } : {}),
-    accept: (port, channelId, onClosed) => SafariSharedUnlockRoute.accept(port, browser, environments, channelId, onClosed),
+    accept: (port, channelId, onClosed) => SafariSharedUnlockRoute.accept(port, browser, typeof environments === "function" ? environments() : environments, channelId, onClosed),
     matchesCommit: (route, details) => route.documentId === details.documentId
       && (details.documentLifecycle === undefined || details.documentLifecycle === "active"),
     ...(onReady ? { onReady } : {}),

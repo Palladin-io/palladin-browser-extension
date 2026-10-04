@@ -6,7 +6,7 @@ import { FIREFOX_CURRENT_DOCUMENT, FIREFOX_DOCUMENT_BINDING } from "../shared/me
 /** No keys or Identity tokens live here. This own-extension document forwards
  * only bounded protocol frames. The background independently authenticates its
  * browser sender and the current top/bridge document relationship. */
-export function startFirefoxSharedUnlockBridge(owner: Window, environments: readonly SharedUnlockEnvironment[],
+export function startFirefoxSharedUnlockBridge(owner: Window, environments: readonly SharedUnlockEnvironment[] | null,
   runtime: Pick<typeof chrome.runtime, "connect" | "id" | "lastError" | "onMessage">) {
   let port: chrome.runtime.Port | null = null;
   let peer: { origin: string; apiUrl: string; webNonce: string } | null = null;
@@ -47,11 +47,11 @@ export function startFirefoxSharedUnlockBridge(owner: Window, environments: read
   const message = (event: MessageEvent<unknown>) => {
     if (stopped || owner.parent === owner || owner.parent !== owner.top || event.source !== owner.parent) return;
     // The exact origin (including port) comes from the browser, never the payload.
-    if (!environments.some(item => item.webOrigin === event.origin)) return;
+    if (!/^https?:\/\//.test(event.origin) || (environments && !environments.some(item => item.webOrigin === event.origin))) return;
     const raw = event.data;
     if (!isSharedUnlockBrowserMessage(raw) || raw.type === "ready") { close(); return; }
     if (!peer) {
-      if (raw.type !== "hello" || !environments.some(item => item.webOrigin === event.origin && item.apiUrl === raw.apiUrl)) {
+      if (raw.type !== "hello" || (environments !== null && !environments.some(item => item.webOrigin === event.origin && item.apiUrl === raw.apiUrl))) {
         close(); return;
       }
       peer = { origin: event.origin, apiUrl: raw.apiUrl, webNonce: raw.webNonce };

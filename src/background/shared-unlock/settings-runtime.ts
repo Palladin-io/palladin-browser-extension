@@ -9,7 +9,7 @@ sharedUnlockPreferences.subscribe(() => { void chrome.runtime.sendMessage(shared
 
 const settings = new SharedUnlockSettings(
   () => sessionManager.captureSharedUnlockSettingsSession(),
-  new SharedUnlockApi((...args) => fetch(...args), () => serverConfig.apiUrl),
+  new SharedUnlockApi((...args) => fetch(...args), () => serverConfig.networkApiUrl),
   sharedUnlockPreferenceGate,
   (session, preference) => {
     const current = sharedUnlockSource.snapshot()

@@ -1,3 +1,4 @@
+import { isConnectionCommand, handleConnectionCommand } from "./config/connection-commands";
 import { automaticFillSession } from './session/automatic-fill-session';
 import { isSharedUnlockLinkSettingsCommand } from '../shared/messaging/shared-unlock-link-settings';
 import { handleSharedUnlockLinkSettings } from './shared-unlock/link-settings-runtime';
@@ -253,15 +254,14 @@ void initializeServerConfig().then(() => {
   }, "session init failed");
 });
 
-// Public build configuration is the only Web/API origin authority. No default
-// hosted route. Each platform adapter supplies its own browser authority.
-const sharedUnlockBrowser = __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__.length === 0 ? null
-  : __PALLADIN_TARGET__ === "chromium"
-    ? startChromiumSharedUnlockBrowser(__PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
+// Only the active connection approved in an extension-owned surface admits a Web origin.
+// Each platform adapter independently verifies the current browser document.
+const sharedUnlockBrowser = __PALLADIN_TARGET__ === "chromium"
+    ? startChromiumSharedUnlockBrowser(() => serverConfig.sharedUnlockEnvironments, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
     : __PALLADIN_TARGET__ === "firefox"
-      ? startFirefoxSharedUnlockBrowser(__PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
+      ? startFirefoxSharedUnlockBrowser(() => serverConfig.sharedUnlockEnvironments, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
       : __PALLADIN_TARGET__ === "safari"
-        ? startSafariSharedUnlockBrowser(__PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
+        ? startSafariSharedUnlockBrowser(() => serverConfig.sharedUnlockEnvironments, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
         : null;
 
 // Agent Inject is independent of popup lock, account, and profile state. Chrome
@@ -336,6 +336,17 @@ chrome.runtime.onConnect.addListener((port) => {
 
 // Content scripts may report only a shape-only, top-frame new-password
 // candidate. This listener has a separate sender gate from the popup channel.
+// Discovery exposes no session state; authorization still occurs on the native document-bound Port.
+chrome.runtime.onMessage.addListener((raw, sender, respond) => {
+  if (!raw || typeof raw !== 'object' || Object.keys(raw).length !== 1 || raw.type !== 'shared-unlock/discover') return false;
+  if (sender.id !== chrome.runtime.id || sender.frameId !== 0 || sender.tab?.incognito !== false || !sender.url) { respond(false); return false; }
+  void initializeServerConfig().then(() => {
+    const origin = new URL(sender.url!).origin;
+    respond(sender.origin === origin && serverConfig.sharedUnlockEnvironments.some(item => item.webOrigin === origin));
+  }).catch(() => respond(false));
+  return true;
+});
+
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (isGeneratePasswordCommand(raw)) {
     void withServerOperation(() => handleGeneratePassword(raw, sender)).then(sendResponse,
@@ -474,6 +485,29 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   }
   void (async () => {
     await initializeServerConfig();
+    if (isConnectionCommand(raw)) {
+      const mutation = raw.type !== 'config/connections/get';
+      const resume = mutation ? sharedUnlockBrowser?.suspend() : undefined;
+      const execute = () => handleConnectionCommand(serverConfig, raw,
+        origins => chrome.permissions.contains({ origins }), async () => {
+          await sessionManager.logout();
+          await vaultData.clearAllCache();
+        }, async enabled => {
+          const current = await handleSharedUnlockSettings({ type: 'shared-unlock-settings/get' });
+          if (!current.ok) {
+            if (current.code === 'authentication-required') return;
+            throw new Error('Shared unlock preference unavailable');
+          }
+          const saved = await handleSharedUnlockSettings({ type: 'shared-unlock-settings/set', contextId: current.contextId,
+            revision: current.revision, enabled });
+          if (!saved.ok) throw new Error('Shared unlock preference not saved');
+        });
+      try {
+        sendResponse(mutation ? await serverOperations.mutate(execute) : await execute());
+      } catch { sendResponse({ ok: false, code: 'unavailable' }); }
+      finally { resume?.(); }
+      return;
+    }
     if (isServerConfigCommand(raw)) {
       const execute = () => handleServerConfigRuntimeMessage({
         getApiUrl: () => serverConfig.apiUrl,

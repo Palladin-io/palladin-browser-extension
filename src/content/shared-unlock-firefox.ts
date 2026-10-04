@@ -3,7 +3,7 @@ import { installFirefoxDocumentMarker } from "./firefox-document-marker";
 
 // A discovery hint only. The Web verifies canonical browser resource identity
 // and exact iframe origin/source before any protocol or key-bearing exchange.
-if (window === window.top && __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__.some(item => item.webOrigin === location.origin)) {
+if (window === window.top) {
   installFirefoxDocumentMarker(window, globalThis);
   let lastReply = -Infinity;
   window.addEventListener("message", (event: MessageEvent<unknown>) => {
@@ -11,7 +11,10 @@ if (window === window.top && __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__.some(item =
       || Array.isArray(event.data) || Object.keys(event.data).join(",") !== "type"
       || (event.data as { type?: unknown }).type !== FIREFOX_SHARED_UNLOCK_DISCOVER || performance.now() - lastReply < 500) return;
     lastReply = performance.now();
-    const root = chrome.runtime.getURL("");
-    window.postMessage({ type: FIREFOX_SHARED_UNLOCK_CANDIDATE, origin: root.replace(/\/$/, "") }, location.origin);
+    void chrome.runtime.sendMessage({ type: "shared-unlock/discover" }).then((allowed: unknown) => {
+      if (allowed !== true) return;
+      const root = chrome.runtime.getURL("");
+      window.postMessage({ type: FIREFOX_SHARED_UNLOCK_CANDIDATE, origin: root.replace(/\/$/, "") }, location.origin);
+    }).catch(() => {});
   });
 }

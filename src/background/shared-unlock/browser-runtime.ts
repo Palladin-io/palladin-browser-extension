@@ -16,7 +16,7 @@ import { beginSharedUnlockReceiver } from "./receiver";
 /** Worker-only composition. Browser messages never gain a SessionManager or
  * storage handle; the coordinator only receives scoped nonsensitive metadata. */
 export function coordinateSharedUnlockBrowser(route: SharedUnlockBrowserRoute) {
-  const api = new SharedUnlockApi((...args) => fetch(...args), () => serverConfig.apiUrl);
+  const api = new SharedUnlockApi((...args) => fetch(...args), () => serverConfig.networkApiUrl);
   const scope = (accountId: string) => ({ accountId, apiUrl: route.apiUrl, webOrigin: route.webOrigin, extensionId: route.extensionId });
   const staging = new SharedUnlockReconnectStaging(route, accountId => coordinator.cancelPending(accountId))
   const admissible = async (accountId: string, linkId?: string, receiving = false, linkEpoch?: number) => {

@@ -14,7 +14,7 @@ import palladinIconUrl from "../../../icons/icon-32.png?inline";
 import type { EntryMetadata } from "../../background/vault/entry-metadata";
 import type { VaultClient } from "../vault/client";
 import { ENTRY_CREDIT_CARD, ENTRY_CREDENTIAL, ENTRY_KEY } from "../vault/entry-type";
-import { entryDeepLink } from "@shared/config/web-app";
+import { configuredPanelUrl } from "@shared/config/web-app";
 import { fillMessage } from "../vault/messages";
 import { CopyButton } from "./CopyButton";
 import { EntryIcon } from "./EntryIcon";
@@ -81,7 +81,7 @@ export function EntryRow({ client, entry, grouped = false, revealUsername = fals
   }, [client, entry.vaultId, entry.id, t]);
 
   const openInPanel = useCallback(() => {
-    chrome.tabs.create({ url: entryDeepLink(entry.vaultId, entry.id) });
+    void configuredPanelUrl(`/vaults/${encodeURIComponent(entry.vaultId)}/entries/${encodeURIComponent(entry.id)}`).then(url => chrome.tabs.create({ url })).catch(() => {});
   }, [entry.vaultId, entry.id]);
 
   return (

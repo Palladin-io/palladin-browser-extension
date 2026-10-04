@@ -3,7 +3,7 @@ import { ChromiumSharedUnlockRoute, type SharedUnlockBrowserApi } from "./chromi
 import { startExternalSharedUnlockBrowser } from "./external-browser";
 
 /** Chromium retains its native active/outermost-frame authority. */
-export function startChromiumSharedUnlockBrowser(environments: readonly SharedUnlockEnvironment[],
+export function startChromiumSharedUnlockBrowser(environments: readonly SharedUnlockEnvironment[] | (() => readonly SharedUnlockEnvironment[]),
   currentApiUrl: () => string, initialize: () => Promise<unknown> = async () => undefined,
   onReady?: (route: ChromiumSharedUnlockRoute) => void) {
   const browser: SharedUnlockBrowserApi = {
@@ -13,7 +13,7 @@ export function startChromiumSharedUnlockBrowser(environments: readonly SharedUn
   };
   return startExternalSharedUnlockBrowser({ native: chrome, initialize,
     tabReplacedEvent: chrome.webNavigation.onTabReplaced,
-    accept: (port, channelId, onClosed) => ChromiumSharedUnlockRoute.accept(port, browser, environments, channelId, onClosed),
+    accept: (port, channelId, onClosed) => ChromiumSharedUnlockRoute.accept(port, browser, typeof environments === "function" ? environments() : environments, channelId, onClosed),
     matchesCommit: (route, details) => route.documentId === details.documentId && details.documentLifecycle === "active",
     ...(onReady ? { onReady } : {}),
   });

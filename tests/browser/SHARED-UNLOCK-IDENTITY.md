@@ -1,5 +1,12 @@
 # Native shared-unlock Identity check
 
+The dynamic-connection Chromium check requires API host permission before saving
+the pair. For unattended local runs, bind the isolated backend to the package's
+already declared `http://localhost:5000` only when that port is free, and pass
+that URL to both builds and `--api-url`. Other ports need an actual optional
+permission grant in the disposable profile; the driver does not auto-approve or
+mock permission prompts. Historical 55083 examples below predate this gate.
+
 `shared-unlock-identity-e2e.mjs` drives the built Web panel and the actual native
 Chromium popup against a running, isolated local backend. Registration, recovery
 confirmation, email verification, password login, shared Identity consume/commit,
@@ -23,13 +30,12 @@ Build the Web panel with explicit `VITE_API_URL=http://localhost:55083`,
 Chromium manifest key. Set the required `VITE_GOOGLE_CLIENT_ID` to the nonworking
 test value `synthetic-cvt583-test.apps.googleusercontent.com`; Google login is
 not used. Keep analytics and push disabled for the test. Build the
-extension with the same API URL and this explicit environment mapping:
-
-```json
-[{"apiUrl":"http://localhost:55083","webOrigin":"http://127.0.0.1:5173"}]
-```
-
-Pass it as `VITE_SHARED_UNLOCK_ENVIRONMENTS` to the Chromium build. The harness
+extension with the same API URL. Shared-unlock routing no longer requires a
+build-time environment mapping. The Chromium harness saves the exact API/panel
+pair with explicit HTTP consent through the native popup's guarded configuration
+command before the first handoff. It changes only public settings, never keys or
+authentication state. The separate channel test proves default denial.
+The harness
 serves the built Web `_headers`, including its actual CSP; it does not relax
 browser security or patch either bundle. Install Playwright's Chromium before
 running from the extension repository:
