@@ -56,7 +56,9 @@ lock/logout, preference OFF/retry/conflict and concurrent documents. The browser
 Web Locks. A separate two-document native test passed eight publication and
 pause/lock/logout/expiry checks. The fixture API still used its already declared
 localhost:5000 permission. A subsequent run exercised HTTP consent and address-edit consent reset through
-the real Settings form; the independent idle scenario is still running.
+the real Settings form. Its full 24-check run also passed real 15-minute Web
+idle while the active extension kept decrypting, persistent denial after reload,
+zero steady retries, rejected-session cleanup and fresh manual recovery.
 Optional-host permission prompt UX, remote API host, staging and platform
 acceptance remain separate rollout gates.
 The candidate was installed locally from npm cache against the registry lock;
