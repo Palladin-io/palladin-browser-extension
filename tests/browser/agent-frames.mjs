@@ -61,7 +61,7 @@ try {
   }
   function injection(plan, expectedDomain='idmsa.apple.com') { return { protocol:'palladin.inject-provider.v1',type:'inject',transactionId:`tx-${++serial}`,grantId:'grant',entryId:'entry',
     expectedDomain,form:plan,continueLive:true,expiresAt:Date.now()+10_000,values:[{entryFieldId:'credential.username',value:'synthetic@example.test'}] }; }
-  for(const scenario of ['success','hide-before-submit','hidden','duplicate','navigate-child','replace-child','navigate-top','wrong-entry-host']) {
+  for(const scenario of ['success','stays-disabled','enabled-pointer-blocked','hide-before-submit','hidden','duplicate','navigate-child','replace-child','navigate-top','wrong-entry-host']) {
     await page.goto('https://appstoreconnect.apple.com/login');
     const prepared=await prepare(); assert.equal(prepared?.outcome,'ready',`prepare ${scenario}`);
     assert.equal(prepared.currentUrl,'https://idmsa.apple.com/appleauth/auth/signin');
@@ -72,6 +72,8 @@ try {
     if(scenario==='navigate-child') await child.goto('https://idmsa.apple.com/other');
     if(scenario==='replace-child') await page.locator('#login').evaluate(el=>el.replaceWith(el.cloneNode(true)));
     if(scenario==='navigate-top') await page.goto('https://appstoreconnect.apple.com/other');
+    if (scenario === 'stays-disabled') await child.locator('#sign-in').evaluate(el => { document.querySelector('#account_name_text_field').addEventListener('input', () => { el.disabled = true; }); });
+    if (scenario === 'enabled-pointer-blocked') await child.locator('#sign-in').evaluate(el => { el.style.pointerEvents = 'none'; });
     const request=injection(prepared.liveForm,scenario==='wrong-entry-host'?'appstoreconnect.apple.com':'idmsa.apple.com');
     const filled=await send(request);
     if(scenario==='success' || scenario==='hide-before-submit') {
@@ -111,6 +113,7 @@ try {
         await child.waitForFunction(()=>document.querySelector('#account_name_text_field').value==='');
       }
     } else { assert.notEqual(filled.outcome,'submit-ready');
+      if (scenario === 'stays-disabled' || scenario === 'enabled-pointer-blocked') assert.equal(await child.evaluate(()=>globalThis.clicks),0);
       for(const frame of page.frames().slice(1)) assert.equal(await frame.locator('#account_name_text_field').inputValue().catch(()=>''),'');
     }
     console.log(`PASS framed login: ${scenario}`);

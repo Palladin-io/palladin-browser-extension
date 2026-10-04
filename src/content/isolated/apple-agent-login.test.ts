@@ -14,8 +14,10 @@ it('prepares only the identifier in the observed form-less Apple first stage', (
   live = new LiveLogin(document, 'd'.repeat(32), () => url, () => true, { isVisible: isVisibleScopeHint });
   expect(live.inspect(url)?.steps[0]?.fields.map(field => field.entryFieldId)).toEqual(['credential.username']);
 });
-it.each(['no-password', 'new-password', 'competing-action', 'extra-field'])('rejects %s in a form-less identifier scope', mutation => {
+it.each(['no-password', 'new-password', 'competing-action', 'extra-field', 'hidden-action', 'transparent-action'])('rejects %s in a form-less identifier scope', mutation => {
   document.body.innerHTML = html;
+  if (mutation === 'hidden-action') document.querySelector<HTMLElement>('#sign-in')!.style.display = 'none';
+  if (mutation === 'transparent-action') document.querySelector<HTMLElement>('#sign-in')!.style.opacity = '0';
   if (mutation === 'no-password') document.querySelector('#password_text_field')!.remove();
   if (mutation === 'new-password') document.querySelector('#password_text_field')!.setAttribute('autocomplete', 'new-password');
   if (mutation === 'competing-action') document.querySelector('#sign-in')!.after(document.querySelector('#sign-in')!.cloneNode(true));

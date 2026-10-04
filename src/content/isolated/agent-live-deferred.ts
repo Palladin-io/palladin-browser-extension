@@ -43,8 +43,9 @@ export class DeferredLiveLogin {
     const candidates = [...scopes].flatMap(scope => {
       const stage = this.stage(scope);
       if (!stage) return [];
-      const allowCustom = this.hints(scope).some(isCustomLoginAction);
-      const hint = allowCustom || queryOpenElements<HTMLElement>(scope, 'button,input[type="submit"],div,p,span')
+      const hints = this.hints(scope);
+      const allowCustom = hints.some(isCustomLoginAction);
+      const hint = hints.length > 0 || queryOpenElements<HTMLElement>(scope, 'button,input[type="submit"],div,p,span')
         .some(node => this.dom.isVisible(node) && hasLoginActionLabel(node));
       if (!hint || this.actions(scope, allowCustom).length > 0) return [];
       return [{ scope, fields: stage, allowCustom }];
@@ -212,7 +213,10 @@ export class DeferredLiveLogin {
   private hints(scope: HTMLElement): LiveLoginAction[] {
     return queryOpenElements(this.doc, LIVE_ACTION_SELECTOR).filter((action): action is LiveLoginAction =>
       (isNativeLoginAction(action) || isCustomLoginAction(action)) && credentialScopeFor(action) === scope
-      && this.dom.isVisible(action) && isVisibleScopeHint(action) && hasLoginActionLabel(action));
+      && isVisibleScopeHint(action) && hasLoginActionLabel(action)
+      // Disabled native actions can identify a stage before input enables them;
+      // actions()/commit still require the ordinary hit-test and enabled state.
+      && (this.dom.isVisible(action) || (isNativeLoginAction(action) && action.matches(':disabled'))));
   }
   private actions(scope: HTMLElement, allowCustom: boolean): LiveLoginAction[] {
     return this.hints(scope).filter(action => (isNativeLoginAction(action) || allowCustom)

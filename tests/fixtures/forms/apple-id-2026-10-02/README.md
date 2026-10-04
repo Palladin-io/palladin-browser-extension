@@ -38,3 +38,14 @@ top-frame stages. This is not installed-browser Apple authentication acceptance:
 that remains pending after review/build installation. The password transition
 is synthetic on the observed structure; real password/2FA stages have not been
 captured or claimed as verified.
+
+Re-observed 2026-10-04 on the same public Polish identifier page: the native
+Continue button is disabled with `pointer-events: none; opacity: 0.42`. These
+computed styles were missing from the original reduction and are now included.
+No input values or site scripts were read. Adding just these styles made the
+built Chromium frame test fail at preparation (`provider-unavailable` instead
+of `ready`) before the fix. The fixture now tests preparation before the button
+becomes interactive. The synthetic input listener models enabling it; negative
+cases keep it disabled or keep pointer events blocked after enabling and require
+no submit-ready result, no click, and cleanup. Hidden/transparent action rejection
+is covered separately. Installed-browser acceptance of this follow-up is pending.
