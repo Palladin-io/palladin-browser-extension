@@ -65,9 +65,10 @@ describe("tomojdom staged form-less login", () => {
     } finally { subject.stop(); }
   });
 
-  it.each(['same-account', 'changed-account', 'replaced-username', 'replaced-panel', 'navigation', 'lock', 'lock-pending', 'different-entry', 'different-suggestion-account', 'related-entry', 'prefilled'])(
+  it.each(['same-account', 'changed-account', 'replaced-username', 'replaced-panel', 'navigation', 'lock', 'lock-pending', 'different-entry', 'different-suggestion-account', 'related-entry', 'prefilled', 'popup-choice', 'popup-wrong-document', 'popup-wrong-origin'])(
     'continues automatic identifier fill only for the bound same-account flow: %s', async (variant) => {
       const { username, password, step, container } = mount();
+      const continues = ['same-account', 'popup-wrong-document', 'popup-wrong-origin'].includes(variant);
       vi.stubGlobal("chrome", { storage: { local: { get: async () => ({}) } }, i18n: { getUILanguage: () => "en" } });
       if (variant === 'prefilled') username.value = '12345678';
       let passwordStage = false;
@@ -99,18 +100,29 @@ describe("tomojdom staged form-less login", () => {
         }
         if (variant === 'navigation') jsdom.reconfigure({ url: 'https://tomojdom.pl/other-page' });
         if (variant === 'lock') subject.clearSessionState();
+        if (variant.startsWith('popup-')) {
+          const popupChoice = { channel: 'palladin.fill/request' as const, documentId: 'a'.repeat(32),
+            expectedOrigin: 'https://tomojdom.pl', expectedDomain: 'tomojdom.pl', loginTargetId: null,
+            intent: 'manual' as const, submit: false,
+            fields: [fields[0]!, { kind: 'password' as const, value: 'explicit-other-entry-password' }] };
+          if (variant === 'popup-wrong-document') popupChoice.documentId = 'wrong-document';
+          if (variant === 'popup-wrong-origin') popupChoice.expectedOrigin = 'https://other.tomojdom.pl';
+          expect(subject.performFillRequest(popupChoice)).toEqual(variant === 'popup-choice'
+            ? { ok: true } : { ok: false, reason: 'target-changed' });
+          expect(username.value).toBe('12345678');
+        }
         if (variant === 'replaced-panel') {
           const replacement = container.cloneNode(false) as HTMLElement;
           replacement.append(...container.childNodes); container.replaceWith(replacement);
         }
         step.classList.remove('d-none');
-        if (variant === 'same-account') await vi.waitFor(() => expect(password.value).toBe('fixture-password'));
+        if (continues) await vi.waitFor(() => expect(password.value).toBe('fixture-password'));
         else await new Promise(resolve => setTimeout(resolve, 160));
-        expect(password.value).toBe(variant === 'same-account' ? 'fixture-password' : '');
+        expect(password.value).toBe(continues ? 'fixture-password' : '');
         subject.retryAutomaticFill();
         await Promise.resolve();
         expect(send.mock.calls.filter(([command]) => command.type === 'inline/fill')).toHaveLength(
-          variant === 'prefilled' ? 0 : variant === 'same-account' ? 2 : 1,
+          variant === 'prefilled' ? 0 : continues ? 2 : 1,
         );
         expect(clicked).not.toHaveBeenCalled();
       } finally { subject.stop(); jsdom.reconfigure({ url: 'https://tomojdom.pl/en/' }); }

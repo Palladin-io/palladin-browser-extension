@@ -14,12 +14,15 @@ import {
 import {
   INLINE_AUTOFILL_CHANNEL,
   isInlineAutofillResult,
+  type FillRequestMessage,
+  type FillOutcome,
   type InlineAutofillCommand,
   type InlineAutofillSuggestion,
 } from "@shared/messaging";
 import { queryOpenElements } from "./open-dom";
 import { extensionBuildTarget, type ExtensionBuildTarget } from "@shared/config/build-target";
 import {
+  performBoundFill,
   discardLoginTargetFill,
   isCurrentLoginTarget,
   loginTargetFor,
@@ -94,6 +97,7 @@ export function startInlineAutofill(
   documentId: string,
   send: Send = (command) => chrome.runtime.sendMessage(command),
 ): {
+  performFillRequest(request: FillRequestMessage): FillOutcome;
   invalidateSuggestions(): void;
   isOwnedSurface(element: Element): boolean;
   retryAutomaticFill(): void;
@@ -105,6 +109,7 @@ export function startInlineAutofill(
   const controller = new InlineAutofillController(doc, documentId, send);
   controller.start();
   return {
+    performFillRequest: request => controller.performFillRequest(request),
     invalidateSuggestions: () => controller.invalidateSuggestions(),
     isOwnedSurface: (element: Element) => controller.isOwnedSurface(element),
     retryAutomaticFill: () => controller.retryAutomaticFill(),
@@ -317,6 +322,14 @@ class InlineAutofillController {
       const first = this.widgets.values().next().value as InlineWidget | undefined;
       if (first !== undefined) void first.autoFillPreferredExact();
     }
+  }
+
+  performFillRequest(request: FillRequestMessage): FillOutcome {
+    const target = request.loginTargetId === null ? null : this.resolveLoginTarget(request.loginTargetId);
+    return performBoundFill(this.doc, request, this.doc.location.href, this.documentId, target, () => {
+      this.continuation = null;
+      for (const widget of this.widgets.values()) widget.cancelAutomaticFill();
+    });
   }
 
   clearSessionState(): void {
@@ -607,6 +620,12 @@ class InlineWidget {
     if (this.lastFilled === null) return false;
     void this.warnIfFilledEntryChanged();
     return true;
+  }
+
+  cancelAutomaticFill(): void {
+    this.sessionGeneration += 1;
+    this.automaticFillRetryRequested = false;
+    if (this.pendingFill?.manual === false) this.invalidatePendingFill();
   }
 
   clearSessionState(): void {

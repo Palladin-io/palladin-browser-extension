@@ -204,6 +204,7 @@ export function performBoundFill(
   currentUrl: string,
   currentDocumentId: string,
   loginTarget: LoginTarget | null = null,
+  beforeUntargetedManualFill?: () => void,
 ): FillOutcome {
   if (currentDocumentId !== message.documentId
     || (loginTarget !== null && loginTarget.sourceDocument !== doc)) {
@@ -220,6 +221,7 @@ export function performBoundFill(
   if (message.expectedDomain !== null && !matchesTab(currentUrl, message.expectedDomain)) {
     return { ok: false, reason: "target-changed" };
   }
+  if (message.intent === 'manual' && message.loginTargetId === null) beforeUntargetedManualFill?.();
   const automaticEmpty = loginTarget !== null && [loginTarget.username, loginTarget.password]
     .every(input => input === null || input.value === '');
   if (loginTarget && message.intent === 'manual') discardAutomaticFillProvenance(loginTarget);
