@@ -23,16 +23,20 @@ const proton = await readFile('tests/fixtures/forms/proton-login-2026-09-20/page
 const linkedin = await readFile('tests/fixtures/forms/linkedin-login-2026-09-20/page.html', 'utf8');
 const aws = await readFile('tests/fixtures/forms/aws-root-identifier-2026-09-20/page.html', 'utf8');
 const jetbrains = await readFile('tests/fixtures/forms/jetbrains-identifier-2026-09-20/page.html', 'utf8');
+const tomojdom = await readFile('tests/fixtures/forms/tomojdom-login-2026-10-04/page.html', 'utf8');
+const tomojdomCss = await readFile('tests/fixtures/forms/tomojdom-login-2026-10-04/page.css', 'utf8');
+const livekid = await readFile('tests/fixtures/forms/livekid-login-2026-10-04/page.html', 'utf8');
+const tomojdomUsername = '12345678';
 const apple = await readFile('tests/fixtures/forms/apple-idmsa-signin-2026-09-16/page.html', 'utf8');
 try {
   const vault = api.vaults[0];
-  for (const host of ['proton.example.test', 'jetbrains.example.test', 'linkedin.example.test', 'aws.example.test', 'idmsa.apple.com']) {
+  for (const host of ['proton.example.test', 'jetbrains.example.test', 'linkedin.example.test', 'aws.example.test', 'idmsa.apple.com', 'tomojdom.pl', 'app.livekid.com']) {
     const entryId = randomUUID();
     const secret = { schema: 'palladin.member-secret.v1', entryType: 'credential', memberLabel: host,
       agentLabel: null, discoverable: false, description: null, icon: null, color: null, agentFieldAccess: { memberLabel: 'never', agentLabel: 'never', description: 'never', icon: 'never', color: 'never',
         entryType: 'never', 'credential.username': 'never', 'credential.password': 'never', 'credential.url': 'never',
         'credential.urlDomain': 'never', 'credential.totp': 'never', notes: 'never' },
-      content: { username, password, url: `https://${host}/login`, urlDomain: host, totp: null, notes: null, customFields: [] } };
+      content: { username: host === 'tomojdom.pl' ? tomojdomUsername : username, password, url: `https://${host}/login`, urlDomain: host, totp: null, notes: null, customFields: [] } };
     const material = await crypto.sealCanonicalEntry({ organizationId: vault.detail.organizationId,
       vaultId: vault.detail.id, entryId, revision: '1', vaultKeyVersion: 1, vdkVersion: 1, memberKeyGeneration: 1 },
     secret, vault.vaultKey, vault.discoveryKey, 1);
@@ -41,7 +45,7 @@ try {
       agentDiscoveryRevision: null, agentDiscoveryRevisionHighWatermark: '0', deliveryPolicy: 'standard',
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
   }
-  vault.detail.memberSequence = '6'; vault.detail.entryCount = 5;
+  vault.detail.memberSequence = '8'; vault.detail.entryCount = 7;
   const extension = path.join(profile, 'dist/chromium');
   await promisify(execFile)(process.execPath, ['node_modules/vite/bin/vite.js', 'build', '--outDir', extension], {
     env: { ...process.env, PALLADIN_TARGET: 'chromium', PALLADIN_CHANNEL: 'production', VITE_API_URL: api.url, VITE_POSTHOG_KEY: '' }, maxBuffer: 4 * 1024 * 1024,
@@ -53,6 +57,16 @@ try {
   await context.route('https://**/*', route => {
     const url = new URL(route.request().url());
     const host = url.hostname;
+    if (['tomojdom.pl', 'app.livekid.com'].includes(host)) {
+      if (!['/', '/en/'].includes(url.pathname)) return route.abort();
+      return route.fulfill({ contentType: 'text/html; charset=utf-8', body:
+        `<!doctype html><style>body{margin:40px}input{display:block;width:380px;height:40px;margin:12px 0}${tomojdomCss}</style>
+        ${host === 'tomojdom.pl' ? tomojdom : livekid}<script>
+        globalThis.loginClicks=0;
+        document.querySelectorAll('#modules button, #modules a, #login-button').forEach(action =>
+          action.addEventListener('click', event => { event.preventDefault(); globalThis.loginClicks++; }));
+        </script>` });
+    }
     if (host === 'account.apple.com' && url.pathname === '/sign-in') {
       return route.fulfill({ contentType: 'text/html; charset=utf-8', body:
         '<!doctype html><title>Apple sign-in fixture</title><iframe title="Apple sign-in" style="width:640px;height:360px" src="https://idmsa.apple.com/appleauth/auth/authorize/signin"></iframe>' });
@@ -104,6 +118,33 @@ try {
         && shield.right < field.right && shield.left > field.left;
     }, selector), `shield aligned to ${selector}`);
   };
+  await page.goto('https://app.livekid.com/');
+  await wait(async () => await page.locator('input[name="password"]').inputValue() === password, 'LiveKid visible pair automatic fill');
+  assert.equal(await page.locator('input[name="mail"]').inputValue(), username);
+  assert.equal(await page.evaluate(() => globalThis.loginClicks), 0);
+  await aligned('input[name="mail"]');
+  await page.goto('https://tomojdom.pl/en/');
+  const tomojdomIdentifier = 'input[autocomplete="username email"]';
+  await wait(async () => await page.locator(tomojdomIdentifier).inputValue() === tomojdomUsername, 'Tomojdom identifier automatic fill');
+  assert.equal(await page.locator('input[type="password"]').inputValue(), '');
+  assert.equal(await page.locator('input[autocomplete="email"]').inputValue(), '');
+  await aligned(tomojdomIdentifier);
+  // Synthetic transition on observed DOM; no production scripts/API or login.
+  await page.evaluate(() => document.querySelector('input[type="password"]').parentElement.parentElement.classList.remove('d-none'));
+  await aligned('input[type="password"]');
+  assert.equal(await page.locator('palladin-autofill').count(), 1);
+  assert.equal(await page.locator('input[type="password"]').inputValue(), '');
+  await click('Open Palladin suggestions');
+  let fillName;
+  await wait(async () => {
+    fillName = (await cdp.send('Accessibility.getFullAXTree')).nodes.find(node => !node.ignored
+      && node.role?.value === 'button' && node.name?.value.startsWith(tomojdomUsername))?.name?.value;
+    return Boolean(fillName);
+  }, 'Tomojdom explicit fill-only suggestion');
+  await click(fillName);
+  await wait(async () => await page.locator('input[type="password"]').inputValue() === password, 'Tomojdom same-account explicit password fill');
+  assert.equal(await page.evaluate(() => globalThis.loginClicks), 0);
+  console.log('PASS: observed LiveKid pair and Tomojdom staged panels fill through built extension without login clicks');
   await page.goto('https://account.apple.com/sign-in');
   const appleFrame = page.frameLocator('iframe');
   await wait(async () => await appleFrame.locator('#account_name_text_field').inputValue() === username,

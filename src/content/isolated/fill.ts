@@ -9,7 +9,7 @@ import { matchesTab } from "@shared/security/domain";
 type TextLikeInput = HTMLInputElement;
 type FillControl = HTMLInputElement | HTMLTextAreaElement;
 
-import { isFillable, isCurrentLoginTarget, type LoginTarget } from './credential-form-analysis';
+import { isFillable, isCurrentLoginTarget, loginTargetFor, type LoginTarget } from './credential-form-analysis';
 import { credentialScopeFor, hasLoginActionLabel, isVisibleScopeHint } from './login-controls';
 import { queryOpenElements } from './open-dom';
 export { isFillable, isCurrentLoginTarget, loginTargetFor, type LoginTarget } from './credential-form-analysis';
@@ -97,6 +97,14 @@ export function performFill(doc: Document, fields: readonly FillField[]): FillOu
     || field.kind === "cardholder"
     || field.kind === "billing-address");
   if (cardFields.length > 0) return performCardFill(doc, cardFields);
+
+  if (doc.location.origin === 'https://tomojdom.pl') {
+    for (const input of doc.querySelectorAll<HTMLInputElement>('input')) {
+      const target = loginTargetFor(input);
+      if (target !== null) return performLoginTargetFill(target, fields, 'manual');
+    }
+    return { ok: false, reason: 'no-form' };
+  }
 
   const password = firstFillablePassword(doc);
   if (!password) return { ok: false, reason: "no-form" };
@@ -197,7 +205,8 @@ export function performBoundFill(
   currentDocumentId: string,
   loginTarget: LoginTarget | null = null,
 ): FillOutcome {
-  if (currentDocumentId !== message.documentId) {
+  if (currentDocumentId !== message.documentId
+    || (loginTarget !== null && loginTarget.sourceDocument !== doc)) {
     return { ok: false, reason: "target-changed" };
   }
   try {
