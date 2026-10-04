@@ -73,8 +73,8 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
   if (!target) { socket.close(); throw new Error('Native extension surface did not open') }
   const { sessionId } = await send('Target.attachToTarget', { targetId: target.targetId, flatten: true })
   const command = (method, params) => send(method, params, sessionId)
-  const wait = async (read, label) => {
-    const deadline = Date.now() + 20000
+  const wait = async (read, label, timeoutMs = 20000) => {
+    const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
       const result = await read()
       if (result) return result
@@ -167,6 +167,12 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
       }, `trusted button click: ${name}`)
       return { attempts }
     },
+    async clickOpeningBrowserDialog(name) {
+      const node = (await command('Accessibility.getFullAXTree')).nodes.find(node =>
+        !node.ignored && node.role?.value === 'button' && node.name?.value === name)
+      assert(node?.backendDOMNodeId, 'Native dialog trigger must be visible')
+      await clickNode(node.backendDOMNodeId)
+    },
     async fill(selector, value, { replace = false } = {}) {
       await wait(() => evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`), selector)
       const { root } = await command('DOM.getDocument')
@@ -231,7 +237,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
         && node.properties?.some(property => property.name === 'checked' && String(property.value.value) === String(checked))),
       `switch ${name}: ${checked}`)
     },
-    async waitText(text) { await wait(() => evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`), text) },
+    async waitText(text, timeoutMs) { await wait(() => evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`), text, timeoutMs) },
     async screenshot(file) { const { data } = await command('Page.captureScreenshot'); await writeFile(file, Buffer.from(data, 'base64')) },
     close() { socket.close() },
   }

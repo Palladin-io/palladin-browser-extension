@@ -57,7 +57,10 @@ assert(accountIsolation || accountUnlockCycles === 1, 'Repeated account unlock r
 assert(!(sidePanel && (accountIsolation || totp)), 'Side-panel scenario currently requires the same password-only synthetic account')
 assert(!(accountIsolation && totp), 'Account isolation currently requires password-only synthetic accounts')
 const backendSource = process.argv.includes('--backend-source') ? path.resolve(argument('--backend-source')) : undefined
-for (const url of [apiUrl, sesUrl]) assert(['localhost', '127.0.0.1'].includes(new URL(url).hostname), 'Isolated loopback services only')
+const insecureHttpApi = process.argv.includes('--insecure-http-api')
+assert(['localhost', '127.0.0.1'].includes(new URL(sesUrl).hostname), 'Isolated loopback mail only')
+assert(insecureHttpApi ? apiUrl === 'http://api.palladin.test:55083' && headed
+  : ['localhost', '127.0.0.1'].includes(new URL(apiUrl).hostname), 'API must be loopback or the explicit DNS-mapped headed HTTP fixture')
 const insecureHttpPanel = process.argv.includes('--insecure-http-panel')
 const webOrigin = insecureHttpPanel ? 'http://panel.palladin.test:5173' : 'http://127.0.0.1:5173'
 const webDirectory = path.join(webSource, 'dist')
@@ -109,6 +112,7 @@ const provenance = {
   delayedManualAuthorization: delayManualAuthorization,
   fullBrowserRestart,
   insecureHttpPanel,
+  insecureHttpApi,
   authorizationRateLimitRetry,
   ownActivityDuringPrepare,
   independentIdleExpiry,
@@ -126,7 +130,7 @@ const provenance = {
 const launchOptions = {
   ...(browserExecutable ? { executablePath: browserExecutable } : { channel: 'chromium' }), headless: !headed,
   ...(installViaCdp ? { ignoreDefaultArgs: ['--disable-extensions'] } : {}),
-  args: ['--remote-debugging-port=0', ...(insecureHttpPanel ? ['--host-resolver-rules=MAP panel.palladin.test 127.0.0.1', '--no-proxy-server'] : []), ...(installViaCdp ? ['--enable-unsafe-extension-debugging']
+  args: ['--remote-debugging-port=0', ...((insecureHttpPanel || insecureHttpApi) ? ['--host-resolver-rules=MAP panel.palladin.test 127.0.0.1, MAP api.palladin.test 127.0.0.1', '--no-proxy-server'] : []), ...(installViaCdp ? ['--enable-unsafe-extension-debugging']
     : [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`])],
 }
 async function observeLocalContext() {
@@ -242,7 +246,7 @@ const allowedEmails = new Set([email])
 try {
   await mkdir(output, { recursive: true }); await rm(path.join(output, 'report.json'), { force: true })
   await rm(path.join(output, 'failure.json'), { force: true })
-  assert.equal((await fetch(apiUrl + '/api/health')).status, 200)
+  assert.equal((await fetch((insecureHttpApi ? 'http://127.0.0.1:55083' : apiUrl) + '/api/health')).status, 200)
   mailServer = createServer((request, response) => {
     if (request.method !== 'POST' || request.url !== '/v2/email/outbound-emails') { response.writeHead(404); response.end(); return }
     let body = ''
@@ -369,6 +373,7 @@ try {
   checks.push('actual-web-manual-password-login')
   stage = 'extension-automatic-unlock'
   popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId)
+  if (insecureHttpApi) assert.equal(await worker.evaluate(origin => chrome.permissions.contains({ origins: [origin + '/*'] }), new URL(apiUrl).origin), false)
   await popup.click('Continue to Palladin')
   await popup.click('Settings')
   await popup.click('Server URL')
@@ -382,10 +387,23 @@ try {
   await popup.fill('.server-settings-form input[type="url"]:not([autocomplete])', webOrigin + '/', { replace: true })
   assert.deepEqual(await popup.connectionFormState(), { sharedUnlock: true, allowHttp: false, saveDisabled: true })
   await popup.click(httpConsent, 'checkbox')
-  await popup.click('Save and activate')
-  await popup.waitText('Unlocked')
+  if (insecureHttpApi) {
+    await popup.clickOpeningBrowserDialog('Save and activate')
+    console.log('WAITING: approve only api.palladin.test in the native browser dialog')
+    const permissionDeadline = Date.now() + 60000
+    while (!await worker.evaluate(origin => chrome.permissions.contains({ origins: [origin + '/*'] }), new URL(apiUrl).origin)) {
+      assert(Date.now() < permissionDeadline, 'Native API permission approval timed out')
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+  } else await popup.click('Save and activate')
+  // Native permission approval may outlast the document's bounded 30s reconnect backoff.
+  await popup.waitText('Unlocked', insecureHttpApi ? 45000 : undefined)
   await popup.click('Back')
   checks.push('native-settings-form-approves-pair-and-resets-http-consent-on-address-edit')
+  if (insecureHttpApi) {
+    assert.equal(await worker.evaluate(origin => chrome.permissions.contains({ origins: [origin + '/*'] }), new URL(apiUrl).origin), true)
+    checks.push('native-optional-http-api-host-permission-approved')
+  }
   await popup.waitText('Unlocked')
   checks.push('actual-extension-automatic-unlock')
   await popup.waitText('No entries yet')
@@ -695,6 +713,6 @@ async function writeEvidence(kind, value) {
   await writeFile(path.join(output, `${kind}.json`), contents)
   const version = String(provenance.browserVersion ?? 'launch').replace(/[^a-zA-Z0-9.-]/g, '_')
   const scenario = (persistViaBrowserUi ? '.browser-ui-persisted' : '') + (fullBrowserRestart ? '.full-browser-restart' : '') + (authorizationRateLimitRetry ? '.authorization-rate-limit-retry' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '') + (totp ? '.totp' : '') + (settings ? '.settings' : '') + (settingsRaces ? '.settings-races' : '') + (accountIsolation ? '.account-isolation' : '') + (accountIsolation && accountLogoutDirection === 'extension' ? '.extension-logout' : '') + (accountUnlockCycles > 1 ? `.unlock-cycles-${accountUnlockCycles}` : '')
-  const sessionScenario = (independentIdleExpiry ? '.independent-idle-expiry' : '') + (multipleWebDocuments ? '.multiple-web-documents' : '') + (retiredWebReceiver ? '.retired-web-receiver' : '') + (sidePanel ? '.side-panel' : '') + (sidePanelUnavailable ? '.side-panel-unavailable' : '')
+  const sessionScenario = (insecureHttpApi ? '.insecure-http-api' : '') + (independentIdleExpiry ? '.independent-idle-expiry' : '') + (multipleWebDocuments ? '.multiple-web-documents' : '') + (retiredWebReceiver ? '.retired-web-receiver' : '') + (sidePanel ? '.side-panel' : '') + (sidePanelUnavailable ? '.side-panel-unavailable' : '')
   await writeFile(path.join(output, `${kind}.${browserLabel}-${version}${scenario}${sessionScenario}.json`), contents)
 }

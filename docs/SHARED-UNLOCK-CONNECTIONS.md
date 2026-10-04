@@ -59,8 +59,14 @@ localhost:5000 permission. A subsequent run exercised HTTP consent and address-e
 the real Settings form. Its full 24-check run also passed real 15-minute Web
 idle while the active extension kept decrypting, persistent denial after reload,
 zero steady retries, rejected-session cleanup and fresh manual recovery.
-Optional-host permission prompt UX, remote API host, staging and platform
-acceptance remain separate rollout gates.
+A separate headed Chromium run with both panel and API on non-loopback HTTP
+names passed 20 Identity/Entry checks. It used the real Settings form and native
+optional API host-permission dialog, then verified shared unlock, decryption,
+worker restart and manual lock/logout. The fixture maps both names to loopback;
+it does not test a real LAN transport. The panel build requires explicit
+`PALLADIN_ALLOW_INSECURE_HTTP_CONNECTIONS=true` for a remote HTTP API, separately
+from the user's extension consent. HTTPS remains the default.
+Full authenticated staging and platform acceptance remain separate rollout gates.
 The candidate was installed locally from npm cache against the registry lock;
 0.12.0 must be published and its registry integrity verified before consumer CI
 and release. Firefox/Safari builds are not runtime acceptance.
