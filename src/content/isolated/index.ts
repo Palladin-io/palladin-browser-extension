@@ -53,6 +53,8 @@ import { startCredentialCapture } from "./credential-capture";
 import { extensionBuildTarget } from "@shared/config/build-target";
 import { FIREFOX_LEGACY_FILL_PORT } from "../../shared/messaging/firefox-legacy-fill";
 import { startLegacyFirefoxFill } from "./firefox-legacy-fill";
+import { startShareSaveBridge } from './share-save';
+import { sharePageRequest } from '../../shared/messaging/share-save';
 
 const sessionNonce = generateNonce();
 const documentId = generateNonce();
@@ -74,6 +76,10 @@ port = createReconnectingWorkerPort(
       sessionKeepalive.setEnabled(raw.enabled);
       return;
     }
+    if (isBridgeMessage(raw) && raw.type === 'share-save/response') {
+      shareSaveResponses.get(raw.response.requestId)?.(raw.response);
+      return;
+    }
     if (!isBridgeMessage(raw)) return;
     window.postMessage(
       createEnvelope("isolated->main", sessionNonce, raw),
@@ -92,6 +98,17 @@ port = createReconnectingWorkerPort(
     return /back\/forward cache/i.test(message) ? "bfcache" : "worker";
   },
 );
+const shareSaveResponses = new Map<string, (value: unknown) => void>();
+if (window === window.top) {
+  startShareSaveBridge(window, message => new Promise((resolve, reject) => {
+    const parsed = sharePageRequest.safeParse(message);
+    if (!parsed.success) { reject(new Error('Invalid share request')); return; }
+    const timer = setTimeout(() => { shareSaveResponses.delete(parsed.data.requestId); reject(new Error('Share bridge timeout')); }, 9_000);
+    shareSaveResponses.set(parsed.data.requestId, response => { clearTimeout(timer); shareSaveResponses.delete(parsed.data.requestId); resolve(response); });
+    try { port.postMessage({ type: 'share-save/request', request: parsed.data }); }
+    catch (error) { clearTimeout(timer); shareSaveResponses.delete(parsed.data.requestId); reject(error); }
+  }));
+}
 const passwordCapture = startPasswordCaptureDetection(
   document,
   () => window.location.href,

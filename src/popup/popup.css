@@ -1484,6 +1484,24 @@ body {
 
 /* ── Extension-owned new-password prompt ───────────────────────────────── */
 
+.share-save-prompt {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 16px;
+  color: var(--cv-t1);
+}
+
+.share-save-prompt h2,
+.share-save-prompt p { margin: 0; }
+.share-save-prompt h2 { font-size: 16px; font-weight: 600; }
+.share-save-name { overflow-wrap: anywhere; font-size: 14px; font-weight: 600; }
+.share-save-kind { color: var(--cv-t2); font-size: 12px; }
+.share-save-error { color: var(--cv-primary); font-size: 12px; line-height: 1.4; }
+.share-save-actions { display: flex; gap: 8px; margin-top: auto; }
+.share-save-actions .btn { flex: 1; min-width: 0; }
+
 .capture-prompt {
   padding: 12px;
   border: 1px solid rgb(var(--cv-primary-rgb) / 0.32);

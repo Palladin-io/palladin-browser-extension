@@ -21,6 +21,21 @@ describe("isBridgeMessageType", () => {
   });
 });
 
+describe('share-save Port vocabulary', () => {
+  it('accepts only fully validated page requests', () => {
+    const requestId = '11111111-1111-4111-8111-111111111111';
+    expect(isBridgeMessage({ type: 'share-save/request', request: {
+      channel: 'palladin.entry-share.extension-save.v1', type: 'status', requestId,
+    } })).toBe(true);
+    expect(isBridgeMessage({ type: 'share-save/request', request: {
+      channel: 'palladin.entry-share.extension-save.v1', type: 'status', requestId, extra: 'bad',
+    } })).toBe(false);
+    expect(isBridgeMessage({ type: 'share-save/response', response: {
+      channel: 'palladin.entry-share.extension-save.v1', type: 'response', requestId, status: 'saved',
+    } })).toBe(true);
+  });
+});
+
 describe("isBridgeMessage", () => {
   it("accepts each well-formed variant", () => {
     expect(isBridgeMessage({ type: "bridge/hello", nonce: "abc" })).toBe(true);

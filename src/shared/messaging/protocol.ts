@@ -22,6 +22,7 @@
  */
 
 export const BRIDGE_CHANNEL = "palladin.bridge.v1" as const;
+import { sharePageRequest, sharePageResponse, type SharePageRequest, type SharePageResponse } from './share-save';
 
 /** Direction of a window envelope, named relative to the isolated content script. */
 export type BridgeDirection = "isolated->main" | "main->isolated";
@@ -36,7 +37,9 @@ export type BridgeMessage =
   | { readonly type: "bridge/ready" }
   | { readonly type: "bridge/ping"; readonly at: number }
   | { readonly type: "bridge/pong"; readonly at: number }
-  | { readonly type: "webauthn/observed"; readonly kind: "get" | "create" };
+  | { readonly type: "webauthn/observed"; readonly kind: "get" | "create" }
+  | { readonly type: 'share-save/request'; readonly request: SharePageRequest }
+  | { readonly type: 'share-save/response'; readonly response: SharePageResponse };
 
 export type BridgeMessageType = BridgeMessage["type"];
 
@@ -46,6 +49,8 @@ const BRIDGE_MESSAGE_TYPES: ReadonlySet<string> = new Set<BridgeMessageType>([
   "bridge/ping",
   "bridge/pong",
   "webauthn/observed",
+  'share-save/request',
+  'share-save/response',
 ]);
 
 /** Envelope wrapping a {@link BridgeMessage} for the window.postMessage transport. */
@@ -82,6 +87,10 @@ export function isBridgeMessage(value: unknown): value is BridgeMessage {
       return typeof message.at === "number" && Number.isFinite(message.at);
     case "webauthn/observed":
       return message.kind === "get" || message.kind === "create";
+    case 'share-save/request':
+      return sharePageRequest.safeParse(message.request).success;
+    case 'share-save/response':
+      return sharePageResponse.safeParse(message.response).success;
     default: {
       const _exhaustive: never = message;
       return _exhaustive;
