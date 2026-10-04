@@ -860,7 +860,7 @@ html:not([data-extension-surface='side-panel']):has(.popup[data-phase='settings'
 .auth-form-panel .field-label { font-weight: 500; }
 .auth-form-panel .field-input { height: 40px; }
 .auth-form-panel .form > .btn[type='submit'] { margin-top: 8px; min-height: 40px; border-radius: 8px; }
-.auth-registration { margin-top: 20px; padding-top: 16px; }
+.auth-registration { margin-top: 20px; padding-top: 0; border-top: 0; }
 @media (prefers-reduced-motion: no-preference) {
   html:not([data-extension-surface='side-panel']),
   html:not([data-extension-surface='side-panel']) body {
@@ -871,6 +871,8 @@ html:not([data-extension-surface='side-panel']):has(.popup[data-phase='settings'
 /* AppWordmark + AuthBrandHeader from web; Inter is the web's --font-sans. */
 .wordmark {
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   font-size: 19px;
   font-weight: 800;
   line-height: normal;
