@@ -164,4 +164,31 @@ describe("tomojdom staged form-less login", () => {
       .toEqual({ ok: false, reason: "target-changed" });
     expect(username.value).toBe("");
   });
+
+  it.each(['identifier', 'password'])('rejects a %s target adopted into another same-origin document', (stage) => {
+    const { username, password, step } = mount();
+    if (stage === 'password') {
+      username.value = '12345678';
+      step.classList.remove('d-none');
+    }
+    const target = loginTargetFor(stage === 'identifier' ? username : password)!;
+    expect(target).not.toBeNull();
+    const frame = document.createElement('iframe');
+    frame.src = 'https://tomojdom.pl/other-document';
+    document.body.append(frame);
+    const other = frame.contentDocument!;
+    other.open(); other.write('<!doctype html><html><body></body></html>'); other.close();
+    other.head.append(document.querySelector('style')!.cloneNode(true));
+    other.body.append(other.adoptNode(document.querySelector('#modules')!));
+    expect(password.ownerDocument).toBe(other);
+    expect(loginTargetFor(stage === 'identifier' ? username : password)).not.toBeNull();
+    const message = { channel: 'palladin.fill/request' as const, documentId: 'doc', expectedOrigin: 'https://tomojdom.pl',
+      expectedDomain: 'tomojdom.pl', loginTargetId: 'login-1', fields, submit: false, intent: 'manual' as const };
+    expect(performBoundFill(document, message, location.href, 'doc', target)).toEqual({ ok: false, reason: 'no-form' });
+    const foreignTarget = loginTargetFor(stage === 'identifier' ? username : password)!;
+    expect(performBoundFill(document, message, location.href, 'doc', foreignTarget))
+      .toEqual({ ok: false, reason: 'target-changed' });
+    expect(password.value).toBe('');
+    expect(username.value).toBe(stage === 'password' ? '12345678' : '');
+  });
 });

@@ -45,6 +45,8 @@ panel's existing identifier to match the selected Credential. Popup Fill uses
 the same target validation. Automatic fill never clicks a login, email-code or
 saved-key action. Other origins do not receive this exception. LiveKid's
 observed form-less login uses the existing generic credential-scope analysis.
+Every inline target retains its source Document; adopting its container or
+controls into another Document invalidates it even when the origin is unchanged.
 
 Open shadow roots attached after startup are discovered through bounded probes of
 previously observed eligible hosts (at most 256 native property checks per 250 ms).

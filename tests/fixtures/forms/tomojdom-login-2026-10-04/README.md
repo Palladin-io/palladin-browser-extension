@@ -27,6 +27,11 @@ synthetic field dimensions and click counters, with all requests served locally.
   routing change. Tests cover automatic identifier fill once, explicit
   same-account password fill, hidden recovery controls, replacement/ambiguity,
   HTTP/other origins and final document/origin binding.
+- Codex round 1 reproduced two additional RED assertions: moving the identifier
+  or password target into another same-origin iframe Document still allowed a
+  write. Targets now retain the source Document and reject adopted controls;
+  the bound fill also rejects a fresh foreign-document target. This is a
+  synthetic DOM-adoption regression, not an observed action by the website.
 - User adapter: initial identifier-only target; password target carries the
   existing account identity and is explicit-only. No automatic action click.
 - Agent adapter: no new Agent execution support is claimed by these tests;

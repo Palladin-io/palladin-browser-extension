@@ -205,7 +205,8 @@ export function performBoundFill(
   currentDocumentId: string,
   loginTarget: LoginTarget | null = null,
 ): FillOutcome {
-  if (currentDocumentId !== message.documentId) {
+  if (currentDocumentId !== message.documentId
+    || (loginTarget !== null && loginTarget.sourceDocument !== doc)) {
     return { ok: false, reason: "target-changed" };
   }
   try {
