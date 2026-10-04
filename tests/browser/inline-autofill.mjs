@@ -91,10 +91,12 @@ try {
     ?? await context.waitForEvent('page', { predicate: page => page.url().includes('/onboarding/') });
   await onboarding.close();
   popup = await openNativePopup(worker, profile, extensionId);
+  await popup.click('Continue to Palladin');
+  await popup.waitButton('Sign in');
   const configured = await popup.configureConnection({ name: 'Synthetic capture API', apiUrl: api.url,
     webUrl: api.url, allowHttp: true, sharedUnlockEnabled: false });
   assert.equal(configured.ok, true, JSON.stringify(configured));
-  await popup.click('Continue to Palladin'); await popup.fill('input[type="email"]', api.email);
+ await popup.fill('input[type="email"]', api.email);
   await popup.fill('input[type="password"]', api.password); await popup.click('Sign in');
   await popup.waitText('proton.example.test');
   const page = await context.newPage();

@@ -1,3 +1,5 @@
+import { extensionBuildTarget } from './build-target';
+
 /** Public connection metadata only. No account, token or key belongs here. */
 export interface Connection {
   readonly name: string;
@@ -35,5 +37,9 @@ export function parseConnection(value: unknown): Connection | null {
 }
 
 export function connectionOrigins(connection: Connection, includePanel = true): string[] {
-  return [...new Set((includePanel ? [connection.apiUrl, connection.webUrl] : [connection.apiUrl]).map(url => new URL(url).origin + '/*'))];
+  return [...new Set((includePanel ? [connection.apiUrl, connection.webUrl] : [connection.apiUrl]).map(value => {
+    const url = new URL(value);
+    // Safari/Firefox host patterns have no port; exact ports remain in the runtime pair.
+    return (extensionBuildTarget === 'chromium' ? url.origin : `${url.protocol}//${url.hostname}`) + '/*';
+  }))];
 }

@@ -30,9 +30,11 @@ try {
   const onboarding = context.pages().find(page => page.url().includes('/onboarding/'));
   if (onboarding) await onboarding.close();
   popup = await openNativePopup(worker, profile, extensionId);
+  await popup.click('Continue to Palladin');
+  await popup.waitButton('Sign in');
   assert.equal((await popup.configureConnection({ name: 'Synthetic capture API', apiUrl: api.url,
     webUrl: api.url, allowHttp: true, sharedUnlockEnabled: false })).ok, true);
-  await popup.click('Continue to Palladin');
+
   await popup.fill('input[type=email]', api.email);
   await popup.fill('input[type=password]', api.password);
   await popup.click('Sign in');

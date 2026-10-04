@@ -81,3 +81,8 @@ pair, retaining required hosts and other ports on a still-used host. Failed
 persistence removes unused attempted origins. Share-save separately authorizes
 the active panel/API pair from browser sender metadata, including when shared
 unlock is OFF; content-script relay is untrusted and has no build-time allowlist.
+
+Safari/Firefox optional host patterns omit ports, matching their manifest
+representation. The saved API/panel URLs and runtime message authorization still
+retain and enforce exact ports. Safari's native `WKWebExtensionMatchPattern`
+rejects a port-bearing host pattern; see the WebKit `UserContentURLPattern` parser.

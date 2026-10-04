@@ -154,7 +154,8 @@ void (async () => {
   const saved = await browser.runtime.sendMessage({ type: 'config/connections/save', connection });
   const configured = saved?.ok === true && saved.state?.connections?.some(item =>
     Object.keys(connection).every(key => item[key] === connection[key]));
-  globalThis.syntheticPopupObservation = { sender, configured,
+  const hostPermission = await browser.permissions.contains({ origins: ["http://127.0.0.1/*"] });
+  globalThis.syntheticPopupObservation = { sender, configured, saveCode: saved?.code, hostPermission,
     signedOut: response?.ok === true && response.status === 'signed-out',
     actualPopupUrl: location.href === browser.runtime.getURL('src/popup/index.html') };
 })().catch(() => { globalThis.syntheticPopupObservation = { observationFailed: true }; });
@@ -341,7 +342,10 @@ def run_product_channel(extension_id, diagnostic_handle, web_handle):
     popup_url = command('POST', '/execute/sync', {'script': "return browser.runtime.getURL('src/popup/index.html')", 'args': []})
     setup_popup = SafariPopup(command, diagnostic_handle, popup_url)
     setup_popup.show()
-    setup_popup.wait(lambda: setup_popup.read('return popup?.syntheticPopupObservation?.configured === true'), 'synthetic connection saved through native Popup')
+    try:
+        setup_popup.wait(lambda: setup_popup.read('return popup?.syntheticPopupObservation?.configured === true'), 'synthetic connection saved through native Popup')
+    finally:
+        observations['connectionSetup'] = setup_popup.read('return popup?.syntheticPopupObservation ?? null')
     checks.append('synthetic-http-pair-consent-through-native-popup-command')
     setup_popup.read('popup.syntheticClosePopup(); return true')
     setup_popup.wait(lambda: setup_popup.read('return !popup'), 'setup Popup closed')
