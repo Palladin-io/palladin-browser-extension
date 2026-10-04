@@ -25,7 +25,9 @@ const aws = await readFile('tests/fixtures/forms/aws-root-identifier-2026-09-20/
 const jetbrains = await readFile('tests/fixtures/forms/jetbrains-identifier-2026-09-20/page.html', 'utf8');
 const tomojdom = await readFile('tests/fixtures/forms/tomojdom-login-2026-10-04/page.html', 'utf8');
 const tomojdomCss = await readFile('tests/fixtures/forms/tomojdom-login-2026-10-04/page.css', 'utf8');
-const livekid = await readFile('tests/fixtures/forms/livekid-login-2026-10-04/page.html', 'utf8');
+// Synthetic translation counterexample on observed EN DOM; actual PL captions are unverified.
+const livekid = (await readFile('tests/fixtures/forms/livekid-login-2026-10-04/page.html', 'utf8'))
+  .replace('Other login methods', 'Inne metody logowania').replace('Sign in', 'Zaloguj się');
 const tomojdomUsername = '12345678';
 const apple = await readFile('tests/fixtures/forms/apple-idmsa-signin-2026-09-16/page.html', 'utf8');
 try {
