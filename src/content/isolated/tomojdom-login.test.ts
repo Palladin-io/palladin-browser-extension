@@ -2,7 +2,7 @@
 // @vitest-environment-options {"url":"https://tomojdom.pl/en/"}
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { loginTargetFor, performBoundFill, performFill, performLoginTargetFill } from "./fill";
+import { loginTargetFor, performBoundFill, performFill, performLoginTargetFill, submitFilledLoginTarget } from "./fill";
 import { startInlineAutofill } from "./inline-autofill";
 import type { FillField } from "@shared/messaging";
 import { readFileSync } from "node:fs";
@@ -104,6 +104,42 @@ describe("tomojdom staged form-less login", () => {
       expect(recovery.value).toBe("");
       expect(performLoginTargetFill(target, fields)).toEqual({ ok: true });
     } finally { subject.stop(); }
+  });
+
+  it("fills and submits the visible password step through the explicit login action", async () => {
+    const { username, password, step } = mount();
+    username.value = "12345678";
+    step.classList.remove("d-none");
+    const action = step.querySelector("button")!;
+    const clicked = vi.fn();
+    action.addEventListener("click", clicked);
+    const target = loginTargetFor(password)!;
+    expect(performLoginTargetFill(target, fields, "manual")).toEqual({ ok: true });
+    expect(await submitFilledLoginTarget(target, () => true)).toBe(true);
+    expect(clicked).toHaveBeenCalledOnce();
+  });
+
+  it.each(["missing", "duplicate", "disabled", "moved", "foreign-form"])("does not submit another action when the password login button is %s", async (mutation) => {
+    const { username, password, step, container } = mount();
+    username.value = "12345678";
+    step.classList.remove("d-none");
+    const action = step.querySelector("button")!;
+    const clicked = vi.fn();
+    container.addEventListener("click", clicked);
+    if (mutation === "missing") action.remove();
+    if (mutation === "duplicate") action.after(action.cloneNode(true));
+    if (mutation === "disabled") action.disabled = true;
+    if (mutation === "moved") container.append(action);
+    if (mutation === "foreign-form") {
+      const form = document.createElement("form");
+      form.id = "other-form";
+      document.body.append(form);
+      action.setAttribute("form", form.id);
+    }
+    const target = loginTargetFor(password)!;
+    expect(performLoginTargetFill(target, fields, "manual")).toEqual({ ok: true });
+    expect(await submitFilledLoginTarget(target, () => true)).toBe(false);
+    expect(clicked).not.toHaveBeenCalled();
   });
 
   it("leaves the password hidden for the email/code method", () => {

@@ -41,3 +41,17 @@ synthetic field dimensions and click counters, with all requests served locally.
   launcher on each stage, explicit password selection and zero login clicks.
 - Live-site observation and synthetic tests are separate. No real account login,
   email delivery, password validation or production authentication was attempted.
+
+
+## Follow-up: explicit password login
+
+The user reported a visible password field and the inline “The login form could
+not be filled” error after choosing Log in. A test using this specimen reproduces
+failed submit after a successful password write: the generic action scope is the
+inner password block, while the adapter retains the outer panel. The local fix
+binds explicit submission to the single enabled login button in that password
+block; missing, duplicate, disabled and moved actions are rejected. This explains
+a submit error in the specimen, but does not yet prove why the user observed an
+empty password on the real page. Automatic password continuation is unchanged.
+The browser regression includes the explicit action with fake data; execution in
+this session is blocked by sandbox `listen EPERM` before Chromium launch.

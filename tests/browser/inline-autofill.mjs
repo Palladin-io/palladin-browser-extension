@@ -146,7 +146,15 @@ try {
   await click(fillName);
   await wait(async () => await page.locator('input[type="password"]').inputValue() === password, 'Tomojdom same-account explicit password fill');
   assert.equal(await page.evaluate(() => globalThis.loginClicks), 0);
-  console.log('PASS: observed LiveKid pair and Tomojdom staged panels fill through built extension without login clicks');
+  await page.reload();
+  await wait(async () => await page.locator(tomojdomIdentifier).inputValue() === tomojdomUsername, 'Tomojdom second explicit-login scenario');
+  await page.evaluate(() => document.querySelector('input[type="password"]').parentElement.parentElement.classList.remove('d-none'));
+  await aligned('input[type="password"]');
+  await click('Open Palladin suggestions');
+  await click(`Fill and log in: ${tomojdomUsername}`);
+  await wait(async () => await page.evaluate(() => globalThis.loginClicks) === 1, 'Tomojdom explicit password login click');
+  assert.equal(await page.locator('input[type="password"]').inputValue(), password);
+  console.log('PASS: LiveKid localized pair, Tomojdom fill-only and explicit password login action');
   await page.goto('https://account.apple.com/sign-in');
   const appleFrame = page.frameLocator('iframe');
   await wait(async () => await appleFrame.locator('#account_name_text_field').inputValue() === username,
