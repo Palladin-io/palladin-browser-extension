@@ -1208,7 +1208,7 @@ export class SessionManager {
   ): Promise<BrowserSessionEnvelope> {
     const bytes = new TextEncoder().encode(JSON.stringify(payload));
     try {
-      return await sealBrowserSessionEnvelope(bytes, masterKey, context);
+      return await sealBrowserSessionEnvelope(bytes, masterKey, context, this.store.transportPolicy);
     } finally {
       wipe(bytes);
     }
@@ -1218,7 +1218,7 @@ export class SessionManager {
     envelope: BrowserSessionEnvelope,
     masterKey: Uint8Array,
   ): Promise<DurableSessionPayload> {
-    const bytes = await openBrowserSessionEnvelope(envelope, masterKey, { now: this.now });
+    const bytes = await openBrowserSessionEnvelope(envelope, masterKey, { now: this.now, transportPolicy: this.store.transportPolicy });
     try {
       const decoded = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
       return this.parseDurablePayload(JSON.parse(decoded) as unknown, envelope.context);

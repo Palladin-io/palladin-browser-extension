@@ -79,7 +79,10 @@ export const sharedUnlockSource = new SharedUnlockSourceAuthority(sharingApi, Da
 const activityRecorder = new OwnSharedUnlockActivityRecorder(sharingApi, sharedUnlockExpiry);
 
 manager = new SessionManager({
-  store: new SessionStore(durableStorageArea, legacySessionStorageArea),
+  store: new SessionStore(durableStorageArea, legacySessionStorageArea, () => {
+    const active = serverConfig.activeConnection;
+    return { allowHttpApiUrls: active?.allowHttp ? [active.apiUrl] : [] };
+  }),
   authClient: new AuthClient(async (...args) => {
     serverConfig.assertNetworkAllowed();
     return fetch(...args);

@@ -1,3 +1,4 @@
+import type { SharedUnlockTransportPolicy } from '@palladin/crypto'
 import {
   createSharedUnlockIdentityProofSigner, createSharedUnlockOffer, hashSharedUnlockTranscript, wipe,
   type SharedUnlockContext, type SharedUnlockIdentityProofContext, type SharedUnlockKeyContext,
@@ -17,8 +18,9 @@ export interface SharedUnlockOperationMaterial {
   readonly keyContext: SharedUnlockKeyContext
 }
 
-export async function createSharedUnlockReceiverCrypto(assertCurrent: () => void) {
-  const offer = await createSharedUnlockOffer({ role: 'recipient', assertCurrent })
+export async function createSharedUnlockReceiverCrypto(assertCurrent: () => void, transportPolicy: SharedUnlockTransportPolicy = {}) {
+  const policy = { allowHttpOrigins: transportPolicy.allowHttpOrigins?.slice() ?? [] }
+  const offer = await createSharedUnlockOffer({ role: 'recipient', assertCurrent, transportPolicy: policy })
   let signer: Awaited<ReturnType<typeof createSharedUnlockIdentityProofSigner>>
   try { assertCurrent(); signer = await createSharedUnlockIdentityProofSigner({ assertCurrent }) }
   catch (error) { offer.dispose(); throw error }
@@ -34,7 +36,7 @@ export async function createSharedUnlockReceiverCrypto(assertCurrent: () => void
     check()
     if (operation.sourcePublicKey !== sourcePublicKey || operation.recipientPublicKey !== offer.publicKey
       || operation.recipientProofPublicKey !== signer.publicKey) throw new Error('Shared unlock participant binding failed')
-    const digest = await hashSharedUnlockTranscript(operation.context, sourcePublicKey, offer.publicKey)
+    const digest = await hashSharedUnlockTranscript(operation.context, sourcePublicKey, offer.publicKey, policy)
     check()
     if (digest !== operation.transcriptHash) throw new Error('Shared unlock transcript binding failed')
   }
@@ -89,7 +91,7 @@ export async function createSharedUnlockReceiverCrypto(assertCurrent: () => void
     async verifyCommit(context: SharedUnlockContext) {
       check()
       if (!consumed || !sourceKey) throw new Error('Shared unlock consume required')
-      const digest = await hashSharedUnlockTranscript({ ...context }, sourceKey, offer.publicKey)
+      const digest = await hashSharedUnlockTranscript({ ...context }, sourceKey, offer.publicKey, policy)
       check()
       if (digest !== consumed.transcriptHash) throw new Error('Shared unlock commit binding failed')
     },

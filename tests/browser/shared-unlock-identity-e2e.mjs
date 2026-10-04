@@ -58,7 +58,9 @@ assert(!(sidePanel && (accountIsolation || totp)), 'Side-panel scenario currentl
 assert(!(accountIsolation && totp), 'Account isolation currently requires password-only synthetic accounts')
 const backendSource = process.argv.includes('--backend-source') ? path.resolve(argument('--backend-source')) : undefined
 for (const url of [apiUrl, sesUrl]) assert(['localhost', '127.0.0.1'].includes(new URL(url).hostname), 'Isolated loopback services only')
-const webOrigin = 'http://127.0.0.1:5173', webDirectory = path.join(webSource, 'dist')
+const insecureHttpPanel = process.argv.includes('--insecure-http-panel')
+const webOrigin = insecureHttpPanel ? 'http://panel.palladin.test:5173' : 'http://127.0.0.1:5173'
+const webDirectory = path.join(webSource, 'dist')
 const extension = path.resolve('dist/chromium'), output = path.resolve('test-results/shared-unlock-identity')
 const temporary = await mkdtemp(path.join(tmpdir(), 'palladin-identity-e2e-'))
 let context, server, mailServer, page, popup, stage = 'preflight'
@@ -75,6 +77,10 @@ const safePath = raw => {
 const progress = setInterval(() => console.log(`PROGRESS ${JSON.stringify({ stage, completedChecks: checks.length })}`), 10000)
 progress.unref()
 const messages = [] // Synthetic SES v2 delivery, memory-only; never written to a report.
+function findVerificationUrl(selected = messages) {
+  const urls = JSON.stringify(selected).match(/http:\/\/[^"\\\s<]+\/verify-email\?token=[^"\\\s<]+/g) ?? []
+  return urls.find(value => new URL(value).origin === webOrigin)
+}
 async function artifactHash(directory) {
   const hash = createHash('sha256')
   async function visit(relative) {
@@ -102,6 +108,7 @@ const provenance = {
   distribution: 'local-unpacked', emailDelivery: 'local-ses-v2-fixture',
   delayedManualAuthorization: delayManualAuthorization,
   fullBrowserRestart,
+  insecureHttpPanel,
   authorizationRateLimitRetry,
   ownActivityDuringPrepare,
   independentIdleExpiry,
@@ -119,7 +126,7 @@ const provenance = {
 const launchOptions = {
   ...(browserExecutable ? { executablePath: browserExecutable } : { channel: 'chromium' }), headless: !headed,
   ...(installViaCdp ? { ignoreDefaultArgs: ['--disable-extensions'] } : {}),
-  args: ['--remote-debugging-port=0', ...(installViaCdp ? ['--enable-unsafe-extension-debugging']
+  args: ['--remote-debugging-port=0', ...(insecureHttpPanel ? ['--host-resolver-rules=MAP panel.palladin.test 127.0.0.1', '--no-proxy-server'] : []), ...(installViaCdp ? ['--enable-unsafe-extension-debugging']
     : [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`])],
 }
 async function observeLocalContext() {
@@ -298,6 +305,10 @@ try {
     if (url.origin === new URL(apiUrl).origin) requests.push({ path: url.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id'), status: 'request-failed' })
   })
   stage = 'registration-credentials'; await page.goto(webOrigin + '/register')
+  if (insecureHttpPanel) {
+    assert.deepEqual(await page.evaluate(() => ({ secure: isSecureContext, subtle: !!crypto.subtle, locks: !!navigator.locks })), { secure: false, subtle: false, locks: false })
+    checks.push('insecure-http-panel-without-subtlecrypto-or-web-locks')
+  }
   await page.locator('#register-email').fill(email)
   await page.locator('#register-password').fill(password)
   await page.locator('#register-password-confirm').fill(password)
@@ -321,7 +332,7 @@ try {
   stage = 'local-email-verification'
   let verification
   for (let attempt = 0; attempt < 100 && !verification; attempt++) {
-    verification = JSON.stringify(messages).match(/http:\/\/127\.0\.0\.1:5173\/verify-email\?token=[^"\\\s<]+/)?.[0]
+    verification = findVerificationUrl()
     if (!verification) await new Promise(resolve => setTimeout(resolve, 200))
   }
   assert(verification, 'Local SES must contain this synthetic account verification')
@@ -358,16 +369,23 @@ try {
   checks.push('actual-web-manual-password-login')
   stage = 'extension-automatic-unlock'
   popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId)
-  const configuredConnection = await popup.configureConnection({ name: 'Isolated Identity fixture', apiUrl,
-    webUrl: webOrigin, sharedUnlockEnabled: true, allowHttp: true })
-  requests.push({ check: 'connection-configuration-result', ...configuredConnection })
-  assert.equal(configuredConnection.ok, true)
-  checks.push('native-popup-approves-exact-api-panel-pair-with-http-consent')
-  for (let attempt = 0; attempt < 200; attempt++) {
-    if (await popup.hasText('Unlocked')) break
-    if (await popup.hasButton('Continue to Palladin')) { await popup.click('Continue to Palladin'); break }
-    await new Promise(resolve => setTimeout(resolve, 100))
-  }
+  await popup.click('Continue to Palladin')
+  await popup.click('Settings')
+  await popup.click('Server URL')
+  await popup.fill('.server-settings-form input:not([type])', 'Isolated Identity fixture')
+  await popup.fill('input[autocomplete="url"]', apiUrl, { replace: true })
+  await popup.fill('.server-settings-form input[type="url"]:not([autocomplete])', webOrigin)
+  assert.deepEqual(await popup.connectionFormState(), { sharedUnlock: true, allowHttp: false, saveDisabled: true })
+  const httpConsent = 'Allow unencrypted HTTP for these API and panel addresses'
+  await popup.click(httpConsent, 'checkbox')
+  assert.deepEqual(await popup.connectionFormState(), { sharedUnlock: true, allowHttp: true, saveDisabled: false })
+  await popup.fill('.server-settings-form input[type="url"]:not([autocomplete])', webOrigin + '/', { replace: true })
+  assert.deepEqual(await popup.connectionFormState(), { sharedUnlock: true, allowHttp: false, saveDisabled: true })
+  await popup.click(httpConsent, 'checkbox')
+  await popup.click('Save and activate')
+  await popup.waitText('Unlocked')
+  await popup.click('Back')
+  checks.push('native-settings-form-approves-pair-and-resets-http-consent-on-address-edit')
   await popup.waitText('Unlocked')
   checks.push('actual-extension-automatic-unlock')
   await popup.waitText('No entries yet')
@@ -425,7 +443,7 @@ try {
     await page.locator('#unlock-password').click()
     await page.locator('#unlock-password').pressSequentially(password, { delay: 5 })
     await page.getByRole('button', { name: 'Unlock', exact: true }).click()
-    await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+    await page.locator('nav a[href="/vaults"]').waitFor()
     await popup.waitText('Unlocked')
   } finally { await releaseManualInterceptions() }
   checks.push('extension-automatically-unlocked-after-new-manual-authorization')
@@ -452,7 +470,7 @@ try {
   checks.push('extension-entry-decryption-after-web-close')
   stage = 'reopened-web-automatic-unlock'
   page = await context.newPage(); await page.goto(webOrigin + '/unlock')
-  await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+  await page.locator('nav a[href="/vaults"]').waitFor()
   checks.push('reopened-web-automatically-unlocked-by-extension')
   stage = 'browser-stops-extension-worker'
   await page.bringToFront()
@@ -556,7 +574,7 @@ try {
       stage = 'manual-unlock-after-full-browser-restart'
       await page.locator('#unlock-password').fill(password)
       await page.getByRole('button', { name: 'Unlock', exact: true }).click()
-      await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+      await page.locator('nav a[href="/vaults"]').waitFor()
       await popup.waitText('Unlocked')
       await popup.waitText('Synthetic shared unlock proof')
       assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword), 'One manual unlock must restore the peer through a fresh handoff')
@@ -592,7 +610,7 @@ try {
   await page.locator('#unlock-password').click()
   await page.locator('#unlock-password').pressSequentially(password, { delay: 5 })
   await page.getByRole('button', { name: 'Unlock', exact: true }).click()
-  await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+  await page.locator('nav a[href="/vaults"]').waitFor()
   await popup.waitText('Unlocked')
   stage = sidePanel ? 'native-side-panel-logout-propagates' : 'extension-logout-propagates'
   const signoutClick = await popup.click('Sign out')
@@ -603,8 +621,7 @@ try {
     email, password, vaultId, entryId, entryPassword, unlockCycles: accountUnlockCycles, logoutDirection: accountLogoutDirection,
     reopenPopup: async () => { popup?.close(); popup = await openNativePopup(null, path.join(temporary, 'profile'), extensionId); return popup },
     allowEmail: value => allowedEmails.add(value),
-    verificationFor: address => JSON.stringify(messages.filter(message => message.Destination.ToAddresses.includes(address)))
-      .match(/http:\/\/127\.0\.0\.1:5173\/verify-email\?token=[^"\\\s<]+/)?.[0],
+    verificationFor: address => findVerificationUrl(messages.filter(message => message.Destination.ToAddresses.includes(address))),
     setStage: value => { stage = value }, recordCheck: value => checks.push(value) })
   await writeEvidence('report', { status: 'partial-pass', checks, requests,
     observedAt: new Date().toISOString(), browser: context.browser().version(), provenance, fullMatrix: false, entryDecryptionVerified: true })

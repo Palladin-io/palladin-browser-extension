@@ -11,6 +11,7 @@
 import {
   parseBrowserSessionEnvelope,
   type BrowserSessionEnvelope,
+  type BrowserSessionEnvelopeTransportPolicy,
 } from "@palladin/crypto";
 
 import type { AutoLockPolicy } from "./auto-lock";
@@ -48,7 +49,10 @@ export class SessionStore {
   constructor(
     private readonly durableArea: StorageArea,
     private readonly legacySessionArea?: StorageArea,
+    private readonly httpPolicy: () => BrowserSessionEnvelopeTransportPolicy = () => ({}),
   ) {}
+
+  get transportPolicy(): BrowserSessionEnvelopeTransportPolicy { return this.httpPolicy(); }
 
   private async read<T>(key: string): Promise<T | null> {
     const result = await this.durableArea.get([key]);
@@ -59,7 +63,7 @@ export class SessionStore {
     const candidate = await this.read<unknown>(KEY.sealedSession);
     if (candidate === null) return null;
     try {
-      return parseBrowserSessionEnvelope(candidate);
+      return parseBrowserSessionEnvelope(candidate, this.transportPolicy);
     } catch {
       await this.durableArea.remove([KEY.sealedSession]);
       return null;
@@ -67,7 +71,7 @@ export class SessionStore {
   }
 
   async setSealedSession(envelope: BrowserSessionEnvelope): Promise<void> {
-    const validated = parseBrowserSessionEnvelope(envelope);
+    const validated = parseBrowserSessionEnvelope(envelope, this.transportPolicy);
     await this.durableArea.set({ [KEY.sealedSession]: validated });
   }
 

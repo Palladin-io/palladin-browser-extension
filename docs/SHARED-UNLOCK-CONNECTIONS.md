@@ -43,18 +43,24 @@ The native Chromium test proves default rejection, dynamic approval without an
 environment rebuild, exact-port/host/iframe rejection, document replacement and
 OFF/ON channel cancellation. It does not perform an Identity/MK handoff.
 
-Remote HTTP support is incomplete: the current consumer crypto release and
-backend reject non-loopback HTTP operation contexts; Web also needs portable
-crypto and cross-tab serialization where SubtleCrypto/Web Locks are absent.
-Coordinated backend and crypto changes are prepared separately. A local Chromium
-Identity run passed 18 checks: real registration/login, explicit public connection
-configuration, automatic unlock, actual Entry decryption, worker restart and
-manual lock/logout. The fixture API used its already declared localhost:5000
-permission. Earlier attempts stopped at optional-port permission and the newly
-added Privacy dialog; the driver now uses the declared port and saves the
-synthetic account's default-OFF privacy choice through the normal UI. This does
-not prove optional-permission prompt UX, remote HTTP or staging. Do not release
-this editor as complete remote HTTP support until those consumers and actual
-Identity/Entry acceptance pass. Firefox/Safari builds are not runtime acceptance.
+The consumers pin the coordinated crypto 0.12.0 candidate. Its SHA-256/HKDF
+implementation preserves existing vectors without requiring SubtleCrypto. Web
+uses exclusive, empty IndexedDB transactions when Web Locks are unavailable;
+publication and local pause/link/expiry writes share the same transaction fence.
+No keys or tokens are persisted by this lock fallback. The extension passes only
+the active configuration's independent HTTP approval to session-envelope crypto.
+
+A real Chromium Identity run on `http://panel.palladin.test` passed 39 checks:
+registration/login, shared unlock, Entry decryption, worker restart, manual
+lock/logout, preference OFF/retry/conflict and concurrent documents. The browser confirmed a non-secure context without SubtleCrypto or
+Web Locks. A separate two-document native test passed eight publication and
+pause/lock/logout/expiry checks. The fixture API still used its already declared
+localhost:5000 permission. A subsequent run exercised HTTP consent and address-edit consent reset through
+the real Settings form; the independent idle scenario is still running.
+Optional-host permission prompt UX, remote API host, staging and platform
+acceptance remain separate rollout gates.
+The candidate was installed locally from npm cache against the registry lock;
+0.12.0 must be published and its registry integrity verified before consumer CI
+and release. Firefox/Safari builds are not runtime acceptance.
 The original staging artifact additionally needs an ID matching the panel's
 independently configured distribution ID; changing routing alone cannot fix that.

@@ -18,7 +18,7 @@ export async function verifyAuthorizationRateLimitRetry({ page, popup, apiUrl,
     await page.locator('#unlock-password').fill(password)
     await page.getByRole('button', { name: 'Unlock', exact: true }).click()
     const result = await response
-    await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+    await page.locator('nav a[href="/vaults"]').waitFor()
     return result
   }
   const lock = async () => {
@@ -48,7 +48,7 @@ export async function verifyAuthorizationRateLimitRetry({ page, popup, apiUrl,
     setStage('authorization-rate-limit-web-remains-usable')
     await popup.waitButton('Unlock')
     assert(await popup.revealDeniedWhileLocked(vaultId, entryId), 'Rejected authorization must not install peer keys')
-    await page.getByRole('link', { name: 'Vaults', exact: true }).click()
+    await page.locator('nav a[href="/vaults"]').click()
     await page.getByText('Personal', { exact: true }).first().click()
     await page.getByText('Synthetic shared unlock proof', { exact: true }).first().click()
     await waitForWebEntryPassword(page, entryPassword)
