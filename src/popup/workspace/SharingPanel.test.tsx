@@ -66,3 +66,13 @@ it('retries only an unfinished named recipient with the same operation ID', asyn
   expect(creations[1]?.operationId).toBe(creations[2]?.operationId);
   expect(await screen.findAllByLabelText('Sharing link')).toHaveLength(2);
 });
+
+
+it('opens the create form without requesting existing shares', async () => {
+  const send = vi.fn(async (): Promise<WorkspaceReply> => ({ ok: false, code: 'network' }));
+  const entry = { id: 'entry', vaultId: 'vault', name: 'Synthetic entry', vaultName: 'Personal', type: 1 as const, updatedAt: '' };
+  render(<SharingPanel client={createWorkspaceClient(send)} vaultClient={{} as VaultClient} entries={[entry]} initialEntry={entry} initialCreate embedded />);
+  expect(screen.getByRole('button', { name: 'Create link' })).toBeInTheDocument();
+  expect(send).not.toHaveBeenCalled();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});

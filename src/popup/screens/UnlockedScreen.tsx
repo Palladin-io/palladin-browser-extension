@@ -276,7 +276,7 @@ export function UnlockedScreen({
                   ) : null}
 
                   <ListSection
-                    title={searching ? t('vault.results') : t('vault.allItems')}
+                    title={searching ? t('vault.results') : ''}
                   >
                     {results.length === 0 ? (
                       <p className="vault-empty">
@@ -354,7 +354,7 @@ function ListSection({
 }): React.JSX.Element {
   return (
     <div className="vault-section">
-      <h3 className="vault-section-title">{title}</h3>
+      {title ? <h3 className="vault-section-title">{title}</h3> : null}
       {children}
     </div>
   );

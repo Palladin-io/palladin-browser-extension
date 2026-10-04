@@ -48,13 +48,7 @@ export function EntryDetail({
       setBusy(false);
     }
   }
-  return (
-    <section className="entry-detail" aria-label={t('detail.title')}>
-      <button className="link-btn detail-back" onClick={onBack}>
-        <PopupIcon name="back" />
-        {t('common.back')}
-      </button>
-      <div className="detail-heading">
+  const identity = <>
         {sharing ? <button className="toolbar-icon" aria-label={t('common.back')} title={t('common.back')} onClick={() => setSharing(false)}><PopupIcon name="back" /></button> : null}
         <EntryIcon
           name={entry.name}
@@ -66,16 +60,23 @@ export function EntryDetail({
           <h2>{entry.name}</h2>
           <p>{entry.vaultName}</p>
         </div>
+  </>;
+  return (
+    <section className="entry-detail" aria-label={t('detail.title')}>
+      <button className="link-btn detail-back" onClick={onBack}>
+        <PopupIcon name="back" />
+        {t('common.back')}
+      </button>
+      {!sharing ? <div className="detail-heading">
+        {identity}
         {(entry.type === 1 && entry.urlDomain) || entry.type === 3 ? (
           <Button loading={busy} onClick={() => void fill()}>
             {t(entry.type === 3 ? 'common.fill' : 'vault.logIn')}
           </Button>
         ) : null}
-        <Button variant="subtle" onClick={() => setSharing(true)}>
-          <PopupIcon name="share" />{t('share.action')}
-        </Button>
-      </div>
-      {sharing ? <SharingPanel client={workspaceClient} vaultClient={client} entries={[entry]} initialEntry={entry} initialCreate embedded onClose={() => setSharing(false)} /> : null}
+        <button className="toolbar-icon" aria-label={t('share.action')} title={t('share.action')} onClick={() => setSharing(true)}><PopupIcon name="share" /></button>
+      </div> : null}
+      {sharing ? <SharingPanel client={workspaceClient} vaultClient={client} entries={[entry]} initialEntry={entry} initialCreate embedded heading={identity} onClose={() => setSharing(false)} /> : null}
       <div hidden={sharing}>
       <EntryFields
         client={workspaceClient}

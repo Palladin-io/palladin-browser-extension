@@ -143,7 +143,7 @@ describe("UnlockedScreen", () => {
     const client = makeClient();
     const user = userEvent.setup();
     render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={client} captureClient={makeCaptureClient()} />);
-    await screen.findByText("All items");
+    await screen.findByText("API token");
     expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["Vault", "Agent access", "Sharing", "Logs"]);
     await user.click(screen.getByRole("button", { name: "Generator" }));
     vi.mocked(chrome.runtime.sendMessage).mockClear();
@@ -157,7 +157,7 @@ describe("UnlockedScreen", () => {
     const { container } = render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={makeClient()} />);
 
     expect(await screen.findByText("For this site")).toBeInTheDocument();
-    expect(screen.getByText("All items")).toBeInTheDocument();
+    expect(screen.queryByText("All items")).not.toBeInTheDocument();
     // The credential appears in both sections; the key only under All items.
     expect(screen.getAllByText("Example login").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("API token")).toBeInTheDocument();
@@ -169,7 +169,7 @@ describe("UnlockedScreen", () => {
     render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={makeClient()} />);
     const user = userEvent.setup();
 
-    await screen.findByText("All items");
+    await screen.findByText("API token");
     await user.type(screen.getByLabelText("Search entries"), "token");
 
     expect(screen.queryByText("For this site")).not.toBeInTheDocument();
@@ -190,7 +190,7 @@ describe("UnlockedScreen", () => {
     );
     const user = userEvent.setup();
 
-    await screen.findByText("All items");
+    await screen.findByText("API token");
     await user.type(screen.getByLabelText("Search entries"), "token");
     rerender(
       <UnlockedScreen
@@ -285,7 +285,7 @@ describe("UnlockedScreen", () => {
     render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={makeClient()} />);
     const user = userEvent.setup();
 
-    await screen.findByText("All items");
+    await screen.findByText("API token");
     await user.type(screen.getByLabelText("Search entries"), "zzzz");
     expect(screen.getByText("No entries match your search.")).toBeInTheDocument();
   });
@@ -469,7 +469,7 @@ describe("UnlockedScreen", () => {
     expect(await screen.findByText("Couldn't open one of the encrypted entry indexes.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Try again" }));
 
-    expect(await screen.findByText("All items")).toBeInTheDocument();
+    expect(await screen.findByText("API token")).toBeInTheDocument();
     expect(sync).toHaveBeenCalledTimes(2);
   });
 });

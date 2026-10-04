@@ -6,7 +6,7 @@ import {
   sharingRecipients,
   validShareProtection,
 } from '../../shared/workspace/sharing-input';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { EntryMetadata } from '../../background/vault/entry-metadata';
 import type {
   EntryShareListItem,
@@ -39,6 +39,7 @@ export function SharingPanel({
   initialCreate = false,
   embedded = false,
   onClose,
+  heading,
 }: {
   client: WorkspaceClient;
   vaultClient: VaultClient;
@@ -47,7 +48,9 @@ export function SharingPanel({
   initialCreate?: boolean;
   embedded?: boolean;
   onClose?: () => void;
+  heading?: ReactNode;
 }): React.JSX.Element {
+  const formId = useId();
   const [creating, setCreating] = useState(initialCreate);
   const { t, locale } = useI18n();
   const [entryKey, setEntryKey] = useState(
@@ -140,13 +143,13 @@ export function SharingPanel({
     reset();
     setItems([]);
     setCursor(null);
-    void load();
+    if (!creating) void load();
     return () => {
       generation.current++;
     };
-  }, [entryKey, client]);
+  }, [entryKey, client, creating]);
   async function create() {
-    if (!entry) return;
+    if (!entry || busy) return;
     setBusy(true);
     setError(false);
     try {
@@ -204,7 +207,6 @@ export function SharingPanel({
       }
       setSecret('');
       setConfirmation('');
-      await load();
     } catch (error) {
       if (alive.current) setError(error);
     } finally {
@@ -266,6 +268,9 @@ export function SharingPanel({
       className="workspace-panel sharing-panel"
       aria-label={t('workspace.shares')}
     >
+      {embedded ? <div className="detail-heading">{heading}
+        {!links.length ? <Button type="submit" form={formId} loading={busy}>{t(attempt ? 'share.retry' : 'share.create')}</Button> : <Button onClick={onClose}>{t('share.done')}</Button>}
+      </div> : null}
       {!embedded ? <div className="workspace-heading">
         <div>
           {!embedded ? <h2>{t('workspace.shares')}</h2> : null}
@@ -295,14 +300,14 @@ export function SharingPanel({
       {entry ? (
         <>
           {creating || changing ? <form
-            className="workspace-form" noValidate
+            id={formId} className="workspace-form" noValidate
             onSubmit={(event) => {
               event.preventDefault();
               void (changing ? changeProtection() : create());
             }}
           >
             {!embedded ? <div className="share-source"><EntryIcon name={entry.name} type={entry.type} {...(entry.icon ? {icon: entry.icon} : {})} /><span><strong>{entry.name}</strong><small>{entry.vaultName}</small></span></div> : null}
-            <h3>{t(links.length ? 'share.created' : changing ? 'share.changeProtection' : 'share.create')}</h3>
+            {!embedded ? <h3>{t(links.length ? 'share.created' : changing ? 'share.changeProtection' : 'share.create')}</h3> : null}
             {!links.length && !changing ? <p className="share-hint">{t('share.snapshotNotice')}</p> : null}
             {links.length ? (
               <div className="share-result">
@@ -488,7 +493,7 @@ export function SharingPanel({
                   <p role="alert">{t('share.inputError')}</p>
                 ) : null}
                 {attempt && error ? <p>{t('share.retryNotice')}</p> : null}
-                <div className="workspace-actions share-form-actions">
+                {!embedded ? <div className="workspace-actions share-form-actions">
                   <Button type="submit" loading={busy}>
                     {t(
                       changing
@@ -501,7 +506,7 @@ export function SharingPanel({
                   <Button variant="subtle" disabled={busy} onClick={() => { reset(); setCreating(false); if (embedded) onClose?.(); }}>
                       {t('common.cancel')}
                     </Button>
-                </div>
+                </div> : null}
               </>
             )}
           </form> : null}
