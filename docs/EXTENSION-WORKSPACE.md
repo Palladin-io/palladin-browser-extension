@@ -74,3 +74,5 @@ landing texture. The extension's existing reviewed T02 logo source and manifest 
 are unchanged.
 
 The workspace surface treatment follows landing VaultPresentations/TransferScenes: thin tab separators, a short static active marker, raised neutral cards and subtle shadows. Popup and Entry type icons use the locally bundled Lucide React package (ISC), matching the web icon family. No remote icon font or script is loaded.
+
+Auth branding is ported from web main 225d1cb: AppWordmark, AuthBrandHeader, RotatingWelcome and the Inter --font-sans theme. Wordmark uses Inter 800, normal line height and -0.01em tracking; the narrow auth title is 30px. Shield geometry is reduced for the popup. Four PL/EN welcome lines, 3800ms cadence and 350ms fade delay are copied from web; reduced motion keeps the first line static. Native acceptance checks the loaded font and computed typography. Do not substitute the system-ui sharing wordmark or tune weight independently.

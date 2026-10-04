@@ -1,3 +1,4 @@
+import { RotatingWelcome } from "./RotatingWelcome";
 import { PopupIcon } from "./PopupIcon";
 import type { ReactNode } from "react";
 import type { SessionStatus } from "../../background/session/types";
@@ -12,6 +13,7 @@ import { useI18n, type TranslationKey } from "../i18n";
  */
 export interface HeaderProps {
   children?: ReactNode;
+  authBrand?: boolean;
   status?: SessionStatus | undefined;
   settingsOpen?: boolean;
   contextLabel?: TranslationKey | undefined;
@@ -26,6 +28,7 @@ const CHIP: Record<SessionStatus, { label: TranslationKey; dot: string }> = {
 
 export function Header({
   children,
+  authBrand = false,
   status,
   settingsOpen = false,
   contextLabel,
@@ -34,13 +37,14 @@ export function Header({
   const { t } = useI18n();
   const chip = status ? CHIP[status] : null;
   return (
-    <header className="popup-header">
+    <header className={authBrand ? "popup-header auth-brand-header" : "popup-header"}>
       <div className="brand-lockup">
         <img className="brand-logo" src={brandLogoUrl} alt="" aria-hidden="true" />
         <h1 className="wordmark" aria-label="Palladin.io">
           <span>Palladin</span><span className="wordmark-tld">.io</span>
         </h1>
       </div>
+      {authBrand ? <RotatingWelcome /> : null}
       {children}
       <div className="popup-header-actions">
         {contextLabel ? (

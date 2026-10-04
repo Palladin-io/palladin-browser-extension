@@ -212,6 +212,10 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
       })()`)
       await wait(() => evaluate(`document.querySelector(${JSON.stringify(selector)}).value === ${JSON.stringify(value)}`), 'selected option applied')
     },
+    async brandTypography() {
+      await wait(() => evaluate('document.fonts.status === "loaded"'), 'bundled brand font loaded');
+      return evaluate(`(() => { const style = getComputedStyle(document.querySelector('.wordmark')); return { family: style.fontFamily, weight: style.fontWeight, size: style.fontSize, spacing: style.letterSpacing, loaded: document.fonts.check('800 30px Inter') }; })()`);
+    },
     async observeResize() {
       await evaluate(`(() => {
         globalThis.__popupWidths = [];

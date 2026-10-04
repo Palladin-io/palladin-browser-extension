@@ -42,7 +42,6 @@ export function SignInScreen({ onSignIn, onCreateAccount }: SignInScreenProps): 
   return (
     <section className="auth-form-panel">
       <h2 className="screen-title">{t("auth.signIn.title")}</h2>
-      <p className="screen-subtitle">{t("auth.signIn.subtitle")}</p>
       <form className="form" onSubmit={handleSubmit} noValidate>
         <FormInput
           label={t("auth.email")}

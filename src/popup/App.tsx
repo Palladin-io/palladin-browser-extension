@@ -178,6 +178,7 @@ export function App({
     <main className={settingsOpen ? "popup popup-settings" : "popup"} data-surface={surface} data-phase={onboardingStatus === "pending" ? "intro" : settingsOpen ? "settings" : session.phase}>
       <SharedUnlockNotice unlocked={session.phase === 'unlocked'} />
       {session.phase !== "unlocked" || settingsOpen || onboardingStatus !== "completed" ? <Header
+        authBrand={!settingsOpen && onboardingStatus === "completed" && ["signed-out", "locked", "totp"].includes(session.phase)}
         status={onboardingStatus === "completed" ? headerStatus(session.phase) : undefined}
         contextLabel={onboardingStatus === "pending"
           ? "onboarding.managers.eyebrow"

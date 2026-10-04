@@ -47,7 +47,7 @@
   "auth.totp.code": "Kod uwierzytelniający",
   "auth.totp.verify": "Zweryfikuj",
   "auth.unlock.title": "Odblokuj",
-  "auth.unlock.subtitle": "Wprowadź hasło główne, aby odblokować sejf.",
+  "auth.unlock.subtitle": "Wprowadź hasło główne, aby uzyskać dostęp do danych.",
   "auth.unlock.action": "Odblokuj",
   "auth.unlock.biometric": "Odblokuj przez Touch ID",
   "error.generic": "Coś poszło nie tak. Spróbuj ponownie.",
@@ -457,5 +457,9 @@
   "share.action": "Udostępnij",
   "share.locked": "Zablokowane",
   "share.suspended": "Wstrzymane",
-  "share.unknownStatus": "Nieznany stan"
+  "share.unknownStatus": "Nieznany stan",
+  "auth.welcomeLine1": "Zero-knowledge u podstaw.",
+  "auth.welcomeLine2": "Stworzony dla agentów AI.",
+  "auth.welcomeLine3": "Twoje klucze, twoje zasady.",
+  "auth.welcomeLine4": "Zawsze zaszyfrowane."
 }

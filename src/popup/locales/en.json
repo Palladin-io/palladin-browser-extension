@@ -47,7 +47,7 @@
   "auth.totp.code": "Authentication code",
   "auth.totp.verify": "Verify",
   "auth.unlock.title": "Unlock",
-  "auth.unlock.subtitle": "Enter your master password to unlock your vault.",
+  "auth.unlock.subtitle": "Enter your master password to access your credentials.",
   "auth.unlock.action": "Unlock",
   "auth.unlock.biometric": "Unlock with Touch ID",
   "error.generic": "Something went wrong. Try again.",
@@ -457,5 +457,9 @@
   "share.action": "Share",
   "share.locked": "Locked",
   "share.suspended": "Suspended",
-  "share.unknownStatus": "Unknown status"
+  "share.unknownStatus": "Unknown status",
+  "auth.welcomeLine1": "Zero-knowledge by design.",
+  "auth.welcomeLine2": "Built for AI agents.",
+  "auth.welcomeLine3": "Your keys, your rules.",
+  "auth.welcomeLine4": "Always encrypted."
 }
