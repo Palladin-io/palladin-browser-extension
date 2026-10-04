@@ -156,15 +156,21 @@ instrumented fixture SHA256:
 `ef877637ed24ca89f51d6653bdf88ac0e54230847d40da0b461d3115569efb52`.
 
 The `--product-extension dist/safari` mode installs a copy of the actual Safari
-build configured for Web `http://127.0.0.1:55189` and API
-`http://localhost:55083`. It retains the original product worker and permissions.
+build with Web `http://127.0.0.1:55189` and API
+`http://127.0.0.1:55083`. It retains the original product worker and permissions.
 Test instrumentation changes the display name, adds a private diagnostic page,
-a fixed sender/status script to the Popup document, and a wrapper that imports
+a fixed sender/status/configuration script to the Popup document, and a wrapper that imports
 the unchanged product worker. The diagnostic page
 requests only the already declared loopback host and reads native tab/document
 metadata independently of the product's ready message. It never installs an
 account, session or key. Source/artifact and instrumented fixture hashes are
 recorded separately; this is not an unmodified distributed artifact proof.
+
+Before the channel probe, the actual Popup-owned script saves the exact synthetic
+API/panel pair with explicit HTTP consent through the unchanged private product
+command. The loopback permission is granted by the native browser prompt. This
+proves configuration enforcement; it is not a Settings form interaction or user
+consent UX test. No build-time allowlist or direct storage write supplies trust.
 
 The test requires a product ready frame, its exact native document binding, a
 new document/channel after reload, and rejection of another API, extra hello
@@ -175,8 +181,7 @@ Actual Identity/MK/Entry and supported-version/distribution acceptance remain
 open until their own scenarios run successfully.
 
 ```sh
-VITE_API_URL=http://localhost:55083 VITE_POSTHOG_KEY='' \
-VITE_SHARED_UNLOCK_ENVIRONMENTS='[{"apiUrl":"http://localhost:55083","webOrigin":"http://127.0.0.1:55189"}]' \
+VITE_API_URL=http://127.0.0.1:55083 VITE_POSTHOG_KEY='' \
 npm run build:safari
 python3 tests/browser/shared-unlock-safari-boundary.py --product-extension dist/safari
 ```

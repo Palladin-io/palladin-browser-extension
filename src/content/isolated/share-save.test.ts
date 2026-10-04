@@ -12,7 +12,7 @@ describe('isolated share bridge', () => {
   it('forwards only a valid same-origin top-frame request on a share path', async () => {
     window.history.replaceState(null, '', `/share/${id}`);
     const send = vi.fn(async () => ({ channel: SHARE_SAVE_CHANNEL, type: 'response', requestId, status: 'ready' }));
-    const stop = startShareSaveBridge(window, send, () => true);
+    const stop = startShareSaveBridge(window, send);
     window.dispatchEvent(new MessageEvent('message', { source: window, origin: window.location.origin,
       data: { channel: SHARE_SAVE_CHANNEL, type: 'status', requestId } }));
     await vi.waitFor(() => expect(send).toHaveBeenCalledOnce());
@@ -22,7 +22,7 @@ describe('isolated share bridge', () => {
   it('rejects wrong source, origin, path, and malformed payload', () => {
     window.history.replaceState(null, '', `/share/${id}`);
     const send = vi.fn(async () => undefined);
-    const stop = startShareSaveBridge(window, send, origin => origin === window.location.origin);
+    const stop = startShareSaveBridge(window, send);
     const valid = { channel: SHARE_SAVE_CHANNEL, type: 'status', requestId };
     window.dispatchEvent(new MessageEvent('message', { source: null, origin: window.location.origin, data: valid }));
     window.dispatchEvent(new MessageEvent('message', { source: window, origin: 'https://other.example', data: valid }));
@@ -37,7 +37,7 @@ describe('isolated share bridge', () => {
     window.history.replaceState(null, '', `/share/${id}`);
     const send = vi.fn(async () => { throw new Error('lost worker response'); });
     const post = vi.spyOn(window, 'postMessage');
-    const stop = startShareSaveBridge(window, send, () => true);
+    const stop = startShareSaveBridge(window, send);
     window.dispatchEvent(new MessageEvent('message', { source: window, origin: window.location.origin,
       data: { channel: SHARE_SAVE_CHANNEL, type: 'prepare', requestId, snapshot: {
         schema: 'palladin.entry-share.v1', title: 'Synthetic', entryType: 'key',

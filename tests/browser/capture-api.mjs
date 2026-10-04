@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
+import { readFile, writeFile } from 'node:fs/promises'
+import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import * as crypto from '@palladin/crypto'
 import { createCaptureGrantFixture } from './capture-grants.mjs'
@@ -216,4 +218,13 @@ function wire(value) {
     if (value.purpose === 6 && !value.wrapperSuiteId) out.binding.operation = ['', 'created', 'updated', 'archived', 'restored', 'deleted'][value.binding.operation]
   }
   return out
+}
+
+// The disposable API uses an ephemeral loopback port. This fixture permission
+// is explicit; it does not change the shipped manifest or test the grant UI.
+export async function allowCaptureApi(extension, apiUrl) {
+  const file = path.join(extension, 'manifest.json')
+  const manifest = JSON.parse(await readFile(file, 'utf8'))
+  manifest.host_permissions.push(new URL(apiUrl).origin + '/*')
+  await writeFile(file, JSON.stringify(manifest))
 }

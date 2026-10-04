@@ -75,3 +75,9 @@ workflow. The consumer lock now uses its registry integrity, and registry-backed
 installation passed. Consumer CI and final deployment acceptance remain required. Firefox/Safari builds are not runtime acceptance.
 The original staging artifact additionally needs an ID matching the panel's
 independently configured distribution ID; changing routing alone cannot fix that.
+
+Connection replacement removes optional origins no longer referenced by any saved
+pair, retaining required hosts and other ports on a still-used host. Failed
+persistence removes unused attempted origins. Share-save separately authorizes
+the active panel/API pair from browser sender metadata, including when shared
+unlock is OFF; content-script relay is untrusted and has no build-time allowlist.

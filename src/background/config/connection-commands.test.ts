@@ -1,3 +1,4 @@
+vi.mock('../../shared/config/build-target', () => ({ extensionBuildTarget: 'firefox' }));
 import { describe, expect, it, vi } from 'vitest';
 import { handleConnectionCommand, isConnectionCommand, saveConnectionSharingPreference } from './connection-commands';
 import { ServerConfigStore } from './server-config-store';
@@ -57,4 +58,35 @@ describe('connection mutation boundary', () => {
     expect(isConnectionCommand({ type: 'config/connections/save', connection: { ...connection, accessToken: 'not-a-real-token' } })).toBe(false);
     expect(isConnectionCommand({ type: 'config/connections/save', connection: { ...connection, apiUrl: 'http://api.example.test' } })).toBe(false);
   });
+  it('removes an old panel grant but retains hosts referenced by other saved pairs', async () => {
+    const f = fixture(); const remove = vi.fn(async () => true);
+    await f.store.saveConnection({ ...connection, apiUrl: 'https://retained.example.test', webUrl: 'https://retained-panel.example.test' });
+    await f.store.saveConnection(connection);
+    await handleConnectionCommand(f.store, { type: 'config/connections/save', connection: { ...connection, webUrl: 'https://new.example.test' } }, f.access, f.retire, f.preference, remove);
+    expect(remove).toHaveBeenCalledExactlyOnceWith(['https://panel.example.test/*']);
+  });
+  it('cleans an attempted unused grant after persistence fails without removing the current pair', async () => {
+    const f = fixture(); const remove = vi.fn(async () => true);
+    await f.store.saveConnection(connection);
+    vi.spyOn(f.store, 'saveConnection').mockRejectedValue(new Error('Storage unavailable'));
+    await expect(handleConnectionCommand(f.store, { type: 'config/connections/save', connection: { ...connection, webUrl: 'https://new.example.test' } }, f.access, f.retire, f.preference, remove)).rejects.toThrow('Storage unavailable');
+    expect(remove).toHaveBeenCalledExactlyOnceWith(['https://new.example.test/*']);
+    expect(f.store.activeConnection).toEqual(connection);
+  });
+  it('retains a panel hostname still used at another port', async () => {
+    const f = fixture(); const remove = vi.fn(async () => true);
+    await f.store.saveConnection({ ...connection, apiUrl: 'https://retained.example.test', webUrl: connection.webUrl + ':8443' });
+    await f.store.saveConnection(connection);
+    await handleConnectionCommand(f.store, { type: 'config/connections/save', connection: { ...connection, webUrl: 'https://new.example.test' } }, f.access, f.retire, f.preference, remove);
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('removes the replaced panel of an inactive saved configuration', async () => {
+    const f = fixture(); const remove = vi.fn(async () => true);
+    await f.store.saveConnection(connection);
+    await f.store.saveConnection({ ...connection, apiUrl: 'https://other-api.example.test', webUrl: 'https://other-panel.example.test' });
+    await handleConnectionCommand(f.store, { type: 'config/connections/save', connection: { ...connection, webUrl: 'https://new.example.test' } }, f.access, f.retire, f.preference, remove);
+    expect(remove).toHaveBeenCalledExactlyOnceWith(['https://panel.example.test/*']);
+  });
+
 });

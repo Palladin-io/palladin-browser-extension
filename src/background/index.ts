@@ -1,3 +1,4 @@
+import { shareSource } from './share-save/source';
 import { isConnectionCommand, handleConnectionCommand, saveConnectionSharingPreference } from "./config/connection-commands";
 import { automaticFillSession } from './session/automatic-fill-session';
 import { isSharedUnlockLinkSettingsCommand } from '../shared/messaging/shared-unlock-link-settings';
@@ -64,7 +65,7 @@ import { sessionAutoLock, sessionManager } from "./session/runtime";
 import { registerTopFrameDocument } from "./tab-documents";
 import { browserDocumentIdForTab, verifyLiveShareDocument } from './tab-documents';
 import { sharePageResponse, sharePopupCommand, SHARE_SAVE_CHANNEL } from '../shared/messaging/share-save';
-import { ShareSaveCoordinator, type ShareSource } from './share-save/coordinator';
+import { ShareSaveCoordinator } from './share-save/coordinator';
 import { sharedCopySecret } from './vault/shared-copy';
 import { hasVaultManagePermission } from './capture/permissions';
 import { logger } from "./telemetry/logger";
@@ -108,21 +109,6 @@ const shareSave = new ShareSaveCoordinator({
   },
 });
 
-function shareSource(sender: chrome.runtime.MessageSender): ShareSource | null {
-  if (sender.id !== chrome.runtime.id || sender.frameId !== 0
-    || typeof sender.tab?.id !== 'number' || sender.tab.incognito
-    || typeof sender.documentId !== 'string' || !sender.documentId
-    || browserDocumentIdForTab(sender.tab.id) !== sender.documentId || !sender.url) return null;
-  try {
-    const url = new URL(sender.url);
-    if (!/^\/share\/[0-9a-f-]{36}$/.test(url.pathname)) return null;
-    const environment = __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__.find(item =>
-      item.webOrigin === url.origin && item.apiUrl === serverConfig.apiUrl);
-    if (!environment || sender.origin !== environment.webOrigin) return null;
-    return { tabId: sender.tab.id, documentId: sender.documentId,
-      url: sender.url, webOrigin: environment.webOrigin, apiUrl: environment.apiUrl };
-  } catch { return null; }
-}
 const vaultInvalidations = new VaultInvalidationCoordinator({
   apply: (vaultId, removed) => withServerOperation(
     () => vaultData.applyRealtimeInvalidation(vaultId, removed),
@@ -313,7 +299,7 @@ chrome.runtime.onConnect.addListener((port) => {
     if (raw.type === 'share-save/request') {
       void (async () => {
         await initializeServerConfig();
-        const source = shareSource(port.sender!);
+        const source = shareSource(port.sender!, chrome.runtime.id, browserDocumentIdForTab, serverConfig.activeConnection);
         const status = !source ? 'unavailable' : raw.request.type === 'status'
           ? await shareSave.status(source) : raw.request.type === 'reconcile'
             ? await shareSave.reconcile(source, raw.request.requestId)
@@ -492,7 +478,8 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
         origins => chrome.permissions.contains({ origins }), async () => {
           await sessionManager.logout();
           await vaultData.clearAllCache();
-        }, enabled => saveConnectionSharingPreference(enabled, handleSharedUnlockSettings, () => sessionManager.getStatus()));
+        }, enabled => saveConnectionSharingPreference(enabled, handleSharedUnlockSettings, () => sessionManager.getStatus()),
+        origins => chrome.permissions.remove({ origins }));
       try {
         sendResponse(mutation ? await serverOperations.mutate(execute) : await execute());
       } catch { sendResponse({ ok: false, code: 'unavailable' }); }

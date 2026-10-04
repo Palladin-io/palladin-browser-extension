@@ -40,9 +40,8 @@ jobs:
       - name: Build the configured Safari product
         if: matrix.background == 'product'
         env:
-          VITE_API_URL: http://localhost:55083
+          VITE_API_URL: http://127.0.0.1:55083
           VITE_POSTHOG_KEY: ''
-          VITE_SHARED_UNLOCK_ENVIRONMENTS: '[{"apiUrl":"http://localhost:55083","webOrigin":"http://127.0.0.1:55189"}]'
         run: |
           npm ci
           npm run build:safari

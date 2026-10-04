@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import * as crypto from '@palladin/crypto';
-import { createCaptureApi } from './capture-api.mjs';
+import { createCaptureApi, allowCaptureApi } from './capture-api.mjs';
 import { openNativePopup } from './native-popup.mjs';
 import { cacheBustContentLoaders } from '../../scripts/cache-bust-content-loaders.mjs';
 
@@ -50,6 +50,7 @@ try {
   await promisify(execFile)(process.execPath, ['node_modules/vite/bin/vite.js', 'build', '--outDir', extension], {
     env: { ...process.env, PALLADIN_TARGET: 'chromium', PALLADIN_CHANNEL: 'production', VITE_API_URL: api.url, VITE_POSTHOG_KEY: '' }, maxBuffer: 4 * 1024 * 1024,
   });
+  await allowCaptureApi(extension, api.url);
   cacheBustContentLoaders(profile, 'chromium');
   context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: true,
     viewport: { width: 1200, height: 850 }, locale: 'en-US',
@@ -90,6 +91,9 @@ try {
     ?? await context.waitForEvent('page', { predicate: page => page.url().includes('/onboarding/') });
   await onboarding.close();
   popup = await openNativePopup(worker, profile, extensionId);
+  const configured = await popup.configureConnection({ name: 'Synthetic capture API', apiUrl: api.url,
+    webUrl: api.url, allowHttp: true, sharedUnlockEnabled: false });
+  assert.equal(configured.ok, true, JSON.stringify(configured));
   await popup.click('Continue to Palladin'); await popup.fill('input[type="email"]', api.email);
   await popup.fill('input[type="password"]', api.password); await popup.click('Sign in');
   await popup.waitText('proton.example.test');
