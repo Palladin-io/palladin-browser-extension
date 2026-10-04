@@ -1,5 +1,5 @@
 import {
-  ArrowLeft, ArrowUpFromLine, Bot, Check, ChevronRight, CodeXml,
+  ArrowLeft, Share2, Bot, Check, ChevronRight, CodeXml,
   Copy, CreditCard, Dice5, Eye, EyeOff, History, KeyRound,
   LockKeyhole, LogOut, PanelRight, Pencil, Plus, Settings, TerminalSquare,
 } from 'lucide-react';
@@ -17,7 +17,7 @@ const icons = {
   settings: Settings,
   back: ArrowLeft,
   edit: Pencil,
-  share: ArrowUpFromLine,
+  share: Share2,
   agent: Bot,
   logs: History,
   chevron: ChevronRight,

@@ -388,10 +388,14 @@ export class Protocol2VaultDataService implements VaultDataSource {
   }
 
   revealEntry(vaultId: string, entryId: string): Promise<MemberSecretV1> {
-    return this.enqueueSync(() => this.revealEntryNow(vaultId, entryId))
+    return this.enqueueSync(() => this.revealEntryNow(vaultId, entryId, openCurrentMemberSecret))
   }
 
-  private async revealEntryNow(vaultId: string, entryId: string): Promise<MemberSecretV1> {
+  revealCurrentEntry(vaultId: string, entryId: string): ReturnType<typeof openCurrentMemberSecret> {
+    return this.enqueueSync(() => this.revealEntryNow(vaultId, entryId, openCurrentMemberSecret))
+  }
+
+  private async revealEntryNow<T>(vaultId: string, entryId: string, open: (...args: Parameters<typeof openMemberSecret>) => Promise<T>): Promise<T> {
     const privateKey = this.deps.session.getPrivateKey()
     if (privateKey === null) throw new VaultDataError('locked', 'Session is locked')
     const userId = await this.deps.session.getUserId()
@@ -412,7 +416,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
         ...cached.active.vault,
         memberVaultKey: cached.active.memberVaultKey,
       }, privateKey, userId)
-      return await openCurrentMemberSecret(cached.item.entryKey, cached.item.memberSecret, vaultKey, {
+      return await open(cached.item.entryKey, cached.item.memberSecret, vaultKey, {
         organizationId: cached.active.accessContext.organizationId,
         vaultId,
         entryId,

@@ -1,3 +1,4 @@
+import { SharingPanel } from '../workspace/SharingPanel';
 import { EntryFields } from '../workspace/EntryFields';
 import type { WorkspaceClient } from '../workspace/client';
 import { useState } from 'react';
@@ -15,7 +16,6 @@ export function EntryDetail({
   entry,
   client,
   onBack,
-  onShare,
   workspaceClient,
   onGrants,
   onLogs,
@@ -25,10 +25,10 @@ export function EntryDetail({
   onGrants(): void;
   onLogs(): void;
   client: VaultClient;
-  onShare(): void;
   onBack(): void;
 }): React.JSX.Element {
   const { t } = useI18n();
+  const [sharing, setSharing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   async function fill() {
@@ -55,6 +55,7 @@ export function EntryDetail({
         {t('common.back')}
       </button>
       <div className="detail-heading">
+        {sharing ? <button className="toolbar-icon" aria-label={t('common.back')} title={t('common.back')} onClick={() => setSharing(false)}><PopupIcon name="back" /></button> : null}
         <EntryIcon
           name={entry.name}
           type={entry.type}
@@ -70,10 +71,12 @@ export function EntryDetail({
             {t(entry.type === 3 ? 'common.fill' : 'vault.logIn')}
           </Button>
         ) : null}
-        <Button variant="subtle" onClick={onShare}>
-          {t('share.action')}
+        <Button variant="subtle" onClick={() => setSharing(true)}>
+          <PopupIcon name="share" />{t('share.action')}
         </Button>
       </div>
+      {sharing ? <SharingPanel client={workspaceClient} vaultClient={client} entries={[entry]} initialEntry={entry} initialCreate embedded onClose={() => setSharing(false)} /> : null}
+      <div hidden={sharing}>
       <EntryFields
         client={workspaceClient}
         vaultClient={client}
@@ -89,9 +92,9 @@ export function EntryDetail({
         {t('workspace.grants')}
         <PopupIcon name="chevron" />
       </button>
-      <button className="detail-link" onClick={onShare}>
+      <button className="detail-link" onClick={() => setSharing(true)}>
         <PopupIcon name="share" />
-        {t('workspace.shares')}
+        {t('share.action')}
         <PopupIcon name="chevron" />
       </button>
       <button className="detail-link" onClick={onLogs}>
@@ -111,6 +114,7 @@ export function EntryDetail({
         {t('detail.edit')}
         <PopupIcon name="chevron" />
       </button>
+      </div>
       </div>
       {message ? (
         <p role="status" className="entry-status">

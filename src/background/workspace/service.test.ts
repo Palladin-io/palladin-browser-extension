@@ -92,6 +92,39 @@ describe('workspace command boundary', () => {
     );
   });
 
+  it('reports HTTP failures without exposing the response body', async () => {
+    const { service, fetch } = setup();
+    fetch.mockResolvedValue(new Response('private server details', { status: 403 }));
+    expect(await service.handle({ type: 'workspace/audit' })).toEqual({
+      ok: false, code: 'forbidden', httpStatus: 403,
+    });
+  });
+
+  it('distinguishes transport failure from unreadable responses', async () => {
+    const { service, fetch } = setup();
+    fetch.mockRejectedValueOnce(new Error('private network details'));
+    expect(await service.handle({ type: 'workspace/grants' })).toEqual({ ok: false, code: 'transport' });
+    fetch.mockResolvedValueOnce(new Response('not json'));
+    expect(await service.handle({ type: 'workspace/audit' })).toEqual({ ok: false, code: 'response', httpStatus: 200 });
+  });
+
+  it('deserializes JSON even when the server omits its content type', async () => {
+    const { service, fetch } = setup();
+    const page = { items: [], nextCursor: null };
+    fetch.mockResolvedValue(new Response(JSON.stringify(page)));
+    expect(await service.handle({ type: 'workspace/grants' })).toEqual({ ok: true, data: page });
+  });
+
+  it('identifies session access and refresh failures without exposing their messages', async () => {
+    const { service, fetch, session } = setup();
+    session.getAccessToken.mockRejectedValueOnce(new Error('private session details'));
+    expect(await service.handle({ type: 'workspace/audit' })).toEqual({ ok: false, code: 'session' });
+    expect(fetch).not.toHaveBeenCalled();
+    fetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+    session.refreshAccessToken.mockRejectedValueOnce(new Error('private refresh details'));
+    expect(await service.handle({ type: 'workspace/grants' })).toEqual({ ok: false, code: 'refresh', httpStatus: 401 });
+  });
+
   it('never fetches with a locked session', async () => {
     const { service, fetch, lock } = setup();
     lock();

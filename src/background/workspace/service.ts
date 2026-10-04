@@ -7,7 +7,7 @@ import {
 } from '../../shared/workspace/commands';
 
 export class WorkspaceError extends Error {
-  constructor(readonly code: WorkspaceErrorCode) {
+  constructor(readonly code: WorkspaceErrorCode, readonly httpStatus?: number) {
     super(code);
   }
 }
@@ -103,11 +103,12 @@ export class WorkspaceService {
     } catch (error) {
       return {
         ok: false,
+        ...(error instanceof WorkspaceError && error.httpStatus ? { httpStatus: error.httpStatus } : {}),
         code: controller.signal.aborted
           ? 'locked'
           : error instanceof WorkspaceError
             ? error.code
-            : 'network',
+            : 'internal',
       };
     } finally {
       this.pending.delete(controller);
@@ -205,7 +206,7 @@ export class WorkspaceService {
     assertCurrent();
     this.pending.add(controller);
     try {
-      let token = await this.deps.session.getAccessToken();
+      let token = await this.deps.session.getAccessToken().catch(() => { throw new WorkspaceError('session'); });
       assertCurrent();
       for (let attempt = 0; attempt < 2; attempt++) {
         if (!token) throw new WorkspaceError('locked');
@@ -225,11 +226,11 @@ export class WorkspaceService {
             redirect: 'error',
             credentials: 'omit',
           },
-        );
+        ).catch(() => { throw new WorkspaceError('transport'); });
         assertCurrent();
         if (response.status === 401 && attempt === 0) {
           await response.body?.cancel();
-          token = await this.deps.session.refreshAccessToken();
+          token = await this.deps.session.refreshAccessToken().catch(() => { throw new WorkspaceError('refresh', 401); });
           assertCurrent();
           continue;
         }
@@ -242,14 +243,13 @@ export class WorkspaceService {
                 : response.status === 401
                   ? 'locked'
                   : 'network',
+            response.status,
           );
         const data: unknown =
           response.status === 204 ||
           response.headers.get('content-length') === '0'
             ? null
-            : response.headers.get('content-type')?.includes('application/json')
-              ? await response.json()
-              : null;
+            : await response.json().catch(() => { throw new WorkspaceError('response', response.status); });
         assertCurrent();
         return data;
       }

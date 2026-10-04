@@ -1,6 +1,7 @@
+import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { usePendingGrants } from '../workspace/usePendingGrants';
 import { GrantsPanel } from '../workspace/GrantsPanel';
-import { SharingPanel } from '../workspace/SharingPanel';
+import { SharingOverview } from '../workspace/SharingOverview';
 import { AuditPanel } from '../workspace/AuditPanel';
 import { createWorkspaceClient } from '../workspace/client';
 import type { EntryMetadata } from '../../background/vault/entry-metadata';
@@ -17,7 +18,6 @@ import { useCapturePrompt } from '../capture/useCapturePrompt';
 import { Button } from '../components/Button';
 import { EntryList } from '../components/EntryList';
 import { Spinner } from '../components/Spinner';
-import { ListSkeleton } from '../components/ListSkeleton';
 import { SearchBar } from '../components/SearchBar';
 import { GeneratorPanel } from '../generator/GeneratorPanel';
 import { createVaultClient, type VaultClient } from '../vault/client';
@@ -220,11 +220,10 @@ export function UnlockedScreen({
             vaultId={scope?.vaultId}
           />
         ) : view === 'shares' ? (
-          <SharingPanel
+          <SharingOverview
             client={workspaceClient}
             vaultClient={client}
             entries={list.all}
-            initialEntry={current ?? undefined}
           />
         ) : view === 'logs' ? (
           <AuditPanel
@@ -252,7 +251,7 @@ export function UnlockedScreen({
         ) : (
           <>
             {list.status === 'loading' ? (
-              <><div className="workspace-loading" role="status"><Spinner />{t("app.preparing")}</div><ListSkeleton /></>
+              <LoadingSkeleton />
             ) : list.status === 'error' ? (
               <div className="vault-error-panel" role="alert">
                 <p className="vault-error">
@@ -307,7 +306,6 @@ export function UnlockedScreen({
                       setScope(current);
                       setView('logs');
                     }}
-                    onShare={() => setView('shares')}
                     onBack={() => setSelected(null)}
                   />
                 ) : (

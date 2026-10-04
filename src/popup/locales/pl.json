@@ -461,5 +461,13 @@
   "auth.welcomeLine1": "Zero-knowledge u podstaw.",
   "auth.welcomeLine2": "Stworzony dla agentów AI.",
   "auth.welcomeLine3": "Twoje klucze, twoje zasady.",
-  "auth.welcomeLine4": "Zawsze zaszyfrowane."
+  "auth.welcomeLine4": "Zawsze zaszyfrowane.",
+  "workspace.forbidden": "Twoje konto nie ma uprawnień do tych danych.",
+  "workspace.locked": "Sesja jest zablokowana. Odblokuj Palladin i spróbuj ponownie.",
+  "share.snapshotNotice": "Udostępniasz cały wpis, w tym notatki, 2FA i pola własne. Kopia nie zmieni się po edycji oryginału.",
+  "share.emailNotice": "Wyślij link samodzielnie. My wyślemy odbiorcy kod weryfikacyjny e-mailem.",
+  "share.anyoneWarning": "Każdy, kto ma link, może odebrać wpis po dodatkowej weryfikacji, jeśli ją ustawisz. Odbiorcy mają wspólny limit odbiorów.",
+  "share.separateChannel": "Przekaż hasło lub PIN innym kanałem niż link.",
+  "share.done": "Gotowe",
+  "share.created": "Link udostępnienia utworzony"
 }

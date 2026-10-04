@@ -1,3 +1,7 @@
+import { PopupIcon } from '../components/PopupIcon';
+import { LoadingSkeleton } from '../components/LoadingSkeleton';
+import { WorkspaceError } from './WorkspaceError';
+import { EntryIcon } from '../components/EntryIcon';
 import {
   sharingRecipients,
   validShareProtection,
@@ -32,12 +36,19 @@ export function SharingPanel({
   vaultClient,
   entries,
   initialEntry,
+  initialCreate = false,
+  embedded = false,
+  onClose,
 }: {
   client: WorkspaceClient;
   vaultClient: VaultClient;
   entries: readonly EntryMetadata[];
   initialEntry?: EntryMetadata | undefined;
+  initialCreate?: boolean;
+  embedded?: boolean;
+  onClose?: () => void;
 }): React.JSX.Element {
+  const [creating, setCreating] = useState(initialCreate);
   const { t, locale } = useI18n();
   const [entryKey, setEntryKey] = useState(
     initialEntry ? `${initialEntry.vaultId}:${initialEntry.id}` : '',
@@ -58,11 +69,12 @@ export function SharingPanel({
   const [inputError, setInputError] = useState(false);
   const [notify, setNotify] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<unknown>(null);
   const [links, setLinks] = useState<
     { url: string; email: string | null; operationId: string }[]
   >([]);
   const [attempt, setAttempt] = useState<CreateCommand[] | null>(null);
+  const [shownLinks, setShownLinks] = useState<string[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
   const [changing, setChanging] = useState<string | null>(null);
   const operations = useRef<string[]>([]);
@@ -103,8 +115,8 @@ export function SharingPanel({
           : page.items,
       );
       setCursor(page.nextCursor);
-    } catch {
-      if (generation.current === revision && alive.current) setError(true);
+    } catch (error) {
+      if (generation.current === revision && alive.current) setError(error);
     } finally {
       if (generation.current === revision && alive.current)
         setLoadingList(false);
@@ -193,8 +205,8 @@ export function SharingPanel({
       setSecret('');
       setConfirmation('');
       await load();
-    } catch {
-      if (alive.current) setError(true);
+    } catch (error) {
+      if (alive.current) setError(error);
     } finally {
       if (alive.current) setBusy(false);
     }
@@ -211,8 +223,8 @@ export function SharingPanel({
         shareId,
       });
       await load();
-    } catch {
-      if (alive.current) setError(true);
+    } catch (error) {
+      if (alive.current) setError(error);
     } finally {
       if (alive.current) setBusy(false);
     }
@@ -243,8 +255,8 @@ export function SharingPanel({
       setChanging(null);
       setSecret('');
       await load();
-    } catch {
-      if (alive.current) setError(true);
+    } catch (error) {
+      if (alive.current) setError(error);
     } finally {
       if (alive.current) setBusy(false);
     }
@@ -254,13 +266,15 @@ export function SharingPanel({
       className="workspace-panel sharing-panel"
       aria-label={t('workspace.shares')}
     >
-      <div className="workspace-heading">
+      {!embedded ? <div className="workspace-heading">
         <div>
-          <h2>{t('workspace.shares')}</h2>
-          <p>{t('share.subtitle')}</p>
+          {!embedded ? <h2>{t('workspace.shares')}</h2> : null}
+          {entry && !embedded ? <p>{entry.name} · {entry.vaultName}</p> : null}
         </div>
-      </div>
-      <label className="workspace-label">
+        {onClose ? <Button variant="ghost" onClick={onClose}>{t('common.back')}</Button> : null}
+        {entry && !creating && !changing ? <Button onClick={() => setCreating(true)}>{t('share.create')}</Button> : null}
+      </div> : null}
+      {!initialEntry ? <label className="workspace-label">
         {t('share.entry')}
         <select
           value={entryKey}
@@ -277,17 +291,19 @@ export function SharingPanel({
             </option>
           ))}
         </select>
-      </label>
+      </label> : null}
       {entry ? (
         <>
-          <form
-            className="workspace-form"
+          {creating || changing ? <form
+            className="workspace-form" noValidate
             onSubmit={(event) => {
               event.preventDefault();
               void (changing ? changeProtection() : create());
             }}
           >
-            <h3>{t(changing ? 'share.changeProtection' : 'share.create')}</h3>
+            {!embedded ? <div className="share-source"><EntryIcon name={entry.name} type={entry.type} {...(entry.icon ? {icon: entry.icon} : {})} /><span><strong>{entry.name}</strong><small>{entry.vaultName}</small></span></div> : null}
+            <h3>{t(links.length ? 'share.created' : changing ? 'share.changeProtection' : 'share.create')}</h3>
+            {!links.length && !changing ? <p className="share-hint">{t('share.snapshotNotice')}</p> : null}
             {links.length ? (
               <div className="share-result">
                 <p>{t('share.linkNotice')}</p>
@@ -297,17 +313,22 @@ export function SharingPanel({
                       {link.email ?? t('share.anyone')}
                       <input
                         aria-label={t('share.link')}
+                        type={shownLinks.includes(link.operationId) ? 'text' : 'password'}
                         readOnly
                         value={link.url}
                       />
                     </label>
+                    <button type="button" className="toolbar-icon" aria-label={t(shownLinks.includes(link.operationId) ? 'field.hide' : 'field.show')}
+                      onClick={() => setShownLinks(current => current.includes(link.operationId) ? current.filter(id => id !== link.operationId) : [...current, link.operationId])}>
+                      <PopupIcon name={shownLinks.includes(link.operationId) ? 'eye-off' : 'eye'} />
+                    </button>
                     <Button
                       onClick={() =>
                         void navigator.clipboard
                           .writeText(link.url)
                           .then(() => vaultClient.armClipboardClear())
                           .then(() => setCopied(link.operationId))
-                          .catch(() => setError(true))
+                          .catch(error => setError(error))
                       }
                     >
                       {t(
@@ -323,8 +344,8 @@ export function SharingPanel({
                     {t('share.retry')}
                   </Button>
                 ) : null}
-                <Button variant="subtle" disabled={busy} onClick={reset}>
-                  {t('share.new')}
+                <Button variant="subtle" disabled={busy} onClick={() => { reset(); setCreating(false); if (embedded) onClose?.(); }}>
+                  {t('share.done')}
                 </Button>
               </div>
             ) : (
@@ -332,38 +353,7 @@ export function SharingPanel({
                 <fieldset disabled={busy || attempt !== null}>
                   {!changing ? (
                     <>
-                      <div className="workspace-form-grid">
-                        <label>
-                          {t('share.expiry')}
-                          <select
-                            value={hours}
-                            onChange={(event) =>
-                              setHours(
-                                Number(event.target.value) as typeof hours,
-                              )
-                            }
-                          >
-                            {[1, 24, 72, 168].map((value) => (
-                              <option key={value} value={value}>
-                                {t('share.hours', { count: value })}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label>
-                          {t('share.receipts')}
-                          <input
-                            type="number"
-                            min="1"
-                            max="100"
-                            placeholder={t('share.unlimited')}
-                            value={receipts}
-                            onChange={(event) =>
-                              setReceipts(event.target.value)
-                            }
-                          />
-                        </label>
-                      </div>
+                      <details className="share-section"><summary><span>{t('share.recipients')}</span><span>{named ? email || t('share.named') : t('share.anyone')}</span><PopupIcon name="chevron" /></summary><div>
                       <label>
                         {t('share.recipients')}
                         <select
@@ -388,9 +378,12 @@ export function SharingPanel({
                           />
                         </label>
                       ) : null}
+                      <p className="share-hint">{t(named ? 'share.emailNotice' : 'share.anyoneWarning')}</p>
+                      </div></details>
                     </>
                   ) : null}
-                  <div className="workspace-form-grid">
+                  <details className="share-section" open={changing ? true : undefined}><summary><span>{t('share.protection')}</span><span>{t(protection === 'none' ? 'share.none' : protection === 'pin' ? 'share.pin' : 'share.password')}</span><PopupIcon name="chevron" /></summary><div>
+                  <>
                     <label>
                       {t('share.protection')}
                       <select
@@ -425,7 +418,7 @@ export function SharingPanel({
                         />
                       </label>
                     ) : null}
-                  </div>
+                  </>
                   {protection !== 'none' ? (
                     <label>
                       {t('share.confirmSecret')}
@@ -440,10 +433,50 @@ export function SharingPanel({
                       />
                     </label>
                   ) : null}
+                  {protection !== 'none' ? <p className="share-hint">{t('share.separateChannel')}</p> : null}
+                  </div></details>
+                  {!changing ? <>
+                    <details className="share-section"><summary><span>{t('share.expiry')}</span><span>{t('share.hours', {count: hours})}</span><PopupIcon name="chevron" /></summary><div>
+
+                        <label>
+                          {t('share.expiry')}
+                          <select
+                            value={hours}
+                            onChange={(event) =>
+                              setHours(
+                                Number(event.target.value) as typeof hours,
+                              )
+                            }
+                          >
+                            {[1, 24, 72, 168].map((value) => (
+                              <option key={value} value={value}>
+                                {t('share.hours', { count: value })}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                    </div></details>
+                    <details className="share-section"><summary><span>{t('share.receipts')}</span><span>{receipts || t('share.unlimited')}</span><PopupIcon name="chevron" /></summary><div>
+                        <label>
+                          {t('share.receipts')}
+                          <input
+                            type="number"
+                            min="1"
+                            max="100"
+                            placeholder={t('share.unlimited')}
+                            value={receipts}
+                            onChange={(event) =>
+                              setReceipts(event.target.value)
+                            }
+                          />
+                        </label>
+                                          </div></details>
+                  </> : null}
                   {!changing ? (
                     <label className="workspace-check">
                       <input
                         type="checkbox"
+                        role="switch"
                         checked={notify}
                         onChange={(event) => setNotify(event.target.checked)}
                       />
@@ -455,7 +488,7 @@ export function SharingPanel({
                   <p role="alert">{t('share.inputError')}</p>
                 ) : null}
                 {attempt && error ? <p>{t('share.retryNotice')}</p> : null}
-                <div className="workspace-actions">
+                <div className="workspace-actions share-form-actions">
                   <Button type="submit" loading={busy}>
                     {t(
                       changing
@@ -465,21 +498,18 @@ export function SharingPanel({
                           : 'share.create',
                     )}
                   </Button>
-                  {attempt || changing ? (
-                    <Button variant="subtle" disabled={busy} onClick={reset}>
+                  <Button variant="subtle" disabled={busy} onClick={() => { reset(); setCreating(false); if (embedded) onClose?.(); }}>
                       {t('common.cancel')}
                     </Button>
-                  ) : null}
                 </div>
               </>
             )}
-          </form>
-          {error ? <p role="alert">{t('workspace.error')}</p> : null}
+          </form> : null}
+          {error ? <WorkspaceError error={error} /> : null}
+          {!creating && !changing ? <>
           <h3>{t('share.existing')}</h3>
-          {!items.length ? (
-            <p className="workspace-empty">
-              {t(loadingList ? 'workspace.loading' : 'share.empty')}
-            </p>
+          {loadingList && !items.length ? <LoadingSkeleton /> : !items.length ? (
+            !error ? <p className="workspace-empty">{t('share.empty')}</p> : null
           ) : (
             items.map((item) => (
               <article className="share-row" key={item.shareId}>
@@ -539,6 +569,7 @@ export function SharingPanel({
               {t('workspace.more')}
             </Button>
           ) : null}
+          </> : null}
         </>
       ) : (
         <p className="workspace-empty">{t('share.choose')}</p>

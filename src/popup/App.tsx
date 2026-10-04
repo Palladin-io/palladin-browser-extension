@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from './components/LoadingSkeleton';
 /**
  * Popup root: a small state machine over the worker's session status. It shows
  * exactly one of sign-in / TOTP / unlock / unlocked, driven by the phase from
@@ -10,7 +11,6 @@ import { useEffect, useMemo, useState } from "react";
 import { PublicAssetImages } from "./components/PublicAssetImages";
 import { Button } from "./components/Button";
 import { Header } from "./components/Header";
-import { Spinner } from "./components/Spinner";
 import { createServerConfigClient, type ServerConfigClient } from "./config/client";
 import { useI18n } from "./i18n";
 import {
@@ -190,8 +190,7 @@ export function App({
       /> : null}
       {onboardingStatus === "loading" ? (
         <div className="centered">
-          <Spinner />
-          <span className="muted">{t("app.preparing")}</span>
+          <LoadingSkeleton />
         </div>
       ) : onboardingStatus === "pending" ? (
         <PasswordManagerIntro
@@ -221,8 +220,7 @@ export function App({
       case "loading":
         return (
           <div className="centered">
-            <Spinner />
-            <span className="muted">{t("app.checkingSession")}</span>
+            <LoadingSkeleton />
           </div>
         );
       case "unavailable":

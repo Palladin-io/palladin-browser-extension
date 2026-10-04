@@ -44,8 +44,10 @@ it('retries only an unfinished named recipient with the same operation ID', asyn
       vaultClient={{ armClipboardClear: vi.fn() } as unknown as VaultClient}
       entries={[entry]}
       initialEntry={entry}
+      initialCreate
     />,
   );
+  await user.click(screen.getByText('Who can open', { selector: 'summary span' }));
   await user.selectOptions(screen.getByLabelText('Who can open'), 'named');
   await user.type(
     screen.getByLabelText('Recipient email'),

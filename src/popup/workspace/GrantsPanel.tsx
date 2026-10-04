@@ -1,3 +1,5 @@
+import { LoadingSkeleton } from '../components/LoadingSkeleton';
+import { WorkspaceError } from './WorkspaceError';
 import { useEffect, useRef, useState } from 'react';
 import type { EntryMetadata } from '../../background/vault/entry-metadata';
 import type { OrgGrant } from '../../shared/workspace/contracts';
@@ -36,12 +38,12 @@ export function GrantsPanel({
 }): React.JSX.Element {
   const { t, locale } = useI18n();
   const [items, setItems] = useState<OrgGrant[]>([]);
-  const [status, setStatus] = useState('pending');
+  const [status, setStatus] = useState('');
   const [cursor, setCursor] = useState<string | null>(null);
   const [selected, setSelected] = useState<OrgGrant | null>(null);
   const [review, setReview] = useState<GrantReview | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<unknown>(null);
   const [policy, setPolicy] = useState<'time' | 'uses' | 'lifetime'>('time');
   const [duration, setDuration] = useState('15');
   const [customDate, setCustomDate] = useState('');
@@ -83,10 +85,10 @@ export function GrantsPanel({
           : page.items,
       );
       setCursor(page.nextCursor);
-    } catch {
-      if (mounted.current && run === generation.current) setError(true);
+    } catch (error) {
+      if (mounted.current && run === generation.current) setError(error);
     } finally {
-      if (mounted.current && run === generation.current)
+      if (mounted.current && run === generation.current && !quiet)
         setBusy(false);
     }
   }
@@ -94,14 +96,13 @@ export function GrantsPanel({
     setItems([]);
     setSelected(null);
     setReview(null);
-    void load();
     return () => {
       generation.current++;
     };
   }, [client, status, entryId, vaultId]);
   useEffect(() => {
-    if (!selected) void load(undefined, true);
-  }, [revision]);
+    void load(undefined, items.length > 0);
+  }, [client, status, entryId, vaultId, revision]);
   async function select(grant: OrgGrant) {
     setSelected(grant);
     setReview(null);
@@ -120,8 +121,8 @@ export function GrantsPanel({
       setMethods(data.methods);
       setFields(data.fields.map((field) => field.id));
       setAllFields(true);
-    } catch {
-      if (mounted.current) setError(true);
+    } catch (error) {
+      if (mounted.current) setError(error);
     } finally {
       if (mounted.current) setBusy(false);
     }
@@ -177,9 +178,9 @@ export function GrantsPanel({
       setSelected(null);
       setReview(null);
       await load();
-    } catch {
+    } catch (error) {
       if (mounted.current) {
-        setError(true);
+        setError(error);
         if (action === 'approve') setReview(null);
       }
     } finally {
@@ -220,7 +221,7 @@ export function GrantsPanel({
           {t('workspace.refresh')}
         </Button>
       </div>
-      {error ? <p role="alert">{t('grant.error')}</p> : null}
+      {error ? <WorkspaceError error={error} /> : null}
       <div className="grants-layout">
         <div className="grant-list">
           {items.map((grant) => (
@@ -259,11 +260,7 @@ export function GrantsPanel({
               </span>
             </button>
           ))}
-          {!items.length ? (
-            <p className="workspace-empty">
-              {t(busy ? 'workspace.loading' : 'grant.empty')}
-            </p>
-          ) : null}
+          {busy && !items.length ? <LoadingSkeleton /> : !error && !items.length ? <p className="workspace-empty">{t('grant.empty')}</p> : null}
           {cursor ? (
             <Button
               variant="subtle"

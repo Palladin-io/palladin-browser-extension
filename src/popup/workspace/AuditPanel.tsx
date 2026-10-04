@@ -1,3 +1,5 @@
+import { LoadingSkeleton } from '../components/LoadingSkeleton';
+import { WorkspaceError } from './WorkspaceError';
 import { useEffect, useRef, useState } from 'react';
 import type {
   AuditLogItem,
@@ -100,7 +102,7 @@ export function AuditPanel({
   const [cursor, setCursor] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<unknown>(null);
   const revision = useRef(0);
   useEffect(
     () => () => {
@@ -136,8 +138,8 @@ export function AuditPanel({
           : page.items,
       );
       setCursor(page.nextCursor);
-    } catch {
-      if (revision.current === run) setError(true);
+    } catch (error) {
+      if (revision.current === run) setError(error);
     } finally {
       if (revision.current === run) setBusy(false);
     }
@@ -176,9 +178,9 @@ export function AuditPanel({
           {t('workspace.refresh')}
         </Button>
       </div>
-      {error ? <p role="alert">{t('workspace.error')}</p> : null}
+      {error ? <WorkspaceError error={error} /> : null}
       {busy && !items.length ? (
-        <p role="status">{t('workspace.loading')}</p>
+        <LoadingSkeleton />
       ) : null}
       {!busy && !error && !items.length ? (
         <p className="workspace-empty">{t('audit.empty')}</p>

@@ -1,3 +1,4 @@
+import { vaultData } from '../vault/runtime';
 import { webAppUrl } from '../../shared/config/web-app';
 import { Protocol2VaultClient } from '../vault/protocol2/client';
 import { EntryActions } from './entry-actions';
@@ -8,6 +9,7 @@ import { WorkspaceService } from './service';
 export const workspaceService = new WorkspaceService({
   session: sessionManager,
   actions: new EntryActions({
+    data: vaultData,
     client: new Protocol2VaultClient(
       (...args) => fetch(...args),
       () => serverConfig.apiUrl,

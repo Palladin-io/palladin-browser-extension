@@ -461,5 +461,13 @@
   "auth.welcomeLine1": "Zero-knowledge by design.",
   "auth.welcomeLine2": "Built for AI agents.",
   "auth.welcomeLine3": "Your keys, your rules.",
-  "auth.welcomeLine4": "Always encrypted."
+  "auth.welcomeLine4": "Always encrypted.",
+  "workspace.forbidden": "Your account does not have permission to view this data.",
+  "workspace.locked": "Your session is locked. Unlock Palladin and try again.",
+  "share.snapshotNotice": "Shares the entire entry, including notes, 2FA and custom fields. This copy will not update when you edit the original.",
+  "share.emailNotice": "Send the link yourself. We email the recipient a verification code.",
+  "share.anyoneWarning": "Anyone with the link can receive the entry after any additional verification. All recipients share one receipt limit.",
+  "share.separateChannel": "Send the password or PIN through a different channel than the link.",
+  "share.done": "Done",
+  "share.created": "Sharing link created"
 }

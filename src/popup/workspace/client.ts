@@ -5,6 +5,10 @@ import type {
   WorkspaceResults,
 } from '../../shared/workspace/commands';
 
+export class WorkspaceClientError extends Error {
+  constructor(readonly code: string, readonly httpStatus?: number) { super(code); }
+}
+
 export interface WorkspaceClient {
   members(visibleUserIds: readonly string[]): Promise<MemberIdentity[]>;
   send<C extends WorkspaceCommand>(
@@ -41,8 +45,8 @@ export function createWorkspaceClient(
     async send<C extends WorkspaceCommand>(
       command: C,
     ): Promise<WorkspaceResults[C['type']]> {
-      const response = await send(command);
-      if (!response?.ok) throw new Error(response?.code ?? 'network');
+      const response = await send(command).catch(() => { throw new WorkspaceClientError('worker'); });
+      if (!response?.ok) throw new WorkspaceClientError(response?.code ?? 'worker', response?.httpStatus);
       return response.data as WorkspaceResults[C['type']];
     },
   };

@@ -12,12 +12,13 @@ import { cacheBustContentLoaders } from '../../scripts/cache-bust-content-loader
 import { validateBuiltManifest } from '../../scripts/validate-built-manifest.mjs';
 
 const shares = new Map();
+const grants = [];
 const api = await createCaptureApi({ workspaceHandler: async ({ method, url, request, vaults, userId, send }) => {
   if (url.pathname === '/api/account/shared-unlock') { send({ sharedUnlockEnabled: false, revision: 1 }); return true; }
   if (url.pathname === '/api/organization/member-directory') { send({ items: [{ userId, displayName: 'Synthetic owner' }] }); return true; }
   if (url.pathname === '/api/audit-logs') { send({ items: [{ id: randomUUID(), eventType: 'entry.created', actorType: 'user', userId, vaultId: vaults[0].detail.id, entryId: [...vaults[0].entries.keys()][0] ?? null, metadata: {}, createdAt: new Date().toISOString() }], nextCursor: null }); return true; }
-  if (url.pathname === '/api/grants/summary') { send({ pending: 0, active: 0, expired: 0, revoked: 0, consumed: 0, denied: 0 }); return true; }
-  if (url.pathname === '/api/grants') { send({ items: [], nextCursor: null }); return true; }
+  if (url.pathname === '/api/grants/summary') { send({ pending: grants.filter(g => g.status === 'pending').length, active: grants.filter(g => g.status === 'active').length, expired: 0, revoked: 0, consumed: 0, denied: 0 }); return true; }
+  if (url.pathname === '/api/grants') { send({ items: grants.filter(g => !url.searchParams.get('status') || g.status === url.searchParams.get('status')), nextCursor: null }); return true; }
   const match = /^\/api\/vaults\/([^/]+)\/entries\/([^/]+)\/sharing(?:\/(.*))?$/.exec(url.pathname);
   if (!match) return false;
   const entry = vaults.find(vault => vault.detail.id === match[1])?.entries.get(match[2]);
@@ -77,15 +78,23 @@ try {
   await popup.click('Synthetic account app.example.test · Vault: Personal');
   await popup.waitText('synthetic@example.test');
   await popup.screenshot(path.join(output, 'entry-light.png'));
-  await popup.click('Sharing', 'tab'); await popup.click('Create link');
+  await popup.click('Share');
+  await popup.screenshot(path.join(output, 'share-form-light.png'));
+  await popup.click('Create link');
   await popup.waitText('Save this link now.');
   assert.equal(shares.size, 1, 'The real popup must produce one encrypted share');
   await popup.screenshot(path.join(output, 'share-light.png'));
+  await popup.click('Sharing', 'tab');
+  await popup.click('Synthetic account · Personal');
   await popup.click('Revoke');
   assert.equal([...shares.values()][0].status, 'revoked');
   await popup.click('Logs', 'tab'); await popup.waitText('Synthetic owner');
   await popup.screenshot(path.join(output, 'logs-light.png'));
-  await popup.click('Agent access', 'tab'); await popup.waitText('No requests to show.');
+  grants.push({ id: randomUUID(), vaultId: api.vaults[0].detail.id, agentId: randomUUID(), agentName: 'Synthetic active agent', status: 'active', type: 'granular', createdAt: new Date().toISOString(), entryScopes: [], scriptScopes: [], canRevoke: true });
+  await popup.click('Agent access', 'tab'); await popup.waitText('Synthetic active agent');
+  grants.push({ id: randomUUID(), vaultId: api.vaults[0].detail.id, agentId: randomUUID(), agentName: 'Synthetic pending agent', status: 'pending', type: 'granular', createdAt: new Date().toISOString(), entryScopes: [], scriptScopes: [] });
+  await worker.evaluate(() => chrome.runtime.sendMessage({ type: 'workspace/changed' }));
+  await popup.waitText('Synthetic pending agent');
   await popup.observeResize();
   await popup.click('Lock'); await popup.waitText('Master password');
   await popup.waitWidth(420, 440);

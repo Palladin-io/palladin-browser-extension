@@ -155,7 +155,7 @@ export interface WorkspaceResults {
   };
   'workspace/review-grant': GrantReview;
   'workspace/approve-grant': null;
-  'workspace/detail': { revision: string; fields: EntryFieldView[] };
+  'workspace/detail': { fields: EntryFieldView[] };
   'workspace/field': { value: string; expiresIn?: number };
   'workspace/create-share': { url: string; shareId: string };
   'workspace/discard-share': null;
@@ -169,7 +169,7 @@ export interface WorkspaceResults {
   'workspace/protect-share': null;
 }
 export type WorkspaceErrorCode =
-  'locked' | 'network' | 'forbidden' | 'conflict' | 'invalid';
+  'locked' | 'network' | 'forbidden' | 'conflict' | 'invalid' | 'transport' | 'response' | 'session' | 'refresh' | 'internal';
 export type WorkspaceReply =
   | { ok: true; data: WorkspaceResults[keyof WorkspaceResults] }
-  | { ok: false; code: WorkspaceErrorCode };
+  | { ok: false; code: WorkspaceErrorCode; httpStatus?: number };

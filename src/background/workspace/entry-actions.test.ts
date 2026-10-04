@@ -79,6 +79,7 @@ function setup() {
     ciphertext: 'synthetic-ciphertext',
   });
   const actions = new EntryActions({
+    data: { revealCurrentEntry: vi.fn(async () => source) },
     client: client as unknown as Pick<
       Protocol2VaultClient,
       'getVault' | 'getEntry'
@@ -193,12 +194,14 @@ describe('encrypted workspace operations', () => {
   });
 
   it('projects concealed values as masks until an explicit field request', async () => {
-    const { actions, operation } = setup();
+    const { actions, operation, client } = setup();
     const result = await actions.handle(
       { type: 'workspace/detail', vaultId, entryId },
       operation,
     );
     expect(JSON.stringify(result)).not.toContain(source.content.password);
+    expect(client.getVault).not.toHaveBeenCalled();
+    expect(client.getEntry).not.toHaveBeenCalled();
     expect(
       await actions.handle(
         {

@@ -1,5 +1,5 @@
+import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { PopupIcon } from '../components/PopupIcon';
-import { Spinner } from '../components/Spinner';
 import { useEffect, useRef, useState } from 'react';
 import type { EntryFieldView } from '../../shared/workspace/commands';
 import type { WorkspaceClient } from './client';
@@ -98,7 +98,7 @@ export function EntryFields({
   }
   return (
     <>
-      {loading ? <div className="workspace-loading" role="status"><Spinner />{t("app.preparing")}</div> : null}
+      {loading ? <LoadingSkeleton /> : null}
       <div className="detail-fields">
         {fields
           .filter((field) => field.id !== 'credential.totp')

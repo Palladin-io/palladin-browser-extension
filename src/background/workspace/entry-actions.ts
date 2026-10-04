@@ -28,7 +28,7 @@ import type {
   ShareCreationChallenge,
 } from '../../shared/workspace/contracts';
 import type { Protocol2VaultClient } from '../vault/protocol2/client';
-import type { Protocol2SessionAccessor } from '../vault/protocol2/service';
+import type { Protocol2VaultDataService, Protocol2SessionAccessor } from '../vault/protocol2/service';
 import { WorkspaceError, type WorkspaceOperation } from './service';
 
 interface PendingShare {
@@ -45,6 +45,7 @@ export class EntryActions {
     private readonly deps: {
       client: Pick<Protocol2VaultClient, 'getVault' | 'getEntry'>;
       session: Protocol2SessionAccessor;
+      data: Pick<Protocol2VaultDataService, 'revealCurrentEntry'>;
       webUrl: string;
     },
   ) {}
@@ -123,42 +124,27 @@ export class EntryActions {
       }
       if (this.pendingShares.size >= 20) throw new WorkspaceError('invalid');
     }
+    if (command.type === 'workspace/detail' || command.type === 'workspace/field') {
+      operation.assertCurrent();
+      const secret = await this.deps.data.revealCurrentEntry(command.vaultId, command.entryId);
+      operation.assertCurrent();
+      const fields = entryShareFields(secret).fields;
+      if (command.type === 'workspace/detail') return {
+        ok: true,
+        data: { fields: fields.map(field => ({ ...field, value: field.type === 'concealed' || field.type === 'totp' ? null : field.value })) },
+      };
+      const field = fields.find(field => field.id === command.fieldId);
+      if (!field) throw new WorkspaceError('invalid');
+      const params = field.type === 'totp' ? parseOtpauthUri(field.value) : null;
+      if (field.type === 'totp' && !params) throw new WorkspaceError('invalid');
+      const code = params ? await generateTotp(params) : null;
+      operation.assertCurrent();
+      return { ok: true, data: { value: code?.code ?? field.value, ...(code ? { expiresIn: code.expiresIn } : {}) } };
+    }
     return this.withEntry(
       command,
       operation,
       async ({ vault, detail, secret }) => {
-        if (command.type === 'workspace/detail') {
-          return {
-            ok: true,
-            data: {
-              revision: detail.currentRevision,
-              fields: entryShareFields(secret).fields.map((field) => ({
-                ...field,
-                value:
-                  field.type === 'concealed' || field.type === 'totp'
-                    ? null
-                    : field.value,
-              })),
-            },
-          };
-        }
-        if (command.type === 'workspace/field') {
-          const field = entryShareFields(secret).fields.find(
-            (field) => field.id === command.fieldId,
-          );
-          if (!field) throw new WorkspaceError('invalid');
-          const params =
-            field.type === 'totp' ? parseOtpauthUri(field.value) : null;
-          if (field.type === 'totp' && !params)
-            throw new WorkspaceError('invalid');
-          const code = params ? await generateTotp(params) : null;
-          const value = code?.code ?? field.value;
-          operation.assertCurrent();
-          return {
-            ok: true,
-            data: { value, ...(code ? { expiresIn: code.expiresIn } : {}) },
-          };
-        }
         const challenge = (await operation.request(
           `${this.path(command)}/creation-challenge`,
           'POST',
