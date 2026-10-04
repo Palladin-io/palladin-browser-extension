@@ -39,7 +39,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       react(),
-      ...(target === "firefox" && sharedUnlockEnvironments.length > 0 ? [firefoxCanonicalManifestResource()] : []),
+      ...(target === "firefox" ? [firefoxCanonicalManifestResource()] : []),
       crx({
         manifest: buildManifest(target, sharedUnlockEnvironments, beta, stablePublicKey),
         // CRXJS needs its Firefox mode to retain and bundle background.scripts;
@@ -71,9 +71,9 @@ export default defineConfig(({ mode }) => {
                 input: {
                   onboarding: fileURLToPath(new URL("./src/onboarding/index.html", import.meta.url)),
                   sidePanel: fileURLToPath(new URL("./src/side-panel/index.html", import.meta.url)),
-                  ...(sharedUnlockEnvironments.length > 0 ? {
+                  ...({
                     sharedUnlockBridge: fileURLToPath(new URL("./src/shared-unlock-bridge/index.html", import.meta.url)),
-                  } : {}),
+                  }),
                 },
               }
             : {

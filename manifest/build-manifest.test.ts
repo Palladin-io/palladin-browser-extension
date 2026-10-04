@@ -108,8 +108,7 @@ describe("buildManifest (shared)", () => {
       "https://api.palladin.io/*",
     ]);
     expect(manifest.optional_host_permissions).toEqual([
-      "http://localhost/*",
-      "http://127.0.0.1/*",
+      "http://*/*",
       "https://*/*",
     ]);
     expect(manifest.content_security_policy?.extension_pages).toBe(
@@ -202,7 +201,7 @@ describe("buildManifest (firefox)", () => {
 
   it("does not request Chromium-only offscreen or native messaging permissions", () => {
     expect(new Set(manifest.permissions)).toEqual(
-      new Set(["storage", "activeTab", "alarms", "scripting"]),
+      new Set(["storage", "activeTab", "alarms", "scripting", "webNavigation"]),
     );
   });
 
@@ -240,7 +239,7 @@ describe("buildManifest (safari)", () => {
 
   it("does not request Chromium-only offscreen or native messaging permissions", () => {
     expect(new Set(manifest.permissions)).toEqual(
-      new Set(["storage", "activeTab", "alarms", "scripting"]),
+      new Set(["storage", "activeTab", "alarms", "scripting", "webNavigation"]),
     );
   });
 
@@ -251,23 +250,23 @@ describe("buildManifest (safari)", () => {
 
 describe("configured Chromium shared-unlock route", () => {
   const pairs = [{ apiUrl: "https://api.example.test", webOrigin: "https://app.example.test:8443" }];
-  it("adds the browser-document capability only to an explicitly configured Chromium artifact", () => {
+  it("routes dynamic domains while retaining the worker authorization boundary", () => {
     const configured = buildManifest("chromium", pairs) as unknown as Manifest;
     expect(configured.permissions).toContain("webNavigation");
-    expect(configured.externally_connectable).toEqual({ ids: [], matches: ["https://app.example.test/*"], accepts_tls_channel_id: false });
+    expect(configured.externally_connectable).toEqual({ ids: [], matches: ["<all_urls>"], accepts_tls_channel_id: false });
     expect((buildManifest("chromium") as unknown as Manifest).permissions).toContain("webNavigation");
-    expect((buildManifest("chromium") as unknown as Manifest).externally_connectable).toBeUndefined();
+    expect((buildManifest("chromium") as unknown as Manifest).externally_connectable).toEqual(configured.externally_connectable);
   });
   it("gives configured Firefox its own exact-host resource and private bridge route", () => {
     const configured = buildManifest("firefox", pairs) as unknown as Manifest;
     expect(configured.externally_connectable).toBeUndefined();
     expect(configured.permissions).toContain("webNavigation");
     expect(configured.web_accessible_resources).toEqual([{ resources: ["manifest.json", "src/shared-unlock-bridge/index.html"],
-      matches: ["https://app.example.test/*"] }]);
-    expect(configured.content_scripts?.at(-1)).toEqual({ matches: ["https://app.example.test/*"],
+      matches: ["http://*/*", "https://*/*"] }]);
+    expect(configured.content_scripts?.at(-1)).toEqual({ matches: ["http://*/*", "https://*/*"],
       js: ["src/content/shared-unlock-firefox.ts"], run_at: "document_start", all_frames: false });
-    expect(manifests.firefox.web_accessible_resources).toBeUndefined();
-    expect(manifests.firefox.permissions).not.toContain("webNavigation");
+    expect(manifests.firefox.web_accessible_resources).toEqual(configured.web_accessible_resources);
+    expect(manifests.firefox.permissions).toContain("webNavigation");
   });
   it("gives configured Safari native external messaging and exact Web host access", () => {
     const configured = buildManifest("safari", pairs) as unknown as Manifest;
@@ -276,11 +275,11 @@ describe("configured Chromium shared-unlock route", () => {
     expect(configured.permissions).not.toContain("nativeMessaging");
     expect(configured.permissions).not.toContain("offscreen");
     expect(configured.key).toBeUndefined();
-    expect(configured.externally_connectable).toEqual({ matches: ["https://app.example.test/*"] });
-    expect(configured.host_permissions).toContain("https://app.example.test/*");
+    expect(configured.externally_connectable).toEqual({ matches: ["http://*/*", "https://*/*"] });
+    expect(configured.host_permissions).not.toContain("https://app.example.test/*");
     expect(configured.web_accessible_resources).toBeUndefined();
-    expect(manifests.safari.permissions).not.toContain("webNavigation");
-    expect(manifests.safari.externally_connectable).toBeUndefined();
+    expect(manifests.safari.permissions).toContain("webNavigation");
+    expect(manifests.safari.externally_connectable).toEqual(configured.externally_connectable);
     expect(manifests.safari.host_permissions).not.toContain("https://app.example.test/*");
   });
   it("normalizes Safari host-pattern ports without changing other platforms", () => {

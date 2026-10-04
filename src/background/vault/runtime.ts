@@ -51,7 +51,7 @@ const session: Protocol2SessionAccessor = {
   getPrivateKey: () => sessionManager.getKeys()?.privateKey ?? null,
 };
 
-const protocol2Client = new Protocol2VaultClient((...args) => fetch(...args), () => serverConfig.apiUrl);
+const protocol2Client = new Protocol2VaultClient((...args) => fetch(...args), () => serverConfig.networkApiUrl);
 export const vaultData = new Protocol2VaultDataService({
   client: protocol2Client,
   cache: new IndexedDbProtocol2Cache(),

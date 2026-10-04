@@ -57,8 +57,8 @@ export const sharedUnlockExpiry = new SharedUnlockExpiryStore(durableStorageArea
 export const sharedUnlockLinks = new SharedUnlockLinkStore(durableStorageArea);
 export const sharedUnlockPreferenceGate = new SharedUnlockPreferenceGate(durableStorageArea);
 
-const sharingApi = new SharedUnlockApi((...args) => fetch(...args), () => serverConfig.apiUrl);
-const linkScopes = (accountId: string, apiUrl: string) => __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__
+const sharingApi = new SharedUnlockApi((...args) => fetch(...args), () => serverConfig.networkApiUrl);
+const linkScopes = (accountId: string, apiUrl: string) => serverConfig.sharedUnlockEnvironments
   .filter(environment => environment.apiUrl === apiUrl)
   .map(environment => ({ ...environment, accountId, extensionId: runtimeClientId }));
 export const sharedUnlockSource = new SharedUnlockSourceAuthority(sharingApi, Date.now,
@@ -79,8 +79,14 @@ export const sharedUnlockSource = new SharedUnlockSourceAuthority(sharingApi, Da
 const activityRecorder = new OwnSharedUnlockActivityRecorder(sharingApi, sharedUnlockExpiry);
 
 manager = new SessionManager({
-  store: new SessionStore(durableStorageArea, legacySessionStorageArea),
-  authClient: new AuthClient((...args) => fetch(...args), () => serverConfig.apiUrl),
+  store: new SessionStore(durableStorageArea, legacySessionStorageArea, () => {
+    const active = serverConfig.activeConnection;
+    return { allowHttpApiUrls: active?.allowHttp ? [active.apiUrl] : [] };
+  }),
+  authClient: new AuthClient(async (...args) => {
+    serverConfig.assertNetworkAllowed();
+    return fetch(...args);
+  }, () => serverConfig.apiUrl),
   autoLock: sessionAutoLock,
   clientId: runtimeClientId,
   onOwnActivity: () => recordExtensionOwnActivity(manager, sharedUnlockSource, activityRecorder),

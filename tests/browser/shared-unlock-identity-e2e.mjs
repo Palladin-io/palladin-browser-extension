@@ -57,8 +57,13 @@ assert(accountIsolation || accountUnlockCycles === 1, 'Repeated account unlock r
 assert(!(sidePanel && (accountIsolation || totp)), 'Side-panel scenario currently requires the same password-only synthetic account')
 assert(!(accountIsolation && totp), 'Account isolation currently requires password-only synthetic accounts')
 const backendSource = process.argv.includes('--backend-source') ? path.resolve(argument('--backend-source')) : undefined
-for (const url of [apiUrl, sesUrl]) assert(['localhost', '127.0.0.1'].includes(new URL(url).hostname), 'Isolated loopback services only')
-const webOrigin = 'http://127.0.0.1:5173', webDirectory = path.join(webSource, 'dist')
+const insecureHttpApi = process.argv.includes('--insecure-http-api')
+assert(['localhost', '127.0.0.1'].includes(new URL(sesUrl).hostname), 'Isolated loopback mail only')
+assert(insecureHttpApi ? apiUrl === 'http://api.palladin.test:55083' && headed
+  : ['localhost', '127.0.0.1'].includes(new URL(apiUrl).hostname), 'API must be loopback or the explicit DNS-mapped headed HTTP fixture')
+const insecureHttpPanel = process.argv.includes('--insecure-http-panel')
+const webOrigin = insecureHttpPanel ? 'http://panel.palladin.test:5173' : 'http://127.0.0.1:5173'
+const webDirectory = path.join(webSource, 'dist')
 const extension = path.resolve('dist/chromium'), output = path.resolve('test-results/shared-unlock-identity')
 const temporary = await mkdtemp(path.join(tmpdir(), 'palladin-identity-e2e-'))
 let context, server, mailServer, page, popup, stage = 'preflight'
@@ -75,6 +80,10 @@ const safePath = raw => {
 const progress = setInterval(() => console.log(`PROGRESS ${JSON.stringify({ stage, completedChecks: checks.length })}`), 10000)
 progress.unref()
 const messages = [] // Synthetic SES v2 delivery, memory-only; never written to a report.
+function findVerificationUrl(selected = messages) {
+  const urls = JSON.stringify(selected).match(/http:\/\/[^"\\\s<]+\/verify-email\?token=[^"\\\s<]+/g) ?? []
+  return urls.find(value => new URL(value).origin === webOrigin)
+}
 async function artifactHash(directory) {
   const hash = createHash('sha256')
   async function visit(relative) {
@@ -102,6 +111,8 @@ const provenance = {
   distribution: 'local-unpacked', emailDelivery: 'local-ses-v2-fixture',
   delayedManualAuthorization: delayManualAuthorization,
   fullBrowserRestart,
+  insecureHttpPanel,
+  insecureHttpApi,
   authorizationRateLimitRetry,
   ownActivityDuringPrepare,
   independentIdleExpiry,
@@ -119,7 +130,7 @@ const provenance = {
 const launchOptions = {
   ...(browserExecutable ? { executablePath: browserExecutable } : { channel: 'chromium' }), headless: !headed,
   ...(installViaCdp ? { ignoreDefaultArgs: ['--disable-extensions'] } : {}),
-  args: ['--remote-debugging-port=0', ...(installViaCdp ? ['--enable-unsafe-extension-debugging']
+  args: ['--remote-debugging-port=0', ...((insecureHttpPanel || insecureHttpApi) ? ['--host-resolver-rules=MAP panel.palladin.test 127.0.0.1, MAP api.palladin.test 127.0.0.1', '--no-proxy-server'] : []), ...(installViaCdp ? ['--enable-unsafe-extension-debugging']
     : [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`])],
 }
 async function observeLocalContext() {
@@ -235,7 +246,7 @@ const allowedEmails = new Set([email])
 try {
   await mkdir(output, { recursive: true }); await rm(path.join(output, 'report.json'), { force: true })
   await rm(path.join(output, 'failure.json'), { force: true })
-  assert.equal((await fetch(apiUrl + '/api/health')).status, 200)
+  assert.equal((await fetch((insecureHttpApi ? 'http://127.0.0.1:55083' : apiUrl) + '/api/health')).status, 200)
   mailServer = createServer((request, response) => {
     if (request.method !== 'POST' || request.url !== '/v2/email/outbound-emails') { response.writeHead(404); response.end(); return }
     let body = ''
@@ -298,6 +309,10 @@ try {
     if (url.origin === new URL(apiUrl).origin) requests.push({ path: url.pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, ':id'), status: 'request-failed' })
   })
   stage = 'registration-credentials'; await page.goto(webOrigin + '/register')
+  if (insecureHttpPanel) {
+    assert.deepEqual(await page.evaluate(() => ({ secure: isSecureContext, subtle: !!crypto.subtle, locks: !!navigator.locks })), { secure: false, subtle: false, locks: false })
+    checks.push('insecure-http-panel-without-subtlecrypto-or-web-locks')
+  }
   await page.locator('#register-email').fill(email)
   await page.locator('#register-password').fill(password)
   await page.locator('#register-password-confirm').fill(password)
@@ -321,7 +336,7 @@ try {
   stage = 'local-email-verification'
   let verification
   for (let attempt = 0; attempt < 100 && !verification; attempt++) {
-    verification = JSON.stringify(messages).match(/http:\/\/127\.0\.0\.1:5173\/verify-email\?token=[^"\\\s<]+/)?.[0]
+    verification = findVerificationUrl()
     if (!verification) await new Promise(resolve => setTimeout(resolve, 200))
   }
   assert(verification, 'Local SES must contain this synthetic account verification')
@@ -358,17 +373,50 @@ try {
   checks.push('actual-web-manual-password-login')
   stage = 'extension-automatic-unlock'
   popup = await openNativePopup(worker, path.join(temporary, 'profile'), extensionId)
-  for (let attempt = 0; attempt < 200; attempt++) {
-    if (await popup.hasText('Unlocked')) break
-    if (await popup.hasButton('Continue to Palladin')) { await popup.click('Continue to Palladin'); break }
-    await new Promise(resolve => setTimeout(resolve, 100))
+  if (insecureHttpApi) assert.equal(await worker.evaluate(origin => chrome.permissions.contains({ origins: [origin + '/*'] }), new URL(apiUrl).origin), false)
+  await popup.click('Continue to Palladin')
+  await popup.click('Settings')
+  await popup.click('Server URL')
+  await popup.fill('.server-settings-form input:not([type])', 'Isolated Identity fixture')
+  await popup.fill('input[autocomplete="url"]', apiUrl, { replace: true })
+  await popup.fill('.server-settings-form input[type="url"]:not([autocomplete])', webOrigin)
+  assert.deepEqual(await popup.connectionFormState(), { sharedUnlock: true, allowHttp: false, saveDisabled: true })
+  const httpConsent = 'Allow unencrypted HTTP for these API and panel addresses'
+  await popup.click(httpConsent, 'checkbox')
+  assert.deepEqual(await popup.connectionFormState(), { sharedUnlock: true, allowHttp: true, saveDisabled: false })
+  await popup.fill('.server-settings-form input[type="url"]:not([autocomplete])', webOrigin + '/', { replace: true })
+  assert.deepEqual(await popup.connectionFormState(), { sharedUnlock: true, allowHttp: false, saveDisabled: true })
+  await popup.click(httpConsent, 'checkbox')
+  if (insecureHttpApi) {
+    await popup.clickOpeningBrowserDialog('Save and activate')
+    console.log('WAITING: approve only api.palladin.test in the native browser dialog')
+    const permissionDeadline = Date.now() + 60000
+    while (!await worker.evaluate(origin => chrome.permissions.contains({ origins: [origin + '/*'] }), new URL(apiUrl).origin)) {
+      assert(Date.now() < permissionDeadline, 'Native API permission approval timed out')
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+  } else await popup.click('Save and activate')
+  // Native permission approval may outlast the document's bounded 30s reconnect backoff.
+  await popup.waitText('Unlocked', insecureHttpApi ? 45000 : undefined)
+  await popup.click('Back')
+  checks.push('native-settings-form-approves-pair-and-resets-http-consent-on-address-edit')
+  if (insecureHttpApi) {
+    assert.equal(await worker.evaluate(origin => chrome.permissions.contains({ origins: [origin + '/*'] }), new URL(apiUrl).origin), true)
+    checks.push('native-optional-http-api-host-permission-approved')
   }
   await popup.waitText('Unlocked')
   checks.push('actual-extension-automatic-unlock')
   await popup.waitText('No entries yet')
   checks.push('extension-authoritative-empty-snapshot-before-entry-creation')
   stage = 'web-create-entry'
-  await page.getByRole('link', { name: 'Vaults', exact: true }).click()
+  const privacy = page.getByRole('dialog', { name: 'Privacy', exact: true })
+  if (await privacy.isVisible()) {
+    assert.equal(await privacy.getByRole('switch', { checked: true }).count(), 0)
+    await privacy.getByRole('button', { name: 'Save choice', exact: true }).click()
+    await privacy.waitFor({ state: 'hidden' })
+    checks.push('synthetic-account-declines-optional-consents-through-ui')
+  }
+  await page.locator('nav a[href="/vaults"]').click()
   await page.getByText('Personal', { exact: true }).first().click()
   await page.getByRole('button', { name: 'Add Entry', exact: true }).first().click()
   const entryPassword = 'Entry!' + randomBytes(24).toString('base64url')
@@ -413,7 +461,7 @@ try {
     await page.locator('#unlock-password').click()
     await page.locator('#unlock-password').pressSequentially(password, { delay: 5 })
     await page.getByRole('button', { name: 'Unlock', exact: true }).click()
-    await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+    await page.locator('nav a[href="/vaults"]').waitFor()
     await popup.waitText('Unlocked')
   } finally { await releaseManualInterceptions() }
   checks.push('extension-automatically-unlocked-after-new-manual-authorization')
@@ -440,7 +488,7 @@ try {
   checks.push('extension-entry-decryption-after-web-close')
   stage = 'reopened-web-automatic-unlock'
   page = await context.newPage(); await page.goto(webOrigin + '/unlock')
-  await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+  await page.locator('nav a[href="/vaults"]').waitFor()
   checks.push('reopened-web-automatically-unlocked-by-extension')
   stage = 'browser-stops-extension-worker'
   await page.bringToFront()
@@ -544,7 +592,7 @@ try {
       stage = 'manual-unlock-after-full-browser-restart'
       await page.locator('#unlock-password').fill(password)
       await page.getByRole('button', { name: 'Unlock', exact: true }).click()
-      await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+      await page.locator('nav a[href="/vaults"]').waitFor()
       await popup.waitText('Unlocked')
       await popup.waitText('Synthetic shared unlock proof')
       assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword), 'One manual unlock must restore the peer through a fresh handoff')
@@ -580,7 +628,7 @@ try {
   await page.locator('#unlock-password').click()
   await page.locator('#unlock-password').pressSequentially(password, { delay: 5 })
   await page.getByRole('button', { name: 'Unlock', exact: true }).click()
-  await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+  await page.locator('nav a[href="/vaults"]').waitFor()
   await popup.waitText('Unlocked')
   stage = sidePanel ? 'native-side-panel-logout-propagates' : 'extension-logout-propagates'
   const signoutClick = await popup.click('Sign out')
@@ -591,8 +639,7 @@ try {
     email, password, vaultId, entryId, entryPassword, unlockCycles: accountUnlockCycles, logoutDirection: accountLogoutDirection,
     reopenPopup: async () => { popup?.close(); popup = await openNativePopup(null, path.join(temporary, 'profile'), extensionId); return popup },
     allowEmail: value => allowedEmails.add(value),
-    verificationFor: address => JSON.stringify(messages.filter(message => message.Destination.ToAddresses.includes(address)))
-      .match(/http:\/\/127\.0\.0\.1:5173\/verify-email\?token=[^"\\\s<]+/)?.[0],
+    verificationFor: address => findVerificationUrl(messages.filter(message => message.Destination.ToAddresses.includes(address))),
     setStage: value => { stage = value }, recordCheck: value => checks.push(value) })
   await writeEvidence('report', { status: 'partial-pass', checks, requests,
     observedAt: new Date().toISOString(), browser: context.browser().version(), provenance, fullMatrix: false, entryDecryptionVerified: true })
@@ -666,6 +713,6 @@ async function writeEvidence(kind, value) {
   await writeFile(path.join(output, `${kind}.json`), contents)
   const version = String(provenance.browserVersion ?? 'launch').replace(/[^a-zA-Z0-9.-]/g, '_')
   const scenario = (persistViaBrowserUi ? '.browser-ui-persisted' : '') + (fullBrowserRestart ? '.full-browser-restart' : '') + (authorizationRateLimitRetry ? '.authorization-rate-limit-retry' : '') + (ownActivityDuringPrepare ? '.own-activity-during-prepare' : '') + (totp ? '.totp' : '') + (settings ? '.settings' : '') + (settingsRaces ? '.settings-races' : '') + (accountIsolation ? '.account-isolation' : '') + (accountIsolation && accountLogoutDirection === 'extension' ? '.extension-logout' : '') + (accountUnlockCycles > 1 ? `.unlock-cycles-${accountUnlockCycles}` : '')
-  const sessionScenario = (independentIdleExpiry ? '.independent-idle-expiry' : '') + (multipleWebDocuments ? '.multiple-web-documents' : '') + (retiredWebReceiver ? '.retired-web-receiver' : '') + (sidePanel ? '.side-panel' : '') + (sidePanelUnavailable ? '.side-panel-unavailable' : '')
+  const sessionScenario = (insecureHttpApi ? '.insecure-http-api' : '') + (independentIdleExpiry ? '.independent-idle-expiry' : '') + (multipleWebDocuments ? '.multiple-web-documents' : '') + (retiredWebReceiver ? '.retired-web-receiver' : '') + (sidePanel ? '.side-panel' : '') + (sidePanelUnavailable ? '.side-panel-unavailable' : '')
   await writeFile(path.join(output, `${kind}.${browserLabel}-${version}${scenario}${sessionScenario}.json`), contents)
 }

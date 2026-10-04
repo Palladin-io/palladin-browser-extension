@@ -4,7 +4,7 @@ import { promisify } from 'node:util'
 import { mkdtemp, mkdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { createCaptureApi } from './capture-api.mjs'
+import { createCaptureApi, allowCaptureApi } from './capture-api.mjs'
 import { openNativePopup } from './native-popup.mjs'
 import { multistepPage } from './capture-multistep.mjs'
 import { cacheBustContentLoaders } from '../../scripts/cache-bust-content-loaders.mjs'
@@ -27,6 +27,7 @@ try {
   })
   cacheBustContentLoaders(profile, 'chromium')
   validateBuiltManifest(profile, 'chromium')
+  await allowCaptureApi(extension, api.url);
   context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: true,
     viewport: { width: 1200, height: 850 }, locale: 'en-US',
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--remote-debugging-port=0'] })
@@ -65,7 +66,11 @@ try {
     ?? await context.waitForEvent('page', { predicate: (page) => page.url().includes('/onboarding/') })
   await onboarding.close()
   popup = await openNativePopup(worker, profile, extensionId)
-  await popup.click('Continue to Palladin')
+  await popup.click('Continue to Palladin');
+  await popup.waitButton('Sign in');
+  assert.equal((await popup.configureConnection({ name: 'Synthetic capture API', apiUrl: api.url,
+    webUrl: api.url, allowHttp: true, sharedUnlockEnabled: false })).ok, true);
+
   await popup.fill('input[type="email"]', api.email)
   await popup.fill('input[type="password"]', api.password)
   await popup.click('Sign in')

@@ -23,7 +23,7 @@ export async function verifySharedUnlockSidePanel({ page, popup, attachPanel,
     await panel.fill('input[type="password"]', password)
     await panel.click('Unlock')
     await panel.waitText('Unlocked')
-    await page.getByRole('link', { name: 'Vaults', exact: true }).click()
+    await page.locator('nav a[href="/vaults"]').click()
     await page.getByText('Personal', { exact: true }).first().click()
     await page.getByText('Synthetic shared unlock proof', { exact: true }).first().click()
     await waitForWebEntryPassword(page, entryPassword)

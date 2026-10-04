@@ -1,3 +1,4 @@
+import { openNativePopup } from './native-popup.mjs'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
@@ -35,10 +36,10 @@ try {
   assert.equal(build.status, 0, 'Product artifact build must pass; inspect build.log')
   const manifest = JSON.parse(await readFile(path.join(extension, 'manifest.json'), 'utf8'))
   assert(manifest.permissions.includes('webNavigation'))
-  assert.deepEqual(manifest.externally_connectable.matches, ['http://127.0.0.1/*'])
+  assert.deepEqual(manifest.externally_connectable.matches, ['<all_urls>'])
   assert.deepEqual(manifest.externally_connectable.ids, [])
   context = await chromium.launchPersistentContext(path.join(root, 'profile'), { channel: 'chromium', headless: true,
-    args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`] })
+    args: ['--remote-debugging-port=0', `--disable-extensions-except=${extension}`, `--load-extension=${extension}`] })
   const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker', { timeout: 20000 })
   const extensionId = new URL(worker.url()).host
   const derivedId = createHash('sha256').update(Buffer.from(manifest.key, 'base64')).digest('hex').slice(0, 32)
@@ -46,6 +47,12 @@ try {
   assert.equal(extensionId, derivedId)
   const page = await context.newPage()
   await page.goto(allowed)
+  assert.equal((await connect(page, extensionId)).type, 'disconnected')
+  checks.push('unconfigured-runtime-pair-rejected')
+  let popup = await openNativePopup(worker, path.join(root, 'profile'), extensionId)
+  const configurationResult = await popup.configureConnection({ name: 'Native test', apiUrl, webUrl: allowed, allowHttp: true, sharedUnlockEnabled: true })
+  assert.equal(configurationResult?.ok, true, JSON.stringify(configurationResult))
+  checks.push('own-extension-surface-configures-previously-unknown-panel')
   const first = await connect(page, extensionId)
   assert.equal(first.type, 'ready')
   assert.equal(first.apiUrl, apiUrl)
@@ -79,8 +86,8 @@ try {
   await wrong.goto(wrongPort)
   assert.equal((await connect(wrong, extensionId)).type, 'disconnected')
   checks.push('coarse-manifest-host-does-not-authorize-wrong-port')
-  await wrong.goto(allowed.replace('127.0.0.1', 'localhost'))
-  assert.equal((await connect(wrong, extensionId)).type, 'unavailable')
+  await wrong.goto(allowed.replace('localhost', '127.0.0.1'))
+  assert.equal((await connect(wrong, extensionId)).type, 'disconnected')
   checks.push('unlisted-origin-has-no-external-channel')
 
   await page.evaluate(origin => { const iframe = document.createElement('iframe'); iframe.src = origin + '/frame'; document.body.append(iframe) }, allowed)
@@ -88,6 +95,15 @@ try {
   assert.equal((await connect(frame, extensionId)).type, 'disconnected')
   assert.equal(await page.evaluate(() => globalThis.channelProbe.disconnected), false)
   checks.push('same-origin-iframe-rejected-without-closing-top-frame')
+  popup.close()
+  popup = await openNativePopup(worker, path.join(root, 'profile'), extensionId)
+  assert.equal((await popup.configureConnection({ name: 'Native test', apiUrl, webUrl: allowed, allowHttp: true, sharedUnlockEnabled: false })).ok, true)
+  await page.waitForFunction(() => globalThis.channelProbe.disconnected)
+  assert.equal((await connect(page, extensionId)).type, 'disconnected')
+  assert.equal((await popup.configureConnection({ name: 'Native test', apiUrl, webUrl: allowed, allowHttp: true, sharedUnlockEnabled: true })).ok, true)
+  assert.equal((await connect(page, extensionId)).type, 'ready')
+  checks.push('runtime-off-retires-existing-port-and-denies-reconnect-until-on')
+
 
   await page.evaluate(() => globalThis.channelProbe.port.postMessage({ type: 'hello', protocol: 'palladin.shared-unlock.browser.v1',
     apiUrl: 'http://localhost:5000', webNonce: 'A'.repeat(43), accessToken: 'synthetic-no-authority' }))
@@ -188,7 +204,7 @@ async function serve() {
   })
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
   servers.push(server)
-  return `http://127.0.0.1:${server.address().port}`
+  return `http://localhost:${server.address().port}`
 }
 async function connect(pageOrFrame, extensionId, overrides = {}) {
   return pageOrFrame.evaluate(({ extensionId, protocol, apiUrl, overrides }) => new Promise(resolve => {

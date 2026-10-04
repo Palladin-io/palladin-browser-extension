@@ -1,3 +1,5 @@
+import { shareSource } from './share-save/source';
+import { isConnectionCommand, handleConnectionCommand, saveConnectionSharingPreference } from "./config/connection-commands";
 import { automaticFillSession } from './session/automatic-fill-session';
 import { isSharedUnlockLinkSettingsCommand } from '../shared/messaging/shared-unlock-link-settings';
 import { handleSharedUnlockLinkSettings } from './shared-unlock/link-settings-runtime';
@@ -63,7 +65,7 @@ import { sessionAutoLock, sessionManager } from "./session/runtime";
 import { registerTopFrameDocument } from "./tab-documents";
 import { browserDocumentIdForTab, verifyLiveShareDocument } from './tab-documents';
 import { sharePageResponse, sharePopupCommand, SHARE_SAVE_CHANNEL } from '../shared/messaging/share-save';
-import { ShareSaveCoordinator, type ShareSource } from './share-save/coordinator';
+import { ShareSaveCoordinator } from './share-save/coordinator';
 import { sharedCopySecret } from './vault/shared-copy';
 import { hasVaultManagePermission } from './capture/permissions';
 import { logger } from "./telemetry/logger";
@@ -107,21 +109,6 @@ const shareSave = new ShareSaveCoordinator({
   },
 });
 
-function shareSource(sender: chrome.runtime.MessageSender): ShareSource | null {
-  if (sender.id !== chrome.runtime.id || sender.frameId !== 0
-    || typeof sender.tab?.id !== 'number' || sender.tab.incognito
-    || typeof sender.documentId !== 'string' || !sender.documentId
-    || browserDocumentIdForTab(sender.tab.id) !== sender.documentId || !sender.url) return null;
-  try {
-    const url = new URL(sender.url);
-    if (!/^\/share\/[0-9a-f-]{36}$/.test(url.pathname)) return null;
-    const environment = __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__.find(item =>
-      item.webOrigin === url.origin && item.apiUrl === serverConfig.apiUrl);
-    if (!environment || sender.origin !== environment.webOrigin) return null;
-    return { tabId: sender.tab.id, documentId: sender.documentId,
-      url: sender.url, webOrigin: environment.webOrigin, apiUrl: environment.apiUrl };
-  } catch { return null; }
-}
 const vaultInvalidations = new VaultInvalidationCoordinator({
   apply: (vaultId, removed) => withServerOperation(
     () => vaultData.applyRealtimeInvalidation(vaultId, removed),
@@ -253,15 +240,14 @@ void initializeServerConfig().then(() => {
   }, "session init failed");
 });
 
-// Public build configuration is the only Web/API origin authority. No default
-// hosted route. Each platform adapter supplies its own browser authority.
-const sharedUnlockBrowser = __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__.length === 0 ? null
-  : __PALLADIN_TARGET__ === "chromium"
-    ? startChromiumSharedUnlockBrowser(__PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
+// Only the active connection approved in an extension-owned surface admits a Web origin.
+// Each platform adapter independently verifies the current browser document.
+const sharedUnlockBrowser = __PALLADIN_TARGET__ === "chromium"
+    ? startChromiumSharedUnlockBrowser(() => serverConfig.sharedUnlockEnvironments, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
     : __PALLADIN_TARGET__ === "firefox"
-      ? startFirefoxSharedUnlockBrowser(__PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
+      ? startFirefoxSharedUnlockBrowser(() => serverConfig.sharedUnlockEnvironments, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
       : __PALLADIN_TARGET__ === "safari"
-        ? startSafariSharedUnlockBrowser(__PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
+        ? startSafariSharedUnlockBrowser(() => serverConfig.sharedUnlockEnvironments, () => serverConfig.apiUrl, initializeServerConfig, coordinateSharedUnlockBrowser)
         : null;
 
 // Agent Inject is independent of popup lock, account, and profile state. Chrome
@@ -313,7 +299,7 @@ chrome.runtime.onConnect.addListener((port) => {
     if (raw.type === 'share-save/request') {
       void (async () => {
         await initializeServerConfig();
-        const source = shareSource(port.sender!);
+        const source = shareSource(port.sender!, chrome.runtime.id, browserDocumentIdForTab, serverConfig.activeConnection);
         const status = !source ? 'unavailable' : raw.request.type === 'status'
           ? await shareSave.status(source) : raw.request.type === 'reconcile'
             ? await shareSave.reconcile(source, raw.request.requestId)
@@ -336,6 +322,17 @@ chrome.runtime.onConnect.addListener((port) => {
 
 // Content scripts may report only a shape-only, top-frame new-password
 // candidate. This listener has a separate sender gate from the popup channel.
+// Discovery exposes no session state; authorization still occurs on the native document-bound Port.
+chrome.runtime.onMessage.addListener((raw, sender, respond) => {
+  if (!raw || typeof raw !== 'object' || Object.keys(raw).length !== 1 || raw.type !== 'shared-unlock/discover') return false;
+  if (sender.id !== chrome.runtime.id || sender.frameId !== 0 || sender.tab?.incognito !== false || !sender.url) { respond(false); return false; }
+  void initializeServerConfig().then(() => {
+    const origin = new URL(sender.url!).origin;
+    respond(sender.origin === origin && serverConfig.sharedUnlockEnvironments.some(item => item.webOrigin === origin));
+  }).catch(() => respond(false));
+  return true;
+});
+
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (isGeneratePasswordCommand(raw)) {
     void withServerOperation(() => handleGeneratePassword(raw, sender)).then(sendResponse,
@@ -474,6 +471,21 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   }
   void (async () => {
     await initializeServerConfig();
+    if (isConnectionCommand(raw)) {
+      const mutation = raw.type !== 'config/connections/get';
+      const resume = mutation ? sharedUnlockBrowser?.suspend() : undefined;
+      const execute = () => handleConnectionCommand(serverConfig, raw,
+        origins => chrome.permissions.contains({ origins }), async () => {
+          await sessionManager.logout();
+          await vaultData.clearAllCache();
+        }, enabled => saveConnectionSharingPreference(enabled, handleSharedUnlockSettings, () => sessionManager.getStatus()),
+        origins => chrome.permissions.remove({ origins }));
+      try {
+        sendResponse(mutation ? await serverOperations.mutate(execute) : await execute());
+      } catch { sendResponse({ ok: false, code: 'unavailable' }); }
+      finally { resume?.(); }
+      return;
+    }
     if (isServerConfigCommand(raw)) {
       const execute = () => handleServerConfigRuntimeMessage({
         getApiUrl: () => serverConfig.apiUrl,

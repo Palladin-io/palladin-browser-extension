@@ -19,6 +19,25 @@ function harness(prepare: PrepareManualUnlock, options: MockBackendOptions = {},
 }
 
 describe("fresh manual password proof boundary", () => {
+  it('restores and unlocks the durable own session on an explicitly approved remote HTTP API', async () => {
+    const apiUrl = 'http://vault.example.test:8080/api';
+    const storage = new FakeStorageArea();
+    const store = new SessionStore(storage, undefined, () => ({ allowHttpApiUrls: [apiUrl] }));
+    const make = () => new SessionManager({ store, now: () => 1_000_000,
+      authClient: new AuthClient(mockBackend(account).fetch, apiUrl),
+      autoLock: new AutoLock(new FakeAlarms(), () => {}) });
+    const first = make();
+    await first.login(account.email, account.password);
+    expect(await first.getStatus()).toBe('unlocked');
+    await first.lock();
+    const restarted = make();
+    expect(await restarted.initialize()).toBe('locked');
+    await restarted.unlockWithPassword(account.password);
+    expect(await restarted.getStatus()).toBe('unlocked');
+    expect(restarted.getKeys()).not.toBeNull();
+    await restarted.logout();
+  });
+
   it("prepares before publishing keys and wipes borrowed proof after login and password unlock", async () => {
     const captured: ManualUnlockContext[] = [];
     const prepare = vi.fn<PrepareManualUnlock>().mockImplementation(async context => {
@@ -91,9 +110,11 @@ describe("fresh manual password proof boundary", () => {
     it(`wipes the proof immediately when lock cancels ${method} during preparation`, async () => {
       let release!: () => void;
       let proof: Uint8Array | null = null;
+      let entered!: () => void;
+      const preparing = new Promise<void>(resolve => { entered = resolve; });
       const pending = new Promise<void>(resolve => { release = resolve; });
       const prepare = vi.fn<PrepareManualUnlock>().mockImplementation(async context => {
-        proof = context.authCredential; await pending; context.assertCurrent(); return context.limits;
+        proof = context.authCredential; entered(); await pending; context.assertCurrent(); return context.limits;
       });
       const h = harness(prepare);
       if (method === "unlock") {
@@ -103,7 +124,8 @@ describe("fresh manual password proof boundary", () => {
       const operation = method === "login" ? h.manager.login(account.email, account.password)
         : h.manager.unlockWithPassword(account.password);
       const rejected = expect(operation).rejects.toThrow();
-      await vi.waitFor(() => expect(proof).not.toBeNull());
+      await preparing;
+      expect(proof).not.toBeNull();
       await h.manager.lock();
       expect(proof).toEqual(new Uint8Array(32));
       release(); await rejected;

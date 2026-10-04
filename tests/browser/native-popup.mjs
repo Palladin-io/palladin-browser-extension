@@ -73,8 +73,8 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
   if (!target) { socket.close(); throw new Error('Native extension surface did not open') }
   const { sessionId } = await send('Target.attachToTarget', { targetId: target.targetId, flatten: true })
   const command = (method, params) => send(method, params, sessionId)
-  const wait = async (read, label) => {
-    const deadline = Date.now() + 20000
+  const wait = async (read, label, timeoutMs = 20000) => {
+    const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
       const result = await read()
       if (result) return result
@@ -167,13 +167,40 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
       }, `trusted button click: ${name}`)
       return { attempts }
     },
-    async fill(selector, value) {
+    async clickOpeningBrowserDialog(name) {
+      const node = (await command('Accessibility.getFullAXTree')).nodes.find(node =>
+        !node.ignored && node.role?.value === 'button' && node.name?.value === name)
+      assert(node?.backendDOMNodeId, 'Native dialog trigger must be visible')
+      await clickNode(node.backendDOMNodeId)
+    },
+    async fill(selector, value, { replace = false } = {}) {
       await wait(() => evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`), selector)
       const { root } = await command('DOM.getDocument')
       const { nodeId } = await command('DOM.querySelector', { nodeId: root.nodeId, selector })
       const { node } = await command('DOM.describeNode', { nodeId })
       await clickNode(node.backendNodeId)
+      if (replace) {
+        await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA',
+          modifiers: process.platform === 'darwin' ? 4 : 2, commands: ['selectAll'] })
+        await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA' })
+      }
       await command('Input.insertText', { text: value })
+    },
+    async configureConnection(connection) {
+      const { result, exceptionDetails } = await command('Runtime.evaluate', {
+        expression: `(async () => { const r = await chrome.runtime.sendMessage(${JSON.stringify({ type: 'config/connections/save', connection })}); return { ok: r?.ok, code: r?.code } })()`,
+        awaitPromise: true, returnByValue: true,
+      });
+      return exceptionDetails ? { error: true } : result.value;
+    },
+    async connectionFormState() {
+      return evaluate(`(() => {
+        const form = document.querySelector('.server-settings-form');
+        if (!form) return null;
+        const checks = form.querySelectorAll('input[type="checkbox"]');
+        return { sharedUnlock: checks[0]?.checked, allowHttp: checks[1]?.checked,
+          saveDisabled: form.querySelector('button[type="submit"]')?.disabled };
+      })()`)
     },
     async hasText(text) { return evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`) },
     // Exercise the same private command as CopyButton, inside the real native
@@ -210,7 +237,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
         && node.properties?.some(property => property.name === 'checked' && String(property.value.value) === String(checked))),
       `switch ${name}: ${checked}`)
     },
-    async waitText(text) { await wait(() => evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`), text) },
+    async waitText(text, timeoutMs) { await wait(() => evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`), text, timeoutMs) },
     async screenshot(file) { const { data } = await command('Page.captureScreenshot'); await writeFile(file, Buffer.from(data, 'base64')) },
     close() { socket.close() },
   }

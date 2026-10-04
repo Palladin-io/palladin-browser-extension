@@ -35,14 +35,12 @@ export function validateBuiltManifest(
       target === "safari" ? "http://localhost/*" : "http://localhost:5000/*",
       "https://api.stage.palladin.io/*",
       "https://api.palladin.io/*",
-      ...(target === "safari" ? configuredWebHosts(sharedUnlockEnvironments) : []),
     ])]),
     `${target}: unexpected host permissions`,
   );
   invariant(
     sameSet(manifest.optional_host_permissions, [
-      "http://localhost/*",
-      "http://127.0.0.1/*",
+      "http://*/*",
       "https://*/*",
     ]),
     `${target}: unexpected optional host permissions`,
@@ -51,8 +49,8 @@ export function validateBuiltManifest(
 
   validateSharedUnlockRouting(manifest, target, sharedUnlockEnvironments);
   if (target === "chromium") validateChromium(manifest, outputDirectory, channel);
-  if (target === "firefox") validateFirefox(manifest, outputDirectory, sharedUnlockEnvironments.length > 0);
-  if (target === "safari") validateSafari(manifest, outputDirectory, sharedUnlockEnvironments.length > 0);
+  if (target === "firefox") validateFirefox(manifest, outputDirectory, true);
+  if (target === "safari") validateSafari(manifest, outputDirectory, true);
 }
 
 function validateContentLoaders(manifest, outputDirectory, target) {
@@ -229,13 +227,7 @@ export function validateSharedUnlockRouting(manifest, target, environments = [])
   const resourceRoutes = (manifest.web_accessible_resources ?? []).filter(entry =>
     entry.resources?.some(pattern => criticalResources.some(resource =>
       new RegExp("^" + pattern.split("*").map(part => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$").test(resource))));
-  if (environments.length === 0) {
-    invariant(manifest.externally_connectable === undefined, `${target}: unexpected external route`);
-    invariant(target === "chromium" || !manifest.permissions?.includes("webNavigation"), `${target}: unexpected navigation permission`);
-    invariant(resourceRoutes.length === 0, `${target}: unexpected public bridge/manifest route`);
-    return;
-  }
-  const expected = configuredWebHosts(environments);
+  const expected = target === "chromium" ? ["<all_urls>"] : ["http://*/*", "https://*/*"];
   if (target === "safari") {
     const route = manifest.externally_connectable;
     invariant(route && Object.keys(route).join(",") === "matches" && sameSet(route.matches, expected),
@@ -259,11 +251,4 @@ export function validateSharedUnlockRouting(manifest, target, environments = [])
     && sameSet(route.ids, []) && sameSet(route.matches, expected) && route.accepts_tls_channel_id === false,
     "chromium: shared unlock route differs from configured hosts");
   invariant(manifest.permissions?.includes("webNavigation"), "chromium: missing navigation permission");
-}
-
-function configuredWebHosts(environments) {
-  return [...new Set(environments.map(({ webOrigin }) => {
-    const url = new URL(webOrigin);
-    return `${url.protocol}//${url.hostname}/*`;
-  }))];
 }

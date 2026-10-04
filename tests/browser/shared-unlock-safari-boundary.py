@@ -124,7 +124,7 @@ if args.product_extension:
     product_provenance = {'sourceHead': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
         'sourceDirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip()),
         'artifactSha256': hashlib.sha256(b''.join(path.relative_to(args.product_extension).as_posix().encode() + b'\0' + path.read_bytes() for path in source_files)).hexdigest(),
-        'diagnosticInstrumentation': ['test display name', 'diagnostic extension page', 'background wrapper imports unchanged product worker', 'Popup document loads fixed value-free sender/status and close probes']}
+        'diagnosticInstrumentation': ['test display name', 'diagnostic extension page', 'background wrapper imports unchanged product worker', 'Popup document loads fixed value-free sender/status, synthetic connection consent and close probes']}
     diagnostics = (fixture / 'background.js').read_text().split('function scope(value)', 1)[0]
     (fixture / 'diagnostic-background.js').write_text(diagnostics)
     (fixture / 'background.js').write_text('import "./diagnostic-background.js";\nimport '
@@ -138,7 +138,7 @@ if args.product_extension:
     assert popup_html.count('</body>') == 1
     popup_document.write_text(popup_html.replace('</body>', '<script src="/diagnostic-popup.js"></script></body>'))
     # Cross-window API calls retain the caller's authority in Safari. Run this
-    # fixed read-only probe in the actual Popup realm, without eval or a relay.
+    # fixed probes in the actual Popup realm, without eval or a relay.
     (fixture / 'diagnostic-popup.js').write_text('''
 globalThis.syntheticClosePopup = () => setTimeout(() => window.close(), 0);
 globalThis.syntheticPopupObservation = { pending: true };
@@ -149,7 +149,13 @@ void (async () => {
     port.onMessage.addListener(message => { clearTimeout(timer); resolve(message.sender); port.disconnect(); });
   });
   const response = await browser.runtime.sendMessage({ type: 'session/status' });
-  globalThis.syntheticPopupObservation = { sender,
+  const connection = { name: 'Synthetic Safari boundary', apiUrl: 'http://127.0.0.1:55083',
+    webUrl: 'http://127.0.0.1:55189', allowHttp: true, sharedUnlockEnabled: true };
+  const saved = await browser.runtime.sendMessage({ type: 'config/connections/save', connection });
+  const configured = saved?.ok === true && saved.state?.connections?.some(item =>
+    Object.keys(connection).every(key => item[key] === connection[key]));
+  const hostPermission = await browser.permissions.contains({ origins: ["http://127.0.0.1/*"] });
+  globalThis.syntheticPopupObservation = { sender, configured, saveCode: saved?.code, hostPermission,
     signedOut: response?.ok === true && response.status === 'signed-out',
     actualPopupUrl: location.href === browser.runtime.getURL('src/popup/index.html') };
 })().catch(() => { globalThis.syntheticPopupObservation = { observationFailed: true }; });
@@ -281,8 +287,8 @@ def product_probe(extension_id, variant='valid'):
       const protocol = 'palladin.shared-unlock.browser.v1';
       const bytes = crypto.getRandomValues(new Uint8Array(32));
       const webNonce = btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
-      const hello = { type: 'hello', protocol, apiUrl: 'http://localhost:55083', webNonce };
-      if (variant === 'wrong-api') hello.apiUrl = 'http://localhost:55085';
+      const hello = { type: 'hello', protocol, apiUrl: 'http://127.0.0.1:55083', webNonce };
+      if (variant === 'wrong-api') hello.apiUrl = 'http://127.0.0.1:55085';
       if (variant === 'extra-claim') hello.claimedAccountId = 'synthetic';
       let finished = false, ready = null;
       const finish = value => { if (!finished) { finished = true; clearTimeout(timer); done(value); } };
@@ -331,6 +337,19 @@ def current_product_document(diagnostic_handle, web_handle):
 def run_product_channel(extension_id, diagnostic_handle, web_handle):
     global stage, other_port_server
     extension_id = urllib.parse.unquote(extension_id)
+    stage = 'product-connection-consent'
+    command('POST', '/window', {'handle': diagnostic_handle})
+    popup_url = command('POST', '/execute/sync', {'script': "return browser.runtime.getURL('src/popup/index.html')", 'args': []})
+    setup_popup = SafariPopup(command, diagnostic_handle, popup_url)
+    setup_popup.show()
+    try:
+        setup_popup.wait(lambda: setup_popup.read('return popup?.syntheticPopupObservation?.configured === true'), 'synthetic connection saved through native Popup')
+    finally:
+        observations['connectionSetup'] = setup_popup.read('return popup?.syntheticPopupObservation ?? null')
+    checks.append('synthetic-http-pair-consent-through-native-popup-command')
+    setup_popup.read('popup.syntheticClosePopup(); return true')
+    setup_popup.wait(lambda: setup_popup.read('return !popup'), 'setup Popup closed')
+    command('POST', '/window', {'handle': web_handle})
     stage = 'product-channel-ready'
     first = product_probe(extension_id)
     observations['productFirst'] = first

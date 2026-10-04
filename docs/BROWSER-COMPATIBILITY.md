@@ -40,10 +40,13 @@ merge of `manifest/manifest.base.json` and exactly one target overlay. Arrays ar
 replaced, not appended, so permission differences remain explicit and auditable.
 
 All targets package production, staging, and `localhost:5000` as known API
-origins. The shared popup may request one exact custom HTTPS origin (or
-`127.0.0.1`) from the browser when the user changes Server in Settings. The
-permission is optional until that action; changing the setting signs out and
-clears the local encrypted cache.
+origins. Settings saves an exact API/panel pair and requests optional host access
+for a custom API (also the panel on Firefox/Safari). HTTP, including localhost,
+requires explicit consent for the pair; editing either address resets that
+consent. Switching the API or panel signs out and clears the local encrypted
+cache. Shared-unlock OFF alone preserves completed independent sessions.
+See [connection configuration](SHARED-UNLOCK-CONNECTIONS.md) for trust boundaries
+and the current runtime acceptance evidence.
 
 ## Manifest differences
 
@@ -66,13 +69,13 @@ clears the local encrypted cache.
   already-open top frame. It cannot widen host access and never injects secrets.
 - Chromium includes `webNavigation` for on-demand browser-authored Agent frame
   and document checks. It does not subscribe to browsing-history events.
-  An explicitly configured shared-unlock build also uses this permission and
-  adds configured external Web hosts to bind the current top-level document.
-  Empty shared-unlock configuration adds no external Web hosts. The pre-release bootstrap exchanges hello/ready and account/link control frames,
-  and invokes source/receiver orchestration; shared closing/expiry barriers and
-  full Identity/Entry E2E remain release gates;
-  full acceptance remains pending; actual Identity/Entry/lifecycle results for
-  Chrome, Chromium, Brave and Edge are recorded separately. See
+  Shared unlock also uses it to verify the current top-level document.
+  External connection patterns permit dynamic self-hosted routing without a
+  rebuild; they do not authorize a panel. The worker admits only the exact
+  active API/panel pair saved in extension-owned Settings, with browser-provided
+  sender and document checks. Full platform acceptance remains pending;
+  historical Identity/Entry/lifecycle results for Chrome, Chromium, Brave and
+  Edge are recorded separately. See
   [shared-unlock evidence](SHARED-UNLOCK-PLATFORM-EVIDENCE.md#actual-chromium-product-channel---2026-09-11).
 - The artifact does not request `management` or inspect installed extensions.
   First-run password-manager guidance opens Chrome-owned settings only after an

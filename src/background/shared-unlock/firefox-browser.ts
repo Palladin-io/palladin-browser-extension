@@ -11,7 +11,7 @@ import { readFirefoxDocumentMarker } from "../../content/firefox-document-marker
 export type FirefoxRuntimeRoute = FirefoxSharedUnlockRoute | FirefoxLegacySharedUnlockRoute;
 
 /** Runtime-owned routes. A source/receiver coordinator must add account/link authority. */
-export function startFirefoxSharedUnlockBrowser(environments: readonly SharedUnlockEnvironment[],
+export function startFirefoxSharedUnlockBrowser(environments: readonly SharedUnlockEnvironment[] | (() => readonly SharedUnlockEnvironment[]),
   currentApiUrl: () => string, initialize: () => Promise<unknown> = async () => undefined,
   onReady?: (route: FirefoxRuntimeRoute) => void) {
   const active = new Map<number, FirefoxRuntimeRoute>();
@@ -94,8 +94,8 @@ export function startFirefoxSharedUnlockBrowser(environments: readonly SharedUnl
         const channelId = toBase64Url(await randomBytes(32));
         if (disconnected) return;
         const candidate = port.sender?.documentId == null
-          ? await FirefoxLegacySharedUnlockRoute.accept(port, browser, environments, documentMarker, channelId, () => !disconnected, disconnect)
-          : await FirefoxSharedUnlockRoute.accept(port, browser, environments, channelId, disconnect);
+          ? await FirefoxLegacySharedUnlockRoute.accept(port, browser, typeof environments === "function" ? environments() : environments, documentMarker, channelId, () => !disconnected, disconnect)
+          : await FirefoxSharedUnlockRoute.accept(port, browser, typeof environments === "function" ? environments() : environments, channelId, disconnect);
         if (disconnected) { candidate?.close(); return; }
         if (!candidate || navigating.get(candidate.tabId)?.has(0) || navigating.get(candidate.tabId)?.has(candidate.frameId)
           || raw.apiUrl !== candidate.apiUrl) { candidate?.close(); disconnect(); return; }

@@ -23,7 +23,7 @@ export async function verifySharedUnlockSettings({ page, popup, apiUrl,
   const unlockWeb = async () => {
     await page.locator('#unlock-password').fill(password)
     await page.getByRole('button', { name: 'Unlock', exact: true }).click()
-    await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+    await page.locator('nav a[href="/vaults"]').waitFor()
   }
   setStage('settings-default-on-both-clients')
   await webSettings(); await extensionSettings()
@@ -37,7 +37,7 @@ export async function verifySharedUnlockSettings({ page, popup, apiUrl,
   assert.equal((await off).status(), 200, 'Identity must persist the actual Web OFF choice')
   await waitWebSwitch(false); await popup.waitSwitch('Shared unlock', false)
   await reveal()
-  await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+  await page.locator('nav a[href="/vaults"]').waitFor()
   recordCheck('web-off-updates-extension-with-existing-sessions-preserved')
 
   setStage('settings-off-does-not-propagate-lock-or-reopen-unlock')

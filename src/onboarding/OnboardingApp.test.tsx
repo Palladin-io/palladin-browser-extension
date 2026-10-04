@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ServerConfigClient } from "../popup/config/client";
 import {
   OnboardingApp,
   openExtensionSurface,
@@ -11,17 +10,9 @@ import {
   type ExtensionSurfaceBrowserApi,
 } from "./OnboardingApp";
 
-function serverClient(apiUrl = "https://api.palladin.io"): ServerConfigClient {
-  return {
-    get: vi.fn(async () => ({ apiUrl, changed: false })),
-    save: vi.fn(async (next) => ({ apiUrl: next, changed: next !== apiUrl })),
-  };
-}
-
 function dependencies(status: "signed-out" | "locked" | "unlocked" = "signed-out") {
   return {
     sessionClient: { getStatus: vi.fn(async () => status) },
-    serverClient: serverClient(),
     onboardingClient: {
       complete: vi.fn(async () => undefined),
       openExtensionManager: vi.fn(async () => undefined),
@@ -33,6 +24,12 @@ function dependencies(status: "signed-out" | "locked" | "unlocked" = "signed-out
     },
   };
 }
+
+beforeEach(() => {
+  vi.stubGlobal('chrome', { runtime: { sendMessage: vi.fn(async command => ({ ok: true,
+    state: { connections: [], activeApiUrl: null }, apiUrl: command.connection?.apiUrl ?? 'https://api.palladin.io', changed: true })) },
+    permissions: { request: vi.fn(async () => true) } });
+});
 
 describe("full-page extension onboarding", () => {
   it("accepts only credential-free public HTTPS footer URLs", () => {
@@ -123,16 +120,17 @@ describe("full-page extension onboarding", () => {
     const input = await screen.findByLabelText("Server URL");
     await user.clear(input);
     await user.type(input, "https://vault.example.com/api/");
-    await user.click(screen.getByRole("button", { name: "Save server" }));
+    await user.type(screen.getByLabelText("Connection name"), "Self hosted");
+    await user.type(screen.getByLabelText("Panel URL"), "https://panel.example.com");
+    await user.click(screen.getByRole("button", { name: "Save and activate" }));
 
     await waitFor(() => {
-      expect(deps.serverClient.save).toHaveBeenCalledWith("https://vault.example.com/api/");
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "config/connections/save", connection: expect.objectContaining({ apiUrl: "https://vault.example.com/api", webUrl: "https://panel.example.com" }) }));
     });
 
+    vi.mocked(chrome.runtime.sendMessage).mockClear();
     await user.click(screen.getByRole("switch", { name: "Use a custom Palladin server" }));
-    await waitFor(() => {
-      expect(deps.serverClient.save).toHaveBeenLastCalledWith("https://api.palladin.io");
-    });
+    expect(chrome.runtime.sendMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "config/connections/save" }));
   });
 
   it("opens secure sign-in without waiting on storage and losing user activation", async () => {
