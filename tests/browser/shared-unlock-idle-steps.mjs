@@ -56,12 +56,13 @@ export async function verifyIndependentIdleExpiry({ page, popup, reopenPopup, pa
   }
   const stableDenial = async (label, before) => {
     setStage(label + '-initial-observation')
-    // The first authenticated preference observation can reset selection once.
-    // Later unchanged preference repair must never retry this denied handoff.
+    // Initial preference observation and own extension activity overlapping a
+    // pending source snapshot can each reset selection once in this fixture.
+    // Later unchanged repair/activity must never retry a denied handoff.
     await observe(16_000)
     const initialized = countOperationResponses()
     recordRequest({ check: label + '-initial-operations', responses: initialized - before })
-    assert(initialized - before <= 2, 'Initial admission cannot create a handoff storm')
+    assert(initialized - before <= 3, 'Initial admission cannot create a handoff storm')
     setStage(label + '-steady-repair')
     await observe(32_000)
     recordRequest({ check: label + '-steady-operations', responses: countOperationResponses() - initialized })
