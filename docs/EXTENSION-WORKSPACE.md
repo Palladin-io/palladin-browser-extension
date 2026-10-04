@@ -72,3 +72,5 @@ Inter Latin/Latin Extended variable WOFF2 files and `INTER-LICENSE.txt` are reus
 the first-party landing page (SIL Open Font License). `brand-grain.svg` is the first-party
 landing texture. The extension's existing reviewed T02 logo source and manifest icons
 are unchanged.
+
+The workspace surface treatment follows landing VaultPresentations/TransferScenes: thin tab separators, a short static active marker, raised neutral cards and subtle shadows. Popup and Entry type icons use the locally bundled Lucide React package (ISC), matching the web icon family. No remote icon font or script is loaded.

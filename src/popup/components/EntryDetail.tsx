@@ -83,6 +83,7 @@ export function EntryDetail({
       {entry.type === 1 ? (
         <TotpBadge client={client} vaultId={entry.vaultId} entryId={entry.id} />
       ) : null}
+      <div className="detail-navigation">
       <button className="detail-link" onClick={onGrants}>
         <PopupIcon name="agent" />
         {t('workspace.grants')}
@@ -110,6 +111,7 @@ export function EntryDetail({
         {t('detail.edit')}
         <PopupIcon name="chevron" />
       </button>
+      </div>
       {message ? (
         <p role="status" className="entry-status">
           {message}

@@ -25,6 +25,8 @@
   --cv-surface: #fff;
   --cv-app-background: var(--cv-bg);
   --cv-selection: #e8ebef;
+  --cv-card-shadow: 0 5px 18px rgb(35 45 61 / 0.08);
+  --cv-panel-wash: #f5f7fa;
   --cv-grain-opacity: 0.04;
   --cv-brand-bloom: #fff;
   --cv-t3: #5a6478;
@@ -34,6 +36,8 @@
   --cv-surface: #191c20;
   --cv-input-bg: rgb(232 234 237 / 0.04);
   --cv-selection: #2b2e33;
+  --cv-card-shadow: 0 6px 20px rgb(0 0 0 / 0.18);
+  --cv-panel-wash: #15171b;
   --cv-app-background: var(--cv-bg);
   --cv-grain-opacity: 0.055;
   --cv-brand-bloom: rgb(232 234 237 / 0.07);
@@ -144,36 +148,51 @@ body {
 .vault-tabs {
   display: flex;
   margin: 0;
-  padding: 8px 16px;
-  gap: 4px;
+  padding: 0;
+  gap: 0;
   border: 0;
   border-bottom: 1px solid var(--cv-border);
   border-radius: 0;
-  background: transparent;
+  background: var(--cv-surface);
   min-height: 48px;
   flex-shrink: 0;
 }
 .vault-tabs button {
+  height: auto;
+  min-height: 48px;
+  position: relative;
   flex: 1;
   border: 0;
-  background: none;
+  border-right: 1px solid var(--cv-border);
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-weight: 500;
-  color: var(--cv-t2);
+  padding: 14px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cv-t3);
 }
+.vault-tabs button:last-child { border-right: 0; }
+.vault-tabs button:hover { color: var(--cv-t1); }
 .vault-tabs button[aria-selected='true'] {
   color: var(--cv-t1);
-  background: var(--cv-selection);
-  font-weight: 600;
+  background: transparent;
   box-shadow: none;
+}
+.vault-tabs button[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: calc(50% - 14px);
+  width: 28px;
+  height: 2px;
+  background: var(--cv-primary);
 }
 .vault-content {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  background: var(--cv-surface);
+  background: linear-gradient(135deg, var(--cv-surface), var(--cv-panel-wash));
 }
 .vault-split {
   display: grid;
@@ -184,7 +203,7 @@ body {
 .vault-scroll {
   padding: 12px 8px;
   border-right: 1px solid var(--cv-border);
-  background: var(--cv-bg);
+  background: color-mix(in srgb, var(--cv-surface) 70%, transparent);
   margin: 0;
   max-height: none;
   min-height: 0;
@@ -215,7 +234,8 @@ body {
 }
 .entry-head[aria-pressed='true'],
 .entry-head[aria-pressed='true']:hover {
-  background: var(--cv-selection);
+  background: var(--cv-surface);
+  box-shadow: var(--cv-card-shadow), inset 0 0 0 1px var(--cv-border);
 }
 .entry-head[aria-pressed] .entry-chevron {
   display: none;
@@ -230,7 +250,10 @@ body {
 .entry-icon {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: 9px;
+  border: 1px solid var(--cv-border);
+  background: var(--cv-surface);
+  color: var(--cv-primary);
 }
 .entry-detail {
   overflow: auto;
@@ -243,6 +266,7 @@ body {
   gap: 10px;
   margin-bottom: 20px;
 }
+.detail-heading > .entry-icon { width: 40px; height: 40px; }
 .detail-identity {
   flex: 1;
   min-width: 0;
@@ -259,8 +283,10 @@ body {
   color: var(--cv-t3);
 }
 .detail-fields {
+  background: var(--cv-surface);
+  box-shadow: var(--cv-card-shadow);
   border: 1px solid var(--cv-border);
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
 }
 .detail-fields:empty {
@@ -289,7 +315,7 @@ body {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 12px 0;
+  padding: 12px 14px;
   border: 0;
   background: none;
   color: var(--cv-t2);
@@ -815,9 +841,23 @@ html:not([data-extension-surface='side-panel']):has(.popup[data-phase='settings'
 .workspace-loading { display:flex; align-items:center; justify-content:center; gap:10px; padding:24px; color:var(--cv-t2); font-size:12px; }
 .detail-field .toolbar-icon { width:30px; height:30px; border:0; background:transparent; }
 .detail-field .toolbar-icon:hover { background:var(--cv-selection); }
-.detail-fields { border-radius:8px; }
+
 .detail-link:hover { color:var(--cv-t1); }
 
 .popup[data-phase='intro'] { padding: 24px 32px; }
 .popup[data-phase='intro'] .brand-logo { width: 44px; height: 44px; }
 .popup[data-phase='intro'] > .popup-header { padding-bottom: 16px; }
+
+.detail-navigation {
+  margin-top: 16px;
+  border: 1px solid var(--cv-border);
+  border-radius: 12px;
+  background: var(--cv-surface);
+  box-shadow: var(--cv-card-shadow);
+  overflow: hidden;
+}
+.detail-navigation .detail-link + .detail-link { border-top: 1px solid var(--cv-divider); }
+.detail-link > .popup-icon:first-child { color: var(--cv-t3); }
+.detail-link:hover { background: color-mix(in srgb, var(--cv-selection) 40%, transparent); }
+.toolbar-icon { border-radius: 8px; }
+.vault-footer { background: color-mix(in srgb, var(--cv-surface) 82%, transparent); }

@@ -396,7 +396,7 @@ function UnlockedFooter({
           className="link-btn link-btn--side-panel"
           onClick={() => void onOpenSidePanel().catch(() => false)}
         >
-          <SidePanelIcon />
+          <PopupIcon name="panel" />
           {t('vault.openSidePanel')}
         </button>
       ) : (
@@ -432,14 +432,5 @@ function UnlockedFooter({
         </button>
       </div>
     </div>
-  );
-}
-
-function SidePanelIcon(): React.JSX.Element {
-  return (
-    <svg className="side-panel-icon" viewBox="0 0 18 18" aria-hidden="true">
-      <rect x="2.25" y="2.75" width="13.5" height="12.5" rx="2" />
-      <path d="M11.25 3v12" />
-    </svg>
   );
 }
