@@ -149,6 +149,11 @@ try {
   await wait(async () => await page.locator('input[type="password"]').inputValue() === password, 'Tomojdom same-account explicit password fill');
   assert.equal(await page.evaluate(() => globalThis.loginClicks), 0);
   await page.reload();
+  // Polish caption observed through Chrome accessibility on the real password stage.
+  await page.evaluate(() => {
+    const action = document.querySelector('input[type="password"]').parentElement.querySelector('button');
+    action.firstChild.textContent = 'Zaloguj hasłem ';
+  });
   await wait(async () => await page.locator(tomojdomIdentifier).inputValue() === tomojdomUsername, 'Tomojdom second explicit-login scenario');
   await page.evaluate(() => document.querySelector('input[type="password"]').parentElement.parentElement.classList.remove('d-none'));
   await aligned('input[type="password"]');

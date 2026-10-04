@@ -53,5 +53,26 @@ binds explicit submission to the single enabled login button in that password
 block; missing, duplicate, disabled and moved actions are rejected. This explains
 a submit error in the specimen, but does not yet prove why the user observed an
 empty password on the real page. A subsequent user request adds a memory-only, one-use continuation from a successful automatic identifier fill to the same account and panel. Synthetic stage tests cover the continuation and rejection of changed bindings, account, URL, session and pre-existing identifiers.
-The browser regression includes the explicit action with fake data; execution in
-this session is blocked by sandbox `listen EPERM` before Chromium launch.
+The browser regression includes the explicit action with fake data. An earlier
+sandbox blocked startup; after access changed, Chromium passed both the bound
+automatic continuation and explicit Polish password-submit scenario.
+
+## Polish password-submit caption follow-up
+
+On 2026-10-04 the parent agent observed the native button in the user's Chrome
+accessibility tree as `Zaloguj hasłem` followed by the unlock glyph (U+F09C).
+The reported explicit Palladin login action filled the password but returned
+`The login form could not be filled.` The exact action vocabulary lacked
+`zaloguj hasłem`.
+
+The unit regression replaces only the captured English button's text node with
+those observed Polish words, retaining the original empty Font Awesome icon
+markup. This is a caption adaptation of the English specimen, not a complete
+capture of Polish DOM/CSS; accessibility output does not establish whether the
+glyph is DOM text or CSS-generated content. No account data was copied.
+
+Before the one-label change, `submitFilledLoginTarget` returned false after a
+successful manual fill for this caption. The same case now succeeds, while
+captions with negation, extra account-creation text or alternative-provider
+suffixes remain rejected. The exact-match vocabulary was extended without
+changing visibility, form ownership, target binding, uniqueness or submit gates.

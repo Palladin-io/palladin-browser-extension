@@ -158,11 +158,13 @@ describe("tomojdom staged form-less login", () => {
     } finally { subject.stop(); }
   });
 
-  it("fills and submits the visible password step through the explicit login action", async () => {
+  it.each(["Login", "Zaloguj hasłem"])("fills and submits the visible password step through the explicit %s action", async (caption) => {
     const { username, password, step } = mount();
     username.value = "12345678";
     step.classList.remove("d-none");
     const action = step.querySelector("button")!;
+    // Observed Polish AX words on captured EN structure; preserve the CSS icon node.
+    action.firstChild!.textContent = caption;
     const clicked = vi.fn();
     action.addEventListener("click", clicked);
     const target = loginTargetFor(password)!;
@@ -170,6 +172,20 @@ describe("tomojdom staged form-less login", () => {
     expect(await submitFilledLoginTarget(target, () => true)).toBe(true);
     expect(clicked).toHaveBeenCalledOnce();
   });
+
+  it.each(['Zaloguj hasłem lub Google', 'Nie zaloguj hasłem', 'Zaloguj hasłem i utwórz konto', 'Zaloguj hasłem przez SSO'])(
+    'does not submit a partial or alternative-provider caption: %s', async (caption) => {
+      const { username, password, step } = mount();
+      username.value = '12345678'; step.classList.remove('d-none');
+      const action = step.querySelector('button')!;
+      action.firstChild!.textContent = caption;
+      const clicked = vi.fn(); action.addEventListener('click', clicked);
+      const target = loginTargetFor(password)!;
+      expect(performLoginTargetFill(target, fields, 'manual')).toEqual({ ok: true });
+      expect(await submitFilledLoginTarget(target, () => true)).toBe(false);
+      expect(clicked).not.toHaveBeenCalled();
+    },
+  );
 
   it.each(["missing", "duplicate", "disabled", "moved", "foreign-form"])("does not submit another action when the password login button is %s", async (mutation) => {
     const { username, password, step, container } = mount();
