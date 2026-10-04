@@ -1,6 +1,6 @@
 # Extension workspace redesign
 
-The approved popup uses a 780 × 580 layout, constrained to the browser's available
+The unlocked popup uses a 780 × 580 layout; authentication and first-run guidance use 420 × 540 and resize in the existing native popup. Both are constrained to the browser's available
 viewport height. The native Side Panel adapts to its available width. The Vault
 has separate list and details columns, with a neutral selected row, Entry icon,
 login/share actions, on-demand field reveals, TOTP and links to scoped management.

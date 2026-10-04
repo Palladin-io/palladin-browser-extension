@@ -50,10 +50,14 @@ try {
   const onboarding = context.pages().find(page => page.url().includes('/onboarding/')); if (onboarding) await onboarding.close();
   await worker.evaluate(() => chrome.storage.local.set({ 'palladin.ui.preferences': { language: 'en', theme: 'light' } }));
   popup = await openNativePopup(worker, profile, extensionId);
+  await popup.waitButton('Continue to Palladin');
+  await popup.screenshot(path.join(output, 'intro-light.png'));
+  assert((await popup.viewportSize()).width <= 440, 'Onboarding should use the compact popup');
   await popup.click('Continue to Palladin');
   await popup.screenshot(path.join(output, 'sign-in-light.png'));
   await popup.fill('input[type=email]', api.email); await popup.fill('input[type=password]', api.password); await popup.click('Sign in');
   await popup.waitText('No entries yet.');
+  assert((await popup.viewportSize()).width >= 780, 'Unlock must expand the existing native popup');
   await popup.click('Add entry');
   await popup.fill('.entry-form input[autocomplete=off]', 'Synthetic account');
   await popup.fill('.entry-form input[autocomplete=username]', 'synthetic@example.test');
@@ -75,6 +79,7 @@ try {
   await popup.screenshot(path.join(output, 'logs-light.png'));
   await popup.click('Agent access', 'tab'); await popup.waitText('No requests to show.');
   await popup.click('Lock'); await popup.waitText('Master password');
+  assert((await popup.viewportSize()).width <= 440, 'Lock must restore the compact popup');
   await popup.screenshot(path.join(output, 'unlock-light.png'));
   assert(!await popup.hasText('synthetic@example.test'));
   await popup.click('Settings');

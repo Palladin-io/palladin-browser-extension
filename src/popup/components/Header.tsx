@@ -1,3 +1,4 @@
+import { PopupIcon } from "./PopupIcon";
 import type { ReactNode } from "react";
 import type { SessionStatus } from "../../background/session/types";
 import brandLogoUrl from "../../../icons/logo-source.png";
@@ -52,8 +53,8 @@ export function Header({
           </span>
         ) : null}
         {onToggleSettings ? (
-          <button type="button" className="header-link" onClick={onToggleSettings}>
-            {settingsOpen ? t("common.back") : t("common.settings")}
+          <button type="button" className="toolbar-icon" aria-label={settingsOpen ? t("common.back") : t("common.settings")} title={settingsOpen ? t("common.back") : t("common.settings")} onClick={onToggleSettings}>
+            <PopupIcon name={settingsOpen ? "back" : "settings"} />
           </button>
         ) : null}
       </div>

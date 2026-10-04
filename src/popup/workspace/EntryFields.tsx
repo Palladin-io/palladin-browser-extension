@@ -1,3 +1,5 @@
+import { PopupIcon } from '../components/PopupIcon';
+import { Spinner } from '../components/Spinner';
 import { useEffect, useRef, useState } from 'react';
 import type { EntryFieldView } from '../../shared/workspace/commands';
 import type { WorkspaceClient } from './client';
@@ -33,6 +35,7 @@ export function EntryFields({
   entryId: string;
 }): React.JSX.Element {
   const { t } = useI18n();
+  const [loading, setLoading] = useState(true);
   const [fields, setFields] = useState<EntryFieldView[]>([]);
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [error, setError] = useState(false);
@@ -49,7 +52,7 @@ export function EntryFields({
       })
       .catch(() => {
         if (active.current) setError(true);
-      });
+      }).finally(() => { if (active.current) setLoading(false); });
     return () => {
       active.current = false;
       timers.current.forEach(clearTimeout);
@@ -95,6 +98,7 @@ export function EntryFields({
   }
   return (
     <>
+      {loading ? <div className="workspace-loading" role="status"><Spinner />{t("app.preparing")}</div> : null}
       <div className="detail-fields">
         {fields
           .filter((field) => field.id !== 'credential.totp')
@@ -116,7 +120,9 @@ export function EntryFields({
               <div className="field-actions">
                 {field.value === null ? (
                   <button
-                    className="chip-btn"
+                    className="toolbar-icon"
+                    aria-label={t(revealed[field.id] ? "field.hide" : "field.show")}
+                    title={t(revealed[field.id] ? "field.hide" : "field.show")}
                     disabled={busy !== null}
                     onClick={() =>
                       revealed[field.id]
@@ -128,22 +134,22 @@ export function EntryFields({
                         : void read(field, false)
                     }
                   >
-                    {t(revealed[field.id] ? 'field.hide' : 'field.show')}
+                    <PopupIcon name={revealed[field.id] ? "eye-off" : "eye"} />
                   </button>
                 ) : null}
                 <button
-                  className="chip-btn"
+                  className="toolbar-icon"
                   aria-label={
                     field.id === 'credential.password'
                       ? t('vault.copyPassword')
                       : field.id === 'credential.username'
                         ? t('vault.copyUsername')
-                        : undefined
+                        : t("field.copy")
                   }
                   disabled={busy !== null}
                   onClick={() => void read(field, true)}
                 >
-                  {t(copied === field.id ? 'common.copied' : 'field.copy')}
+                  <PopupIcon name={copied === field.id ? "check" : "copy"} /><span className="sr-only">{t(copied === field.id ? "common.copied" : "field.copy")}</span>
                 </button>
               </div>
             </div>

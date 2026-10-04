@@ -32,30 +32,29 @@
 :root[data-theme='dark'] {
   --cv-bg: #15171b;
   --cv-surface: #191c20;
-  --cv-input-bg: #25282d;
+  --cv-input-bg: rgb(232 234 237 / 0.04);
   --cv-selection: #2b2e33;
   --cv-app-background: var(--cv-bg);
-  --cv-grain-opacity: 0.12;
+  --cv-grain-opacity: 0.055;
   --cv-brand-bloom: rgb(232 234 237 / 0.07);
   --cv-t3: #b8c5d4;
 }
 html,
 body {
-  width: 780px;
-  height: 580px;
+  width: 420px;
+  height: 540px;
   max-height: 580px;
   margin: 0;
   overflow: hidden;
 }
 .popup {
   width: 100%;
-  height: min(580px, 100vh);
+  height: min(540px, 100vh);
   padding: 0;
   display: flex;
   flex-direction: column;
   font:
-    13px/1.45 Inter,
-    system-ui,
+    13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto,
     sans-serif;
   background: var(--cv-bg);
 }
@@ -145,7 +144,8 @@ body {
 .vault-tabs {
   display: flex;
   margin: 0;
-  padding: 0 16px;
+  padding: 8px 16px;
+  gap: 4px;
   border: 0;
   border-bottom: 1px solid var(--cv-border);
   border-radius: 0;
@@ -155,18 +155,18 @@ body {
 }
 .vault-tabs button {
   flex: 1;
-  border-radius: 0;
   border: 0;
-  border-bottom: 2px solid transparent;
   background: none;
   box-shadow: none;
-  padding: 12px 4px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-weight: 500;
   color: var(--cv-t2);
 }
 .vault-tabs button[aria-selected='true'] {
   color: var(--cv-t1);
-  background: transparent;
-  border-bottom-color: var(--cv-primary);
+  background: var(--cv-selection);
+  font-weight: 600;
   box-shadow: none;
 }
 .vault-content {
@@ -348,6 +348,7 @@ body {
 .settings-section {
   border-radius: 8px;
 }
+.popup[data-phase='intro'],
 .popup[data-phase='signed-out'],
 .popup[data-phase='locked'],
 .popup[data-phase='totp'] {
@@ -358,7 +359,7 @@ body {
   isolation: isolate;
 }
 .popup:is(
-    [data-phase='signed-out'],
+    [data-phase='intro'], [data-phase='signed-out'],
     [data-phase='locked'],
     [data-phase='totp']
   )::before {
@@ -372,30 +373,30 @@ body {
   opacity: var(--cv-grain-opacity);
   mask-image: radial-gradient(ellipse at 50% 20%, #000, transparent 75%);
 }
-.popup:is([data-phase='signed-out'], [data-phase='locked'], [data-phase='totp'])
+.popup:is([data-phase='intro'], [data-phase='signed-out'], [data-phase='locked'], [data-phase='totp'])
   > .popup-header {
   flex-direction: column;
   padding: 32px 20px 12px;
 }
-.popup:is([data-phase='signed-out'], [data-phase='locked'], [data-phase='totp'])
+.popup:is([data-phase='intro'], [data-phase='signed-out'], [data-phase='locked'], [data-phase='totp'])
   .brand-lockup {
   flex-direction: column;
   gap: 16px;
 }
-.popup:is([data-phase='signed-out'], [data-phase='locked'], [data-phase='totp'])
+.popup:is([data-phase='intro'], [data-phase='signed-out'], [data-phase='locked'], [data-phase='totp'])
   .brand-logo {
   width: 72px;
   height: 72px;
 }
-.popup:is([data-phase='signed-out'], [data-phase='locked'], [data-phase='totp'])
+.popup:is([data-phase='intro'], [data-phase='signed-out'], [data-phase='locked'], [data-phase='totp'])
   .wordmark {
   font-size: 28px;
 }
-.popup:is([data-phase='signed-out'], [data-phase='locked'], [data-phase='totp'])
+.popup:is([data-phase='intro'], [data-phase='signed-out'], [data-phase='locked'], [data-phase='totp'])
   .status-chip {
   display: none;
 }
-.popup:is([data-phase='signed-out'], [data-phase='locked'], [data-phase='totp'])
+.popup:is([data-phase='intro'], [data-phase='signed-out'], [data-phase='locked'], [data-phase='totp'])
   .popup-header-actions {
   position: absolute;
   top: 16px;
@@ -778,3 +779,45 @@ html[data-extension-surface='side-panel'] .popup-header {
 }
 
 .pending-count { display:inline-flex; min-width:18px; height:18px; align-items:center; justify-content:center; margin-left:6px; padding:0 4px; font-size:10px; border-radius:4px; background:var(--cv-selection); color:var(--cv-t1); }
+
+html:not([data-extension-surface='side-panel']):has(.popup[data-phase='unlocked']),
+html:not([data-extension-surface='side-panel']):has(.popup[data-phase='unlocked']) body,
+html:not([data-extension-surface='side-panel']):has(.popup[data-phase='settings']),
+html:not([data-extension-surface='side-panel']):has(.popup[data-phase='settings']) body {
+  width: 780px;
+  height: 580px;
+}
+.popup:is([data-phase='unlocked'], [data-phase='settings']) { height: min(580px, 100vh); }
+.popup:is([data-phase='intro'], [data-phase='signed-out'], [data-phase='locked'], [data-phase='totp']) {
+  justify-content: safe center;
+  padding: 32px;
+  overflow-y: auto;
+}
+.popup:is([data-phase='intro'], [data-phase='signed-out'], [data-phase='locked'], [data-phase='totp']) > .popup-header {
+  position: static;
+  padding: 0 0 20px;
+  min-height: 0;
+}
+.popup:is([data-phase='intro'], [data-phase='signed-out'], [data-phase='locked'], [data-phase='totp']) .brand-lockup { gap: 12px; }
+.popup:is([data-phase='intro'], [data-phase='signed-out'], [data-phase='locked'], [data-phase='totp']) .brand-logo { width: 56px; height: 56px; }
+.popup:is([data-phase='intro'], [data-phase='signed-out'], [data-phase='locked'], [data-phase='totp']) .wordmark { font-size: 26px; }
+.popup[data-phase='intro'] .header-context-label { display: none; }
+.auth-form-panel { width: 100%; max-width: 340px; padding: 0; overflow: visible; flex-shrink: 0; }
+.auth-form-panel .screen-subtitle { margin: 0 0 24px; font-size: 12px; }
+.manager-intro { width: 100%; max-width: 340px; margin: 0 auto; padding: 0; flex-shrink: 0; }
+.manager-intro-title { font-size: 17px; line-height: 1.35; }
+.manager-intro-copy { max-width: none; margin: 10px 0 16px; }
+.manager-intro-recommendations { max-width: none; margin: 0 0 16px; padding: 0; border: 0; background: transparent; font-weight: 400; gap: 12px; color: var(--cv-t2); }
+.manager-intro-shortcuts { grid-template-columns: 1fr; gap: 6px; margin-bottom: 12px; }
+.manager-intro-footnote { font-size: 11px; margin-top: 12px; }
+.wordmark { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.toolbar-icon:disabled { opacity: .5; cursor: wait; }
+.workspace-loading { display:flex; align-items:center; justify-content:center; gap:10px; padding:24px; color:var(--cv-t2); font-size:12px; }
+.detail-field .toolbar-icon { width:30px; height:30px; border:0; background:transparent; }
+.detail-field .toolbar-icon:hover { background:var(--cv-selection); }
+.detail-fields { border-radius:8px; }
+.detail-link:hover { color:var(--cv-t1); }
+
+.popup[data-phase='intro'] { padding: 24px 32px; }
+.popup[data-phase='intro'] .brand-logo { width: 44px; height: 44px; }
+.popup[data-phase='intro'] > .popup-header { padding-bottom: 16px; }

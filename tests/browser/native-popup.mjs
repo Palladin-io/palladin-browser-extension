@@ -212,6 +212,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
       })()`)
       await wait(() => evaluate(`document.querySelector(${JSON.stringify(selector)}).value === ${JSON.stringify(value)}`), 'selected option applied')
     },
+    async viewportSize() { return evaluate('({ width: innerWidth, height: innerHeight })') },
     async hasText(text) { return evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`) },
     // Exercise the same private command as CopyButton, inside the real native
     // popup sender boundary. Only a boolean leaves the browser; no clipboard,

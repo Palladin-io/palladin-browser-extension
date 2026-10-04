@@ -16,6 +16,7 @@ import { createCaptureClient, type CaptureClient } from '../capture/client';
 import { useCapturePrompt } from '../capture/useCapturePrompt';
 import { Button } from '../components/Button';
 import { EntryList } from '../components/EntryList';
+import { Spinner } from '../components/Spinner';
 import { ListSkeleton } from '../components/ListSkeleton';
 import { SearchBar } from '../components/SearchBar';
 import { GeneratorPanel } from '../generator/GeneratorPanel';
@@ -128,7 +129,7 @@ export function UnlockedScreen({
           title={t('vault.generatorTab')}
           onClick={() => setView(view === 'generator' ? 'vault' : 'generator')}
         >
-          <PopupIcon name="key" />
+          <PopupIcon name="generator" />
         </button>
         <button
           className="toolbar-icon toolbar-primary"
@@ -251,7 +252,7 @@ export function UnlockedScreen({
         ) : (
           <>
             {list.status === 'loading' ? (
-              <ListSkeleton />
+              <><div className="workspace-loading" role="status"><Spinner />{t("app.preparing")}</div><ListSkeleton /></>
             ) : list.status === 'error' ? (
               <div className="vault-error-panel" role="alert">
                 <p className="vault-error">
@@ -423,22 +424,12 @@ function UnlockedFooter({
             <PopupIcon name="settings" />
           </button>
         ) : null}
-        <Button
-          variant="subtle"
-          onClick={() => run('lock', onLock)}
-          loading={busy === 'lock'}
-          disabled={busy !== null}
-        >
-          {t('vault.lock')}
-        </Button>
-        <Button
-          variant="danger"
-          onClick={() => run('signout', onSignOut)}
-          loading={busy === 'signout'}
-          disabled={busy !== null}
-        >
-          {t('vault.signOut')}
-        </Button>
+        <button className="toolbar-icon" aria-label={t('vault.lock')} title={t('vault.lock')} disabled={busy !== null} onClick={() => void run('lock', onLock)}>
+          {busy === 'lock' ? <Spinner /> : <PopupIcon name="lock" />}
+        </button>
+        <button className="toolbar-icon" aria-label={t('vault.signOut')} title={t('vault.signOut')} disabled={busy !== null} onClick={() => void run('signout', onSignOut)}>
+          {busy === 'signout' ? <Spinner /> : <PopupIcon name="logout" />}
+        </button>
       </div>
     </div>
   );

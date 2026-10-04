@@ -175,7 +175,7 @@ export function App({
   }, [session.phase, session.retryInit]);
 
   return (
-    <main className={settingsOpen ? "popup popup-settings" : "popup"} data-surface={surface} data-phase={settingsOpen ? "settings" : session.phase}>
+    <main className={settingsOpen ? "popup popup-settings" : "popup"} data-surface={surface} data-phase={onboardingStatus === "pending" ? "intro" : settingsOpen ? "settings" : session.phase}>
       <SharedUnlockNotice unlocked={session.phase === 'unlocked'} />
       {session.phase !== "unlocked" || settingsOpen || onboardingStatus !== "completed" ? <Header
         status={onboardingStatus === "completed" ? headerStatus(session.phase) : undefined}
