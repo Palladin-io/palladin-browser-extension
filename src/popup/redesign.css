@@ -99,8 +99,8 @@ body {
 }
 .wordmark {
   font-size: 19px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
+  font-weight: 650;
+  letter-spacing: -0.025em;
 }
 .popup-header .search-bar {
   flex: 1;
@@ -861,3 +861,38 @@ html:not([data-extension-surface='side-panel']):has(.popup[data-phase='settings'
 .detail-link:hover { background: color-mix(in srgb, var(--cv-selection) 40%, transparent); }
 .toolbar-icon { border-radius: 8px; }
 .vault-footer { background: color-mix(in srgb, var(--cv-surface) 82%, transparent); }
+
+.vault > .popup-header::before {
+  opacity: 0.09;
+  mask-image: linear-gradient(to bottom, #000, rgb(0 0 0 / .25));
+}
+:root[data-theme='dark'] .vault > .popup-header::before { opacity: 0.085; }
+.popup:is([data-phase='signed-out'], [data-phase='locked'], [data-phase='totp']) .brand-lockup {
+  flex-direction: row;
+  gap: 12px;
+}
+.popup:is([data-phase='signed-out'], [data-phase='locked'], [data-phase='totp']) .brand-logo { width: 44px; height: 44px; }
+.popup:is([data-phase='signed-out'], [data-phase='locked'], [data-phase='totp']) > .popup-header { padding-bottom: 28px; }
+.auth-form-panel .screen-title {
+  position: static;
+  width: auto;
+  height: auto;
+  clip-path: none;
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -.025em;
+  text-align: center;
+}
+.auth-form-panel .screen-subtitle { max-width: 280px; margin: 0 auto 28px; line-height: 1.6; }
+.auth-form-panel .form { gap: 16px; }
+.auth-form-panel .field-label { font-weight: 500; }
+.auth-form-panel .field-input { height: 40px; }
+.auth-form-panel .form > .btn[type='submit'] { margin-top: 8px; min-height: 40px; border-radius: 8px; }
+.auth-registration { margin-top: 20px; padding-top: 16px; }
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-extension-surface='side-panel']),
+  html:not([data-extension-surface='side-panel']) body {
+    transition: width 220ms cubic-bezier(.22, 1, .36, 1), height 220ms cubic-bezier(.22, 1, .36, 1);
+  }
+}

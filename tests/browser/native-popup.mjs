@@ -212,6 +212,16 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
       })()`)
       await wait(() => evaluate(`document.querySelector(${JSON.stringify(selector)}).value === ${JSON.stringify(value)}`), 'selected option applied')
     },
+    async observeResize() {
+      await evaluate(`(() => {
+        globalThis.__popupWidths = [];
+        let frames = 0;
+        const sample = () => { globalThis.__popupWidths.push(innerWidth); if (++frames < 60) requestAnimationFrame(sample); };
+        requestAnimationFrame(sample);
+      })()`);
+    },
+    async hadIntermediateWidth() { return evaluate('globalThis.__popupWidths?.some(width => width > 440 && width < 780) === true') },
+    async waitWidth(min, max) { await wait(async () => { const size = await this.viewportSize(); return size.width >= min && size.width <= max }, 'popup resize settled') },
     async viewportSize() { return evaluate('({ width: innerWidth, height: innerHeight })') },
     async hasText(text) { return evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`) },
     // Exercise the same private command as CopyButton, inside the real native
@@ -249,7 +259,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
       `switch ${name}: ${checked}`)
     },
     async waitText(text, timeoutMs) { await wait(() => evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`), text, timeoutMs) },
-    async screenshot(file) { const { data } = await command('Page.captureScreenshot'); await writeFile(file, Buffer.from(data, 'base64')) },
+    async screenshot(file) { await wait(() => evaluate('document.getAnimations().every(animation => animation.effect?.getComputedTiming().iterations === Infinity || animation.playState !== "running")'), 'finite UI transitions settled'); const { data } = await command('Page.captureScreenshot'); await writeFile(file, Buffer.from(data, 'base64')) },
     close() { socket.close() },
   }
 }

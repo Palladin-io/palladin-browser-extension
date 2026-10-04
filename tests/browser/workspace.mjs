@@ -54,9 +54,11 @@ try {
   await popup.screenshot(path.join(output, 'intro-light.png'));
   assert((await popup.viewportSize()).width <= 440, 'Onboarding should use the compact popup');
   await popup.click('Continue to Palladin');
+  await popup.waitButton('Sign in');
   await popup.screenshot(path.join(output, 'sign-in-light.png'));
   await popup.fill('input[type=email]', api.email); await popup.fill('input[type=password]', api.password); await popup.click('Sign in');
   await popup.waitText('No entries yet.');
+  await popup.waitWidth(780, 800);
   assert((await popup.viewportSize()).width >= 780, 'Unlock must expand the existing native popup');
   await popup.click('Add entry');
   await popup.fill('.entry-form input[autocomplete=off]', 'Synthetic account');
@@ -78,7 +80,10 @@ try {
   await popup.click('Logs', 'tab'); await popup.waitText('Synthetic owner');
   await popup.screenshot(path.join(output, 'logs-light.png'));
   await popup.click('Agent access', 'tab'); await popup.waitText('No requests to show.');
+  await popup.observeResize();
   await popup.click('Lock'); await popup.waitText('Master password');
+  await popup.waitWidth(420, 440);
+  assert(await popup.hadIntermediateWidth(), 'Native popup width should animate between locked and unlocked sizes');
   assert((await popup.viewportSize()).width <= 440, 'Lock must restore the compact popup');
   await popup.screenshot(path.join(output, 'unlock-light.png'));
   assert(!await popup.hasText('synthetic@example.test'));
