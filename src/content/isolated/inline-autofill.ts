@@ -1,3 +1,4 @@
+import type { SessionStatus } from '../../background/session/types';
 import { clearAutomaticFillProvenance, discardAutomaticFillProvenance } from './automatic-fill-provenance';
 import en from "../../popup/locales/en.json";
 import pl from "../../popup/locales/pl.json";
@@ -103,6 +104,7 @@ export function startInlineAutofill(
   retryAutomaticFill(): void;
   handleVaultChanged(): void;
   clearSessionState(): void;
+  handleSessionChanged(status: SessionStatus): void;
   resolveLoginTarget(loginTargetId: string): LoginTarget | null;
   stop(): void;
 } {
@@ -115,6 +117,7 @@ export function startInlineAutofill(
     retryAutomaticFill: () => controller.retryAutomaticFill(),
     handleVaultChanged: () => controller.handleVaultChanged(),
     clearSessionState: () => controller.clearSessionState(),
+    handleSessionChanged: status => controller.handleSessionChanged(status),
     resolveLoginTarget: (loginTargetId: string) => controller.resolveLoginTarget(loginTargetId),
     stop: () => controller.stop(),
   };
@@ -330,6 +333,13 @@ class InlineAutofillController {
       this.continuation = null;
       for (const widget of this.widgets.values()) widget.cancelAutomaticFill();
     });
+  }
+
+  handleSessionChanged(status: SessionStatus): void {
+    this.invalidateSuggestions();
+    // A restarted worker may announce only the fresh unlock, with no prior lock event.
+    this.clearSessionState();
+    if (status === 'unlocked') this.retryAutomaticFill();
   }
 
   clearSessionState(): void {

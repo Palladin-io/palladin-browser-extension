@@ -65,7 +65,7 @@ describe("tomojdom staged form-less login", () => {
     } finally { subject.stop(); }
   });
 
-  it.each(['same-account', 'changed-account', 'replaced-username', 'replaced-panel', 'navigation', 'lock', 'lock-pending', 'different-entry', 'different-suggestion-account', 'related-entry', 'prefilled', 'popup-choice', 'popup-wrong-document', 'popup-wrong-origin'])(
+  it.each(['same-account', 'changed-account', 'replaced-username', 'replaced-panel', 'navigation', 'reunlock', 'reunlock-pending', 'lock', 'lock-pending', 'different-entry', 'different-suggestion-account', 'related-entry', 'prefilled', 'popup-choice', 'popup-wrong-document', 'popup-wrong-origin'])(
     'continues automatic identifier fill only for the bound same-account flow: %s', async (variant) => {
       const { username, password, step, container } = mount();
       const continues = ['same-account', 'popup-wrong-document', 'popup-wrong-origin'].includes(variant);
@@ -75,6 +75,7 @@ describe("tomojdom staged form-less login", () => {
       const clicked = vi.fn(); container.addEventListener('click', clicked);
       const send = vi.fn(async (command: InlineAutofillCommand) => {
         if (command.type === 'inline/list' && passwordStage && variant === 'lock-pending') subject.clearSessionState();
+        if (command.type === 'inline/list' && passwordStage && variant === 'reunlock-pending') subject.handleSessionChanged('unlocked');
         if (command.type === 'inline/list') return {
           ok: true, kind: 'suggestions', status: 'ready', entries: [{
             vaultId: 'v1', entryId: passwordStage && variant === 'different-entry' ? 'e2' : 'e1',
@@ -100,6 +101,7 @@ describe("tomojdom staged form-less login", () => {
         }
         if (variant === 'navigation') jsdom.reconfigure({ url: 'https://tomojdom.pl/other-page' });
         if (variant === 'lock') subject.clearSessionState();
+        if (variant === 'reunlock') subject.handleSessionChanged('unlocked');
         if (variant.startsWith('popup-')) {
           const popupChoice = { channel: 'palladin.fill/request' as const, documentId: 'a'.repeat(32),
             expectedOrigin: 'https://tomojdom.pl', expectedDomain: 'tomojdom.pl', loginTargetId: null,

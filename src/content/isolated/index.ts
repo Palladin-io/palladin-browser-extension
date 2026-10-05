@@ -180,11 +180,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === "surface/vault-changed") {
       inlineAutofill?.handleVaultChanged();
     } else {
-      inlineAutofill?.invalidateSuggestions();
-      if (message.status !== "unlocked") { inlineAutofill?.clearSessionState(); generatorSuggestion?.hide(); }
-    }
-    if (message.type === "surface/session-changed" && message.status === "unlocked") {
-      inlineAutofill?.retryAutomaticFill();
+      inlineAutofill?.handleSessionChanged(message.status);
+      if (message.status !== "unlocked") generatorSuggestion?.hide();
     }
     if (message.type === "surface/session-changed") void credentialCapture?.refresh();
     return undefined;
