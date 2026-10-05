@@ -106,6 +106,10 @@ try {
   assert.deepEqual(await popup.grantScrollLayout(), { listScrolls: true, panelFits: true, contentFits: true, headingStable: true });
   await popup.screenshot(path.join(output, 'grants-scroll-light.png'));
   const workspaceSize = await popup.viewportSize();
+  await popup.click('Generator');
+  await popup.waitText('Length');
+  assert(!await popup.hasText('Back'), 'Generator does not need a back row');
+  await popup.screenshot(path.join(output, 'generator-light.png'));
   await popup.click('Settings', 'tab');
   await popup.waitText('Appearance');
   assert.deepEqual(await popup.viewportSize(), workspaceSize, 'Settings must preserve the unlocked popup dimensions');

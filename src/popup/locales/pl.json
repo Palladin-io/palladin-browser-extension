@@ -526,5 +526,7 @@
   "grant.grantedBy": "Dostęp przyznał(a)",
   "grant.grantedAt": "Data przyznania dostępu",
   "grant.dateUnavailable": "Nie zapisano dla tego grantu",
-  "grant.wholeVault": "Cały sejf"
+  "grant.wholeVault": "Cały sejf",
+  "grant.expiresAt": "Wygasa",
+  "grant.noExpiry": "Bez daty wygaśnięcia"
 }

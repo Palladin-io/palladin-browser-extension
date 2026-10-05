@@ -123,11 +123,6 @@ export function GeneratorPanel({
 
   return (
     <div className="generator">
-      <Check label={t('generator.suggestions')} checked={suggestions} onChange={value => {
-        void chrome.storage.local.set({ [GENERATOR_SUGGESTIONS_KEY]: value }).then(() => {
-          if (mounted.current) setSuggestions(value);
-        }, () => { if (mounted.current) setStatus('error'); });
-      }} />
       <div className="generator-mode" role="group" aria-label={t("generator.type")}>
         <button type="button" className={mode === "password" ? "generator-mode-active" : ""} onClick={() => changeMode("password")}>{t("generator.password")}</button>
         <button type="button" className={mode === "passphrase" ? "generator-mode-active" : ""} onClick={() => changeMode("passphrase")}>{t("generator.passphrase")}</button>
@@ -167,6 +162,13 @@ export function GeneratorPanel({
         {capture && saveReady ? <Button onClick={save}>{t("generator.saveToPalladin")}</Button> : null}
       </div>
       <p className="generator-status" role="status">{statusText(status, t)}</p>
+      <div className="generator-preference">
+      <Check label={t('generator.suggestions')} checked={suggestions} onChange={value => {
+        void chrome.storage.local.set({ [GENERATOR_SUGGESTIONS_KEY]: value }).then(() => {
+          if (mounted.current) setSuggestions(value);
+        }, () => { if (mounted.current) setStatus('error'); });
+      }} />
+      </div>
       <p className="generator-note">
         {capture
           ? t("generator.captureNote", { site: capture.site })

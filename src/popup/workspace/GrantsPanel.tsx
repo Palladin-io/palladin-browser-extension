@@ -276,22 +276,24 @@ export function GrantsPanel({
         </div>
         {selected ? (
           <div className="entry-detail grant-detail">
-            <div className="detail-heading grant-detail-heading">
+            <div className="detail-fields grant-information">
+            <div className="detail-field detail-heading grant-detail-heading">
               {entry ? <EntryIcon name={entry.name} type={entry.type} {...(entry.icon ? { icon: entry.icon } : {})} {...(entry.color ? { color: entry.color } : {})} /> : <span className="grant-avatar"><PopupIcon name={selected.type === 'full' ? 'vault' : 'key'} /></span>}
               <div className="detail-identity"><h2>{entry?.name ?? selected.entryLabel ?? (selected.type === 'full' ? t('grant.wholeVault') : t('grant.entry'))}</h2>
                 <p><PopupIcon name="vault" />{selectedVaultName ?? shortId(selected.vaultId)}</p>
               </div>
             </div>
-            <div className="detail-fields grant-information"><div className="detail-field grant-agent-line"><AgentIcon iconKey={selected.agentIconKey} /><strong>{selected.agentName ?? t('grant.agent')}</strong>
+            <div className="detail-field grant-agent-line"><AgentIcon iconKey={selected.agentIconKey} /><strong>{selected.agentName ?? t('grant.agent')}</strong>
               <span className="grant-status" data-pending={selected.status === 'pending'}>{states[selected.status] ? t(states[selected.status]!) : selected.status}</span>
             </div>
             {selected.encryptedReason ? (
               <section className="detail-field grant-purpose" aria-label={t('grant.encryptedReason')}>
-                <h4><PopupIcon name="lock" />{t('grant.encryptedReason')}</h4>
+                <h4>{t('grant.encryptedReason')}</h4>
                 <p>{accessReason ?? review?.reason ?? t(reasonLoading ? 'workspace.loading' : 'grant.reasonUnavailable')}{!accessReason && !review?.reason && !reasonLoading && reasonFailure ? ` [${reasonFailure}]` : ''}</p>
               </section>
             ) : null}
             <dl className="grant-metadata">
+              {selected.status !== 'pending' ? <div className="detail-field"><dt>{t('grant.expiresAt')}</dt><dd>{selected.expiresAt ? new Date(selected.expiresAt).toLocaleString(locale) : t('grant.noExpiry')}</dd></div> : null}
               <div className="detail-field"><dt>{t('grant.requestedAt')}</dt><dd>{new Date(selected.createdAt).toLocaleString(locale)}</dd></div>
               {selected.createdBy ? <>
                 <div className="detail-field"><dt>{t('grant.grantedBy')}</dt><dd>{selected.createdByName ?? shortId(selected.createdBy)}</dd></div>

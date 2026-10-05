@@ -526,5 +526,7 @@
   "grant.grantedBy": "Granted by",
   "grant.grantedAt": "Granted on",
   "grant.dateUnavailable": "Not recorded for this grant",
-  "grant.wholeVault": "Entire vault"
+  "grant.wholeVault": "Entire vault",
+  "grant.expiresAt": "Expires",
+  "grant.noExpiry": "No expiry date"
 }

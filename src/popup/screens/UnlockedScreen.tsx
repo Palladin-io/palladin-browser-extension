@@ -201,7 +201,7 @@ export function UnlockedScreen({
       </div>
 
       <div className="vault-content">
-        {view === 'generator' || view === 'add-entry' ? (
+        {view === 'add-entry' ? (
           <button
             className="link-btn workspace-back"
             onClick={() => setView('vault')}
