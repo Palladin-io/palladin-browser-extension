@@ -26,19 +26,17 @@ export function ServerSettings({
   const { t } = useI18n();
   const [current, setCurrent] = useState<string | null>(null);
   const [input, setInput] = useState("");
-  const [name, setName] = useState("");
   const [webUrl, setWebUrl] = useState("");
   const [allowHttp, setAllowHttp] = useState(false);
   const [enabled, setEnabled] = useState(true);
   const [saved, setSaved] = useState<readonly Connection[]>([]);
   const loadConnection = (connection: Connection) => {
-    setInput(connection.apiUrl); setName(connection.name); setWebUrl(connection.webUrl);
+    setInput(connection.apiUrl); setWebUrl(connection.webUrl);
     setAllowHttp(connection.allowHttp); setEnabled(connection.sharedUnlockEnabled);
-    setError(""); setNotice("");
+    setError("");
   };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -57,7 +55,7 @@ export function ServerSettings({
     return () => { active = false; };
   }, [connectionsClient, t]);
 
-  const draft = { name, apiUrl: input, webUrl, allowHttp, sharedUnlockEnabled: enabled };
+  const draft = { name: webUrl.trim().slice(0, 80), apiUrl: input, webUrl, allowHttp, sharedUnlockEnabled: enabled };
   const normalized = parseConnection(draft);
   const canSave = current !== null && normalized !== null && !busy;
 
@@ -66,13 +64,11 @@ export function ServerSettings({
     if (!canSave) return;
     setBusy(true);
     setError("");
-    setNotice("");
     try {
       const status = await connectionsClient.save(draft);
       setCurrent(status.apiUrl);
       setInput(status.apiUrl);
       setSaved(status.state.connections);
-      setNotice(status.changed ? t("settings.server.updated") : t("settings.server.unchanged"));
       if (status.changed) onChanged();
     } catch (cause) {
       setError(serverError(cause, t));
@@ -85,18 +81,7 @@ export function ServerSettings({
     <section className="server-settings">
       {embedded ? null : <h2 className="screen-title">{t("settings.server.title")}</h2>}
       <p className="screen-subtitle">{t("settings.server.subtitle")}</p>
-      {saved.length > 0 && <label className="field-label">{t("settings.server.saved")}
-        <select className="field-input" disabled={busy} value="" onChange={event => {
-          const selected = saved.find(item => item.apiUrl === event.target.value);
-          if (selected) loadConnection(selected);
-        }}>
-          <option value="">{t("settings.server.choose")}</option>
-          {saved.map(item => <option key={item.apiUrl} value={item.apiUrl}>{item.name}</option>)}
-        </select>
-      </label>}
       <form className="server-settings-form" onSubmit={handleSubmit} noValidate>
-        <FormInput label={t("settings.server.name")} value={name} disabled={current === null || busy}
-          onChange={event => setName(event.target.value)} />
         <FormInput
           label={t("settings.server.url")}
           type="url"
@@ -111,7 +96,6 @@ export function ServerSettings({
             setInput(event.target.value);
             setAllowHttp(false);
             setError("");
-            setNotice("");
           }}
         />
         <FormInput label={t("settings.server.panelUrl")} type="url" value={webUrl} disabled={current === null || busy}
@@ -125,9 +109,8 @@ export function ServerSettings({
         <p className="settings-warning">
           {t("settings.server.warning")}
         </p>
-        {notice ? <p className="settings-notice" role="status">{notice}</p> : null}
         <div className="settings-actions">
-          <Button type="button" variant="ghost" onClick={() => { loadConnection(saved.find(item => item.apiUrl === PRODUCTION_API_URL && item.webUrl === PRODUCTION_PANEL_URL) ?? { name: t("settings.server.productionName"), apiUrl: PRODUCTION_API_URL, webUrl: PRODUCTION_PANEL_URL, allowHttp: false, sharedUnlockEnabled: true }); }} disabled={busy}>
+          <Button type="button" variant="ghost" onClick={() => { loadConnection(saved.find(item => item.apiUrl === PRODUCTION_API_URL && item.webUrl === PRODUCTION_PANEL_URL) ?? { name: PRODUCTION_PANEL_URL, apiUrl: PRODUCTION_API_URL, webUrl: PRODUCTION_PANEL_URL, allowHttp: false, sharedUnlockEnabled: true }); }} disabled={busy}>
             {t("settings.server.production")}
           </Button>
           <Button type="submit" variant="accent" disabled={!canSave} loading={busy}>
