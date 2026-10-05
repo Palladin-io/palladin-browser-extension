@@ -61,6 +61,8 @@ export interface OrgGrant {
 }
 
 export interface AuditLogItem {
+  agentName?: string | null;
+  actorName?: string | null;
   id: string;
   eventType: string;
   actorType: string;

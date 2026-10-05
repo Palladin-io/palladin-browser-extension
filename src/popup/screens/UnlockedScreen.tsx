@@ -9,7 +9,6 @@ import { Header } from '../components/Header';
 import { PopupIcon } from '../components/PopupIcon';
 import { EntryDetail } from '../components/EntryDetail';
 import { useEffect, useMemo, useState } from 'react';
-import brandLogoUrl from '../../../icons/logo-source.png';
 
 import { CapturePrompt } from '../capture/CapturePrompt';
 import { AddEntryForm } from '../entries/AddEntryForm';
@@ -35,7 +34,7 @@ import { ShareSavePrompt, usePendingShareSave } from '../share-save/ShareSavePro
  * region loads (skeleton is scoped to the list only).
  */
 export interface UnlockedScreenProps {
-  onOpenSettings?: (() => void) | undefined;
+  settings?: React.ReactNode;
   onLock(): Promise<void>;
   onSignOut(): Promise<void>;
   /**
@@ -44,8 +43,6 @@ export interface UnlockedScreenProps {
    */
   viewRevision?: number;
   shareRevision?: number;
-  /** Present only in the compact popup on targets with a browser-owned panel. */
-  onOpenSidePanel?: (() => Promise<boolean>) | undefined;
   /** Injected in tests; defaults to the real `chrome.runtime` vault channel. */
   vaultClient?: VaultClient;
   /** Injected in tests; defaults to the worker-owned capture prompt channel. */
@@ -53,12 +50,11 @@ export interface UnlockedScreenProps {
 }
 
 export function UnlockedScreen({
-  onOpenSettings,
+  settings,
   onLock,
   onSignOut,
   viewRevision = 0,
   shareRevision = 0,
-  onOpenSidePanel,
   vaultClient,
   captureClient,
 }: UnlockedScreenProps): React.JSX.Element {
@@ -76,8 +72,10 @@ export function UnlockedScreen({
   const capture = useCapturePrompt(promptClient);
   const list = useVaultList(client, viewRevision);
   const [query, setQuery] = useState('');
+  const [vaultFilter, setVaultFilter] = useState<string[] | null>(null);
+  const vaultOptions = useMemo(() => [...new Map(list.all.map(entry => [entry.vaultId, entry.vaultName])).entries()], [list.all]);
   const [view, setView] = useState<
-    'vault' | 'generator' | 'add-entry' | 'logs' | 'shares' | 'grants'
+    'vault' | 'generator' | 'add-entry' | 'logs' | 'shares' | 'grants' | 'settings'
   >('vault');
   const [capturePrompt, setCapturePrompt] = useState(capture.prompt);
   const pendingShare = usePendingShareSave(shareRevision);
@@ -100,8 +98,8 @@ export function UnlockedScreen({
 
   const searching = query.trim().length > 0;
   const results = useMemo(
-    () => filterEntries(list.all, query),
-    [list.all, query],
+    () => filterEntries(list.all, query).filter(entry => vaultFilter === null || vaultFilter.includes(entry.vaultId)),
+    [list.all, query, vaultFilter],
   );
 
   if (visibleShare && visibleShare.id !== shareDismissed) {
@@ -109,7 +107,7 @@ export function UnlockedScreen({
       <ShareSavePrompt key={visibleShare.id} pending={visibleShare}
         onSaveStart={() => setHeldShare(visibleShare)}
         onDone={() => { setHeldShare(null); setShareDismissed(visibleShare.id); }} />
-      <UnlockedFooter onLock={onLock} onSignOut={onSignOut} onOpenSidePanel={onOpenSidePanel} />
+      <UnlockedFooter onLock={onLock} onSignOut={onSignOut} />
     </section>;
   }
 
@@ -199,6 +197,7 @@ export function UnlockedScreen({
         >
           {t('workspace.logs')}
         </button>
+        {settings ? <button type="button" role="tab" aria-selected={view === 'settings'} onClick={() => setView('settings')}>{t('common.settings')}</button> : null}
       </div>
 
       <div className="vault-content">
@@ -211,7 +210,7 @@ export function UnlockedScreen({
             {t('common.back')}
           </button>
         ) : null}
-        {view === 'grants' ? (
+        {view === 'settings' ? settings : view === 'grants' ? (
           <GrantsPanel
             revision={pendingGrants.revision}
             client={workspaceClient}
@@ -251,7 +250,7 @@ export function UnlockedScreen({
         ) : (
           <>
             {list.status === 'loading' ? (
-              <LoadingSkeleton />
+              <div className="vault-split" aria-busy="true"><div className="vault-scroll"><LoadingSkeleton /></div><div className="detail-empty"><Spinner /><span>{t('workspace.loading')}</span></div></div>
             ) : list.status === 'error' ? (
               <div className="vault-error-panel" role="alert">
                 <p className="vault-error">
@@ -264,28 +263,30 @@ export function UnlockedScreen({
             ) : (
               <div className="vault-split" data-selected={current !== null}>
                 <div className="vault-scroll">
-                  {!searching && list.forSite.length > 0 ? (
-                    <ListSection title={t('vault.forSite')}>
-                      <EntryList
-                        client={client}
-                        entries={list.forSite}
-                        selectedId={selectedId}
-                        onSelect={setSelected}
-                      />
-                    </ListSection>
-                  ) : null}
-
-                  <ListSection
-                    title={searching ? t('vault.results') : ''}
-                  >
+                  {list.refreshing ? <div className="vault-sync-status" role="status"><Spinner />{t('vault.syncing')}</div> : list.errorCode ? <div className="vault-sync-status" role="alert"><span>{t('vault.syncFailed')}</span><Button onClick={list.retry}>{t('vault.retry')}</Button></div> : null}
+                  <details className="vault-filter">
+                    <summary aria-label={t('vault.filterLabel')}>{vaultFilter === null ? t('vault.filterAll') : t('vault.filterSelected', { count: vaultFilter.length })}<PopupIcon name="chevron" /></summary>
+                    <div className="vault-filter-options">
+                      <label className="vault-filter-all"><input type="checkbox" checked={vaultFilter === null} onChange={() => { setVaultFilter(vaultFilter === null ? [] : null); setSelected(null); }} /><PopupIcon name="check" /><PopupIcon name="vaults" /><span>{t('vault.filterAll')}</span></label>
+                      {vaultOptions.map(([id, name]) => <label key={id}><input type="checkbox" checked={vaultFilter === null || vaultFilter.includes(id)} onChange={() => {
+                        setVaultFilter(previous => {
+                          const ids = previous ?? vaultOptions.map(([vaultId]) => vaultId);
+                          return ids.includes(id) ? ids.filter(value => value !== id) : [...ids, id];
+                        });
+                        setSelected(null);
+                      }} /><PopupIcon name="check" /><PopupIcon name="vault" /><span>{name}</span></label>)}
+                    </div>
+                  </details>
+                  <ListSection title="">
                     {results.length === 0 ? (
                       <p className="vault-empty">
-                        {searching ? t('vault.noResults') : t('vault.empty')}
+                        {searching || vaultFilter !== null ? t('vault.noResults') : t('vault.empty')}
                       </p>
                     ) : (
                       <EntryList
                         client={client}
                         entries={results}
+                        priorityEntries={searching ? [] : list.forSite}
                         selectedId={selectedId}
                         onSelect={setSelected}
                       />
@@ -317,10 +318,8 @@ export function UnlockedScreen({
         )}
       </div>
       <UnlockedFooter
-        onOpenSettings={onOpenSettings}
         onLock={onLock}
         onSignOut={onSignOut}
-        onOpenSidePanel={onOpenSidePanel}
       />
     </section>
   );
@@ -361,13 +360,11 @@ function ListSection({
 }
 
 function UnlockedFooter({
-  onOpenSettings,
   onLock,
   onSignOut,
-  onOpenSidePanel,
 }: Pick<
   UnlockedScreenProps,
-  'onOpenSettings' | 'onLock' | 'onSignOut' | 'onOpenSidePanel'
+  'onLock' | 'onSignOut'
 >): React.JSX.Element {
   const { t } = useI18n();
   const [busy, setBusy] = useState<'lock' | 'signout' | null>(null);
@@ -388,40 +385,11 @@ function UnlockedFooter({
 
   return (
     <div className="vault-footer">
-      {onOpenSidePanel ? (
-        <button
-          type="button"
-          className="link-btn link-btn--side-panel"
-          onClick={() => void onOpenSidePanel().catch(() => false)}
-        >
-          <PopupIcon name="panel" />
-          {t('vault.openSidePanel')}
-        </button>
-      ) : (
-        <button
-          type="button"
-          className="link-btn link-btn--palladin"
-          onClick={() => void configuredPanelUrl().then(url => chrome.tabs.create({ url })).catch(() => {})}
-        >
-          <img
-            className="footer-brand-logo"
-            src={brandLogoUrl}
-            alt=""
-            aria-hidden="true"
-          />
-          {t('vault.openPalladin')}
-        </button>
-      )}
+      <button type="button" className="link-btn link-btn--palladin" onClick={() => void configuredPanelUrl().then(url => chrome.tabs.create({ url })).catch(() => {})}>
+        <PopupIcon name="external" />
+        {t('vault.openWebPanel')}
+      </button>
       <div className="vault-footer-actions">
-        {onOpenSettings ? (
-          <button
-            className="toolbar-icon"
-            aria-label={t('common.settings')}
-            onClick={onOpenSettings}
-          >
-            <PopupIcon name="settings" />
-          </button>
-        ) : null}
         <button className="toolbar-icon" aria-label={t('vault.lock')} title={t('vault.lock')} disabled={busy !== null} onClick={() => void run('lock', onLock)}>
           {busy === 'lock' ? <Spinner /> : <PopupIcon name="lock" />}
         </button>

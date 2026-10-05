@@ -11,7 +11,8 @@ export function usePendingGrants(client: WorkspaceClient): {
     let active = true;
     let pending = false;
     let repeat = false;
-    async function refresh() {
+    let previousSummary: string | null = null;
+    async function refresh(invalidate = false) {
       if (pending) {
         repeat = true;
         return;
@@ -27,7 +28,9 @@ export function usePendingGrants(client: WorkspaceClient): {
                 ? String(summary.pending)
                 : null,
           );
-          setRevision((value) => value + 1);
+          const nextSummary = JSON.stringify(summary);
+          if (invalidate || nextSummary !== previousSummary) setRevision((value) => value + 1);
+          previousSummary = nextSummary;
         }
       } catch {
         /* Existing Vault actions remain available when grant access is unavailable. */
@@ -35,7 +38,7 @@ export function usePendingGrants(client: WorkspaceClient): {
         pending = false;
         if (active && repeat) {
           repeat = false;
-          void refresh();
+          void refresh(true);
         }
       }
     }
@@ -46,7 +49,7 @@ export function usePendingGrants(client: WorkspaceClient): {
         'type' in message &&
         message.type === 'workspace/changed'
       )
-        void refresh();
+        void refresh(true);
     };
     const messages =
       typeof chrome === 'undefined' ? undefined : chrome.runtime?.onMessage;

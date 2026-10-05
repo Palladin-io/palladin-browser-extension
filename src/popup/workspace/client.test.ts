@@ -14,3 +14,13 @@ it('shares one memory directory and performs at most one whole-directory repair 
   expect(send).toHaveBeenCalledTimes(2);
   expect(send).toHaveBeenLastCalledWith({ type: 'workspace/members' });
 });
+
+it('rejects a stale worker before sending an operation', async () => {
+  const sendMessage = vi.fn().mockResolvedValue({ ok: false, code: 'invalid' });
+  vi.stubGlobal('chrome', { runtime: { sendMessage } });
+  try {
+    const client = createWorkspaceClient();
+    await expect(client.send({ type: 'workspace/grant-summary' })).rejects.toMatchObject({ code: 'reload' });
+    expect(sendMessage).toHaveBeenCalledExactlyOnceWith({ type: 'workspace/build' });
+  } finally { vi.unstubAllGlobals(); }
+});

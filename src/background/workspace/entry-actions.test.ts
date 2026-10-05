@@ -245,8 +245,8 @@ describe('encrypted workspace operations', () => {
     expect(request.mock.calls.some((call) => call[1] === 'PUT')).toBe(false);
   });
 
-  it('binds approval to the authoritative request, reviewed revision, fields, methods and policy', async () => {
-    const { actions, operation, request } = setup();
+  it('binds reason reads and approval to authenticated scope, reviewed revision, fields, methods and policy', async () => {
+    const { actions, operation, request, client } = setup();
     const scope = {
       organizationId,
       vaultId,
@@ -310,6 +310,17 @@ describe('encrypted workspace operations', () => {
             ? { currentRevision: '4' }
             : null,
     );
+    expect(await actions.handle({ type: 'workspace/grant-reason', vaultId, grantId }, operation)).toEqual({
+      ok: true, data: { reason: 'Synthetic approved purpose' },
+    });
+    expect(client.getEntry).not.toHaveBeenCalled();
+    expect(cryptoMocks.openEncryptedReason.mock.calls[0]?.[4]).toEqual({ organizationId, vaultId, entryId, grantId, agentId });
+    request.mockResolvedValueOnce({ id: 'different-grant', vaultId, encryptedReason: reason });
+    await expect(actions.handle({ type: 'workspace/grant-reason', vaultId, grantId }, operation)).rejects.toThrow('invalid');
+    cryptoMocks.openEncryptedReason.mockRejectedValueOnce(new Error('Invalid signature'));
+    await expect(actions.handle({ type: 'workspace/grant-reason', vaultId, grantId }, operation)).rejects.toThrow('reason-proof');
+    cryptoMocks.openEncryptedReason.mockClear();
+
     const approval = {
       type: 'workspace/approve-grant' as const,
       vaultId,

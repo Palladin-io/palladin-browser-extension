@@ -97,6 +97,7 @@ export class EntryActions {
     command: WorkspaceCommand,
     operation: WorkspaceOperation,
   ): Promise<WorkspaceReply | null> {
+    if (command.type === 'workspace/grant-reason') return this.grantReason(command, operation);
     if (
       command.type === 'workspace/review-grant' ||
       command.type === 'workspace/approve-grant'
@@ -198,6 +199,43 @@ export class EntryActions {
         }
       },
     );
+  }
+
+  private async grantReason(
+    command: Extract<WorkspaceCommand, { type: 'workspace/grant-reason' }>,
+    operation: WorkspaceOperation,
+  ): Promise<WorkspaceReply> {
+    const grant = await operation.request(`/api/vaults/${command.vaultId}/grants/${command.grantId}`, 'GET') as OrgGrant;
+    if (grant.id !== command.grantId || grant.vaultId !== command.vaultId) throw new WorkspaceError('invalid');
+    if (!grant.encryptedReason) return { ok: true, data: { reason: null } };
+    const envelope = encryptedReasonEnvelopeSchema.safeParse(grant.encryptedReason);
+    if (!envelope.success || !grant.agentId || !grant.agentSigningPublicKey || !grant.agentSigningKeyVersion || !grant.agentSigningKeyFingerprint) throw new WorkspaceError('reason-contract');
+    const privateKey = this.deps.session.getPrivateKey();
+    const userId = await this.deps.session.getUserId();
+    const token = await this.deps.session.getAccessToken();
+    operation.assertCurrent();
+    if (!privateKey || !userId || !token) throw new WorkspaceError('locked');
+    const vault = await this.deps.client.getVault(token, command.vaultId, operation.signal);
+    operation.assertCurrent();
+    if (vault.id !== command.vaultId) throw new WorkspaceError('invalid');
+    const opened = await openVaultProjection(vault, privateKey, userId).catch(() => { throw new WorkspaceError('reason-key'); });
+    try {
+      operation.assertCurrent();
+      // Historical reasons use their signed key version; authenticated grant/Vault state supplies scope authority.
+      const reason = await openEncryptedReason(envelope.data, vault.vaultPrivateKeys, opened.vaultKey, {
+        publicKey: grant.agentSigningPublicKey,
+        keyVersion: grant.agentSigningKeyVersion,
+        keyFingerprint: grant.agentSigningKeyFingerprint,
+      }, {
+        organizationId: vault.organizationId,
+        vaultId: command.vaultId,
+        grantId: command.grantId,
+        agentId: grant.agentId,
+        ...(grant.entryId ?? grant.scriptEntryId ? { entryId: (grant.entryId ?? grant.scriptEntryId)! } : {}),
+      }).catch(() => { throw new WorkspaceError('reason-proof'); });
+      operation.assertCurrent();
+      return { ok: true, data: { reason } };
+    } finally { wipe(opened.vaultKey); }
   }
 
   private async grant(

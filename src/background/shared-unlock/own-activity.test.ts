@@ -9,9 +9,9 @@ const apiUrl = "https://api.example.test";
 const base = fixtures.operations[0].sourceAuthorization;
 const cleanups: (() => void)[] = [];
 afterEach(() => { for (const cleanup of cleanups.splice(0)) cleanup(); vi.useRealTimers(); });
-async function harness(pause = false) {
+async function harness(pause = false, idleMs = 1_000) {
   vi.useFakeTimers(); vi.setSystemTime(base.unlockedAtMs);
-  const now = Date.now(), root = { ...base, idleDeadlineMs: now + 1_000, absoluteDeadlineMs: now + 10_000, offlineDeadlineMs: now + 8_000 };
+  const now = Date.now(), root = { ...base, idleDeadlineMs: now + idleMs, absoluteDeadlineMs: now + Math.max(10_000, idleMs * 3), offlineDeadlineMs: now + Math.max(8_000, idleMs * 2) };
   let current = true, release!: (response: Response) => void;
   const pending = new Promise<Response>(resolve => { release = resolve; });
   const bodies: Record<string, unknown>[] = [];
@@ -103,4 +103,30 @@ it('bounds an ignored fetch abort to two seconds without replay', async () => {
   await vi.advanceTimersByTimeAsync(2_000);
   expect(run.dispose).toHaveBeenCalledOnce(); expect(h.fetcher).toHaveBeenCalledOnce();
   expect(h.authority.snapshot().authorization).toBeNull();
+});
+
+it('coalesces normal interaction into at most one renewal per thirty seconds', async () => {
+  const h = await harness(false, 300_000);
+  h.record(h.now + 300_000);
+  await vi.waitFor(() => expect(h.fetcher).toHaveBeenCalledOnce());
+  for (let i = 1; i < 20; i++) {
+    await vi.advanceTimersByTimeAsync(1_000);
+    h.record(h.now + 300_000 + i * 1_000);
+  }
+  expect(h.fetcher).toHaveBeenCalledOnce();
+  await vi.advanceTimersByTimeAsync(11_000);
+  expect(h.fetcher).toHaveBeenCalledTimes(2);
+  await vi.advanceTimersByTimeAsync(30_000);
+  expect(h.fetcher).toHaveBeenCalledTimes(2);
+});
+
+it('disposes a queued renewal immediately when its session locks', async () => {
+  const h = await harness(false, 300_000);
+  const first = h.record(h.now + 300_000);
+  await vi.waitFor(() => expect(first.dispose).toHaveBeenCalledOnce());
+  const queued = h.record(h.now + 301_000);
+  queued.controller.abort();
+  expect(queued.dispose).toHaveBeenCalledOnce();
+  await vi.advanceTimersByTimeAsync(30_000);
+  expect(h.fetcher).toHaveBeenCalledOnce();
 });

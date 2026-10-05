@@ -132,6 +132,17 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
   }
   let movement = 0
   return {
+    async grantScrollLayout() {
+      return evaluate(`(() => {
+        const list = document.querySelector('.grant-list');
+        const panel = document.querySelector('.grants-panel');
+        const content = document.querySelector('.vault-content');
+        const heading = document.querySelector('.workspace-heading');
+        const top = heading.getBoundingClientRect().top;
+        list.scrollTop = 200;
+        return { listScrolls: list.scrollTop > 0, panelFits: panel.scrollHeight <= panel.clientHeight + 1, contentFits: content.scrollHeight <= content.clientHeight + 1, headingStable: top === heading.getBoundingClientRect().top };
+      })()`);
+    },
     async trustedMouseMove() {
       // Observe a browser-generated input event without invoking the product's
       // activity command or touching its session store/clock.
@@ -226,6 +237,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
     },
     async hadIntermediateWidth() { return evaluate('globalThis.__popupWidths?.some(width => width > 440 && width < 780) === true') },
     async waitWidth(min, max) { await wait(async () => { const size = await this.viewportSize(); return size.width >= min && size.width <= max }, 'popup resize settled') },
+    async waitHeight(min, max) { await wait(async () => { const size = await this.viewportSize(); return size.height >= min && size.height <= max }, 'popup height settled') },
     async viewportSize() { return evaluate('({ width: innerWidth, height: innerHeight })') },
     async hasText(text) { return evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`) },
     // Exercise the same private command as CopyButton, inside the real native

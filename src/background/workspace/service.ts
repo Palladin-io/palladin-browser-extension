@@ -1,3 +1,4 @@
+import { buildId } from '../../shared/config/build-identity';
 import { validShareProtection } from '../../shared/workspace/sharing-input';
 import {
   workspaceCommandSchema,
@@ -55,6 +56,7 @@ export class WorkspaceService {
       return null;
     const parsed = workspaceCommandSchema.safeParse(raw);
     if (!parsed.success) return { ok: false, code: 'invalid' };
+    if (parsed.data.type === 'workspace/build') return { ok: true, data: { buildId } };
     const controller = new AbortController();
     this.pending.add(controller);
     try {
@@ -127,8 +129,13 @@ export class WorkspaceService {
       return params.toString();
     };
     switch (command.type) {
+      case 'workspace/build':
+        throw new WorkspaceError('invalid');
+      case 'workspace/my-shares':
+        return { path: `/api/entry-sharing?${query({ cursor: command.cursor })}`, method: 'GET' };
       case 'workspace/grant-summary':
         return { path: '/api/grants/summary', method: 'GET' };
+      case 'workspace/grant-reason':
       case 'workspace/review-grant':
       case 'workspace/approve-grant':
       case 'workspace/detail':
@@ -216,7 +223,7 @@ export class WorkspaceService {
             method,
             headers: {
               Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
+              ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
               'X-Palladin-Vault-Protocol': '2',
               'X-Palladin-Sync-Policy': '2',
             },

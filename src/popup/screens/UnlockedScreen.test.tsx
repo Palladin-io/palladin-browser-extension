@@ -1,3 +1,4 @@
+import { webAppUrl } from '@shared/config/web-app';
 // @vitest-environment jsdom
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -68,7 +69,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   // `userEvent.setup()` provides a working navigator.clipboard stub; the copy
   // test reads it back. We only need to stub chrome for the deep-link buttons.
-  Object.assign(globalThis, { chrome: { tabs: { create: vi.fn() }, runtime: { sendMessage: vi.fn(async (command: { type: string }) => command.type === 'workspace/detail'
+  Object.assign(globalThis, { chrome: { tabs: { create: vi.fn() }, runtime: { sendMessage: vi.fn(async (command: { type: string }) => command.type === 'workspace/build' ? { ok: true, data: { buildId: 'test' } } : command.type === 'workspace/detail'
     ? { ok: true, data: { revision: '1', fields: [{ id: 'credential.username', label: '', type: 'text', value: 'ada@example.com' }, { id: 'credential.password', label: '', type: 'concealed', value: null }] } }
     : command.type === 'workspace/field' ? { ok: true, data: { value: 's3cr3t' } } : { ok: true }) } } });
 });
@@ -153,16 +154,49 @@ describe("UnlockedScreen", () => {
     expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
   });
 
-  it("renders the for-this-site and all-items sections", async () => {
+  it("renders matching entries first in one list without duplicate sections", async () => {
     const { container } = render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={makeClient()} />);
 
-    expect(await screen.findByText("For this site")).toBeInTheDocument();
+    await screen.findByText("API token");
+    expect(screen.queryByText("For this site")).not.toBeInTheDocument();
     expect(screen.queryByText("All items")).not.toBeInTheDocument();
-    // The credential appears in both sections; the key only under All items.
-    expect(screen.getAllByText("Example login").length).toBeGreaterThanOrEqual(1);
+    // The current-site credential appears only once.
+    expect(screen.getAllByText("Example login")).toHaveLength(1);
     expect(screen.getByText("API token")).toBeInTheDocument();
     expect(screen.getAllByText("Vault: Personal").length).toBeGreaterThanOrEqual(2);
     expect(container.querySelector('img[src="https://assets.palladin.io/github.png"]')).not.toBeInTheDocument();
+  });
+
+  it("puts a current-site match before alphabetically earlier domains", async () => {
+    const base = makeClient();
+    const initial = await base.list();
+    const earlier = { ...initial.all[0]!, id: 'earlier-entry', name: 'Earlier site', urlDomain: 'aaa.example' };
+    const matching = { ...initial.forSite[0]!, name: 'Current site', urlDomain: 'zzz.example' };
+    const data = { ...initial, all: [earlier, matching], forSite: [matching] };
+    const { container } = render(<UnlockedScreen onLock={noop} onSignOut={noop}
+      vaultClient={makeClient({ list: vi.fn(async () => data), sync: vi.fn(async () => data) })} />);
+    await screen.findByText('Current site');
+    expect([...container.querySelectorAll('.entry-list .entry-name')].map(row => row.textContent)).toEqual(['Current site', 'Earlier site']);
+  });
+
+  it('filters multiple vaults and restores all vaults', async () => {
+    const personal = entry({ id: 'personal', name: 'Personal entry' });
+    const work = entry({ id: 'work', name: 'Work entry', vaultId: 'v2', vaultName: 'Work' });
+    const other = entry({ id: 'other', name: 'Other entry', vaultId: 'v3', vaultName: 'Other' });
+    const data = view({ all: [personal, work, other], forSite: [] });
+    render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={makeClient({ list: vi.fn(async () => data), sync: vi.fn(async () => data) })} />);
+    const user = userEvent.setup();
+    await screen.findByText('Personal entry');
+    await user.click(screen.getByLabelText('Filter vaults'));
+    await user.click(screen.getByRole('checkbox', { name: 'Work' }));
+    expect(screen.queryByText('Work entry')).not.toBeInTheDocument();
+    expect(screen.getByText('Personal entry')).toBeInTheDocument();
+    expect(screen.getByText('Other entry')).toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: 'Personal' }));
+    expect(screen.queryByText('Personal entry')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: 'All vaults' }));
+    expect(screen.getByText('Personal entry')).toBeInTheDocument();
+    expect(screen.getByText('Work entry')).toBeInTheDocument();
   });
 
   it("filters by query and hides the for-this-site section while searching", async () => {
@@ -173,7 +207,7 @@ describe("UnlockedScreen", () => {
     await user.type(screen.getByLabelText("Search entries"), "token");
 
     expect(screen.queryByText("For this site")).not.toBeInTheDocument();
-    expect(screen.getByText("Results")).toBeInTheDocument();
+    expect(screen.getByLabelText("Filter vaults")).toBeInTheDocument();
     expect(screen.getByText("API token")).toBeInTheDocument();
     expect(screen.queryByText("Example login")).not.toBeInTheDocument();
   });
@@ -202,7 +236,7 @@ describe("UnlockedScreen", () => {
     );
 
     expect(screen.getByLabelText("Search entries")).toHaveValue("token");
-    expect(screen.getByText("Results")).toBeInTheDocument();
+    expect(screen.getByLabelText("Filter vaults")).toBeInTheDocument();
     expect(screen.getByText("API token")).toBeInTheDocument();
     await waitFor(() => expect(client.list).toHaveBeenCalledTimes(2));
     expect(client.sync).toHaveBeenCalledOnce();
@@ -337,21 +371,12 @@ describe("UnlockedScreen", () => {
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
   });
 
-  it("offers the browser side panel from the quick popup", async () => {
-    const openPanel = vi.fn(async () => true);
-    render(
-      <UnlockedScreen
-        onLock={noop}
-        onSignOut={noop}
-        onOpenSidePanel={openPanel}
-        vaultClient={makeClient()}
-      />,
-    );
+  it("opens the web panel from the footer", async () => {
+    render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={makeClient()} />);
     const user = userEvent.setup();
-
-    await user.click(await screen.findByRole("button", { name: "Open side panel" }));
-    expect(openPanel).toHaveBeenCalledOnce();
-    expect(screen.queryByRole("button", { name: "Open Palladin" })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Open web panel' }));
+    expect(chrome.tabs.create).toHaveBeenCalledWith({ url: webAppUrl });
+    expect(screen.queryByRole('button', { name: 'Open side panel' })).not.toBeInTheDocument();
   });
 
   it("generates, copies, and fills a password without saving it", async () => {

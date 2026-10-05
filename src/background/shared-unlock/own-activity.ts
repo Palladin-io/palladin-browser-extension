@@ -17,15 +17,27 @@ export interface OwnSharedUnlockActivity {
 export class OwnSharedUnlockActivityRecorder {
   private queued: OwnSharedUnlockActivity | null = null;
   private running = false;
+  private detachQueuedAbort: (() => void) | null = null;
   private nextStart = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private readonly api: SharedUnlockApi;
   private readonly expiry: SharedUnlockExpiryStore;
   constructor(api: SharedUnlockApi, expiry: SharedUnlockExpiryStore) { this.api = api; this.expiry = expiry; }
   record(activity: OwnSharedUnlockActivity): void {
+    this.detachQueuedAbort?.();
     this.queued?.dispose();
     this.queued = activity;
-    this.schedule();
+    const cancel = () => {
+      if (this.queued !== activity) return;
+      this.detachQueuedAbort?.(); this.detachQueuedAbort = null;
+      this.queued = null; activity.dispose();
+      if (this.timer) clearTimeout(this.timer);
+      this.timer = null;
+    };
+    activity.signal.addEventListener('abort', cancel, { once: true });
+    this.detachQueuedAbort = () => activity.signal.removeEventListener('abort', cancel);
+    if (activity.signal.aborted) cancel();
+    else this.schedule();
   }
   private schedule(): void {
     if (this.running || this.timer || !this.queued) return;
@@ -36,7 +48,10 @@ export class OwnSharedUnlockActivityRecorder {
   private async run(): Promise<void> {
     const activity = this.queued;
     if (!activity) return;
-    this.queued = null; this.running = true; this.nextStart = Date.now() + 1_000;
+    this.detachQueuedAbort?.(); this.detachQueuedAbort = null;
+    this.queued = null; this.running = true;
+    const remainingIdle = activity.authority.authorization.idleDeadlineMs - Date.now();
+    this.nextStart = Date.now() + Math.min(30_000, Math.max(1_000, remainingIdle / 2));
     const abort = new AbortController(), until = Date.now() + 2_000;
     const cancel = () => abort.abort();
     activity.signal.addEventListener("abort", cancel, { once: true });

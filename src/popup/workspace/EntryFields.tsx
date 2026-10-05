@@ -1,3 +1,4 @@
+import { EntryTotpField } from './EntryTotpField';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { PopupIcon } from '../components/PopupIcon';
 import { useEffect, useRef, useState } from 'react';
@@ -86,7 +87,7 @@ export function EntryFields({
                 delete next[field.id];
                 return next;
               }),
-            field.type === 'totp' ? (result.expiresIn ?? 1) * 1000 : 20_000,
+            20_000,
           ),
         );
       }
@@ -101,17 +102,14 @@ export function EntryFields({
       {loading ? <LoadingSkeleton /> : null}
       <div className="detail-fields">
         {fields
-          .filter((field) => field.id !== 'credential.totp')
-          .map((field) => (
+          .map((field) => field.type === 'totp' ? <EntryTotpField key={field.id} client={client} vaultClient={vaultClient} vaultId={vaultId} entryId={entryId} fieldId={field.id} label={field.label} /> : (
             <div className="detail-field" key={field.id}>
               <span>
                 <small>
                   {field.label ||
                     (labels[field.id]
                       ? t(labels[field.id]!)
-                      : t(
-                          field.type === 'totp' ? 'field.totp' : 'field.custom',
-                        ))}
+                      : t('field.custom'))}
                 </small>
                 <span className="detail-field-value">
                   {revealed[field.id] ?? field.value ?? '••••••••••••'}

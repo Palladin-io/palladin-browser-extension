@@ -13,15 +13,21 @@ export const CAP = 100;
 export interface EntryListProps {
   client: VaultClient;
   entries: EntryMetadata[];
+  priorityEntries?: readonly EntryMetadata[];
   selectedId?: string | undefined;
   onSelect?: ((entry: EntryMetadata) => void) | undefined;
 }
 
-export function EntryList({ client, entries, selectedId, onSelect }: EntryListProps): React.JSX.Element {
+export function EntryList({ client, entries, priorityEntries, selectedId, onSelect }: EntryListProps): React.JSX.Element {
   const { t } = useI18n();
   const [visibleCount, setVisibleCount] = useState(CAP);
   const loadMoreRef = useRef<HTMLButtonElement | null>(null);
-  const items = useMemo(() => groupEntriesByDomain(entries), [entries]);
+  const items = useMemo(() => {
+    const priority = new Set(priorityEntries?.map(entry => `${entry.vaultId}:${entry.id}`));
+    const rank = (item: EntryListItem) => (item.kind === 'entry' ? [item.entry] : item.entries)
+      .some(entry => priority.has(`${entry.vaultId}:${entry.id}`)) ? 0 : 1;
+    return groupEntriesByDomain(entries).sort((a, b) => rank(a) - rank(b));
+  }, [entries, priorityEntries]);
   const visible = items.slice(0, visibleCount);
   const hidden = items.length - visible.length;
   const showNext = useCallback(() => {

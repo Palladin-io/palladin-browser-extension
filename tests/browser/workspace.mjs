@@ -19,6 +19,7 @@ const api = await createCaptureApi({ workspaceHandler: async ({ method, url, req
   if (url.pathname === '/api/audit-logs') { send({ items: [{ id: randomUUID(), eventType: 'entry.created', actorType: 'user', userId, vaultId: vaults[0].detail.id, entryId: [...vaults[0].entries.keys()][0] ?? null, metadata: {}, createdAt: new Date().toISOString() }], nextCursor: null }); return true; }
   if (url.pathname === '/api/grants/summary') { send({ pending: grants.filter(g => g.status === 'pending').length, active: grants.filter(g => g.status === 'active').length, expired: 0, revoked: 0, consumed: 0, denied: 0 }); return true; }
   if (url.pathname === '/api/grants') { send({ items: grants.filter(g => !url.searchParams.get('status') || g.status === url.searchParams.get('status')), nextCursor: null }); return true; }
+  if (url.pathname === '/api/entry-sharing') { send({ items: [...shares.values()].map(({ nonce, ciphertext, accessToken, protectionSecret, vaultId, entryId, ...share }) => ({ vaultId, entryId, share })), nextCursor: null }); return true; }
   const match = /^\/api\/vaults\/([^/]+)\/entries\/([^/]+)\/sharing(?:\/(.*))?$/.exec(url.pathname);
   if (!match) return false;
   const entry = vaults.find(vault => vault.detail.id === match[1])?.entries.get(match[2]);
@@ -28,7 +29,7 @@ const api = await createCaptureApi({ workspaceHandler: async ({ method, url, req
     assert.equal(request.sourceRevision, entry.currentRevision);
     assert(!JSON.stringify(request).includes('Synthetic entry password'));
     assert(!('key' in request));
-    shares.set(request.shareId, { ...request, status: 'active', createdAt: new Date().toISOString(), deliveryCount: 0, firstDeliveredAt: null, lastDeliveredAt: null, firstConfirmedAt: null, sourceChanged: false });
+    shares.set(request.shareId, { ...request, vaultId: match[1], entryId: match[2], status: 'active', createdAt: new Date().toISOString(), deliveryCount: 0, firstDeliveredAt: null, lastDeliveredAt: null, firstConfirmedAt: null, sourceChanged: false });
     send(null); return true;
   }
   if (method === 'GET') { send({ items: [...shares.values()].map(({ nonce, ciphertext, accessToken, protectionSecret, ...item }) => item), nextCursor: null }); return true; }
@@ -59,9 +60,10 @@ try {
   const brand = await popup.brandTypography();
   assert(brand.family.startsWith('Inter') && brand.loaded, 'Auth wordmark must render the bundled web Inter font');
   assert.equal(brand.weight, '800');
-  assert.equal(brand.size, '23px');
-  assert.equal(brand.spacing, '-0.23px');
-  await popup.waitText('Zero-knowledge by design.');
+  assert.equal(brand.size, '19px');
+  assert.equal(brand.spacing, '-0.19px');
+  await popup.waitHeight(350, 370);
+  assert((await popup.viewportSize()).height <= 370, 'Sign-in must not reserve workspace height');
   await popup.screenshot(path.join(output, 'sign-in-light.png'));
   await popup.fill('input[type=email]', api.email); await popup.fill('input[type=password]', api.password); await popup.click('Sign in');
   await popup.waitText('No entries yet.');
@@ -95,11 +97,24 @@ try {
   grants.push({ id: randomUUID(), vaultId: api.vaults[0].detail.id, agentId: randomUUID(), agentName: 'Synthetic pending agent', status: 'pending', type: 'granular', createdAt: new Date().toISOString(), entryScopes: [], scriptScopes: [] });
   await worker.evaluate(() => chrome.runtime.sendMessage({ type: 'workspace/changed' }));
   await popup.waitText('Synthetic pending agent');
+  for (let index = 0; index < 18; index++) grants.push({ ...grants[0], id: randomUUID(), agentName: `Synthetic scroll agent ${index}` });
+  await worker.evaluate(() => chrome.runtime.sendMessage({ type: 'workspace/changed' }));
+  await popup.waitText('Synthetic scroll agent 17');
+  assert.deepEqual(await popup.grantScrollLayout(), { listScrolls: true, panelFits: true, contentFits: true, headingStable: true });
+  await popup.screenshot(path.join(output, 'grants-scroll-light.png'));
+  const workspaceSize = await popup.viewportSize();
+  await popup.click('Settings', 'tab');
+  await popup.waitText('Appearance');
+  assert.deepEqual(await popup.viewportSize(), workspaceSize, 'Settings must preserve the unlocked popup dimensions');
+  await popup.screenshot(path.join(output, 'settings-unlocked.png'));
+  await popup.click('Vault', 'tab');
   await popup.observeResize();
   await popup.click('Lock'); await popup.waitText('Master password');
   await popup.waitWidth(420, 440);
   assert(await popup.hadIntermediateWidth(), 'Native popup width should animate between locked and unlocked sizes');
   assert((await popup.viewportSize()).width <= 440, 'Lock must restore the compact popup');
+  await popup.waitHeight(280, 300);
+  assert((await popup.viewportSize()).height <= 300, 'Unlock should fit its short form');
   await popup.screenshot(path.join(output, 'unlock-light.png'));
   assert(!await popup.hasText('synthetic@example.test'));
   await popup.click('Settings');

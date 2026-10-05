@@ -92,6 +92,29 @@ describe('workspace command boundary', () => {
     );
   });
 
+  it('does not advertise JSON for bodyless workspace requests', async () => {
+    const { service, fetch } = setup();
+    for (const command of [
+      { type: 'workspace/grants' }, { type: 'workspace/grant-summary' },
+      { type: 'workspace/audit' }, { type: 'workspace/members' },
+      { type: 'workspace/shares', vaultId, entryId: grantId },
+      { type: 'workspace/revoke-share', vaultId, entryId: grantId, shareId: grantId },
+    ]) {
+      await service.handle(command);
+      const init = fetch.mock.calls.at(-1)![1]!;
+      expect(init.body).toBeUndefined();
+      expect(new Headers(init.headers).has('content-type')).toBe(false);
+    }
+  });
+
+  it('declares JSON when sending a mutation payload', async () => {
+    const { service, fetch } = setup();
+    await service.handle({ type: 'workspace/deny', vaultId, grantId });
+    const init = fetch.mock.calls[0]![1]!;
+    expect(new Headers(init.headers).get('content-type')).toBe('application/json');
+    expect(JSON.parse(String(init.body))).toEqual({});
+  });
+
   it('reports HTTP failures without exposing the response body', async () => {
     const { service, fetch } = setup();
     fetch.mockResolvedValue(new Response('private server details', { status: 403 }));

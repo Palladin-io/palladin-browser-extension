@@ -31,6 +31,7 @@ const tones: Record<string, string> = {
       'agent.enrolled',
       'vault.created',
       'vault.updated',
+      'vault.exported',
       'entry.created',
       'entry.updated',
       'org.created',
@@ -62,21 +63,50 @@ const tones: Record<string, string> = {
   ),
 };
 const eventKeys: Record<string, TranslationKey> = {
-  'credential.accessed': 'audit.credentialAccessed',
-  'credential.access-denied': 'audit.accessDenied',
-  'grant.requested': 'audit.grantRequested',
-  'grant.created': 'audit.grantCreated',
-  'grant.approved': 'audit.grantApproved',
-  'grant.denied': 'audit.grantDenied',
-  'grant.revoked': 'audit.grantRevoked',
-  'grant.expired': 'audit.grantExpired',
-  'grant.consumed': 'audit.grantConsumed',
-  'grant.superseded': 'audit.grantSuperseded',
-  'entry.created': 'audit.entryCreated',
-  'entry.updated': 'audit.entryUpdated',
-  'entry.deleted': 'audit.entryDeleted',
-  'agent.enrolled': 'audit.agentEnrolled',
-  'agent.blocked': 'audit.agentBlocked',
+  'entry-share.protection-changed': 'audit.event.entry-share.protection-changed',
+  'entry-share.expired': 'audit.event.entry-share.expired',
+  'entry-share.ended': 'audit.event.entry-share.ended',
+  'entry-share.source-access-removed': 'audit.event.entry-share.source-access-removed',
+  'org.member-joined': 'audit.event.org.member-joined',
+  'org.member-role-changed': 'audit.event.org.member-role-changed',
+  'org.member-removed': 'audit.event.org.member-removed',
+  'audit.export.requested': 'audit.event.audit.export.requested',
+
+  'auth.login-failed': 'audit.event.loginFailed',
+  'credential.accessed': 'audit.event.credentialAccessed',
+  'credential.access-denied': 'audit.event.credentialAccessDenied',
+  'grant.requested': 'audit.event.grantRequested',
+  'grant.created': 'audit.event.grantCreated',
+  'grant.approved': 'audit.event.grantApproved',
+  'grant.denied': 'audit.event.grantDenied',
+  'grant.revoked': 'audit.event.grantRevoked',
+  'grant.consumed': 'audit.event.grantConsumed',
+  'grant.expired': 'audit.event.grantExpired',
+  'grant.superseded': 'audit.event.grantSuperseded',
+  'agent.enrolled': 'audit.event.agentEnrolled',
+  'agent.blocked': 'audit.event.agentBlocked',
+  'agent.reactivated': 'audit.event.agentReactivated',
+  'agent.deleted': 'audit.event.agentDeleted',
+  'vault.created': 'audit.event.vaultCreated',
+  'vault.updated': 'audit.event.vaultUpdated',
+  'vault.deleted': 'audit.event.vaultDeleted',
+  'vault.exported': 'audit.event.vaultExported',
+  'entry.created': 'audit.event.entryCreated',
+  'entry.updated': 'audit.event.entryUpdated',
+  'entry.deleted': 'audit.event.entryDeleted',
+  'apikey.created': 'audit.event.apikeyCreated',
+  'apikey.activated': 'audit.event.apikeyActivated',
+  'apikey.revoked': 'audit.event.apikeyRevoked',
+  'apikey.deleted': 'audit.event.apikeyDeleted',
+  'org.created': 'audit.event.orgCreated',
+  'org.updated': 'audit.event.orgUpdated',
+  'org.member-invited': 'audit.event.orgMemberInvited',
+  'org.invitation-resent': 'audit.event.orgInvitationResent',
+  'org.invitation-cancelled': 'audit.event.orgInvitationCancelled',
+  'org.invitation-role-changed': 'audit.event.orgInvitationRoleChanged',
+  'user.signed-up': 'audit.event.userSignedUp',
+  'account.setup-completed': 'audit.event.accountSetupCompleted',
+  'account.recovery-completed': 'audit.event.accountRecoveryCompleted',
   'entry-share.created': 'audit.shareCreated',
   'entry-share.delivered': 'audit.shareDelivered',
   'entry-share.confirmed': 'audit.shareConfirmed',
@@ -104,6 +134,9 @@ export function AuditPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const revision = useRef(0);
+  const sentinel = useRef<HTMLDivElement>(null);
+  const inFlight = useRef(false);
+  const [pageError, setPageError] = useState(false);
   useEffect(
     () => () => {
       revision.current++;
@@ -111,6 +144,9 @@ export function AuditPanel({
     [client],
   );
   async function load(next?: string) {
+    if (next && inFlight.current) return;
+    inFlight.current = true;
+    setPageError(false);
     const run = ++revision.current;
     setBusy(true);
     setError(false);
@@ -139,9 +175,9 @@ export function AuditPanel({
       );
       setCursor(page.nextCursor);
     } catch (error) {
-      if (revision.current === run) setError(error);
+      if (revision.current === run) { setError(error); setPageError(Boolean(next)); }
     } finally {
-      if (revision.current === run) setBusy(false);
+      if (revision.current === run) { setBusy(false); inFlight.current = false; }
     }
   }
   useEffect(() => {
@@ -152,6 +188,15 @@ export function AuditPanel({
       revision.current++;
     };
   }, [client, entryId, vaultId, filter]);
+  useEffect(() => {
+    const target = sentinel.current;
+    if (!target || !cursor || busy || pageError || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(records => {
+      if (records.some(record => record.isIntersecting)) void load(cursor);
+    }, { root: target.closest('.audit-panel'), rootMargin: '120px' });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [cursor, busy, pageError]);
   return (
     <section
       className="workspace-panel audit-panel"
@@ -174,7 +219,7 @@ export function AuditPanel({
             </option>
           ))}
         </select>
-        <Button variant="subtle" disabled={busy} onClick={() => void load()}>
+        <Button variant="accent" disabled={busy} onClick={() => void load()}>
           {t('workspace.refresh')}
         </Button>
       </div>
@@ -194,9 +239,9 @@ export function AuditPanel({
           );
           const actor = item.userId
             ? (members.find((member) => member.userId === item.userId)
-                ?.displayName ?? shorten(item.userId))
+                ?.displayName ?? item.actorName ?? shorten(item.userId))
             : item.agentId
-              ? shorten(item.agentId)
+              ? (item.agentName ?? shorten(item.agentId))
               : t(
                   item.actorType === 'system'
                     ? 'audit.system'
@@ -211,26 +256,27 @@ export function AuditPanel({
               data-tone={tones[item.eventType] ?? 'neutral'}
             >
               <span className="audit-icon">
-                <PopupIcon name="logs" />
+                <PopupIcon name={item.eventType.startsWith('grant.') ? (item.eventType === 'grant.requested' ? 'pending' : item.eventType === 'grant.approved' ? 'check' : 'lock') : item.eventType.startsWith('agent.') ? 'agent' : item.eventType.startsWith('vault.') ? 'vault' : item.eventType.startsWith('entry-share.') ? 'share' : item.eventType.startsWith('entry.') ? 'key' : 'logs'} />
               </span>
               <div className="audit-event-content">
-                <p>
+                <div className="audit-primary"><p>
                   <strong>{actor}</strong> ·{' '}
                   {eventKeys[item.eventType]
                     ? t(eventKeys[item.eventType]!)
                     : t('audit.unknownEvent', { event: item.eventType })}
                 </p>
                 <time dateTime={item.createdAt}>
-                  {new Date(item.createdAt).toLocaleString(locale)}
-                </time>
+                  {new Date(item.createdAt).toLocaleString(locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </time></div>
                 <div className="audit-chips">
+                  <span className="audit-type">{eventKeys[item.eventType] ? t(eventKeys[item.eventType]!) : t('audit.unknownEvent', { event: item.eventType })}</span>
                   {entry ? (
-                    <span>{entry.name}</span>
+                    <span><PopupIcon name="key" />{entry.name}</span>
                   ) : item.entryId ? (
                     <span>{shorten(item.entryId)}</span>
                   ) : null}
                   {item.vaultId ? (
-                    <span>
+                    <span><PopupIcon name="vault" />
                       {entry?.vaultName ??
                         entries.find((entry) => entry.vaultId === item.vaultId)
                           ?.vaultName ??
@@ -243,15 +289,7 @@ export function AuditPanel({
           );
         })}
       </div>
-      {cursor ? (
-        <Button
-          variant="subtle"
-          disabled={busy}
-          onClick={() => void load(cursor)}
-        >
-          {t('workspace.more')}
-        </Button>
-      ) : null}
+      {cursor ? <div ref={sentinel} className="audit-sentinel">{busy ? <LoadingSkeleton /> : pageError ? <Button onClick={() => void load(cursor)}>{t('vault.retry')}</Button> : null}</div> : null}
     </section>
   );
 }

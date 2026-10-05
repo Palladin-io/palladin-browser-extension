@@ -1,4 +1,3 @@
-import { RotatingWelcome } from "../components/RotatingWelcome";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "../components/Button";
@@ -42,7 +41,6 @@ export function SignInScreen({ onSignIn, onCreateAccount }: SignInScreenProps): 
 
   return (
     <section className="auth-form-panel">
-      <RotatingWelcome />
       <h2 className="screen-title">{t("auth.signIn.title")}</h2>
       <form className="form" onSubmit={handleSubmit} noValidate>
         <FormInput

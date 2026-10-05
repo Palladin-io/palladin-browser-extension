@@ -1,3 +1,4 @@
+import { buildId } from '../../shared/config/build-identity';
 import type { MemberIdentity } from '../../shared/workspace/contracts';
 import type {
   WorkspaceCommand,
@@ -16,13 +17,19 @@ export interface WorkspaceClient {
   ): Promise<WorkspaceResults[C['type']]>;
 }
 export function createWorkspaceClient(
-  send: (
-    command: WorkspaceCommand,
-  ) => Promise<WorkspaceReply | undefined> = async (command) =>
-    typeof chrome === 'undefined'
-      ? undefined
-      : chrome.runtime.sendMessage(command),
+  transport?: (command: WorkspaceCommand) => Promise<WorkspaceReply | undefined>,
 ): WorkspaceClient {
+  let compatible: Promise<void> | null = null;
+  const send = transport ?? (async (command: WorkspaceCommand) => {
+    if (typeof chrome === 'undefined') throw new WorkspaceClientError('worker');
+    compatible ??= chrome.runtime.sendMessage({ type: 'workspace/build' }).then((reply: WorkspaceReply | undefined) => {
+      if (!reply?.ok || !reply.data || !('buildId' in reply.data) || reply.data.buildId !== buildId) {
+        throw new WorkspaceClientError('reload');
+      }
+    });
+    await compatible;
+    return chrome.runtime.sendMessage(command) as Promise<WorkspaceReply | undefined>;
+  });
   let directory: Promise<MemberIdentity[]> | null = null;
   let repaired = false;
   const readDirectory = async () => {
@@ -45,7 +52,7 @@ export function createWorkspaceClient(
     async send<C extends WorkspaceCommand>(
       command: C,
     ): Promise<WorkspaceResults[C['type']]> {
-      const response = await send(command).catch(() => { throw new WorkspaceClientError('worker'); });
+      const response = await send(command).catch(error => { throw error instanceof WorkspaceClientError ? error : new WorkspaceClientError('worker'); });
       if (!response?.ok) throw new WorkspaceClientError(response?.code ?? 'worker', response?.httpStatus);
       return response.data as WorkspaceResults[C['type']];
     },

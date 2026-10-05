@@ -30,8 +30,6 @@ import { TotpScreen } from "./screens/TotpScreen";
 import { UnlockScreen } from "./screens/UnlockScreen";
 import { UnlockedScreen } from "./screens/UnlockedScreen";
 import type { SessionStatus } from "../background/session/types";
-import { extensionBuildTarget } from "@shared/config/build-target";
-import { openSidePanel, supportsSidePanel } from "@shared/browser/side-panel";
 import { isSurfaceStateEvent } from "@shared/messaging";
 import { configuredPanelUrl } from "@shared/config/web-app";
 
@@ -93,7 +91,6 @@ export function App({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [vaultViewRevision, setVaultViewRevision] = useState(0);
   const [shareViewRevision, setShareViewRevision] = useState(0);
-  const panelAvailable = surface === "popup" && supportsSidePanel(extensionBuildTarget);
 
   useEffect(() => {
     let active = true;
@@ -178,7 +175,7 @@ export function App({
     <main className={settingsOpen ? "popup popup-settings" : "popup"} data-surface={surface} data-phase={onboardingStatus === "pending" ? "intro" : settingsOpen ? "settings" : session.phase}>
       <SharedUnlockNotice unlocked={session.phase === 'unlocked'} />
       {session.phase !== "unlocked" || settingsOpen || onboardingStatus !== "completed" ? <Header
-        authBrand={!settingsOpen && onboardingStatus === "completed" && ["signed-out", "locked", "totp"].includes(session.phase)}
+        authBrand={onboardingStatus === "completed" && ["signed-out", "locked", "totp"].includes(session.phase)}
         status={onboardingStatus === "completed" ? headerStatus(session.phase) : undefined}
         contextLabel={onboardingStatus === "pending"
           ? "onboarding.managers.eyebrow"
@@ -248,12 +245,11 @@ export function App({
         return (
           <PublicAssetImages client={serverClient}>
             <UnlockedScreen
-              onOpenSettings={() => setSettingsOpen(true)}
+              settings={<SettingsScreen split onServerChanged={session.retryInit} />}
               viewRevision={vaultViewRevision}
               shareRevision={shareViewRevision}
               onLock={session.lock}
               onSignOut={session.signOut}
-              onOpenSidePanel={panelAvailable ? () => openSidePanel() : undefined}
             />
           </PublicAssetImages>
         );

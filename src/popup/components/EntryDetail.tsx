@@ -8,7 +8,6 @@ import { useI18n } from '../i18n';
 import { entryDeepLink } from '@shared/config/web-app';
 import { fillMessage } from '../vault/messages';
 import { EntryIcon } from './EntryIcon';
-import { TotpBadge } from './TotpBadge';
 import { Button } from './Button';
 import { PopupIcon } from './PopupIcon';
 
@@ -84,9 +83,6 @@ export function EntryDetail({
         vaultId={entry.vaultId}
         entryId={entry.id}
       />
-      {entry.type === 1 ? (
-        <TotpBadge client={client} vaultId={entry.vaultId} entryId={entry.id} />
-      ) : null}
       <div className="detail-navigation">
       <button className="detail-link" onClick={onGrants}>
         <PopupIcon name="agent" />

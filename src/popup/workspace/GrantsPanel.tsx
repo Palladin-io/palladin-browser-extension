@@ -7,10 +7,10 @@ import type {
   GrantReview,
   WorkspaceCommand,
 } from '../../shared/workspace/commands';
-import type { WorkspaceClient } from './client';
+import { WorkspaceClientError, type WorkspaceClient } from './client';
 import { Button } from '../components/Button';
 import { useI18n, type TranslationKey } from '../i18n';
-import { PopupIcon } from '../components/PopupIcon';
+import { AgentIcon } from '../components/AgentIcon';
 
 type Approval = Extract<WorkspaceCommand, { type: 'workspace/approve-grant' }>;
 const states: Record<string, TranslationKey> = {
@@ -41,6 +41,10 @@ export function GrantsPanel({
   const [status, setStatus] = useState('');
   const [cursor, setCursor] = useState<string | null>(null);
   const [selected, setSelected] = useState<OrgGrant | null>(null);
+  const [accessReason, setAccessReason] = useState<string | null>(null);
+  const [reasonFailure, setReasonFailure] = useState<string | null>(null);
+  const [reasonLoading, setReasonLoading] = useState(false);
+  const reasonRun = useRef(0);
   const [review, setReview] = useState<GrantReview | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -108,6 +112,14 @@ export function GrantsPanel({
     setReview(null);
     setError(false);
     setReason('');
+    setAccessReason(null);
+    setReasonFailure(null);
+    const run = ++reasonRun.current;
+    setReasonLoading(Boolean(grant.encryptedReason));
+    if (grant.encryptedReason) void client.send({ type: 'workspace/grant-reason', vaultId: grant.vaultId, grantId: grant.id })
+      .then(data => { if (mounted.current && run === reasonRun.current) setAccessReason(data.reason); })
+      .catch(error => { if (mounted.current && run === reasonRun.current) setReasonFailure(error instanceof WorkspaceClientError ? error.code : 'worker'); })
+      .finally(() => { if (mounted.current && run === reasonRun.current) setReasonLoading(false); });
     if (grant.status !== 'pending') return;
     setBusy(true);
     try {
@@ -116,7 +128,7 @@ export function GrantsPanel({
         vaultId: grant.vaultId,
         grantId: grant.id,
       });
-      if (!mounted.current) return;
+      if (!mounted.current || run !== reasonRun.current) return;
       setReview(data);
       setMethods(data.methods);
       setFields(data.fields.map((field) => field.id));
@@ -217,7 +229,7 @@ export function GrantsPanel({
             </option>
           ))}
         </select>
-        <Button variant="subtle" disabled={busy} onClick={() => void load()}>
+        <Button variant="accent" disabled={busy} onClick={() => void load()}>
           {t('workspace.refresh')}
         </Button>
       </div>
@@ -232,9 +244,7 @@ export function GrantsPanel({
               aria-pressed={selected?.id === grant.id}
               onClick={() => void select(grant)}
             >
-              <span className="grant-avatar">
-                <PopupIcon name="agent" />
-              </span>
+              <AgentIcon iconKey={grant.agentIconKey} />
               <span>
                 <strong>
                   {grant.agentName ??
@@ -273,11 +283,11 @@ export function GrantsPanel({
         </div>
         {selected ? (
           <div className="grant-detail">
-            <h3>{selected.agentName ?? t('grant.agent')}</h3>
+            <div className="grant-detail-heading"><AgentIcon iconKey={selected.agentIconKey} /><h3>{selected.agentName ?? t('grant.agent')}</h3></div>
             <p>{entry?.name ?? selected.entryLabel ?? t('grant.entry')}</p>
             {selected.encryptedReason ? (
               <p className="grant-reason">
-                {review?.reason ?? t('grant.reasonUnavailable')}
+                {accessReason ?? review?.reason ?? t(reasonLoading ? 'workspace.loading' : 'grant.reasonUnavailable')}{!accessReason && !review?.reason && !reasonLoading && reasonFailure ? ` [${reasonFailure}]` : ''}
               </p>
             ) : null}
             {selected.status === 'pending' ? (

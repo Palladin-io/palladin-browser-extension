@@ -109,6 +109,10 @@ export async function createCaptureApi({ workspaceHandler } = {}) {
       requests.push(`${req.method} ${url.pathname}`)
       const chunks = []
       for await (const chunk of req) chunks.push(chunk)
+      // Reproduce the empty-JSON request rejection reported by the deployed API.
+      if (workspaceHandler && !chunks.length && req.headers['content-type']?.includes('application/json')) {
+        return send({ statusCode: 400, errors: { serializerErrors: ['The input does not contain any JSON tokens.'] } }, 400);
+      }
       const request = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {}
       if (workspaceHandler && await workspaceHandler({ method: req.method, url, request, vaults, userId, organizationId, send })) return;
       if (url.pathname === '/api/auth/login/salt') return send(bootstrap)
