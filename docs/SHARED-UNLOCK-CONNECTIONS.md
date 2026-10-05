@@ -5,7 +5,8 @@ configuration contains one API URL, one panel URL, the shared-unlock switch
 and explicit HTTP consent. The editor shows only the two address fields and
 security controls, without a connection-name field, saved-connection selector or
 success notice. The existing storage contract retains its internal name field,
-derived from the panel URL, so existing configurations remain readable. Only one configuration is active; switching
+derived from the panel URL, so existing configurations remain readable.
+Only one configuration is active; switching
 API/panel retires the previous account session and clears its encrypted cache.
 This is not simultaneous multi-account support. No key or token is stored in a
 connection configuration.
