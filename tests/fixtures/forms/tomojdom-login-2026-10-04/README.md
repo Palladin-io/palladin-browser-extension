@@ -76,3 +76,19 @@ successful manual fill for this caption. The same case now succeeds, while
 captions with negation, extra account-creation text or alternative-provider
 suffixes remain rejected. The exact-match vocabulary was extended without
 changing visibility, form ownership, target binding, uniqueness or submit gates.
+
+## Immediate password-stage follow-up (2026-10-05)
+
+The owner confirmed explicit login works after PR #90, but automatic password
+fill remains missing. Read-only inspection of public `LoginTMD/login.js` and
+`LoginTMD/tmdUtils.js` showed that the identifier handler reveals the numeric
+password stage from the `input` event (`onChange` registers `input`), before
+later asynchronous account work. The earlier synthetic specimen revealed the
+stage only after the extension's fill response completed.
+
+The new unit and Chromium regression model this immediate visibility transition
+on the observed specimen; no production script is executed in tests. RED:
+identifier was written but the password remained empty. A delayed transport
+response is also covered. Local acknowledgment now establishes continuation
+before widget replacement, while changed account, control, wrapper, panel,
+URL and session still reject continuation. Real-site acceptance remains separate.

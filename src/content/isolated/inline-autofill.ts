@@ -330,10 +330,14 @@ class InlineAutofillController {
 
   performFillRequest(request: FillRequestMessage): FillOutcome {
     const target = request.loginTargetId === null ? null : this.resolveLoginTarget(request.loginTargetId);
-    return performBoundFill(this.doc, request, this.doc.location.href, this.documentId, target, () => {
+    const outcome = performBoundFill(this.doc, request, this.doc.location.href, this.documentId, target, () => {
       this.continuation = null;
       for (const widget of this.widgets.values()) widget.cancelAutomaticFill();
     });
+    if (outcome.ok && target !== null && request.intent === 'automatic') {
+      for (const widget of this.widgets.values()) widget.acknowledgeAutomaticFill(request.loginTargetId!, target);
+    }
+    return outcome;
   }
 
   handleSessionChanged(status: SessionStatus): void {
@@ -525,6 +529,7 @@ interface PendingInlineFill {
   readonly target: LoginTarget;
   readonly url: string;
   readonly manual: boolean;
+  readonly entry: InlineAutofillSuggestion;
   initialValues: string | null;
 }
 
@@ -574,6 +579,15 @@ class InlineWidget {
     if (this.destroyed || this.options.doc.location.href !== pending.url
       || !isCurrentLoginTarget(pending.target) || loginValueSnapshot(pending.target) !== initialValues) return null;
     return pending.target;
+  }
+
+  acknowledgeAutomaticFill(id: string, target: LoginTarget): void {
+    const pending = this.pendingFill;
+    if (!pending || pending.id !== id || pending.target !== target || pending.manual
+      || pending.initialValues !== null || this.destroyed || this.options.doc.location.href !== pending.url) return;
+    // The DOM write is confirmed locally before a stage change can destroy this widget.
+    this.automaticFillCompleted = true;
+    this.options.onAutomaticFill(pending.entry);
   }
 
   private invalidatePendingFill(): void {
@@ -779,10 +793,6 @@ class InlineWidget {
           && entry.vaultId === continuation.vaultId && entry.username === continuation.username)));
       if (preferredExact !== undefined) {
         this.automaticFillCompleted = await this.fill(preferredExact, false, true);
-        if (this.automaticFillCompleted && continuation === undefined
-          && generation === this.sessionGeneration && this.options.doc.location.href === url) {
-          this.options.onAutomaticFill(preferredExact);
-        }
       }
     } finally {
       this.automaticFillInFlight = false;
@@ -966,24 +976,29 @@ class InlineWidget {
     submitAfterFill = false,
     silent = false,
   ): Promise<boolean> {
-    if (!isCurrentLoginTarget(this.options.loginTarget)) {
-      if (!silent) this.renderStatus("inline.noForm");
-      return false;
-    }
     if (!silent) {
       this.sessionGeneration += 1;
       this.options.onManualFill();
       discardAutomaticFillProvenance(this.options.loginTarget);
+      // An explicit choice cancels continuation even if its chooser became stale.
+      this.invalidatePendingFill();
+    }
+    if (!isCurrentLoginTarget(this.options.loginTarget)) {
+      if (!silent) this.renderStatus("inline.noForm");
+      return false;
     }
     // The latest explicit choice supersedes a pending passive/explicit request.
     // A passive retry cannot displace the user's outstanding choice.
-    if (silent && this.pendingFill?.manual) return false;
-    this.invalidatePendingFill();
+    if (silent) {
+      if (this.pendingFill?.manual) return false;
+      this.invalidatePendingFill();
+    }
     const operation: PendingInlineFill = {
       id: `${this.options.loginTargetId}:fill-${++this.nextFillOperation}`,
       target: { ...this.options.loginTarget },
       url: this.options.doc.location.href,
       manual: !silent,
+      entry,
       initialValues: loginValueSnapshot(this.options.loginTarget),
     };
     this.pendingFill = operation;

@@ -66,6 +66,10 @@ try {
         `<!doctype html><style>body{margin:40px}input{display:block;width:380px;height:40px;margin:12px 0}${tomojdomCss}</style>
         ${host === 'tomojdom.pl' ? tomojdom : livekid}<script>
         globalThis.loginClicks=0;
+        if (${host === 'tomojdom.pl' && url.searchParams.has('immediate')}) {
+          document.querySelector('input[autocomplete="username email"]').addEventListener('input', () =>
+            document.querySelector('input[type="password"]').parentElement.parentElement.classList.remove('d-none'));
+        }
         document.querySelectorAll('#modules button, #modules a, #login-button').forEach(action =>
           action.addEventListener('click', event => { event.preventDefault(); globalThis.loginClicks++; }));
         </script>` });
@@ -167,6 +171,12 @@ try {
   await click(`Fill and log in: ${tomojdomUsername}`);
   await wait(async () => await page.evaluate(() => globalThis.loginClicks) === 1, 'Tomojdom explicit password login click');
   assert.equal(await page.locator('input[type="password"]').inputValue(), password);
+  await page.goto('https://tomojdom.pl/en/?immediate');
+  await wait(async () => await page.locator('input[type="password"]').inputValue() === password,
+    'Tomojdom password revealed during identifier input automatically fills');
+  assert.equal(await page.locator(tomojdomIdentifier).inputValue(), tomojdomUsername);
+  assert.equal(await page.evaluate(() => globalThis.loginClicks), 0);
+  await aligned('input[type="password"]');
   console.log('PASS: LiveKid localized pair, Tomojdom fill-only and explicit password login action');
   await page.goto('https://account.apple.com/sign-in');
   const appleFrame = page.frameLocator('iframe');
