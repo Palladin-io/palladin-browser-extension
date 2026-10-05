@@ -198,6 +198,7 @@ body {
   min-height: 0;
 }
 .vault-scroll {
+  gap: 2px;
   padding: 12px 8px;
   border-right: 1px solid var(--cv-border);
   background: color-mix(in srgb, var(--cv-surface) 70%, transparent);
