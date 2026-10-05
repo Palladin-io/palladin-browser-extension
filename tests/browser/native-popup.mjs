@@ -137,7 +137,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
         const list = document.querySelector('.grant-list');
         const panel = document.querySelector('.grants-panel');
         const content = document.querySelector('.vault-content');
-        const heading = document.querySelector('.workspace-heading');
+        const heading = document.querySelector('.grant-list-controls');
         const top = heading.getBoundingClientRect().top;
         list.scrollTop = 200;
         return { listScrolls: list.scrollTop > 0, panelFits: panel.scrollHeight <= panel.clientHeight + 1, contentFits: content.scrollHeight <= content.clientHeight + 1, headingStable: top === heading.getBoundingClientRect().top };

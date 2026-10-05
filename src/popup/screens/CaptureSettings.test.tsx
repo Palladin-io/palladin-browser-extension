@@ -9,6 +9,11 @@ const settings = { ok: true as const, mutedSites: ['example.com'], automaticUpda
 ] }
 
 describe('capture account and site settings', () => {
+  it('shows a loading placeholder instead of a retry action while settings are pending', () => {
+    render(<CaptureSettings send={() => new Promise(() => {})} />)
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toBeInTheDocument()
+  })
   it('renders current settings and disables only the selected account', async () => {
     const send = vi.fn().mockResolvedValueOnce(settings).mockResolvedValue({ ...settings, automaticUpdates: [] })
     render(<CaptureSettings send={send} />)

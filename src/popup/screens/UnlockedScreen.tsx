@@ -265,7 +265,7 @@ export function UnlockedScreen({
                 <div className="vault-scroll">
                   {list.refreshing ? <div className="vault-sync-status" role="status"><Spinner />{t('vault.syncing')}</div> : list.errorCode ? <div className="vault-sync-status" role="alert"><span>{t('vault.syncFailed')}</span><Button onClick={list.retry}>{t('vault.retry')}</Button></div> : null}
                   <details className="vault-filter">
-                    <summary aria-label={t('vault.filterLabel')}>{vaultFilter === null ? t('vault.filterAll') : t('vault.filterSelected', { count: vaultFilter.length })}<PopupIcon name="chevron" /></summary>
+                    <summary aria-label={t('vault.filterLabel')}><span className="vault-filter-identity"><PopupIcon name="vaults" />{vaultFilter === null ? t('vault.filterAll') : t('vault.filterSelected', { count: vaultFilter.length })}</span><PopupIcon name="chevron" /></summary>
                     <div className="vault-filter-options">
                       <label className="vault-filter-all"><input type="checkbox" checked={vaultFilter === null} onChange={() => { setVaultFilter(vaultFilter === null ? [] : null); setSelected(null); }} /><PopupIcon name="check" /><PopupIcon name="vaults" /><span>{t('vault.filterAll')}</span></label>
                       {vaultOptions.map(([id, name]) => <label key={id}><input type="checkbox" checked={vaultFilter === null || vaultFilter.includes(id)} onChange={() => {

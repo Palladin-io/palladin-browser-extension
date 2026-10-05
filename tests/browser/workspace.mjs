@@ -110,6 +110,11 @@ try {
   await popup.waitText('Appearance');
   assert.deepEqual(await popup.viewportSize(), workspaceSize, 'Settings must preserve the unlocked popup dimensions');
   await popup.screenshot(path.join(output, 'settings-unlocked.png'));
+  await popup.click('Save and update logins');
+  await popup.waitText('Automatic password updates');
+  assert.deepEqual(await popup.viewportSize(), workspaceSize, 'Capture settings must preserve workspace dimensions');
+  await popup.screenshot(path.join(output, 'settings-capture.png'));
+  await popup.click('Appearance');
   await popup.click('Vault', 'tab');
   await popup.observeResize();
   await popup.click('Lock'); await popup.waitText('Master password');

@@ -216,29 +216,18 @@ export function GrantsPanel({
       className="workspace-panel grants-panel"
       aria-label={t('workspace.grants')}
     >
-      <div className="workspace-heading">
-        <div>
-          <h2>{t('workspace.grants')}</h2>
-          <p>{t('grant.subtitle')}</p>
-        </div>
-        <FilterSelect
-          aria-label={t('grant.filter')}
-          value={status}
-          disabled={busy}
-          onChange={(event) => setStatus(event.target.value)}
-        >
-          <option value="">{t('grant.all')}</option>
-          {Object.entries(states).map(([value, key]) => (
-            <option key={value} value={value}>
-              {t(key)}
-            </option>
-          ))}
-        </FilterSelect>
-        <RefreshButton busy={busy} onClick={() => void load()} />
-      </div>
       {error ? <WorkspaceError error={error} /> : null}
       <div className="grants-layout">
-        <div className="grant-list">
+        <div className="grant-sidebar">
+          <div className="grant-list-controls">
+            <FilterSelect aria-label={t('grant.filter')} value={status} disabled={busy}
+              onChange={(event) => setStatus(event.target.value)}>
+              <option value="">{t('grant.all')}</option>
+              {Object.entries(states).map(([value, key]) => <option key={value} value={value}>{t(key)}</option>)}
+            </FilterSelect>
+            <RefreshButton busy={busy} onClick={() => void load()} />
+          </div>
+          <div className="grant-list">
           {items.map((grant) => (
             <button
               key={grant.id}
@@ -284,30 +273,31 @@ export function GrantsPanel({
             </Button>
           ) : null}
         </div>
+        </div>
         {selected ? (
-          <div className="grant-detail">
+          <div className="entry-detail grant-detail">
             <div className="detail-heading grant-detail-heading">
               {entry ? <EntryIcon name={entry.name} type={entry.type} {...(entry.icon ? { icon: entry.icon } : {})} {...(entry.color ? { color: entry.color } : {})} /> : <span className="grant-avatar"><PopupIcon name={selected.type === 'full' ? 'vault' : 'key'} /></span>}
-              <div className="detail-identity"><h3>{entry?.name ?? selected.entryLabel ?? (selected.type === 'full' ? t('grant.wholeVault') : t('grant.entry'))}</h3>
+              <div className="detail-identity"><h2>{entry?.name ?? selected.entryLabel ?? (selected.type === 'full' ? t('grant.wholeVault') : t('grant.entry'))}</h2>
                 <p><PopupIcon name="vault" />{selectedVaultName ?? shortId(selected.vaultId)}</p>
               </div>
             </div>
-            <div className="grant-agent-line"><AgentIcon iconKey={selected.agentIconKey} /><strong>{selected.agentName ?? t('grant.agent')}</strong>
+            <div className="detail-fields grant-information"><div className="detail-field grant-agent-line"><AgentIcon iconKey={selected.agentIconKey} /><strong>{selected.agentName ?? t('grant.agent')}</strong>
               <span className="grant-status" data-pending={selected.status === 'pending'}>{states[selected.status] ? t(states[selected.status]!) : selected.status}</span>
             </div>
             {selected.encryptedReason ? (
-              <section className="grant-purpose" aria-label={t('grant.encryptedReason')}>
+              <section className="detail-field grant-purpose" aria-label={t('grant.encryptedReason')}>
                 <h4><PopupIcon name="lock" />{t('grant.encryptedReason')}</h4>
                 <p>{accessReason ?? review?.reason ?? t(reasonLoading ? 'workspace.loading' : 'grant.reasonUnavailable')}{!accessReason && !review?.reason && !reasonLoading && reasonFailure ? ` [${reasonFailure}]` : ''}</p>
               </section>
             ) : null}
             <dl className="grant-metadata">
-              <div><dt>{t('grant.requestedAt')}</dt><dd>{new Date(selected.createdAt).toLocaleString(locale)}</dd></div>
+              <div className="detail-field"><dt>{t('grant.requestedAt')}</dt><dd>{new Date(selected.createdAt).toLocaleString(locale)}</dd></div>
               {selected.createdBy ? <>
-                <div><dt>{t('grant.grantedBy')}</dt><dd>{selected.createdByName ?? shortId(selected.createdBy)}</dd></div>
-                <div><dt>{t('grant.grantedAt')}</dt><dd>{selected.grantedAt ? new Date(selected.grantedAt).toLocaleString(locale) : t('grant.dateUnavailable')}</dd></div>
+                <div className="detail-field"><dt>{t('grant.grantedBy')}</dt><dd>{selected.createdByName ?? shortId(selected.createdBy)}</dd></div>
+                <div className="detail-field"><dt>{t('grant.grantedAt')}</dt><dd>{selected.grantedAt ? new Date(selected.grantedAt).toLocaleString(locale) : t('grant.dateUnavailable')}</dd></div>
               </> : null}
-            </dl>
+            </dl></div>
             {selected.status === 'pending' ? (
               <form
                 className="workspace-form"

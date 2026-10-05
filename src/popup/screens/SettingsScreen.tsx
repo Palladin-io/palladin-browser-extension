@@ -31,7 +31,7 @@ export function SettingsScreen({
         {sections.map(([id, title]) => <button key={id} type="button" aria-current={openSection === id ? 'page' : undefined}
           onClick={() => setOpenSection(id)}>{t(title)}</button>)}
       </nav>
-      <section className="settings-detail" aria-label={t(sections.find(([id]) => id === openSection)![1])}>
+      <section key={openSection} className="settings-detail" aria-label={t(sections.find(([id]) => id === openSection)![1])}>
         {openSection !== 'shared-unlock' ? <h2>{t(sections.find(([id]) => id === openSection)![1])}</h2> : null}
         {openSection === 'appearance' ? <AppearanceSettings embedded /> :
           openSection === 'server' ? <ServerSettings onChanged={onServerChanged} embedded /> :
