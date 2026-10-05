@@ -31,6 +31,21 @@ async function envelope() {
 }
 
 describe("SessionStore", () => {
+  it('accepts HTTP ciphertext only for the independently approved active API', async () => {
+    const area = new FakeStorageArea();
+    const apiUrl = 'http://vault.example.test:8080/api';
+    let approved = apiUrl;
+    const store = new SessionStore(area, undefined, () => ({ allowHttpApiUrls: [approved] }));
+    const sealed = await sealBrowserSessionEnvelope(new Uint8Array([1]), new Uint8Array(32),
+      { ...context, apiUrl }, { allowHttpApiUrls: [apiUrl] });
+    await store.setSealedSession(sealed);
+    expect(await store.getSealedSession()).toEqual(sealed);
+    approved = 'http://vault.example.test:8081/api';
+    await expect(store.setSealedSession(sealed)).rejects.toThrow('approved HTTP');
+    expect(await store.getSealedSession()).toBeNull();
+    expect(area.keys()).toEqual([]);
+  });
+
   it("round-trips only a validated sealed session envelope", async () => {
     const area = new FakeStorageArea();
     const store = new SessionStore(area);

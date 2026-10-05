@@ -1,7 +1,6 @@
 import { useState } from "react";
 
 import { SettingsSection } from "../components/SettingsSection";
-import type { ServerConfigClient } from "../config/client";
 import { useI18n } from "../i18n";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { ServerSettings } from "./ServerSettings";
@@ -9,12 +8,10 @@ import { CaptureSettings } from "./CaptureSettings";
 import { SharedUnlockSettings } from './SharedUnlockSettings';
 
 export interface SettingsScreenProps {
-  serverClient: ServerConfigClient;
   onServerChanged(): void;
 }
 
 export function SettingsScreen({
-  serverClient,
   onServerChanged,
 }: SettingsScreenProps): React.JSX.Element {
   const { t } = useI18n();
@@ -36,7 +33,7 @@ export function SettingsScreen({
         open={openSection === "server"}
         onToggle={() => toggle("server")}
       >
-        <ServerSettings client={serverClient} onChanged={onServerChanged} embedded />
+        <ServerSettings onChanged={onServerChanged} embedded />
       </SettingsSection>
       <SettingsSection id="capture-settings" title={t("captureSettings.title")}
         open={openSection === "capture"} onToggle={() => toggle("capture")}>

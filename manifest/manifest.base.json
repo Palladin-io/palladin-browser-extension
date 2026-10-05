@@ -46,8 +46,7 @@
     "https://api.palladin.io/*"
   ],
   "optional_host_permissions": [
-    "http://localhost/*",
-    "http://127.0.0.1/*",
+    "http://*/*",
     "https://*/*"
   ],
   "content_security_policy": {

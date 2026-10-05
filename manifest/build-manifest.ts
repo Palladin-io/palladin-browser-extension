@@ -1,4 +1,4 @@
-import { sharedUnlockWebMatches, type SharedUnlockEnvironment } from "../src/shared/config/shared-unlock-environments";
+import { type SharedUnlockEnvironment } from "../src/shared/config/shared-unlock-environments";
 import sharedUnlock from "./manifest.chromium.shared-unlock.json" with { type: "json" };
 import { FIREFOX_SHARED_UNLOCK_BRIDGE_PATH } from "../src/shared/messaging/shared-unlock-firefox";
 import { createPublicKey } from "node:crypto";
@@ -66,7 +66,7 @@ export interface ChromeBetaBuild {
   bootstrap: boolean;
 }
 
-export function buildManifest(target: BuildTarget = "chromium", sharedUnlockEnvironments: readonly SharedUnlockEnvironment[] = [], beta?: ChromeBetaBuild, stablePublicKey?: string): ManifestV3Export {
+export function buildManifest(target: BuildTarget = "chromium", _sharedUnlockEnvironments: readonly SharedUnlockEnvironment[] = [], beta?: ChromeBetaBuild, stablePublicKey?: string): ManifestV3Export {
   const overlay = overlays[target];
   if (!overlay) {
     throw new Error(`Unknown build target: ${target}`);
@@ -104,23 +104,22 @@ export function buildManifest(target: BuildTarget = "chromium", sharedUnlockEnvi
     // Safari rejects port-bearing host patterns; runtime API/origin checks retain exact ports.
     manifest.host_permissions = (manifest.host_permissions as string[]).map(pattern => pattern.replace(/^(https?:\/\/[^/:]+):\d+\//, "$1/"));
   }
-  if (target === "chromium" && sharedUnlockEnvironments.length > 0) {
+  if (target === "chromium") {
     manifest.permissions = [...new Set([...(manifest.permissions as string[]), ...sharedUnlock.permissions])];
     manifest.externally_connectable = { ...sharedUnlock.externally_connectable,
-      matches: sharedUnlockWebMatches(sharedUnlockEnvironments) };
+      matches: ["<all_urls>"] };
   }
-  if (target === "firefox" && sharedUnlockEnvironments.length > 0) {
-    const matches = sharedUnlockWebMatches(sharedUnlockEnvironments);
+  if (target === "firefox") {
+    const matches = ["http://*/*", "https://*/*"];
     manifest.permissions = [...new Set([...(manifest.permissions as string[]), "webNavigation"])];
     manifest.web_accessible_resources = [{ resources: ["manifest.json", FIREFOX_SHARED_UNLOCK_BRIDGE_PATH], matches }];
     manifest.content_scripts = [...(manifest.content_scripts as unknown[]), {
       matches, js: ["src/content/shared-unlock-firefox.ts"], run_at: "document_start", all_frames: false,
     }];
   }
-  if (target === "safari" && sharedUnlockEnvironments.length > 0) {
-    const matches = sharedUnlockWebMatches(sharedUnlockEnvironments);
+  if (target === "safari") {
+    const matches = ["http://*/*", "https://*/*"];
     manifest.permissions = [...new Set([...(manifest.permissions as string[]), "webNavigation"])];
-    manifest.host_permissions = [...new Set([...(manifest.host_permissions as string[]), ...matches])];
     manifest.externally_connectable = { matches };
   }
   return manifest as unknown as ManifestV3Export;

@@ -99,7 +99,7 @@ export async function beginSharedUnlockReceiver(route: SharedUnlockReceiverRoute
       .then(value => { if (closed) value.cancel(); return value; }));
     installer.signal.addEventListener("abort", cancel, { once: true });
     assertCurrent();
-    receiver = await createSharedUnlockReceiverCrypto(assertCurrent);
+    receiver = await createSharedUnlockReceiverCrypto(assertCurrent, { allowHttpOrigins: [new URL(apiUrl).origin, binding.webOrigin] });
     assertCurrent();
   } catch (error) { cancel(); throw error; }
   const cryptoReceiver = receiver;

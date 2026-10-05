@@ -20,7 +20,8 @@ const entry: EntryMetadata = {
 beforeEach(() => {
   Object.assign(globalThis, {
     chrome: {
-      tabs: { create: vi.fn() },
+      runtime: { sendMessage: vi.fn(async () => ({ ok: true, state: { connections: [], activeApiUrl: null } })) },
+    tabs: { create: vi.fn() },
     },
   });
 });

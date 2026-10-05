@@ -5,7 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
-import { createCaptureApi } from './capture-api.mjs';
+import { createCaptureApi, allowCaptureApi } from './capture-api.mjs';
 import { cacheBustContentLoaders } from '../../scripts/cache-bust-content-loaders.mjs';
 import { openNativePopup } from './native-popup.mjs';
 import { validateBuiltManifest } from '../../scripts/validate-built-manifest.mjs';
@@ -21,6 +21,7 @@ try {
     maxBuffer: 4 * 1024 * 1024,
   });
   cacheBustContentLoaders(profile, 'chromium'); validateBuiltManifest(profile, 'chromium');
+  await allowCaptureApi(extension, api.url);
   const launch = () => chromium.launchPersistentContext(profile, { channel: 'chromium', headless: true,
     viewport: { width: 1200, height: 850 }, args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--remote-debugging-port=0'] });
   context = await launch();
@@ -30,6 +31,10 @@ try {
   if (onboarding) await onboarding.close();
   popup = await openNativePopup(worker, profile, extensionId);
   await popup.click('Continue to Palladin');
+  await popup.waitButton('Sign in');
+  assert.equal((await popup.configureConnection({ name: 'Synthetic capture API', apiUrl: api.url,
+    webUrl: api.url, allowHttp: true, sharedUnlockEnabled: false })).ok, true);
+
   await popup.fill('input[type=email]', api.email);
   await popup.fill('input[type=password]', api.password);
   await popup.click('Sign in');

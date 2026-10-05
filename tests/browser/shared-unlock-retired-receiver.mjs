@@ -67,7 +67,7 @@ export async function verifyRetiredWebReceiver({ page, popup, reopenPopup, apiUr
   setStage('retired-receiver-new-manual-generation')
   await page.locator('#unlock-password').fill(password)
   await page.getByRole('button', { name: 'Unlock', exact: true }).click()
-  await page.getByRole('link', { name: 'Vaults', exact: true }).click()
+  await page.locator('nav a[href="/vaults"]').click()
   await page.getByText('Personal', { exact: true }).first().click()
   await page.getByText('Synthetic shared unlock proof', { exact: true }).first().click()
   await waitForWebEntryPassword(page, entryPassword)

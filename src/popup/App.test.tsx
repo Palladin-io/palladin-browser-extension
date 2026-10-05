@@ -49,9 +49,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubGlobal('chrome', {
     runtime: {
-      sendMessage: vi.fn(async () => ({ ok: false, code: 'authentication-required', locallyPaused: false })),
+      sendMessage: vi.fn(async (command) => command.type.startsWith('config/connections/') ? ({ ok: true,
+        state: { connections: [], activeApiUrl: null }, apiUrl: command.connection?.apiUrl ?? 'https://api.palladin.io', changed: command.type.endsWith('/save') })
+        : ({ ok: false, code: 'authentication-required', locallyPaused: false })),
       onMessage: { addListener: vi.fn(), removeListener: vi.fn() },
     },
+    permissions: { request: vi.fn(async () => true) },
     tabs: {
       onActivated: { addListener: vi.fn(), removeListener: vi.fn() },
       onUpdated: { addListener: vi.fn(), removeListener: vi.fn() },
@@ -248,7 +251,9 @@ describe("popup state machine", () => {
     await user.click(screen.getByRole("button", { name: "Server URL" }));
     await user.clear(await screen.findByLabelText("Server URL"));
     await user.type(screen.getByLabelText("Server URL"), "https://self-host.example.com");
-    await user.click(screen.getByRole("button", { name: "Save server" }));
+    await user.type(screen.getByLabelText("Connection name"), "Test connection");
+    await user.type(screen.getByLabelText("Panel URL"), "https://panel.example.test");
+    await user.click(screen.getByRole("button", { name: "Save and activate" }));
     await waitFor(() => expect(client.getStatus).toHaveBeenCalledTimes(2));
     await user.click(screen.getByRole("button", { name: "Back" }));
 

@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { ServerSettings } from "../popup/screens/ServerSettings";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import brandLogoUrl from "../../icons/logo-source.png";
 import type { SessionStatus } from "../background/session/types";
 import { extensionBuildTarget, type ExtensionBuildTarget } from "@shared/config/build-target";
-import { PRODUCTION_API_URL, normalizeServerUrl } from "@shared/config/server";
-import { webAppUrl } from "@shared/config/web-app";
+import { webAppUrl, configuredPanelUrl } from "@shared/config/web-app";
 import { registrableDomain } from "@shared/security/domain";
-import { createServerConfigClient, ServerConfigClientError, type ServerConfigClient } from "../popup/config/client";
 import { useI18n, type Translate, type TranslationKey } from "../popup/i18n";
 import {
   createPasswordManagerOnboardingClient,
@@ -50,7 +49,6 @@ export interface ExtensionSurfaceBrowserApi {
 export interface OnboardingAppProps {
   target?: ExtensionBuildTarget;
   sessionClient?: Pick<SessionClient, "getStatus">;
-  serverClient?: ServerConfigClient;
   onboardingClient?: Pick<PasswordManagerOnboardingClient, "complete" | "openExtensionManager">;
   browserActions?: BrowserActions;
 }
@@ -66,17 +64,12 @@ const STEPS: ReadonlyArray<{
 export function OnboardingApp({
   target = extensionBuildTarget,
   sessionClient,
-  serverClient,
   onboardingClient,
   browserActions,
 }: OnboardingAppProps): React.JSX.Element {
   const { t } = useI18n();
   const preferences = usePopupPreferences();
   const sessions = useMemo(() => sessionClient ?? createSessionClient(), [sessionClient]);
-  const servers = useMemo(
-    () => serverClient ?? createOnboardingServerClient(),
-    [serverClient],
-  );
   const onboarding = useMemo(
     () => onboardingClient ?? createPasswordManagerOnboardingClient(target),
     [onboardingClient, target],
@@ -231,7 +224,6 @@ export function OnboardingApp({
                 <AccountStep
                   t={t}
                   status={sessionStatus}
-                  serverClient={servers}
                   onServerChanged={refreshSession}
                   onOpenExtension={openExtension}
                   onBack={() => goToStep(0)}
@@ -412,7 +404,6 @@ function PinStep({
 function AccountStep({
   t,
   status,
-  serverClient,
   onServerChanged,
   onOpenExtension,
   onBack,
@@ -420,7 +411,6 @@ function AccountStep({
 }: {
   t: Translate;
   status: SessionStatus | "unavailable";
-  serverClient: ServerConfigClient;
   onServerChanged(): Promise<void>;
   onOpenExtension(): Promise<void>;
   onBack(): void;
@@ -440,7 +430,7 @@ function AccountStep({
             <p>{t(connected ? "onboarding.page.account.connectedHint" : "onboarding.page.account.notConnectedHint")}</p>
           </div>
         </div>
-        <ServerSetup client={serverClient} t={t} onChanged={onServerChanged} />
+        <ServerSetup t={t} onChanged={onServerChanged} />
       </div>
       <div className="account-actions">
         <button className="button button--subtle" type="button" onClick={() => void onOpenExtension()}>
@@ -459,135 +449,17 @@ function AccountStep({
   );
 }
 
-function ServerSetup({
-  client,
-  t,
-  onChanged,
-}: {
-  client: ServerConfigClient;
-  t: Translate;
-  onChanged(): Promise<void>;
-}): React.JSX.Element {
+function ServerSetup({ t, onChanged }: { t: Translate; onChanged(): Promise<void> }): React.JSX.Element {
   const [enabled, setEnabled] = useState(false);
-  const [current, setCurrent] = useState<string | null>(null);
-  const [input, setInput] = useState(PRODUCTION_API_URL);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const translateRef = useRef(t);
-  translateRef.current = t;
-
-  useEffect(() => {
-    let active = true;
-    void client.get().then((status) => {
-      if (!active) return;
-      setCurrent(status.apiUrl);
-      setInput(status.apiUrl);
-      setEnabled(status.apiUrl !== PRODUCTION_API_URL);
-    }).catch(() => {
-      if (active) setError(translateRef.current("settings.server.readError"));
-    });
-    return () => { active = false; };
-  }, [client]);
-
-  async function save(event: FormEvent): Promise<void> {
-    event.preventDefault();
-    const requested = enabled ? input : PRODUCTION_API_URL;
-    if (normalizeServerUrl(requested) === null || current === null || busy) {
-      setError(t("settings.server.invalid"));
-      return;
-    }
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      const result = await client.save(requested);
-      setCurrent(result.apiUrl);
-      setInput(result.apiUrl);
-      setEnabled(result.apiUrl !== PRODUCTION_API_URL);
-      setNotice(t(result.changed ? "settings.server.updated" : "settings.server.unchanged"));
-      if (result.changed) await onChanged();
-    } catch (cause) {
-      setError(serverError(cause, t));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function toggleServerMode(): Promise<void> {
-    setError("");
-    setNotice("");
-    if (!enabled || current === null || current === PRODUCTION_API_URL) {
-      setEnabled((value) => !value);
-      return;
-    }
-
-    setBusy(true);
-    try {
-      const result = await client.save(PRODUCTION_API_URL);
-      setCurrent(result.apiUrl);
-      setInput(result.apiUrl);
-      setEnabled(false);
-      setNotice(t(result.changed ? "settings.server.updated" : "settings.server.unchanged"));
-      if (result.changed) await onChanged();
-    } catch (cause) {
-      setError(serverError(cause, t));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className={`server-setup${enabled ? " is-open" : ""}`}>
-      <div className="server-setup__heading">
-        <span className="account-setting__icon"><Glyph name="server" /></span>
-        <div>
-          <strong>{t("onboarding.page.server.title")}</strong>
-          <p>{t("onboarding.page.server.subtitle")}</p>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          aria-label={t("onboarding.page.server.toggle")}
-          className="switch"
-          disabled={current === null || busy}
-          onClick={() => void toggleServerMode()}
-        >
-          <span />
-        </button>
-      </div>
-      {enabled ? (
-        <form className="server-setup__form" onSubmit={save} noValidate>
-          <label htmlFor="onboarding-server">{t("settings.server.url")}</label>
-          <div className="server-input-row">
-            <input
-              id="onboarding-server"
-              type="url"
-              inputMode="url"
-              spellCheck={false}
-              autoComplete="url"
-              value={input}
-              placeholder="https://api.example.com"
-              disabled={current === null || busy}
-              aria-invalid={Boolean(error) || undefined}
-              onChange={(event) => {
-                setInput(event.target.value);
-                setError("");
-                setNotice("");
-              }}
-            />
-            <button className="button button--subtle button--compact" type="submit" disabled={current === null || busy}>
-              {busy ? t("onboarding.page.server.saving") : t("settings.server.save")}
-            </button>
-          </div>
-          <p className="server-setup__warning">{t("settings.server.warning")}</p>
-        </form>
-      ) : null}
-      {error ? <p className="server-setup__feedback inline-feedback inline-feedback--error" role="alert">{error}</p> : null}
-      {notice ? <p className="server-setup__feedback inline-feedback inline-feedback--success" role="status">{notice}</p> : null}
+  return <div className={`server-setup${enabled ? " is-open" : ""}`}>
+    <div className="server-setup__heading">
+      <span className="account-setting__icon"><Glyph name="server" /></span>
+      <div><strong>{t("onboarding.page.server.title")}</strong><p>{t("onboarding.page.server.subtitle")}</p></div>
+      <button type="button" role="switch" aria-checked={enabled} aria-label={t("onboarding.page.server.toggle")}
+        className="switch" onClick={() => setEnabled(value => !value)}><span /></button>
     </div>
-  );
+    {enabled && <ServerSettings onChanged={() => void onChanged()} embedded />}
+  </div>;
 }
 
 function ImportStep({
@@ -710,13 +582,7 @@ function pinInstructionKeys(target: ExtensionBuildTarget): TranslationKey[] {
   }
 }
 
-function serverError(error: unknown, t: Translate): string {
-  if (error instanceof ServerConfigClientError) {
-    if (error.code === "invalid-server") return t("settings.server.invalid");
-    if (error.code === "permission-denied") return t("settings.server.permission");
-  }
-  return t("settings.server.updateError");
-}
+
 
 function createBrowserActions(): BrowserActions {
   return {
@@ -731,7 +597,7 @@ function createBrowserActions(): BrowserActions {
       window.open(url, "_blank", "noopener,noreferrer");
     },
     async openWebPanel(path) {
-      const url = `${webAppUrl}${path}`;
+      const url = await configuredPanelUrl(path);
       if (typeof chrome !== "undefined" && chrome.tabs?.create) {
         await chrome.tabs.create({ url, active: true });
         return;
@@ -768,28 +634,6 @@ function extensionSurfaceBrowserApi(): ExtensionSurfaceBrowserApi | null {
     ...(chrome.action?.openPopup ? { openPopup: () => chrome.action.openPopup() } : {}),
     getUrl: (path) => chrome.runtime.getURL(path),
     openTab: (options) => chrome.tabs.create(options),
-  };
-}
-
-function createOnboardingServerClient(): ServerConfigClient {
-  if (typeof chrome !== "undefined" && chrome.runtime?.id) {
-    return createServerConfigClient();
-  }
-
-  // Standalone Vite preview has no extension worker. Keeping this state in
-  // memory makes the design preview usable without pretending it was saved.
-  let apiUrl = PRODUCTION_API_URL;
-  return {
-    async get() {
-      return { apiUrl, changed: false };
-    },
-    async save(input) {
-      const normalized = normalizeServerUrl(input);
-      if (normalized === null) throw new ServerConfigClientError("invalid-server");
-      const changed = normalized !== apiUrl;
-      apiUrl = normalized;
-      return { apiUrl, changed };
-    },
   };
 }
 

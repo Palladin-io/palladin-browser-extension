@@ -68,7 +68,7 @@ export async function beginSharedUnlockSource(route: SharedUnlockSourceRoute, ma
     else abort.signal.addEventListener("abort", cancelled, { once: true });
     promise.then(resolve, rejectWait).finally(() => abort.signal.removeEventListener("abort", cancelled));
   });
-  try { assertCurrent(); crypto = await createSharedUnlockSourceCrypto(assertCurrent); assertCurrent(); }
+  try { assertCurrent(); crypto = await createSharedUnlockSourceCrypto(assertCurrent, { allowHttpOrigins: [new URL(apiUrl).origin, binding.webOrigin] }); assertCurrent(); }
   catch (error) { cancel(); throw error; }
   const source = crypto;
   return {

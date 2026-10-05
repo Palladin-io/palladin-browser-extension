@@ -148,8 +148,10 @@ src/
   `webNavigation` is used only for on-demand Agent login frame/document identity
   checks; the Agent path installs no navigation listeners or history collection.
   Firefox and Safari must not request `nativeMessaging` until their own reviewed
-  native bridge adapters exist. Host permissions are restricted to the Palladin
-  API origins.
+  native bridge adapters exist. Required hosts retain the packaged API origins;
+  optional API/panel origins are granted only through extension-owned settings.
+  Shared-unlock external patterns are routing only; exact runtime authorization
+  and HTTP rollout gates are documented in `docs/SHARED-UNLOCK-CONNECTIONS.md`.
   Palladin does not request `management` and does not inspect installed
   extensions. First-run guidance may explain that overlapping password managers
   can duplicate icons and prompts, but it must never claim detection or repeat

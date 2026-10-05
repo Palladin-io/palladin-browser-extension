@@ -1,10 +1,12 @@
+import type { SharedUnlockTransportPolicy } from '@palladin/crypto'
 import { createSharedUnlockOffer, hashSharedUnlockTranscript, loadSodium, wipe } from '@palladin/crypto'
 import type { SharedUnlockOperationMaterial } from './shared-unlock-receiver'
 import { recoverSharedUnlockKeys } from './shared-unlock-keys'
 
 /** Own verified MK/private key are borrowed only for this call; temporary copies are owned here. */
-export async function createSharedUnlockSourceCrypto(assertCurrent: () => void) {
-  const offer = await createSharedUnlockOffer({ role: 'source', assertCurrent })
+export async function createSharedUnlockSourceCrypto(assertCurrent: () => void, transportPolicy: SharedUnlockTransportPolicy = {}) {
+  const policy = { allowHttpOrigins: transportPolicy.allowHttpOrigins?.slice() ?? [] }
+  const offer = await createSharedUnlockOffer({ role: 'source', assertCurrent, transportPolicy: policy })
   let closed = false
   let sealed = false
   const check = () => { if (closed) throw new Error('Shared unlock source disposed'); assertCurrent() }
@@ -19,7 +21,7 @@ export async function createSharedUnlockSourceCrypto(assertCurrent: () => void) 
       const current = { ...operation, context: { ...operation.context }, keyContext: { ...operation.keyContext } }
       if (current.sourcePublicKey !== offer.publicKey || current.recipientPublicKey !== verifiedRecipient.publicKey
         || current.recipientProofPublicKey !== verifiedRecipient.proofPublicKey) throw new Error('Shared unlock participant binding failed')
-      const transcript = await hashSharedUnlockTranscript(current.context, offer.publicKey, verifiedRecipient.publicKey)
+      const transcript = await hashSharedUnlockTranscript(current.context, offer.publicKey, verifiedRecipient.publicKey, policy)
       check()
       if (transcript !== current.transcriptHash) throw new Error('Shared unlock transcript binding failed')
       const keys = await recoverSharedUnlockKeys(new Uint8Array(masterKey), current.keyContext,

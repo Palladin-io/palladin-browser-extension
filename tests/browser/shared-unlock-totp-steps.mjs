@@ -75,7 +75,7 @@ export async function verifyTotpSharedUnlock({ page, popup, apiUrl,
     const accepted = page.waitForResponse(r => r.url() === apiUrl + '/api/auth/login/totp')
     await page.getByRole('button', { name: 'Verify', exact: true }).click()
     assert.equal((await accepted).status(), 200, 'Identity must complete the actual TOTP challenge')
-    await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+    await page.locator('nav a[href="/vaults"]').waitFor()
     await popup.waitText('Unlocked')
     await popup.waitText('Synthetic shared unlock proof')
     assert(await popup.revealedFieldMatches(vaultId, entryId, 'password', entryPassword),

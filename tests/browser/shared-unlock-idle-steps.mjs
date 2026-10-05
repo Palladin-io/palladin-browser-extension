@@ -13,9 +13,9 @@ export async function verifyIndependentIdleExpiry({ page, popup, reopenPopup, pa
   await popup.waitButton('Unlock')
   await page.locator('#unlock-password').fill(password)
   await page.getByRole('button', { name: 'Unlock', exact: true }).click()
-  await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+  await page.locator('nav a[href="/vaults"]').waitFor()
   await popup.waitText('Unlocked')
-  await page.getByRole('link', { name: 'Vaults', exact: true }).click()
+  await page.locator('nav a[href="/vaults"]').click()
   await page.getByText('Personal', { exact: true }).first().click()
   await page.getByText('Synthetic shared unlock proof', { exact: true }).first().click()
   await waitForWebEntryPassword(page, entryPassword)
@@ -56,12 +56,13 @@ export async function verifyIndependentIdleExpiry({ page, popup, reopenPopup, pa
   }
   const stableDenial = async (label, before) => {
     setStage(label + '-initial-observation')
-    // The first authenticated preference observation can reset selection once.
-    // Later unchanged preference repair must never retry this denied handoff.
+    // Initial preference observation and own extension activity overlapping a
+    // pending source snapshot can each reset selection once in this fixture.
+    // Later unchanged repair/activity must never retry a denied handoff.
     await observe(16_000)
     const initialized = countOperationResponses()
     recordRequest({ check: label + '-initial-operations', responses: initialized - before })
-    assert(initialized - before <= 2, 'Initial admission cannot create a handoff storm')
+    assert(initialized - before <= 3, 'Initial admission cannot create a handoff storm')
     setStage(label + '-steady-repair')
     await observe(32_000)
     recordRequest({ check: label + '-steady-operations', responses: countOperationResponses() - initialized })
@@ -86,7 +87,7 @@ export async function verifyIndependentIdleExpiry({ page, popup, reopenPopup, pa
   setStage('independent-idle-fresh-manual-proof-restores-web')
   await page.locator('#unlock-password').fill(password)
   await page.getByRole('button', { name: 'Unlock', exact: true }).click()
-  await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+  await page.locator('nav a[href="/vaults"]').waitFor()
   assert.equal(page.url(), entryUrl, 'Manual unlock must return to the original Entry')
   await waitForWebEntryPassword(page, entryPassword)
   await popup.waitText('Unlocked')

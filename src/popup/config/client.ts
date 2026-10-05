@@ -1,3 +1,6 @@
+import { extensionBuildTarget } from "@shared/config/build-target";
+import { parseConnection, connectionOrigins, type Connection } from "@shared/config/connection";
+import type { ConnectionCommand, ConnectionResult } from "../../background/config/connection-commands";
 import type {
   ServerConfigCommand,
   ServerConfigCommandResult,
@@ -81,4 +84,28 @@ async function dispatch(
   }
   if (!result.ok) throw new ServerConfigClientError(result.code);
   return { apiUrl: result.apiUrl, changed: result.changed };
+}
+
+export interface ConnectionClient {
+  get(): Promise<Extract<ConnectionResult, { ok: true }>>;
+  save(connection: Connection): Promise<Extract<ConnectionResult, { ok: true }>>;
+}
+export function createConnectionClient(
+  send: (command: ConnectionCommand) => Promise<ConnectionResult | undefined> = command => chrome.runtime.sendMessage(command),
+  permissions: PermissionClient = chromePermissions,
+): ConnectionClient {
+  const dispatch = async (command: ConnectionCommand) => {
+    const result = await send(command);
+    if (!result?.ok) throw new ServerConfigClientError(result?.code ?? 'unavailable');
+    return result;
+  };
+  return {
+    get: () => dispatch({ type: 'config/connections/get' }),
+    async save(input) {
+      const connection = parseConnection(input);
+      if (!connection) throw new ServerConfigClientError('invalid-server');
+      if (!await permissions.request({ origins: connectionOrigins(connection, extensionBuildTarget !== "chromium") })) throw new ServerConfigClientError('permission-denied');
+      return dispatch({ type: 'config/connections/save', connection });
+    },
+  };
 }

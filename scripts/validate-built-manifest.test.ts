@@ -18,13 +18,13 @@ describe("built store identity gate", () => {
 });
 const environments = [{ apiUrl: "https://api.example.test", webOrigin: "https://app.example.test:8443" }];
 const manifest = { permissions: ["webNavigation"], externally_connectable: {
-  ids: [], matches: ["https://app.example.test/*"], accepts_tls_channel_id: false,
+  ids: [], matches: ["<all_urls>"], accepts_tls_channel_id: false,
 } };
 describe("built shared unlock routing gate", () => {
-  const safari = { permissions: ["webNavigation"], externally_connectable: { matches: ["https://app.example.test/*"] } };
+  const safari = { permissions: ["webNavigation"], externally_connectable: { matches: ["http://*/*", "https://*/*"] } };
   it("accepts the independently configured Safari route without Chromium identity fields", () => {
     expect(() => validateSharedUnlockRouting(safari, "safari", environments)).not.toThrow();
-    expect(() => validateSharedUnlockRouting(safari, "safari")).toThrow();
+    expect(() => validateSharedUnlockRouting(safari, "safari")).not.toThrow();
     expect(() => validateSharedUnlockRouting(safari, "chromium", environments)).toThrow();
   });
   it.each([{ ids: ["*"] }, { matches: ["https://*/*"] }, { matches: ["https://other.test/*"] },
@@ -37,11 +37,11 @@ describe("built shared unlock routing gate", () => {
     expect(() => validateSharedUnlockRouting({ ...safari, web_accessible_resources: [{ resources: ["manifest.json"], matches: ["<all_urls>"] }] }, "safari", environments)).toThrow();
   });
   const firefox = { permissions: ["webNavigation"], web_accessible_resources: [{
-    resources: ["manifest.json", "src/shared-unlock-bridge/index.html"], matches: ["https://app.example.test/*"],
+    resources: ["manifest.json", "src/shared-unlock-bridge/index.html"], matches: ["http://*/*", "https://*/*"],
   }] };
   it("accepts only the explicitly configured Firefox bridge and canonical manifest", () => {
     expect(() => validateSharedUnlockRouting(firefox, "firefox", environments)).not.toThrow();
-    expect(() => validateSharedUnlockRouting(firefox, "firefox")).toThrow();
+    expect(() => validateSharedUnlockRouting(firefox, "firefox")).not.toThrow();
     expect(() => validateSharedUnlockRouting(firefox, "chromium", environments)).toThrow();
   });
   it.each([
@@ -58,9 +58,8 @@ describe("built shared unlock routing gate", () => {
   it("checks the generated manifest against independent build configuration", () => {
     expect(() => validateSharedUnlockRouting(manifest, "chromium", environments)).not.toThrow();
   });
-  it.each(["chromium", "firefox", "safari"])("rejects unconfigured routes on %s", target => {
-    expect(() => validateSharedUnlockRouting(manifest, target)).toThrow();
-    expect(() => validateSharedUnlockRouting({ permissions: [] }, target)).not.toThrow();
+  it.each(["chromium", "firefox", "safari"])("rejects missing dynamic transport on %s", target => {
+    expect(() => validateSharedUnlockRouting({ permissions: [] }, target)).toThrow();
   });
   it.each(["firefox", "safari"])("does not activate %s through Chromium configuration", target => {
     expect(() => validateSharedUnlockRouting(manifest, target, environments)).toThrow();

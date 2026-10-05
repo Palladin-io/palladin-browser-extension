@@ -6,7 +6,7 @@ import type { SharedUnlockOperationMessage } from '../../shared/messaging/shared
 import { sharedUnlockPreferences } from './preference-state-runtime'
 import { sessionManager, sharedUnlockLinks } from '../session/runtime'
 
-vi.mock('../config/server-runtime', () => ({ serverConfig: { apiUrl: 'https://api.test' } }))
+vi.mock('../config/server-runtime', () => ({ serverConfig: { apiUrl: 'https://api.test', networkApiUrl: 'https://api.test' } }))
 const values = vi.hoisted(() => ({} as Record<string, unknown>))
 vi.mock('../session/runtime', async () => {
   const { SharedUnlockLinkStore } = await import('./link-store')

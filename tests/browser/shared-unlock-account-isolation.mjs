@@ -21,7 +21,7 @@ export async function verifySharedUnlockAccountIsolation({ page, popup, apiUrl,
     await page.locator('#login-email').fill(accountEmail)
     await page.locator('#login-password').fill(accountPassword)
     await page.getByRole('button', { name: /^Sign in$/i }).click()
-    await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+    await page.locator('nav a[href="/vaults"]').waitFor()
   }
   const logout = async () => {
     const reloaded = page.waitForEvent('domcontentloaded')
@@ -84,7 +84,7 @@ export async function verifySharedUnlockAccountIsolation({ page, popup, apiUrl,
   await popup.click('Back')
 
   setStage('account-isolation-two-distinct-entries')
-  await page.getByRole('link', { name: 'Vaults', exact: true }).click()
+  await page.locator('nav a[href="/vaults"]').click()
   await page.getByText('Personal', { exact: true }).first().click()
   await page.getByRole('button', { name: 'Add Entry', exact: true }).first().click()
   for (const [selector, value] of [['#entry-label', 'Synthetic account B proof'],
@@ -114,9 +114,9 @@ export async function verifySharedUnlockAccountIsolation({ page, popup, apiUrl,
     setStage(`account-isolation-manual-web-b-unlock-cycle-${cycle + 1}`)
     await page.locator('#unlock-password').fill(passwordB)
     await page.getByRole('button', { name: 'Unlock', exact: true }).click()
-    await page.getByRole('link', { name: 'Vaults', exact: true }).waitFor()
+    await page.locator('nav a[href="/vaults"]').waitFor()
     setStage(`account-isolation-web-b-vault-list-after-unlock-cycle-${cycle + 1}`)
-    await page.getByRole('link', { name: 'Vaults', exact: true }).click()
+    await page.locator('nav a[href="/vaults"]').click()
     await page.getByText('Personal', { exact: true }).first().click()
     setStage(`account-isolation-web-b-entry-list-after-unlock-cycle-${cycle + 1}`)
     await page.getByText('Synthetic account B proof', { exact: true }).first().click()
