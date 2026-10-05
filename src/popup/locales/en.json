@@ -528,5 +528,6 @@
   "grant.dateUnavailable": "Not recorded for this grant",
   "grant.wholeVault": "Entire vault",
   "grant.expiresAt": "Expires",
-  "grant.noExpiry": "No expiry date"
+  "grant.noExpiry": "No expiry date",
+  "grant.expiryOnApproval": "Set when approving"
 }

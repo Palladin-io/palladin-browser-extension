@@ -242,7 +242,7 @@ describe("UnlockedScreen", () => {
     expect(client.sync).toHaveBeenCalledOnce();
   });
 
-  it("groups repeated website entries and reveals usernames only after expansion", async () => {
+  it("shows repeated website entries individually without eagerly decrypting usernames", async () => {
     const first = entry({ id: "work", name: "WP work", urlDomain: "1login.wp.pl", vaultName: "Work" });
     const second = entry({ id: "personal", vaultId: "v2", name: "WP personal", urlDomain: "1login.wp.pl", vaultName: "Personal" });
     const credentialUsername = vi.fn(async (_vaultId: string, entryId: string) => entryId === "work" ? "ada@work.pl" : "ada@wp.pl");
@@ -253,21 +253,14 @@ describe("UnlockedScreen", () => {
       credentialUsername,
     });
     render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={client} />);
-    const user = userEvent.setup();
-
-    const group = await screen.findByRole("button", { name: /1login\.wp\.pl.*logins: 2/i });
-    expect(group).not.toHaveAccessibleName(/vaults/i);
+    expect(await screen.findByRole("button", { name: /WP work/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /WP personal/ })).toBeInTheDocument();
     expect(screen.queryByText("ada@work.pl")).not.toBeInTheDocument();
     expect(credentialUsername).not.toHaveBeenCalled();
-
-    await user.click(group);
-    expect(await screen.findByText("ada@work.pl")).toBeInTheDocument();
-    expect(await screen.findByText("ada@wp.pl")).toBeInTheDocument();
-    expect(credentialUsername).toHaveBeenCalledTimes(2);
     expect(screen.getByText("Vault: Work")).toBeInTheDocument();
   });
 
-  it("loads the next grouped batch when the end sentinel reaches the scroll viewport", async () => {
+  it("loads the next Entry batch when the end sentinel reaches the scroll viewport", async () => {
     let intersection: IntersectionObserverCallback | null = null;
     const observe = vi.fn();
     class TestIntersectionObserver {

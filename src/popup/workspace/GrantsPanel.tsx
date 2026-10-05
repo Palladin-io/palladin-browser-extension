@@ -293,7 +293,7 @@ export function GrantsPanel({
               </section>
             ) : null}
             <dl className="grant-metadata">
-              {selected.status !== 'pending' ? <div className="detail-field"><dt>{t('grant.expiresAt')}</dt><dd>{selected.expiresAt ? new Date(selected.expiresAt).toLocaleString(locale) : t('grant.noExpiry')}</dd></div> : null}
+              <div className="detail-field"><dt>{t('grant.expiresAt')}</dt><dd>{selected.expiresAt ? new Date(selected.expiresAt).toLocaleString(locale) : t(selected.status === 'pending' ? 'grant.expiryOnApproval' : 'grant.noExpiry')}</dd></div>
               <div className="detail-field"><dt>{t('grant.requestedAt')}</dt><dd>{new Date(selected.createdAt).toLocaleString(locale)}</dd></div>
               {selected.createdBy ? <>
                 <div className="detail-field"><dt>{t('grant.grantedBy')}</dt><dd>{selected.createdByName ?? shortId(selected.createdBy)}</dd></div>

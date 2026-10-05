@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { clipboardCopyAvailable } from "@shared/config/build-target";
 import type { CaptureGeneratedFillResult, CaptureSaveResult } from "@shared/messaging/capture";
 
+import { PopupIcon } from "../components/PopupIcon";
 import { Button } from "../components/Button";
 import { useI18n, type Translate } from "../i18n";
 import type { VaultClient } from "../vault/client";
@@ -123,12 +124,21 @@ export function GeneratorPanel({
 
   return (
     <div className="generator">
+      <div className="generator-heading"><h2>{t("vault.generatorTab")}</h2>
       <div className="generator-mode" role="group" aria-label={t("generator.type")}>
         <button type="button" className={mode === "password" ? "generator-mode-active" : ""} onClick={() => changeMode("password")}>{t("generator.password")}</button>
         <button type="button" className={mode === "passphrase" ? "generator-mode-active" : ""} onClick={() => changeMode("passphrase")}>{t("generator.passphrase")}</button>
       </div>
 
-      <output className="generator-output" aria-label={t("generator.generatedValue")}>{value}</output>
+      </div>
+      <div className="detail-fields generator-result">
+        <output className="generator-output" aria-label={t("generator.generatedValue")}>{value}</output>
+        <div className="generator-result-actions">
+          <button type="button" className="toolbar-icon" aria-label={t('generator.regenerate')} title={t('generator.regenerate')} onClick={() => { setValue(makeValue()); setStatus('idle'); setSaveReady(false); }}><PopupIcon name="refresh" /></button>
+          {clipboardCopyAvailable ? <button type="button" className="toolbar-icon" aria-label={t('common.copy')} title={t('common.copy')} onClick={copy}><PopupIcon name="copy" /></button> : null}
+        </div>
+      </div>
+      <div className="detail-fields generator-configuration">
 
       {mode === "password" ? (
         <div className="generator-options">
@@ -155,9 +165,9 @@ export function GeneratorPanel({
         </div>
       )}
 
+      </div>
+      <div className="generator-footer">
       <div className="generator-actions">
-        <Button variant="subtle" onClick={() => { setValue(makeValue()); setStatus("idle"); setSaveReady(false); }}>{t("generator.regenerate")}</Button>
-        {clipboardCopyAvailable ? <Button variant="subtle" onClick={copy}>{t("common.copy")}</Button> : null}
         <Button onClick={fill}>{t("common.fill")}</Button>
         {capture && saveReady ? <Button onClick={save}>{t("generator.saveToPalladin")}</Button> : null}
       </div>
@@ -168,6 +178,7 @@ export function GeneratorPanel({
           if (mounted.current) setSuggestions(value);
         }, () => { if (mounted.current) setStatus('error'); });
       }} />
+      </div>
       </div>
       <p className="generator-note">
         {capture

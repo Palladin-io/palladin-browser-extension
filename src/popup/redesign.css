@@ -1127,3 +1127,29 @@ html:not([data-extension-surface='side-panel']):has(.popup[data-phase='intro']) 
 .generator-note { margin-top: 8px; }
 
 .generator-status:empty { min-height: 0; margin: 0; }
+
+.generator-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.generator-heading h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.generator-heading .generator-mode { margin: 0; flex: 0 1 260px; }
+.generator-result { display: flex; align-items: center; gap: 12px; padding: 16px; margin-bottom: 12px; }
+.generator-result .generator-output { flex: 1; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; font-size: 16px; line-height: 1.6; }
+.generator-result-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.generator-result-actions .toolbar-icon { width: 32px; height: 32px; }
+.generator-configuration { padding: 16px; box-shadow: none; }
+.generator-configuration .generator-options { margin: 0; gap: 16px; }
+.generator-range span, .generator-select { font-size: 12px; font-weight: 400; }
+.generator-check input { appearance: none; width: 28px; height: 16px; flex-shrink: 0; border-radius: 9px; background: var(--cv-selection); border: 1px solid var(--cv-border); margin: 0; position: relative; cursor: pointer; }
+.generator-check input::before { content: ''; position: absolute; width: 10px; height: 10px; top: 2px; left: 2px; border-radius: 50%; background: var(--cv-t3); }
+.generator-check input:checked { background: var(--cv-primary); border-color: var(--cv-primary); }
+.generator-check input:checked::before { transform: translateX(12px); background: var(--cv-surface); }
+.generator-check input:focus-visible { outline: 2px solid var(--cv-primary); outline-offset: 2px; }
+.generator-actions { display: flex; justify-content: flex-end; margin-top: 12px; gap: 8px; }
+.generator-actions .btn { min-width: 120px; }
+.generator-preference { border: 0; padding-top: 0; margin-top: 12px; }
+@media (max-width: 450px) { .generator-heading { flex-wrap: wrap; } .generator-heading .generator-mode { flex-basis: 100%; } }
+
+.generator-footer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 16px; margin-top: 12px; }
+.generator-footer .generator-preference { grid-column: 1; grid-row: 1; margin: 0; }
+.generator-footer .generator-actions { grid-column: 2; grid-row: 1; margin: 0; }
+.generator-footer .generator-status { grid-column: 1 / -1; margin: 0; }
+.generator-footer .generator-status:empty { display: none; }

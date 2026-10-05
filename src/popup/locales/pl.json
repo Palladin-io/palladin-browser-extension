@@ -528,5 +528,6 @@
   "grant.dateUnavailable": "Nie zapisano dla tego grantu",
   "grant.wholeVault": "Cały sejf",
   "grant.expiresAt": "Wygasa",
-  "grant.noExpiry": "Bez daty wygaśnięcia"
+  "grant.noExpiry": "Bez daty wygaśnięcia",
+  "grant.expiryOnApproval": "Ustalane przy zatwierdzaniu"
 }

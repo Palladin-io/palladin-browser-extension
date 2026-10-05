@@ -1,10 +1,9 @@
-/** Group by domain and progressively reveal large lists without decrypting every account. */
+/** Progressively reveal Entry metadata without decrypting accounts. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { EntryMetadata } from "../../background/vault/entry-metadata";
 import type { VaultClient } from "../vault/client";
-import { EntryIcon } from "./EntryIcon";
 import { EntryRow } from "./EntryRow";
 import { useI18n } from "../i18n";
 
@@ -24,9 +23,8 @@ export function EntryList({ client, entries, priorityEntries, selectedId, onSele
   const loadMoreRef = useRef<HTMLButtonElement | null>(null);
   const items = useMemo(() => {
     const priority = new Set(priorityEntries?.map(entry => `${entry.vaultId}:${entry.id}`));
-    const rank = (item: EntryListItem) => (item.kind === 'entry' ? [item.entry] : item.entries)
-      .some(entry => priority.has(`${entry.vaultId}:${entry.id}`)) ? 0 : 1;
-    return groupEntriesByDomain(entries).sort((a, b) => rank(a) - rank(b));
+    const rank = (entry: EntryMetadata) => priority.has(`${entry.vaultId}:${entry.id}`) ? 0 : 1;
+    return [...entries].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
   }, [entries, priorityEntries]);
   const visible = items.slice(0, visibleCount);
   const hidden = items.length - visible.length;
@@ -50,127 +48,13 @@ export function EntryList({ client, entries, priorityEntries, selectedId, onSele
 
   return (
     <div className="entry-list">
-      {visible.map((item) => item.kind === "entry" ? (
-        <EntryRow key={`${item.entry.vaultId}:${item.entry.id}`} client={client} entry={item.entry} selected={selectedId === `${item.entry.vaultId}:${item.entry.id}`} onSelect={onSelect} />
-      ) : (
-        <DomainEntryGroup key={item.domain} client={client} domain={item.domain} entries={item.entries} selectedId={selectedId} onSelect={onSelect} />
+      {visible.map((entry) => (
+        <EntryRow key={`${entry.vaultId}:${entry.id}`} client={client} entry={entry} selected={selectedId === `${entry.vaultId}:${entry.id}`} onSelect={onSelect} />
       ))}
       {hidden > 0 ? (
         <button ref={loadMoreRef} type="button" className="show-more" onClick={showNext}>
           {t("vault.showMore", { count: hidden })}
         </button>
-      ) : null}
-    </div>
-  );
-}
-
-interface DomainGroup {
-  readonly kind: "domain";
-  readonly domain: string;
-  readonly entries: EntryMetadata[];
-  readonly onSelect?: ((entry: EntryMetadata) => void) | undefined;
-}
-
-interface SingleEntry {
-  readonly kind: "entry";
-  readonly entry: EntryMetadata;
-}
-
-export type EntryListItem = DomainGroup | SingleEntry;
-
-/**
- * Collapse repeated website rows into one domain cluster. Entries without a
- * website remain ordinary rows. Usernames stay encrypted until the user opens
- * a cluster; expanding it mounts the child rows which reveal only their own
- * username into this extension-owned surface.
- */
-export function groupEntriesByDomain(entries: readonly EntryMetadata[]): EntryListItem[] {
-  const byDomain = new Map<string, EntryMetadata[]>();
-  const withoutDomain: EntryMetadata[] = [];
-
-  for (const entry of entries) {
-    const domain = entry.urlDomain?.trim().toLowerCase();
-    if (!domain) {
-      withoutDomain.push(entry);
-      continue;
-    }
-    const group = byDomain.get(domain) ?? [];
-    group.push(entry);
-    byDomain.set(domain, group);
-  }
-
-  const domains: EntryListItem[] = [...byDomain.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([domain, grouped]) => grouped.length === 1
-      ? { kind: "entry", entry: grouped[0]! }
-      : { kind: "domain", domain, entries: grouped });
-  const singles: EntryListItem[] = withoutDomain
-    .sort((left, right) => left.name.localeCompare(right.name))
-    .map((entry) => ({ kind: "entry", entry }));
-  return [...domains, ...singles];
-}
-
-function DomainEntryGroup({
-  client,
-  domain,
-  entries,
-  selectedId,
-  onSelect,
-}: {
-  readonly client: VaultClient;
-  readonly domain: string;
-  readonly entries: EntryMetadata[];
-  readonly selectedId?: string | undefined;
-  readonly onSelect?: ((entry: EntryMetadata) => void) | undefined;
-}): React.JSX.Element {
-  const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const sample = entries[0]!;
-
-  return (
-    <div className={`entry-domain-group${open ? " entry-domain-group--open" : ""}`}>
-      <button
-        type="button"
-        className="entry-domain-head"
-        onClick={() => setOpen((value) => !value)}
-        aria-expanded={open}
-      >
-        <EntryIcon
-          name={domain}
-          type={sample.type}
-          {...(sample.icon ? { icon: sample.icon } : {})}
-          {...(sample.color ? { color: sample.color } : {})}
-        />
-        <span className="entry-text">
-          <span className="entry-name">{domain}</span>
-          <span className="entry-sub">
-            {t("vault.groupSummary", { entries: entries.length })}
-          </span>
-        </span>
-        <svg
-          className={`entry-chevron${open ? " entry-chevron--open" : ""}`}
-          viewBox="0 0 20 20"
-          width="16"
-          height="16"
-          aria-hidden="true"
-        >
-          <path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      {open ? (
-        <div className="entry-domain-children">
-          {entries.map((entry) => (
-            <EntryRow
-              key={`${entry.vaultId}:${entry.id}`}
-              client={client}
-              entry={entry}
-              selected={selectedId === `${entry.vaultId}:${entry.id}`}
-              onSelect={onSelect}
-              grouped
-              revealUsername
-            />
-          ))}
-        </div>
       ) : null}
     </div>
   );
