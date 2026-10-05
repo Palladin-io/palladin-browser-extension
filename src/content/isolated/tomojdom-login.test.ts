@@ -65,12 +65,15 @@ describe("tomojdom staged form-less login", () => {
     } finally { subject.stop(); }
   });
 
-  it.each(['same-account', 'changed-account', 'replaced-username', 'replaced-panel', 'navigation', 'reunlock', 'reunlock-pending', 'lock', 'lock-pending', 'different-entry', 'different-suggestion-account', 'related-entry', 'prefilled', 'popup-choice', 'popup-wrong-document', 'popup-wrong-origin'])(
+  it.each(['same-account', 'changed-account', 'replaced-username', 'replaced-password', 'replaced-password-during-identifier', 'moved-password', 'replaced-panel', 'navigation', 'reunlock', 'reunlock-pending', 'lock', 'lock-pending', 'different-entry', 'different-suggestion-account', 'related-entry', 'prefilled', 'popup-choice', 'popup-wrong-document', 'popup-wrong-origin'])(
     'continues automatic identifier fill only for the bound same-account flow: %s', async (variant) => {
       const { username, password, step, container } = mount();
       const continues = ['same-account', 'popup-wrong-document', 'popup-wrong-origin'].includes(variant);
       vi.stubGlobal("chrome", { storage: { local: { get: async () => ({}) } }, i18n: { getUILanguage: () => "en" } });
       if (variant === 'prefilled') username.value = '12345678';
+      if (variant === 'replaced-password-during-identifier') {
+        username.addEventListener('input', () => password.replaceWith(password.cloneNode()), { once: true });
+      }
       let passwordStage = false;
       const clicked = vi.fn(); container.addEventListener('click', clicked);
       const send = vi.fn(async (command: InlineAutofillCommand) => {
@@ -95,6 +98,11 @@ describe("tomojdom staged form-less login", () => {
         await Promise.resolve(); await Promise.resolve();
         passwordStage = true;
         if (variant === 'changed-account') username.value = '87654321';
+        if (variant === 'replaced-password') password.replaceWith(password.cloneNode());
+        if (variant === 'moved-password') {
+          const differentBlock = document.createElement('div');
+          step.append(differentBlock); differentBlock.append(password);
+        }
         if (variant === 'replaced-username') {
           const replacement = username.cloneNode() as HTMLInputElement;
           replacement.value = username.value; username.replaceWith(replacement);
@@ -121,7 +129,8 @@ describe("tomojdom staged form-less login", () => {
         step.classList.remove('d-none');
         if (continues) await vi.waitFor(() => expect(password.value).toBe('fixture-password'));
         else await new Promise(resolve => setTimeout(resolve, 160));
-        expect(password.value).toBe(continues ? 'fixture-password' : '');
+        expect(document.querySelector<HTMLInputElement>('input[type="password"]')!.value)
+          .toBe(continues ? 'fixture-password' : '');
         subject.retryAutomaticFill();
         await Promise.resolve();
         expect(send.mock.calls.filter(([command]) => command.type === 'inline/fill')).toHaveLength(

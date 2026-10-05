@@ -166,7 +166,8 @@ class InlineAutofillController {
   private stopped = false;
   private automaticFillUrl: string | null = null;
   private nextLoginTargetId = 1;
-  private continuation: { target: LoginTarget; entry: InlineAutofillSuggestion; url: string } | null = null;
+  private continuation: { target: LoginTarget; password: HTMLInputElement; passwordParent: HTMLElement;
+    entry: InlineAutofillSuggestion; url: string } | null = null;
 
   constructor(
     private readonly doc: Document,
@@ -407,6 +408,8 @@ class InlineAutofillController {
     const continuation = this.continuation;
     if (continuation && (this.doc.location.href !== continuation.url
       || continuation.target.sourceDocument !== this.doc || !continuation.target.form.isConnected
+      || !continuation.password.isConnected || continuation.password.ownerDocument !== this.doc
+      || continuation.password.parentElement !== continuation.passwordParent
       || continuation.target.username?.ownerDocument !== this.doc
       || continuation.target.username.value !== continuation.entry.username)) this.continuation = null;
     if (this.automaticFillUrl !== null && this.automaticFillUrl !== this.doc.location.href) clearAutomaticFillProvenance(this.doc);
@@ -433,6 +436,10 @@ class InlineAutofillController {
       }
       const loginTarget = loginTargetFor(input);
       if (loginTarget === null || this.widgets.has(input)) continue;
+      // Capture the deferred control before any identifier input handlers can replace it.
+      const deferredPassword = this.doc.location.origin === 'https://tomojdom.pl' && loginTarget.password === null
+        ? loginTarget.form.querySelector<HTMLInputElement>('input[type="password"][autocomplete="current-password"]') : null;
+      const deferredPasswordParent = deferredPassword?.parentElement ?? null;
       const widget = new InlineWidget({
         doc: this.doc,
         input,
@@ -446,9 +453,12 @@ class InlineAutofillController {
         onAutomaticFill: entry => {
           if (this.doc.location.origin !== 'https://tomojdom.pl' || loginTarget.username === null
             || loginTarget.password !== null || loginTarget.sourceDocument !== this.doc
+            || deferredPassword === null || deferredPasswordParent === null || !deferredPassword.isConnected
+            || deferredPassword.ownerDocument !== this.doc || deferredPassword.parentElement !== deferredPasswordParent
             || !loginTarget.username.isConnected
             || loginTarget.username.value !== entry.username) return;
-          this.continuation = { target: loginTarget, entry, url: this.doc.location.href };
+          this.continuation = { target: loginTarget, password: deferredPassword, passwordParent: deferredPasswordParent,
+            entry, url: this.doc.location.href };
           this.scheduleScan();
         },
         closeOthers: () => {
@@ -464,7 +474,9 @@ class InlineAutofillController {
           && loginTarget.sourceDocument === continuation.target.sourceDocument
           && loginTarget.accountIdentity === continuation.target.username
           && loginTarget.accountIdentity.value === continuation.entry.username
-          && loginTarget.password?.value === '') {
+          && loginTarget.password === continuation.password
+          && loginTarget.password.parentElement === continuation.passwordParent
+          && loginTarget.password.value === '') {
           void widget.autoFillPreferredExact(continuation.entry);
         }
       }
