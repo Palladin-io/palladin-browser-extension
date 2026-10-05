@@ -976,19 +976,23 @@ class InlineWidget {
     submitAfterFill = false,
     silent = false,
   ): Promise<boolean> {
-    if (!isCurrentLoginTarget(this.options.loginTarget)) {
-      if (!silent) this.renderStatus("inline.noForm");
-      return false;
-    }
     if (!silent) {
       this.sessionGeneration += 1;
       this.options.onManualFill();
       discardAutomaticFillProvenance(this.options.loginTarget);
+      // An explicit choice cancels continuation even if its chooser became stale.
+      this.invalidatePendingFill();
+    }
+    if (!isCurrentLoginTarget(this.options.loginTarget)) {
+      if (!silent) this.renderStatus("inline.noForm");
+      return false;
     }
     // The latest explicit choice supersedes a pending passive/explicit request.
     // A passive retry cannot displace the user's outstanding choice.
-    if (silent && this.pendingFill?.manual) return false;
-    this.invalidatePendingFill();
+    if (silent) {
+      if (this.pendingFill?.manual) return false;
+      this.invalidatePendingFill();
+    }
     const operation: PendingInlineFill = {
       id: `${this.options.loginTargetId}:fill-${++this.nextFillOperation}`,
       target: { ...this.options.loginTarget },

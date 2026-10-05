@@ -174,6 +174,60 @@ describe("tomojdom staged form-less login", () => {
     },
   );
 
+  it.each(['.option', '.submit-login'])('cancels continuation when a stale chooser receives an explicit %s choice', async (selector) => {
+    const { username, password, step, container } = mount();
+    vi.stubGlobal('chrome', { storage: { local: { get: async () => ({}) } }, i18n: { getUILanguage: () => 'en' } });
+    let shadow: ShadowRoot | undefined;
+    const nativeAttach = Element.prototype.attachShadow;
+    const attach = vi.spyOn(Element.prototype, 'attachShadow').mockImplementation(function (this: Element, init) {
+      const root = nativeAttach.call(this, init);
+      if (this.localName === 'palladin-autofill' && !shadow) shadow = root;
+      return root;
+    });
+    let initialCommand: Extract<InlineAutofillCommand, { type: 'inline/fill' }> | undefined;
+    let finishInitial: ((result: unknown) => void) | undefined;
+    let delivered = false;
+    const click = vi.fn(); container.addEventListener('click', click);
+    username.addEventListener('input', () => step.classList.remove('d-none'));
+    const send = vi.fn(async (command: InlineAutofillCommand): Promise<unknown> => {
+      if (command.type === 'inline/list') return {
+        ok: true, kind: 'suggestions', status: 'ready', entries: ['e1', 'e2'].map(entryId => ({
+          entryId, vaultId: 'v1', name: entryId, username: '12345678', vaultName: 'Test',
+          urlDomain: 'tomojdom.pl', updatedAt: '2026-10-04T00:00:00Z', match: 'exact',
+        })),
+      };
+      if (command.type !== 'inline/fill') throw new Error('Unexpected command');
+      if (!delivered) {
+        initialCommand = command;
+        return new Promise(resolve => { finishInitial = resolve; });
+      }
+      const outcome = subject.performFillRequest({ channel: 'palladin.fill/request', documentId: 'a'.repeat(32),
+        expectedOrigin: 'https://tomojdom.pl', expectedDomain: 'tomojdom.pl', submit: false,
+        loginTargetId: command.loginTargetId, intent: 'automatic', fields });
+      return { ok: true, kind: 'fill', status: outcome.ok ? 'filled' : 'no-form' };
+    });
+    const subject = startInlineAutofill(document, 'a'.repeat(32), send);
+    try {
+      (shadow!.querySelector('.launcher') as HTMLButtonElement).click();
+      await vi.waitFor(() => {
+        expect(initialCommand).toBeDefined();
+        expect(shadow!.querySelectorAll(selector)).toHaveLength(2);
+      });
+      const explicitChoice = shadow!.querySelectorAll<HTMLButtonElement>(selector)[1]!;
+      delivered = true;
+      expect(subject.performFillRequest({ channel: 'palladin.fill/request', documentId: 'a'.repeat(32),
+        expectedOrigin: 'https://tomojdom.pl', expectedDomain: 'tomojdom.pl', submit: false,
+        loginTargetId: initialCommand!.loginTargetId, intent: 'automatic', fields })).toEqual({ ok: true });
+      // The old chooser still exists until the throttled scan replaces its widget.
+      explicitChoice.click();
+      finishInitial!({ ok: true, kind: 'fill', status: 'filled' });
+      await new Promise(resolve => setTimeout(resolve, 180));
+      expect(password.value).toBe('');
+      expect(send.mock.calls.filter(([command]) => command.type === 'inline/fill')).toHaveLength(1);
+      expect(click).not.toHaveBeenCalled();
+    } finally { subject.stop(); attach.mockRestore(); }
+  });
+
   it("fills only the initial identifier from the popup and not hidden password/recovery", () => {
     const { username, password, recovery, container } = mount();
     const click = vi.fn();
