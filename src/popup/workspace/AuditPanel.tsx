@@ -1,3 +1,5 @@
+import { FilterSelect } from '../components/FilterSelect';
+import { RefreshButton } from '../components/RefreshButton';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { WorkspaceError } from './WorkspaceError';
 import { useEffect, useRef, useState } from 'react';
@@ -207,7 +209,7 @@ export function AuditPanel({
           <h2>{t('workspace.logs')}</h2>
           <p>{t('audit.subtitle')}</p>
         </div>
-        <select
+        <FilterSelect
           aria-label={t('audit.filter')}
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
@@ -218,10 +220,8 @@ export function AuditPanel({
               {t(key)}
             </option>
           ))}
-        </select>
-        <Button variant="accent" disabled={busy} onClick={() => void load()}>
-          {t('workspace.refresh')}
-        </Button>
+        </FilterSelect>
+        <RefreshButton busy={busy} onClick={() => void load()} />
       </div>
       {error ? <WorkspaceError error={error} /> : null}
       {busy && !items.length ? (

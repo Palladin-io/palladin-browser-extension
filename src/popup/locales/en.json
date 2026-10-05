@@ -520,5 +520,11 @@
   "audit.event.org.member-removed": "Member removed",
   "audit.event.audit.export.requested": "Audit export requested",
   "workspace.reload": "Reload Palladin on chrome://extensions to finish updating the extension.",
-  "share.unavailableEntry": "Unavailable entry"
+  "share.unavailableEntry": "Unavailable entry",
+  "grant.encryptedReason": "Encrypted request reason",
+  "grant.requestedAt": "Created",
+  "grant.grantedBy": "Granted by",
+  "grant.grantedAt": "Granted on",
+  "grant.dateUnavailable": "Not recorded for this grant",
+  "grant.wholeVault": "Entire vault"
 }

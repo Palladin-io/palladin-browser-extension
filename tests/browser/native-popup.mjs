@@ -171,7 +171,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
       let attempts = 0
       await wait(async () => {
         const node = (await command('Accessibility.getFullAXTree')).nodes.find((node) =>
-          !node.ignored && node.role?.value === role && node.name?.value === name)
+          !node.ignored && node.role?.value === role && (name instanceof RegExp ? name.test(node.name?.value ?? '') : node.name?.value === name))
         if (!node) return false
         attempts += 1
         return clickButton(node.backendDOMNodeId)
@@ -266,7 +266,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
     },
     async hasNativeSidePanelApi() { return evaluate('typeof chrome.sidePanel?.open === \'function\'') },
     async hasButton(name) { return (await command('Accessibility.getFullAXTree')).nodes.some((node) =>
-      !node.ignored && node.role?.value === 'button' && node.name?.value === name) },
+      !node.ignored && node.role?.value === 'button' && (name instanceof RegExp ? name.test(node.name?.value ?? '') : node.name?.value === name)) },
     async waitButton(name) { await wait(() => this.hasButton(name), name) },
     async waitSwitch(name, checked) {
       await wait(async () => (await command('Accessibility.getFullAXTree')).nodes.some(node =>

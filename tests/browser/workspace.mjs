@@ -92,8 +92,11 @@ try {
   assert.equal([...shares.values()][0].status, 'revoked');
   await popup.click('Logs', 'tab'); await popup.waitText('Synthetic owner');
   await popup.screenshot(path.join(output, 'logs-light.png'));
-  grants.push({ id: randomUUID(), vaultId: api.vaults[0].detail.id, agentId: randomUUID(), agentName: 'Synthetic active agent', status: 'active', type: 'granular', createdAt: new Date().toISOString(), entryScopes: [], scriptScopes: [], canRevoke: true });
+  grants.push({ id: randomUUID(), vaultId: api.vaults[0].detail.id, agentId: randomUUID(), agentName: 'Synthetic active agent', createdBy: api.userId ?? '11111111-1111-4111-8111-111111111111', createdByName: 'Synthetic owner', grantedAt: new Date().toISOString(), entryId: [...api.vaults[0].entries.keys()][0], status: 'active', type: 'granular', createdAt: new Date().toISOString(), entryScopes: [], scriptScopes: [], canRevoke: true });
   await popup.click('Agent access', 'tab'); await popup.waitText('Synthetic active agent');
+  await popup.click(/^Synthetic active agent Active/);
+  await popup.waitText('Granted by');
+  await popup.screenshot(path.join(output, 'grant-detail-light.png'));
   grants.push({ id: randomUUID(), vaultId: api.vaults[0].detail.id, agentId: randomUUID(), agentName: 'Synthetic pending agent', status: 'pending', type: 'granular', createdAt: new Date().toISOString(), entryScopes: [], scriptScopes: [] });
   await worker.evaluate(() => chrome.runtime.sendMessage({ type: 'workspace/changed' }));
   await popup.waitText('Synthetic pending agent');

@@ -997,7 +997,7 @@ html:not([data-extension-surface='side-panel']):has(.popup[data-phase='intro']) 
 
 .entry-totp .field-actions { align-items: center; }
 
-.vault-filter { position: relative; margin: 0 0 4px; }
+.vault-filter { position: relative; margin: 0; }
 .vault-filter summary { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border: 1px solid var(--cv-border); border-radius: 8px; cursor: pointer; list-style: none; }
 .vault-filter summary::-webkit-details-marker { display: none; }
 .vault-filter summary .popup-icon { transform: rotate(90deg); }
@@ -1054,8 +1054,8 @@ html:not([data-extension-surface='side-panel']):has(.popup[data-phase='intro']) 
 :root[data-theme='dark'] .auth-form-panel .field-input { background: var(--cv-input-bg); }
 
 .workspace-heading > select, .workspace-heading > .btn { height: 36px; min-height: 36px; box-sizing: border-box; padding-top: 0; padding-bottom: 0; }
-.vault-filter { border-bottom: 1px solid var(--cv-border); padding-bottom: 4px; }
-.vault-filter summary { border: 0; border-radius: 0; padding: 6px 4px; }
+.vault-filter { border-bottom: 1px solid var(--cv-border); padding-bottom: 0; }
+.vault-filter summary { border: 0; border-radius: 0; padding: 6px 8px; }
 .vault-filter-options label { flex-direction: row-reverse; justify-content: flex-end; }
 .vault-filter-options label span { flex: 1; order: 1; }
 .vault-filter-options label .popup-icon { order: 2; }
@@ -1069,3 +1069,27 @@ html:not([data-extension-surface='side-panel']):has(.popup[data-phase='intro']) 
 .vault-filter-options label .popup-icon:first-of-type { order: 0; color: var(--cv-primary); visibility: hidden; }
 .vault-filter-options input:checked + .popup-icon { visibility: visible; }
 .vault-filter-options label:has(input:focus-visible) { outline: 2px solid var(--cv-primary); outline-offset: -2px; }
+
+.filter-select { position: relative; display: inline-flex; align-items: center; }
+.workspace-heading .filter-select select { appearance: none; height: 36px; padding: 0 34px 0 12px; width: 100%; }
+.filter-select > .popup-icon { position: absolute; right: 10px; width: 14px; height: 14px; transform: rotate(90deg); pointer-events: none; color: var(--cv-t3); }
+.workspace-heading .refresh-button { width: 36px; height: 36px; min-height: 36px; flex-shrink: 0; color: var(--cv-primary); border: 1px solid var(--cv-border); border-radius: 6px; background: var(--cv-surface); }
+.refresh-button:disabled { opacity: .5; cursor: default; }
+.grant-status { border: 0; border-radius: 4px; padding: 3px 6px; font-weight: 500; line-height: 1.3; background: color-mix(in srgb, var(--cv-t3) 8%, transparent); }
+.grant-status[data-pending='true'] { background: color-mix(in srgb, var(--cv-pending) 10%, transparent); }
+.grants-layout { gap: 0; }
+.grant-list { padding-right: 12px; }
+.grant-detail { padding: 16px; border-left: 1px solid var(--cv-border); background: linear-gradient(140deg, color-mix(in srgb, var(--cv-t3) 5%, var(--cv-surface)), var(--cv-surface)); }
+.grant-detail-heading { align-items: center; margin-bottom: 16px; padding: 0; }
+.grant-detail-heading .detail-identity p { display: flex; align-items: center; gap: 5px; }
+.grant-detail-heading .detail-identity p .popup-icon { width: 12px; height: 12px; }
+.grant-agent-line { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 16px; }
+.grant-agent-line .grant-status { margin-left: auto; }
+.grant-purpose { padding: 12px; border: 1px solid var(--cv-border); border-radius: 8px; background: var(--cv-surface); margin-bottom: 16px; }
+.grant-purpose h4 { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--cv-t3); font-weight: 500; margin: 0 0 8px; }
+.grant-purpose h4 .popup-icon { width: 14px; height: 14px; }
+.grant-purpose p { font-size: 13px; line-height: 1.6; color: var(--cv-t1); margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.grant-metadata { margin: 0 0 16px; font-size: 12px; }
+.grant-metadata > div { padding: 10px 0; border-bottom: 1px solid var(--cv-divider); }
+.grant-metadata dt { color: var(--cv-t3); font-size: 11px; margin-bottom: 4px; }
+.grant-metadata dd { margin: 0; color: var(--cv-t1); }

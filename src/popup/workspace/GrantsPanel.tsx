@@ -1,3 +1,7 @@
+import { EntryIcon } from '../components/EntryIcon';
+import { PopupIcon } from '../components/PopupIcon';
+import { FilterSelect } from '../components/FilterSelect';
+import { RefreshButton } from '../components/RefreshButton';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { WorkspaceError } from './WorkspaceError';
 import { useEffect, useRef, useState } from 'react';
@@ -206,6 +210,7 @@ export function GrantsPanel({
           entry.vaultId === selected.vaultId,
       )
     : null;
+  const selectedVaultName = entry?.vaultName ?? entries.find(item => item.vaultId === selected?.vaultId)?.vaultName ?? selected?.vaultName;
   return (
     <section
       className="workspace-panel grants-panel"
@@ -216,7 +221,7 @@ export function GrantsPanel({
           <h2>{t('workspace.grants')}</h2>
           <p>{t('grant.subtitle')}</p>
         </div>
-        <select
+        <FilterSelect
           aria-label={t('grant.filter')}
           value={status}
           disabled={busy}
@@ -228,10 +233,8 @@ export function GrantsPanel({
               {t(key)}
             </option>
           ))}
-        </select>
-        <Button variant="accent" disabled={busy} onClick={() => void load()}>
-          {t('workspace.refresh')}
-        </Button>
+        </FilterSelect>
+        <RefreshButton busy={busy} onClick={() => void load()} />
       </div>
       {error ? <WorkspaceError error={error} /> : null}
       <div className="grants-layout">
@@ -283,13 +286,28 @@ export function GrantsPanel({
         </div>
         {selected ? (
           <div className="grant-detail">
-            <div className="grant-detail-heading"><AgentIcon iconKey={selected.agentIconKey} /><h3>{selected.agentName ?? t('grant.agent')}</h3></div>
-            <p>{entry?.name ?? selected.entryLabel ?? t('grant.entry')}</p>
+            <div className="detail-heading grant-detail-heading">
+              {entry ? <EntryIcon name={entry.name} type={entry.type} {...(entry.icon ? { icon: entry.icon } : {})} {...(entry.color ? { color: entry.color } : {})} /> : <span className="grant-avatar"><PopupIcon name={selected.type === 'full' ? 'vault' : 'key'} /></span>}
+              <div className="detail-identity"><h3>{entry?.name ?? selected.entryLabel ?? (selected.type === 'full' ? t('grant.wholeVault') : t('grant.entry'))}</h3>
+                <p><PopupIcon name="vault" />{selectedVaultName ?? shortId(selected.vaultId)}</p>
+              </div>
+            </div>
+            <div className="grant-agent-line"><AgentIcon iconKey={selected.agentIconKey} /><strong>{selected.agentName ?? t('grant.agent')}</strong>
+              <span className="grant-status" data-pending={selected.status === 'pending'}>{states[selected.status] ? t(states[selected.status]!) : selected.status}</span>
+            </div>
             {selected.encryptedReason ? (
-              <p className="grant-reason">
-                {accessReason ?? review?.reason ?? t(reasonLoading ? 'workspace.loading' : 'grant.reasonUnavailable')}{!accessReason && !review?.reason && !reasonLoading && reasonFailure ? ` [${reasonFailure}]` : ''}
-              </p>
+              <section className="grant-purpose" aria-label={t('grant.encryptedReason')}>
+                <h4><PopupIcon name="lock" />{t('grant.encryptedReason')}</h4>
+                <p>{accessReason ?? review?.reason ?? t(reasonLoading ? 'workspace.loading' : 'grant.reasonUnavailable')}{!accessReason && !review?.reason && !reasonLoading && reasonFailure ? ` [${reasonFailure}]` : ''}</p>
+              </section>
             ) : null}
+            <dl className="grant-metadata">
+              <div><dt>{t('grant.requestedAt')}</dt><dd>{new Date(selected.createdAt).toLocaleString(locale)}</dd></div>
+              {selected.createdBy ? <>
+                <div><dt>{t('grant.grantedBy')}</dt><dd>{selected.createdByName ?? shortId(selected.createdBy)}</dd></div>
+                <div><dt>{t('grant.grantedAt')}</dt><dd>{selected.grantedAt ? new Date(selected.grantedAt).toLocaleString(locale) : t('grant.dateUnavailable')}</dd></div>
+              </> : null}
+            </dl>
             {selected.status === 'pending' ? (
               <form
                 className="workspace-form"

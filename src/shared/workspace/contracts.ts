@@ -21,6 +21,7 @@ export interface OrgGrant {
     isScript: boolean;
   }[];
   createdAt: string;
+  grantedAt?: string | null;
   canRevoke: boolean;
   canGrantAgain: boolean;
   activeCoveringGrantIds: string[];

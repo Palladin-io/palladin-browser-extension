@@ -1,11 +1,12 @@
 import {
-  Shield, Layers, Hourglass, CircleX, Trash2, UserPlus,
+  RefreshCw, Shield, Layers, Hourglass, CircleX, Trash2, UserPlus,
   ExternalLink, ArrowLeft, Share2, Bot, Check, ChevronRight, CodeXml,
   Copy, CreditCard, Dice5, Eye, EyeOff, History, KeyRound,
   LockKeyhole, LogOut, PanelRight, Pencil, Plus, Settings, TerminalSquare,
 } from 'lucide-react';
 
 const icons = {
+  refresh: RefreshCw,
   vault: Shield,
   vaults: Layers,
   pending: Hourglass,

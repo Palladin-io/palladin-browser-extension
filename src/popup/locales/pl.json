@@ -520,5 +520,11 @@
   "audit.event.org.member-removed": "Usunięto członka",
   "audit.event.audit.export.requested": "Zlecono eksport logów",
   "workspace.reload": "Przeładuj Palladin na chrome://extensions, aby dokończyć aktualizację rozszerzenia.",
-  "share.unavailableEntry": "Niedostępny wpis"
+  "share.unavailableEntry": "Niedostępny wpis",
+  "grant.encryptedReason": "Zaszyfrowane uzasadnienie prośby",
+  "grant.requestedAt": "Utworzono",
+  "grant.grantedBy": "Dostęp przyznał(a)",
+  "grant.grantedAt": "Data przyznania dostępu",
+  "grant.dateUnavailable": "Nie zapisano dla tego grantu",
+  "grant.wholeVault": "Cały sejf"
 }

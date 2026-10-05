@@ -1,3 +1,4 @@
+import { RefreshButton } from '../components/RefreshButton';
 import { useEffect, useRef, useState } from 'react';
 import type { EntryMetadata } from '../../background/vault/entry-metadata';
 import type { WorkspaceResults } from '../../shared/workspace/commands';
@@ -57,7 +58,7 @@ export function SharingOverview({ client, vaultClient, entries }: {
     onClose={() => { setSelected(null); setCreating(false); void load(); }} />;
   return <section className="workspace-panel sharing-panel" aria-label={t('workspace.shares')}>
     <div className="workspace-heading"><div><h2>{t('workspace.shares')}</h2><p>{t('share.existing')}</p></div>
-      <Button variant="accent" onClick={() => void load()} disabled={loading}>{t('workspace.refresh')}</Button>
+      <RefreshButton busy={loading} onClick={() => void load()} />
       <Button onClick={() => setCreating(true)}>{t('share.create')}</Button>
     </div>
     {error ? <WorkspaceError error={error} /> : null}
