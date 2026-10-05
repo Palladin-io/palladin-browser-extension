@@ -7,12 +7,15 @@ import { startInlineAutofill } from './inline-autofill';
 import type { FillField, InlineAutofillCommand } from '@shared/messaging';
 
 const specimen = readFileSync('tests/fixtures/forms/livekid-login-2026-10-04/page.html', 'utf8');
+declare const jsdom: { reconfigure(options: { url: string }): void };
 const fields: FillField[] = [
   { kind: 'username', value: 'fixture@example.test' },
   { kind: 'password', value: 'fixture-password' },
 ];
-function mount() {
-  document.body.innerHTML = specimen;
+function mount(localized = false) {
+  // Synthetic Polish captions on the observed English DOM; not a captured PL specimen.
+  document.body.innerHTML = localized ? specimen.replace('Other login methods', 'Inne metody logowania')
+    .replace('Sign in', 'Zaloguj się') : specimen;
   return {
     username: document.querySelector<HTMLInputElement>('input[name="mail"]')!,
     password: document.querySelector<HTMLInputElement>('input[name="password"]')!,
@@ -21,6 +24,32 @@ function mount() {
 afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); });
 
 describe('observed LiveKid login specimen', () => {
+  it('detects the pair without depending on English alternative-login captions', () => {
+    const { username, password } = mount(true);
+    expect(loginTargetFor(username)).toMatchObject({ username, password });
+  });
+
+  it.each(['http://app.livekid.com/', 'https://other.livekid.com/', 'https://example.test/'])(
+    'does not recognize the structural exception at %s', (url) => {
+      const { username } = mount(true);
+      jsdom.reconfigure({ url });
+      try { expect(loginTargetFor(username)).toBeNull(); }
+      finally { jsdom.reconfigure({ url: 'https://app.livekid.com/' }); }
+    },
+  );
+
+  it.each(['hidden-password', 'new-password', 'second-username', 'foreign-password', 'missing-action'])(
+    'rejects the localized structure after %s', (mutation) => {
+      const { username, password } = mount(true);
+      if (mutation === 'hidden-password') password.hidden = true;
+      if (mutation === 'new-password') password.autocomplete = 'new-password';
+      if (mutation === 'second-username') username.after(username.cloneNode());
+      if (mutation === 'foreign-password') document.body.append(password);
+      if (mutation === 'missing-action') document.querySelector('#login-button')!.remove();
+      expect(loginTargetFor(username)).toBeNull();
+    },
+  );
+
   it('detects the form-less pair and fills it through the popup', () => {
     const { username, password } = mount();
     expect(username.form).toBeNull();
@@ -55,7 +84,7 @@ describe('observed LiveKid login specimen', () => {
   });
 
   it('fills one exact-host suggestion once without focus or submitting', async () => {
-    const { username, password } = mount();
+    const { username, password } = mount(true);
     vi.stubGlobal('chrome', { storage: { local: { get: async () => ({}) } }, i18n: { getUILanguage: () => 'en' } });
     const clicked = vi.fn(); const changed = vi.fn();
     document.querySelector('#login-button')!.addEventListener('click', clicked);

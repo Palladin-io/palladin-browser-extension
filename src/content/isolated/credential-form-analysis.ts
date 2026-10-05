@@ -65,7 +65,7 @@ export function loginTargetFor(input: HTMLInputElement): LoginTarget | null {
   if (apple !== undefined) return apple;
   const tomojdom = tomojdomLoginTargetFor(input);
   if (tomojdom !== undefined) return tomojdom;
-  const form = credentialScopeFor(input);
+  const form = credentialScopeFor(input) ?? livekidLoginScopeFor(input);
   if (!form) return null;
   const all = scopeInputs(form);
   // Some signup pages enable their password inputs individually on focus.
@@ -88,6 +88,21 @@ export function loginTargetFor(input: HTMLInputElement): LoginTarget | null {
   }
   if (input !== (username ?? password)) return null;
   return { username, password, form, sourceDocument: input.ownerDocument };
+}
+
+// LiveKid's login action is a DIV, while only its alternative-method button
+// matches generic action captions in English. Bind the observed structure instead.
+function livekidLoginScopeFor(input: HTMLInputElement): HTMLElement | null {
+  if (input.ownerDocument.location.origin !== 'https://app.livekid.com' || input.form !== null) return null;
+  const scope = input.closest<HTMLElement>('.pre-login-view.login[data-testid="login-form"] .pre-login-container');
+  if (scope === null) return null;
+  const username = scope.querySelector<HTMLInputElement>('input[name="mail"][type="text"][autocomplete="username"]');
+  const password = scope.querySelector<HTMLInputElement>('input[name="password"][type="password"]');
+  const action = scope.querySelector('div#login-button[data-testid="login-button"]');
+  if (input !== username || username === null || password === null || action === null
+    || password.form !== null || !isFillable(username) || !isFillable(password)
+    || !isVisibleScopeHint(action)) return null;
+  return scope;
 }
 
 function tomojdomLoginTargetFor(input: HTMLInputElement): LoginTarget | null | undefined {

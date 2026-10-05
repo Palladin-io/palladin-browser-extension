@@ -204,6 +204,7 @@ export function performBoundFill(
   currentUrl: string,
   currentDocumentId: string,
   loginTarget: LoginTarget | null = null,
+  beforeUntargetedManualFill?: () => void,
 ): FillOutcome {
   if (currentDocumentId !== message.documentId
     || (loginTarget !== null && loginTarget.sourceDocument !== doc)) {
@@ -219,6 +220,11 @@ export function performBoundFill(
   }
   if (message.expectedDomain !== null && !matchesTab(currentUrl, message.expectedDomain)) {
     return { ok: false, reason: "target-changed" };
+  }
+  // Popup credential fills omit intent; that field belongs to inline targets only.
+  if (message.loginTargetId === null
+    && message.fields.some(field => field.kind === 'username' || field.kind === 'password')) {
+    beforeUntargetedManualFill?.();
   }
   const automaticEmpty = loginTarget !== null && [loginTarget.username, loginTarget.password]
     .every(input => input === null || input.value === '');
@@ -259,7 +265,13 @@ export function submitLoginForm(input: HTMLInputElement, target?: LoginTarget): 
     (action instanceof HTMLButtonElement || action instanceof HTMLInputElement)
     && (action.type === 'submit' || action.type === 'button')
     && !action.matches(':disabled, [aria-disabled="true"]') && isVisibleScopeHint(action)
-    && credentialScopeFor(action) === scope);
+    // Tomojdom binds both stages to the outer panel; submit only the button in
+    // the observed password block, never another action elsewhere in the panel.
+    && (target?.accountIdentity !== undefined && target.password !== null
+      && scope.ownerDocument.location.origin === 'https://tomojdom.pl'
+      ? action.form === null && action.parentElement === target.password.parentElement
+        && action.matches('button.btn.btn-block.btn-primary')
+      : credentialScopeFor(action) === scope));
   const submits = nativeForm === null ? [] : actions.filter(action => action.type === 'submit');
   const eligible = submits.length > 0 ? submits : actions.filter(hasLoginActionLabel);
   if (eligible.length !== 1) return false;
