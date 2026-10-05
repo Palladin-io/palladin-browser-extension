@@ -4,7 +4,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { loginTargetFor, performBoundFill, performFill, performLoginTargetFill, submitFilledLoginTarget } from "./fill";
 import { startInlineAutofill } from "./inline-autofill";
-import type { FillField, InlineAutofillCommand } from "@shared/messaging";
+import { isFillRequestMessage, type FillField, type InlineAutofillCommand } from "@shared/messaging";
 import { readFileSync } from "node:fs";
 
 declare const jsdom: { reconfigure(options: { url: string }): void };
@@ -103,10 +103,11 @@ describe("tomojdom staged form-less login", () => {
         if (variant.startsWith('popup-')) {
           const popupChoice = { channel: 'palladin.fill/request' as const, documentId: 'a'.repeat(32),
             expectedOrigin: 'https://tomojdom.pl', expectedDomain: 'tomojdom.pl', loginTargetId: null,
-            intent: 'manual' as const, submit: false,
+            submit: false,
             fields: [fields[0]!, { kind: 'password' as const, value: 'explicit-other-entry-password' }] };
           if (variant === 'popup-wrong-document') popupChoice.documentId = 'wrong-document';
           if (variant === 'popup-wrong-origin') popupChoice.expectedOrigin = 'https://other.tomojdom.pl';
+          expect(isFillRequestMessage(popupChoice)).toBe(true);
           expect(subject.performFillRequest(popupChoice)).toEqual(variant === 'popup-choice'
             ? { ok: true } : { ok: false, reason: 'target-changed' });
           expect(username.value).toBe('12345678');

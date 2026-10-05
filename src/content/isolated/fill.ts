@@ -221,7 +221,11 @@ export function performBoundFill(
   if (message.expectedDomain !== null && !matchesTab(currentUrl, message.expectedDomain)) {
     return { ok: false, reason: "target-changed" };
   }
-  if (message.intent === 'manual' && message.loginTargetId === null) beforeUntargetedManualFill?.();
+  // Popup credential fills omit intent; that field belongs to inline targets only.
+  if (message.loginTargetId === null
+    && message.fields.some(field => field.kind === 'username' || field.kind === 'password')) {
+    beforeUntargetedManualFill?.();
+  }
   const automaticEmpty = loginTarget !== null && [loginTarget.username, loginTarget.password]
     .every(input => input === null || input.value === '');
   if (loginTarget && message.intent === 'manual') discardAutomaticFillProvenance(loginTarget);
