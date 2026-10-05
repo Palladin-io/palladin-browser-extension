@@ -330,10 +330,14 @@ class InlineAutofillController {
 
   performFillRequest(request: FillRequestMessage): FillOutcome {
     const target = request.loginTargetId === null ? null : this.resolveLoginTarget(request.loginTargetId);
-    return performBoundFill(this.doc, request, this.doc.location.href, this.documentId, target, () => {
+    const outcome = performBoundFill(this.doc, request, this.doc.location.href, this.documentId, target, () => {
       this.continuation = null;
       for (const widget of this.widgets.values()) widget.cancelAutomaticFill();
     });
+    if (outcome.ok && target !== null && request.intent === 'automatic') {
+      for (const widget of this.widgets.values()) widget.acknowledgeAutomaticFill(request.loginTargetId!, target);
+    }
+    return outcome;
   }
 
   handleSessionChanged(status: SessionStatus): void {
@@ -525,6 +529,7 @@ interface PendingInlineFill {
   readonly target: LoginTarget;
   readonly url: string;
   readonly manual: boolean;
+  readonly entry: InlineAutofillSuggestion;
   initialValues: string | null;
 }
 
@@ -574,6 +579,15 @@ class InlineWidget {
     if (this.destroyed || this.options.doc.location.href !== pending.url
       || !isCurrentLoginTarget(pending.target) || loginValueSnapshot(pending.target) !== initialValues) return null;
     return pending.target;
+  }
+
+  acknowledgeAutomaticFill(id: string, target: LoginTarget): void {
+    const pending = this.pendingFill;
+    if (!pending || pending.id !== id || pending.target !== target || pending.manual
+      || pending.initialValues !== null || this.destroyed || this.options.doc.location.href !== pending.url) return;
+    // The DOM write is confirmed locally before a stage change can destroy this widget.
+    this.automaticFillCompleted = true;
+    this.options.onAutomaticFill(pending.entry);
   }
 
   private invalidatePendingFill(): void {
@@ -779,10 +793,6 @@ class InlineWidget {
           && entry.vaultId === continuation.vaultId && entry.username === continuation.username)));
       if (preferredExact !== undefined) {
         this.automaticFillCompleted = await this.fill(preferredExact, false, true);
-        if (this.automaticFillCompleted && continuation === undefined
-          && generation === this.sessionGeneration && this.options.doc.location.href === url) {
-          this.options.onAutomaticFill(preferredExact);
-        }
       }
     } finally {
       this.automaticFillInFlight = false;
@@ -984,6 +994,7 @@ class InlineWidget {
       target: { ...this.options.loginTarget },
       url: this.options.doc.location.href,
       manual: !silent,
+      entry,
       initialValues: loginValueSnapshot(this.options.loginTarget),
     };
     this.pendingFill = operation;

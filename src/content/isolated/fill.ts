@@ -126,6 +126,11 @@ export function performLoginTargetFill(
   const controls = fields.flatMap(field => field.kind === "username" && target.username !== null
     ? [{ input: target.username, value: field.value }]
     : field.kind === "password" && target.password !== null ? [{ input: target.password, value: field.value }] : []);
+  const deferredPassword = intent === 'automatic' && target.password === null && target.username?.value === ''
+    && target.sourceDocument.location.origin === 'https://tomojdom.pl'
+    ? target.form.querySelector<HTMLInputElement>('input[type="password"][autocomplete="current-password"]') : null;
+  const deferredParent = deferredPassword?.parentElement ?? null;
+  const initialUrl = target.sourceDocument.location.href;
   const initial = new Map([target.username, target.password].filter((input): input is HTMLInputElement => input !== null)
     .map(input => [input, input.value] as const));
   const expected = (input: HTMLInputElement) => controls.find(control => control.input === input)?.value;
@@ -152,8 +157,23 @@ export function performLoginTargetFill(
     if (control.input.value !== control.value) setFieldValue(control.input, control.value);
     completed.push(control);
   }
-  if (!compatible() || !completed.every(control => control.input.value === control.value)) {
+  if (!completed.every(control => control.input.value === control.value)) {
     return { ok: false, reason: "no-form" };
+  }
+  if (!compatible()) {
+    // Tomojdom reveals the pre-existing password during the identifier input event.
+    // Acknowledge only that completed write; the new stage needs its own bound fill.
+    const next = deferredPassword === null ? null : loginTargetFor(deferredPassword);
+    if (controls.length !== 1 || controls[0]!.input !== target.username
+      || deferredPassword === null || deferredParent === null || deferredPassword.parentElement !== deferredParent
+      || next === null || !isCurrentLoginTarget(next)
+      || next.sourceDocument !== target.sourceDocument || next.form !== target.form
+      || target.sourceDocument.location.href !== initialUrl
+      || next.accountIdentity !== target.username || target.username?.value !== expectedAccount
+      || next.password !== deferredPassword || deferredPassword.value !== '') {
+      return { ok: false, reason: "no-form" };
+    }
+    return { ok: true };
   }
   rememberFill(target);
   return { ok: true };
