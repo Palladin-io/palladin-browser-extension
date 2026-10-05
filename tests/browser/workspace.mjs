@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { chromium } from 'playwright';
-import { createCaptureApi } from './capture-api.mjs';
+import { createCaptureApi, allowCaptureApi } from './capture-api.mjs';
 import { openNativePopup } from './native-popup.mjs';
 import { cacheBustContentLoaders } from '../../scripts/cache-bust-content-loaders.mjs';
 import { validateBuiltManifest } from '../../scripts/validate-built-manifest.mjs';
@@ -46,6 +46,7 @@ try {
     env: { ...process.env, PALLADIN_TARGET: 'chromium', PALLADIN_CHANNEL: 'production', VITE_API_URL: api.url, VITE_WEB_APP_URL: 'https://web.example.test', VITE_POSTHOG_KEY: '' }, maxBuffer: 4 * 1024 * 1024,
   });
   cacheBustContentLoaders(profile, 'chromium'); validateBuiltManifest(profile, 'chromium');
+  await allowCaptureApi(extension, api.url);
   context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: true, viewport: { width: 1200, height: 850 }, args: ['--window-size=1280,900', `--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--remote-debugging-port=0'] });
   const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
   const extensionId = new URL(worker.url()).host;
@@ -57,6 +58,8 @@ try {
   assert((await popup.viewportSize()).width <= 440, 'Onboarding should use the compact popup');
   await popup.click('Continue to Palladin');
   await popup.waitButton('Sign in');
+  assert.equal((await popup.configureConnection({ name: 'Synthetic workspace API', apiUrl: api.url,
+    webUrl: api.url, allowHttp: true, sharedUnlockEnabled: false })).ok, true);
   const brand = await popup.brandTypography();
   assert(brand.family.startsWith('Inter') && brand.loaded, 'Auth wordmark must render the bundled web Inter font');
   assert.equal(brand.weight, '800');

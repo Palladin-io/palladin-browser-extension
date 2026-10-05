@@ -218,6 +218,7 @@
   "capture.description": "Generate and fill a strong password for {site}, then choose whether to save it.",
   "capture.useStrong": "Use strong password",
   "capture.notNow": "Not now",
+  "generator.readyValues": "Ready to use",
   "generator.type": "Generator type",
   "generator.password": "Password",
   "generator.passphrase": "Passphrase",

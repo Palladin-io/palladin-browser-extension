@@ -5,7 +5,7 @@ import { useState } from 'react';
 import type { EntryMetadata } from '../../background/vault/entry-metadata';
 import type { VaultClient } from '../vault/client';
 import { useI18n } from '../i18n';
-import { entryDeepLink } from '@shared/config/web-app';
+import { configuredPanelUrl } from '@shared/config/web-app';
 import { fillMessage } from '../vault/messages';
 import { EntryIcon } from './EntryIcon';
 import { Button } from './Button';
@@ -102,9 +102,8 @@ export function EntryDetail({
       <button
         className="detail-link"
         onClick={() =>
-          void chrome.tabs.create({
-            url: entryDeepLink(entry.vaultId, entry.id),
-          })
+          void configuredPanelUrl(`/vaults/${encodeURIComponent(entry.vaultId)}/entries/${encodeURIComponent(entry.id)}`)
+            .then(url => chrome.tabs.create({ url })).catch(() => {})
         }
       >
         <PopupIcon name="edit" />

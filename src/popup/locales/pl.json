@@ -218,6 +218,7 @@
   "capture.description": "Wygeneruj i wypełnij silne hasło dla {site}, a następnie zdecyduj, czy je zapisać.",
   "capture.useStrong": "Użyj silnego hasła",
   "capture.notNow": "Nie teraz",
+  "generator.readyValues": "Gotowe do użycia",
   "generator.type": "Typ generatora",
   "generator.password": "Hasło",
   "generator.passphrase": "Fraza hasłowa",

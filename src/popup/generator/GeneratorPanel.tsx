@@ -52,9 +52,9 @@ export function GeneratorPanel({
         : generatePassphrase({ words, separator, capitalize, includeNumber }),
     [capitalize, digits, includeNumber, length, mode, separator, symbols, words],
   );
-  const [value, setValue] = useState(() =>
-    generatePassword({ length: PASSWORD_DEFAULT_LENGTH, digits: true, symbols: true }),
-  );
+  const [candidates, setCandidates] = useState(() => Array.from({ length: 8 }, makeValue));
+  const [selected, setSelected] = useState(0);
+  const value = candidates[selected]!;
   const [status, setStatus] = useState<ActionStatus>("idle");
   const [saveReady, setSaveReady] = useState(false);
   const [suggestions, setSuggestions] = useState(true);
@@ -69,19 +69,17 @@ export function GeneratorPanel({
     return () => { mounted.current = false; };
   }, []);
 
-  function regenerate(nextMode = mode): void {
+  const regenerate = useCallback(() => {
+    setCandidates(Array.from({ length: 8 }, makeValue));
+    setSelected(0);
     setStatus("idle");
     setSaveReady(false);
-    setValue(
-      nextMode === "password"
-        ? generatePassword({ length, digits, symbols })
-        : generatePassphrase({ words, separator, capitalize, includeNumber }),
-    );
-  }
+  }, [makeValue]);
+
+  useEffect(regenerate, [regenerate]);
 
   function changeMode(nextMode: GeneratorMode): void {
     setMode(nextMode);
-    regenerate(nextMode);
   }
 
   async function copy(): Promise<void> {
@@ -123,7 +121,18 @@ export function GeneratorPanel({
   }
 
   return (
-    <div className="generator">
+    <div className="generator-split">
+      <aside className="generator-candidates" aria-label={t('generator.readyValues')}>
+        <div className="generator-list-heading"><span>{t('generator.readyValues')}</span>
+          <button type="button" className="toolbar-icon" aria-label={t('generator.regenerate')} title={t('generator.regenerate')} onClick={regenerate}><PopupIcon name="refresh" /></button>
+        </div>
+        <div className="generator-candidate-list">
+          {candidates.map((candidate, index) => <button type="button" className="generator-candidate" key={index} aria-pressed={selected === index} onClick={() => {
+            setSelected(index); setStatus('idle'); setSaveReady(false);
+          }}><PopupIcon name="key" /><span>{candidate}</span></button>)}
+        </div>
+      </aside>
+      <section className="generator">
       <div className="generator-heading"><h2>{t("vault.generatorTab")}</h2>
       <div className="generator-mode" role="group" aria-label={t("generator.type")}>
         <button type="button" className={mode === "password" ? "generator-mode-active" : ""} onClick={() => changeMode("password")}>{t("generator.password")}</button>
@@ -134,7 +143,6 @@ export function GeneratorPanel({
       <div className="detail-fields generator-result">
         <output className="generator-output" aria-label={t("generator.generatedValue")}>{value}</output>
         <div className="generator-result-actions">
-          <button type="button" className="toolbar-icon" aria-label={t('generator.regenerate')} title={t('generator.regenerate')} onClick={() => { setValue(makeValue()); setStatus('idle'); setSaveReady(false); }}><PopupIcon name="refresh" /></button>
           {clipboardCopyAvailable ? <button type="button" className="toolbar-icon" aria-label={t('common.copy')} title={t('common.copy')} onClick={copy}><PopupIcon name="copy" /></button> : null}
         </div>
       </div>
@@ -185,6 +193,7 @@ export function GeneratorPanel({
           ? t("generator.captureNote", { site: capture.site })
           : t("generator.memoryNote")}
       </p>
+      </section>
     </div>
   );
 }
