@@ -251,7 +251,6 @@ describe("popup state machine", () => {
     await user.click(screen.getByRole("button", { name: "Server URL" }));
     await user.clear(await screen.findByLabelText("Server URL"));
     await user.type(screen.getByLabelText("Server URL"), "https://self-host.example.com");
-    await user.type(screen.getByLabelText("Connection name"), "Test connection");
     await user.type(screen.getByLabelText("Panel URL"), "https://panel.example.test");
     await user.click(screen.getByRole("button", { name: "Save and activate" }));
     await waitFor(() => expect(client.getStatus).toHaveBeenCalledTimes(2));

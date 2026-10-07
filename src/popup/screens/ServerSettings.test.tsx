@@ -13,7 +13,7 @@ function client(): ConnectionClient {
 }
 async function fill() {
   const user = userEvent.setup();
-  await user.type(await screen.findByLabelText('Connection name'), 'My server');
+  await waitFor(() => expect(screen.getByLabelText('Panel URL')).toBeEnabled());
   await user.type(screen.getByLabelText('Panel URL'), 'https://panel.example.test');
   return user;
 }
@@ -23,8 +23,11 @@ describe('connection settings', () => {
     render(<ServerSettings connectionsClient={c} onChanged={onChanged} />);
     const user = await fill();
     await user.click(screen.getByRole('button', { name: 'Save and activate' }));
-    await waitFor(() => expect(c.save).toHaveBeenCalledWith({ name: 'My server', apiUrl: 'https://api.example.test', webUrl: 'https://panel.example.test', allowHttp: false, sharedUnlockEnabled: true }));
+    await waitFor(() => expect(c.save).toHaveBeenCalledWith({ name: 'https://panel.example.test', apiUrl: 'https://api.example.test', webUrl: 'https://panel.example.test', allowHttp: false, sharedUnlockEnabled: true }));
     expect(onChanged).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Connection name')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
   it('restores a complete production pair that can be saved', async () => {
     const c = client(); render(<ServerSettings connectionsClient={c} onChanged={vi.fn()} />);
@@ -32,7 +35,7 @@ describe('connection settings', () => {
     await user.click(screen.getByRole('button', { name: 'Use production' }));
     expect(screen.getByRole('button', { name: 'Save and activate' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Save and activate' }));
-    expect(c.save).toHaveBeenCalledWith({ name: 'Palladin', apiUrl: 'https://api.palladin.io',
+    expect(c.save).toHaveBeenCalledWith({ name: 'https://palladin.io', apiUrl: 'https://api.palladin.io',
       webUrl: 'https://palladin.io', allowHttp: false, sharedUnlockEnabled: true });
   });
   it('requires HTTP consent and resets it when either address changes', async () => {

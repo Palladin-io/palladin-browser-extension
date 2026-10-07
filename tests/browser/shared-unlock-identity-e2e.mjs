@@ -377,7 +377,6 @@ try {
   await popup.click('Continue to Palladin')
   await popup.click('Settings')
   await popup.click('Server URL')
-  await popup.fill('.server-settings-form input:not([type])', 'Isolated Identity fixture')
   await popup.fill('input[autocomplete="url"]', apiUrl, { replace: true })
   await popup.fill('.server-settings-form input[type="url"]:not([autocomplete])', webOrigin)
   assert.deepEqual(await popup.connectionFormState(), { sharedUnlock: true, allowHttp: false, saveDisabled: true })

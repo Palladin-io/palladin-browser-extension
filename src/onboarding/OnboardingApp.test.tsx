@@ -120,7 +120,6 @@ describe("full-page extension onboarding", () => {
     const input = await screen.findByLabelText("Server URL");
     await user.clear(input);
     await user.type(input, "https://vault.example.com/api/");
-    await user.type(screen.getByLabelText("Connection name"), "Self hosted");
     await user.type(screen.getByLabelText("Panel URL"), "https://panel.example.com");
     await user.click(screen.getByRole("button", { name: "Save and activate" }));
 
