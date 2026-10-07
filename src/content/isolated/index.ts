@@ -137,8 +137,8 @@ const liveLogin = new LiveLogin(document, documentId, () => window.location.href
 if (extensionBuildTarget === "firefox" && window === window.top && location.protocol === "https:") {
   startLegacyFirefoxFill(window, documentId, () => chrome.runtime.connect({ name: FIREFOX_LEGACY_FILL_PORT }),
     () => { void chrome.runtime.lastError; }, request => {
-      const loginTarget = request.loginTargetId === null ? null : inlineAutofill?.resolveLoginTarget(request.loginTargetId) ?? null;
-      return performBoundFill(document, request, window.location.href, documentId, loginTarget);
+      return inlineAutofill?.performFillRequest(request)
+        ?? performBoundFill(document, request, window.location.href, documentId);
     }, () => inlineAutofill?.retryAutomaticFill());
 }
 
@@ -180,11 +180,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === "surface/vault-changed") {
       inlineAutofill?.handleVaultChanged();
     } else {
-      inlineAutofill?.invalidateSuggestions();
-      if (message.status !== "unlocked") { inlineAutofill?.clearSessionState(); generatorSuggestion?.hide(); }
-    }
-    if (message.type === "surface/session-changed" && message.status === "unlocked") {
-      inlineAutofill?.retryAutomaticFill();
+      inlineAutofill?.handleSessionChanged(message.status);
+      if (message.status !== "unlocked") generatorSuggestion?.hide();
     }
     if (message.type === "surface/session-changed") void credentialCapture?.refresh();
     return undefined;
@@ -233,16 +230,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     sendResponse({ ok: false, reason: 'target-changed' } satisfies FillOutcome);
     return undefined;
   }
-  const loginTarget = message.loginTargetId === null
-    ? null
-    : inlineAutofill?.resolveLoginTarget(message.loginTargetId) ?? null;
-  const outcome: FillOutcome = performBoundFill(
-    document,
-    message,
-    window.location.href,
-    documentId,
-    loginTarget,
-  );
+  const outcome: FillOutcome = inlineAutofill?.performFillRequest(message)
+    ?? performBoundFill(document, message, window.location.href, documentId);
   sendResponse(outcome);
   return undefined;
 });

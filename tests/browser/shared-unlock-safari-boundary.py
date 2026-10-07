@@ -151,11 +151,19 @@ void (async () => {
   const response = await browser.runtime.sendMessage({ type: 'session/status' });
   const connection = { name: 'Synthetic Safari boundary', apiUrl: 'http://127.0.0.1:55083',
     webUrl: 'http://127.0.0.1:55189', allowHttp: true, sharedUnlockEnabled: true };
-  const saved = await browser.runtime.sendMessage({ type: 'config/connections/save', connection });
+  // Reopened product popups must not race React session/status with another mutation.
+  // Read the authoritative connection instead of retaining a harness-only setup flag.
+  const existing = await browser.runtime.sendMessage({ type: 'config/connections/get' });
+  if (existing?.ok !== true) throw new Error('Synthetic connection read failed');
+  const alreadyConfigured = existing.apiUrl === connection.apiUrl
+    && existing.state?.connections?.some(item => Object.keys(connection).every(key => item[key] === connection[key]));
+  const saved = alreadyConfigured ? existing
+    : await browser.runtime.sendMessage({ type: 'config/connections/save', connection });
   const configured = saved?.ok === true && saved.state?.connections?.some(item =>
     Object.keys(connection).every(key => item[key] === connection[key]));
   const hostPermission = await browser.permissions.contains({ origins: ["http://127.0.0.1/*"] });
-  globalThis.syntheticPopupObservation = { sender, configured, saveCode: saved?.code, hostPermission,
+  globalThis.syntheticPopupObservation = { sender, configured, configurationWritten: !alreadyConfigured,
+    saveCode: saved?.code, hostPermission,
     signedOut: response?.ok === true && response.status === 'signed-out',
     actualPopupUrl: location.href === browser.runtime.getURL('src/popup/index.html') };
 })().catch(() => { globalThis.syntheticPopupObservation = { observationFailed: true }; });
@@ -479,6 +487,7 @@ def run_product_channel(extension_id, diagnostic_handle, web_handle):
     ''', 'args': []})
     observations['nativeProductPopup'] = own_realm
     assert own_realm.get('signedOut') is True and own_realm.get('actualPopupUrl') is True
+    assert own_realm.get('configured') is True and own_realm.get('configurationWritten') is False
     assert own_realm['sender']['hasTab'] is False and own_realm['sender']['url'] == popup_url
     assert own_realm['sender']['id'] == extension_id
     checks.append('native-popup-reaches-unchanged-private-command-guard')
@@ -491,6 +500,10 @@ def run_product_channel(extension_id, diagnostic_handle, web_handle):
     stage = 'native-popup-reopen-preserves-onboarding-choice'
     try:
         popup.fresh()
+        popup.wait(lambda: popup.read('return !!popup?.syntheticPopupObservation && popup.syntheticPopupObservation.pending !== true'), 'reopened Popup observation')
+        reopened = popup.read('return popup?.syntheticPopupObservation ?? null')
+        observations['reopenedNativePopup'] = reopened
+        assert reopened.get('configured') is True and reopened.get('configurationWritten') is False
         popup.wait_button('Sign in')
         assert popup.has_text('Continue to Palladin') is False
     finally:

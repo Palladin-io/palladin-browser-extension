@@ -126,6 +126,11 @@ export function performLoginTargetFill(
   const controls = fields.flatMap(field => field.kind === "username" && target.username !== null
     ? [{ input: target.username, value: field.value }]
     : field.kind === "password" && target.password !== null ? [{ input: target.password, value: field.value }] : []);
+  const deferredPassword = intent === 'automatic' && target.password === null && target.username?.value === ''
+    && target.sourceDocument.location.origin === 'https://tomojdom.pl'
+    ? target.form.querySelector<HTMLInputElement>('input[type="password"][autocomplete="current-password"]') : null;
+  const deferredParent = deferredPassword?.parentElement ?? null;
+  const initialUrl = target.sourceDocument.location.href;
   const initial = new Map([target.username, target.password].filter((input): input is HTMLInputElement => input !== null)
     .map(input => [input, input.value] as const));
   const expected = (input: HTMLInputElement) => controls.find(control => control.input === input)?.value;
@@ -152,8 +157,23 @@ export function performLoginTargetFill(
     if (control.input.value !== control.value) setFieldValue(control.input, control.value);
     completed.push(control);
   }
-  if (!compatible() || !completed.every(control => control.input.value === control.value)) {
+  if (!completed.every(control => control.input.value === control.value)) {
     return { ok: false, reason: "no-form" };
+  }
+  if (!compatible()) {
+    // Tomojdom reveals the pre-existing password during the identifier input event.
+    // Acknowledge only that completed write; the new stage needs its own bound fill.
+    const next = deferredPassword === null ? null : loginTargetFor(deferredPassword);
+    if (controls.length !== 1 || controls[0]!.input !== target.username
+      || deferredPassword === null || deferredParent === null || deferredPassword.parentElement !== deferredParent
+      || next === null || !isCurrentLoginTarget(next)
+      || next.sourceDocument !== target.sourceDocument || next.form !== target.form
+      || target.sourceDocument.location.href !== initialUrl
+      || next.accountIdentity !== target.username || target.username?.value !== expectedAccount
+      || next.password !== deferredPassword || deferredPassword.value !== '') {
+      return { ok: false, reason: "no-form" };
+    }
+    return { ok: true };
   }
   rememberFill(target);
   return { ok: true };
@@ -204,6 +224,7 @@ export function performBoundFill(
   currentUrl: string,
   currentDocumentId: string,
   loginTarget: LoginTarget | null = null,
+  beforeUntargetedManualFill?: () => void,
 ): FillOutcome {
   if (currentDocumentId !== message.documentId
     || (loginTarget !== null && loginTarget.sourceDocument !== doc)) {
@@ -219,6 +240,11 @@ export function performBoundFill(
   }
   if (message.expectedDomain !== null && !matchesTab(currentUrl, message.expectedDomain)) {
     return { ok: false, reason: "target-changed" };
+  }
+  // Popup credential fills omit intent; that field belongs to inline targets only.
+  if (message.loginTargetId === null
+    && message.fields.some(field => field.kind === 'username' || field.kind === 'password')) {
+    beforeUntargetedManualFill?.();
   }
   const automaticEmpty = loginTarget !== null && [loginTarget.username, loginTarget.password]
     .every(input => input === null || input.value === '');
@@ -259,7 +285,13 @@ export function submitLoginForm(input: HTMLInputElement, target?: LoginTarget): 
     (action instanceof HTMLButtonElement || action instanceof HTMLInputElement)
     && (action.type === 'submit' || action.type === 'button')
     && !action.matches(':disabled, [aria-disabled="true"]') && isVisibleScopeHint(action)
-    && credentialScopeFor(action) === scope);
+    // Tomojdom binds both stages to the outer panel; submit only the button in
+    // the observed password block, never another action elsewhere in the panel.
+    && (target?.accountIdentity !== undefined && target.password !== null
+      && scope.ownerDocument.location.origin === 'https://tomojdom.pl'
+      ? action.form === null && action.parentElement === target.password.parentElement
+        && action.matches('button.btn.btn-block.btn-primary')
+      : credentialScopeFor(action) === scope));
   const submits = nativeForm === null ? [] : actions.filter(action => action.type === 'submit');
   const eligible = submits.length > 0 ? submits : actions.filter(hasLoginActionLabel);
   if (eligible.length !== 1) return false;

@@ -25,7 +25,9 @@ const aws = await readFile('tests/fixtures/forms/aws-root-identifier-2026-09-20/
 const jetbrains = await readFile('tests/fixtures/forms/jetbrains-identifier-2026-09-20/page.html', 'utf8');
 const tomojdom = await readFile('tests/fixtures/forms/tomojdom-login-2026-10-04/page.html', 'utf8');
 const tomojdomCss = await readFile('tests/fixtures/forms/tomojdom-login-2026-10-04/page.css', 'utf8');
-const livekid = await readFile('tests/fixtures/forms/livekid-login-2026-10-04/page.html', 'utf8');
+// Synthetic translation counterexample on observed EN DOM; actual PL captions are unverified.
+const livekid = (await readFile('tests/fixtures/forms/livekid-login-2026-10-04/page.html', 'utf8'))
+  .replace('Other login methods', 'Inne metody logowania').replace('Sign in', 'Zaloguj się');
 const tomojdomUsername = '12345678';
 const apple = await readFile('tests/fixtures/forms/apple-idmsa-signin-2026-09-16/page.html', 'utf8');
 try {
@@ -64,6 +66,10 @@ try {
         `<!doctype html><style>body{margin:40px}input{display:block;width:380px;height:40px;margin:12px 0}${tomojdomCss}</style>
         ${host === 'tomojdom.pl' ? tomojdom : livekid}<script>
         globalThis.loginClicks=0;
+        if (${host === 'tomojdom.pl' && url.searchParams.has('immediate')}) {
+          document.querySelector('input[autocomplete="username email"]').addEventListener('input', () =>
+            document.querySelector('input[type="password"]').parentElement.parentElement.classList.remove('d-none'));
+        }
         document.querySelectorAll('#modules button, #modules a, #login-button').forEach(action =>
           action.addEventListener('click', event => { event.preventDefault(); globalThis.loginClicks++; }));
         </script>` });
@@ -139,7 +145,9 @@ try {
   await page.evaluate(() => document.querySelector('input[type="password"]').parentElement.parentElement.classList.remove('d-none'));
   await aligned('input[type="password"]');
   assert.equal(await page.locator('palladin-autofill').count(), 1);
-  assert.equal(await page.locator('input[type="password"]').inputValue(), '');
+  await wait(async () => await page.locator('input[type="password"]').inputValue() === password,
+    'Tomojdom same-entry automatic password continuation');
+  assert.equal(await page.evaluate(() => globalThis.loginClicks), 0);
   await click('Open Palladin suggestions');
   let fillName;
   await wait(async () => {
@@ -150,7 +158,26 @@ try {
   await click(fillName);
   await wait(async () => await page.locator('input[type="password"]').inputValue() === password, 'Tomojdom same-account explicit password fill');
   assert.equal(await page.evaluate(() => globalThis.loginClicks), 0);
-  console.log('PASS: observed LiveKid pair and Tomojdom staged panels fill through built extension without login clicks');
+  await page.reload();
+  // Polish caption observed through Chrome accessibility on the real password stage.
+  await page.evaluate(() => {
+    const action = document.querySelector('input[type="password"]').parentElement.querySelector('button');
+    action.firstChild.textContent = 'Zaloguj hasłem ';
+  });
+  await wait(async () => await page.locator(tomojdomIdentifier).inputValue() === tomojdomUsername, 'Tomojdom second explicit-login scenario');
+  await page.evaluate(() => document.querySelector('input[type="password"]').parentElement.parentElement.classList.remove('d-none'));
+  await aligned('input[type="password"]');
+  await click('Open Palladin suggestions');
+  await click(`Fill and log in: ${tomojdomUsername}`);
+  await wait(async () => await page.evaluate(() => globalThis.loginClicks) === 1, 'Tomojdom explicit password login click');
+  assert.equal(await page.locator('input[type="password"]').inputValue(), password);
+  await page.goto('https://tomojdom.pl/en/?immediate');
+  await wait(async () => await page.locator('input[type="password"]').inputValue() === password,
+    'Tomojdom password revealed during identifier input automatically fills');
+  assert.equal(await page.locator(tomojdomIdentifier).inputValue(), tomojdomUsername);
+  assert.equal(await page.evaluate(() => globalThis.loginClicks), 0);
+  await aligned('input[type="password"]');
+  console.log('PASS: LiveKid localized pair, Tomojdom fill-only and explicit password login action');
   await page.goto('https://account.apple.com/sign-in');
   const appleFrame = page.frameLocator('iframe');
   await wait(async () => await appleFrame.locator('#account_name_text_field').inputValue() === username,

@@ -2,9 +2,9 @@
 // @vitest-environment-options {"url":"https://tomojdom.pl/en/"}
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { loginTargetFor, performBoundFill, performFill, performLoginTargetFill } from "./fill";
+import { loginTargetFor, performBoundFill, performFill, performLoginTargetFill, submitFilledLoginTarget } from "./fill";
 import { startInlineAutofill } from "./inline-autofill";
-import type { FillField } from "@shared/messaging";
+import { isFillRequestMessage, type FillField, type InlineAutofillCommand } from "@shared/messaging";
 import { readFileSync } from "node:fs";
 
 declare const jsdom: { reconfigure(options: { url: string }): void };
@@ -65,6 +65,169 @@ describe("tomojdom staged form-less login", () => {
     } finally { subject.stop(); }
   });
 
+  it.each(['same-account', 'immediate-password-stage', 'delayed-identifier-reply', 'changed-account', 'replaced-username', 'replaced-password', 'replaced-password-during-identifier', 'moved-password', 'replaced-panel', 'navigation', 'reunlock', 'reunlock-pending', 'lock', 'lock-pending', 'different-entry', 'different-suggestion-account', 'related-entry', 'prefilled', 'popup-choice', 'popup-wrong-document', 'popup-wrong-origin'])(
+    'continues automatic identifier fill only for the bound same-account flow: %s', async (variant) => {
+      const { username, password, step, container } = mount();
+      const continues = ['same-account', 'immediate-password-stage', 'delayed-identifier-reply', 'popup-wrong-document', 'popup-wrong-origin'].includes(variant);
+      vi.stubGlobal("chrome", { storage: { local: { get: async () => ({}) } }, i18n: { getUILanguage: () => "en" } });
+      if (variant === 'prefilled') username.value = '12345678';
+      if (variant === 'replaced-password-during-identifier') {
+        username.addEventListener('input', () => password.replaceWith(password.cloneNode()), { once: true });
+      }
+      let passwordStage = false;
+      if (['immediate-password-stage', 'delayed-identifier-reply'].includes(variant)) {
+        username.addEventListener('input', () => { passwordStage = true; step.classList.remove('d-none'); });
+      }
+      const clicked = vi.fn(); container.addEventListener('click', clicked);
+      const send = vi.fn(async (command: InlineAutofillCommand) => {
+        if (command.type === 'inline/list' && passwordStage && variant === 'lock-pending') subject.clearSessionState();
+        if (command.type === 'inline/list' && passwordStage && variant === 'reunlock-pending') subject.handleSessionChanged('unlocked');
+        if (command.type === 'inline/list') return {
+          ok: true, kind: 'suggestions', status: 'ready', entries: [{
+            vaultId: 'v1', entryId: passwordStage && variant === 'different-entry' ? 'e2' : 'e1',
+            name: 'Fixture', username: passwordStage && variant === 'different-suggestion-account' ? '87654321' : '12345678', vaultName: 'Test', urlDomain: 'tomojdom.pl',
+            updatedAt: '2026-10-04T00:00:00Z', match: passwordStage && variant === 'related-entry' ? 'related' : 'exact',
+          }],
+        };
+        if (command.type !== 'inline/fill') throw new Error('Unexpected command');
+        const identifierRequest = !passwordStage;
+        const request = { channel: 'palladin.fill/request' as const, documentId: 'a'.repeat(32),
+          expectedOrigin: 'https://tomojdom.pl', expectedDomain: 'tomojdom.pl',
+          loginTargetId: command.loginTargetId, fields, intent: 'automatic' as const, submit: false };
+        expect(isFillRequestMessage(request)).toBe(true);
+        const result = subject.performFillRequest(request);
+        if (identifierRequest && variant === 'delayed-identifier-reply') {
+          await new Promise(resolve => setTimeout(resolve, 250));
+        }
+        return { ok: true, kind: 'fill', status: result.ok ? 'filled' : 'no-form' };
+      });
+      const subject = startInlineAutofill(document, 'a'.repeat(32), send);
+      try {
+        if (variant !== 'prefilled') await vi.waitFor(() => expect(username.value).toBe('12345678'));
+        // Let the initial worker reply complete before exposing the next stage.
+        await Promise.resolve(); await Promise.resolve();
+        passwordStage = true;
+        if (variant === 'changed-account') username.value = '87654321';
+        if (variant === 'replaced-password') password.replaceWith(password.cloneNode());
+        if (variant === 'moved-password') {
+          const differentBlock = document.createElement('div');
+          step.append(differentBlock); differentBlock.append(password);
+        }
+        if (variant === 'replaced-username') {
+          const replacement = username.cloneNode() as HTMLInputElement;
+          replacement.value = username.value; username.replaceWith(replacement);
+        }
+        if (variant === 'navigation') jsdom.reconfigure({ url: 'https://tomojdom.pl/other-page' });
+        if (variant === 'lock') subject.clearSessionState();
+        if (variant === 'reunlock') subject.handleSessionChanged('unlocked');
+        if (variant.startsWith('popup-')) {
+          const popupChoice = { channel: 'palladin.fill/request' as const, documentId: 'a'.repeat(32),
+            expectedOrigin: 'https://tomojdom.pl', expectedDomain: 'tomojdom.pl', loginTargetId: null,
+            submit: false,
+            fields: [fields[0]!, { kind: 'password' as const, value: 'explicit-other-entry-password' }] };
+          if (variant === 'popup-wrong-document') popupChoice.documentId = 'wrong-document';
+          if (variant === 'popup-wrong-origin') popupChoice.expectedOrigin = 'https://other.tomojdom.pl';
+          expect(isFillRequestMessage(popupChoice)).toBe(true);
+          expect(subject.performFillRequest(popupChoice)).toEqual(variant === 'popup-choice'
+            ? { ok: true } : { ok: false, reason: 'target-changed' });
+          expect(username.value).toBe('12345678');
+        }
+        if (variant === 'replaced-panel') {
+          const replacement = container.cloneNode(false) as HTMLElement;
+          replacement.append(...container.childNodes); container.replaceWith(replacement);
+        }
+        step.classList.remove('d-none');
+        if (continues) await vi.waitFor(() => expect(password.value).toBe('fixture-password'));
+        else await new Promise(resolve => setTimeout(resolve, 160));
+        expect(document.querySelector<HTMLInputElement>('input[type="password"]')!.value)
+          .toBe(continues ? 'fixture-password' : '');
+        subject.retryAutomaticFill();
+        await Promise.resolve();
+        expect(send.mock.calls.filter(([command]) => command.type === 'inline/fill')).toHaveLength(
+          variant === 'prefilled' ? 0 : continues ? 2 : 1,
+        );
+        expect(clicked).not.toHaveBeenCalled();
+      } finally { subject.stop(); jsdom.reconfigure({ url: 'https://tomojdom.pl/en/' }); }
+    },
+  );
+
+  it.each(['account', 'password', 'parent', 'panel', 'navigation'])(
+    'rejects an immediate password stage when input handlers change %s', (change) => {
+      const { username, password, step, container } = mount();
+      const target = loginTargetFor(username)!;
+      username.addEventListener('input', () => {
+        step.classList.remove('d-none');
+        if (change === 'account') username.value = '87654321';
+        if (change === 'password') password.replaceWith(password.cloneNode());
+        if (change === 'parent') {
+          const replacement = document.createElement('div'); step.append(replacement); replacement.append(password);
+        }
+        if (change === 'panel') {
+          const replacement = container.cloneNode(false) as HTMLElement; replacement.append(...container.childNodes); container.replaceWith(replacement);
+        }
+        if (change === 'navigation') jsdom.reconfigure({ url: 'https://tomojdom.pl/other-page' });
+      });
+      try {
+        expect(performLoginTargetFill(target, fields, 'automatic')).toEqual({ ok: false, reason: 'no-form' });
+        expect(password.value).toBe('');
+      } finally { jsdom.reconfigure({ url: 'https://tomojdom.pl/en/' }); }
+    },
+  );
+
+  it.each(['.option', '.submit-login'])('cancels continuation when a stale chooser receives an explicit %s choice', async (selector) => {
+    const { username, password, step, container } = mount();
+    vi.stubGlobal('chrome', { storage: { local: { get: async () => ({}) } }, i18n: { getUILanguage: () => 'en' } });
+    let shadow: ShadowRoot | undefined;
+    const nativeAttach = Element.prototype.attachShadow;
+    const attach = vi.spyOn(Element.prototype, 'attachShadow').mockImplementation(function (this: Element, init) {
+      const root = nativeAttach.call(this, init);
+      if (this.localName === 'palladin-autofill' && !shadow) shadow = root;
+      return root;
+    });
+    let initialCommand: Extract<InlineAutofillCommand, { type: 'inline/fill' }> | undefined;
+    let finishInitial: ((result: unknown) => void) | undefined;
+    let delivered = false;
+    const click = vi.fn(); container.addEventListener('click', click);
+    username.addEventListener('input', () => step.classList.remove('d-none'));
+    const send = vi.fn(async (command: InlineAutofillCommand): Promise<unknown> => {
+      if (command.type === 'inline/list') return {
+        ok: true, kind: 'suggestions', status: 'ready', entries: ['e1', 'e2'].map(entryId => ({
+          entryId, vaultId: 'v1', name: entryId, username: '12345678', vaultName: 'Test',
+          urlDomain: 'tomojdom.pl', updatedAt: '2026-10-04T00:00:00Z', match: 'exact',
+        })),
+      };
+      if (command.type !== 'inline/fill') throw new Error('Unexpected command');
+      if (!delivered) {
+        initialCommand = command;
+        return new Promise(resolve => { finishInitial = resolve; });
+      }
+      const outcome = subject.performFillRequest({ channel: 'palladin.fill/request', documentId: 'a'.repeat(32),
+        expectedOrigin: 'https://tomojdom.pl', expectedDomain: 'tomojdom.pl', submit: false,
+        loginTargetId: command.loginTargetId, intent: 'automatic', fields });
+      return { ok: true, kind: 'fill', status: outcome.ok ? 'filled' : 'no-form' };
+    });
+    const subject = startInlineAutofill(document, 'a'.repeat(32), send);
+    try {
+      (shadow!.querySelector('.launcher') as HTMLButtonElement).click();
+      await vi.waitFor(() => {
+        expect(initialCommand).toBeDefined();
+        expect(shadow!.querySelectorAll(selector)).toHaveLength(2);
+      });
+      const explicitChoice = shadow!.querySelectorAll<HTMLButtonElement>(selector)[1]!;
+      delivered = true;
+      expect(subject.performFillRequest({ channel: 'palladin.fill/request', documentId: 'a'.repeat(32),
+        expectedOrigin: 'https://tomojdom.pl', expectedDomain: 'tomojdom.pl', submit: false,
+        loginTargetId: initialCommand!.loginTargetId, intent: 'automatic', fields })).toEqual({ ok: true });
+      // The old chooser still exists until the throttled scan replaces its widget.
+      explicitChoice.click();
+      finishInitial!({ ok: true, kind: 'fill', status: 'filled' });
+      await new Promise(resolve => setTimeout(resolve, 180));
+      expect(password.value).toBe('');
+      expect(send.mock.calls.filter(([command]) => command.type === 'inline/fill')).toHaveLength(1);
+      expect(click).not.toHaveBeenCalled();
+    } finally { subject.stop(); attach.mockRestore(); }
+  });
+
   it("fills only the initial identifier from the popup and not hidden password/recovery", () => {
     const { username, password, recovery, container } = mount();
     const click = vi.fn();
@@ -104,6 +267,58 @@ describe("tomojdom staged form-less login", () => {
       expect(recovery.value).toBe("");
       expect(performLoginTargetFill(target, fields)).toEqual({ ok: true });
     } finally { subject.stop(); }
+  });
+
+  it.each(["Login", "Zaloguj hasłem"])("fills and submits the visible password step through the explicit %s action", async (caption) => {
+    const { username, password, step } = mount();
+    username.value = "12345678";
+    step.classList.remove("d-none");
+    const action = step.querySelector("button")!;
+    // Observed Polish AX words on captured EN structure; preserve the CSS icon node.
+    action.firstChild!.textContent = caption;
+    const clicked = vi.fn();
+    action.addEventListener("click", clicked);
+    const target = loginTargetFor(password)!;
+    expect(performLoginTargetFill(target, fields, "manual")).toEqual({ ok: true });
+    expect(await submitFilledLoginTarget(target, () => true)).toBe(true);
+    expect(clicked).toHaveBeenCalledOnce();
+  });
+
+  it.each(['Zaloguj hasłem lub Google', 'Nie zaloguj hasłem', 'Zaloguj hasłem i utwórz konto', 'Zaloguj hasłem przez SSO'])(
+    'does not submit a partial or alternative-provider caption: %s', async (caption) => {
+      const { username, password, step } = mount();
+      username.value = '12345678'; step.classList.remove('d-none');
+      const action = step.querySelector('button')!;
+      action.firstChild!.textContent = caption;
+      const clicked = vi.fn(); action.addEventListener('click', clicked);
+      const target = loginTargetFor(password)!;
+      expect(performLoginTargetFill(target, fields, 'manual')).toEqual({ ok: true });
+      expect(await submitFilledLoginTarget(target, () => true)).toBe(false);
+      expect(clicked).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["missing", "duplicate", "disabled", "moved", "foreign-form"])("does not submit another action when the password login button is %s", async (mutation) => {
+    const { username, password, step, container } = mount();
+    username.value = "12345678";
+    step.classList.remove("d-none");
+    const action = step.querySelector("button")!;
+    const clicked = vi.fn();
+    container.addEventListener("click", clicked);
+    if (mutation === "missing") action.remove();
+    if (mutation === "duplicate") action.after(action.cloneNode(true));
+    if (mutation === "disabled") action.disabled = true;
+    if (mutation === "moved") container.append(action);
+    if (mutation === "foreign-form") {
+      const form = document.createElement("form");
+      form.id = "other-form";
+      document.body.append(form);
+      action.setAttribute("form", form.id);
+    }
+    const target = loginTargetFor(password)!;
+    expect(performLoginTargetFill(target, fields, "manual")).toEqual({ ok: true });
+    expect(await submitFilledLoginTarget(target, () => true)).toBe(false);
+    expect(clicked).not.toHaveBeenCalled();
   });
 
   it("leaves the password hidden for the email/code method", () => {

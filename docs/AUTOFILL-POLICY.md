@@ -39,12 +39,16 @@ remains eligible.
 The observed `https://tomojdom.pl` login panel has no native form and initially
 hides every login action. An exact-origin adapter binds its unique identifier
 and current-password controls to the same `#modules > .tmd-area` container.
-It fills only the identifier at first. Once the site reveals the password,
-the launcher moves to that field and explicit password fill requires the
-panel's existing identifier to match the selected Credential. Popup Fill uses
-the same target validation. Automatic fill never clicks a login, email-code or
-saved-key action. Other origins do not receive this exception. LiveKid's
-observed form-less login uses the existing generic credential-scope analysis.
+It fills only the identifier at first. A successful automatic identifier fill
+may continue once into the visible empty password field for that same Credential.
+The memory-only continuation binds the Entry/Vault, username value and node,
+source Document, URL and panel; lock, a manual selection, changed bindings or a
+non-exact suggestion cancels it. It never ranks a different account for the
+password step. A pre-existing identifier without that receipt still requires an
+explicit choice. Popup Fill uses the same target validation. Automatic fill never
+clicks a login, email-code or saved-key action. Other origins do not receive this
+exception. LiveKid uses an exact-origin structural fallback when the generic
+scope detector cannot identify its non-native login action from localized text.
 Every inline target retains its source Document; adopting its container or
 controls into another Document invalidates it even when the origin is unchanged.
 
@@ -68,7 +72,8 @@ matches the normalized active HTTPS host. Related entries are excluded.
    the first position.
 2. Otherwise use the deterministic exact-host order: Entry name ascending.
 3. Fill the first exact-host candidate into the first detected empty standard
-   login form once for the current URL.
+   login form once for the current URL. Tomojdom may complete that same bound
+   operation with the one-use password continuation described above.
 
 The preference is held only in service-worker memory and is cleared on lock. It
 must never be persisted because that would create a plaintext host-to-Entry

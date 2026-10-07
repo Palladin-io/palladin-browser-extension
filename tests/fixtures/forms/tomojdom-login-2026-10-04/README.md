@@ -33,7 +33,7 @@ synthetic field dimensions and click counters, with all requests served locally.
   the bound fill also rejects a fresh foreign-document target. This is a
   synthetic DOM-adoption regression, not an observed action by the website.
 - User adapter: initial identifier-only target; password target carries the
-  existing account identity and is explicit-only. No automatic action click.
+  existing account identity. A prior successful automatic identifier fill can authorize one bound same-entry continuation; otherwise the password step is explicit-only. No automatic action click.
 - Agent adapter: no new Agent execution support is claimed by these tests;
   this specimen is shared for separate Agent inspection/acceptance.
 - Chromium: `npm run test:browser:inline` uses the built extension, encrypted
@@ -41,3 +41,54 @@ synthetic field dimensions and click counters, with all requests served locally.
   launcher on each stage, explicit password selection and zero login clicks.
 - Live-site observation and synthetic tests are separate. No real account login,
   email delivery, password validation or production authentication was attempted.
+
+
+## Follow-up: explicit password login
+
+The user reported a visible password field and the inline “The login form could
+not be filled” error after choosing Log in. A test using this specimen reproduces
+failed submit after a successful password write: the generic action scope is the
+inner password block, while the adapter retains the outer panel. The local fix
+binds explicit submission to the single enabled login button in that password
+block; missing, duplicate, disabled and moved actions are rejected. This explains
+a submit error in the specimen, but does not yet prove why the user observed an
+empty password on the real page. A subsequent user request adds a memory-only, one-use continuation from a successful automatic identifier fill to the same account and panel. Synthetic stage tests cover the continuation and rejection of changed bindings, account, URL, session and pre-existing identifiers.
+The browser regression includes the explicit action with fake data. An earlier
+sandbox blocked startup; after access changed, Chromium passed both the bound
+automatic continuation and explicit Polish password-submit scenario.
+
+## Polish password-submit caption follow-up
+
+On 2026-10-04 the parent agent observed the native button in the user's Chrome
+accessibility tree as `Zaloguj hasłem` followed by the unlock glyph (U+F09C).
+The reported explicit Palladin login action filled the password but returned
+`The login form could not be filled.` The exact action vocabulary lacked
+`zaloguj hasłem`.
+
+The unit regression replaces only the captured English button's text node with
+those observed Polish words, retaining the original empty Font Awesome icon
+markup. This is a caption adaptation of the English specimen, not a complete
+capture of Polish DOM/CSS; accessibility output does not establish whether the
+glyph is DOM text or CSS-generated content. No account data was copied.
+
+Before the one-label change, `submitFilledLoginTarget` returned false after a
+successful manual fill for this caption. The same case now succeeds, while
+captions with negation, extra account-creation text or alternative-provider
+suffixes remain rejected. The exact-match vocabulary was extended without
+changing visibility, form ownership, target binding, uniqueness or submit gates.
+
+## Immediate password-stage follow-up (2026-10-05)
+
+The owner confirmed explicit login works after PR #90, but automatic password
+fill remains missing. Read-only inspection of public `LoginTMD/login.js` and
+`LoginTMD/tmdUtils.js` showed that the identifier handler reveals the numeric
+password stage from the `input` event (`onChange` registers `input`), before
+later asynchronous account work. The earlier synthetic specimen revealed the
+stage only after the extension's fill response completed.
+
+The new unit and Chromium regression model this immediate visibility transition
+on the observed specimen; no production script is executed in tests. RED:
+identifier was written but the password remained empty. A delayed transport
+response is also covered. Local acknowledgment now establishes continuation
+before widget replacement, while changed account, control, wrapper, panel,
+URL and session still reject continuation. Real-site acceptance remains separate.
