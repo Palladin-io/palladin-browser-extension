@@ -57,6 +57,9 @@ export function GeneratorPanel({
   const value = candidates[selected]!;
   const [status, setStatus] = useState<ActionStatus>("idle");
   const [saveReady, setSaveReady] = useState(false);
+  const [filling, setFilling] = useState(false);
+  const fillPending = useRef(false);
+  const selectionRevision = useRef(0);
   const [suggestions, setSuggestions] = useState(true);
   const mounted = useRef(true);
   useEffect(() => {
@@ -70,6 +73,7 @@ export function GeneratorPanel({
   }, []);
 
   const regenerate = useCallback(() => {
+    selectionRevision.current++;
     setCandidates(Array.from({ length: 8 }, makeValue));
     setSelected(0);
     setStatus("idle");
@@ -94,18 +98,29 @@ export function GeneratorPanel({
   }
 
   async function fill(): Promise<void> {
+    if (fillPending.current) return;
+    fillPending.current = true;
+    setFilling(true);
+    setSaveReady(false);
+    const revision = selectionRevision.current;
+    const current = () => mounted.current && selectionRevision.current === revision;
     try {
       if (capture) {
         const result = await capture.fill(value);
+        if (!current()) return;
         setStatus(result.status === "filled" ? "filled" : result.status === "no-form" ? "no-form" : "blocked");
         setSaveReady(result.status === "filled" && result.saveAvailable);
         return;
       }
       const result = await client.fillGenerated(value);
+      if (!current()) return;
       setStatus(result.status === "filled" ? "filled" : result.status === "no-form" ? "no-form" : "blocked");
       setSaveReady(false);
     } catch {
-      setStatus("error");
+      if (current()) setStatus("error");
+    } finally {
+      fillPending.current = false;
+      if (mounted.current) setFilling(false);
     }
   }
 
@@ -128,6 +143,7 @@ export function GeneratorPanel({
         </div>
         <div className="generator-candidate-list">
           {candidates.map((candidate, index) => <div className="generator-candidate-row" key={index}><button type="button" className="generator-candidate" aria-pressed={selected === index} onClick={() => {
+            selectionRevision.current++;
             setSelected(index); setStatus('idle'); setSaveReady(false);
           }}><PopupIcon name="key" /><span>{candidate}</span></button>
             {clipboardCopyAvailable ? <button type="button" className="toolbar-icon" aria-label={t('common.copy')} title={t('common.copy')} onClick={() => void copy(candidate)}><PopupIcon name="copy" /></button> : null}
@@ -178,7 +194,7 @@ export function GeneratorPanel({
       </div>
       <div className="generator-footer">
       <div className="generator-actions">
-        <Button onClick={fill}>{t("common.fill")}</Button>
+        <Button onClick={fill} loading={filling}>{t("common.fill")}</Button>
         {capture && saveReady ? <Button onClick={save}>{t("generator.saveToPalladin")}</Button> : null}
       </div>
       <p className="generator-status" role="status">{statusText(status, t)}</p>

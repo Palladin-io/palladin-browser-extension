@@ -13,7 +13,7 @@ export const workspaceService = new WorkspaceService({
     data: vaultData,
     client: new Protocol2VaultClient(
       (...args) => fetch(...args),
-      () => serverConfig.apiUrl,
+      () => serverConfig.networkApiUrl,
     ),
     session: {
       getPrivateKey: () => sessionManager.getKeys()?.privateKey ?? null,
@@ -28,7 +28,7 @@ export const workspaceService = new WorkspaceService({
       return webAppUrl;
     },
   }),
-  apiUrl: () => serverConfig.apiUrl,
+  apiUrl: () => serverConfig.networkApiUrl,
   fetch: (...args) => fetch(...args),
 });
 sessionManager.hooks.onLocked(() => workspaceService.lock());

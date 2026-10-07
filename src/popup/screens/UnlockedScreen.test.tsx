@@ -448,6 +448,29 @@ describe("UnlockedScreen", () => {
     expect(screen.getByText("Saved securely to Palladin")).toBeInTheDocument();
   });
 
+  it.each(['select', 'regenerate'] as const)('does not save a stale fill after %s changes the generated password', async change => {
+    let complete!: (result: Awaited<ReturnType<CaptureClient['fillGenerated']>>) => void;
+    const captureClient = makeCaptureClient({
+      getPrompt: vi.fn(async () => ({ id: 'prompt_0123456789abcdef', kind: 'registration', site: 'example.com' } as const)),
+      fillGenerated: vi.fn().mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }))
+        .mockResolvedValue({ status: 'filled', saveAvailable: true }),
+    });
+    render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={makeClient()} captureClient={captureClient} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Use strong password' }));
+    await user.click(screen.getByRole('button', { name: 'Fill' }));
+    expect(screen.getByRole('button', { name: 'Fill' })).toBeDisabled();
+    if (change === 'select') await user.click(screen.getAllByRole('button', { pressed: false })[0]!);
+    else await user.click(screen.getByRole('button', { name: 'Regenerate' }));
+    await act(async () => { complete({ status: 'filled', saveAvailable: true }); });
+    expect(screen.queryByRole('button', { name: 'Save to Palladin' })).not.toBeInTheDocument();
+    expect(captureClient.save).not.toHaveBeenCalled();
+    const current = screen.getByLabelText('Generated value').textContent;
+    await user.click(screen.getByRole('button', { name: 'Fill' }));
+    await user.click(await screen.findByRole('button', { name: 'Save to Palladin' }));
+    expect(captureClient.save).toHaveBeenCalledWith('prompt_0123456789abcdef', current);
+  });
+
   it("shows an empty state when the vault has no entries", async () => {
     const client = makeClient({
       list: vi.fn(async () => view({ forSite: [], all: [] })),
