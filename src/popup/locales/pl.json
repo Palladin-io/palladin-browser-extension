@@ -378,6 +378,8 @@
   "share.changeProtection": "Zmień zabezpieczenie",
   "share.linkNotice": "Zapisz ten link teraz. Nie będzie można go odzyskać. Zmiany oryginalnego wpisu nie zaktualizują tej kopii.",
   "share.link": "Link udostępnienia",
+  "share.copyAll": "Kopiuj linki",
+  "share.copyFailed": "Link został utworzony. Skopiuj go przyciskiem poniżej.",
   "share.copy": "Kopiuj link",
   "share.copied": "Skopiowano",
   "share.new": "Nowy link",

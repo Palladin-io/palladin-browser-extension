@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { SharingPanel } from './SharingPanel';
@@ -76,3 +76,30 @@ it('opens the create form without requesting existing shares', async () => {
   expect(send).not.toHaveBeenCalled();
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 });
+
+for (const clipboardWorks of [true, false]) {
+  it(`keeps a created link available when automatic copy ${clipboardWorks ? 'succeeds' : 'fails'}`, async () => {
+    const user = userEvent.setup();
+    const write = vi.spyOn(navigator.clipboard, 'writeText');
+    if (!clipboardWorks) write.mockRejectedValueOnce(new Error('Clipboard unavailable'));
+    const armClipboardClear = vi.fn(async () => {});
+    const send = vi.fn(async (command: WorkspaceCommand): Promise<WorkspaceReply> => command.type === 'workspace/create-share'
+      ? { ok: true, data: { url: 'https://example.test/share/synthetic#v=1', shareId: command.operationId } }
+      : { ok: true, data: null });
+    const entry = { id: 'entry', vaultId: 'vault', name: 'Synthetic entry', vaultName: 'Personal', type: 1 as const, updatedAt: '' };
+    render(<SharingPanel client={createWorkspaceClient(send)} vaultClient={{ armClipboardClear } as unknown as VaultClient} entries={[entry]} initialEntry={entry} initialCreate embedded />);
+    await user.click(screen.getByRole('button', { name: 'Create link' }));
+    await screen.findByLabelText('Sharing link');
+    await waitFor(() => expect(write).toHaveBeenCalledWith('https://example.test/share/synthetic#v=1'));
+    expect(screen.getAllByRole('button', { name: 'Done' })).toHaveLength(1);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    if (clipboardWorks) await waitFor(() => expect(armClipboardClear).toHaveBeenCalledOnce());
+    else {
+      expect(await screen.findByRole('status')).toHaveTextContent('Link created');
+      await user.click(screen.getByRole('button', { name: 'Copy link' }));
+      await waitFor(() => expect(armClipboardClear).toHaveBeenCalledOnce());
+      expect(send.mock.calls.filter(([command]) => command.type === 'workspace/create-share')).toHaveLength(1);
+    }
+    write.mockRestore();
+  });
+}

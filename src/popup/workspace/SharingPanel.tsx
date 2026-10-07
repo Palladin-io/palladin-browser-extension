@@ -79,6 +79,7 @@ export function SharingPanel({
   const [attempt, setAttempt] = useState<CreateCommand[] | null>(null);
   const [shownLinks, setShownLinks] = useState<string[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
+  const [copyFailed, setCopyFailed] = useState(false);
   const [changing, setChanging] = useState<string | null>(null);
   const operations = useRef<string[]>([]);
   const generation = useRef(0);
@@ -137,6 +138,8 @@ export function SharingPanel({
     setConfirmation('');
     setInputError(false);
     setCopied(null);
+    setCopyFailed(false);
+    setShownLinks([]);
     setChanging(null);
   }
   useEffect(() => {
@@ -183,6 +186,7 @@ export function SharingPanel({
         }));
       operations.current = commands.map((command) => command.operationId);
       setAttempt(commands);
+      const createdLinks = [...links];
       for (const command of commands) {
         if (links.some((link) => link.operationId === command.operationId))
           continue;
@@ -196,21 +200,27 @@ export function SharingPanel({
             .catch(() => undefined);
           return;
         }
-        setLinks((previous) => [
-          ...previous,
-          {
-            url: result.url,
-            email: command.recipientEmail,
-            operationId: command.operationId,
-          },
-        ]);
+        createdLinks.push({ url: result.url, email: command.recipientEmail, operationId: command.operationId });
+        setLinks([...createdLinks]);
       }
+      await copyLinks(createdLinks);
       setSecret('');
       setConfirmation('');
     } catch (error) {
       if (alive.current) setError(error);
     } finally {
       if (alive.current) setBusy(false);
+    }
+  }
+  async function copyLinks(values = links) {
+    if (!alive.current || !values.length) return;
+    try {
+      const text = values.length === 1 ? values[0]!.url : values.map(link => `${link.email ?? t('share.anyone')}: ${link.url}`).join('\n');
+      await navigator.clipboard.writeText(text);
+      await vaultClient.armClipboardClear();
+      if (alive.current) { setCopied(values.map(link => link.operationId).join(',')); setCopyFailed(false); }
+    } catch {
+      if (alive.current) setCopyFailed(true);
     }
   }
   async function revoke(shareId: string) {
@@ -269,7 +279,7 @@ export function SharingPanel({
       aria-label={t('workspace.shares')}
     >
       {embedded ? <div className="detail-heading">{heading}
-        {!links.length ? <Button type="submit" form={formId} loading={busy}>{t(attempt ? 'share.retry' : 'share.create')}</Button> : <Button onClick={onClose}>{t('share.done')}</Button>}
+        {!links.length ? <Button type="submit" form={formId} loading={busy}>{t(attempt ? 'share.retry' : 'share.create')}</Button> : null}
       </div> : null}
       {!embedded ? <div className="workspace-heading">
         <div>
@@ -316,32 +326,18 @@ export function SharingPanel({
                   <div className="share-link-result" key={link.operationId}>
                     <label>
                       {link.email ?? t('share.anyone')}
-                      <input
+                      <span className="share-link-input"><input
                         aria-label={t('share.link')}
                         type={shownLinks.includes(link.operationId) ? 'text' : 'password'}
                         readOnly
                         value={link.url}
                       />
-                    </label>
                     <button type="button" className="toolbar-icon" aria-label={t(shownLinks.includes(link.operationId) ? 'field.hide' : 'field.show')}
                       onClick={() => setShownLinks(current => current.includes(link.operationId) ? current.filter(id => id !== link.operationId) : [...current, link.operationId])}>
                       <PopupIcon name={shownLinks.includes(link.operationId) ? 'eye-off' : 'eye'} />
                     </button>
-                    <Button
-                      onClick={() =>
-                        void navigator.clipboard
-                          .writeText(link.url)
-                          .then(() => vaultClient.armClipboardClear())
-                          .then(() => setCopied(link.operationId))
-                          .catch(error => setError(error))
-                      }
-                    >
-                      {t(
-                        copied === link.operationId
-                          ? 'share.copied'
-                          : 'share.copy',
-                      )}
-                    </Button>
+                      </span>
+                    </label>
                   </div>
                 ))}
                 {attempt && links.length < attempt.length ? (
@@ -349,9 +345,11 @@ export function SharingPanel({
                     {t('share.retry')}
                   </Button>
                 ) : null}
-                <Button variant="subtle" disabled={busy} onClick={() => { reset(); setCreating(false); if (embedded) onClose?.(); }}>
-                  {t('share.done')}
-                </Button>
+                <div className="workspace-actions share-result-actions">
+                  <Button variant="subtle" disabled={busy} onClick={() => void copyLinks()}>{t(copied === links.map(link => link.operationId).join(',') ? 'share.copied' : links.length > 1 ? 'share.copyAll' : 'share.copy')}</Button>
+                  <Button disabled={busy} onClick={() => { reset(); setCreating(false); if (embedded) onClose?.(); }}>{t('share.done')}</Button>
+                </div>
+                {copyFailed ? <p role="status">{t('share.copyFailed')}</p> : null}
               </div>
             ) : (
               <>
@@ -478,7 +476,7 @@ export function SharingPanel({
                                           </div></details>
                   </> : null}
                   {!changing ? (
-                    <label className="workspace-check">
+                    <label className="workspace-check share-notify">
                       <input
                         type="checkbox"
                         role="switch"

@@ -148,7 +148,7 @@ describe("UnlockedScreen", () => {
     expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["Vault", "Agent access", "Sharing", "Logs"]);
     await user.click(screen.getByRole("button", { name: "Generator" }));
     vi.mocked(chrome.runtime.sendMessage).mockClear();
-    await user.click(screen.getByRole("button", { name: "Copy" }));
+    await user.click(screen.getAllByRole("button", { name: "Copy" }).at(-1)!);
     expect(await navigator.clipboard.readText()).not.toBe("");
     expect(client.armClipboardClear).toHaveBeenCalledOnce();
     expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
@@ -384,10 +384,13 @@ describe("UnlockedScreen", () => {
     await user.click(chosen);
     expect(chosen).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByLabelText("Generated value").textContent === chosen.textContent).toBe(true);
+    await user.click(chosen.parentElement!.querySelector<HTMLButtonElement>('.toolbar-icon')!);
+    expect(await navigator.clipboard.readText() === chosen.textContent).toBe(true);
+    vi.mocked(client.armClipboardClear).mockClear();
     const generated = screen.getByLabelText("Generated value").textContent ?? "";
     expect(generated.length).toBeGreaterThanOrEqual(8);
 
-    await user.click(screen.getByRole("button", { name: "Copy" }));
+    await user.click(screen.getAllByRole("button", { name: "Copy" }).at(-1)!);
     await waitFor(() => expect(client.armClipboardClear).toHaveBeenCalledOnce());
     expect(await navigator.clipboard.readText()).toBe(generated);
 

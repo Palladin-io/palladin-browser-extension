@@ -82,10 +82,10 @@ export function GeneratorPanel({
     setMode(nextMode);
   }
 
-  async function copy(): Promise<void> {
+  async function copy(candidate = value): Promise<void> {
     try {
       if (!mounted.current) return;
-      await navigator.clipboard.writeText(value);
+      await navigator.clipboard.writeText(candidate);
       await client.armClipboardClear();
       setStatus("copied");
     } catch {
@@ -127,13 +127,15 @@ export function GeneratorPanel({
           <button type="button" className="toolbar-icon" aria-label={t('generator.regenerate')} title={t('generator.regenerate')} onClick={regenerate}><PopupIcon name="refresh" /></button>
         </div>
         <div className="generator-candidate-list">
-          {candidates.map((candidate, index) => <button type="button" className="generator-candidate" key={index} aria-pressed={selected === index} onClick={() => {
+          {candidates.map((candidate, index) => <div className="generator-candidate-row" key={index}><button type="button" className="generator-candidate" aria-pressed={selected === index} onClick={() => {
             setSelected(index); setStatus('idle'); setSaveReady(false);
-          }}><PopupIcon name="key" /><span>{candidate}</span></button>)}
+          }}><PopupIcon name="key" /><span>{candidate}</span></button>
+            {clipboardCopyAvailable ? <button type="button" className="toolbar-icon" aria-label={t('common.copy')} title={t('common.copy')} onClick={() => void copy(candidate)}><PopupIcon name="copy" /></button> : null}
+          </div>)}
         </div>
       </aside>
       <section className="generator">
-      <div className="generator-heading"><h2>{t("vault.generatorTab")}</h2>
+      <div className="generator-heading">
       <div className="generator-mode" role="group" aria-label={t("generator.type")}>
         <button type="button" className={mode === "password" ? "generator-mode-active" : ""} onClick={() => changeMode("password")}>{t("generator.password")}</button>
         <button type="button" className={mode === "passphrase" ? "generator-mode-active" : ""} onClick={() => changeMode("passphrase")}>{t("generator.passphrase")}</button>
@@ -143,7 +145,7 @@ export function GeneratorPanel({
       <div className="detail-fields generator-result">
         <output className="generator-output" aria-label={t("generator.generatedValue")}>{value}</output>
         <div className="generator-result-actions">
-          {clipboardCopyAvailable ? <button type="button" className="toolbar-icon" aria-label={t('common.copy')} title={t('common.copy')} onClick={copy}><PopupIcon name="copy" /></button> : null}
+          {clipboardCopyAvailable ? <button type="button" className="toolbar-icon" aria-label={t('common.copy')} title={t('common.copy')} onClick={() => void copy()}><PopupIcon name="copy" /></button> : null}
         </div>
       </div>
       <div className="detail-fields generator-configuration">

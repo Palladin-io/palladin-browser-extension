@@ -378,6 +378,8 @@
   "share.changeProtection": "Change protection",
   "share.linkNotice": "Save this link now. It cannot be retrieved later. Changes to the original entry will not update this copy.",
   "share.link": "Sharing link",
+  "share.copyAll": "Copy links",
+  "share.copyFailed": "Link created. Copy it using the button below.",
   "share.copy": "Copy link",
   "share.copied": "Copied",
   "share.new": "New link",
