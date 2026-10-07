@@ -204,3 +204,20 @@ describe('workspace command boundary', () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 });
+
+it.each(['session', 'server'])('does not route an old mutation after %s changes during action dispatch', async change => {
+  let keys = {}, apiUrl = 'https://example.test';
+  let finish!: (value: null) => void;
+  const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+  const service = new WorkspaceService({
+    session: { getKeys: () => keys, getAccessToken: async () => 'test-token', refreshAccessToken: async () => null },
+    apiUrl: () => apiUrl, fetch,
+    actions: { handle: () => new Promise<null>(resolve => { finish = resolve; }), clear() {} },
+  });
+  const result = service.handle({ type: 'workspace/revoke-grant', vaultId, grantId });
+  if (change === 'session') keys = {};
+  else apiUrl = 'https://other.test';
+  finish(null);
+  expect(await result).toEqual({ ok: false, code: 'locked' });
+  expect(fetch).not.toHaveBeenCalled();
+});

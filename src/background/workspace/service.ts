@@ -87,12 +87,11 @@ export class WorkspaceService {
           return result;
         },
       });
-      if (action) {
-        assertCurrent();
-        return action;
-      }
+      assertCurrent();
+      if (action) return action;
       const route = this.route(command);
       const data = await this.request(route.path, route.method, route.body);
+      assertCurrent();
       return {
         ok: true,
         data: (route.method === 'GET' ? data : null) as Extract<
