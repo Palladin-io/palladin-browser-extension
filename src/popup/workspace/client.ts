@@ -1,4 +1,3 @@
-import { buildId } from '../../shared/config/build-identity';
 import type { MemberIdentity } from '../../shared/workspace/contracts';
 import type {
   WorkspaceCommand,
@@ -19,15 +18,8 @@ export interface WorkspaceClient {
 export function createWorkspaceClient(
   transport?: (command: WorkspaceCommand) => Promise<WorkspaceReply | undefined>,
 ): WorkspaceClient {
-  let compatible: Promise<void> | null = null;
   const send = transport ?? (async (command: WorkspaceCommand) => {
     if (typeof chrome === 'undefined') throw new WorkspaceClientError('worker');
-    compatible ??= chrome.runtime.sendMessage({ type: 'workspace/build' }).then((reply: WorkspaceReply | undefined) => {
-      if (!reply?.ok || !reply.data || !('buildId' in reply.data) || reply.data.buildId !== buildId) {
-        throw new WorkspaceClientError('reload');
-      }
-    });
-    await compatible;
     return chrome.runtime.sendMessage(command) as Promise<WorkspaceReply | undefined>;
   });
   let directory: Promise<MemberIdentity[]> | null = null;

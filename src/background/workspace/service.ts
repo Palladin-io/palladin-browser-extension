@@ -1,4 +1,3 @@
-import { buildId } from '../../shared/config/build-identity';
 import { validShareProtection } from '../../shared/workspace/sharing-input';
 import {
   workspaceCommandSchema,
@@ -56,7 +55,6 @@ export class WorkspaceService {
       return null;
     const parsed = workspaceCommandSchema.safeParse(raw);
     if (!parsed.success) return { ok: false, code: 'invalid' };
-    if (parsed.data.type === 'workspace/build') return { ok: true, data: { buildId } };
     const controller = new AbortController();
     this.pending.add(controller);
     try {
@@ -129,8 +127,6 @@ export class WorkspaceService {
       return params.toString();
     };
     switch (command.type) {
-      case 'workspace/build':
-        throw new WorkspaceError('invalid');
       case 'workspace/my-shares':
         return { path: `/api/entry-sharing?${query({ cursor: command.cursor })}`, method: 'GET' };
       case 'workspace/grant-summary':

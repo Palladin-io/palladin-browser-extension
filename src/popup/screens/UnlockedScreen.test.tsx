@@ -69,7 +69,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   // `userEvent.setup()` provides a working navigator.clipboard stub; the copy
   // test reads it back. We only need to stub chrome for the deep-link buttons.
-  Object.assign(globalThis, { chrome: { tabs: { create: vi.fn() }, runtime: { sendMessage: vi.fn(async (command: { type: string }) => command.type === 'config/connections/get' ? { ok: true, state: { connections: [], activeApiUrl: 'https://api.example.test' } } : command.type === 'workspace/build' ? { ok: true, data: { buildId: 'test' } } : command.type === 'workspace/detail'
+  Object.assign(globalThis, { chrome: { tabs: { create: vi.fn() }, runtime: { sendMessage: vi.fn(async (command: { type: string }) => command.type === 'config/connections/get' ? { ok: true, state: { connections: [], activeApiUrl: 'https://api.example.test' } } : command.type === 'workspace/detail'
     ? { ok: true, data: { revision: '1', fields: [{ id: 'credential.username', label: '', type: 'text', value: 'ada@example.com' }, { id: 'credential.password', label: '', type: 'concealed', value: null }] } }
     : command.type === 'workspace/field' ? { ok: true, data: { value: 's3cr3t' } } : { ok: true }) } } });
 });

@@ -29,7 +29,6 @@ export default defineConfig(({ mode }) => {
   const sharedUnlockEnvironments = parseSharedUnlockEnvironments(configured.VITE_SHARED_UNLOCK_ENVIRONMENTS);
   return {
     define: {
-      __PALLADIN_BUILD_ID__: JSON.stringify(String(Date.now())),
       __PALLADIN_TARGET__: JSON.stringify(target),
       __PALLADIN_SHARED_UNLOCK_ENVIRONMENTS__: JSON.stringify(sharedUnlockEnvironments),
     },

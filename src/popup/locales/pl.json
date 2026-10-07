@@ -522,7 +522,6 @@
   "audit.event.org.member-role-changed": "Zmieniono rolę członka",
   "audit.event.org.member-removed": "Usunięto członka",
   "audit.event.audit.export.requested": "Zlecono eksport logów",
-  "workspace.reload": "Przeładuj Palladin na chrome://extensions, aby dokończyć aktualizację rozszerzenia.",
   "share.unavailableEntry": "Niedostępny wpis",
   "grant.encryptedReason": "Zaszyfrowane uzasadnienie prośby",
   "grant.requestedAt": "Utworzono",
