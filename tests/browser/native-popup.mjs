@@ -276,6 +276,10 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
     },
     async waitText(text, timeoutMs) { await wait(() => evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`), text, timeoutMs) },
     async screenshot(file) { await wait(() => evaluate('document.getAnimations().every(animation => animation.effect?.getComputedTiming().iterations === Infinity || animation.playState !== "running")'), 'finite UI transitions settled'); const { data } = await command('Page.captureScreenshot'); await writeFile(file, Buffer.from(data, 'base64')) },
+    async dismiss() {
+      await send('Target.closeTarget', { targetId: target.targetId });
+      socket.close();
+    },
     close() { socket.close() },
   }
 }

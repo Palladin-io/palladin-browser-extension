@@ -1,3 +1,4 @@
+import { VaultClientError } from '../vault/transport';
 import { encryptedReasonEnvelopeSchema } from '../vault/protocol2/entry-envelope-schema';
 import { buildVaultScriptPackage } from '../vault/protocol2/script-package';
 import {
@@ -46,7 +47,7 @@ export class EntryActions {
       client: Pick<Protocol2VaultClient, 'getVault' | 'getEntry'>;
       session: Protocol2SessionAccessor;
       data: Pick<Protocol2VaultDataService, 'revealCurrentEntry'>;
-      webUrl: string;
+      webUrl(): string;
     },
   ) {}
   clear(): void {
@@ -69,9 +70,10 @@ export class EntryActions {
       return this.execute(command, operation);
     const existing = this.inFlight.get(command.operationId);
     if (existing) throw new WorkspaceError('conflict');
+    const webUrl = this.deps.webUrl();
     const assertCurrent = () => {
       operation.assertCurrent();
-      if (this.cancelled.has(command.operationId))
+      if (this.deps.webUrl() !== webUrl || this.cancelled.has(command.operationId))
         throw new WorkspaceError('locked');
     };
     const pending = this.execute(command, {
@@ -142,6 +144,7 @@ export class EntryActions {
       operation.assertCurrent();
       return { ok: true, data: { value: code?.code ?? field.value, ...(code ? { expiresIn: code.expiresIn } : {}) } };
     }
+    const webUrl = this.deps.webUrl();
     return this.withEntry(
       command,
       operation,
@@ -189,7 +192,7 @@ export class EntryActions {
               ciphertext: material.ciphertext,
               accessToken: toBase64Url(material.accessToken),
             },
-            url: `${this.deps.webUrl}${entrySharePath(challenge.shareId)}${entryShareFragment(material)}`,
+            url: `${webUrl}${entrySharePath(challenge.shareId)}${entryShareFragment(material)}`,
           };
           this.pendingShares.set(command.operationId, pending);
           return await this.submitShare(command, pending, operation);
@@ -212,10 +215,9 @@ export class EntryActions {
     if (!envelope.success || !grant.agentId || !grant.agentSigningPublicKey || !grant.agentSigningKeyVersion || !grant.agentSigningKeyFingerprint) throw new WorkspaceError('reason-contract');
     const privateKey = this.deps.session.getPrivateKey();
     const userId = await this.deps.session.getUserId();
-    const token = await this.deps.session.getAccessToken();
     operation.assertCurrent();
-    if (!privateKey || !userId || !token) throw new WorkspaceError('locked');
-    const vault = await this.deps.client.getVault(token, command.vaultId, operation.signal);
+    if (!privateKey || !userId) throw new WorkspaceError('locked');
+    const vault = await this.withAuth(operation, token => this.deps.client.getVault(token, command.vaultId, operation.signal));
     operation.assertCurrent();
     if (vault.id !== command.vaultId) throw new WorkspaceError('invalid');
     const opened = await openVaultProjection(vault, privateKey, userId).catch(() => { throw new WorkspaceError('reason-key'); });
@@ -453,6 +455,26 @@ export class EntryActions {
     return `/api/vaults/${scope.vaultId}/entries/${scope.entryId}/sharing`;
   }
 
+  private async withAuth<T>(operation: WorkspaceOperation, read: (token: string) => Promise<T>): Promise<T> {
+    let token = await this.deps.session.getAccessToken();
+    operation.assertCurrent();
+    if (!token) throw new WorkspaceError('locked');
+    try {
+      const result = await read(token);
+      operation.assertCurrent();
+      return result;
+    } catch (error) {
+      operation.assertCurrent();
+      if (!(error instanceof VaultClientError) || error.code !== 'unauthorized') throw error;
+      token = await this.deps.session.refreshAccessToken();
+      operation.assertCurrent();
+      if (!token) throw new WorkspaceError('session');
+      const result = await read(token);
+      operation.assertCurrent();
+      return result;
+    }
+  }
+
   private async withEntry<T>(
     scope: { vaultId: string; entryId: string },
     operation: WorkspaceOperation,
@@ -467,10 +489,7 @@ export class EntryActions {
     const userId = await this.deps.session.getUserId();
     operation.assertCurrent();
     if (!privateKey || !userId) throw new WorkspaceError('locked');
-    const token = await this.deps.session.getAccessToken();
-    if (!token) throw new WorkspaceError('locked');
-    operation.assertCurrent();
-    const [vault, detail] = await Promise.all([
+    const [vault, detail] = await this.withAuth(operation, token => Promise.all([
       this.deps.client.getVault(token, scope.vaultId, operation.signal),
       this.deps.client.getEntry(
         token,
@@ -478,7 +497,7 @@ export class EntryActions {
         scope.entryId,
         operation.signal,
       ),
-    ]);
+    ]));
     operation.assertCurrent();
     // The authenticated Vault projection supplies organization authority; request IDs supply Vault/Entry authority.
     if (

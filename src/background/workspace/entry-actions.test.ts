@@ -5,6 +5,7 @@ import {
   parseEntryShareFragment,
 } from '@palladin/crypto';
 import { EntryActions } from './entry-actions';
+import { VaultClientError } from '../vault/transport';
 import type { Protocol2VaultClient } from '../vault/protocol2/client';
 import { WorkspaceError, type WorkspaceOperation } from './service';
 import type { CreateEntryShareInput } from '../../shared/workspace/contracts';
@@ -78,19 +79,20 @@ function setup() {
   cryptoMocks.buildCanonicalGrantEnvelope.mockResolvedValue({
     ciphertext: 'synthetic-ciphertext',
   });
+  const webUrl = vi.fn(() => 'https://web.example.test');
+  const session = {
+    getUserId: async () => userId,
+    getPrivateKey: () => key,
+    getAccessToken: vi.fn(async () => 'test-token'),
+    refreshAccessToken: vi.fn<() => Promise<string | null>>(async () => null),
+  };
   const actions = new EntryActions({
     data: { revealCurrentEntry: vi.fn(async () => source) },
     client: client as unknown as Pick<
       Protocol2VaultClient,
       'getVault' | 'getEntry'
     >,
-    webUrl: 'https://web.example.test',
-    session: {
-      getUserId: async () => userId,
-      getPrivateKey: () => key,
-      getAccessToken: async () => 'test-token',
-      refreshAccessToken: async () => null,
-    },
+    webUrl, session,
   });
   const request = vi.fn<WorkspaceOperation['request']>(async (path) =>
     path.endsWith('/creation-challenge')
@@ -102,7 +104,7 @@ function setup() {
     assertCurrent: vi.fn(),
     request,
   };
-  return { actions, operation, request, client, detail };
+  return { actions, operation, request, client, detail, webUrl, session };
 }
 
 beforeEach(() => vi.resetAllMocks());
@@ -404,4 +406,40 @@ describe('encrypted workspace operations', () => {
     ).rejects.toMatchObject({ code: 'invalid' });
     expect(cryptoMocks.buildCanonicalGrantEnvelope).not.toHaveBeenCalled();
   });
+});
+
+it('builds share links for the selected panel and aborts when it changes mid-operation', async () => {
+  const first = setup();
+  first.webUrl.mockReturnValue('https://self-hosted.example.test');
+  const result = await first.actions.handle(command, first.operation);
+  expect(result?.ok && result.data && 'url' in result.data && new URL(result.data.url).origin).toBe('https://self-hosted.example.test');
+  const second = setup();
+  second.request.mockImplementation(async path => {
+    if (path.endsWith('/creation-challenge')) {
+      second.webUrl.mockReturnValue('https://other.example.test');
+      return { shareId, sourceRevision: '4' };
+    }
+    return null;
+  });
+  await expect(second.actions.handle(command, second.operation)).rejects.toMatchObject({ code: 'locked' });
+  expect(second.request.mock.calls.some(([path]) => path.endsWith('/sharing'))).toBe(false);
+});
+it('refreshes an expired token once before creating a share', async () => {
+  const { actions, client, session, operation } = setup();
+  client.getVault.mockRejectedValueOnce(new VaultClientError('unauthorized', 'Expired'));
+  session.refreshAccessToken.mockResolvedValue('renewed-token');
+  expect((await actions.handle(command, operation))?.ok).toBe(true);
+  expect(session.refreshAccessToken).toHaveBeenCalledOnce();
+  expect(client.getVault).toHaveBeenLastCalledWith('renewed-token', vaultId, operation.signal);
+  expect(client.getEntry).toHaveBeenLastCalledWith('renewed-token', vaultId, entryId, operation.signal);
+});
+it('never retries a direct read into a replacement session', async () => {
+  const { actions, client, session, operation } = setup();
+  client.getVault.mockRejectedValueOnce(new VaultClientError('unauthorized', 'Expired'));
+  session.refreshAccessToken.mockImplementation(async () => {
+    operation.assertCurrent = () => { throw new WorkspaceError('locked'); };
+    return 'different-session-token';
+  });
+  await expect(actions.handle(command, operation)).rejects.toMatchObject({ code: 'locked' });
+  expect(client.getVault).toHaveBeenCalledOnce();
 });

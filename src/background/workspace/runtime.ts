@@ -4,7 +4,8 @@ import { Protocol2VaultClient } from '../vault/protocol2/client';
 import { EntryActions } from './entry-actions';
 import { serverConfig } from '../config/server-runtime';
 import { sessionManager } from '../session/runtime';
-import { WorkspaceService } from './service';
+import { WorkspaceError, WorkspaceService } from './service';
+import { env } from '../config/env';
 
 export const workspaceService = new WorkspaceService({
   session: sessionManager,
@@ -20,7 +21,12 @@ export const workspaceService = new WorkspaceService({
       getAccessToken: () => sessionManager.getAccessToken(),
       refreshAccessToken: () => sessionManager.refreshAccessToken(),
     },
-    webUrl: webAppUrl,
+    webUrl: () => {
+      const connection = serverConfig.activeConnection;
+      if (connection) return connection.webUrl;
+      if (serverConfig.apiUrl !== env.apiUrl) throw new WorkspaceError('invalid');
+      return webAppUrl;
+    },
   }),
   apiUrl: () => serverConfig.apiUrl,
   fetch: (...args) => fetch(...args),
