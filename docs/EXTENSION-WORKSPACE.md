@@ -7,6 +7,11 @@ login/share actions, on-demand field reveals, TOTP and links to scoped managemen
 The generator is a header action; Add Entry is the primary plus button. Existing
 sign-in, second factor, unlock, capture, settings and shared-unlock flows remain.
 
+The footer intentionally opens the configured web panel on every browser. It replaces
+the previous Open side panel action by product decision, not as a capability fallback.
+The legacy `tests/browser/shared-unlock-side-panel.mjs` flow still assumes the removed
+popup action and is not acceptance evidence for this redesigned navigation.
+
 The Inbox view lists grant requests/history and reviews an authoritative request
 before approval. Approval verifies the signed encrypted reason, re-opens the current
 Entry, binds the envelope to the requested Agent and reviewed revision, and supports

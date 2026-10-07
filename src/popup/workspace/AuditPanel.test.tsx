@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
+import { I18nProvider } from '../i18n';
 import { AuditPanel } from './AuditPanel';
 import { createWorkspaceClient } from './client';
 import type { WorkspaceCommand } from '../../shared/workspace/commands';
@@ -41,4 +42,12 @@ it('uses server-resolved agent names instead of displaying their IDs', async () 
   render(<AuditPanel client={client} entries={[]} />);
   await screen.findByText('Synthetic agent');
   expect(screen.queryByText('opaque-agent-id')).toBeNull();
+});
+
+it.each(['en', 'pl'] as const)('keeps unknown audit event identifiers visible in %s', async locale => {
+  const client = createWorkspaceClient(vi.fn(async (command: WorkspaceCommand) => command.type === 'workspace/members'
+    ? { ok: true as const, data: { items: [] } }
+    : { ok: true as const, data: { items: [{ id: 'event', eventType: 'vault.future-action', actorType: 'system', metadata: {}, createdAt: '2026-10-05T10:00:00Z' }], nextCursor: null } }));
+  render(<I18nProvider locale={locale}><AuditPanel client={client} entries={[]} /></I18nProvider>);
+  expect((await screen.findAllByText(`${locale === 'en' ? 'Other event' : 'Inne zdarzenie'}: vault.future-action`)).length).toBeGreaterThan(0);
 });

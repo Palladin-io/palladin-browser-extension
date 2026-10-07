@@ -50,7 +50,9 @@ export function GrantsPanel({
   const [reasonLoading, setReasonLoading] = useState(false);
   const reasonRun = useRef(0);
   const [review, setReview] = useState<GrantReview | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [actionBusy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const busy = actionBusy || loading;
   const [error, setError] = useState<unknown>(null);
   const [policy, setPolicy] = useState<'time' | 'uses' | 'lifetime'>('time');
   const [duration, setDuration] = useState('15');
@@ -71,7 +73,7 @@ export function GrantsPanel({
   }, []);
   async function load(next?: string, quiet = false) {
     const run = ++generation.current;
-    if (!quiet) setBusy(true);
+    if (!quiet) setLoading(true);
     setError(false);
     try {
       const page = await client.send({
@@ -96,8 +98,8 @@ export function GrantsPanel({
     } catch (error) {
       if (mounted.current && run === generation.current) setError(error);
     } finally {
-      if (mounted.current && run === generation.current && !quiet)
-        setBusy(false);
+      if (mounted.current && run === generation.current)
+        setLoading(false);
     }
   }
   useEffect(() => {

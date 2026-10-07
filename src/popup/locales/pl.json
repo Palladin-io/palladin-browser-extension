@@ -353,7 +353,7 @@
   "audit.system": "System",
   "audit.recipient": "Odbiorca",
   "audit.unknownActor": "Nieznany wykonawca",
-  "audit.unknownEvent": "Inne zdarzenie",
+  "audit.unknownEvent": "Inne zdarzenie: {event}",
   "audit.credentialAccessed": "Uzyskano dostęp do wpisu",
   "audit.accessDenied": "Odmowa dostępu",
   "audit.grantRequested": "Poproszono o dostęp",
