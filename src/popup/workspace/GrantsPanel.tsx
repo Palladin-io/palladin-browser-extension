@@ -214,7 +214,7 @@ export function GrantsPanel({
   return (
     <section
       className="workspace-panel grants-panel"
-      aria-label={t('workspace.grants')}
+      aria-label={t(entryId ? 'workspace.grants' : 'workspace.inbox')}
     >
       {error ? <WorkspaceError error={error} /> : null}
       <div className="grants-layout">

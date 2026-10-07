@@ -173,7 +173,7 @@ export function UnlockedScreen({
             setView('grants');
           }}
         >
-          {t('workspace.grants')}
+          {t('workspace.inbox')}
           {pendingGrants.badge ? (
             <span className="pending-count">{pendingGrants.badge}</span>
           ) : null}

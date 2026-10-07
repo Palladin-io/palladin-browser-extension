@@ -145,7 +145,7 @@ describe("UnlockedScreen", () => {
     const user = userEvent.setup();
     render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={client} captureClient={makeCaptureClient()} />);
     await screen.findByText("API token");
-    expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["Vault", "Agent access", "Sharing", "Logs"]);
+    expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["Vault", "Inbox", "Sharing", "Logs"]);
     await user.click(screen.getByRole("button", { name: "Generator" }));
     vi.mocked(chrome.runtime.sendMessage).mockClear();
     await user.click(screen.getAllByRole("button", { name: "Copy" }).at(-1)!);

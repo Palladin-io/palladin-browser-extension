@@ -337,6 +337,7 @@
   "detail.key": "Klucz API",
   "detail.website": "Strona",
   "workspace.logs": "Logi",
+  "workspace.inbox": "Inbox",
   "workspace.grants": "Dostęp agentów",
   "workspace.shares": "Udostępnienia",
   "workspace.all": "Wszystkie zdarzenia",
