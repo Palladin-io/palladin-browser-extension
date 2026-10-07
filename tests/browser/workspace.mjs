@@ -33,6 +33,7 @@ const api = await createCaptureApi({ workspaceHandler: async ({ method, url, req
     send(null); return true;
   }
   if (method === 'GET') { send({ items: [...shares.values()].map(({ nonce, ciphertext, accessToken, protectionSecret, ...item }) => item), nextCursor: null }); return true; }
+  if (method === 'PUT' && match[3].endsWith('/protection')) { shares.get(match[3].split('/')[0]).protection = request.protection; send(null); return true; }
   if (method === 'DELETE') { shares.get(match[3]).status = 'revoked'; send(null); return true; }
   send(null, 404); return true;
 } });
@@ -90,6 +91,13 @@ try {
   assert.equal(shares.size, 1, 'The real popup must produce one encrypted share');
   await popup.screenshot(path.join(output, 'share-light.png'));
   await popup.click('Sharing', 'tab');
+  await popup.click('Change protection');
+  await popup.click('Save protection');
+  await popup.waitText('Synthetic account');
+  await popup.screenshot(path.join(output, 'sharing-management-light.png'));
+  await popup.click('Revoke');
+  await popup.click('Cancel');
+  assert.equal([...shares.values()][0].status, 'active');
   await popup.click('Synthetic account · Personal');
   await popup.click('Revoke');
   assert.equal([...shares.values()][0].status, 'revoked');

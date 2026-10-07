@@ -1175,3 +1175,10 @@ html:not([data-extension-surface='side-panel']):has(.popup[data-phase='intro']) 
 .generator-candidate-row > .generator-candidate { min-width: 0; flex: 1; }
 .generator-candidate-row > .toolbar-icon { width: 28px; height: 28px; flex-shrink: 0; margin-right: 6px; }
 .generator-split .generator-heading .generator-mode { flex: 1; }
+
+.shared-entry-management { border-bottom: 1px solid var(--cv-border); }
+.shared-entry-summary { display: flex; align-items: center; gap: 12px; }
+.shared-entry-summary > .shared-entry-row { flex: 1; min-width: 0; border-bottom: 0; }
+.shared-entry-summary > .workspace-actions { flex-shrink: 0; }
+.share-revoke-confirm { padding: 0 0 16px; font-size: 12px; color: var(--cv-t2); }
+.share-revoke-confirm .workspace-actions { justify-content: flex-end; }

@@ -106,8 +106,8 @@ export function EntryDetail({
             .then(url => chrome.tabs.create({ url })).catch(() => {})
         }
       >
-        <PopupIcon name="edit" />
-        {t('detail.edit')}
+        <PopupIcon name="external" />
+        {t('vault.openWebPanel')}
         <PopupIcon name="chevron" />
       </button>
       </div>

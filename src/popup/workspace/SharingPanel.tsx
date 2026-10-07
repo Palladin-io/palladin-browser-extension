@@ -1,3 +1,4 @@
+import { configuredPanelUrl } from '@shared/config/web-app';
 import { PopupIcon } from '../components/PopupIcon';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { WorkspaceError } from './WorkspaceError';
@@ -18,7 +19,7 @@ import type { VaultClient } from '../vault/client';
 import { useI18n, type TranslationKey } from '../i18n';
 import { Button } from '../components/Button';
 
-const shareStates: Record<string, TranslationKey> = {
+export const shareStates: Record<string, TranslationKey> = {
   active: 'grant.active',
   revoked: 'grant.revoked',
   expired: 'grant.expired',
@@ -37,6 +38,7 @@ export function SharingPanel({
   entries,
   initialEntry,
   initialCreate = false,
+  initialProtectionShare,
   embedded = false,
   onClose,
   heading,
@@ -46,6 +48,7 @@ export function SharingPanel({
   entries: readonly EntryMetadata[];
   initialEntry?: EntryMetadata | undefined;
   initialCreate?: boolean;
+  initialProtectionShare?: EntryShareListItem | undefined;
   embedded?: boolean;
   onClose?: () => void;
   heading?: ReactNode;
@@ -146,11 +149,14 @@ export function SharingPanel({
     reset();
     setItems([]);
     setCursor(null);
-    if (!creating) void load();
+    if (initialProtectionShare) {
+      setChanging(initialProtectionShare.shareId);
+      setProtection(initialProtectionShare.protection as ShareProtection);
+    } else if (!creating) void load();
     return () => {
       generation.current++;
     };
-  }, [entryKey, client, creating]);
+  }, [entryKey, client, creating, initialProtectionShare]);
   async function create() {
     if (!entry || busy) return;
     setBusy(true);
@@ -266,7 +272,9 @@ export function SharingPanel({
       });
       setChanging(null);
       setSecret('');
-      await load();
+      setConfirmation('');
+      if (initialProtectionShare && onClose) onClose();
+      else await load();
     } catch (error) {
       if (alive.current) setError(error);
     } finally {
@@ -287,6 +295,9 @@ export function SharingPanel({
           {entry && !embedded ? <p>{entry.name} · {entry.vaultName}</p> : null}
         </div>
         {onClose ? <Button variant="ghost" onClick={onClose}>{t('common.back')}</Button> : null}
+        {entry ? <button type="button" className="toolbar-icon" title={t('vault.openWebPanel')} aria-label={t('vault.openWebPanel')}
+          onClick={() => void configuredPanelUrl(`/vaults/${encodeURIComponent(entry.vaultId)}/entries/${encodeURIComponent(entry.id)}`)
+            .then(url => chrome.tabs.create({ url })).catch(error => setError(error))}><PopupIcon name="external" /></button> : null}
         {entry && !creating && !changing ? <Button onClick={() => setCreating(true)}>{t('share.create')}</Button> : null}
       </div> : null}
       {!initialEntry ? <label className="workspace-label">
@@ -347,7 +358,7 @@ export function SharingPanel({
                 ) : null}
                 <div className="workspace-actions share-result-actions">
                   <Button variant="subtle" disabled={busy} onClick={() => void copyLinks()}>{t(copied === links.map(link => link.operationId).join(',') ? 'share.copied' : links.length > 1 ? 'share.copyAll' : 'share.copy')}</Button>
-                  <Button disabled={busy} onClick={() => { reset(); setCreating(false); if (embedded) onClose?.(); }}>{t('share.done')}</Button>
+                  <Button disabled={busy} onClick={() => { reset(); setCreating(false); if (embedded || initialProtectionShare) onClose?.(); }}>{t('share.done')}</Button>
                 </div>
                 {copyFailed ? <p role="status">{t('share.copyFailed')}</p> : null}
               </div>
@@ -501,7 +512,7 @@ export function SharingPanel({
                           : 'share.create',
                     )}
                   </Button>
-                  <Button variant="subtle" disabled={busy} onClick={() => { reset(); setCreating(false); if (embedded) onClose?.(); }}>
+                  <Button variant="subtle" disabled={busy} onClick={() => { reset(); setCreating(false); if (embedded || initialProtectionShare) onClose?.(); }}>
                       {t('common.cancel')}
                     </Button>
                 </div> : null}

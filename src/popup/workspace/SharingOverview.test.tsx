@@ -42,3 +42,35 @@ it('loads one next page at the scroll sentinel with no duplicate request or Load
   await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
   expect(send).toHaveBeenLastCalledWith({ type: 'workspace/my-shares', cursor: 'next' });
 });
+
+const share = { shareId: 'share-1', status: 'active', createdAt: '2026-10-07', expiresAt: '2026-10-08', maximumReceipts: null, deliveryCount: 0, firstDeliveredAt: null, lastDeliveredAt: null, firstConfirmedAt: null, notifyOnFirstReceipt: false, recipientMode: 'anyone', recipientEmail: null, protection: 'none', sourceChanged: false };
+function management() {
+  const send = vi.fn().mockImplementation(async (command) => command.type === 'workspace/my-shares'
+    ? { ok: true, data: { items: [{ vaultId: 'vault', entryId: 'entry-0', share }], nextCursor: null } }
+    : { ok: true, data: null });
+  render(<SharingOverview client={createWorkspaceClient(send)} vaultClient={{} as VaultClient} entries={entries} />);
+  return send;
+}
+it('edits the selected link directly without another list request', async () => {
+  const send = management();
+  fireEvent.click(await screen.findByRole('button', { name: 'Change protection' }));
+  expect(screen.getByRole('button', { name: 'Open web panel' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Save protection' }));
+  await waitFor(() => expect(send).toHaveBeenCalledWith({ type: 'workspace/protect-share', vaultId: 'vault', entryId: 'entry-0', shareId: 'share-1', protection: 'none', protectionSecret: null }));
+  await screen.findByRole('button', { name: 'Change protection' });
+  expect(send.mock.calls.some(([command]) => command.type === 'workspace/shares')).toBe(false);
+});
+it('requires confirmation to revoke and preserves retry after a failed mutation', async () => {
+  const send = management();
+  fireEvent.click(await screen.findByRole('button', { name: 'Revoke' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(send).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+  send.mockResolvedValueOnce({ ok: false, code: 'network' });
+  fireEvent.click(screen.getAllByRole('button', { name: 'Revoke' })[1]!);
+  await screen.findByRole('alert');
+  fireEvent.click(screen.getAllByRole('button', { name: 'Revoke' })[1]!);
+  await screen.findByText('Revoked');
+  expect(send).toHaveBeenLastCalledWith({ type: 'workspace/revoke-share', vaultId: 'vault', entryId: 'entry-0', shareId: 'share-1' });
+  expect(screen.queryByRole('button', { name: 'Revoke' })).toBeNull();
+});
