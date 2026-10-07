@@ -16,7 +16,7 @@ type SharedEntry = WorkspaceResults['workspace/my-shares']['items'][number];
 export function SharingOverview({ client, vaultClient, entries }: {
   client: WorkspaceClient; vaultClient: VaultClient; entries: readonly EntryMetadata[];
 }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const [rows, setRows] = useState<SharedEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
@@ -82,19 +82,19 @@ export function SharingOverview({ client, vaultClient, entries }: {
     {error ? <WorkspaceError error={error} /> : null}
     {loading && !rows.length ? <LoadingSkeleton /> : null}
     {!loading && !error && !rows.length ? <p className="workspace-empty">{t('share.empty')}</p> : null}
-    {rows.map(({ vaultId, entryId, share }) => {
+    {[...rows].sort((a, b) => Number(b.share.status === 'active') - Number(a.share.status === 'active') || Date.parse(b.share.createdAt) - Date.parse(a.share.createdAt) || b.share.shareId.localeCompare(a.share.shareId)).map(({ vaultId, entryId, share }) => {
       const entry = entries.find(entry => entry.id === entryId && entry.vaultId === vaultId);
       const name = entry?.name ?? t('share.unavailableEntry');
       return <div className="shared-entry-management" key={share.shareId}><div className="shared-entry-summary"><button className="shared-entry-row" disabled={!entry || busy} aria-label={entry ? `${name} · ${entry.vaultName}` : name} onClick={() => entry && setSelected(entry)}>
         <EntryIcon name={name} type={entry?.type ?? 1} {...(entry?.icon ? { icon: entry.icon } : {})} />
         <span><strong>{name}</strong><small>{entry?.vaultName ? `${entry.vaultName} · ` : ''}{share.recipientEmail ?? t('share.anyone')}</small></span>
-        <span><small>{t(shareStates[share.status] ?? 'share.unknownStatus')}</small>{t('share.expires', { date: new Date(share.expiresAt).toLocaleDateString(locale) })}</span>
+        <span className="grant-status">{t(shareStates[share.status] ?? 'share.unknownStatus')}</span>
       </button>
         <div className="workspace-actions">
           {entry && share.status === 'active' && ['none', 'password', 'pin'].includes(share.protection) ? <button type="button" className="toolbar-icon" disabled={busy} title={t('share.changeProtection')} aria-label={t('share.changeProtection')}
             onClick={() => { setEditing(share); setSelected(entry); }}><PopupIcon name="edit" /></button> : null}
-          {['active', 'locked', 'suspended', 'consumed'].includes(share.status) ? <button type="button" className="share-revoke-action" disabled={busy} title={t('share.revoke')} aria-label={t('share.revoke')}
-            onClick={() => setRevoking({ vaultId, entryId, share })}><PopupIcon name="denied" />{t('share.revoke')}</button> : null}
+          {['active', 'locked', 'suspended', 'consumed'].includes(share.status) ? <button type="button" className="toolbar-icon" disabled={busy} title={t('share.revoke')} aria-label={t('share.revoke')}
+            onClick={() => setRevoking({ vaultId, entryId, share })}><PopupIcon name="denied" /></button> : null}
         </div>
       </div>
       {revoking?.share.shareId === share.shareId ? <div className="share-revoke-confirm"><p>{t('share.revokeNotice')}</p><div className="workspace-actions">

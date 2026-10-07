@@ -74,3 +74,21 @@ it('requires confirmation to revoke and preserves retry after a failed mutation'
   expect(send).toHaveBeenLastCalledWith({ type: 'workspace/revoke-share', vaultId: 'vault', entryId: 'entry-0', shareId: 'share-1' });
   expect(screen.queryByRole('button', { name: 'Revoke link' })).toBeNull();
 });
+it('places active links first, newest within each group, including appended pages', async () => {
+  let intersect!: () => void;
+  vi.stubGlobal('IntersectionObserver', class {
+    constructor(callback: (records: { isIntersecting: boolean }[]) => void) { intersect = () => callback([{ isIntersecting: true }]); }
+    observe() {} disconnect() {}
+  });
+  const item = (id: number, status: string, createdAt: string) => ({ vaultId: 'vault', entryId: `entry-${id}`, share: { ...share, shareId: `share-${id}`, status, createdAt } });
+  const send = vi.fn().mockResolvedValueOnce({ ok: true, data: { items: [item(0, 'revoked', '2026-10-07'), item(1, 'active', '2026-10-01')], nextCursor: 'next' } })
+    .mockResolvedValueOnce({ ok: true, data: { items: [item(2, 'active', '2026-10-06'), item(3, 'expired', '2026-10-02')], nextCursor: null } });
+  render(<SharingOverview client={createWorkspaceClient(send)} vaultClient={{} as VaultClient} entries={entries.map((entry, i) => ({ ...entry, name: `Entry ${i}` }))} />);
+  await screen.findByRole('button', { name: 'Entry 0 · Personal' });
+  act(() => intersect());
+  await screen.findByRole('button', { name: 'Entry 2 · Personal' });
+  expect(screen.getAllByRole('button', { name: /^Entry/ }).map(button => button.getAttribute('aria-label')))
+    .toEqual(['Entry 2 · Personal', 'Entry 1 · Personal', 'Entry 0 · Personal', 'Entry 3 · Personal']);
+  expect(screen.queryByText(/Expires/)).toBeNull();
+  expect(screen.getAllByRole('button', { name: 'Revoke link' }).every(button => button.textContent === '')).toBe(true);
+});
