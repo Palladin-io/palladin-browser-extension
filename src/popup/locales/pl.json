@@ -406,7 +406,7 @@
   "share.deliveries": "Liczba odbiorów: {count}",
   "share.sourceChanged": "Oryginalny wpis zmieniono",
   "share.revokeNotice": "Unieważnić ten link? Nie będzie już otwierać udostępnionego wpisu. Kopie zapisane wcześniej przez odbiorców pozostaną dostępne.",
-  "share.revoke": "Cofnij",
+  "share.revoke": "Unieważnij link",
   "share.choose": "Wybierz wpis, aby go udostępnić lub zarządzać jego linkami.",
   "common.cancel": "Anuluj",
   "grant.pending": "Oczekuje na decyzję",

@@ -144,7 +144,7 @@ export function GrantsPanel({
     }
   }
   async function decide(action: 'approve' | 'deny' | 'revoke') {
-    if (!selected) return;
+    if (!selected || busy) return;
     setBusy(true);
     setError(false);
     try {
@@ -286,6 +286,11 @@ export function GrantsPanel({
             <div className="detail-field grant-agent-line"><AgentIcon iconKey={selected.agentIconKey} /><strong>{selected.agentName ?? t('grant.agent')}</strong>
               <span className="grant-status" data-pending={selected.status === 'pending'}>{states[selected.status] ? t(states[selected.status]!) : selected.status}</span>
             </div>
+            {selected.canRevoke ? <div className="detail-field grant-revoke-action">
+              <Button variant="danger" loading={busy} onClick={() => void decide('revoke')}>
+                <PopupIcon name="denied" />{t('grant.revoke')}
+              </Button>
+            </div> : null}
             {selected.encryptedReason ? (
               <section className="detail-field grant-purpose" aria-label={t('grant.encryptedReason')}>
                 <h4>{t('grant.encryptedReason')}</h4>
@@ -481,26 +486,7 @@ export function GrantsPanel({
                   {t('grant.deny')}
                 </Button>
               </form>
-            ) : (
-              <>
-                {selected.expiresAt ? (
-                  <p>
-                    {t('share.expires', {
-                      date: new Date(selected.expiresAt).toLocaleString(locale),
-                    })}
-                  </p>
-                ) : null}
-                {selected.canRevoke ? (
-                  <Button
-                    variant="subtle"
-                    disabled={busy}
-                    onClick={() => void decide('revoke')}
-                  >
-                    {t('grant.revoke')}
-                  </Button>
-                ) : null}
-              </>
-            )}
+            ) : null}
           </div>
         ) : (
           <div className="detail-empty">{t('grant.select')}</div>

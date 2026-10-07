@@ -32,3 +32,17 @@ it('keeps expiry visible for a pending grant before approval', async () => {
   expect(await screen.findByText('Set when approving')).toBeInTheDocument();
   expect(screen.getByText('Expires')).toBeInTheDocument();
 });
+
+it.each([true, false])('exposes active grant revocation only when the API permits it (%s)', async canRevoke => {
+  const grant = { id: 'grant', vaultId: 'vault', agentName: 'Active agent', status: 'active', type: 'full', createdAt: '2026-10-01T10:00:00Z', canRevoke };
+  const send = vi.fn().mockImplementation(async command => ({ ok: true, data: command.type === 'workspace/revoke-grant' ? null : { items: [grant], nextCursor: null } }));
+  render(<GrantsPanel client={createWorkspaceClient(send)} revision={0} entries={[]} />);
+  fireEvent.click(await screen.findByRole('button', { name: /Active agent/ }));
+  const revoke = screen.queryByRole('button', { name: 'Revoke access' });
+  expect(Boolean(revoke)).toBe(canRevoke);
+  if (revoke) {
+    fireEvent.click(revoke);
+    await screen.findByText('Select a request to review access.');
+    expect(send).toHaveBeenCalledWith({ type: 'workspace/revoke-grant', vaultId: 'vault', grantId: 'grant' });
+  }
+});

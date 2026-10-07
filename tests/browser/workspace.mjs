@@ -95,11 +95,11 @@ try {
   await popup.click('Save protection');
   await popup.waitText('Synthetic account');
   await popup.screenshot(path.join(output, 'sharing-management-light.png'));
-  await popup.click('Revoke');
+  await popup.click('Revoke link');
   await popup.click('Cancel');
   assert.equal([...shares.values()][0].status, 'active');
   await popup.click('Synthetic account · Personal');
-  await popup.click('Revoke');
+  await popup.click('Revoke link');
   assert.equal([...shares.values()][0].status, 'revoked');
   await popup.click('Logs', 'tab'); await popup.waitText('Synthetic owner');
   await popup.screenshot(path.join(output, 'logs-light.png'));

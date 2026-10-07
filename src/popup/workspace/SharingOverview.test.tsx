@@ -62,15 +62,15 @@ it('edits the selected link directly without another list request', async () => 
 });
 it('requires confirmation to revoke and preserves retry after a failed mutation', async () => {
   const send = management();
-  fireEvent.click(await screen.findByRole('button', { name: 'Revoke' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Revoke link' }));
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(send).toHaveBeenCalledTimes(1);
-  fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Revoke link' }));
   send.mockResolvedValueOnce({ ok: false, code: 'network' });
-  fireEvent.click(screen.getAllByRole('button', { name: 'Revoke' })[1]!);
+  fireEvent.click(screen.getAllByRole('button', { name: 'Revoke link' })[1]!);
   await screen.findByRole('alert');
-  fireEvent.click(screen.getAllByRole('button', { name: 'Revoke' })[1]!);
+  fireEvent.click(screen.getAllByRole('button', { name: 'Revoke link' })[1]!);
   await screen.findByText('Revoked');
   expect(send).toHaveBeenLastCalledWith({ type: 'workspace/revoke-share', vaultId: 'vault', entryId: 'entry-0', shareId: 'share-1' });
-  expect(screen.queryByRole('button', { name: 'Revoke' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Revoke link' })).toBeNull();
 });

@@ -93,8 +93,8 @@ export function SharingOverview({ client, vaultClient, entries }: {
         <div className="workspace-actions">
           {entry && share.status === 'active' && ['none', 'password', 'pin'].includes(share.protection) ? <button type="button" className="toolbar-icon" disabled={busy} title={t('share.changeProtection')} aria-label={t('share.changeProtection')}
             onClick={() => { setEditing(share); setSelected(entry); }}><PopupIcon name="edit" /></button> : null}
-          {['active', 'locked', 'suspended', 'consumed'].includes(share.status) ? <button type="button" className="toolbar-icon" disabled={busy} title={t('share.revoke')} aria-label={t('share.revoke')}
-            onClick={() => setRevoking({ vaultId, entryId, share })}><PopupIcon name="denied" /></button> : null}
+          {['active', 'locked', 'suspended', 'consumed'].includes(share.status) ? <button type="button" className="share-revoke-action" disabled={busy} title={t('share.revoke')} aria-label={t('share.revoke')}
+            onClick={() => setRevoking({ vaultId, entryId, share })}><PopupIcon name="denied" />{t('share.revoke')}</button> : null}
         </div>
       </div>
       {revoking?.share.shareId === share.shareId ? <div className="share-revoke-confirm"><p>{t('share.revokeNotice')}</p><div className="workspace-actions">

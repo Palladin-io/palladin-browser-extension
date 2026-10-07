@@ -406,7 +406,7 @@
   "share.deliveries": "{count} receipts",
   "share.sourceChanged": "Original entry changed",
   "share.revokeNotice": "Revoke this link? It will no longer open the shared entry. Copies already saved by recipients are not removed.",
-  "share.revoke": "Revoke",
+  "share.revoke": "Revoke link",
   "share.choose": "Choose an entry to share or manage its links.",
   "common.cancel": "Cancel",
   "grant.pending": "Pending decision",
