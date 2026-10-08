@@ -38,7 +38,8 @@ export function genericLoginTargetFor(input: HTMLInputElement): LoginTarget | nu
       const password = passwords[0]!;
       const creationIntent = queryOpenElements(container, 'h1, h2, h3, h4, h5, h6, header, legend, [role="heading"], button, [role="button"]')
         .some(element => isVisibleScopeHint(element)
-          && publicActionLabels(element).some(isAccountCreationHeadingText));
+          && publicActionLabels(element).some(caption => isAccountCreationHeadingText(caption)
+            || /^(?:register|registration|zarejestruj(?: się)?|rejestracja)$/i.test(caption.trim())));
       if (creationIntent || controls.some(isOneTimeCodeControl) || isRegistrationScope(container, controls) || passwords.length !== 1 || usernames.length !== 1 || usernames[0] !== input
         || composedForm(password) !== null || password.hasAttribute("form") || boundaryFor(password) !== boundary
         || tokens(input).find(token => token.startsWith("section-"))

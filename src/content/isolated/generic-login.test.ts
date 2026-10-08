@@ -102,3 +102,26 @@ it('preserves explicit popup filling of a form-less password-only step', () => {
   expect(performFill(document, fields)).toEqual({ ok: true });
   expect(password.value).toBe('fixture-password');
 });
+
+it.each(['Register', 'Zarejestruj', 'Rejestracja'])('rejects a %s heading', heading => {
+  const root = mount(`<div><h1>${heading}</h1><input type="email"><input type="password"></div>`);
+  expect(loginTargetFor(root.querySelector('input')!)).toBeNull();
+  expect(performFill(document, fields)).toEqual({ ok: false, reason: 'no-form' });
+});
+
+it('fills a password-only step without touching an unrelated header search', () => {
+  document.body.innerHTML = '<header><input type="search"></header><div><input type="password"></div>';
+  expect(performFill(document, fields)).toEqual({ ok: true });
+  expect(document.querySelector<HTMLInputElement>('input[type=search]')!.value).toBe('');
+  expect(document.querySelector<HTMLInputElement>('input[type=password]')!.value).toBe('fixture-password');
+});
+
+it.each([false, true])('keeps native/custom popup order with custom first=%s', customFirst => {
+  const native = '<form><input autocomplete="username"><input type="password"></form>';
+  const custom = '<div><input autocomplete="username"><input type="password"></div>';
+  document.body.innerHTML = customFirst ? custom + native : native + custom;
+  expect(performFill(document, fields)).toEqual({ ok: true });
+  const passwords = document.querySelectorAll<HTMLInputElement>('input[type=password]');
+  expect(passwords[0]!.value).toBe('fixture-password');
+  expect(passwords[1]!.value).toBe('');
+});
