@@ -83,3 +83,22 @@ describe("domain-independent login detection", () => {
     expect((root.querySelector('input[type=password]') as HTMLInputElement).value).toBe('fixture-password');
   });
 });
+
+// Cloud review regressions: synthetic negative cases, not production specimens.
+it.each([
+  '<h1>Create account</h1><input type="email"><input type="password">',
+  '<input type="email"><input type="password"><input type="number" autocomplete="one-time-code">',
+])('rejects non-login custom scope: %s', markup => {
+  const root = mount(`<div>${markup}</div>`);
+  expect(loginTargetFor(root.querySelector('input')!)).toBeNull();
+  expect(performFill(document, fields)).toEqual({ ok: false, reason: 'no-form' });
+  expect(root.querySelector<HTMLInputElement>('input[type=password]')!.value).toBe('');
+});
+
+it('preserves explicit popup filling of a form-less password-only step', () => {
+  mount('<div><input type="password"></div>');
+  const password = document.querySelector<HTMLInputElement>('input')!;
+  expect(loginTargetFor(password)).toBeNull();
+  expect(performFill(document, fields)).toEqual({ ok: true });
+  expect(password.value).toBe('fixture-password');
+});

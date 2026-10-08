@@ -1,5 +1,5 @@
 import { isFillable, type LoginTarget } from "./credential-form-analysis";
-import { isIdentifiedUsername, isRegistrationScope } from "./login-controls";
+import { isIdentifiedUsername, isRegistrationScope, isOneTimeCodeControl, isAccountCreationHeadingText, isVisibleScopeHint, publicActionLabels } from "./login-controls";
 import { autocompleteTokens as tokens } from "./form-semantics";
 import { composedParent, composedForm, queryOpenElements } from "./open-dom";
 
@@ -36,7 +36,10 @@ export function genericLoginTargetFor(input: HTMLInputElement): LoginTarget | nu
     if (passwords.length > 0) {
       const usernames = controls.filter(control => USERNAME_TYPES.has(control.type));
       const password = passwords[0]!;
-      if (isRegistrationScope(container, controls) || passwords.length !== 1 || usernames.length !== 1 || usernames[0] !== input
+      const creationIntent = queryOpenElements(container, 'h1, h2, h3, h4, h5, h6, header, legend, [role="heading"], button, [role="button"]')
+        .some(element => isVisibleScopeHint(element)
+          && publicActionLabels(element).some(isAccountCreationHeadingText));
+      if (creationIntent || controls.some(isOneTimeCodeControl) || isRegistrationScope(container, controls) || passwords.length !== 1 || usernames.length !== 1 || usernames[0] !== input
         || composedForm(password) !== null || password.hasAttribute("form") || boundaryFor(password) !== boundary
         || tokens(input).find(token => token.startsWith("section-"))
           !== tokens(password).find(token => token.startsWith("section-"))

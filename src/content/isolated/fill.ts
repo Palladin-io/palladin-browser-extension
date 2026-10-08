@@ -112,8 +112,12 @@ export function performFill(doc: Document, fields: readonly FillField[]): FillOu
     if (target !== null) return performLoginTargetFill(target, fields, 'manual');
   }
 
-  const password = [...doc.querySelectorAll<HTMLInputElement>('input[type=password]')]
-    .find(input => input.form !== null && isFillable(input));
+  const visibleInputs = [...doc.querySelectorAll<HTMLInputElement>('input')].filter(isFillable);
+  // Preserve the explicit popup's password-only step without reviving document-wide
+  // username/password pairing for rejected custom scopes.
+  const lonePassword = visibleInputs.filter(input => !['submit', 'button', 'reset', 'checkbox', 'radio'].includes(input.type));
+  const password = visibleInputs.find(input => input.type === 'password'
+    && (input.form !== null || (lonePassword.length === 1 && !input.hasAttribute('form'))));
   if (!password) return { ok: false, reason: "no-form" };
 
   const username = usernameFieldFor(doc, password);
