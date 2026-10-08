@@ -11,7 +11,7 @@ type FillControl = HTMLInputElement | HTMLTextAreaElement;
 
 import { isFillable, isCurrentLoginTarget, loginTargetFor, type LoginTarget } from './credential-form-analysis';
 import { credentialScopeFor, hasLoginActionLabel, isVisibleScopeHint } from './login-controls';
-import { queryOpenElements } from './open-dom';
+import { composedForm, composedParent, queryOpenElements } from './open-dom';
 export { isFillable, isCurrentLoginTarget, loginTargetFor, type LoginTarget } from './credential-form-analysis';
 
 const USERNAME_TYPES = new Set(["text", "email", "tel", ""]);
@@ -71,8 +71,8 @@ function setFieldValue(input: FillControl, value: string): void {
   )?.set;
   if (setter) setter.call(input, value);
   else input.value = value;
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  input.dispatchEvent(new Event("change", { bubbles: true }));
+  input.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
 }
 
 /**
@@ -106,15 +106,40 @@ export function performFill(doc: Document, fields: readonly FillField[]): FillOu
     return { ok: false, reason: 'no-form' };
   }
 
-  const password = firstFillablePassword(doc);
+  let password: HTMLInputElement | undefined;
+  for (const input of queryOpenElements<HTMLInputElement>(doc, 'input')) {
+    if (!isFillable(input)) continue;
+    if (input.type === 'password' && (input.form !== null || isManualPasswordOnlyStep(input))) {
+      password = input;
+      break;
+    }
+    if (composedForm(input) !== null) continue;
+    const target = loginTargetFor(input);
+    if (target !== null) return performLoginTargetFill(target, fields, 'manual');
+  }
   if (!password) return { ok: false, reason: "no-form" };
 
-  const username = usernameFieldFor(doc, password);
+  const username = password.form === null ? null : usernameFieldFor(doc, password);
   for (const field of fields) {
     if (field.kind === "password") setFieldValue(password, field.value);
     else if (field.kind === "username" && username) setFieldValue(username, field.value);
   }
   return { ok: true };
+}
+
+/** The explicit popup may fill an isolated password stage without interpreting
+ * unrelated top-level navigation controls as account identifiers. */
+function isManualPasswordOnlyStep(password: HTMLInputElement): boolean {
+  if (password.hasAttribute('form') || composedForm(password) !== null) return false;
+  let scope: Element = composedParent(password) ?? password;
+  while (scope !== password.ownerDocument.body) {
+    const parent = composedParent(scope);
+    if (parent === null || parent === password.ownerDocument.body) break;
+    scope = parent;
+  }
+  const controls = queryOpenElements<HTMLInputElement>(scope, 'input').filter(input => isFillable(input)
+    && !['submit', 'button', 'reset', 'checkbox', 'radio'].includes(input.type));
+  return controls.length === 1 && controls[0] === password;
 }
 
 /** Fill only the exact login pair captured by inline discovery. */

@@ -9,11 +9,24 @@ export function composedParent(element: Element): Element | null {
 
 export function queryOpenElements<T extends Element = Element>(root: ParentNode, selector: string): T[] {
   const found: T[] = [];
-  if (root instanceof Element && root.shadowRoot) found.push(...queryOpenElements<T>(root.shadowRoot, selector));
-  for (const element of root.querySelectorAll('*')) {
+  const seen = new Set<Element>();
+  const visit = (element: Element) => {
+    if (seen.has(element)) return;
+    seen.add(element);
     if (element.matches(selector)) found.push(element as T);
-    if (element.shadowRoot) found.push(...queryOpenElements<T>(element.shadowRoot, selector));
-  }
+    if (element.shadowRoot) walk(element.shadowRoot);
+    if (element instanceof HTMLSlotElement) {
+      for (const assigned of element.assignedElements({ flatten: true })) {
+        visit(assigned);
+        walk(assigned);
+      }
+    }
+  };
+  const walk = (parent: ParentNode) => {
+    if (parent instanceof Element && parent.shadowRoot) walk(parent.shadowRoot);
+    for (const element of parent.querySelectorAll('*')) visit(element);
+  };
+  walk(root);
   return found;
 }
 
