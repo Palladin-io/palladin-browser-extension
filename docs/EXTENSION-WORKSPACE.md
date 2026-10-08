@@ -47,16 +47,13 @@ Entry/review UI. No workspace material is stored or logged.
 
 ## Dependency and delivery gate
 
-The implementation requires the additive shared SDK Entry-sharing and signed-reason
-APIs in crypto PR27. They must pass review and be released
-through the SDK's signed-tag workflow before updating the extension's exact registry
-version and lockfile. Do not merge or distribute an extension built against a locally
-substituted SDK. The current extension manifest/lockfile points to registry version 0.12.0, which does not export these APIs.
+The extension pins the published `@palladin/crypto@0.13.0` registry package and
+lockfile integrity. This additive SDK release includes Entry-sharing and signed-reason
+APIs from crypto PR27, merged as `d855c1ef6fc3116c11fcf9d828067a050db7f5f5`
+and published through the verified signed-tag workflow for `v0.13.0`.
 
-Local candidate verification uses SDK main e759c95 combined with sharing candidate bbf281d, built in an isolated worktree and copied into the ignored
-`node_modules/@palladin/crypto/dist/` directory; this is development evidence, not a
-reproducible release artifact. Repeat the checks from `npm ci` after the registry
-version is pinned. No package or browser-store release is performed by this change.
+Build and validation must start from `npm ci`; locally substituted SDK files are
+not release evidence. Merging this change does not authorize a browser-store release.
 
 ## Validation
 
