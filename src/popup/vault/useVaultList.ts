@@ -25,6 +25,7 @@ export type VaultListStatus = "loading" | "ready" | "error";
 
 export interface VaultListState {
   status: VaultListStatus;
+  refreshing: boolean;
   errorCode: VaultCommandErrorCode | null;
   decryptStage: VaultDecryptFailureStage | null;
   site: SiteInfo | null;
@@ -37,6 +38,7 @@ type StoredVaultListState = Omit<VaultListState, "retry">;
 
 const EMPTY: StoredVaultListState = {
   status: "loading",
+  refreshing: true,
   errorCode: null,
   decryptStage: null,
   site: null,
@@ -56,7 +58,7 @@ export function useVaultList(client: VaultClient, viewRevision = 0): VaultListSt
       let cached: StoredVaultListState | null = null;
       try {
         const list = await client.list();
-        cached = { status: "ready", errorCode: null, decryptStage: null, ...list };
+        cached = { status: "ready", refreshing: true, errorCode: null, decryptStage: null, ...list };
         // An empty local cache is not an authoritative empty Vault. Keep the
         // loading state until sync confirms that there really are no entries,
         // otherwise the popup briefly flashes "No entries yet" after sign-in
@@ -68,7 +70,7 @@ export function useVaultList(client: VaultClient, viewRevision = 0): VaultListSt
       }
       try {
         const fresh = await client.sync();
-        if (active) setState({ status: "ready", errorCode: null, decryptStage: null, ...fresh });
+        if (active) setState({ status: "ready", refreshing: false, errorCode: null, decryptStage: null, ...fresh });
       } catch (error) {
         if (active) {
           // An empty cache is not evidence that the Vault is truly empty. If
@@ -76,10 +78,13 @@ export function useVaultList(client: VaultClient, viewRevision = 0): VaultListSt
           // presenting a misleading "No entries yet" state.
           const hasCachedEntries = cached !== null
             && (cached.all.length > 0 || cached.forSite.length > 0);
-          if (!hasCachedEntries) {
+          if (hasCachedEntries && cached) {
+            setState({ ...cached, refreshing: false, errorCode: error instanceof VaultClientError ? error.code : "network" });
+          } else {
             setState({
               ...EMPTY,
               status: "error",
+              refreshing: false,
               errorCode: error instanceof VaultClientError ? error.code : "network",
               decryptStage: error instanceof VaultClientError ? error.decryptStage : null,
             });
@@ -104,7 +109,7 @@ export function useVaultList(client: VaultClient, viewRevision = 0): VaultListSt
     void client.list()
       .then((list) => {
         if (!active) return;
-        setState({ status: "ready", errorCode: null, decryptStage: null, ...list });
+        setState({ status: "ready", refreshing: false, errorCode: null, decryptStage: null, ...list });
       })
       .catch(() => {
         // Keep the last useful projection. The explicit retry path remains the

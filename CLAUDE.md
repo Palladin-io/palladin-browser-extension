@@ -67,7 +67,8 @@ page main world  <-- window.postMessage -->  isolated world  <-- chrome Port -->
   trust boundary: it never performs a security-sensitive action on the strength
   of a page-originated message alone.
 - **Popup** (`src/popup/`) - thin React surface (unlock, list, search, generator,
-  settings). Heavy management deep-links to the web panel.
+  settings, grants, encrypted sharing and audit). Entry editing deep-links to
+  the web panel; workspace operations use the worker-owned typed command channel.
 - **Isolated-world content script** (`src/content/isolated/`) - runs in the
   extension's isolated world; the enforcement point. Validates every main-world
   message (source + origin + nonce + direction + payload type) before relaying it

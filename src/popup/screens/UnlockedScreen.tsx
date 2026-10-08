@@ -1,20 +1,29 @@
-import { useEffect, useMemo, useState } from "react";
-import brandLogoUrl from "../../../icons/logo-source.png";
+import { LoadingSkeleton } from '../components/LoadingSkeleton';
+import { usePendingGrants } from '../workspace/usePendingGrants';
+import { GrantsPanel } from '../workspace/GrantsPanel';
+import { SharingOverview } from '../workspace/SharingOverview';
+import { AuditPanel } from '../workspace/AuditPanel';
+import { createWorkspaceClient } from '../workspace/client';
+import type { EntryMetadata } from '../../background/vault/entry-metadata';
+import { Header } from '../components/Header';
+import { PopupIcon } from '../components/PopupIcon';
+import { EntryDetail } from '../components/EntryDetail';
+import { useEffect, useMemo, useState } from 'react';
 
-import { CapturePrompt } from "../capture/CapturePrompt";
-import { AddEntryForm } from "../entries/AddEntryForm";
-import { createCaptureClient, type CaptureClient } from "../capture/client";
-import { useCapturePrompt } from "../capture/useCapturePrompt";
-import { Button } from "../components/Button";
-import { EntryList } from "../components/EntryList";
-import { ListSkeleton } from "../components/ListSkeleton";
-import { SearchBar } from "../components/SearchBar";
-import { GeneratorPanel } from "../generator/GeneratorPanel";
-import { createVaultClient, type VaultClient } from "../vault/client";
-import { filterEntries } from "../vault/filter";
-import { useVaultList } from "../vault/useVaultList";
-import { configuredPanelUrl } from "@shared/config/web-app";
-import { useI18n } from "../i18n";
+import { CapturePrompt } from '../capture/CapturePrompt';
+import { AddEntryForm } from '../entries/AddEntryForm';
+import { createCaptureClient, type CaptureClient } from '../capture/client';
+import { useCapturePrompt } from '../capture/useCapturePrompt';
+import { Button } from '../components/Button';
+import { EntryList } from '../components/EntryList';
+import { Spinner } from '../components/Spinner';
+import { SearchBar } from '../components/SearchBar';
+import { GeneratorPanel } from '../generator/GeneratorPanel';
+import { createVaultClient, type VaultClient } from '../vault/client';
+import { filterEntries } from '../vault/filter';
+import { useVaultList } from '../vault/useVaultList';
+import { configuredPanelUrl } from '@shared/config/web-app';
+import { useI18n } from '../i18n';
 import { ShareSavePrompt, usePendingShareSave } from '../share-save/ShareSavePrompt';
 
 /**
@@ -25,6 +34,7 @@ import { ShareSavePrompt, usePendingShareSave } from '../share-save/ShareSavePro
  * region loads (skeleton is scoped to the list only).
  */
 export interface UnlockedScreenProps {
+  settings?: React.ReactNode;
   onLock(): Promise<void>;
   onSignOut(): Promise<void>;
   /**
@@ -33,8 +43,6 @@ export interface UnlockedScreenProps {
    */
   viewRevision?: number;
   shareRevision?: number;
-  /** Present only in the compact popup on targets with a browser-owned panel. */
-  onOpenSidePanel?: (() => Promise<boolean>) | undefined;
   /** Injected in tests; defaults to the real `chrome.runtime` vault channel. */
   vaultClient?: VaultClient;
   /** Injected in tests; defaults to the worker-owned capture prompt channel. */
@@ -42,24 +50,33 @@ export interface UnlockedScreenProps {
 }
 
 export function UnlockedScreen({
+  settings,
   onLock,
   onSignOut,
   viewRevision = 0,
   shareRevision = 0,
-  onOpenSidePanel,
   vaultClient,
   captureClient,
 }: UnlockedScreenProps): React.JSX.Element {
   const { t } = useI18n();
-  const client = useMemo(() => vaultClient ?? createVaultClient(), [vaultClient]);
+  const client = useMemo(
+    () => vaultClient ?? createVaultClient(),
+    [vaultClient],
+  );
   const promptClient = useMemo(
     () => captureClient ?? createCaptureClient(),
     [captureClient],
   );
+  const workspaceClient = useMemo(() => createWorkspaceClient(), []);
+  const pendingGrants = usePendingGrants(workspaceClient);
   const capture = useCapturePrompt(promptClient);
   const list = useVaultList(client, viewRevision);
-  const [query, setQuery] = useState("");
-  const [view, setView] = useState<"vault" | "generator" | "add-entry">("vault");
+  const [query, setQuery] = useState('');
+  const [vaultFilter, setVaultFilter] = useState<string[] | null>(null);
+  const vaultOptions = useMemo(() => [...new Map(list.all.map(entry => [entry.vaultId, entry.vaultName])).entries()], [list.all]);
+  const [view, setView] = useState<
+    'vault' | 'generator' | 'add-entry' | 'logs' | 'shares' | 'grants' | 'settings'
+  >('vault');
   const [capturePrompt, setCapturePrompt] = useState(capture.prompt);
   const pendingShare = usePendingShareSave(shareRevision);
   const [heldShare, setHeldShare] = useState<typeof pendingShare>(null);
@@ -69,27 +86,64 @@ export function UnlockedScreen({
   }, [pendingShare, heldShare]);
   const visibleShare = pendingShare ?? heldShare;
 
+  const [scope, setScope] = useState<EntryMetadata | null>(null);
+  const [selected, setSelected] = useState<EntryMetadata | null>(null);
+  const current = selected
+    ? (list.all.find(
+        (entry) =>
+          entry.id === selected.id && entry.vaultId === selected.vaultId,
+      ) ?? null)
+    : null;
+  const selectedId = current ? `${current.vaultId}:${current.id}` : undefined;
+
   const searching = query.trim().length > 0;
-  const results = useMemo(() => filterEntries(list.all, query), [list.all, query]);
+  const results = useMemo(
+    () => filterEntries(list.all, query).filter(entry => vaultFilter === null || vaultFilter.includes(entry.vaultId)),
+    [list.all, query, vaultFilter],
+  );
 
   if (visibleShare && visibleShare.id !== shareDismissed) {
     return <section className="vault">
       <ShareSavePrompt key={visibleShare.id} pending={visibleShare}
         onSaveStart={() => setHeldShare(visibleShare)}
         onDone={() => { setHeldShare(null); setShareDismissed(visibleShare.id); }} />
-      <UnlockedFooter onLock={onLock} onSignOut={onSignOut} onOpenSidePanel={onOpenSidePanel} />
+      <UnlockedFooter onLock={onLock} onSignOut={onSignOut} />
     </section>;
   }
 
   return (
     <section className="vault">
-      <h2 className="sr-only">{t("vault.title")}</h2>
-      {capture.prompt !== null && view === "vault" ? (
+      <Header>
+        <SearchBar
+          value={query}
+          onChange={(value) => {
+            setQuery(value);
+            setView('vault');
+          }}
+        />
+        <button
+          className="toolbar-icon"
+          aria-label={t('vault.generatorTab')}
+          title={t('vault.generatorTab')}
+          onClick={() => setView(view === 'generator' ? 'vault' : 'generator')}
+        >
+          <PopupIcon name="generator" />
+        </button>
+        <button
+          className="toolbar-icon toolbar-primary"
+          aria-label={t('vault.addEntryTab')}
+          onClick={() => setView('add-entry')}
+        >
+          <PopupIcon name="plus" />
+        </button>
+      </Header>
+      <h2 className="sr-only">{t('vault.title')}</h2>
+      {capture.prompt !== null && view === 'vault' ? (
         <CapturePrompt
           prompt={capture.prompt}
           onUseStrongPassword={() => {
             setCapturePrompt(capture.prompt);
-            setView("generator");
+            setView('generator');
           }}
           onDismiss={() => {
             setCapturePrompt(null);
@@ -97,77 +151,197 @@ export function UnlockedScreen({
           }}
         />
       ) : null}
-      <div className="vault-tabs" role="tablist" aria-label={t("vault.popupView")}>
-        <button type="button" role="tab" aria-selected={view === "vault"} onClick={() => setView("vault")}>{t("vault.tab")}</button>
-        <button type="button" role="tab" aria-selected={view === "generator"} onClick={() => setView("generator")}>{t("vault.generatorTab")}</button>
-        <button type="button" role="tab" aria-selected={view === "add-entry"} onClick={() => setView("add-entry")}>{t("vault.addEntryTab")}</button>
+      <div
+        className="vault-tabs"
+        role="tablist"
+        aria-label={t('vault.popupView')}
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'vault'}
+          onClick={() => setView('vault')}
+        >
+          {t('vault.tab')}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'grants'}
+          onClick={() => {
+            setScope(null);
+            setView('grants');
+          }}
+        >
+          {t('workspace.inbox')}
+          {pendingGrants.badge ? (
+            <span className="pending-count">{pendingGrants.badge}</span>
+          ) : null}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'shares'}
+          onClick={() => setView('shares')}
+        >
+          {t('workspace.shares')}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'logs'}
+          onClick={() => {
+            setScope(null);
+            setView('logs');
+          }}
+        >
+          {t('workspace.logs')}
+        </button>
+        {settings ? <button type="button" role="tab" aria-selected={view === 'settings'} onClick={() => setView('settings')}>{t('common.settings')}</button> : null}
       </div>
 
-      {view === "add-entry" ? <AddEntryForm client={client} /> : view === "generator" ? (
-        capturePrompt === null ? <GeneratorPanel client={client} /> : (
-          <GeneratorPanel
-            client={client}
-            capture={{
-              site: capturePrompt.site,
-              fill: (value) => promptClient.fillGenerated(capturePrompt.id, value),
-              save: (value) => promptClient.save(capturePrompt.id, value),
-            }}
+      <div className="vault-content">
+        {view === 'add-entry' ? (
+          <button
+            className="link-btn workspace-back"
+            onClick={() => setView('vault')}
+          >
+            <PopupIcon name="back" />
+            {t('common.back')}
+          </button>
+        ) : null}
+        {view === 'settings' ? settings : view === 'grants' ? (
+          <GrantsPanel
+            revision={pendingGrants.revision}
+            client={workspaceClient}
+            entries={list.all}
+            entryId={scope?.id}
+            vaultId={scope?.vaultId}
           />
-        )
-      ) : <>
-      <SearchBar value={query} onChange={setQuery} />
-
-      {list.status === "loading" ? (
-        <ListSkeleton />
-      ) : list.status === "error" ? (
-        <div className="vault-error-panel" role="alert">
-          <p className="vault-error">
-            {t(loadErrorKey(list.errorCode, list.decryptStage))}
-          </p>
-          <Button variant="subtle" onClick={list.retry}>
-            {t("vault.retry")}
-          </Button>
-        </div>
-      ) : (
-        <div className="vault-scroll">
-          {!searching && list.forSite.length > 0 ? (
-            <ListSection title={t("vault.forSite")}>
-              <EntryList client={client} entries={list.forSite} />
-            </ListSection>
-          ) : null}
-
-          <ListSection title={searching ? t("vault.results") : t("vault.allItems")}>
-            {results.length === 0 ? (
-              <p className="vault-empty">
-                {searching ? t("vault.noResults") : t("vault.empty")}
-              </p>
+        ) : view === 'shares' ? (
+          <SharingOverview
+            client={workspaceClient}
+            vaultClient={client}
+            entries={list.all}
+          />
+        ) : view === 'logs' ? (
+          <AuditPanel
+            client={workspaceClient}
+            entries={list.all}
+            entryId={scope?.id}
+            vaultId={scope?.vaultId}
+          />
+        ) : view === 'add-entry' ? (
+          <AddEntryForm client={client} />
+        ) : view === 'generator' ? (
+          capturePrompt === null ? (
+            <GeneratorPanel client={client} />
+          ) : (
+            <GeneratorPanel
+              client={client}
+              capture={{
+                site: capturePrompt.site,
+                fill: (value) =>
+                  promptClient.fillGenerated(capturePrompt.id, value),
+                save: (value) => promptClient.save(capturePrompt.id, value),
+              }}
+            />
+          )
+        ) : (
+          <>
+            {list.status === 'loading' ? (
+              <div className="vault-split" aria-busy="true"><div className="vault-scroll"><LoadingSkeleton /></div><div className="detail-empty"><Spinner /><span>{t('workspace.loading')}</span></div></div>
+            ) : list.status === 'error' ? (
+              <div className="vault-error-panel" role="alert">
+                <p className="vault-error">
+                  {t(loadErrorKey(list.errorCode, list.decryptStage))}
+                </p>
+                <Button variant="subtle" onClick={list.retry}>
+                  {t('vault.retry')}
+                </Button>
+              </div>
             ) : (
-              <EntryList client={client} entries={results} />
+              <div className="vault-split" data-selected={current !== null}>
+                <div className="vault-scroll">
+                  {list.refreshing ? <div className="vault-sync-status" role="status"><Spinner />{t('vault.syncing')}</div> : list.errorCode ? <div className="vault-sync-status" role="alert"><span>{t('vault.syncFailed')}</span><Button onClick={list.retry}>{t('vault.retry')}</Button></div> : null}
+                  <details className="vault-filter">
+                    <summary aria-label={t('vault.filterLabel')}><span className="vault-filter-identity"><PopupIcon name="vaults" />{vaultFilter === null ? t('vault.filterAll') : t('vault.filterSelected', { count: vaultFilter.length })}</span><PopupIcon name="chevron" /></summary>
+                    <div className="vault-filter-options">
+                      <label className="vault-filter-all"><input type="checkbox" checked={vaultFilter === null} onChange={() => { setVaultFilter(vaultFilter === null ? [] : null); setSelected(null); }} /><PopupIcon name="check" /><PopupIcon name="vaults" /><span>{t('vault.filterAll')}</span></label>
+                      {vaultOptions.map(([id, name]) => <label key={id}><input type="checkbox" checked={vaultFilter === null || vaultFilter.includes(id)} onChange={() => {
+                        setVaultFilter(previous => {
+                          const ids = previous ?? vaultOptions.map(([vaultId]) => vaultId);
+                          return ids.includes(id) ? ids.filter(value => value !== id) : [...ids, id];
+                        });
+                        setSelected(null);
+                      }} /><PopupIcon name="check" /><PopupIcon name="vault" /><span>{name}</span></label>)}
+                    </div>
+                  </details>
+                  <ListSection title="">
+                    {results.length === 0 ? (
+                      <p className="vault-empty">
+                        {searching || vaultFilter !== null ? t('vault.noResults') : t('vault.empty')}
+                      </p>
+                    ) : (
+                      <EntryList
+                        client={client}
+                        entries={results}
+                        priorityEntries={searching ? [] : list.forSite}
+                        selectedId={selectedId}
+                        onSelect={setSelected}
+                      />
+                    )}
+                  </ListSection>
+                </div>
+                {current ? (
+                  <EntryDetail
+                    key={`${current.vaultId}:${current.id}:${current.updatedAt}`}
+                    entry={current}
+                    client={client}
+                    workspaceClient={workspaceClient}
+                    onGrants={() => {
+                      setScope(current);
+                      setView('grants');
+                    }}
+                    onLogs={() => {
+                      setScope(current);
+                      setView('logs');
+                    }}
+                    onBack={() => setSelected(null)}
+                  />
+                ) : (
+                  <div className="detail-empty">{t('detail.select')}</div>
+                )}
+              </div>
             )}
-          </ListSection>
-        </div>
-      )}
-      </>}
-
+          </>
+        )}
+      </div>
       <UnlockedFooter
         onLock={onLock}
         onSignOut={onSignOut}
-        onOpenSidePanel={onOpenSidePanel}
       />
     </section>
   );
 }
 
 function loadErrorKey(
-  code: ReturnType<typeof useVaultList>["errorCode"],
-  stage: ReturnType<typeof useVaultList>["decryptStage"],
-): "vault.loadError" | "vault.loadErrorNetwork" | "vault.loadErrorDecrypt" | "vault.loadErrorVaultProjection" | "vault.loadErrorMemberIndex" | "vault.loadErrorSession" {
-  if (code === "network") return "vault.loadErrorNetwork";
-  if (stage === "vault-projection") return "vault.loadErrorVaultProjection";
-  if (stage === "member-index") return "vault.loadErrorMemberIndex";
-  if (code === "decrypt-failed") return "vault.loadErrorDecrypt";
-  if (code === "locked" || code === "not-authenticated") return "vault.loadErrorSession";
-  return "vault.loadError";
+  code: ReturnType<typeof useVaultList>['errorCode'],
+  stage: ReturnType<typeof useVaultList>['decryptStage'],
+):
+  | 'vault.loadError'
+  | 'vault.loadErrorNetwork'
+  | 'vault.loadErrorDecrypt'
+  | 'vault.loadErrorVaultProjection'
+  | 'vault.loadErrorMemberIndex'
+  | 'vault.loadErrorSession' {
+  if (code === 'network') return 'vault.loadErrorNetwork';
+  if (stage === 'vault-projection') return 'vault.loadErrorVaultProjection';
+  if (stage === 'member-index') return 'vault.loadErrorMemberIndex';
+  if (code === 'decrypt-failed') return 'vault.loadErrorDecrypt';
+  if (code === 'locked' || code === 'not-authenticated')
+    return 'vault.loadErrorSession';
+  return 'vault.loadError';
 }
 
 function ListSection({
@@ -179,7 +353,7 @@ function ListSection({
 }): React.JSX.Element {
   return (
     <div className="vault-section">
-      <h3 className="vault-section-title">{title}</h3>
+      {title ? <h3 className="vault-section-title">{title}</h3> : null}
       {children}
     </div>
   );
@@ -188,12 +362,17 @@ function ListSection({
 function UnlockedFooter({
   onLock,
   onSignOut,
-  onOpenSidePanel,
-}: Pick<UnlockedScreenProps, "onLock" | "onSignOut" | "onOpenSidePanel">): React.JSX.Element {
+}: Pick<
+  UnlockedScreenProps,
+  'onLock' | 'onSignOut'
+>): React.JSX.Element {
   const { t } = useI18n();
-  const [busy, setBusy] = useState<"lock" | "signout" | null>(null);
+  const [busy, setBusy] = useState<'lock' | 'signout' | null>(null);
 
-  async function run(kind: "lock" | "signout", action: () => Promise<void>): Promise<void> {
+  async function run(
+    kind: 'lock' | 'signout',
+    action: () => Promise<void>,
+  ): Promise<void> {
     setBusy(kind);
     try {
       await action();
@@ -206,52 +385,18 @@ function UnlockedFooter({
 
   return (
     <div className="vault-footer">
-      {onOpenSidePanel ? (
-        <button
-          type="button"
-          className="link-btn link-btn--side-panel"
-          onClick={() => void onOpenSidePanel().catch(() => false)}
-        >
-          <SidePanelIcon />
-          {t("vault.openSidePanel")}
-        </button>
-      ) : (
-        <button
-          type="button"
-          className="link-btn link-btn--palladin"
-          onClick={() => void configuredPanelUrl().then(url => chrome.tabs.create({ url })).catch(() => {})}
-        >
-          <img className="footer-brand-logo" src={brandLogoUrl} alt="" aria-hidden="true" />
-          {t("vault.openPalladin")}
-        </button>
-      )}
+      <button type="button" className="link-btn link-btn--palladin" onClick={() => void configuredPanelUrl().then(url => chrome.tabs.create({ url })).catch(() => {})}>
+        <PopupIcon name="external" />
+        {t('vault.openWebPanel')}
+      </button>
       <div className="vault-footer-actions">
-        <Button
-          variant="subtle"
-          onClick={() => run("lock", onLock)}
-          loading={busy === "lock"}
-          disabled={busy !== null}
-        >
-          {t("vault.lock")}
-        </Button>
-        <Button
-          variant="danger"
-          onClick={() => run("signout", onSignOut)}
-          loading={busy === "signout"}
-          disabled={busy !== null}
-        >
-          {t("vault.signOut")}
-        </Button>
+        <button className="toolbar-icon" aria-label={t('vault.lock')} title={t('vault.lock')} disabled={busy !== null} onClick={() => void run('lock', onLock)}>
+          {busy === 'lock' ? <Spinner /> : <PopupIcon name="lock" />}
+        </button>
+        <button className="toolbar-icon" aria-label={t('vault.signOut')} title={t('vault.signOut')} disabled={busy !== null} onClick={() => void run('signout', onSignOut)}>
+          {busy === 'signout' ? <Spinner /> : <PopupIcon name="logout" />}
+        </button>
       </div>
     </div>
-  );
-}
-
-function SidePanelIcon(): React.JSX.Element {
-  return (
-    <svg className="side-panel-icon" viewBox="0 0 18 18" aria-hidden="true">
-      <rect x="2.25" y="2.75" width="13.5" height="12.5" rx="2" />
-      <path d="M11.25 3v12" />
-    </svg>
   );
 }

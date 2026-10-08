@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { render, waitFor, cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { AgentIcon } from "./AgentIcon";
 import { EntryIcon } from "./EntryIcon";
 import { PublicAssetImages } from "./PublicAssetImages";
 import { ENTRY_TYPE_CREDENTIAL } from "../../background/vault/entry-metadata";
@@ -59,4 +60,15 @@ it("does not fetch from an invalid configured server", async () => {
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(fetchImage).not.toHaveBeenCalled();
   expect(container.querySelector("img")).toBeNull();
+});
+
+it("resolves an agent catalog icon through the selected API and ignores its supplied URL", async () => {
+  fetchImage.mockResolvedValueOnce(Response.json({ items: [{ id: assetId, revision: 3, url: 'https://untrusted.example/icon' }] }));
+  const client = { get: vi.fn(async () => ({ apiUrl: 'https://api.stage.palladin.io', changed: false })), save: vi.fn() };
+  const { container } = render(<PublicAssetImages client={client}><AgentIcon iconKey={`public-asset:${assetId}`} /></PublicAssetImages>);
+  await waitFor(() => expect(container.querySelector('img')?.src).toBe('blob:extension/icon'));
+  expect(fetchImage.mock.calls.map(call => call[0])).toEqual([
+    'https://api.stage.palladin.io/api/public-assets/by-ids',
+    `https://api.stage.palladin.io/api/public-assets/${assetId}/revisions/3/content`,
+  ]);
 });

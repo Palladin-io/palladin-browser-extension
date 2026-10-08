@@ -7,7 +7,7 @@ import * as crypto from '@palladin/crypto'
 import { createCaptureGrantFixture } from './capture-grants.mjs'
 
 // Disposable provider fixture: real client crypto, synthetic identities, no production service.
-export async function createCaptureApi() {
+export async function createCaptureApi({ workspaceHandler } = {}) {
   const userId = randomUUID()
   const organizationId = randomUUID()
   const email = 'capture-user@example.test'
@@ -109,7 +109,12 @@ export async function createCaptureApi() {
       requests.push(`${req.method} ${url.pathname}`)
       const chunks = []
       for await (const chunk of req) chunks.push(chunk)
+      // Reproduce the empty-JSON request rejection reported by the deployed API.
+      if (workspaceHandler && !chunks.length && req.headers['content-type']?.includes('application/json')) {
+        return send({ statusCode: 400, errors: { serializerErrors: ['The input does not contain any JSON tokens.'] } }, 400);
+      }
       const request = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {}
+      if (workspaceHandler && await workspaceHandler({ method: req.method, url, request, vaults, userId, organizationId, send })) return;
       if (url.pathname === '/api/auth/login/salt') return send(bootstrap)
       if (url.pathname === '/api/auth/login') {
         return request.email === email && request.authCredential === expectedAuth ? send(auth) : send(null, 401)
@@ -173,7 +178,7 @@ export async function createCaptureApi() {
         return send({ currentRevision: updated.currentRevision })
       }
       return send(null, 404)
-    } catch { errors.push('Synthetic API contract failure'); return send(null, 500) }
+    } catch { errors.push(`Synthetic API contract failure: ${req.method} ${new URL(req.url, 'http://localhost').pathname}`); return send(null, 500) }
   })
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
   return { email, password, vaults, writes, requests, errors, url: `http://localhost:${server.address().port}`,

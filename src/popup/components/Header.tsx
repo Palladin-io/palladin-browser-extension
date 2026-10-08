@@ -1,3 +1,5 @@
+import { PopupIcon } from "./PopupIcon";
+import type { ReactNode } from "react";
 import type { SessionStatus } from "../../background/session/types";
 import brandLogoUrl from "../../../icons/logo-source.png";
 import { useI18n, type TranslationKey } from "../i18n";
@@ -9,6 +11,8 @@ import { useI18n, type TranslationKey } from "../i18n";
  * isn't known yet.
  */
 export interface HeaderProps {
+  children?: ReactNode;
+  authBrand?: boolean;
   status?: SessionStatus | undefined;
   settingsOpen?: boolean;
   contextLabel?: TranslationKey | undefined;
@@ -22,6 +26,8 @@ const CHIP: Record<SessionStatus, { label: TranslationKey; dot: string }> = {
 };
 
 export function Header({
+  children,
+  authBrand = false,
   status,
   settingsOpen = false,
   contextLabel,
@@ -30,13 +36,14 @@ export function Header({
   const { t } = useI18n();
   const chip = status ? CHIP[status] : null;
   return (
-    <header className="popup-header">
+    <header className={authBrand ? "popup-header auth-brand-header" : "popup-header"}>
       <div className="brand-lockup">
         <img className="brand-logo" src={brandLogoUrl} alt="" aria-hidden="true" />
         <h1 className="wordmark" aria-label="Palladin.io">
           <span>Palladin</span><span className="wordmark-tld">.io</span>
         </h1>
       </div>
+      {children}
       <div className="popup-header-actions">
         {contextLabel ? (
           <span className="header-context-label">{t(contextLabel)}</span>
@@ -48,8 +55,8 @@ export function Header({
           </span>
         ) : null}
         {onToggleSettings ? (
-          <button type="button" className="header-link" onClick={onToggleSettings}>
-            {settingsOpen ? t("common.back") : t("common.settings")}
+          <button type="button" className="toolbar-icon" aria-label={settingsOpen ? t("common.back") : t("common.settings")} title={settingsOpen ? t("common.back") : t("common.settings")} onClick={onToggleSettings}>
+            <PopupIcon name={settingsOpen ? "back" : "settings"} />
           </button>
         ) : null}
       </div>

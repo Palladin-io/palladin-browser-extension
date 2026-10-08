@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { CaptureSettingsCommand, CaptureSettingsResult } from '@shared/messaging/capture-settings'
+import { LoadingSkeleton } from '../components/LoadingSkeleton'
 import { Button } from '../components/Button'
 import { useI18n } from '../i18n'
 
@@ -36,7 +37,7 @@ export function CaptureSettings({ send = sendCommand }: {
   return <div className="capture-settings">
     <p className="screen-subtitle">{t('captureSettings.description')}</p>
     {error ? <p className="settings-warning" role="alert">{t('captureSettings.error')}</p> : null}
-    {!settings ? <Button variant="subtle" loading={busy} onClick={() => void change({ type: 'capture-settings/get' })}>
+    {!settings && !error ? <LoadingSkeleton /> : !settings ? <Button variant="subtle" loading={busy} onClick={() => void change({ type: 'capture-settings/get' })}>
       {t('captureSettings.reload')}
     </Button> : <>
       <h3 className="field-label">{t('captureSettings.automatic')}</h3>

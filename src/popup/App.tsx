@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from './components/LoadingSkeleton';
 /**
  * Popup root: a small state machine over the worker's session status. It shows
  * exactly one of sign-in / TOTP / unlock / unlocked, driven by the phase from
@@ -10,7 +11,6 @@ import { useEffect, useMemo, useState } from "react";
 import { PublicAssetImages } from "./components/PublicAssetImages";
 import { Button } from "./components/Button";
 import { Header } from "./components/Header";
-import { Spinner } from "./components/Spinner";
 import { createServerConfigClient, type ServerConfigClient } from "./config/client";
 import { useI18n } from "./i18n";
 import {
@@ -30,8 +30,6 @@ import { TotpScreen } from "./screens/TotpScreen";
 import { UnlockScreen } from "./screens/UnlockScreen";
 import { UnlockedScreen } from "./screens/UnlockedScreen";
 import type { SessionStatus } from "../background/session/types";
-import { extensionBuildTarget } from "@shared/config/build-target";
-import { openSidePanel, supportsSidePanel } from "@shared/browser/side-panel";
 import { isSurfaceStateEvent } from "@shared/messaging";
 import { configuredPanelUrl } from "@shared/config/web-app";
 
@@ -93,7 +91,6 @@ export function App({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [vaultViewRevision, setVaultViewRevision] = useState(0);
   const [shareViewRevision, setShareViewRevision] = useState(0);
-  const panelAvailable = surface === "popup" && supportsSidePanel(extensionBuildTarget);
 
   useEffect(() => {
     let active = true;
@@ -175,9 +172,10 @@ export function App({
   }, [session.phase, session.retryInit]);
 
   return (
-    <main className={settingsOpen ? "popup popup-settings" : "popup"} data-surface={surface}>
+    <main className={settingsOpen ? "popup popup-settings" : "popup"} data-surface={surface} data-phase={onboardingStatus === "pending" ? "intro" : settingsOpen ? "settings" : session.phase}>
       <SharedUnlockNotice unlocked={session.phase === 'unlocked'} />
-      <Header
+      {session.phase !== "unlocked" || settingsOpen || onboardingStatus !== "completed" ? <Header
+        authBrand={onboardingStatus === "completed" && ["signed-out", "locked", "totp"].includes(session.phase)}
         status={onboardingStatus === "completed" ? headerStatus(session.phase) : undefined}
         contextLabel={onboardingStatus === "pending"
           ? "onboarding.managers.eyebrow"
@@ -186,11 +184,10 @@ export function App({
         {...(onboardingStatus === "completed"
           ? { onToggleSettings: () => setSettingsOpen((open) => !open) }
           : {})}
-      />
+      /> : null}
       {onboardingStatus === "loading" ? (
         <div className="centered">
-          <Spinner />
-          <span className="muted">{t("app.preparing")}</span>
+          <LoadingSkeleton />
         </div>
       ) : onboardingStatus === "pending" ? (
         <PasswordManagerIntro
@@ -220,8 +217,7 @@ export function App({
       case "loading":
         return (
           <div className="centered">
-            <Spinner />
-            <span className="muted">{t("app.checkingSession")}</span>
+            <LoadingSkeleton />
           </div>
         );
       case "unavailable":
@@ -249,11 +245,11 @@ export function App({
         return (
           <PublicAssetImages client={serverClient}>
             <UnlockedScreen
+              settings={<SettingsScreen split onServerChanged={session.retryInit} />}
               viewRevision={vaultViewRevision}
               shareRevision={shareViewRevision}
               onLock={session.lock}
               onSignOut={session.signOut}
-              onOpenSidePanel={panelAvailable ? () => openSidePanel() : undefined}
             />
           </PublicAssetImages>
         );

@@ -132,6 +132,17 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
   }
   let movement = 0
   return {
+    async grantScrollLayout() {
+      return evaluate(`(() => {
+        const list = document.querySelector('.grant-list');
+        const panel = document.querySelector('.grants-panel');
+        const content = document.querySelector('.vault-content');
+        const heading = document.querySelector('.grant-list-controls');
+        const top = heading.getBoundingClientRect().top;
+        list.scrollTop = 200;
+        return { listScrolls: list.scrollTop > 0, panelFits: panel.scrollHeight <= panel.clientHeight + 1, contentFits: content.scrollHeight <= content.clientHeight + 1, headingStable: top === heading.getBoundingClientRect().top };
+      })()`);
+    },
     async trustedMouseMove() {
       // Observe a browser-generated input event without invoking the product's
       // activity command or touching its session store/clock.
@@ -160,7 +171,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
       let attempts = 0
       await wait(async () => {
         const node = (await command('Accessibility.getFullAXTree')).nodes.find((node) =>
-          !node.ignored && node.role?.value === role && node.name?.value === name)
+          !node.ignored && node.role?.value === role && (name instanceof RegExp ? name.test(node.name?.value ?? '') : node.name?.value === name))
         if (!node) return false
         attempts += 1
         return clickButton(node.backendDOMNodeId)
@@ -202,6 +213,32 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
           saveDisabled: form.querySelector('button[type="submit"]')?.disabled };
       })()`)
     },
+    // Test-only HTML selection for non-security presentation preferences.
+    async select(selector, value) {
+      await wait(() => evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`), selector)
+      await evaluate(`(() => {
+        const select = document.querySelector(${JSON.stringify(selector)});
+        select.value = ${JSON.stringify(value)};
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      })()`)
+      await wait(() => evaluate(`document.querySelector(${JSON.stringify(selector)}).value === ${JSON.stringify(value)}`), 'selected option applied')
+    },
+    async brandTypography() {
+      await wait(() => evaluate('document.fonts.status === "loaded"'), 'bundled brand font loaded');
+      return evaluate(`(() => { const style = getComputedStyle(document.querySelector('.wordmark')); return { family: style.fontFamily, weight: style.fontWeight, size: style.fontSize, spacing: style.letterSpacing, loaded: document.fonts.check('800 30px Inter') }; })()`);
+    },
+    async observeResize() {
+      await evaluate(`(() => {
+        globalThis.__popupWidths = [];
+        let frames = 0;
+        const sample = () => { globalThis.__popupWidths.push(innerWidth); if (++frames < 60) requestAnimationFrame(sample); };
+        requestAnimationFrame(sample);
+      })()`);
+    },
+    async hadIntermediateWidth() { return evaluate('globalThis.__popupWidths?.some(width => width > 440 && width < 780) === true') },
+    async waitWidth(min, max) { await wait(async () => { const size = await this.viewportSize(); return size.width >= min && size.width <= max }, 'popup resize settled') },
+    async waitHeight(min, max) { await wait(async () => { const size = await this.viewportSize(); return size.height >= min && size.height <= max }, 'popup height settled') },
+    async viewportSize() { return evaluate('({ width: innerWidth, height: innerHeight })') },
     async hasText(text) { return evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`) },
     // Exercise the same private command as CopyButton, inside the real native
     // popup sender boundary. Only a boolean leaves the browser; no clipboard,
@@ -229,7 +266,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
     },
     async hasNativeSidePanelApi() { return evaluate('typeof chrome.sidePanel?.open === \'function\'') },
     async hasButton(name) { return (await command('Accessibility.getFullAXTree')).nodes.some((node) =>
-      !node.ignored && node.role?.value === 'button' && node.name?.value === name) },
+      !node.ignored && node.role?.value === 'button' && (name instanceof RegExp ? name.test(node.name?.value ?? '') : node.name?.value === name)) },
     async waitButton(name) { await wait(() => this.hasButton(name), name) },
     async waitSwitch(name, checked) {
       await wait(async () => (await command('Accessibility.getFullAXTree')).nodes.some(node =>
@@ -238,7 +275,11 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
       `switch ${name}: ${checked}`)
     },
     async waitText(text, timeoutMs) { await wait(() => evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`), text, timeoutMs) },
-    async screenshot(file) { const { data } = await command('Page.captureScreenshot'); await writeFile(file, Buffer.from(data, 'base64')) },
+    async screenshot(file) { await wait(() => evaluate('document.getAnimations().every(animation => animation.effect?.getComputedTiming().iterations === Infinity || animation.playState !== "running")'), 'finite UI transitions settled'); const { data } = await command('Page.captureScreenshot'); await writeFile(file, Buffer.from(data, 'base64')) },
+    async dismiss() {
+      await send('Target.closeTarget', { targetId: target.targetId });
+      socket.close();
+    },
     close() { socket.close() },
   }
 }

@@ -1,10 +1,9 @@
+import { buildVaultScriptPackage } from './script-package'
 import {
   buildCanonicalGrantEnvelope,
-  buildCanonicalScriptExecutionManifest,
   canonicalGrantPolicyFieldId,
   createCapturedCredentialSecret,
   currentVaultPlaintext,
-  fromBase64,
   GRANT_DELIVERY_POLICY,
   listCanonicalGrantableFieldIds,
   openCurrentMemberSecret,
@@ -12,9 +11,7 @@ import {
   openVaultProjection,
   projectCanonicalCredentialDiscovery,
   sealCanonicalCredentialEntry,
-  sealCanonicalScriptExecutionPackage,
   wipe,
-  type ScriptExecutionPackageReferenceInput,
 } from '@palladin/crypto'
 type MemberSecretV1 = currentVaultPlaintext.MemberSecretV1
 import { matchesTab } from '@shared/security/domain'
@@ -152,7 +149,7 @@ export class Protocol2CredentialWriter {
     detail: EntryDetail, secret: MemberSecretV1, revision: string, vaultKey: Uint8Array,
   ): Promise<Pick<UpdateCanonicalEntryRequest, 'grantEnvelopes' | 'scriptGrantPackages'>> {
     const grantEnvelopes: Awaited<ReturnType<typeof buildCanonicalGrantEnvelope>>[] = []
-    const scriptGrantPackages: Awaited<ReturnType<typeof sealCanonicalScriptExecutionPackage>>[] = []
+    const scriptGrantPackages: Awaited<ReturnType<typeof buildVaultScriptPackage>>[] = []
     const grantable = new Set(listCanonicalGrantableFieldIds(secret))
     for (const grant of grants) {
       if (grant.vaultId !== vault.id) throw new Error('Grant Vault scope mismatch')
@@ -188,13 +185,8 @@ export class Protocol2CredentialWriter {
     updated: EntryDetail, next: MemberSecretV1, revision: string, vaultKey: Uint8Array,
   ) {
     const parent = grant.scriptScopes.find((scope) => scope.isScript)
-    const signing = vault.vaultPrivateKeys.find((envelope) => envelope.descriptor.purpose === 4)
-    if (!parent || !signing || signing.descriptor.keyVersion !== vault.currentKeyEpoch.manifestSigningKeyVersion
-      || !grant.agentId || !grant.agentAccessEpoch || !grant.agentPublicKey || !grant.recipientAgentKeyVersion
+    if (!parent || !grant.agentId || !grant.agentAccessEpoch || !grant.agentPublicKey || !grant.recipientAgentKeyVersion
       || !grant.scriptPackageRevision) throw new Error('Incomplete Script grant context')
-    const recipientPublicKey = fromBase64(grant.agentPublicKey)
-    const entries: ScriptExecutionPackageReferenceInput[] = []
-    let signingKey: Uint8Array | undefined
     const open = async (entryId: string) => {
       if (entryId === updated.id) return { secret: next, revision }
       const detail = await this.withAuth((token) => this.deps.client.getEntry(token, vault.id, entryId))
@@ -203,29 +195,11 @@ export class Protocol2CredentialWriter {
         { organizationId: vault.organizationId, vaultId: vault.id, entryId, revision: detail.currentRevision })
       return { secret, revision: detail.currentRevision }
     }
-    try {
-      signingKey = await openVaultDerivedEnvelope(signing, vaultKey)
-      const script = await open(parent.entryId)
-      if (script.secret.entryType !== 'script') throw new Error('Script grant parent is not a Script')
-      const referenceRevisions: Record<string, string> = {}
-      for (const entryId of new Set(script.secret.content.refs.map((ref) => ref.entryId))) {
-        const reference = await open(entryId)
-        referenceRevisions[entryId] = reference.revision
-        entries.push({ entryId, entryRevision: reference.revision, encodedMemberSecret: currentVaultPlaintext.encodeMemberSecret(reference.secret) })
-      }
-      const manifest = buildCanonicalScriptExecutionManifest({ organizationId: vault.organizationId, vaultId: vault.id,
-        agentId: grant.agentId, agentAccessEpoch: grant.agentAccessEpoch, scriptEntryId: parent.entryId,
-        scriptRevision: script.revision, memberSecret: script.secret, referenceRevisions })
-      return await sealCanonicalScriptExecutionPackage({ manifest, grantId: grant.id,
-        packageRevision: (BigInt(grant.scriptPackageRevision) + 1n).toString(),
-        recipientAgentKeyVersion: grant.recipientAgentKeyVersion, recipientAgentPublicKey: recipientPublicKey,
-        vaultSigningKeyVersion: vault.currentKeyEpoch.manifestSigningKeyVersion,
-        vaultSigningPrivateKey: signingKey, entries })
-    } finally {
-      wipe(recipientPublicKey)
-      if (signingKey) wipe(signingKey)
-      for (const entry of entries) wipe(entry.encodedMemberSecret)
-    }
+    const script = await open(parent.entryId)
+    return buildVaultScriptPackage({ vault, vaultKey, scriptEntryId: parent.entryId, scriptRevision: script.revision,
+      secret: script.secret, agentId: grant.agentId, agentAccessEpoch: grant.agentAccessEpoch,
+      agentPublicKey: grant.agentPublicKey, recipientKeyVersion: grant.recipientAgentKeyVersion,
+      grantId: grant.id, packageRevision: (BigInt(grant.scriptPackageRevision) + 1n).toString(), open })
   }
 
   private async openCredential(detail: EntryDetail, vault: EncryptedVaultSummary, entryId: string, key: Uint8Array,

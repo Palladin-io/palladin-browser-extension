@@ -62,9 +62,8 @@ export function UnlockScreen({
   }
 
   return (
-    <section>
+    <section className="auth-form-panel">
       <h2 className="screen-title">{t("auth.unlock.title")}</h2>
-      <p className="screen-subtitle">{t("auth.unlock.subtitle")}</p>
       <form className="form" onSubmit={handleSubmit} noValidate>
         <FormInput
           label={t("auth.masterPassword")}

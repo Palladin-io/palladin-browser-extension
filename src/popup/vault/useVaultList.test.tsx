@@ -82,7 +82,7 @@ describe("useVaultList", () => {
       sync: vi.fn(async () => { throw new Error("offline"); }),
     })} />);
 
-    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("ready:none:none:1"));
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("ready:network:none:1"));
   });
 
   it("shows a real empty state only after a successful authoritative sync", async () => {

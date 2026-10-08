@@ -25,26 +25,39 @@ export function PublicAssetImages({ client, children }: {
 export function usePublicAssetImage(icon: string | undefined): string | null {
   const apiUrl = useContext(ApiUrlContext);
   const reference = parsePublicAssetIconReference(icon);
-  // The selected API is the authority; the URL inside decrypted presentation is not.
-  const url = apiUrl !== null && reference !== null
-    ? `${apiUrl}/api/public-assets/${reference.assetId}/revisions/${reference.revision}/content`
-    : null;
+  const catalogId = /^public-asset:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(icon ?? '')?.[1];
+  const source = apiUrl && (reference || catalogId) ? `${apiUrl}|${icon}` : null;
   const [loaded, setLoaded] = useState<{ source: string; blob: string } | null>(null);
   useEffect(() => {
-    if (url === null) return;
+    if (!apiUrl || !source) return;
     const controller = new AbortController();
     let objectUrl: string | null = null;
-    void loadImage(url, controller.signal).then((blob) => {
+    void (async () => {
+      let asset: { assetId: string; revision: number } | null = reference;
+      if (!asset && catalogId) {
+        const response = await fetch(`${apiUrl}/api/public-assets/by-ids`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assetIds: [catalogId] }),
+          signal: controller.signal, credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer',
+        });
+        if (!response.ok) throw new Error('Public icon unavailable');
+        const page = await response.json() as { items: { id: string; revision: number }[] };
+        const match = page.items.find(item => item.id === catalogId);
+        if (!match) return;
+        asset = { assetId: catalogId, revision: match.revision };
+      }
+      if (!asset) return;
+      // Only selected-API content is trusted; catalog/decrypted URLs never become image destinations.
+      const blob = await loadImage(`${apiUrl}/api/public-assets/${asset.assetId}/revisions/${encodeURIComponent(asset.revision)}/content`, controller.signal);
       if (controller.signal.aborted) return;
       objectUrl = URL.createObjectURL(blob);
-      setLoaded({ source: url, blob: objectUrl });
-    }).catch(() => undefined);
+      setLoaded({ source, blob: objectUrl });
+    })().catch(() => undefined);
     return () => {
       controller.abort();
       if (objectUrl !== null) URL.revokeObjectURL(objectUrl);
     };
-  }, [url]);
-  return loaded?.source === url ? loaded.blob : null;
+  }, [apiUrl, source]);
+  return source && loaded?.source === source ? loaded.blob : null;
 }
 
 async function loadImage(url: string, signal: AbortSignal): Promise<Blob> {

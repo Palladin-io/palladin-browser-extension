@@ -35,11 +35,13 @@
     "test:browser:agent-live": "node tests/browser/agent-live.mjs",
     "check:form-corpus": "node scripts/check-form-corpus.mjs",
     "test:form-corpus": "npm run check:form-corpus && vitest run src/content/isolated/production-form-corpus.test.ts",
-    "test:browser:form-corpus": "node tests/browser/form-corpus.mjs"
+    "test:browser:form-corpus": "node tests/browser/form-corpus.mjs",
+    "test:browser:workspace": "node tests/browser/workspace.mjs"
   },
   "dependencies": {
     "@microsoft/signalr": "10.0.0",
-    "@palladin/crypto": "0.12.0",
+    "@palladin/crypto": "0.13.0",
+    "lucide-react": "1.28.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tldts": "^7.4.11",
