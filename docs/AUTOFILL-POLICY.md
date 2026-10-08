@@ -209,3 +209,9 @@ related-host exclusion, and no automatic submit.
 ## Card verification codes
 
 The explicit extension-owned card Fill action may include optional CVV/CVC from encrypted MemberSecret. Only the standard `cc-csc` autocomplete token selects its target. The same top-frame HTTPS, current document and exact live-host checks apply; card fills never submit. Labels and neutral custom fields do not authorize CVV filling.
+
+### Custom login containers
+
+User login discovery delegates through the existing site adapters, scoped form analysis, then a bounded generic username/password detector. A detector that rejects an applicable scope stops the chain. The fallback supports open shadow roots and assigned slots, requires an identified username, and rejects ambiguous pairs, registration hints, mismatched autocomplete sections, unresolved native owners and controls across dialog/section boundaries. It never pairs controls using the entire page.
+
+Popup filling uses the same bound target for form-less controls. Automatic filling preserves existing values; explicit manual filling retains the existing account-switching contract. Targets are revalidated before each write, input/change events cross open component boundaries, and discovery does not authorize submission or Agent execution.

@@ -1,4 +1,5 @@
 /** Shared value-free credential discovery. DOM writes live in fill/Agent adapters. */
+import { genericLoginTargetFor } from './generic-login';
 import { composedParent } from './open-dom';
 import { normalizedControlLabels, personalNameLabelPurpose } from './control-labels';
 import { autocompleteTokens, controlPurpose } from './form-semantics';
@@ -61,12 +62,17 @@ export function isFillable(input: FillControl): boolean {
 /** One launcher per unambiguous login step, including password-only screens. */
 export function loginTargetFor(input: HTMLInputElement): LoginTarget | null {
   if (!isFillable(input)) return null;
-  const apple = appleLoginTargetFor(input);
-  if (apple !== undefined) return apple;
-  const tomojdom = tomojdomLoginTargetFor(input);
-  if (tomojdom !== undefined) return tomojdom;
+  for (const detect of [appleLoginTargetFor, tomojdomLoginTargetFor, scopedLoginTargetFor, genericLoginTargetFor]) {
+    const target = detect(input);
+    // undefined delegates; null is a terminal rejection by an applicable detector.
+    if (target !== undefined) return target;
+  }
+  return null;
+}
+
+function scopedLoginTargetFor(input: HTMLInputElement): LoginTarget | null | undefined {
   const form = credentialScopeFor(input) ?? livekidLoginScopeFor(input);
-  if (!form) return null;
+  if (!form) return undefined;
   const all = scopeInputs(form);
   // Some signup pages enable their password inputs individually on focus.
   // A still-visible readonly password is not an absent password/identifier step.

@@ -11,7 +11,7 @@ type FillControl = HTMLInputElement | HTMLTextAreaElement;
 
 import { isFillable, isCurrentLoginTarget, loginTargetFor, type LoginTarget } from './credential-form-analysis';
 import { credentialScopeFor, hasLoginActionLabel, isVisibleScopeHint } from './login-controls';
-import { queryOpenElements } from './open-dom';
+import { composedForm, queryOpenElements } from './open-dom';
 export { isFillable, isCurrentLoginTarget, loginTargetFor, type LoginTarget } from './credential-form-analysis';
 
 const USERNAME_TYPES = new Set(["text", "email", "tel", ""]);
@@ -71,8 +71,8 @@ function setFieldValue(input: FillControl, value: string): void {
   )?.set;
   if (setter) setter.call(input, value);
   else input.value = value;
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  input.dispatchEvent(new Event("change", { bubbles: true }));
+  input.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
 }
 
 /**
@@ -106,7 +106,14 @@ export function performFill(doc: Document, fields: readonly FillField[]): FillOu
     return { ok: false, reason: 'no-form' };
   }
 
-  const password = firstFillablePassword(doc);
+  for (const input of queryOpenElements<HTMLInputElement>(doc, 'input')) {
+    if (composedForm(input) !== null) continue;
+    const target = loginTargetFor(input);
+    if (target !== null) return performLoginTargetFill(target, fields, 'manual');
+  }
+
+  const password = [...doc.querySelectorAll<HTMLInputElement>('input[type=password]')]
+    .find(input => input.form !== null && isFillable(input));
   if (!password) return { ok: false, reason: "no-form" };
 
   const username = usernameFieldFor(doc, password);

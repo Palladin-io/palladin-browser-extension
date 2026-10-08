@@ -391,3 +391,7 @@ cmp -s AGENTS.md CLAUDE.md
 `npm run build` must produce and validate Chromium, Firefox, and Safari
 artifacts. Passing these commands does not replace the installed-Chrome manual
 test or browser-store certification.
+
+### Generic open-shadow login regression
+
+Run `npx vitest run src/content/isolated/generic-login.test.ts src/content/isolated/reddit-login.test.ts` for scoped pairing, rejection and composed-event coverage. The reduced Reddit fixture and its fidelity limits live in `tests/fixtures/forms/reddit-login-2026-10-07/README.md`; these tests do not establish live Reddit authentication. Also run the full suite/build and `npm run test:browser:inline` before release.
