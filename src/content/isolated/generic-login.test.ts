@@ -125,3 +125,13 @@ it.each([false, true])('keeps native/custom popup order with custom first=%s', c
   expect(passwords[0]!.value).toBe('fixture-password');
   expect(passwords[1]!.value).toBe('');
 });
+
+it.each([
+  '<h1>Register</h1>',
+  '<input type="number" autocomplete="one-time-code">',
+])('validates the whole boundary around a wrapped pair: %s', sibling => {
+  const root = mount(`<section>${sibling}<div><input type="email"><input type="password"></div></section>`);
+  expect(loginTargetFor(root.querySelector<HTMLInputElement>('input[type=email]')!)).toBeNull();
+  expect(performFill(document, fields)).toEqual({ ok: false, reason: 'no-form' });
+  expect(root.querySelector<HTMLInputElement>('input[type=password]')!.value).toBe('');
+});

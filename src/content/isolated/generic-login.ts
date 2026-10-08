@@ -31,6 +31,8 @@ export function genericLoginTargetFor(input: HTMLInputElement): LoginTarget | nu
     // The whole page is not evidence that two controls belong to one login.
     if (container.matches("body, html, main")) return null;
     if (!(container instanceof HTMLElement)) continue;
+    // A wrapper must not hide registration or verification evidence in its scope.
+    if (boundary !== null && container !== boundary) continue;
     const controls = queryOpenElements<HTMLInputElement>(container, "input").filter(isFillable);
     const passwords = controls.filter(control => control.type === "password");
     if (passwords.length > 0) {
