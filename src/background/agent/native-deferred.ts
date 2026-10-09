@@ -13,11 +13,22 @@ const result = (transactionId: string, outcome: AgentInjectionOutcome): AgentInj
 export function cancelPendingDeferred(deps: AgentFillDeps, session: AgentProviderSession): Promise<void> {
   deps = session.boundDeps ?? deps;
   const pending = session.pendingSubmit; session.pendingSubmit = null;
-  if (pending) {
-    clearTimeout(pending.timer);
-    return deps.cancelDeferred?.(pending.tabId, pending.pendingId).catch(() => undefined) ?? Promise.resolve();
-  }
-  return Promise.resolve();
+  if (!pending) return session.deferredCancellation ?? Promise.resolve();
+  clearTimeout(pending.timer);
+  return trackDeferredCancellation(deps, session, pending);
+}
+function trackDeferredCancellation(deps: AgentFillDeps, session: AgentProviderSession, pending: PendingDeferredSubmit): Promise<void> {
+  // Clearing pendingSubmit revokes submit authority immediately; closing must
+  // still wait for cleanup started by a request, expiry, or commit completion.
+  const cancellation = Promise.all([
+    session.deferredCancellation,
+    deps.cancelDeferred?.(pending.tabId, pending.pendingId).catch(() => undefined),
+  ]).then(() => undefined);
+  session.deferredCancellation = cancellation;
+  void cancellation.then(() => {
+    if (session.deferredCancellation === cancellation) delete session.deferredCancellation;
+  });
+  return cancellation;
 }
 export async function beginDeferredSubmit(deps: AgentFillDeps, replay: TransactionReplayGuard, session: AgentProviderSession,
   prepared: PreparedAgentPage, chain: LiveChain, request: AgentInjectionRequest): Promise<AgentInjectionResult> {
@@ -67,6 +78,6 @@ export async function commitDeferredSubmit(deps: AgentFillDeps, replay: Transact
     if (!response?.ok) return result(request.transactionId, response ? response.outcome : 'provider-unavailable');
     return { ...result(request.transactionId, 'injected'), continuation: await advanceLiveChain(deps, session, pending.chain, pending.request) };
   } catch { return result(request.transactionId, 'provider-unavailable'); }
-  finally { void deps.cancelDeferred?.(pending.tabId, pending.pendingId).catch(() => undefined); }
+  finally { void trackDeferredCancellation(deps, session, pending); }
 }
 function alive(pending: PendingDeferredSubmit): boolean { return Date.now() < pending.expiresAt && performance.now() < pending.deadline && Date.now() < pending.chain.expiresAt; }

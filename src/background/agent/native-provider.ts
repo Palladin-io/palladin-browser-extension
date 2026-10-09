@@ -80,6 +80,7 @@ export interface PreparedAgentPage {
 export interface AgentProviderSession {
   boundDeps?: AgentFillDeps;
   pendingSubmit?: PendingDeferredSubmit | null;
+  deferredCancellation?: Promise<void>;
   liveChain?: LiveChain | null;
   prepared: PreparedAgentPage | null;
 }

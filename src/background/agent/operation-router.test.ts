@@ -210,3 +210,48 @@ it('orders a cancelled target probe result before its close acknowledgement with
   expect(order).toEqual(['operation.result', 'operation.closed']);
   expect(await router.dispatch(prepare(third, 7))).toMatchObject({ response: { outcome: 'ready' } });
 });
+
+it.each(['cancel-submit', 'expiry', 'rejected-submit'] as const)(
+  'waits for cleanup already started by %s before acknowledging close', async cause => {
+    vi.useFakeTimers();
+    let release!: () => void;
+    const cancelDeferred = vi.fn(() => new Promise<void>(resolve => { release = resolve; }));
+    const { router } = setup({
+      inspectLiveLogin: async () => fixture.inject.form as AgentInjectForm,
+      fillDeferred: async (_id, message) => ({ ok: true, submitReady: {
+        ...fixture.submitReady.submitReady, pendingId: message.pendingId,
+        submitSelector: `palladin-live:${message.pendingId}:${'3'.repeat(32)}`,
+      } }),
+      cancelDeferred,
+    });
+    await router.dispatch(prepare(first, 7, true));
+    const filled = await router.dispatch(request(first, {
+      ...structuredClone(fixture.inject), expiresAt: Date.now() + 10_000,
+    }));
+    if (filled.type !== 'operation.result' || !('submitReady' in filled.response) || !filled.response.submitReady) {
+      throw new Error('Expected a prepared deferred submit');
+    }
+    let cancelling: Promise<unknown> | undefined;
+    if (cause === 'expiry') await vi.advanceTimersByTimeAsync(10_000);
+    else {
+      const body = cause === 'cancel-submit'
+        ? { ...fixture.cancel, pendingId: filled.response.submitReady.pendingId }
+        : { ...fixture.submit, preparedTransactionId: 'wrong-transaction',
+          submitReady: filled.response.submitReady, expiresAt: Date.now() + 5_000 };
+      cancelling = router.dispatch(request(first, body));
+      await vi.advanceTimersByTimeAsync(0);
+    }
+    const order: string[] = [];
+    const closing = router.dispatch({ protocol: AGENT_INJECT_PROTOCOL, type: 'operation.close', operationId: first })
+      .then(result => { order.push(result.type); });
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(cancelDeferred).toHaveBeenCalledOnce();
+      expect(await router.dispatch(prepare(second, 8))).toMatchObject({ response: { outcome: 'ready' } });
+      expect(order).toEqual([]);
+      expect(await router.dispatch(prepare(third, 7))).toMatchObject({ response: { outcome: 'target-tab-busy' } });
+    } finally { release?.(); await cancelling; await closing; }
+    expect(order).toEqual(['operation.closed']);
+    expect(await router.dispatch(prepare(third, 7))).toMatchObject({ response: { outcome: 'ready' } });
+  },
+);
