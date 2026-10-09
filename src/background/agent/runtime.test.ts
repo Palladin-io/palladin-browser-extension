@@ -65,6 +65,71 @@ it('advertises operation protocol support before any tab lookup or credential re
   } finally { mocked.mockRestore(); }
 });
 
+it.each([
+  ['unsupported version', null, { ...operationNegotiationContract.hello, version: 2 }],
+  ['missing version', null, { protocol: INJECT_PROVIDER_PROTOCOL, type: 'operation.hello' }],
+  ['wrong protocol', null, { ...operationNegotiationContract.hello, protocol: 'unknown' }],
+  ['unexpected field', null, { ...operationNegotiationContract.hello, extra: true }],
+  ['legacy request after negotiation', operationNegotiationContract.hello, {
+    protocol: INJECT_PROVIDER_PROTOCOL, type: 'prepare', nonce: 'a'.repeat(64),
+    targetTabId: 7, targetUrl: 'https://login.example.test/',
+  }],
+  ['negotiation after legacy request', {
+    protocol: INJECT_PROVIDER_PROTOCOL, type: 'prepare', nonce: 'a'.repeat(64),
+    targetTabId: 7, targetUrl: 'https://login.example.test/',
+  }, operationNegotiationContract.hello],
+  ['operation after legacy request', {
+    protocol: INJECT_PROVIDER_PROTOCOL, type: 'prepare', nonce: 'a'.repeat(64),
+    targetTabId: 7, targetUrl: 'https://login.example.test/',
+  }, {
+    protocol: INJECT_PROVIDER_PROTOCOL, type: 'operation.request', operationId: 'b'.repeat(32),
+    request: { protocol: INJECT_PROVIDER_PROTOCOL, type: 'prepare', nonce: 'b'.repeat(64),
+      targetTabId: 8, targetUrl: 'https://login.example.test/' },
+  }],
+])('disconnects before dispatching %s', async (_name, initial, rejected) => {
+  const { native } = stubChrome();
+  const sendMessage = vi.fn(async () => ({
+    url: 'https://login.example.test/', documentId: 'd'.repeat(32),
+  }));
+  chrome.tabs = { sendMessage } as unknown as typeof chrome.tabs;
+  const requests: unknown[] = initial === null ? [rejected] : [initial, rejected];
+  const plaintexts: Uint8Array[] = [];
+  const responses: unknown[] = [];
+  const channel = {
+    open: async () => {
+      const bytes = new TextEncoder().encode(JSON.stringify(requests.shift()));
+      plaintexts.push(bytes);
+      return bytes;
+    },
+    seal: async (bytes: Uint8Array) => {
+      responses.push(JSON.parse(new TextDecoder().decode(bytes)));
+      return secureSessionContract.firstExtensionFrame;
+    },
+    dispose: vi.fn(),
+  } as unknown as InjectSecureChannel;
+  const mocked = vi.spyOn(palladinCrypto, 'createInjectClientSession').mockResolvedValue({
+    openFrame: secureSessionContract.open, acceptReady: async () => channel, dispose: vi.fn(),
+  } as unknown as InjectClientSession);
+  try {
+    await connectNativeAgentProviderNow();
+    native.emitMessage(secureSessionContract.offer);
+    await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledOnce());
+    native.emitMessage(secureSessionContract.ready);
+    if (initial !== null) {
+      native.emitMessage(secureSessionContract.firstHostFrame);
+      await vi.waitFor(() => expect(responses).toHaveLength(1));
+      expect(native.disconnect).not.toHaveBeenCalled();
+    }
+    sendMessage.mockClear();
+    native.emitMessage(secureSessionContract.firstHostFrame);
+    await vi.waitFor(() => expect(native.disconnect).toHaveBeenCalledOnce());
+    expect(channel.dispose).toHaveBeenCalledOnce();
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(responses).toHaveLength(initial === null ? 0 : 1);
+    expect(plaintexts.every(bytes => bytes.every(byte => byte === 0))).toBe(true);
+  } finally { mocked.mockRestore(); }
+});
+
 it('dispatches authenticated operations on different tabs while the first tab is waiting', async () => {
   const { native } = stubChrome();
   const url = 'https://login.example.test/';
