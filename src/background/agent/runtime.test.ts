@@ -1,3 +1,4 @@
+import operationNegotiationContract from '../../../tests/fixtures/protocol/operation-negotiation-v1.json';
 import {
   INJECT_PROVIDER_PROTOCOL,
   createInjectClientSession,
@@ -40,6 +41,66 @@ import {
 const PUBLIC_KEY = toBase64Url(new Uint8Array(32));
 const B32 = PUBLIC_KEY;
 const SIGNATURE = toBase64Url(new Uint8Array(64));
+
+it('advertises operation protocol support before any tab lookup or credential request', async () => {
+  const { native } = stubChrome();
+  const sendMessage = vi.fn();
+  chrome.tabs = { sendMessage } as unknown as typeof chrome.tabs;
+  const responses: unknown[] = [];
+  const channel = {
+    open: async () => new TextEncoder().encode(JSON.stringify(operationNegotiationContract.hello)),
+    seal: async (bytes: Uint8Array) => {
+      responses.push(JSON.parse(new TextDecoder().decode(bytes)));
+      return secureSessionContract.firstExtensionFrame;
+    }, dispose: vi.fn(),
+  } as unknown as InjectSecureChannel;
+  const mocked = vi.spyOn(palladinCrypto, 'createInjectClientSession').mockResolvedValue({ openFrame: secureSessionContract.open,
+    acceptReady: async () => channel, dispose: vi.fn() } as unknown as InjectClientSession);
+  try {
+    await connectNativeAgentProviderNow(); native.emitMessage(secureSessionContract.offer);
+    await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledOnce());
+    native.emitMessage(secureSessionContract.ready); native.emitMessage(secureSessionContract.firstHostFrame);
+    await vi.waitFor(() => expect(responses).toEqual([operationNegotiationContract.ready]));
+    expect(sendMessage).not.toHaveBeenCalled();
+  } finally { mocked.mockRestore(); }
+});
+
+it('dispatches authenticated operations on different tabs while the first tab is waiting', async () => {
+  const { native } = stubChrome();
+  const url = 'https://login.example.test/';
+  let release!: (value: unknown) => void;
+  chrome.tabs = { sendMessage: vi.fn(async (tabId: number) => tabId === 7
+    ? new Promise(resolve => { release = resolve; })
+    : { url, documentId: 'e'.repeat(32) }) } as unknown as typeof chrome.tabs;
+  const firstId = 'a'.repeat(32), secondId = 'b'.repeat(32);
+  const requests = [7, 8].map((tabId, index) => ({
+    protocol: INJECT_PROVIDER_PROTOCOL, type: 'operation.request', operationId: index === 0 ? firstId : secondId,
+    request: { protocol: INJECT_PROVIDER_PROTOCOL, type: 'prepare', nonce: String(index).repeat(64), targetTabId: tabId, targetUrl: url },
+  }));
+  const responses: unknown[] = [];
+  const seal = vi.fn(async (bytes: Uint8Array) => {
+    responses.push(JSON.parse(new TextDecoder().decode(bytes)));
+    return secureSessionContract.firstExtensionFrame;
+  });
+  const channel = { open: async () => new TextEncoder().encode(JSON.stringify(requests.shift())), seal, dispose: vi.fn() } as unknown as InjectSecureChannel;
+  const mocked = vi.spyOn(palladinCrypto, 'createInjectClientSession').mockResolvedValue({ openFrame: secureSessionContract.open,
+    acceptReady: async () => channel, dispose: vi.fn() } as unknown as InjectClientSession);
+  try {
+    await connectNativeAgentProviderNow(); native.emitMessage(secureSessionContract.offer);
+    await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledOnce());
+    native.emitMessage(secureSessionContract.ready);
+    native.emitMessage(secureSessionContract.firstHostFrame);
+    native.emitMessage(secureSessionContract.firstHostFrame);
+    await vi.waitFor(() => expect(responses).toContainEqual(expect.objectContaining({
+      type: 'operation.result', operationId: secondId, response: expect.objectContaining({ outcome: 'ready' }),
+    })), { timeout: 500 });
+    expect(responses).toHaveLength(1);
+    release({ url, documentId: 'd'.repeat(32) });
+    await vi.waitFor(() => expect(responses).toHaveLength(2));
+    expect(responses[1]).toMatchObject({ operationId: firstId, response: { outcome: 'ready' } });
+    expect(native.disconnect).not.toHaveBeenCalled();
+  } finally { mocked.mockRestore(); }
+});
 
 afterEach(() => {
   vi.useRealTimers();

@@ -1,3 +1,6 @@
+import { gateAgentFillDeps } from "./gated-deps";
+export { gateAgentFillDeps } from "./gated-deps";
+import { NativeOperationRouter, type OperationReply } from "./operation-router";
 import { prepareLoginFrame } from './frame-routing';
 import { automaticFillSession } from '../session/automatic-fill-session';
 import { DEFERRED_CANCEL, parseSubmitReady, type DeferredFillMessage, type DeferredFillOutcome, type DeferredCommitMessage } from '@shared/messaging/agent-deferred';
@@ -31,6 +34,7 @@ import { logger } from "../telemetry/logger";
 import {
   NATIVE_HOST_NAME,
   handleNativeAgentMessage,
+  wipeAgentMessageValues,
   type AgentFillDeps,
   type AgentProviderSession,
   type AgentTabState,
@@ -46,6 +50,7 @@ const RECONNECT_DELAY_MINUTES = 0.5;
 const HANDSHAKE_TIMEOUT_MS = 10_000;
 const MAX_SECURE_FRAME_LENGTH = 2 * 1024 * 1024;
 const TAB_PROBE_TIMEOUT_MS = 2_000;
+type OperationReady = { readonly protocol: typeof INJECT_PROVIDER_PROTOCOL; readonly type: 'operation.ready'; readonly version: 1 };
 
 export interface InjectSessionOffer {
   readonly protocol: typeof INJECT_PROVIDER_PROTOCOL;
@@ -83,6 +88,16 @@ let lifecycleVersion = 0;
 let lastImmediateReconnectAt: number | null = null;
 
 const agentFillDeps: AgentFillDeps = {
+  async probeTarget(tabId, targetUrl) {
+    // Browser-owned tab metadata distinguishes an absent tab from an unavailable
+    // content script. Only the requested tab is inspected; no metadata is returned.
+    const tabs = await settleWithin(chrome.tabs.query({}), TAB_PROBE_TIMEOUT_MS);
+    const tab = tabs.find(candidate => candidate.id === tabId);
+    if (!tab) return 'no-match';
+    const url = tab.url ?? (await getPageById(tabId))?.page?.url;
+    if (url === undefined) return 'unavailable';
+    return url === targetUrl ? 'match' : 'no-match';
+  },
   prepareFrame: (top, isActive) => prepareLoginFrame(top, {
     frames: tabId => settleWithin(chrome.webNavigation.getAllFrames({ tabId }), TAB_PROBE_TIMEOUT_MS),
     send: (tabId, documentId, message) => settleWithin(chrome.tabs.sendMessage(tabId, message, { documentId }), 5_500),
@@ -96,72 +111,6 @@ const agentFillDeps: AgentFillDeps = {
   sendStep,
   probeTransition,
 };
-
-/** Gate every awaited lookup and page operation against connection lifecycle. */
-export function gateAgentFillDeps(
-  deps: AgentFillDeps,
-  isActive: () => boolean,
-): AgentFillDeps {
-  return {
-    async prepareFrame(top, parentActive) {
-      if (!isActive() || !deps.prepareFrame) return null;
-      const prepared = await deps.prepareFrame(top, () => isActive() && parentActive());
-      return isActive() && prepared ? { ...prepared, deps: gateAgentFillDeps(prepared.deps, isActive) } : null;
-    },
-    currentAutomaticFillSession: () => isActive() ? deps.currentAutomaticFillSession?.() ?? null : null,
-    async fillDeferred(tabId, message) {
-      if (!isActive() || !deps.fillDeferred) return null;
-      const response = await deps.fillDeferred(tabId, message);
-      if (!isActive()) { void deps.cancelDeferred?.(tabId, message.pendingId).catch(() => undefined); return null; }
-      return response;
-    },
-    async commitDeferred(tabId, message) {
-      if (!isActive() || !deps.commitDeferred) return null;
-      const response = await deps.commitDeferred(tabId, message);
-      return isActive() ? response : null;
-    },
-    async cancelDeferred(tabId, pendingId) { await deps.cancelDeferred?.(tabId, pendingId); },
-    async probeLiveLogin(tabId, documentId, targetUrl) {
-      if (!isActive() || !deps.probeLiveLogin) return null;
-      const result = await deps.probeLiveLogin(tabId, documentId, targetUrl);
-      return isActive() ? result : null;
-    },
-    async inspectLiveLogin(tabId, documentId, targetUrl) {
-      if (!isActive() || !deps.inspectLiveLogin) return null;
-      const result = await deps.inspectLiveLogin(tabId, documentId, targetUrl);
-      return isActive() ? result : null;
-    },
-
-    async getActivePage() {
-      if (!isActive()) return null;
-      const page = await deps.getActivePage();
-      return isActive() ? page : null;
-    },
-    async getPageById(tabId) {
-      if (!isActive()) return null;
-      const page = await deps.getPageById(tabId);
-      return isActive() ? page : null;
-    },
-    async sendStep(tabId, expectedDomain, documentId, step, values, requireExistingUsername) {
-      if (!isActive()) return null;
-      const outcome = await deps.sendStep(tabId, expectedDomain, documentId, step, values, ...(requireExistingUsername ? [true] : []));
-      return isActive() ? outcome : null;
-    },
-    async probeTransition(tabId, expectedDomain, selector) {
-      if (!isActive()) return null;
-      const outcome = await deps.probeTransition(tabId, expectedDomain, selector);
-      return isActive() ? outcome : null;
-    },
-    async wait(milliseconds) {
-      if (!isActive()) return;
-      if (deps.wait) {
-        await deps.wait(milliseconds);
-      } else {
-        await new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
-      }
-    },
-  };
-}
 
 export function connectNativeAgentProvider(): void {
   void connectNativeAgentProviderNow();
@@ -224,10 +173,34 @@ async function openNativeAgentProvider(expectedLifecycle: number): Promise<void>
     port = chrome.runtime.connectNative(NATIVE_HOST_NAME);
     nativePort = port;
     const providerSession: AgentProviderSession = { prepared: null };
-    cancelActiveDeferred = () => cancelPendingDeferred(agentFillDeps, providerSession);
     const isActive = () => nativePort === port
       && lifecycleVersion === expectedLifecycle;
     const lifecycleDeps = gateAgentFillDeps(agentFillDeps, isActive);
+    const operations = new NativeOperationRouter(lifecycleDeps, replay);
+    cancelActiveDeferred = () => {
+      operations.dispose();
+      cancelPendingDeferred(agentFillDeps, providerSession);
+    };
+    let mode: 'legacy' | 'operations' | null = null;
+    const selectMode = (next: 'legacy' | 'operations') => {
+      if (mode !== null && mode !== next) throw new Error('Mixed operation protocols');
+      mode = next;
+    };
+    let outbound = Promise.resolve();
+    const deliver = (response: OperationReply | OperationReady, terminalDelivered: () => void): Promise<void> => {
+      const next = outbound.then(async () => {
+        if (!isActive() || secureChannel === null) return;
+        const bytes = new TextEncoder().encode(JSON.stringify(response));
+        try {
+          const frame = await secureChannel.seal(bytes);
+          if (!isActive()) return;
+          const posted = postIfConnected(port, frame);
+          if (posted && response.type === 'operation.result' && isTerminalCompletion(response.response)) terminalDelivered();
+        } finally { bytes.fill(0); }
+      });
+      outbound = next.catch(() => disconnectSecurePort(port));
+      return next;
+    };
     let queue = Promise.resolve();
     let terminalSent = false;
     let receivedFrames = 0;
@@ -242,6 +215,9 @@ async function openNativeAgentProvider(expectedLifecycle: number): Promise<void>
           expectedLifecycle,
           raw,
           () => { if (frameNumber === receivedFrames) terminalSent = true; },
+          operations,
+          selectMode,
+          deliver,
         ))
         .catch(() => disconnectSecurePort(port));
     });
@@ -303,6 +279,9 @@ async function handleSecureNativeMessage(
   expectedLifecycle: number,
   raw: unknown,
   terminalDelivered: () => void,
+  operations: NativeOperationRouter,
+  selectMode: (mode: 'legacy' | 'operations') => void,
+  deliver: (response: OperationReply | OperationReady, terminalDelivered: () => void) => Promise<void>,
 ): Promise<void> {
   const isActive = () => nativePort === port
     && lifecycleVersion === expectedLifecycle;
@@ -353,6 +332,32 @@ async function handleSecureNativeMessage(
     request = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(plaintext));
   } finally {
     plaintext.fill(0);
+  }
+  if (typeof request === 'object' && request !== null && 'type' in request && request.type === 'operation.hello') {
+    if (!('protocol' in request) || request.protocol !== INJECT_PROVIDER_PROTOCOL || !('version' in request) || request.version !== 1
+      || Object.keys(request).some(key => !['protocol', 'type', 'version'].includes(key))) {
+      wipeAgentMessageValues(request);
+      throw new Error('Invalid operation protocol negotiation');
+    }
+    selectMode('operations');
+    await deliver({ protocol: INJECT_PROVIDER_PROTOCOL, type: 'operation.ready', version: 1 }, terminalDelivered);
+    return;
+  }
+  const wrapped = typeof request === 'object' && request !== null
+    && 'type' in request && (request.type === 'operation.request' || request.type === 'operation.close');
+  try { selectMode(wrapped ? 'operations' : 'legacy'); }
+  catch (error) {
+    wipeAgentMessageValues(request);
+    if (typeof request === 'object' && request !== null && 'request' in request) wipeAgentMessageValues(request.request);
+    throw error;
+  }
+  if (wrapped) {
+    // Only frame decryption stays in the receive queue. DOM work is isolated by
+    // operation, and outbound sealing is sequenced independently in deliver.
+    void operations.dispatch(request)
+      .then(response => deliver(response, terminalDelivered))
+      .catch(() => disconnectSecurePort(port));
+    return;
   }
   const response = await handleNativeAgentMessage(deps, replay, providerSession, request)
     .catch(() => unavailableResponse(request));

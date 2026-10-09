@@ -10,10 +10,14 @@ export interface PendingDeferredSubmit {
   ready: SubmitReady | null;
 }
 const result = (transactionId: string, outcome: AgentInjectionOutcome): AgentInjectionResult => ({ protocol: AGENT_INJECT_PROTOCOL, type: 'inject.result', transactionId, outcome });
-export function cancelPendingDeferred(deps: AgentFillDeps, session: AgentProviderSession): void {
+export function cancelPendingDeferred(deps: AgentFillDeps, session: AgentProviderSession): Promise<void> {
   deps = session.boundDeps ?? deps;
   const pending = session.pendingSubmit; session.pendingSubmit = null;
-  if (pending) { clearTimeout(pending.timer); void deps.cancelDeferred?.(pending.tabId, pending.pendingId).catch(() => undefined); }
+  if (pending) {
+    clearTimeout(pending.timer);
+    return deps.cancelDeferred?.(pending.tabId, pending.pendingId).catch(() => undefined) ?? Promise.resolve();
+  }
+  return Promise.resolve();
 }
 export async function beginDeferredSubmit(deps: AgentFillDeps, replay: TransactionReplayGuard, session: AgentProviderSession,
   prepared: PreparedAgentPage, chain: LiveChain, request: AgentInjectionRequest): Promise<AgentInjectionResult> {

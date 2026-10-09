@@ -1,3 +1,4 @@
+import type { TargetProbeOutcome } from './target-probe';
 import { beginDeferredSubmit, commitDeferredSubmit, cancelPendingDeferred, type PendingDeferredSubmit } from './native-deferred';
 import { parseDeferredSubmit, parseDeferredCancel, type DeferredFillMessage, type DeferredCommitMessage, type DeferredFillOutcome, type SubmitReady } from '@shared/messaging/agent-deferred';
 import { sameLiveForm } from '@shared/messaging/agent-live';
@@ -41,6 +42,7 @@ export interface PreparedFrame {
 }
 
 export interface AgentFillDeps {
+  probeTarget?(tabId: number, targetUrl: string): Promise<TargetProbeOutcome>;
   prepareFrame?(top: AgentTabState, isActive: () => boolean): Promise<PreparedFrame | null>;
   currentAutomaticFillSession?(): string | null;
   fillDeferred?(tabId: number, message: DeferredFillMessage): Promise<DeferredFillOutcome | null>;
@@ -110,13 +112,14 @@ export interface AgentPrepareResult {
   readonly outcome: "ready"
     | "provider-unavailable"
     | "target-tab-unavailable"
+    | "target-tab-busy"
     | "target-url-mismatch"
     | "invalid-request";
 }
 
 /**
- * One Native Messaging connection owns one prepare/inject session. The native host serializes
- * clients, verifies provider+nonce, and strips those fields before forwarding the Inject frame.
+ * Handles one prepare/inject operation. The operation router owns tab reservations;
+ * legacy native connections retain one serial session for compatibility.
  */
 export async function handleNativeAgentMessage(
   deps: AgentFillDeps,
