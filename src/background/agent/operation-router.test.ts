@@ -255,3 +255,39 @@ it.each(['cancel-submit', 'expiry', 'rejected-submit'] as const)(
     expect(await router.dispatch(prepare(third, 7))).toMatchObject({ response: { outcome: 'ready' } });
   },
 );
+
+it('waits for late-fill cleanup before acknowledging close or reusing the tab', async () => {
+  vi.useFakeTimers();
+  let finishFill!: () => void;
+  let finishCleanup!: () => void;
+  const cancelDeferred = vi.fn(async () => {});
+  cancelDeferred.mockImplementationOnce(async () => {});
+  cancelDeferred.mockImplementationOnce(() => new Promise<void>(resolve => { finishCleanup = resolve; }));
+  const { router } = setup({
+    inspectLiveLogin: async () => fixture.inject.form as AgentInjectForm,
+    fillDeferred: async (_id, message) => {
+      await new Promise<void>(resolve => { finishFill = resolve; });
+      return { ok: true, submitReady: { ...fixture.submitReady.submitReady, pendingId: message.pendingId,
+        submitSelector: `palladin-live:${message.pendingId}:${'3'.repeat(32)}` } };
+    },
+    cancelDeferred,
+  });
+  await router.dispatch(prepare(first, 7, true));
+  const filling = router.dispatch(request(first, { ...structuredClone(fixture.inject), expiresAt: Date.now() + 10_000 }));
+  await vi.advanceTimersByTimeAsync(0);
+  const order: string[] = [];
+  const closing = router.dispatch({ protocol: AGENT_INJECT_PROTOCOL, type: 'operation.close', operationId: first })
+    .then(result => { order.push(result.type); });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(cancelDeferred).toHaveBeenCalledOnce();
+  finishFill();
+  try {
+    await vi.advanceTimersByTimeAsync(0);
+    expect(cancelDeferred).toHaveBeenCalledTimes(2);
+    expect(order).toEqual([]);
+    expect(await router.dispatch(prepare(second, 7))).toMatchObject({ response: { outcome: 'target-tab-busy' } });
+    expect(await router.dispatch(prepare(third, 8))).toMatchObject({ response: { outcome: 'ready' } });
+  } finally { finishCleanup?.(); await filling; await closing; }
+  expect(order).toEqual(['operation.closed']);
+  expect(await router.dispatch(prepare(second, 7))).toMatchObject({ response: { outcome: 'ready' } });
+});

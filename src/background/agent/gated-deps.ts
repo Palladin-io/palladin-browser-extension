@@ -20,7 +20,7 @@ export function gateAgentFillDeps(
     async fillDeferred(tabId, message) {
       if (!isActive() || !deps.fillDeferred) return null;
       const response = await deps.fillDeferred(tabId, message);
-      if (!isActive()) { void deps.cancelDeferred?.(tabId, message.pendingId).catch(() => undefined); return null; }
+      if (!isActive()) { await deps.cancelDeferred?.(tabId, message.pendingId).catch(() => undefined); return null; }
       return response;
     },
     async commitDeferred(tabId, message) {
