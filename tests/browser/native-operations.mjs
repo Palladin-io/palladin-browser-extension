@@ -58,9 +58,17 @@ try {
     const directory = path.join(root, name);
     await mkdir(path.join(directory, 'NativeMessagingHosts'), { recursive: true });
     await writeFile(path.join(directory, 'NativeMessagingHosts/io.palladin.json'), JSON.stringify({ name: 'io.palladin', description: 'Synthetic integration fixture', path: shim, type: 'stdio', allowed_origins: [`chrome-extension://${id}/`] }));
-    const context = await chromium.launchPersistentContext(directory, { channel: 'chromium', headless: true,
-      args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`] });
+    const context = await chromium.launchPersistentContext(directory, { channel: process.env.PALLADIN_BROWSER_CHANNEL ?? 'chromium', headless: true, ignoreDefaultArgs: ['--disable-extensions'],
+      args: ['--enable-unsafe-extension-debugging'] });
     contexts.push(context);
+    const settings = await context.newPage();
+    await settings.goto('chrome://extensions/');
+    await settings.evaluate(() => chrome.developerPrivate.updateProfileConfiguration({ inDeveloperMode: true }));
+    await settings.close();
+    const devtools = await context.browser().newBrowserCDPSession();
+    const loaded = await devtools.send('Extensions.loadUnpacked', { path: extension });
+    assert.equal(loaded.id, id);
+    await devtools.detach();
     await context.route(/^https?:/, route => new URL(route.request().url()).hostname === 'login.example.test' ? route.fulfill({ contentType: 'text/html', body: html }) : route.abort());
     const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
     async function page(suffix) {
@@ -167,15 +175,28 @@ try {
   const currentSocket = (await readdir(sockets)).find(name => name.endsWith('.sock'));
   assert.notEqual(currentSocket, secondSocket);
   console.log('PASS profile restart publishes a fresh connection and restores operation');
-  console.log('Waiting 305 seconds to cross the former native-host idle limit');
-  await delay(305000);
+  await restarted.worker.evaluate(() => chrome.runtime.reload()).catch(() => undefined);
+  // Chrome recreates content contexts on document refresh after extension reload.
+  await d.page.reload();
   await success(d.target);
-  assert.equal(await d.page.evaluate(() => globalThis.submits), 2);
-  assert.deepEqual((await readdir(sockets)).filter(name => name.endsWith('.sock')), [currentSocket]);
-  console.log('PASS idle beyond five minutes retains the same authenticated host connection');
+  const reloadedSocket = await until(async () => {
+    const routes = (await readdir(sockets)).filter(name => name.endsWith('.sock'));
+    return routes.length === 1 && routes[0] !== currentSocket ? routes[0] : null;
+  }, 'Extension reload did not publish a fresh connection');
+  assert.equal(await d.page.evaluate(() => globalThis.submits), 1);
+  console.log('PASS extension reload restores native host and exact-tab operation');
+  if (!process.argv.includes('--skip-idle')) {
+    console.log('Waiting 305 seconds to cross the former native-host idle limit');
+    await delay(305000);
+    await success(d.target);
+    assert.equal(await d.page.evaluate(() => globalThis.submits), 2);
+    assert.deepEqual((await readdir(sockets)).filter(name => name.endsWith('.sock')), [reloadedSocket]);
+    console.log('PASS idle beyond five minutes retains the same authenticated host connection');
+  }
 } finally {
   for (const child of processes) child.kill();
   await Promise.allSettled(contexts.map(context => context.close()));
-  console.log('fixture host errors', await readFile(path.join(root, 'host-errors'), 'utf8').catch(() => 'none'));
+  const errors = await readFile(path.join(root, 'host-errors'), 'utf8').catch(() => '');
+  if (errors.trim()) console.log('fixture host errors', errors.trim());
   await rm(root, { recursive: true, force: true });
 }

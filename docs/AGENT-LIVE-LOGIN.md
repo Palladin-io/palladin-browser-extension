@@ -117,15 +117,22 @@ PALLADIN_BROWSER_FIXTURE=/absolute/agent/runtime/target/debug/examples/browser-f
 ```
 
 This Unix-only test builds the extension and registers a host only under each
-temporary browser user-data directory. A short `/tmp` root avoids macOS Unix
+temporary browser user-data directory. It enables extension debugging and uses
+Chrome's own settings API to enable developer mode in those disposable profiles,
+then loads the unpacked build through CDP. Without developer mode, Chrome disables
+the unpacked extension on reload (`DISABLE_UNSUPPORTED_DEVELOPER_EXTENSION`).
+Set `PALLADIN_BROWSER_CHANNEL=chrome` to use installed Google Chrome instead of
+Playwright Chromium, still with completely separate test profiles. A short `/tmp` root avoids macOS Unix
 socket pathname limits. The example substitutes a fixed synthetic identity and
 authorization; production framing, crypto, operation routing, native I/O and DOM
 execution remain real. No installed manifest, Keychain, Agent profile, grant or
 real account is accessed. The example is outside release packages.
 
 Assertions cover 100 sequential operations, simultaneous tabs and profiles,
-same-tab exclusion, explicit-session isolation, cancellation, profile restart,
+same-tab exclusion, explicit-session isolation, cancellation, profile restart
+and extension reload followed by a test-document refresh,
 dropping an encrypted post-submit reply without replay, and 305 seconds idle.
+For focused reruns, `--skip-idle` omits only the five-minute wait.
 Ambiguous identical tab-ID/URL routing is deterministic in native protocol tests;
 fresh Chromium profiles may generate different IDs. Existing live/form-frame
 browser tests cover DOM behavior separately. These fixtures do not prove a
