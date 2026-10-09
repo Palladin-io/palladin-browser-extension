@@ -149,8 +149,8 @@ export class NativeOperationRouter {
     }
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
     this.disposed = true;
-    for (const operationId of this.operations.keys()) void this.close(operationId);
+    await Promise.all([...this.operations.keys()].map(operationId => this.close(operationId)));
   }
 }

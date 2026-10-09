@@ -78,7 +78,8 @@ class SessionReplayGuard implements TransactionReplayGuard {
 }
 
 const replay = new SessionReplayGuard();
-let cancelActiveDeferred: (() => void) | null = null;
+let cancelActiveDeferred: (() => Promise<void>) | null = null;
+let drainingSession: Promise<void> = Promise.resolve();
 let nativePort: chrome.runtime.Port | null = null;
 let clientSession: InjectClientSession | null = null;
 let secureChannel: InjectSecureChannel | null = null;
@@ -167,6 +168,7 @@ async function connectNativeAgentProviderForLifecycle(
 }
 
 async function openNativeAgentProvider(expectedLifecycle: number): Promise<void> {
+  await drainingSession;
   if (nativePort !== null || lifecycleVersion !== expectedLifecycle) return;
   let port: chrome.runtime.Port;
   try {
@@ -177,9 +179,13 @@ async function openNativeAgentProvider(expectedLifecycle: number): Promise<void>
       && lifecycleVersion === expectedLifecycle;
     const lifecycleDeps = gateAgentFillDeps(agentFillDeps, isActive);
     const operations = new NativeOperationRouter(lifecycleDeps, replay);
-    cancelActiveDeferred = () => {
-      operations.dispose();
-      cancelPendingDeferred(agentFillDeps, providerSession);
+    cancelActiveDeferred = async () => {
+      await Promise.all([
+        operations.dispose(),
+        cancelPendingDeferred(agentFillDeps, providerSession),
+        queue,
+      ]);
+      await cancelPendingDeferred(agentFillDeps, providerSession);
     };
     let mode: 'legacy' | 'operations' | null = null;
     const selectMode = (next: 'legacy' | 'operations') => {
@@ -465,7 +471,9 @@ function disconnectSecurePort(port: chrome.runtime.Port, handshakeTimedOut = fal
 
 function disposeSecureSession(port?: chrome.runtime.Port): void {
   if (port !== undefined && nativePort !== port) return;
-  cancelActiveDeferred?.(); cancelActiveDeferred = null;
+  // Revoke the channel synchronously, but retain page cleanup across reconnects.
+  if (cancelActiveDeferred) drainingSession = cancelActiveDeferred();
+  cancelActiveDeferred = null;
   clearHandshakeTimeout();
   secureChannel?.dispose();
   clientSession?.dispose();

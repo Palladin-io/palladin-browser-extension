@@ -780,3 +780,62 @@ it.each([false, true])('cancels an in-flight deferred fill on native disconnect,
     expect(sendMessage.mock.calls.some(([, message]) => message.channel === 'palladin.agent-live/deferred-commit')).toBe(false);
   } finally { mocked.mockRestore(); }
 });
+
+
+it.each(['operations', 'legacy'] as const)('drains disconnected %s work before reconnecting', async mode => {
+  const { native, connectNative } = stubChrome();
+  const next = fakeNativePort();
+  connectNative.mockReturnValueOnce(native.port).mockReturnValue(next.port);
+  const url = 'https://login.example.test/', documentId = 'd'.repeat(32);
+  let releaseFill!: (value: unknown) => void;
+  const cancellations: (() => void)[] = [];
+  const sendMessage = vi.fn(async (_id: number, message: Record<string, unknown>) => {
+    if (message.channel === 'palladin.tab/current-url') return { url, documentId };
+    if (message.channel === 'palladin.agent-live/inspect') return deferredContract.inject.form;
+    if (message.channel === 'palladin.agent-live/deferred-fill') return new Promise(resolve => { releaseFill = resolve; });
+    if (message.channel === 'palladin.agent-live/deferred-cancel') return new Promise<void>(resolve => { cancellations.push(resolve); });
+    return { ok: true };
+  });
+  chrome.tabs = { sendMessage } as unknown as typeof chrome.tabs;
+  const requests = [
+    { protocol: INJECT_PROVIDER_PROTOCOL, type: 'prepare', nonce: 'a'.repeat(64), targetTabId: 7, targetUrl: url, liveDetection: true },
+    { ...structuredClone(deferredContract.inject), expiresAt: Date.now() + 10_000 },
+  ].map(request => mode === 'operations'
+    ? { protocol: INJECT_PROVIDER_PROTOCOL, type: 'operation.request', operationId: 'c'.repeat(32), request }
+    : request);
+  const seal = vi.fn(async () => secureSessionContract.firstExtensionFrame);
+  const channel = { open: async () => new TextEncoder().encode(JSON.stringify(requests.shift())), seal, dispose: vi.fn() } as unknown as InjectSecureChannel;
+  const mocked = vi.spyOn(palladinCrypto, 'createInjectClientSession').mockResolvedValue({ openFrame: secureSessionContract.open,
+    acceptReady: async () => channel, dispose: vi.fn() } as unknown as InjectClientSession);
+  try {
+    await connectNativeAgentProviderNow(); native.emitMessage(secureSessionContract.offer);
+    await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledOnce());
+    native.emitMessage(secureSessionContract.ready); native.emitMessage(secureSessionContract.firstHostFrame);
+    await vi.waitFor(() => expect(seal).toHaveBeenCalledOnce());
+    native.emitMessage(secureSessionContract.firstHostFrame);
+    await vi.waitFor(() => expect(releaseFill).toBeTypeOf('function'));
+    native.emitDisconnect();
+    await vi.waitFor(() => expect(cancellations).toHaveLength(1));
+    // Explicit/alarm reconnects must obey the same drain as immediate recovery.
+    const reconnect = connectNativeAgentProviderNow();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(connectNative).toHaveBeenCalledOnce();
+    cancellations[0]();
+    releaseFill(null);
+    await vi.waitFor(() => expect(cancellations.length).toBeGreaterThan(1));
+    expect(connectNative).toHaveBeenCalledOnce();
+    // Nested lifecycle/operation gates may each perform late-fill cleanup.
+    while (connectNative.mock.calls.length === 1) {
+      cancellations.splice(0).forEach(resolve => resolve());
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    await reconnect;
+    expect(connectNative).toHaveBeenCalledTimes(2);
+    expect(seal).toHaveBeenCalledOnce();
+    expect(sendMessage.mock.calls.some(([, message]) => message.channel === 'palladin.agent-live/deferred-commit')).toBe(false);
+  } finally {
+    releaseFill?.(null);
+    cancellations.forEach(resolve => resolve());
+    mocked.mockRestore();
+  }
+});
