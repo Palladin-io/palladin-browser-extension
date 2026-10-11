@@ -88,6 +88,56 @@ credential capture. Failed attempts remove only their newly added Agent marks,
 so later manual input remains eligible for capture. Controls in open shadow roots
 also bind the composed form owner and its submission destination and target.
 
+## Concurrent native operations
+
+A negotiated native connection persists between CLI operations. Each operation
+has independent preparation and cancellation state. Different tabs run
+concurrently; a second operation on an occupied tab receives `target-tab-busy`
+before credential acquisition. Native disconnect clears all pending operations,
+while cancelling one client releases only that client's tab after cleanup.
+
+An optional Palladin `browserSession` selects an exact ephemeral connection.
+Without it, the runtime probes connected extensions using only the caller's exact
+tab ID and URL. Exactly one match can proceed. Multiple matches or incomplete
+verification require an explicit selection; there is no first-profile fallback.
+The selected preparation binds its current document again. Connection IDs are
+not Chrome profile names, window IDs, or another browser tool's session IDs.
+
+The coordinated Agent repository documents the encrypted envelopes in
+`runtime/contracts/inject-provider/operations-v1/README.md`. Native and extension
+copies of the negotiation fixture must remain identical.
+
+To exercise actual Native Messaging with isolated Chromium profiles:
+
+```sh
+# In the coordinated Agent checkout:
+cargo build --manifest-path runtime/Cargo.toml --locked -p palladin-cli --example browser-fixture
+# In this extension checkout (absolute path to the preceding example):
+PALLADIN_BROWSER_FIXTURE=/absolute/agent/runtime/target/debug/examples/browser-fixture node tests/browser/native-operations.mjs
+```
+
+This Unix-only test builds the extension and registers a host only under each
+temporary browser user-data directory. It enables extension debugging and uses
+Chrome's own settings API to enable developer mode in those disposable profiles,
+then loads the unpacked build through CDP. Without developer mode, Chrome disables
+the unpacked extension on reload (`DISABLE_UNSUPPORTED_DEVELOPER_EXTENSION`).
+Set `PALLADIN_BROWSER_CHANNEL=chrome` to use installed Google Chrome instead of
+Playwright Chromium, still with completely separate test profiles. A short `/tmp` root avoids macOS Unix
+socket pathname limits. The example substitutes a fixed synthetic identity and
+authorization; production framing, crypto, operation routing, native I/O and DOM
+execution remain real. No installed manifest, Keychain, Agent profile, grant or
+real account is accessed. The example is outside release packages.
+
+Assertions cover 100 sequential operations, simultaneous tabs and profiles,
+same-tab exclusion, explicit-session isolation, cancellation, profile restart
+and extension reload followed by a test-document refresh,
+dropping an encrypted post-submit reply without replay, and 305 seconds idle.
+For focused reruns, `--skip-idle` omits only the five-minute wait.
+Ambiguous identical tab-ID/URL routing is deterministic in native protocol tests;
+fresh Chromium profiles may generate different IDs. Existing live/form-frame
+browser tests cover DOM behavior separately. These fixtures do not prove a
+signed installed artifact's launch attestation, backend grants, or live-site login.
+
 ## Evidence
 
 The shared AWS root identifier fixture preserves the observed public native form
