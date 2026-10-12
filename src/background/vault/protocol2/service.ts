@@ -490,66 +490,73 @@ export class Protocol2VaultDataService implements VaultDataSource {
   }
 
   async deleteEntry(vaultId: string, entryId: string): Promise<void> {
-    await this.enqueueSync(async () => {
-      const privateKey = this.deps.session.getPrivateKey()
-      if (privateKey === null) throw new VaultDataError('locked', 'Session is locked')
-      const userId = await this.deps.session.getUserId()
-      if (userId === null) throw new VaultDataError('not-authenticated', 'No session')
-      const [vault, detail] = await Promise.all([
-        this.withAuth((token) => this.deps.client.getVault(token, vaultId)),
-        this.withAuth((token) => this.deps.client.getEntry(token, vaultId, entryId)),
-      ])
-      let vaultKey: Uint8Array | null = null
-      let discoveryKey: Uint8Array | null = null
-      try {
-        vaultKey = await openProjectionVaultKey(vault, privateKey, userId)
-        const secret = await openCurrentMemberSecret(detail.entryKey, detail.memberSecret, vaultKey, {
-          organizationId: vault.organizationId,
-          vaultId,
-          entryId,
-          revision: detail.currentRevision,
-        })
-        discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, vaultKey)
-        const material = await sealCurrentCanonicalEntry({
-          organizationId: vault.organizationId,
-          vaultId,
-          entryId,
-          revision: (BigInt(detail.currentRevision) + 1n).toString(),
-          entryKeyRevision: '1',
-          entryKeyVersion: detail.currentKeyVersion + 1,
-          memberIndexRevision: (BigInt(detail.memberIndexRevision) + 1n).toString(),
-          agentDiscoveryRevision: (BigInt(detail.agentDiscoveryRevisionHighWatermark) + 1n).toString(),
-          vaultKeyVersion: vault.currentKeyEpoch.vaultKeyVersion,
-          vdkVersion: vault.currentKeyEpoch.vdkVersion,
-          memberKeyGeneration: vault.memberKeyGeneration,
-        }, secret, vaultKey, discoveryKey, 5)
-        await this.withAuth(async (token) => {
-          const currentUserId = await this.deps.session.getUserId()
-          if (this.deps.session.getPrivateKey() !== privateKey || currentUserId !== userId) {
-            throw new VaultDataError('locked', 'Session changed during deletion')
-          }
-          return this.deps.client.deleteEntry(token, {
+    let dispatched = false
+    try {
+      await this.enqueueSync(async () => {
+        const privateKey = this.deps.session.getPrivateKey()
+        if (privateKey === null) throw new VaultDataError('locked', 'Session is locked')
+        const userId = await this.deps.session.getUserId()
+        if (userId === null) throw new VaultDataError('not-authenticated', 'No session')
+        const [vault, detail] = await Promise.all([
+          this.withAuth((token) => this.deps.client.getVault(token, vaultId)),
+          this.withAuth((token) => this.deps.client.getEntry(token, vaultId, entryId)),
+        ])
+        let vaultKey: Uint8Array | null = null
+        let discoveryKey: Uint8Array | null = null
+        try {
+          vaultKey = await openProjectionVaultKey(vault, privateKey, userId)
+          const secret = await openCurrentMemberSecret(detail.entryKey, detail.memberSecret, vaultKey, {
+            organizationId: vault.organizationId,
             vaultId,
             entryId,
-            baseRevision: detail.currentRevision,
-            newEntryKey: material.entryKey,
-            memberSecret: material.memberSecret,
-            memberIndex: material.memberIndex,
+            revision: detail.currentRevision,
           })
-        })
-        // Keep reads fenced even if IndexedDB rejects the purge after the server commits.
-        this.pendingPurges.add(`${userId}:${vaultId}`)
-        await this.purgeVault(userId, vaultId).catch(() => undefined)
-      } finally {
-        if (discoveryKey !== null) wipe(discoveryKey)
-        if (vaultKey !== null) wipe(vaultKey)
+          discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, vaultKey)
+          const material = await sealCurrentCanonicalEntry({
+            organizationId: vault.organizationId,
+            vaultId,
+            entryId,
+            revision: (BigInt(detail.currentRevision) + 1n).toString(),
+            entryKeyRevision: '1',
+            entryKeyVersion: detail.currentKeyVersion + 1,
+            memberIndexRevision: (BigInt(detail.memberIndexRevision) + 1n).toString(),
+            agentDiscoveryRevision: (BigInt(detail.agentDiscoveryRevisionHighWatermark) + 1n).toString(),
+            vaultKeyVersion: vault.currentKeyEpoch.vaultKeyVersion,
+            vdkVersion: vault.currentKeyEpoch.vdkVersion,
+            memberKeyGeneration: vault.memberKeyGeneration,
+          }, secret, vaultKey, discoveryKey, 5)
+          await this.withAuth(async (token) => {
+            const currentUserId = await this.deps.session.getUserId()
+            if (this.deps.session.getPrivateKey() !== privateKey || currentUserId !== userId) {
+              throw new VaultDataError('locked', 'Session changed during deletion')
+            }
+            // The server may commit even when its response never reaches this worker.
+            dispatched = true
+            this.pendingPurges.add(`${userId}:${vaultId}`)
+            return this.deps.client.deleteEntry(token, {
+              vaultId,
+              entryId,
+              baseRevision: detail.currentRevision,
+              newEntryKey: material.entryKey,
+              memberSecret: material.memberSecret,
+              memberIndex: material.memberIndex,
+            })
+          })
+        } finally {
+          if (discoveryKey !== null) wipe(discoveryKey)
+          if (vaultKey !== null) wipe(vaultKey)
+          if (dispatched) await this.purgeVault(userId, vaultId).catch(() => undefined)
+        }
+      })
+    } finally {
+      if (dispatched) {
+        try {
+          await this.repair()
+        } catch {
+          // Preserve the mutation result; later sync retries purge before restoring Entries.
+          this.lastSuccessfulRefreshAt = null
+        }
       }
-    })
-    try {
-      await this.repair()
-    } catch {
-      // The mutation is committed; a later sync retries any pending purge before restoring Entries.
-      this.lastSuccessfulRefreshAt = null
     }
   }
 

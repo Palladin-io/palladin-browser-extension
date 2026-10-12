@@ -1195,10 +1195,31 @@ describe('Entry deletion', () => {
     expect(await service.getMetadata()).toEqual([])
   })
 
-  it('leaves cache intact when the backend rejects deletion', async () => {
+  it('blocks queued reads when the deletion response is lost and repair is unavailable', async () => {
+    const { service, client, cache } = harness([head])
+    let loseResponse!: () => void
+    let started!: () => void
+    const sending = new Promise<void>((resolve) => { started = resolve })
+    client.deleteEntry.mockImplementationOnce(async () => {
+      started()
+      await new Promise<void>((resolve) => { loseResponse = resolve })
+      throw new Error('response lost after commit')
+    })
+    cache.removeVault.mockRejectedValue(new Error('storage unavailable'))
+    client.listVaults.mockRejectedValue(new Error('offline'))
+    const deletion = expect(service.deleteEntry(VAULT_ID, ENTRY_ID)).rejects.toThrow()
+    await sending
+    const reveal = expect(service.revealEntry(VAULT_ID, ENTRY_ID)).rejects.toMatchObject({ code: 'decrypt-failed' })
+    loseResponse()
+    await Promise.all([deletion, reveal])
+    expect(await service.getMetadata()).toEqual([])
+    expect(cache.readActiveEntry).not.toHaveBeenCalled()
+  })
+
+  it('does not report success when the backend rejects deletion', async () => {
     const { service, client, cache } = harness([head])
     client.deleteEntry.mockRejectedValue(new Protocol2MutationConflictError())
     await expect(service.deleteEntry(VAULT_ID, ENTRY_ID)).rejects.toBeInstanceOf(Protocol2MutationConflictError)
-    expect(cache.removeVault).not.toHaveBeenCalled()
+    expect(cache.removeVault).toHaveBeenCalledWith(USER_ID, VAULT_ID)
   })
 })
