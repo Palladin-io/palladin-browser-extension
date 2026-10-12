@@ -142,6 +142,7 @@ export interface Protocol2VaultDataServiceDeps {
 
 /** Canonical Vault Protocol 2 sync/read/write service for the MV3 worker. */
 export class Protocol2VaultDataService implements VaultDataSource {
+  private readonly pendingPurges = new Set<string>()
   private readonly currentVaults = new Map<string, EncryptedVaultSummary>()
   private readonly createNamespace: () => string
   private readonly now: () => number
@@ -257,7 +258,8 @@ export class Protocol2VaultDataService implements VaultDataSource {
         ?? this.volatileDisabledVaults.get(listedVault.id)?.active
         ?? null
       const unchanged = active !== null && matchesVaultChangeManifest(listedVault, active)
-      if (unchanged && !forceRepair && !leaseNeedsRenewal(active, this.now())) {
+      if (unchanged && !forceRepair && !this.pendingPurges.has(`${userId}:${listedVault.id}`)
+        && !leaseNeedsRenewal(active, this.now())) {
         detailedVaults.push(active.vault)
         this.currentVaults.set(listedVault.id, active.vault)
         continue
@@ -317,6 +319,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
     }
     for (const initialActive of activeStates) {
       const vaultId = initialActive.vault.id
+      if (this.pendingPurges.has(`${userId}:${vaultId}`)) continue
       let vaultKey: Uint8Array | null = null
       try {
         this.validateActiveState(initialActive, userId, this.now())
@@ -400,6 +403,9 @@ export class Protocol2VaultDataService implements VaultDataSource {
     if (privateKey === null) throw new VaultDataError('locked', 'Session is locked')
     const userId = await this.deps.session.getUserId()
     if (userId === null) throw new VaultDataError('not-authenticated', 'No session')
+    if (this.pendingPurges.has(`${userId}:${vaultId}`)) {
+      throw new VaultDataError('decrypt-failed', 'Vault cache requires repair')
+    }
     const persistent = await this.deps.cache.readActiveEntry(userId, vaultId, entryId, this.now())
     const volatile = this.volatileDisabledVaults.get(vaultId)
     const cached = persistent ?? (this.connected && volatile?.items.has(entryId)
@@ -531,8 +537,9 @@ export class Protocol2VaultDataService implements VaultDataSource {
             memberIndex: material.memberIndex,
           })
         })
-        // Invalidate before releasing the queue so waiting autofill reads cannot use deleted data.
-        await this.purgeVault(userId, vaultId)
+        // Keep reads fenced even if IndexedDB rejects the purge after the server commits.
+        this.pendingPurges.add(`${userId}:${vaultId}`)
+        await this.purgeVault(userId, vaultId).catch(() => undefined)
       } finally {
         if (discoveryKey !== null) wipe(discoveryKey)
         if (vaultKey !== null) wipe(vaultKey)
@@ -541,7 +548,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
     try {
       await this.repair()
     } catch {
-      // The mutation is committed and its cache purged; a later sync restores the remaining Entries.
+      // The mutation is committed; a later sync retries any pending purge before restoring Entries.
       this.lastSuccessfulRefreshAt = null
     }
   }
@@ -760,6 +767,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
   }
 
   private async syncVault(userId: string, vault: EncryptedVaultSummary): Promise<void> {
+    if (this.pendingPurges.has(`${userId}:${vault.id}`)) await this.purgeVault(userId, vault.id)
     const persistent = await this.deps.cache.getActiveState(userId, vault.id)
     const volatile = this.volatileDisabledVaults.get(vault.id)
     const volatileRealtimeGeneration = this.realtimeGeneration
@@ -1123,6 +1131,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
     this.volatileDisabledVaults.delete(vaultId)
     this.leaseDeadlines.delete(`${userId}:${vaultId}`)
     await this.deps.cache.removeVault(userId, vaultId)
+    this.pendingPurges.delete(`${userId}:${vaultId}`)
   }
 }
 

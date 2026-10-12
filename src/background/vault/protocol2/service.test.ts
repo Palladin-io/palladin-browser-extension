@@ -1173,6 +1173,28 @@ describe('Entry deletion', () => {
     expect(cryptoMocks.wipe).toHaveBeenCalled()
   })
 
+  it('keeps a committed deletion successful and blocks stale reads until a failed purge recovers', async () => {
+    const { service, client, cache } = harness([head])
+    cache.removeVault.mockRejectedValue(new Error('IndexedDB transaction failed'))
+    client.listVaults.mockRejectedValueOnce(new Error('offline'))
+    await expect(service.deleteEntry(VAULT_ID, ENTRY_ID)).resolves.toBeUndefined()
+    expect(await service.getMetadata()).toEqual([])
+    await expect(service.revealEntry(VAULT_ID, ENTRY_ID)).rejects.toMatchObject({ code: 'decrypt-failed' })
+    expect(cache.readActiveEntry).not.toHaveBeenCalled()
+
+    // An unchanged server manifest must not bypass the pending local purge.
+    await expect(service.refresh()).rejects.toThrow()
+    expect(cache.removeVault).toHaveBeenCalledTimes(2)
+    cache.removeVault.mockResolvedValue(undefined)
+    cache.readActiveEntry.mockResolvedValue(null)
+    cache.readActiveItemPage.mockResolvedValue({ active: (await cache.getActiveState())!, items: [], nextEntryId: null })
+    await service.refresh()
+    expect(cache.removeVault).toHaveBeenCalledTimes(3)
+    await expect(service.revealEntry(VAULT_ID, ENTRY_ID)).rejects.toMatchObject({ code: 'decrypt-failed' })
+    expect(cache.readActiveEntry).toHaveBeenCalledOnce()
+    expect(await service.getMetadata()).toEqual([])
+  })
+
   it('leaves cache intact when the backend rejects deletion', async () => {
     const { service, client, cache } = harness([head])
     client.deleteEntry.mockRejectedValue(new Protocol2MutationConflictError())
