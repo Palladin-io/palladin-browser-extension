@@ -471,20 +471,26 @@ export class SessionManager {
    * are rethrown.
    */
   refreshAccessToken(): Promise<string | null> {
+    return this.refreshAccessTokenUsing(this.keys).catch(error => {
+      if (error instanceof SessionError && error.code === "not-authenticated") return null;
+      throw error;
+    });
+  }
+
+  private refreshAccessTokenUsing(keys: SessionKeys | null): Promise<string | null> {
     if (this.refreshInFlight) return this.refreshInFlight;
     this.invalidateSharedUnlockSources();
     this.invalidateSharedUnlockSettings();
-    const operation = this.rotateAccessToken().finally(() => {
+    const operation = this.rotateAccessToken(keys).finally(() => {
       if (this.refreshInFlight === operation) this.refreshInFlight = null;
     });
     this.refreshInFlight = operation;
     return operation;
   }
 
-  private async rotateAccessToken(): Promise<string | null> {
+  private async rotateAccessToken(keys: SessionKeys | null): Promise<string | null> {
     const generation = this.captureLifecycleGeneration();
     const tokens = await this.getBoundMemoryTokens();
-    const keys = this.keys;
     if (!tokens || !keys) return null;
     const envelope = await this.getBoundEnvelope();
     if (!envelope) return null;
@@ -572,6 +578,9 @@ export class SessionManager {
         this.hooks.emitLocked({ userId: tokens.userId });
       } finally {
         this.endLifecycleTermination();
+      }
+      if (error instanceof SessionError && error.code === "invalid-credentials") {
+        throw new SessionError("not-authenticated", "Session expired; sign in again");
       }
       return null;
     }
@@ -936,11 +945,27 @@ export class SessionManager {
         let limits: PreparedManualUnlock | null = null;
         if (manualProof && this.prepareManualUnlock) {
           try {
-            const account = await this.authClient.getAccount(tokens.accessToken, tokens.apiUrl);
+            let account: AccountResponse;
+            try {
+              account = await this.authClient.getAccount(tokens.accessToken, tokens.apiUrl);
+            } catch (error) {
+              if (!(error instanceof SessionError) || error.code !== "invalid-credentials") throw error;
+              this.assertLifecycleGeneration(generation);
+              this.assertApiUrl(tokens.apiUrl);
+              // The password has opened the envelope, but keys are not published
+              // yet. Reuse durable rotation before preparing this fresh proof.
+              await this.refreshAccessTokenUsing(keys);
+              this.assertLifecycleGeneration(generation);
+              const refreshed = await this.getBoundMemoryTokens();
+              if (!refreshed) throw new SessionLifecycleChangedError();
+              tokens = refreshed;
+              account = await this.authClient.getAccount(tokens.accessToken, tokens.apiUrl);
+            }
             this.assertLifecycleGeneration(generation);
             this.assertApiUrl(tokens.apiUrl);
             limits = await this.prepareOwnSharing(tokens, account, manualProof, envelope, generation);
-          } catch {
+          } catch (error) {
+            if (error instanceof SessionError && error.code === "not-authenticated") throw error;
             // Network/step-up failures stop sharing, not this own password unlock.
           }
         }
