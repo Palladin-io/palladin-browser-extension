@@ -52,6 +52,7 @@ export interface VaultClient {
   fill(vaultId: string, entryId: string): Promise<FillResult>;
   login(vaultId: string, entryId: string): Promise<FillResult>;
   fillGenerated(value: string): Promise<FillResult>;
+  deleteEntry(vaultId: string, entryId: string): Promise<void>;
   saveEntry(entry: ManualEntrySaveInput): Promise<ManualEntrySaveResult>;
   armClipboardClear(): Promise<void>;
 }
@@ -120,6 +121,10 @@ export function createVaultClient(send: VaultSend = chromeSend): VaultClient {
       const result = await dispatch(send, { type: "vault/fill-generated", value });
       if (!("fill" in result)) throw new VaultClientError("network");
       return result.fill;
+    },
+    async deleteEntry(vaultId, entryId) {
+      const result = await dispatch(send, { type: "vault/entry-delete", vaultId, entryId });
+      if (!("entryDeleted" in result)) throw new VaultClientError("network");
     },
     async saveEntry(entry) {
       const result = await dispatch(send, { type: "vault/entry-save", entry });

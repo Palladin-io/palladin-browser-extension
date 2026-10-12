@@ -356,3 +356,24 @@ describe('Protocol2VaultClient transport boundary', () => {
     })).rejects.toBeInstanceOf(Protocol2MutationConflictError)
   })
 })
+
+
+describe('Entry deletion transport', () => {
+  const request = {
+    vaultId: VAULT_ID, entryId: ENTRY_ID, baseRevision: '7',
+    newEntryKey: {} as never, memberSecret: {} as never, memberIndex: {} as never,
+  }
+  it('posts the encrypted lifecycle transition to the canonical member endpoint', async () => {
+    const fetch = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => json({ state: 'deleted', currentRevision: '8' }))
+    await new Protocol2VaultClient(fetch, API).deleteEntry(TOKEN, request)
+    expect(fetch).toHaveBeenCalledWith(`${API}/api/vaults/${VAULT_ID}/entries/${ENTRY_ID}/delete`, expect.objectContaining({
+      method: 'POST', body: JSON.stringify(request),
+    }))
+    const headers = fetch.mock.calls[0]?.[1]?.headers as Headers
+    expect(headers.get('authorization')).toBe(`Bearer ${TOKEN}`)
+  })
+  it.each([401, 403, 404, 409, 500])('rejects HTTP %s instead of reporting deletion', async (status) => {
+    const fetch = vi.fn(async () => json({}, status))
+    await expect(new Protocol2VaultClient(fetch, API).deleteEntry(TOKEN, request)).rejects.toThrow()
+  })
+})

@@ -178,6 +178,7 @@ function harness(
     issueEntryCreationChallenge: vi.fn(async () => ENTRY_ID),
     createEntry: vi.fn(async () => ({ id: ENTRY_ID, currentRevision: '1' })),
     updateEntry: vi.fn(async () => ({ currentRevision: '2' })),
+    deleteEntry: vi.fn(async () => undefined),
   }
   const cache = {
     getActiveState: vi.fn(async (): Promise<ActiveCacheState | null> => active),
@@ -1112,5 +1113,113 @@ describe('Protocol2VaultDataService canonical password capture', () => {
         url,
       })).rejects.toMatchObject({ code: 'network' })
     }
+  })
+})
+
+
+describe('Entry deletion', () => {
+  it('sends a recoverable encrypted deleted revision bound to the requested Entry', async () => {
+    const { service, client } = harness([head])
+    await service.deleteEntry(VAULT_ID, ENTRY_ID)
+    expect(client.deleteEntry).toHaveBeenCalledWith('token', {
+      vaultId: VAULT_ID, entryId: ENTRY_ID, baseRevision: '1',
+      newEntryKey: material().entryKey, memberSecret: material().memberSecret,
+      memberIndex: material().memberIndex,
+    })
+    expect(cryptoMocks.sealCurrentCanonicalEntry).toHaveBeenCalledWith(expect.objectContaining({
+      organizationId: USER_ID, vaultId: VAULT_ID, entryId: ENTRY_ID,
+      revision: '2', entryKeyVersion: 2, memberIndexRevision: '2',
+    }), expect.objectContaining({ memberLabel: 'Example' }), expect.any(Uint8Array), expect.any(Uint8Array), 5)
+  })
+
+  it('does not send a mutation while locked', async () => {
+    const { service, client, session } = harness()
+    session.getPrivateKey = () => null
+    await expect(service.deleteEntry(VAULT_ID, ENTRY_ID)).rejects.toMatchObject({ code: 'locked' })
+    expect(client.deleteEntry).not.toHaveBeenCalled()
+  })
+
+  it('does not retain autofill ciphertext if repair fails after committed deletion', async () => {
+    const { service, client, cache } = harness([head])
+    client.listVaults.mockRejectedValue(new Error('offline'))
+    await expect(service.deleteEntry(VAULT_ID, ENTRY_ID)).resolves.toBeUndefined()
+    expect(cache.removeVault).toHaveBeenCalledWith(USER_ID, VAULT_ID)
+  })
+
+  it('invalidates deleted ciphertext before a waiting autofill read can run', async () => {
+    const { service, client, cache } = harness([head])
+    let commit!: () => void
+    let started!: () => void
+    const sending = new Promise<void>((resolve) => { started = resolve })
+    client.deleteEntry.mockImplementationOnce(async () => {
+      started()
+      await new Promise<void>((resolve) => { commit = resolve })
+    })
+    cache.removeVault.mockImplementationOnce(async () => {
+      cache.readActiveEntry.mockResolvedValue(null)
+    })
+    const deletion = service.deleteEntry(VAULT_ID, ENTRY_ID)
+    await sending
+    const reveal = expect(service.revealEntry(VAULT_ID, ENTRY_ID)).rejects.toMatchObject({ code: 'decrypt-failed' })
+    commit()
+    await Promise.all([deletion, reveal])
+  })
+
+  it('does not mutate when cryptographic opening rejects the Entry binding', async () => {
+    const { service, client } = harness([head])
+    cryptoMocks.openCurrentMemberSecret.mockRejectedValueOnce(new Error('scope mismatch'))
+    await expect(service.deleteEntry(VAULT_ID, ENTRY_ID)).rejects.toThrow('scope mismatch')
+    expect(client.deleteEntry).not.toHaveBeenCalled()
+    expect(cryptoMocks.wipe).toHaveBeenCalled()
+  })
+
+  it('keeps a committed deletion successful and blocks stale reads until a failed purge recovers', async () => {
+    const { service, client, cache } = harness([head])
+    cache.removeVault.mockRejectedValue(new Error('IndexedDB transaction failed'))
+    client.listVaults.mockRejectedValueOnce(new Error('offline'))
+    await expect(service.deleteEntry(VAULT_ID, ENTRY_ID)).resolves.toBeUndefined()
+    expect(await service.getMetadata()).toEqual([])
+    await expect(service.revealEntry(VAULT_ID, ENTRY_ID)).rejects.toMatchObject({ code: 'decrypt-failed' })
+    expect(cache.readActiveEntry).not.toHaveBeenCalled()
+
+    // An unchanged server manifest must not bypass the pending local purge.
+    await expect(service.refresh()).rejects.toThrow()
+    expect(cache.removeVault).toHaveBeenCalledTimes(2)
+    cache.removeVault.mockResolvedValue(undefined)
+    cache.readActiveEntry.mockResolvedValue(null)
+    cache.readActiveItemPage.mockResolvedValue({ active: (await cache.getActiveState())!, items: [], nextEntryId: null })
+    await service.refresh()
+    expect(cache.removeVault).toHaveBeenCalledTimes(3)
+    await expect(service.revealEntry(VAULT_ID, ENTRY_ID)).rejects.toMatchObject({ code: 'decrypt-failed' })
+    expect(cache.readActiveEntry).toHaveBeenCalledOnce()
+    expect(await service.getMetadata()).toEqual([])
+  })
+
+  it('blocks queued reads when the deletion response is lost and repair is unavailable', async () => {
+    const { service, client, cache } = harness([head])
+    let loseResponse!: () => void
+    let started!: () => void
+    const sending = new Promise<void>((resolve) => { started = resolve })
+    client.deleteEntry.mockImplementationOnce(async () => {
+      started()
+      await new Promise<void>((resolve) => { loseResponse = resolve })
+      throw new Error('response lost after commit')
+    })
+    cache.removeVault.mockRejectedValue(new Error('storage unavailable'))
+    client.listVaults.mockRejectedValue(new Error('offline'))
+    const deletion = expect(service.deleteEntry(VAULT_ID, ENTRY_ID)).rejects.toThrow()
+    await sending
+    const reveal = expect(service.revealEntry(VAULT_ID, ENTRY_ID)).rejects.toMatchObject({ code: 'decrypt-failed' })
+    loseResponse()
+    await Promise.all([deletion, reveal])
+    expect(await service.getMetadata()).toEqual([])
+    expect(cache.readActiveEntry).not.toHaveBeenCalled()
+  })
+
+  it('does not report success when the backend rejects deletion', async () => {
+    const { service, client, cache } = harness([head])
+    client.deleteEntry.mockRejectedValue(new Protocol2MutationConflictError())
+    await expect(service.deleteEntry(VAULT_ID, ENTRY_ID)).rejects.toBeInstanceOf(Protocol2MutationConflictError)
+    expect(cache.removeVault).toHaveBeenCalledWith(USER_ID, VAULT_ID)
   })
 })

@@ -84,6 +84,15 @@ export interface UpdateCanonicalEntryRequest {
   readonly scriptGrantPackages?: readonly ScriptExecutionEncryptedPackageV1[]
 }
 
+export interface DeleteCanonicalEntryRequest {
+  readonly vaultId: string
+  readonly entryId: string
+  readonly baseRevision: string
+  readonly newEntryKey: CanonicalEntryEnvelopes['entryKey']
+  readonly memberSecret: CanonicalEntryEnvelopes['memberSecret']
+  readonly memberIndex: CanonicalEntryEnvelopes['memberIndex']
+}
+
 async function readBoundedJson(response: Response): Promise<unknown> {
   const declared = response.headers.get('content-length')
   if (declared !== null) {
@@ -361,6 +370,17 @@ export class Protocol2VaultClient {
     )
     if (response.status === 409) throw new Protocol2MutationConflictError()
     return this.parse(response, createEntryResponseSchema)
+  }
+
+  async deleteEntry(accessToken: string, request: DeleteCanonicalEntryRequest): Promise<void> {
+    const response = await this.request(
+      `/api/vaults/${encodeURIComponent(request.vaultId)}/entries/${encodeURIComponent(request.entryId)}/delete`,
+      accessToken,
+      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(request) },
+    )
+    if (response.status === 403) throw new Protocol2AccessDeniedError()
+    if (response.status === 409) throw new Protocol2MutationConflictError()
+    if (!response.ok) throw new VaultClientError('network', 'Entry deletion failed')
   }
 
   async updateEntry(
