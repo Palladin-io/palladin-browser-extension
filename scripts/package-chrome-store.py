@@ -101,7 +101,7 @@ def package(root, config, commit, expected_version):
     for path in files:
         relative = path.relative_to(source)
         if (path.is_symlink() or any(part.startswith(".") for part in relative.parts)
-                or path.suffix not in {"", ".js", ".json", ".html", ".css", ".png", ".svg", ".wasm"}):
+                or path.suffix not in {"", ".js", ".json", ".html", ".css", ".png", ".svg", ".wasm", ".woff2"}):
             raise ValueError("Unexpected file in Chromium build; refusing to package")
     output = root / "dist/chrome-store"
     output.mkdir(parents=True, exist_ok=True)
