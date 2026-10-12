@@ -69,6 +69,16 @@ describe('Chrome archive packaging', () => {
     expect(JSON.parse(names)).toEqual(['manifest.json', 'worker.js']);
     expect(JSON.parse(readFileSync(join(root, 'dist/chrome-store/release.json'), 'utf8')).bootstrap).toBe(true);
   });
+  it('includes generated font resources in the store archive', () => {
+    const root = fixture();
+    mkdirSync(join(root, 'dist/chromium/assets'));
+    writeFileSync(join(root, 'dist/chromium/assets/inter-latin.woff2'), 'synthetic font');
+    execFileSync('python3', [script], { cwd: root, env });
+    const font = execFileSync('python3', ['-c',
+      'import zipfile;print(zipfile.ZipFile("dist/chrome-store/package.zip").read("assets/inter-latin.woff2").decode())'],
+    { cwd: root }).toString().trim();
+    expect(font).toBe('synthetic font');
+  });
   it('records the staging defaults in a configured stable package', () => {
     const root = fixture();
     execFileSync('python3', [script], { cwd: root, env: { ...env,
