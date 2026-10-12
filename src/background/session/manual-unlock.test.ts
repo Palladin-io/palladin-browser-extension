@@ -12,13 +12,132 @@ beforeAll(async () => { account = await buildTestAccount(); });
 function harness(prepare: PrepareManualUnlock, options: MockBackendOptions = {}, pendingTotpTimers?: SessionManagerDeps["pendingTotpTimers"]) {
   const storage = new FakeStorageArea(); const store = new SessionStore(storage);
   const backend = mockBackend(account, options);
-  const auth = new AuthClient(backend.fetch, "https://api.test");
+  const fetch = vi.fn(backend.fetch);
+  const auth = new AuthClient(fetch, "https://api.test");
   const manager = new SessionManager({ store, authClient: auth, autoLock: new AutoLock(new FakeAlarms(), () => {}),
     prepareManualUnlock: prepare, now: () => 1_000_000, ...(pendingTotpTimers ? { pendingTotpTimers } : {}) });
-  return { manager, auth, storage };
+  return { manager, auth, storage, fetch, backend };
 }
 
 describe("fresh manual password proof boundary", () => {
+  it("refreshes an expired restored access token before preparing shared unlock without publishing keys early", async () => {
+    const prepare: PrepareManualUnlock = async context => {
+      expect(h.manager.getKeys()).toBeNull();
+      expect(toBase64Url(context.authCredential)).toBe(account.expectedAuthCredential);
+      context.assertCurrent();
+      return context.limits;
+    };
+    const h = harness(prepare);
+    await h.manager.login(account.email, account.password);
+    await h.manager.lock();
+    h.manager = new SessionManager({ store: new SessionStore(h.storage), authClient: h.auth,
+      autoLock: new AutoLock(new FakeAlarms(), () => {}), now: () => 1_000_000,
+      prepareManualUnlock: prepare });
+    await h.manager.initialize();
+    let rotations = 0;
+    h.fetch.mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/auth/refresh')) {
+        rotations++;
+        expect(h.manager.getKeys()).toBeNull();
+        return Response.json({ accessToken: 'access-token-2', refreshToken: 'refresh-token-2' });
+      }
+      if (url.endsWith('/api/account') && new Headers(init?.headers).get('authorization') !== 'Bearer access-token-2') {
+        return new Response(null, { status: 401 });
+      }
+      return h.backend.fetch(input, init);
+    });
+
+    await h.manager.unlockWithPassword(account.password);
+
+    expect(h.manager.getSharedUnlockLimits()).not.toBeNull();
+    expect(rotations).toBe(1);
+    const source = h.manager.captureSharedUnlockSource();
+    expect(source.read().tokens.accessToken).toBe('access-token-2');
+    source.dispose();
+    expect(JSON.stringify(h.storage.values())).not.toContain('refresh-token-2');
+    await h.manager.lock();
+    const restarted = new SessionManager({ store: new SessionStore(h.storage), authClient: h.auth,
+      autoLock: new AutoLock(new FakeAlarms(), () => {}), now: () => 1_000_000,
+      prepareManualUnlock: async context => context.limits });
+    await restarted.initialize();
+    await restarted.unlockWithPassword(account.password);
+    expect(restarted.getSharedUnlockLimits()).not.toBeNull();
+    expect(rotations).toBe(1);
+    await restarted.logout();
+  });
+
+  it.each(['lock', 'logout'] as const)('does not publish an unlock when %s interrupts its token refresh', async action => {
+    const h = harness(async context => context.limits);
+    await h.manager.login(account.email, account.password);
+    await h.manager.lock();
+    let entered!: () => void, release!: (response: Response) => void;
+    const refreshing = new Promise<void>(resolve => { entered = resolve; });
+    const response = new Promise<Response>(resolve => { release = resolve; });
+    h.fetch.mockImplementation(async (input, init) => {
+      if (String(input).endsWith('/api/account')) return new Response(null, { status: 401 });
+      if (String(input).endsWith('/api/auth/refresh')) { entered(); return response; }
+      return h.backend.fetch(input, init);
+    });
+    const unlocking = h.manager.unlockWithPassword(account.password);
+    const rejected = expect(unlocking).rejects.toThrow();
+    await refreshing;
+    try {
+      expect(h.manager.getKeys()).toBeNull();
+      await h.manager[action]();
+    } finally { release(Response.json({ accessToken: 'stale-access', refreshToken: 'stale-refresh' })); }
+    await rejected;
+    expect(h.manager.getKeys()).toBeNull();
+    expect(h.manager.getSharedUnlockLimits()).toBeNull();
+    expect(await h.manager.getStatus()).toBe(action === 'lock' ? 'locked' : 'signed-out');
+    if (action === 'lock') {
+      await expect(h.manager.unlockWithPassword(account.password)).rejects.toMatchObject({ code: 'not-authenticated' });
+      expect(h.manager.getKeys()).toBeNull();
+    }
+  });
+
+  it.each([401, 503])('handles refresh rejection %s without manufacturing shared-unlock authority', async status => {
+    const h = harness(async context => context.limits);
+    await h.manager.login(account.email, account.password);
+    await h.manager.lock();
+    let rotations = 0;
+    h.fetch.mockImplementation(async (input, init) => {
+      if (String(input).endsWith('/api/account')) return new Response(null, { status: 401 });
+      if (String(input).endsWith('/api/auth/refresh')) { rotations++; return new Response(null, { status }); }
+      return h.backend.fetch(input, init);
+    });
+    const unlocking = h.manager.unlockWithPassword(account.password);
+    if (status === 401) {
+      await expect(unlocking).rejects.toThrow();
+      expect(await h.manager.getStatus()).toBe('signed-out');
+      expect(h.manager.getKeys()).toBeNull();
+    } else {
+      await unlocking;
+      expect(await h.manager.getStatus()).toBe('unlocked');
+    }
+    expect(rotations).toBe(1);
+    expect(h.manager.getSharedUnlockLimits()).toBeNull();
+    await h.manager.logout();
+  });
+
+  it('does not loop when account access is still rejected after refresh', async () => {
+    const h = harness(async context => context.limits);
+    await h.manager.login(account.email, account.password);
+    await h.manager.lock();
+    let rotations = 0, accountReads = 0;
+    h.fetch.mockImplementation(async (input, init) => {
+      if (String(input).endsWith('/api/account')) { accountReads++; return new Response(null, { status: 401 }); }
+      if (String(input).endsWith('/api/auth/refresh')) rotations++;
+      return h.backend.fetch(input, init);
+    });
+    await h.manager.unlockWithPassword(account.password);
+    expect(await h.manager.getStatus()).toBe('unlocked');
+    expect(h.manager.getSharedUnlockLimits()).toBeNull();
+    expect(rotations).toBe(1);
+    expect(accountReads).toBe(2);
+    await h.manager.logout();
+  });
+
   it('restores and unlocks the durable own session on an explicitly approved remote HTTP API', async () => {
     const apiUrl = 'http://vault.example.test:8080/api';
     const storage = new FakeStorageArea();
