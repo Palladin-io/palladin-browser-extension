@@ -763,3 +763,16 @@ describe("isVaultCommand", () => {
     expect(isVaultCommand(null)).toBe(false);
   });
 });
+
+
+describe("Entry deletion command boundary", () => {
+  const command = { type: "vault/entry-delete", vaultId: "22222222-2222-4222-8222-222222222222", entryId: "33333333-3333-4333-8333-333333333333" } as const;
+  it("accepts only scoped deletion commands", () => {
+    expect(isVaultCommand(command)).toBe(true);
+    for (const invalid of [
+      { ...command, entryId: undefined }, { ...command, vaultId: "" },
+      { ...command, entryId: 1 }, { ...command, vaultId: "../other" },
+      { ...command, confirmed: true },
+    ]) expect(isVaultCommand(invalid)).toBe(false);
+  });
+});

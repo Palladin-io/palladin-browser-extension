@@ -208,6 +208,7 @@ export const vaultCommandDeps: VaultCommandDeps = {
   captureFillSession,
   data: vaultData,
   entryWriter: vaultData,
+  entryDeleter: vaultData,
   getActiveTab,
   openLoginTab,
   sendFill,

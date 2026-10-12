@@ -66,6 +66,7 @@ export type VaultCommand =
   | { readonly type: "vault/fill"; readonly vaultId: string; readonly entryId: string }
   | { readonly type: "vault/login"; readonly vaultId: string; readonly entryId: string }
   | { readonly type: "vault/fill-generated"; readonly value: string }
+  | { readonly type: "vault/entry-delete"; readonly vaultId: string; readonly entryId: string }
   | { readonly type: "vault/entry-save"; readonly entry: ManualEntrySaveInput }
   | { readonly type: "vault/clipboard-arm" };
 
@@ -119,6 +120,7 @@ export type VaultCommandResult =
   | { readonly ok: true; readonly credentialUsername: { readonly value: string } }
   | { readonly ok: true; readonly totp: TotpView | null }
   | { readonly ok: true; readonly fill: FillResult }
+  | { readonly ok: true; readonly entryDeleted: true }
   | { readonly ok: true; readonly entrySave: ManualEntrySaveResult }
   | { readonly ok: true; readonly clipboardArmed: true }
   | { readonly ok: false; readonly code: VaultCommandErrorCode; readonly message: string };
@@ -136,6 +138,7 @@ export type ActiveTab = {
 export interface VaultCommandDeps {
   captureFillSession?(): () => void;
   data: VaultDataSource;
+  entryDeleter?: { deleteEntry(vaultId: string, entryId: string): Promise<void> };
   entryWriter?: { saveEntry(input: ManualEntrySaveInput): Promise<ManualEntrySaveResult> };
   /** Resolve the active tab (activeTab permission grants URL access on invocation). */
   getActiveTab(): Promise<ActiveTab | null>;
@@ -185,6 +188,12 @@ export async function dispatchVaultCommand(
         return { ok: true, fill: await openAndFillLogin(deps, command.vaultId, command.entryId) };
       case "vault/fill-generated":
         return { ok: true, fill: await fillGeneratedValue(deps, command.value) };
+      case "vault/entry-delete":
+        if (!deps.entryDeleter) {
+          return { ok: false, code: "network", message: "Entry deletion is unavailable" };
+        }
+        await deps.entryDeleter.deleteEntry(command.vaultId, command.entryId);
+        return { ok: true, entryDeleted: true };
       case "vault/entry-save":
         if (!deps.entryWriter) {
           return { ok: false, code: "network", message: "Entry saving is unavailable" };
@@ -580,6 +589,13 @@ export function isVaultCommand(value: unknown): value is VaultCommand {
     case "vault/entry-save": {
       const c = value as { entry?: unknown };
       return isManualEntrySaveInput(c.entry);
+    }
+    case "vault/entry-delete": {
+      const c = value as Record<string, unknown>;
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      return hasOnlyKeys(c, ["type", "vaultId", "entryId"])
+        && isString(c.vaultId) && uuid.test(c.vaultId)
+        && isString(c.entryId) && uuid.test(c.entryId);
     }
     case "vault/reveal": {
       const c = value as { vaultId?: unknown; entryId?: unknown; field?: unknown };

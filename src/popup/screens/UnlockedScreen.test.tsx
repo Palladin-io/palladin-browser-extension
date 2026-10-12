@@ -49,6 +49,7 @@ function makeClient(over: Partial<VaultClient> = {}): VaultClient {
     fill: vi.fn(async () => ({ status: "filled" }) as const),
     login: vi.fn(async () => ({ status: "filled" }) as const),
     fillGenerated: vi.fn(async () => ({ status: "filled" }) as const),
+    deleteEntry: vi.fn(async () => undefined),
     saveEntry: vi.fn(async () => ({ status: "saved" }) as const),
     armClipboardClear: vi.fn(async () => undefined),
     ...over,

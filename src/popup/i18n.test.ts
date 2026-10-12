@@ -9,6 +9,11 @@ describe("popup translations", () => {
     );
   });
 
+  it.each(["en", "pl"] as const)("localizes Entry deletion in %s", (locale) => {
+    expect(translate(locale, "vault.deleteConfirm", { name: "Example" })).toContain("Example");
+    expect(translate(locale, "vault.deleteEntry")).not.toBe("vault.deleteEntry");
+  });
+
   it("interpolates only named values", () => {
     expect(translate("pl", "capture.description", { site: "example.com" }))
       .toContain("example.com");

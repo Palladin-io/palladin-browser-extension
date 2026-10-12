@@ -483,6 +483,69 @@ export class Protocol2VaultDataService implements VaultDataSource {
     return this.createCredential(input.site, parsed.origin, parsed.host, input.password)
   }
 
+  async deleteEntry(vaultId: string, entryId: string): Promise<void> {
+    await this.enqueueSync(async () => {
+      const privateKey = this.deps.session.getPrivateKey()
+      if (privateKey === null) throw new VaultDataError('locked', 'Session is locked')
+      const userId = await this.deps.session.getUserId()
+      if (userId === null) throw new VaultDataError('not-authenticated', 'No session')
+      const [vault, detail] = await Promise.all([
+        this.withAuth((token) => this.deps.client.getVault(token, vaultId)),
+        this.withAuth((token) => this.deps.client.getEntry(token, vaultId, entryId)),
+      ])
+      let vaultKey: Uint8Array | null = null
+      let discoveryKey: Uint8Array | null = null
+      try {
+        vaultKey = await openProjectionVaultKey(vault, privateKey, userId)
+        const secret = await openCurrentMemberSecret(detail.entryKey, detail.memberSecret, vaultKey, {
+          organizationId: vault.organizationId,
+          vaultId,
+          entryId,
+          revision: detail.currentRevision,
+        })
+        discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, vaultKey)
+        const material = await sealCurrentCanonicalEntry({
+          organizationId: vault.organizationId,
+          vaultId,
+          entryId,
+          revision: (BigInt(detail.currentRevision) + 1n).toString(),
+          entryKeyRevision: '1',
+          entryKeyVersion: detail.currentKeyVersion + 1,
+          memberIndexRevision: (BigInt(detail.memberIndexRevision) + 1n).toString(),
+          agentDiscoveryRevision: (BigInt(detail.agentDiscoveryRevisionHighWatermark) + 1n).toString(),
+          vaultKeyVersion: vault.currentKeyEpoch.vaultKeyVersion,
+          vdkVersion: vault.currentKeyEpoch.vdkVersion,
+          memberKeyGeneration: vault.memberKeyGeneration,
+        }, secret, vaultKey, discoveryKey, 5)
+        await this.withAuth(async (token) => {
+          const currentUserId = await this.deps.session.getUserId()
+          if (this.deps.session.getPrivateKey() !== privateKey || currentUserId !== userId) {
+            throw new VaultDataError('locked', 'Session changed during deletion')
+          }
+          return this.deps.client.deleteEntry(token, {
+            vaultId,
+            entryId,
+            baseRevision: detail.currentRevision,
+            newEntryKey: material.entryKey,
+            memberSecret: material.memberSecret,
+            memberIndex: material.memberIndex,
+          })
+        })
+        // Invalidate before releasing the queue so waiting autofill reads cannot use deleted data.
+        await this.purgeVault(userId, vaultId)
+      } finally {
+        if (discoveryKey !== null) wipe(discoveryKey)
+        if (vaultKey !== null) wipe(vaultKey)
+      }
+    })
+    try {
+      await this.repair()
+    } catch {
+      // The mutation is committed and its cache purged; a later sync restores the remaining Entries.
+      this.lastSuccessfulRefreshAt = null
+    }
+  }
+
   async saveEntry(input: ManualEntrySaveInput): Promise<ManualEntrySaveResult> {
     if (this.currentVaults.size === 0) await this.refresh()
     let secret: MemberSecretV1

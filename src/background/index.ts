@@ -558,6 +558,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
       const vaultResult = await handleVaultRuntimeMessage(vaultCommandDeps, raw);
       if (vaultResult !== null) {
         sendResponse(vaultResult);
+        if (vaultResult.ok && "entryDeleted" in vaultResult) publishSurfaceState(vaultChanged());
         if (
           raw !== null
           && typeof raw === "object"

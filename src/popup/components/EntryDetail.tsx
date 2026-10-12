@@ -1,7 +1,7 @@
 import { SharingPanel } from '../workspace/SharingPanel';
 import { EntryFields } from '../workspace/EntryFields';
 import type { WorkspaceClient } from '../workspace/client';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { EntryMetadata } from '../../background/vault/entry-metadata';
 import type { VaultClient } from '../vault/client';
 import { useI18n } from '../i18n';
@@ -27,6 +27,26 @@ export function EntryDetail({
   onBack(): void;
 }): React.JSX.Element {
   const { t } = useI18n();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleted, setDeleted] = useState(false);
+  const [deleteError, setDeleteError] = useState(false);
+  const deleteInFlight = useRef(false);
+  async function deleteEntry() {
+    if (deleteInFlight.current) return;
+    deleteInFlight.current = true;
+    setDeleting(true);
+    setDeleteError(false);
+    try {
+      await client.deleteEntry(entry.vaultId, entry.id);
+      setDeleted(true);
+    } catch {
+      setDeleteError(true);
+    } finally {
+      deleteInFlight.current = false;
+      setDeleting(false);
+    }
+  }
   const [sharing, setSharing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -47,6 +67,7 @@ export function EntryDetail({
       setBusy(false);
     }
   }
+  if (deleted) return <p className="entry-status" role="status">{t('vault.deleted')}</p>;
   const identity = <>
         {sharing ? <button className="toolbar-icon" aria-label={t('common.back')} title={t('common.back')} onClick={() => setSharing(false)}><PopupIcon name="back" /></button> : null}
         <EntryIcon
@@ -110,6 +131,25 @@ export function EntryDetail({
         {t('vault.openWebPanel')}
         <PopupIcon name="chevron" />
       </button>
+      <button className="detail-link detail-link--danger" onClick={() => setConfirmDelete(true)} disabled={deleting}>
+        <PopupIcon name="delete" />
+        {t('vault.deleteEntry')}
+        <PopupIcon name="chevron" />
+      </button>
+      {confirmDelete ? (
+        <div className="detail-delete-confirm">
+          <p className="entry-status">{t('vault.deleteConfirm', { name: entry.name })}</p>
+          <div className="workspace-actions">
+            <Button variant="subtle" disabled={deleting} onClick={() => { setConfirmDelete(false); setDeleteError(false); }}>
+              {t('vault.deleteCancel')}
+            </Button>
+            <Button variant="danger" loading={deleting} onClick={() => void deleteEntry()}>
+              {t(deleting ? 'vault.deleting' : 'vault.deleteConfirmAction')}
+            </Button>
+          </div>
+          {deleteError ? <p className="entry-status vault-error" role="alert">{t('vault.deleteError')}</p> : null}
+        </div>
+      ) : null}
       </div>
       </div>
       {message ? (

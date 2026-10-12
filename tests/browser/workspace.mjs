@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { openCurrentMemberSecret } from '@palladin/crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdtemp, mkdir, rm } from 'node:fs/promises';
@@ -13,6 +14,7 @@ import { validateBuiltManifest } from '../../scripts/validate-built-manifest.mjs
 
 const shares = new Map();
 const grants = [];
+let deletedEntries = 0;
 const api = await createCaptureApi({ workspaceHandler: async ({ method, url, request, vaults, userId, send }) => {
   if (url.pathname === '/api/account/shared-unlock') { send({ sharedUnlockEnabled: false, revision: 1 }); return true; }
   if (url.pathname === '/api/organization/member-directory') { send({ items: [{ userId, displayName: 'Synthetic owner' }] }); return true; }
@@ -20,6 +22,27 @@ const api = await createCaptureApi({ workspaceHandler: async ({ method, url, req
   if (url.pathname === '/api/grants/summary') { send({ pending: grants.filter(g => g.status === 'pending').length, active: grants.filter(g => g.status === 'active').length, expired: 0, revoked: 0, consumed: 0, denied: 0 }); return true; }
   if (url.pathname === '/api/grants') { send({ items: grants.filter(g => !url.searchParams.get('status') || g.status === url.searchParams.get('status')), nextCursor: null }); return true; }
   if (url.pathname === '/api/entry-sharing') { send({ items: [...shares.values()].map(({ nonce, ciphertext, accessToken, protectionSecret, vaultId, entryId, ...share }) => ({ vaultId, entryId, share })), nextCursor: null }); return true; }
+  const deletion = /^\/api\/vaults\/([^/]+)\/entries\/([^/]+)\/delete$/.exec(url.pathname);
+  if (method === 'POST' && deletion) {
+    const vault = vaults.find(vault => vault.detail.id === deletion[1]);
+    const entry = vault?.entries.get(deletion[2]);
+    if (!entry) { send(null, 404); return true; }
+    assert.equal(request.baseRevision, entry.currentRevision);
+    assert.equal(request.memberSecret.descriptor.binding.operation, 5);
+    assert(!('agentDiscovery' in request));
+    const revision = (BigInt(entry.currentRevision) + 1n).toString();
+    const secret = await openCurrentMemberSecret(request.newEntryKey, request.memberSecret, vault.vaultKey, {
+      organizationId: entry.organizationId, vaultId: vault.detail.id, entryId: entry.id, revision,
+    });
+    assert.equal(secret.content.password, 'Synthetic entry password');
+    Object.assign(entry, { state: 'deleted', currentRevision: revision,
+      currentKeyVersion: request.newEntryKey.descriptor.keyVersion, entryKey: request.newEntryKey,
+      memberSecret: request.memberSecret, memberIndex: request.memberIndex,
+      memberIndexRevision: request.memberIndex.descriptor.resourceRevision, agentDiscovery: null });
+    vault.detail.memberSequence = (BigInt(vault.detail.memberSequence) + 1n).toString();
+    deletedEntries++;
+    send({ state: 'deleted', currentRevision: revision }); return true;
+  }
   const match = /^\/api\/vaults\/([^/]+)\/entries\/([^/]+)\/sharing(?:\/(.*))?$/.exec(url.pathname);
   if (!match) return false;
   const entry = vaults.find(vault => vault.detail.id === match[1])?.entries.get(match[2]);
@@ -151,6 +174,16 @@ try {
   await popup.fill('input[type=password]', api.password); await popup.click('Unlock'); await popup.waitText('Synthetic account');
   await popup.click('Synthetic account app.example.test · Vault: Personal'); await popup.waitText('synthetic@example.test');
   await popup.screenshot(path.join(output, 'entry-dark.png'));
+  await popup.click('Delete Entry');
+  await popup.screenshot(path.join(output, 'delete-confirm-dark.png'));
+  assert.equal(deletedEntries, 0, 'Opening confirmation must not delete');
+  await popup.click('Cancel');
+  assert.equal(deletedEntries, 0, 'Cancellation must not delete');
+  await popup.click('Delete Entry');
+  await popup.click('Move to Recently Deleted');
+  await popup.waitText('No entries yet.');
+  assert.equal(deletedEntries, 1, 'Deletion must commit once and refresh the real popup list');
+
   assert.deepEqual(api.errors, []);
-  console.log('PASS: native popup sign-in, create Entry, decrypt detail, create/revoke encrypted share, audit directory, lock/unlock and light/dark screenshots.');
+  console.log('PASS: native popup sign-in, create Entry, decrypt detail, create/revoke encrypted share, audit directory, lock/unlock, confirmed encrypted deletion, list refresh and light/dark screenshots.');
 } finally { popup?.close(); await context?.close(); await api.close(); await rm(profile, { recursive: true, force: true }); }

@@ -1199,3 +1199,16 @@ html:not([data-extension-surface='side-panel']):has(.popup[data-phase='intro']) 
   .shared-entry-summary > .shared-entry-row { flex-basis: 100%; }
   .shared-entry-summary > .workspace-actions { margin-left: auto; }
 }
+
+.detail-link--danger,
+.detail-link--danger:hover,
+.detail-link--danger > .popup-icon:first-child {
+  color: var(--cv-primary);
+}
+.detail-delete-confirm {
+  padding: 0 14px 12px;
+}
+.detail-delete-confirm .workspace-actions {
+  justify-content: flex-end;
+  margin-top: 8px;
+}
