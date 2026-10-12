@@ -38,6 +38,14 @@ matching saved production configuration when available. Existing account OFF, MF
 idle policies are retained. Manual lock/logout propagation uses the existing
 Identity lifecycle once a pair is active.
 
+On password unlock, a rejected cached access token triggers one durable session
+refresh before the account read and sharing preparation are retried. Rotation uses
+the password-derived keys without publishing them to the unlocked session first.
+The pending-envelope marker, lifecycle cancellation and proof wiping remain in
+force. A rejected refresh requires sign-in; a transient network failure may still
+allow ordinary local unlock without sharing authority. Unlock does not recreate
+authority later from a peer request or a background retry.
+
 HTTP requires explicit consent for both entered addresses, including localhost.
 Editing either address clears the draft consent. Legacy/build HTTP configuration
 does not bypass that consent at network-client creation. Consent is durable for
