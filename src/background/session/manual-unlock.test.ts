@@ -80,7 +80,7 @@ describe("fresh manual password proof boundary", () => {
       return h.backend.fetch(input, init);
     });
     const unlocking = h.manager.unlockWithPassword(account.password);
-    const rejected = expect(unlocking).rejects.toThrow();
+    const rejected = expect(unlocking).rejects.toMatchObject({ name: "SessionLifecycleChangedError" });
     await refreshing;
     try {
       expect(h.manager.getKeys()).toBeNull();
@@ -96,7 +96,7 @@ describe("fresh manual password proof boundary", () => {
     }
   });
 
-  it.each([401, 503])('handles refresh rejection %s without manufacturing shared-unlock authority', async status => {
+  it.each([401, 403, 503])('handles refresh rejection %s without manufacturing shared-unlock authority', async status => {
     const h = harness(async context => context.limits);
     await h.manager.login(account.email, account.password);
     await h.manager.lock();
@@ -107,8 +107,8 @@ describe("fresh manual password proof boundary", () => {
       return h.backend.fetch(input, init);
     });
     const unlocking = h.manager.unlockWithPassword(account.password);
-    if (status === 401) {
-      await expect(unlocking).rejects.toThrow();
+    if (status === 401 || status === 403) {
+      await expect(unlocking).rejects.toMatchObject({ code: "not-authenticated" });
       expect(await h.manager.getStatus()).toBe('signed-out');
       expect(h.manager.getKeys()).toBeNull();
     } else {

@@ -871,7 +871,6 @@ describe("SessionManager - durable refresh rotation", () => {
     const first = mgr.refreshAccessToken();
     const second = mgr.refreshAccessToken();
 
-    expect(second).toBe(first);
     await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
     response.resolve({
       accessToken: "rotated-access",

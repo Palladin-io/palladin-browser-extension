@@ -471,7 +471,10 @@ export class SessionManager {
    * are rethrown.
    */
   refreshAccessToken(): Promise<string | null> {
-    return this.refreshAccessTokenUsing(this.keys);
+    return this.refreshAccessTokenUsing(this.keys).catch(error => {
+      if (error instanceof SessionError && error.code === "not-authenticated") return null;
+      throw error;
+    });
   }
 
   private refreshAccessTokenUsing(keys: SessionKeys | null): Promise<string | null> {
@@ -575,6 +578,9 @@ export class SessionManager {
         this.hooks.emitLocked({ userId: tokens.userId });
       } finally {
         this.endLifecycleTermination();
+      }
+      if (error instanceof SessionError && error.code === "invalid-credentials") {
+        throw new SessionError("not-authenticated", "Session expired; sign in again");
       }
       return null;
     }
@@ -958,7 +964,8 @@ export class SessionManager {
             this.assertLifecycleGeneration(generation);
             this.assertApiUrl(tokens.apiUrl);
             limits = await this.prepareOwnSharing(tokens, account, manualProof, envelope, generation);
-          } catch {
+          } catch (error) {
+            if (error instanceof SessionError && error.code === "not-authenticated") throw error;
             // Network/step-up failures stop sharing, not this own password unlock.
           }
         }
