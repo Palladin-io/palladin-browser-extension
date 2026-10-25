@@ -33,11 +33,14 @@ and is not bypassed. The generic registry retains its global obstacle report.
 
 When the top document has no supported plan, Chromium can prepare one visible,
 unsandboxed, direct same-site HTTPS iframe. Both DOM and browser frame inventories
-must contain exactly that one child (no nested or additional frames). This narrow
-rule makes the visibility-to-browser-document association unambiguous. The
+must contain exactly one direct child and one iframe element in the outer DOM.
+Nested technical frames are allowed but are never selected for credential delivery.
+This rule makes the visibility-to-browser-document association unambiguous. The
 browser-issued parent document ID, child frame ID, URL and active lifecycle are
 checked on each operation; dispatch targets the exact browser document ID.
-Replacement, changed URL, hidden/sandboxed frame or additional frames fail closed.
+Replacement, changed URL, hidden/sandboxed frame or additional direct children fail closed.
+The framed delivery requires the exact authenticated Entry host; matching only the
+registrable parent domain does not authorize delivery to a child.
 Same-URL child document renewal is allowed only between committed stages. The
 outer document and exact outer URL remain pinned throughout the operation.
 
