@@ -1,6 +1,6 @@
 import { webAppUrl } from '@shared/config/web-app';
 // @vitest-environment jsdom
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,6 +10,7 @@ import type { EntryMetadata } from "../../background/vault/entry-metadata";
 import type { VaultListView } from "../../background/vault/commands";
 import type { VaultClient } from "../vault/client";
 import { VaultClientError } from "../vault/client";
+import { PopupViewStore } from "../../background/popup-view";
 import { UnlockedScreen } from "./UnlockedScreen";
 
 function entry(over: Partial<EntryMetadata> & Pick<EntryMetadata, "id" | "name">): EntryMetadata {
@@ -147,7 +148,7 @@ describe("UnlockedScreen", () => {
     render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={client} captureClient={makeCaptureClient()} />);
     await screen.findByText("API token");
     expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["Vault", "Inbox", "Sharing", "Logs"]);
-    await user.click(screen.getByRole("button", { name: "Generator" }));
+    await user.click(await screen.findByRole("button", { name: "Generator" }));
     vi.mocked(chrome.runtime.sendMessage).mockClear();
     await user.click(screen.getAllByRole("button", { name: "Copy" }).at(-1)!);
     expect(await navigator.clipboard.readText()).not.toBe("");
@@ -378,7 +379,7 @@ describe("UnlockedScreen", () => {
     render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={client} />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("button", { name: "Generator" }));
+    await user.click(await screen.findByRole("button", { name: "Generator" }));
     const choices = screen.getAllByRole("button", { pressed: false });
     expect(choices).toHaveLength(7);
     const chosen = choices[2]!;
@@ -405,7 +406,7 @@ describe("UnlockedScreen", () => {
     render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={client} />);
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("button", { name: "Generator" }));
+    await user.click(await screen.findByRole("button", { name: "Generator" }));
     const syncCallsBeforeGeneration = vi.mocked(client.sync).mock.calls.length;
     await user.click(screen.getByRole("button", { name: "Passphrase" }));
     expect(screen.getByLabelText("Generated value").textContent?.split("-")).toHaveLength(6);
@@ -522,5 +523,43 @@ describe("UnlockedScreen", () => {
 
     expect(await screen.findByText("API token")).toBeInTheDocument();
     expect(sync).toHaveBeenCalledTimes(2);
+  });
+});
+
+
+describe('popup resume on the current workspace UI', () => {
+  it('restores the search and selected detail after copying and closing the popup', async () => {
+    const store = new PopupViewStore();
+    store.unlock();
+    const existing = vi.mocked(chrome.runtime.sendMessage).getMockImplementation()!;
+    vi.mocked(chrome.runtime.sendMessage).mockImplementation(async (...args: Parameters<typeof chrome.runtime.sendMessage>) => {
+      const result = store.handle(args[0]);
+      return result === undefined ? existing(...args) : result;
+    });
+    const props = { onLock: noop, onSignOut: noop, vaultClient: makeClient(), captureClient: makeCaptureClient() };
+    const user = userEvent.setup();
+    const first = render(<UnlockedScreen {...props} />);
+    await screen.findByText('Example login');
+    await user.type(screen.getByLabelText('Search entries'), 'Example');
+    await user.click(screen.getByRole('button', { name: /Example login/ }));
+    await user.click(await screen.findByRole('button', { name: 'Copy username' }));
+    expect(await navigator.clipboard.readText()).toBe('s3cr3t');
+    const listScroll = first.container.querySelector('.vault-scroll')!;
+    fireEvent.scroll(listScroll, { target: { scrollTop: 240 } });
+    first.unmount();
+    const reopened = render(<UnlockedScreen {...props} />);
+    await screen.findByRole('button', { name: 'Copy password' });
+    expect(screen.getByLabelText('Search entries')).toHaveValue('Example');
+    expect(await screen.findByRole('button', { name: 'Copy password' })).toBeInTheDocument();
+    const snapshot = JSON.stringify(store.handle({ type: 'popup/view/get' }));
+    expect(snapshot).not.toContain('s3cr3t');
+    expect(snapshot).not.toContain('ada@example.com');
+    const restoredScroll = reopened.container.querySelector('.vault-scroll')!;
+    expect(restoredScroll.scrollTop).toBe(240);
+    // A narrow surface has no list layout box while detail is selected.
+    restoredScroll.scrollTop = 0;
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(restoredScroll.scrollTop).toBe(240);
+    store.lock();
   });
 });

@@ -1,3 +1,4 @@
+import { PopupViewStore } from "./popup-view";
 import { shareSource } from './share-save/source';
 import { isConnectionCommand, handleConnectionCommand, saveConnectionSharingPreference } from "./config/connection-commands";
 import { workspaceService } from './workspace/runtime';
@@ -193,6 +194,9 @@ function unavailableDuringServerChange(raw: unknown): unknown {
   return null;
 }
 
+const popupView = new PopupViewStore();
+sessionManager.hooks.onUnlocked(() => popupView.unlock());
+sessionManager.hooks.onLocked(() => popupView.lock());
 sessionManager.hooks.onUnlocked(() => automaticFillSession.unlocked());
 sessionManager.hooks.onLocked(() => automaticFillSession.locked());
 sessionManager.hooks.onLocked(() => shareSave.clear());
@@ -529,6 +533,11 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
       return;
     }
     try {
+      const viewResult = popupView.handle(raw);
+      if (viewResult !== undefined) {
+        sendResponse(viewResult);
+        return;
+      }
       if (isSurfaceActivity(raw)) {
         await sessionManager.touchActivity(raw.observedAt);
         sendResponse({ ok: true });

@@ -239,6 +239,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
     async waitWidth(min, max) { await wait(async () => { const size = await this.viewportSize(); return size.width >= min && size.width <= max }, 'popup resize settled') },
     async waitHeight(min, max) { await wait(async () => { const size = await this.viewportSize(); return size.height >= min && size.height <= max }, 'popup height settled') },
     async viewportSize() { return evaluate('({ width: innerWidth, height: innerHeight })') },
+    async inputValue(selector) { return evaluate(`document.querySelector(${JSON.stringify(selector)})?.value`) },
     async hasText(text) { return evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`) },
     // Exercise the same private command as CopyButton, inside the real native
     // popup sender boundary. Only a boolean leaves the browser; no clipboard,

@@ -1,3 +1,4 @@
+import { usePopupView } from "../view/PopupView";
 /** Progressively reveal Entry metadata without decrypting accounts. */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -19,7 +20,9 @@ export interface EntryListProps {
 
 export function EntryList({ client, entries, priorityEntries, selectedId, onSelect }: EntryListProps): React.JSX.Element {
   const { t } = useI18n();
-  const [visibleCount, setVisibleCount] = useState(CAP);
+  const navigation = usePopupView();
+  const [localCount, setLocalCount] = useState(CAP);
+  const visibleCount = navigation?.state.visibleCount ?? localCount;
   const loadMoreRef = useRef<HTMLButtonElement | null>(null);
   const items = useMemo(() => {
     const priority = new Set(priorityEntries?.map(entry => `${entry.vaultId}:${entry.id}`));
@@ -29,11 +32,13 @@ export function EntryList({ client, entries, priorityEntries, selectedId, onSele
   const visible = items.slice(0, visibleCount);
   const hidden = items.length - visible.length;
   const showNext = useCallback(() => {
-    setVisibleCount((current) => Math.min(items.length, current + CAP));
-  }, [items.length]);
+    const next = Math.max(CAP, Math.min(items.length, visibleCount + CAP));
+    if (navigation) navigation.update({ visibleCount: next });
+    else setLocalCount(next);
+  }, [items.length, visibleCount, navigation]);
 
   useEffect(() => {
-    setVisibleCount(CAP);
+    setLocalCount(CAP);
   }, [entries]);
 
   useEffect(() => {
