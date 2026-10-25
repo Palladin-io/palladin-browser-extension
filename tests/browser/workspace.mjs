@@ -104,8 +104,17 @@ try {
   await popup.click('Save entry'); await popup.waitText('Entry saved securely');
   await popup.click('Vault', 'tab');
   await popup.screenshot(path.join(output, 'list.png'));
+  await popup.fill('.search-input', 'Synthetic');
   await popup.click('Synthetic account app.example.test · Vault: Personal');
   await popup.waitText('synthetic@example.test');
+  await popup.click('Copy username');
+  await popup.dismiss();
+  popup = await openNativePopup(worker, profile, extensionId);
+  await popup.waitButton('Copy password');
+  assert.equal(await popup.inputValue('.search-input'), 'Synthetic', 'Reopening must restore the search');
+  await popup.waitText('synthetic@example.test');
+  await popup.screenshot(path.join(output, 'popup-resumed.png'));
+  await popup.fill('.search-input', '');
   await popup.screenshot(path.join(output, 'entry-light.png'));
   await popup.click('Share');
   await popup.screenshot(path.join(output, 'share-form-light.png'));

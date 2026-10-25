@@ -1,14 +1,15 @@
+import { PopupViewProvider, usePopupView } from "../view/PopupView";
+import type { PopupViewState, PopupEntryRef } from "../../shared/messaging/popup-view";
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { usePendingGrants } from '../workspace/usePendingGrants';
 import { GrantsPanel } from '../workspace/GrantsPanel';
 import { SharingOverview } from '../workspace/SharingOverview';
 import { AuditPanel } from '../workspace/AuditPanel';
 import { createWorkspaceClient } from '../workspace/client';
-import type { EntryMetadata } from '../../background/vault/entry-metadata';
 import { Header } from '../components/Header';
 import { PopupIcon } from '../components/PopupIcon';
 import { EntryDetail } from '../components/EntryDetail';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { CapturePrompt } from '../capture/CapturePrompt';
 import { AddEntryForm } from '../entries/AddEntryForm';
@@ -49,7 +50,11 @@ export interface UnlockedScreenProps {
   captureClient?: CaptureClient;
 }
 
-export function UnlockedScreen({
+export function UnlockedScreen(props: UnlockedScreenProps): React.JSX.Element {
+  return <PopupViewProvider><UnlockedContent {...props} /></PopupViewProvider>;
+}
+
+function UnlockedContent({
   settings,
   onLock,
   onSignOut,
@@ -71,12 +76,19 @@ export function UnlockedScreen({
   const pendingGrants = usePendingGrants(workspaceClient);
   const capture = useCapturePrompt(promptClient);
   const list = useVaultList(client, viewRevision);
-  const [query, setQuery] = useState('');
-  const [vaultFilter, setVaultFilter] = useState<string[] | null>(null);
+  const navigation = usePopupView()!;
+  const { query, vaultFilter, view, selected, scope } = navigation.state;
+  const setQuery = (query: string) => navigation.update({ query, scrollTop: 0, visibleCount: 100 });
+  const setVaultFilter = (value: string[] | null | ((previous: string[] | null) => string[] | null)) =>
+    navigation.update({ vaultFilter: typeof value === 'function' ? value(vaultFilter) : value, scrollTop: 0, visibleCount: 100 });
+  const setView = (view: PopupViewState['view']) => navigation.update({ view });
+  const entryRef = (entry: PopupEntryRef | null) => entry ? { id: entry.id, vaultId: entry.vaultId } : null;
+  const setSelected = (entry: PopupEntryRef | null) => navigation.update({ selected: entryRef(entry) });
+  const setScope = (entry: PopupEntryRef | null) => navigation.update({ scope: entryRef(entry) });
+  const restoreScroll = useCallback((node: HTMLDivElement | null) => {
+    if (node) node.scrollTop = navigation.state.scrollTop;
+  }, [navigation.state.scrollTop, selected]);
   const vaultOptions = useMemo(() => [...new Map(list.all.map(entry => [entry.vaultId, entry.vaultName])).entries()], [list.all]);
-  const [view, setView] = useState<
-    'vault' | 'generator' | 'add-entry' | 'logs' | 'shares' | 'grants' | 'settings'
-  >('vault');
   const [capturePrompt, setCapturePrompt] = useState(capture.prompt);
   const pendingShare = usePendingShareSave(shareRevision);
   const [heldShare, setHeldShare] = useState<typeof pendingShare>(null);
@@ -86,8 +98,6 @@ export function UnlockedScreen({
   }, [pendingShare, heldShare]);
   const visibleShare = pendingShare ?? heldShare;
 
-  const [scope, setScope] = useState<EntryMetadata | null>(null);
-  const [selected, setSelected] = useState<EntryMetadata | null>(null);
   const current = selected
     ? (list.all.find(
         (entry) =>
@@ -103,7 +113,7 @@ export function UnlockedScreen({
   );
 
   if (visibleShare && visibleShare.id !== shareDismissed) {
-    return <section className="vault">
+    return <section className="vault" onPointerDown={() => navigation.update({})} onKeyDown={() => navigation.update({})}>
       <ShareSavePrompt key={visibleShare.id} pending={visibleShare}
         onSaveStart={() => setHeldShare(visibleShare)}
         onDone={() => { setHeldShare(null); setShareDismissed(visibleShare.id); }} />
@@ -112,7 +122,7 @@ export function UnlockedScreen({
   }
 
   return (
-    <section className="vault">
+    <section className="vault" onPointerDown={() => navigation.update({})} onKeyDown={() => navigation.update({})}>
       <Header>
         <SearchBar
           value={query}
@@ -262,7 +272,7 @@ export function UnlockedScreen({
               </div>
             ) : (
               <div className="vault-split" data-selected={current !== null}>
-                <div className="vault-scroll">
+                <div className="vault-scroll" ref={restoreScroll} onScroll={(event) => navigation.update({ scrollTop: event.currentTarget.scrollTop })}>
                   {list.refreshing ? <div className="vault-sync-status" role="status"><Spinner />{t('vault.syncing')}</div> : list.errorCode ? <div className="vault-sync-status" role="alert"><span>{t('vault.syncFailed')}</span><Button onClick={list.retry}>{t('vault.retry')}</Button></div> : null}
                   <details className="vault-filter">
                     <summary aria-label={t('vault.filterLabel')}><span className="vault-filter-identity"><PopupIcon name="vaults" />{vaultFilter === null ? t('vault.filterAll') : t('vault.filterSelected', { count: vaultFilter.length })}</span><PopupIcon name="chevron" /></summary>
