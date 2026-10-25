@@ -35,8 +35,8 @@ describe('connection settings', () => {
     await user.click(screen.getByRole('button', { name: 'Use production' }));
     expect(screen.getByRole('button', { name: 'Save and activate' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Save and activate' }));
-    expect(c.save).toHaveBeenCalledWith({ name: 'https://palladin.io', apiUrl: 'https://api.palladin.io',
-      webUrl: 'https://palladin.io', allowHttp: false, sharedUnlockEnabled: true });
+    expect(c.save).toHaveBeenCalledWith({ name: 'https://panel.palladin.io', apiUrl: 'https://api.palladin.io',
+      webUrl: 'https://panel.palladin.io', allowHttp: false, sharedUnlockEnabled: true });
   });
   it('requires HTTP consent and resets it when either address changes', async () => {
     const c = client(); render(<ServerSettings connectionsClient={c} onChanged={vi.fn()} />);
