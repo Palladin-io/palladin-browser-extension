@@ -36,7 +36,9 @@ export function isFillable(input: FillControl): boolean {
   // still applies even when the field overrides pointer handling.
   if (view.getComputedStyle(input).pointerEvents === "none") return false;
   for (let element: Element | null = input; element !== null; element = composedParent(element)) {
-    if (element.hasAttribute('hidden')
+    // A page may decline filling; this marker never grants access or widens a target.
+    if (element.getAttribute('data-palladin-ignore') === 'true'
+      || element.hasAttribute('hidden')
       || element.hasAttribute("inert")
       || element.getAttribute("aria-hidden") === "true"
       || (element.tagName === "DIALOG" && !element.hasAttribute("open"))) {
