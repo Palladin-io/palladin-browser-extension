@@ -59,6 +59,7 @@
   "error.invalidSignIn": "Incorrect email or master password.",
   "error.invalidTotp": "That code didn't match. Try again.",
   "error.invalidPassword": "Incorrect master password.",
+  "settings.version": "Version {version}",
   "settings.appearance.title": "Appearance",
   "settings.appearance.subtitle": "Language and theme apply to this browser extension.",
   "settings.language": "Language",

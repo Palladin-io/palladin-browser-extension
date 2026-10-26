@@ -4,7 +4,6 @@ import { observeNativeSubmit } from './manual-submit.test-helper';
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  displayEntryLabel,
   isLoginField,
   startInlineAutofill,
   suggestionDetail,
@@ -32,7 +31,7 @@ afterEach(() => {
 });
 
 describe("inline autofill field discovery", () => {
-  it("labels the vault explicitly and does not repeat an entry name that is the domain", () => {
+  it("labels the vault explicitly in both locales", () => {
     const suggestion = {
       vaultId: "v1",
       entryId: "e1",
@@ -44,12 +43,11 @@ describe("inline autofill field discovery", () => {
       match: "exact" as const,
     };
 
-    expect(displayEntryLabel(suggestion)).toBeNull();
     expect(suggestionDetail(suggestion, "en")).toBe("Vault: TMo 10");
     expect(suggestionDetail(suggestion, "pl")).toBe("Sejf: TMo 10");
   });
 
-  it("keeps a distinct entry label and identifies a related host", () => {
+  it("identifies a related host", () => {
     const suggestion = {
       vaultId: "v1",
       entryId: "e1",
@@ -61,7 +59,6 @@ describe("inline autofill field discovery", () => {
       match: "related" as const,
     };
 
-    expect(displayEntryLabel(suggestion)).toBe("WP account");
     expect(suggestionDetail(suggestion, "en"))
       .toBe("Related site: 1login.wp.pl · Vault: Personal");
   });
@@ -459,6 +456,70 @@ describe("inline autofill field discovery", () => {
     subject.retryAutomaticFill();
     await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
     subject.stop();
+  });
+
+  it("shows the entry name above a numeric login without a letter avatar", async () => {
+    const nativeAttachShadow = Element.prototype.attachShadow;
+    const attachShadow = vi.spyOn(Element.prototype, "attachShadow").mockImplementation(function (
+      this: Element, init: ShadowRootInit,
+    ) { return nativeAttachShadow.call(this, { ...init, mode: "open" }); });
+    document.body.innerHTML = `<form><input autocomplete="username" value="typed"><input type="password"></form>`;
+    const subject = startInlineAutofill(document, "a".repeat(32), async () => ({
+      ok: true, kind: "suggestions", status: "ready", entries: [1, 2].map(i => ({
+        iconDataUrl: "data:image/png;base64,iVBORw0KGgo=",
+        vaultId: "vault-id", entryId: `entry-id-${i}`, name: "Shopping account", username: "12345678",
+        vaultName: "Personal", urlDomain: "example.com", updatedAt: "2026-10-17T00:00:00Z", match: "exact",
+      })),
+    }));
+    try {
+      const root = document.querySelector("palladin-autofill")!.shadowRoot!;
+      root.querySelector<HTMLButtonElement>(".launcher")!.click();
+      await vi.waitFor(() => expect(root.querySelector(".option strong")?.textContent).toBe("Shopping account"));
+      expect(root.querySelector(".entry-name")?.textContent).toBe("12345678");
+      expect(root.querySelector(".option")?.textContent).toContain("Vault: Personal");
+      expect([...root.querySelectorAll(".option strong")].map(el => el.textContent)).toEqual(["Shopping account", "Shopping account"]);
+      expect(root.querySelector(".entry-icon img")?.getAttribute("src")).toBe("data:image/png;base64,iVBORw0KGgo=");
+      expect(root.querySelector(".account-avatar")).toBeNull();
+      expect(root.querySelector(".option")?.textContent).not.toContain("entry-id");
+    } finally { subject.stop(); attachShadow.mockRestore(); }
+  });
+
+  it("keeps empty suggestions silent on field focus but shows them from the launcher", async () => {
+    const nativeAttachShadow = Element.prototype.attachShadow;
+    const attachShadow = vi.spyOn(Element.prototype, "attachShadow").mockImplementation(function (
+      this: Element,
+      init: ShadowRootInit,
+    ) {
+      return nativeAttachShadow.call(this, { ...init, mode: "open" });
+    });
+    document.body.innerHTML = `<form><input id="username" type="email"><input type="password"></form>`;
+    const send = vi.fn(async () => ({
+      ok: true,
+      kind: "suggestions",
+      status: "ready",
+      entries: [],
+    }));
+    const subject = startInlineAutofill(document, "a".repeat(32), send);
+
+    try {
+      await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+      const shadow = document.querySelector("palladin-autofill")!.shadowRoot!;
+      const panel = shadow.querySelector<HTMLElement>(".panel")!;
+      const input = document.querySelector<HTMLInputElement>("#username")!;
+      input.focus();
+      expect(panel.hidden).toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(panel.hidden).toBe(true);
+      expect(panel.textContent).toBe("");
+
+      shadow.querySelector<HTMLButtonElement>(".launcher")!.click();
+      expect(panel.querySelector(".loading")).not.toBeNull();
+      await vi.waitFor(() => expect(panel.textContent).toContain("No Palladin login matches this website."));
+      expect(panel.hidden).toBe(false);
+    } finally {
+      subject.stop();
+      attachShadow.mockRestore();
+    }
   });
 
   it("does not repeat automatic fills when the page refocuses the same form", async () => {

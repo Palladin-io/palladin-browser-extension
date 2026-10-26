@@ -17,6 +17,8 @@ export function SettingsScreen({
   onServerChanged,
 }: SettingsScreenProps): React.JSX.Element {
   const { t } = useI18n();
+  const version = chrome.runtime.getManifest().version;
+  const versionLabel = <p className="settings-version">{t("settings.version", { version })}</p>;
   const [openSection, setOpenSection] = useState<string | null>(split ? "appearance" : null);
 
   const sections = [
@@ -36,6 +38,7 @@ export function SettingsScreen({
         {openSection === 'appearance' ? <AppearanceSettings embedded /> :
           openSection === 'server' ? <ServerSettings onChanged={onServerChanged} embedded /> :
           openSection === 'capture' ? <CaptureSettings /> : <SharedUnlockSettings />}
+        {versionLabel}
       </section>
     </div>
   );
@@ -63,6 +66,7 @@ export function SettingsScreen({
         <CaptureSettings />
       </SettingsSection>
       <SharedUnlockSettings />
+      {versionLabel}
     </div>
   );
 

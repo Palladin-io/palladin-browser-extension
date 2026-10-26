@@ -231,8 +231,15 @@ isolated-script page-load document ID. The service worker additionally requires
 the browser-provided sender document ID and reconstructs the exact active target
 instead of trusting any tab, origin, or URL supplied by page content.
 When the session is locked or signed out, the closed-shadow menu can open the
-browser-owned Palladin side panel directly from the user's click. This command
+browser-owned Palladin toolbar popup directly from the user's click. This command
 carries only the document binding and never a credential value.
+
+Field focus keeps an empty exact-host suggestion result hidden; clicking the
+shield explicitly may display the empty state. The chooser displays Entry and
+Vault names without generated identifiers or ordinal suffixes. Stored public
+asset icons resolve to bounded PNG bytes in the worker from the selected API
+only, never from the decrypted URL or the visited page. Settings displays the
+installed manifest version in both compact and split views.
 
 Chrome closes long-lived extension ports when a page enters the back/forward
 cache. The isolated content script consumes that expected disconnect and opens

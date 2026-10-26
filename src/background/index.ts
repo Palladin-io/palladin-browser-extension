@@ -34,6 +34,7 @@ import {
   isRequiredServerOrigin,
   serverPermissionOrigin,
 } from "@shared/config/server";
+import { loadInlineIcon } from "./vault/inline-icon";
 import { openSidePanel } from "@shared/browser/side-panel";
 import { isCredentialCaptureCommand } from "@shared/messaging/credential-capture";
 import { isCaptureSettingsCommand } from "@shared/messaging/capture-settings";
@@ -395,14 +396,13 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isInlineAutofillCommand(raw)) return false;
   if (raw.type === "inline/open-palladin") {
     const source = inlineAutofillSource(raw, sender, chrome.runtime.id);
-    if (source === null || sender.tab?.windowId === undefined) {
+    if (source === null || sender.tab?.windowId === undefined || !chrome.action?.openPopup) {
       sendResponse({ ok: true, kind: "surface", status: "unavailable" });
       return false;
     }
-    // Invoke directly from the content-script click message so Chrome retains
-    // the user activation required by sidePanel.open(). No secret is involved.
-    void openSidePanel(undefined, undefined, sender.tab.windowId)
-      .then((opened) => sendResponse({ ok: true, kind: "surface", status: opened ? "opened" : "unavailable" }))
+    // Keep the browser-owned popup request in the direct user-gesture handler.
+    void chrome.action.openPopup({ windowId: sender.tab.windowId })
+      .then(() => sendResponse({ ok: true, kind: "surface", status: "opened" }))
       .catch(() => sendResponse({ ok: true, kind: "surface", status: "unavailable" }));
     return true;
   }
@@ -418,6 +418,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
         resolveLegacySource: (documentId, sender) => legacyFirefoxDocuments?.resolveSource(documentId, sender) ?? Promise.resolve(null),
         getStatus: () => sessionManager.getStatus(),
         getMetadata: () => vaultData.getMetadata(),
+        loadIcon: (icon) => loadInlineIcon(serverConfig.apiUrl, icon),
         recency: inlineAutofillRecency,
         fill: async (source, vaultId, entryId, scope, loginTargetId, intent) => {
           // This channel includes passive exact-host autofill. A fill request

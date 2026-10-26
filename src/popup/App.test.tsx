@@ -49,6 +49,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubGlobal('chrome', {
     runtime: {
+      getManifest: () => ({ version: "9.8.7" }),
       sendMessage: vi.fn(async (command) => command.type.startsWith('config/connections/') ? ({ ok: true,
         state: { connections: [], activeApiUrl: null }, apiUrl: command.connection?.apiUrl ?? 'https://api.palladin.io', changed: command.type.endsWith('/save') })
         : ({ ok: false, code: 'authentication-required', locallyPaused: false })),
@@ -67,7 +68,8 @@ describe("popup state machine", () => {
     const sendMessage = vi.fn(async (raw: { type: string }) => raw.type === 'shared-unlock-settings/get'
       ? { ok: true, contextId: '11111111-1111-4111-8111-111111111111', sharedUnlockEnabled: true, revision: 1, locallyPaused: false }
       : { ok: false, code: 'unavailable' })
-    vi.stubGlobal('chrome', { runtime: { sendMessage, onMessage: { addListener: vi.fn(), removeListener: vi.fn() } },
+    vi.stubGlobal('chrome', { runtime: {
+      getManifest: () => ({ version: "9.8.7" }), sendMessage, onMessage: { addListener: vi.fn(), removeListener: vi.fn() } },
       tabs: { onActivated: { addListener: vi.fn(), removeListener: vi.fn() }, onUpdated: { addListener: vi.fn(), removeListener: vi.fn() } } })
     try {
       const view = render(<App surface={surface} client={makeClient()} serverConfigClient={makeServerConfigClient()}
@@ -87,6 +89,7 @@ describe("popup state machine", () => {
     expect(screen.getByRole('main')).toHaveAttribute('data-phase', 'unlocked');
     expect(screen.getByRole('tab', { name: 'Settings' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('button', { name: 'Appearance' })).toBeInTheDocument();
+    expect(screen.getByText('Version 9.8.7')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('tab', { name: 'Vault' }));
     expect(screen.getByRole('main')).toHaveAttribute('data-phase', 'unlocked');
@@ -362,6 +365,7 @@ describe("popup state machine", () => {
     const removeListener = vi.fn((listener: (raw: unknown) => void) => messageListeners.delete(listener));
     vi.stubGlobal("chrome", {
       runtime: {
+        getManifest: () => ({ version: "9.8.7" }),
         onMessage: {
           addListener: vi.fn((listener: (raw: unknown) => void) => {
             messageListeners.add(listener);
@@ -400,6 +404,7 @@ describe("popup state machine", () => {
     const getStatus = vi.fn().mockResolvedValueOnce("unlocked").mockImplementation(() => nextStatus);
     vi.stubGlobal("chrome", {
       runtime: {
+        getManifest: () => ({ version: "9.8.7" }),
         id: "synthetic-extension-id",
         connect: vi.fn((options: { name: string }) => ({
           onMessage: { addListener: vi.fn() },
@@ -442,6 +447,7 @@ describe("popup state machine", () => {
     });
     vi.stubGlobal("chrome", {
       runtime: {
+        getManifest: () => ({ version: "9.8.7" }),
         sendMessage,
         onMessage: { addListener: vi.fn(), removeListener: vi.fn() },
       },

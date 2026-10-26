@@ -48,7 +48,7 @@ function fixture(automatic = false) {
     root.querySelector<HTMLButtonElement>('.launcher')!.click();
     await vi.waitFor(() => expect(root.querySelector('.option')).not.toBeNull());
     const button = login ? root.querySelector<HTMLButtonElement>(`[aria-label="Fill and log in: ${name}"]`)
-      : [...root.querySelectorAll<HTMLButtonElement>('.option')].find(button => button.textContent?.startsWith(name));
+      : [...root.querySelectorAll<HTMLButtonElement>('.option')].find(button => button.querySelector('strong')?.textContent === name);
     button!.click();
   };
   return { username, password, submit, pending, choose };

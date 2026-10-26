@@ -152,7 +152,7 @@ try {
   let fillName;
   await wait(async () => {
     fillName = (await cdp.send('Accessibility.getFullAXTree')).nodes.find(node => !node.ignored
-      && node.role?.value === 'button' && node.name?.value.startsWith(tomojdomUsername))?.name?.value;
+      && node.role?.value === 'button' && node.name?.value.startsWith('tomojdom.pl') && node.name.value.includes(tomojdomUsername))?.name?.value;
     return Boolean(fillName);
   }, 'Tomojdom explicit fill-only suggestion');
   await click(fillName);

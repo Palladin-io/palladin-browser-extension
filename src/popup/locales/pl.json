@@ -59,6 +59,7 @@
   "error.invalidSignIn": "Nieprawidłowy e-mail lub hasło główne.",
   "error.invalidTotp": "Kod jest nieprawidłowy. Spróbuj ponownie.",
   "error.invalidPassword": "Nieprawidłowe hasło główne.",
+  "settings.version": "Wersja {version}",
   "settings.appearance.title": "Wygląd",
   "settings.appearance.subtitle": "Język i motyw dotyczą tego rozszerzenia przeglądarki.",
   "settings.language": "Język",
