@@ -230,3 +230,13 @@ not a full captured production form. On2026-10-25 the local Web panel was observ
 with text Login and masked-text Password fields, no owning form, and one injected
 launcher beside Login. Values were not collected. Installed-extension acceptance
 requires reloading the updated build and the affected page.
+
+The reduced management specimen under
+`tests/fixtures/forms/palladin-management-2026-10-25/` preserves the observed
+formless text/masked-text pair, relevant masking CSS and input hints. Its
+provenance distinguishes source reconstruction, synthetic marker transitions
+and the unknown installed build. User generated-value fill is rejected while
+marked; the Agent live adapter offers no login plan. The current detector also
+rejects the unmarked masked-text pair, so launcher teardown/rediscovery remains
+covered by the separate native-login contract fixture rather than inventing
+a password input in the management specimen.

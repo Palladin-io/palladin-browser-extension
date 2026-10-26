@@ -1,4 +1,7 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import { performFill } from './fill';
+import { LiveLogin } from './agent-live-login';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { isFillable, isCurrentLoginTarget, loginTargetFor } from './credential-form-analysis';
 import { startInlineAutofill } from './inline-autofill';
@@ -50,4 +53,43 @@ it('removes an existing launcher when its ancestor opts out and rediscovers it a
     scope.removeAttribute('data-palladin-ignore');
     await vi.waitFor(() => expect(document.querySelectorAll('palladin-autofill')).toHaveLength(1));
   } finally { controller.stop(); }
+});
+
+function renderManagementFields() {
+  const path = 'tests/fixtures/forms/palladin-management-2026-10-25/';
+  document.body.innerHTML = `<style>${readFileSync(path + 'page.css', 'utf8')}</style>${readFileSync(path + 'page.html', 'utf8')}`;
+  return {
+    scope: document.querySelector('main')!,
+    username: document.querySelector<HTMLInputElement>('#entry-detail-username')!,
+    password: document.querySelector<HTMLInputElement>('#entry-detail-password')!,
+  };
+}
+
+it('rejects user generated-value filling in the observed formless masked-text panel structure', () => {
+  const { scope, username, password } = renderManagementFields();
+  expect(username.form).toBeNull();
+  expect(password.form).toBeNull();
+  expect(password.type).toBe('text');
+  password.focus();
+  expect(isFillable(username)).toBe(false);
+  expect(isFillable(password)).toBe(false);
+  expect(performFill(document, [{ kind: 'generated', value: 'synthetic-generated-value' }])).toEqual({ ok: false, reason: 'no-form' });
+  expect(password.value).toBe('');
+  scope.removeAttribute('data-palladin-ignore');
+  expect(isFillable(username)).toBe(true);
+  expect(loginTargetFor(username)).toBeNull();
+  scope.setAttribute('data-palladin-ignore', 'true');
+  expect(isFillable(username)).toBe(false);
+});
+
+it('does not offer the management-field specimen as an Agent live login, with or without its marker', () => {
+  const { scope } = renderManagementFields();
+  const url = 'https://panel.example.test/vaults';
+  const live = new LiveLogin(document, 'd'.repeat(32), () => url, () => true,
+    { isVisible: (element: HTMLElement) => !element.hidden });
+  try {
+    expect(live.inspect(url)).toBeNull();
+    scope.removeAttribute('data-palladin-ignore');
+    expect(live.inspect(url)).toBeNull();
+  } finally { live.clear(); }
 });
