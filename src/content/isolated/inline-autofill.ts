@@ -133,7 +133,7 @@ function mutationAffectsLoginDiscovery(record: MutationRecord): boolean {
   const target = record.target;
   if (record.attributeName === "form") return target instanceof HTMLInputElement;
   if (record.attributeName === "id") return target instanceof HTMLFormElement || target instanceof HTMLInputElement;
-  if (["class", "style", "hidden", "aria-hidden", "inert", "disabled", "open"]
+  if (["class", "style", "hidden", "aria-hidden", "inert", "disabled", "open", "data-palladin-ignore"]
     .includes(record.attributeName ?? "")) {
     // Ancestors may own inputs in open roots. Keep this callback O(records);
     // the throttled scan decides whether a credential scope is affected.
@@ -214,6 +214,7 @@ class InlineAutofillController {
       attributeFilter: [
         "type",
         "autocomplete",
+        "data-palladin-ignore",
         "name",
         "role",
         "aria-label",

@@ -215,3 +215,28 @@ The explicit extension-owned card Fill action may include optional CVV/CVC from 
 User login discovery delegates through the existing site adapters, scoped form analysis, then a bounded generic username/password detector. A detector that rejects an applicable scope stops the chain. The fallback supports open shadow roots and assigned slots, requires an identified username, and rejects ambiguous pairs, registration hints, mismatched autocomplete sections, unresolved native owners and controls across dialog/section boundaries. It never pairs controls using the entire page.
 
 Popup filling uses the same bound target for form-less controls. Automatic filling preserves existing values; explicit manual filling retains the existing account-switching contract. Targets are revalidated before each write, input/change events cross open component boundaries, and discovery does not authorize submission or Agent execution.
+
+## Management surfaces that decline autofill
+
+`data-palladin-ignore="true"` on a field or any composed ancestor opts that subtree
+out of shared credential discovery/filling. It is a deny-only presentation hint,
+never authority to fill another field or bypass origin/grant checks. The Web panel
+marks its unlocked shell; login and unlock stay outside it. Inline discovery observes
+marker changes and removes stale launchers. Open shadow roots retain the ancestor
+boundary, and a previously resolved target is rejected after opt-out.
+
+The contract regression is synthetic (ordinary login structure plus explicit marker),
+not a full captured production form. On2026-10-25 the local Web panel was observed
+with text Login and masked-text Password fields, no owning form, and one injected
+launcher beside Login. Values were not collected. Installed-extension acceptance
+requires reloading the updated build and the affected page.
+
+The reduced management specimen under
+`tests/fixtures/forms/palladin-management-2026-10-25/` preserves the observed
+formless text/masked-text pair, relevant masking CSS and input hints. Its
+provenance distinguishes source reconstruction, synthetic marker transitions
+and the unknown installed build. User generated-value fill is rejected while
+marked; the Agent live adapter offers no login plan. The current detector also
+rejects the unmarked masked-text pair, so launcher teardown/rediscovery remains
+covered by the separate native-login contract fixture rather than inventing
+a password input in the management specimen.
