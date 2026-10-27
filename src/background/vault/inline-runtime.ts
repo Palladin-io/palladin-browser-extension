@@ -18,6 +18,7 @@ export interface InlineAutofillDeps {
   resolveLegacySource?(documentId: string, sender: chrome.runtime.MessageSender): Promise<ActiveTab | null>;
   getStatus(): Promise<SessionStatus>;
   getMetadata(): Promise<EntryMetadata[]>;
+  loadIcon?(icon: string): Promise<string | undefined>;
   fill(
     source: ActiveTab,
     vaultId: string,
@@ -90,9 +91,15 @@ export async function handleInlineAutofillContentMessage(
         .filter((entry) => entry.type === ENTRY_TYPE_CREDENTIAL && entry.urlDomain)
         .map((entry) => ({ entry, match: "related" as const }));
       const matches = [...exact, ...related].slice(0, 20);
-      const entries = matches
+      const icons = new Map<string, Promise<string | undefined>>();
+      for (const { entry } of matches) {
+        if (entry.icon && deps.loadIcon && !icons.has(entry.icon)) {
+          icons.set(entry.icon, deps.loadIcon(entry.icon).catch(() => undefined));
+        }
+      }
+      const entries = await Promise.all(matches
         .filter(({ entry }) => entry.username !== undefined)
-        .map(({ entry, match }) => ({
+        .map(async ({ entry, match }) => ({
           vaultId: entry.vaultId,
           entryId: entry.id,
           name: entry.name,
@@ -101,7 +108,11 @@ export async function handleInlineAutofillContentMessage(
           urlDomain: entry.urlDomain!,
           updatedAt: entry.updatedAt,
           match,
-        }));
+          ...(entry.icon && await icons.get(entry.icon)
+            ? { iconDataUrl: (await icons.get(entry.icon))! } : {}),
+        })));
+      const currentStatus = await deps.getStatus();
+      if (currentStatus !== "unlocked") return { ok: true, kind: "suggestions", status: currentStatus, entries: [] };
       return { ok: true, kind: "suggestions", status: "ready", entries };
     }
     if (status !== "unlocked") return { ok: true, kind: "fill", status: "blocked" };

@@ -3,8 +3,9 @@ import { parsePublicAssetIconReference } from "@palladin/crypto";
 import { normalizeServerUrl } from "@shared/config/server";
 import type { ServerConfigClient } from "../config/client";
 
+import { loadPublicAssetPng } from "@shared/public-asset-image";
+
 const ApiUrlContext = createContext<string | null>(null);
-const MAXIMUM_IMAGE_BYTES = 1024 * 1024;
 
 export function PublicAssetImages({ client, children }: {
   client: ServerConfigClient;
@@ -47,7 +48,7 @@ export function usePublicAssetImage(icon: string | undefined): string | null {
       }
       if (!asset) return;
       // Only selected-API content is trusted; catalog/decrypted URLs never become image destinations.
-      const blob = await loadImage(`${apiUrl}/api/public-assets/${asset.assetId}/revisions/${encodeURIComponent(asset.revision)}/content`, controller.signal);
+      const blob = await loadPublicAssetPng(`${apiUrl}/api/public-assets/${asset.assetId}/revisions/${encodeURIComponent(asset.revision)}/content`, controller.signal);
       if (controller.signal.aborted) return;
       objectUrl = URL.createObjectURL(blob);
       setLoaded({ source, blob: objectUrl });
@@ -58,30 +59,4 @@ export function usePublicAssetImage(icon: string | undefined): string | null {
     };
   }, [apiUrl, source]);
   return source && loaded?.source === source ? loaded.blob : null;
-}
-
-async function loadImage(url: string, signal: AbortSignal): Promise<Blob> {
-  const response = await fetch(url, {
-    signal, credentials: "omit", redirect: "error", referrerPolicy: "no-referrer",
-  });
-  if (!response.ok || response.headers.get("content-type")?.split(";")[0] !== "image/png" || !response.body) {
-    await response.body?.cancel();
-    throw new Error("Public icon unavailable");
-  }
-  const reader = response.body.getReader();
-  const chunks: Uint8Array<ArrayBuffer>[] = [];
-  let length = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      length += value.byteLength;
-      if (length > MAXIMUM_IMAGE_BYTES) throw new Error("Public icon exceeds image budget");
-      chunks.push(new Uint8Array(value));
-    }
-    return new Blob(chunks, { type: "image/png" });
-  } finally {
-    await reader.cancel();
-    reader.releaseLock();
-  }
 }

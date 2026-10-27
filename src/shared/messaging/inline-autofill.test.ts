@@ -48,3 +48,15 @@ it('does not accept a caller-supplied automatic session marker', () => {
   expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', intent: 'automatic', documentId,
     vaultId: 'v', entryId: 'e', scope: 'exact', loginTargetId: 'login-1', automaticFillSessionId: 'a'.repeat(32) })).toBe(false);
 });
+
+it.each([
+  ["data:image/png;base64,iVBORw==", true],
+  ["https://tracker.example/icon.png", false],
+  ["data:image/svg+xml;base64,PHN2Zy8+", false],
+  ["data:image/png;base64," + "A".repeat(1400000), false],
+])("validates inline icon transport case %#", (iconDataUrl, accepted) => {
+  expect(isInlineAutofillResult({ ok: true, kind: "suggestions", status: "ready", entries: [{
+    vaultId: "v", entryId: "e", name: "Example", username: "synthetic", vaultName: "Personal",
+    urlDomain: "example.com", updatedAt: "2026-10-17T00:00:00Z", match: "exact", iconDataUrl,
+  }] })).toBe(accepted);
+});

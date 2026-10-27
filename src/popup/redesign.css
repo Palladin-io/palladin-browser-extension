@@ -369,6 +369,12 @@ body {
   overflow: auto;
   max-height: none;
 }
+.settings-version {
+  margin: 20px 0 0;
+  color: var(--cv-t3);
+  font-size: 11px;
+  text-align: center;
+}
 .settings-section {
   border-radius: 8px;
 }

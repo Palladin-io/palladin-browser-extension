@@ -269,3 +269,21 @@ it('rejects an automatic related-host fill before delivery', async () => {
   }, sender, 'extension-id')).toBeNull();
   expect(fill).not.toHaveBeenCalled();
 });
+
+ it("includes the stored catalog icon in suggestions", async () => {
+   const result = await handleInlineAutofillContentMessage(deps({
+     getMetadata: async () => [{ ...entries[0]!, icon: "catalog-reference" }],
+     loadIcon: async () => "data:image/png;base64,iVBORw0KGgo=",
+   }), { channel: INLINE_AUTOFILL_CHANNEL, type: "inline/list", documentId }, sender, "extension-id");
+   expect(result).toMatchObject({ entries: [{ iconDataUrl: "data:image/png;base64,iVBORw0KGgo=" }] });
+ });
+
+it("discards suggestions if the session locks while an icon loads", async () => {
+  let status: "unlocked" | "locked" = "unlocked";
+  const result = await handleInlineAutofillContentMessage(deps({
+    getStatus: async () => status,
+    getMetadata: async () => [{ ...entries[0]!, icon: "catalog-reference" }],
+    loadIcon: async () => { status = "locked"; return undefined; },
+  }), { channel: INLINE_AUTOFILL_CHANNEL, type: "inline/list", documentId }, sender, "extension-id");
+  expect(result).toEqual({ ok: true, kind: "suggestions", status: "locked", entries: [] });
+});

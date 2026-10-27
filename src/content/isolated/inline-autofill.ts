@@ -83,6 +83,7 @@ type InlineKey =
   | "inline.unlockPalladin"
   | "inline.signInPalladin"
   | "inline.unavailable"
+  | "inline.openFromToolbar"
   | "inline.filling"
   | "inline.filled"
   | "inline.passwordUpdated"
@@ -618,7 +619,7 @@ class InlineWidget {
     this.button.addEventListener("click", () => {
       // Only an explicit shield click leaves the page input, dismissing its native chooser.
       this.button.focus({ preventScroll: true });
-      void this.open();
+      void this.open("launcher");
     });
     this.reposition();
     this.options.doc.defaultView?.requestAnimationFrame?.(() => this.reposition());
@@ -704,7 +705,7 @@ class InlineWidget {
     status.setAttribute("role", "status");
     status.textContent = message(this.options.locale(), "inline.passwordUpdated")
       .replace("{name}", name);
-    this.panel.replaceChildren(status);
+    this.panel.replaceChildren(this.createTitle(), status);
     setTimeout(() => {
       if (this.openGeneration === generation) this.close();
     }, 5_000);
@@ -736,9 +737,10 @@ class InlineWidget {
     // columns or high browser zoom. Coordinates are relative to the launcher.
     const viewportWidth = view?.innerWidth ?? 0;
     if (viewportWidth > 0) {
-      const panelWidth = Math.min(356, Math.max(0, viewportWidth - 24));
+      const panelWidth = Math.min(344, rect.width, Math.max(0, viewportWidth - 24));
+      this.panel.style.width = `${panelWidth}px`;
       const desiredLeft = Math.min(
-        Math.max(12, hostLeft + 26 - panelWidth),
+        Math.max(12, rect.right - panelWidth),
         Math.max(12, viewportWidth - panelWidth - 12),
       );
       this.panel.style.left = `${desiredLeft - hostLeft}px`;
@@ -753,7 +755,7 @@ class InlineWidget {
     // host filling is a separate, one-shot path below; the chooser opens only
     // for an actual browser user activation.
     const activated = this.options.doc.defaultView?.navigator.userActivation?.isActive === true;
-    if (activated) void this.open();
+    if (activated) void this.open("focus");
   };
 
   /**
@@ -828,17 +830,24 @@ class InlineWidget {
     }
   }
 
-  private async open(): Promise<void> {
+  private async open(source: "focus" | "launcher"): Promise<void> {
     this.options.closeOthers();
-    this.panel.hidden = false;
+    this.close();
     const generation = ++this.openGeneration;
-    this.renderLoading();
+    if (source === "launcher") {
+      this.panel.hidden = false;
+      this.renderLoading();
+    }
     const raw = await this.loadSuggestions();
     if (generation !== this.openGeneration) return;
     if (!isInlineAutofillResult(raw) || !raw.ok || raw.kind !== "suggestions") {
+      if (source === "focus") return;
+      this.panel.hidden = false;
       this.renderStatus("inline.unavailable");
       return;
     }
+    if (source === "focus" && raw.status === "ready" && raw.entries.length === 0) return;
+    this.panel.hidden = false;
     if (raw.status === "locked") return this.renderSessionRequired("locked");
     if (raw.status === "signed-out") return this.renderSessionRequired("signed-out");
     if (raw.entries.length === 0) return this.renderStatus("inline.empty");
@@ -870,7 +879,7 @@ class InlineWidget {
     );
     open.addEventListener("click", () => void this.openPalladin());
     wrapper.append(description, open);
-    this.panel.replaceChildren(wrapper);
+    this.panel.replaceChildren(this.createTitle(), wrapper);
   }
 
   private async openPalladin(): Promise<void> {
@@ -888,17 +897,15 @@ class InlineWidget {
       this.close();
       return;
     }
-    this.renderStatus("inline.unavailable");
+    this.renderStatus("inline.openFromToolbar");
   }
 
   private renderSuggestions(entries: readonly InlineAutofillSuggestion[]): void {
     const title = this.createTitle();
     const list = this.options.doc.createElement("div");
     list.className = "list";
-    const identifiers = ambiguousSuggestionIdentifiers(entries, this.options.locale());
     for (const entry of entries) {
-      const identifier = identifiers.get(entry.entryId);
-      const suffix = identifier === undefined ? "" : ` · ${identifier}`;
+      const label = entry.name;
       const row = this.options.doc.createElement("div");
       row.className = "option-row";
       const option = this.options.doc.createElement("button");
@@ -907,28 +914,36 @@ class InlineWidget {
       const text = this.options.doc.createElement("span");
       text.className = "entry-text";
       const primary = this.options.doc.createElement("strong");
-      primary.textContent = entry.username || entry.name;
-      const label = displayEntryLabel(entry);
-      if (label !== null) {
-        const name = this.options.doc.createElement("span");
-        name.className = "entry-name";
-        name.textContent = label;
-        text.append(primary, name);
-      } else {
-        text.append(primary);
+      primary.textContent = label;
+      text.append(primary);
+      if (entry.username && entry.username !== label) {
+        const username = this.options.doc.createElement("span");
+        username.className = "entry-name";
+        username.textContent = entry.username;
+        text.append(username);
       }
       const detail = this.options.doc.createElement("small");
-      const detailText = suggestionDetail(entry, this.options.locale());
-      detail.textContent = identifier === undefined ? detailText : `${identifier} · ${detailText}`;
+      detail.textContent = suggestionDetail(entry, this.options.locale());
       text.append(detail);
-      option.append(text);
+      const icon = this.options.doc.createElement("span");
+      icon.className = "entry-icon";
+      icon.setAttribute("aria-hidden", "true");
+      icon.append(createCredentialIcon(this.options.doc));
+      if (entry.iconDataUrl) {
+        const image = this.options.doc.createElement("img");
+        image.alt = "";
+        image.src = entry.iconDataUrl;
+        image.addEventListener("error", () => icon.replaceChildren(createCredentialIcon(this.options.doc)), { once: true });
+        icon.replaceChildren(image);
+      }
+      option.append(icon, text);
       option.addEventListener("click", () => void this.fill(entry));
 
       const submit = this.options.doc.createElement("button");
       submit.type = "button";
       submit.className = "submit-login";
       submit.title = message(this.options.locale(), "inline.fillAndLogin");
-      submit.setAttribute("aria-label", `${submit.title}: ${entry.username || entry.name}${suffix}`);
+      submit.setAttribute("aria-label", `${submit.title}: ${entry.username || entry.name}`);
       const submitLabel = this.options.doc.createElement("span");
       submitLabel.textContent = message(this.options.locale(), "inline.logIn");
       submit.append(submitLabel);
@@ -967,7 +982,13 @@ class InlineWidget {
     const titleIcon = createBrandIcon(this.options.doc);
     titleIcon.className = "title-icon";
     const titleText = this.options.doc.createElement("span");
-    titleText.textContent = message(this.options.locale(), "inline.title");
+    titleText.className = "wordmark";
+    titleText.textContent = "Palladin";
+    const suffix = this.options.doc.createElement("span");
+    suffix.className = "wordmark-tld";
+    suffix.textContent = ".io";
+    titleText.append(suffix);
+    title.setAttribute("aria-label", message(this.options.locale(), "inline.title"));
     title.append(titleIcon, titleText);
     return title;
   }
@@ -1058,7 +1079,7 @@ class InlineWidget {
     const status = this.options.doc.createElement("div");
     status.className = "status";
     status.textContent = message(this.options.locale(), key);
-    this.panel.replaceChildren(status);
+    this.panel.replaceChildren(this.createTitle(), status);
   }
 }
 
@@ -1071,14 +1092,6 @@ function message(locale: UiLocale, key: InlineKey): string {
   return catalog[key];
 }
 
-export function displayEntryLabel(entry: InlineAutofillSuggestion): string | null {
-  const label = entry.name.trim();
-  const normalized = label.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "");
-  const username = entry.username.trim().toLowerCase();
-  const domain = entry.urlDomain.trim().toLowerCase().replace(/^www\./, "").replace(/\.$/, "");
-  return label.length === 0 || normalized === username || normalized === domain ? null : label;
-}
-
 export function suggestionDetail(entry: InlineAutofillSuggestion, locale: UiLocale): string {
   const vault = `${message(locale, "inline.vault")}: ${entry.vaultName}`;
   return entry.match === "related"
@@ -1086,35 +1099,27 @@ export function suggestionDetail(entry: InlineAutofillSuggestion, locale: UiLoca
     : vault;
 }
 
-export function ambiguousSuggestionIdentifiers(
-  entries: readonly InlineAutofillSuggestion[],
-  locale: UiLocale,
-): ReadonlyMap<string, string> {
-  const groups = new Map<string, InlineAutofillSuggestion[]>();
-  for (const entry of entries) {
-    const key = JSON.stringify([
-      entry.username || entry.name,
-      displayEntryLabel(entry),
-      suggestionDetail(entry, locale),
-    ]).toLowerCase();
-    const group = groups.get(key) ?? [];
-    group.push(entry);
-    groups.set(key, group);
-  }
-  const identifiers = new Map<string, string>();
-  for (const group of groups.values()) {
-    if (group.length < 2) continue;
-    for (const entry of group) {
-      const id = entry.entryId;
-      identifiers.set(id, id.length > 15 ? `${id.slice(0, 8)}…${id.slice(-6)}` : id);
-    }
-  }
-  return identifiers;
-}
-
 function resolvedTheme(preference: ThemePreference, view: Window | null): "light" | "dark" {
   if (preference === "light" || preference === "dark") return preference;
   return view?.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function createCredentialIcon(doc: Document): SVGSVGElement {
+  const ns = "http://www.w3.org/2000/svg";
+  const icon = doc.createElementNS(ns, "svg");
+  icon.setAttribute("viewBox", "0 0 24 24");
+  icon.setAttribute("class", "credential-icon");
+  icon.setAttribute("aria-hidden", "true");
+  // Lucide KeyRound, matching the Credential fallback in the extension panel.
+  const path = doc.createElementNS(ns, "path");
+  path.setAttribute("d", "M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z");
+  const circle = doc.createElementNS(ns, "circle");
+  circle.setAttribute("cx", "16.5");
+  circle.setAttribute("cy", "7.5");
+  circle.setAttribute("r", ".5");
+  circle.setAttribute("fill", "currentColor");
+  icon.append(path, circle);
+  return icon;
 }
 
 function createBrandIcon(doc: Document): HTMLImageElement {
@@ -1126,54 +1131,64 @@ function createBrandIcon(doc: Document): HTMLImageElement {
 }
 
 export const INLINE_STYLES = `
-  :host { color-scheme: light; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  :host([data-theme="dark"]) { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  button { font: inherit; letter-spacing: normal; text-transform:none; }
+  :host { color-scheme:light; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  :host([data-theme="dark"]) { color-scheme:dark; }
+  * { box-sizing:border-box; }
+  .panel {
+    --cv-primary:#E54645; --cv-primary-hover:#d43e3e; --cv-primary-rgb:229 70 69;
+    --cv-card-bg:#fff; --cv-t1:#0c0e12; --cv-t2:#3d4e66; --cv-t3:#5a6478;
+    --cv-border:rgba(12,14,18,.08); --cv-secondary-border:rgba(12,14,18,.12);
+    --cv-hover:rgba(12,14,18,.025); --cv-skeleton:rgba(61,78,102,.12);
+    position:absolute; top:34px; left:0; width:min(344px, calc(100vw - 24px)); overflow:hidden;
+    border:1px solid var(--cv-secondary-border); border-radius:12px; background:var(--cv-card-bg);
+    color:var(--cv-t1); box-shadow:0 12px 25px rgb(0 0 0 / .16),0 2px 5px rgb(0 0 0 / .06); pointer-events:auto;
+  }
+  :host([data-theme="dark"]) .panel {
+    --cv-card-bg:#191c20; --cv-t1:#e8eaed; --cv-t2:#b8c5d4; --cv-t3:#8a95a6;
+    --cv-border:rgba(232,234,237,.09); --cv-secondary-border:rgba(232,234,237,.16);
+    --cv-hover:rgba(232,234,237,.04); --cv-skeleton:rgba(232,234,237,.14);
+    box-shadow:0 12px 25px rgb(0 0 0 / .32),0 2px 5px rgb(0 0 0 / .12);
+  }
+  button { font:inherit; letter-spacing:normal; text-transform:none; }
   .launcher { width:26px; height:26px; padding:2px; border:0; border-radius:8px; background:transparent; box-shadow:none; cursor:pointer; pointer-events:auto; }
   .launcher:hover, .launcher:focus-visible { background:rgba(229,70,69,.1); outline:2px solid rgba(229,70,69,.3); outline-offset:1px; }
   .launcher img { display:block; width:22px; height:22px; object-fit:contain; }
-  .panel { position:absolute; top:34px; left:0; width:min(344px, calc(100vw - 24px)); overflow:hidden; border:1px solid rgba(12,14,18,.1); border-radius:15px; background:linear-gradient(160deg,#f7f9fb 0%,#e8ecf1 100%); color:#0c0e12; box-shadow:0 14px 34px rgba(30,42,58,.16); pointer-events:auto; }
-  .title { display:flex; align-items:center; gap:9px; padding:12px 14px; color:#3d4e66; font-size:13px; line-height:1.35; font-weight:750; background:transparent; border-bottom:1px solid rgba(12,14,18,.08); }
+  .title { display:flex; align-items:center; gap:8px; padding:11px 14px; border-bottom:1px solid var(--cv-border); }
   .title-icon { display:block; width:20px; height:20px; object-fit:contain; }
-  .list { display:flex; flex-direction:column; gap:7px; max-height:264px; overflow:auto; padding:10px; scrollbar-width:thin; scrollbar-color:rgba(61,78,102,.22) transparent; }
-  .option-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; min-height:65px; border:1px solid rgba(12,14,18,.08); border-radius:11px; background:#fff; }
-  .option-row:hover { border-color:rgba(12,14,18,.14); background:#fff; }
-  .option { display:flex; align-items:center; width:100%; min-width:0; min-height:63px; padding:9px 10px; border:0; border-radius:10px 0 0 10px; background:transparent; color:inherit; text-align:left; cursor:pointer; }
-  .option:hover { background:rgba(12,14,18,.025); }
-  .option:focus-visible { outline:2px solid rgba(229,70,69,.28); outline-offset:-2px; }
-  .submit-login { align-self:stretch; display:flex; align-items:center; justify-content:center; gap:5px; min-width:76px; min-height:63px; padding:0 11px; border:0; border-left:1px solid rgba(12,14,18,.08); border-radius:0 10px 10px 0; background:transparent; color:#d95749; box-shadow:none; font-size:11.5px; line-height:1; font-weight:750; cursor:pointer; }
-  .submit-login:hover, .submit-login:focus-visible { border-left-color:rgba(219,86,72,.22); background:#fcecea; color:#c9483c; outline:2px solid rgba(219,86,72,.18); outline-offset:-2px; }
-  .entry-text { display:flex; flex-direction:column; min-width:0; gap:2px; }
+  .wordmark { font-size:14px; line-height:1.35; font-weight:800; letter-spacing:-.3px; }
+  .wordmark-tld { color:var(--cv-primary); }
+  .list { display:flex; flex-direction:column; max-height:264px; overflow:auto; scrollbar-width:thin; scrollbar-color:var(--cv-secondary-border) transparent; }
+  .option-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; padding:12px; flex-shrink:0; }
+  .option-row + .option-row { border-top:1px solid var(--cv-border); }
+  .option-row:hover { background:var(--cv-hover); }
+  .option { display:flex; width:100%; align-items:center; gap:10px; min-width:0; min-height:52px; padding:0; border:0; background:transparent; color:inherit; text-align:left; cursor:pointer; }
+  .option:focus-visible { outline:2px solid var(--cv-primary); outline-offset:-3px; border-radius:8px; }
+  .entry-icon { display:flex; align-items:center; justify-content:center; flex:0 0 32px; width:32px; height:32px; border-radius:8px; background:var(--cv-hover); }
+  .entry-icon img { display:block; width:24px; height:24px; object-fit:contain; }
+  .credential-icon { flex-shrink:0; width:22px; height:22px; color:var(--cv-t2); fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .submit-login { display:inline-flex; align-items:center; justify-content:center; min-height:30px; padding:0 10px; border:0; border-radius:6px; background:var(--cv-primary); color:#fff; font-size:11px; line-height:1.2; font-weight:600; white-space:nowrap; cursor:pointer; }
+  .submit-login:hover { background:var(--cv-primary-hover); }
+  .submit-login:focus-visible { outline:2px solid var(--cv-primary); outline-offset:2px; }
+  .entry-text { flex:1; display:flex; flex-direction:column; min-width:0; gap:2px; }
   .entry-text strong, .entry-text .entry-name, .entry-text small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .entry-text strong { font-size:14px; line-height:1.3; font-weight:700; }
-  .entry-text .entry-name { color:#4f5d73; font-size:12px; line-height:1.3; }
-  .entry-text small { color:#8a95a6; font-size:11px; line-height:1.3; }
-  .loading { display:flex; flex-direction:column; gap:7px; padding:10px; }
-  .loading-row { display:grid; grid-template-columns:minmax(0,1fr) 58px; align-items:center; min-height:65px; padding:10px; border:1px solid rgba(12,14,18,.06); border-radius:11px; background:rgba(255,255,255,.72); }
+  .entry-text strong { font-size:13px; line-height:1.35; font-weight:650; }
+  .entry-text .entry-name { color:var(--cv-t2); font-size:11px; line-height:1.4; }
+  .entry-text small { color:var(--cv-t3); font-size:10px; line-height:1.4; }
+  .loading { display:flex; flex-direction:column; }
+  .loading-row { display:grid; grid-template-columns:minmax(0,1fr) 58px; align-items:center; min-height:76px; padding:14px; }
+  .loading-row + .loading-row { border-top:1px solid var(--cv-border); }
   .loading-lines { display:flex; flex-direction:column; gap:7px; }
-  .loading-lines i, .loading-action { display:block; border-radius:999px; background:rgba(61,78,102,.12); animation:palladin-loading 1.15s ease-in-out infinite alternate; }
-  .loading-lines i:first-child { width:52%; height:11px; }
-  .loading-lines i:last-child { width:34%; height:8px; }
+  .loading-lines i, .loading-action { display:block; border-radius:6px; background:var(--cv-skeleton); animation:palladin-loading 1.15s ease-in-out infinite alternate; }
+  .loading-lines i:first-child { width:62%; height:11px; }
+  .loading-lines i:last-child { width:40%; height:8px; }
   .loading-action { width:54px; height:30px; }
   @keyframes palladin-loading { from { opacity:.42; } to { opacity:.88; } }
   @media (prefers-reduced-motion:reduce) { .loading-lines i, .loading-action { animation:none; } }
-  .status { padding:15px 13px; color:#5a6478; font-size:14px; line-height:1.45; }
-  .update-notice { border-left:3px solid #E54645; }
-  .session-required { display:grid; gap:8px; padding:12px; }
+  .status { padding:16px 14px; color:var(--cv-t2); font-size:13px; line-height:1.5; }
+  .update-notice { border-left:3px solid var(--cv-primary); }
+  .session-required { display:grid; gap:12px; padding:14px; }
   .session-required .status { padding:0; }
-  .open-palladin { min-height:36px; border:0; border-radius:8px; background:#E54645; color:#fff; font:600 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif; cursor:pointer; }
-  .open-palladin:hover, .open-palladin:focus-visible { background:#d63c3c; outline:2px solid rgba(229,70,69,.35); outline-offset:2px; }
-  :host([data-theme="dark"]) .panel { background:linear-gradient(160deg,#1f232b 0%,#16191f 100%); color:#e8eaed; border-color:rgba(232,234,237,.1); box-shadow:0 16px 40px rgba(0,0,0,.34); }
-  :host([data-theme="dark"]) .launcher:hover, :host([data-theme="dark"]) .launcher:focus-visible { background:rgba(229,70,69,.18); }
-  :host([data-theme="dark"]) .title { color:#d5dbe4; border-color:rgba(232,234,237,.09); }
-  :host([data-theme="dark"]) .option-row { border-color:rgba(232,234,237,.1); background:rgba(232,234,237,.05); }
-  :host([data-theme="dark"]) .option-row:hover { border-color:rgba(232,234,237,.17); background:rgba(232,234,237,.07); }
-  :host([data-theme="dark"]) .option:hover { background:rgba(232,234,237,.035); }
-  :host([data-theme="dark"]) .submit-login { border-left-color:rgba(232,234,237,.1); background:transparent; color:#ef8a7e; }
-  :host([data-theme="dark"]) .submit-login:hover, :host([data-theme="dark"]) .submit-login:focus-visible { border-left-color:rgba(239,126,112,.28); background:rgba(219,86,72,.16); color:#f29a90; }
-  :host([data-theme="dark"]) .entry-text .entry-name { color:#c4ccd8; }
-  :host([data-theme="dark"]) .status { color:#b8c5d4; }
-  :host([data-theme="dark"]) .loading-row { border-color:rgba(232,234,237,.08); background:rgba(232,234,237,.04); }
-  :host([data-theme="dark"]) .loading-lines i, :host([data-theme="dark"]) .loading-action { background:rgba(232,234,237,.14); }
+  .open-palladin { min-height:36px; border:0; border-radius:8px; background:var(--cv-primary); color:#fff; font:600 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif; cursor:pointer; }
+  .open-palladin:hover { background:var(--cv-primary-hover); }
+  .open-palladin:focus-visible { outline:2px solid var(--cv-primary); outline-offset:2px; }
 `;
