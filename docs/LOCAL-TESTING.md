@@ -183,13 +183,16 @@ or custom value into its markup, page events, logs, or accessibility labels. The
 visited site cannot request or auto-select a credential.
 
 Alternatively, expand the Credential in the full Vault list and click
-**Log in** from another page. The extension opens `https://{urlDomain}/`, waits
-for the final live top-frame document, fills that exact document, and submits
-the form that owns the password field. If the active exact-host page already
-contains a login form, it fills and submits in place instead. It does not decrypt
-before the HTTPS host is bound. The explicit **Log in** click is the submit
-authorization; ordinary Fill and automatic exact-host fill remain fill-only. If
-the site redirects to another host, delivery is rejected. Confirm **Open in
+**Log in** from another page. The extension first binds a live exact HTTPS host
+before decrypting. If that page contains a login form, it fills and submits in
+place. After `no-form`, it opens the Credential's saved URL (including path and
+query), but only when it is HTTPS, has no userinfo, and has exactly the same
+origin as the bound browser document. An absent saved URL retains the host-root
+fallback; the same URL is not opened twice. The final document must still match
+that origin, and the entry is revealed again under the current unlocked session.
+The explicit **Log in** click is the submit authorization; ordinary Fill and
+automatic exact-host fill remain fill-only. A host/port-changing redirect or
+other security failure is rejected, not retried on another origin. Confirm **Open in
 Palladin** opens the exact Vault/Entry detail deep link.
 
 The extension may choose only the canonical first exact-host Credential when an
