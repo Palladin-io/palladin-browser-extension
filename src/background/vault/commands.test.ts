@@ -425,7 +425,7 @@ describe("vault/fill gates", () => {
     );
   });
 
-  it("opens the credential host when the current exact page has no login form", async () => {
+  it("opens the saved login URL when the current exact page has no login form", async () => {
     const world = buildVaultWorld();
     const { deps, sendFill, openLoginTab } = await makeHarness(world, {
       id: 12,
@@ -440,8 +440,100 @@ describe("vault/fill gates", () => {
       vaultId: "vault-1",
       entryId: "entry-cred",
     })).toEqual({ ok: true, fill: { status: "filled" } });
-    expect(openLoginTab).toHaveBeenCalledWith("https://example.com/");
+    expect(openLoginTab).toHaveBeenCalledWith("https://example.com/login");
     expect(sendFill).toHaveBeenCalledTimes(2);
+  });
+
+  it("opens the saved Podketo login path after the live storefront reports no form", async () => {
+    const world = buildVaultWorld();
+    world.metadata[0] = { ...world.metadata[0]!, urlDomain: "podketo.pl" };
+    const saved = world.secrets.get("entry-cred")!;
+    if (saved.entryType !== "credential") throw new Error("credential fixture");
+    world.secrets.set("entry-cred", { ...saved, content: { ...saved.content,
+      url: "https://podketo.pl/pl/signin.html", urlDomain: "podketo.pl" } });
+    const { deps, sendFill, openLoginTab } = await makeHarness(world, { id: 12, url: "https://podketo.pl/" });
+    // The observed homepage has search/newsletter only; the native pair is at signin.
+    sendFill.mockImplementation(async target => target.url === "https://podketo.pl/pl/signin.html"
+      ? { ok: true } : { ok: false, reason: "no-form" });
+    openLoginTab.mockImplementation(async url => ({ id: 13, url,
+      documentId: "signin-document", browserDocumentId: "browser-signin-document" }));
+    expect(await dispatchVaultCommand(deps, { type: "vault/login", vaultId: "vault-1", entryId: "entry-cred" }))
+      .toEqual({ ok: true, fill: { status: "filled" } });
+    expect(openLoginTab).toHaveBeenCalledExactlyOnceWith("https://podketo.pl/pl/signin.html");
+    expect(sendFill).toHaveBeenLastCalledWith(expect.objectContaining({ id: 13, documentId: "signin-document" }),
+      "podketo.pl", expect.any(Array), true);
+  });
+
+  it.each([
+    "http://example.com/login", "https://www.example.com/login", "https://evil.test/login",
+    "https://example.com:444/login", "https://user:password@example.com/login", "javascript:alert(1)", "/login",
+  ])("does not navigate to an unsafe saved login URL: %s", async url => {
+    const world = buildVaultWorld();
+    const secret = world.secrets.get("entry-cred")!;
+    if (secret.entryType !== "credential") throw new Error("credential fixture");
+    world.secrets.set("entry-cred", { ...secret, content: { ...secret.content, url } });
+    const { deps, openLoginTab } = await makeHarness(world, { id: 12, url: "https://example.com/" }, { ok: false, reason: "no-form" });
+    expect(await dispatchVaultCommand(deps, { type: "vault/login", vaultId: "vault-1", entryId: "entry-cred" }))
+      .toEqual({ ok: true, fill: { status: "blocked", reason: "domain-mismatch" } });
+    expect(openLoginTab).not.toHaveBeenCalled();
+  });
+
+  it("preserves the saved path, query and fragment on the same bound origin", async () => {
+    const world = buildVaultWorld();
+    const secret = world.secrets.get("entry-cred")!;
+    if (secret.entryType !== "credential") throw new Error("credential fixture");
+    const url = "https://example.com/pl/signin.html?continue=account#login";
+    world.secrets.set("entry-cred", { ...secret, content: { ...secret.content, url } });
+    const { deps, openLoginTab, sendFill } = await makeHarness(world, { id: 12, url: "https://example.com/" });
+    sendFill.mockResolvedValueOnce({ ok: false, reason: "no-form" });
+    await dispatchVaultCommand(deps, { type: "vault/login", vaultId: "vault-1", entryId: "entry-cred" });
+    expect(openLoginTab).toHaveBeenCalledExactlyOnceWith(url);
+  });
+
+  it.each(["https://www.example.com/login", "https://example.com:444/login", "http://example.com/login"])(
+    "rejects a saved-path redirect to a different origin: %s", async redirectedUrl => {
+      const { deps, openLoginTab, sendFill, revealEntry } = await makeHarness(buildVaultWorld(),
+        { id: 12, url: "https://example.com/" }, { ok: false, reason: "no-form" });
+      openLoginTab.mockResolvedValue({ id: 13, url: redirectedUrl, documentId: "redirect", browserDocumentId: "redirect-browser" });
+      expect(await dispatchVaultCommand(deps, { type: "vault/login", vaultId: "vault-1", entryId: "entry-cred" }))
+        .toEqual({ ok: true, fill: { status: "blocked", reason: "domain-mismatch" } });
+      expect(sendFill).toHaveBeenCalledTimes(1);
+      expect(revealEntry).toHaveBeenCalledTimes(2);
+    });
+
+  it("does not deliver retained plaintext when the session locks during saved-path navigation", async () => {
+    const { deps, openLoginTab, sendFill, revealEntry } = await makeHarness(buildVaultWorld(),
+      { id: 12, url: "https://example.com/" }, { ok: false, reason: "no-form" });
+    openLoginTab.mockImplementation(async () => {
+      revealEntry.mockRejectedValue(new VaultDataError("locked", "Synthetic locked session"));
+      return { id: 13, url: HTTPS_MATCH, documentId: "login", browserDocumentId: "login-browser" };
+    });
+    expect(await dispatchVaultCommand(deps, { type: "vault/login", vaultId: "vault-1", entryId: "entry-cred" }))
+      .toEqual({ ok: true, fill: { status: "blocked", reason: "locked" } });
+    expect(sendFill).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the host fallback for an entry without a URL and avoids retrying the same page", async () => {
+    const world = buildVaultWorld();
+    const secret = world.secrets.get("entry-cred")!;
+    if (secret.entryType !== "credential") throw new Error("credential fixture");
+    world.secrets.set("entry-cred", { ...secret, content: { ...secret.content, url: null } });
+    const { deps, openLoginTab } = await makeHarness(world, { id: 12, url: "https://example.com/" }, { ok: false, reason: "no-form" });
+    expect(await dispatchVaultCommand(deps, { type: "vault/login", vaultId: "vault-1", entryId: "entry-cred" }))
+      .toEqual({ ok: true, fill: { status: "no-form" } });
+    expect(openLoginTab).not.toHaveBeenCalled();
+    deps.getActiveTab = async () => ({ id: 12, url: "https://example.com/account", documentId: "account", browserDocumentId: "browser-account" });
+    await dispatchVaultCommand(deps, { type: "vault/login", vaultId: "vault-1", entryId: "entry-cred" });
+    expect(openLoginTab).toHaveBeenCalledExactlyOnceWith("https://example.com/");
+  });
+
+  it("does not turn a changed target into a new login navigation", async () => {
+    const { deps, openLoginTab, revealEntry } = await makeHarness(buildVaultWorld(),
+      { id: 12, url: HTTPS_MATCH }, { ok: false, reason: "target-changed" });
+    expect(await dispatchVaultCommand(deps, { type: "vault/login", vaultId: "vault-1", entryId: "entry-cred" }))
+      .toEqual({ ok: true, fill: { status: "blocked", reason: "target-changed" } });
+    expect(openLoginTab).not.toHaveBeenCalled();
+    expect(revealEntry).toHaveBeenCalledTimes(1);
   });
 
   it("does not decrypt when login navigation lands on another host", async () => {

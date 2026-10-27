@@ -3,8 +3,9 @@
 Public source: https://podketo.pl/pl/signin.html. Both `/login.php` and
 `/pl/login.html` redirected here during anonymous Chromium inspection.
 The homepage https://podketo.pl/ contains search/newsletter controls and links to
-login, but no password control. No credentials were entered or submitted to the
-live website. The installed user's extension build and session are unknown.
+login, but no password control. The original anonymous capture entered no credentials. The follow-up live
+investigation used only synthetic credentials and blocked login requests; see
+[the evidence report](../../../evidence/podketo-2026-10-27.md).
 
 `page.html` preserves the observed native form, input names/types/IDs, absent
 `autocomplete`, associated Polish labels, wrappers, POST action and login button.
@@ -37,13 +38,9 @@ new-password registration, OTP identifier and foreign form ownership. Agent
 adapter: shared specimen discovery checked separately in jsdom; no real Agent
 Inject or website authentication is claimed.
 
-The existing `Log in` navigation in `src/background/vault/commands.ts` opens
-`https://{urlDomain}/` when there is no form in the active document. On this site
-that is the storefront, not the login page. This is a concrete limitation, but
-without the user's original action/build it is not established as the cause of
-the reported failure. Open the site's sign-in page to exercise autofill.
-
-Real-site end-to-end acceptance remains unverified: the original installed
-build, unlock state, stored exact host and failing action are needed to distinguish
-an old artifact/session/host mismatch from this navigation limitation. Tests do
-not establish that the user's reported problem has been fixed.
+The follow-up live investigation established a separate navigation regression:
+`Log in` from the storefront ignored a saved `/pl/signin.html` URL and opened
+another storefront. The command regression now reproduces that observed
+`no-form` result and verifies same-origin saved-path navigation. Field discovery
+needed no change. See the evidence report for the release comparison, live matrix
+and boundaries of the claim.

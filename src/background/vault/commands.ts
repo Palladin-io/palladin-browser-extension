@@ -336,28 +336,54 @@ async function openAndFillLogin(
     return { status: "blocked", reason: "not-fillable" };
   }
 
-  // "Log in" is the resilient primary action: use the current exact HTTPS
-  // document when it already owns a login form, otherwise open the stored host
-  // and fill its new, browser-authenticated top-frame document. A security
-  // failure never silently falls through to navigation.
-  const active = await deps.getActiveTab();
-  if (active !== null && isSecurePage(active.url) && matchesTab(active.url, meta.urlDomain)) {
-    const current = await fillPreparedEntry(deps, meta, active, false, true);
-    if (current.status !== "no-form") return current;
+  // Bind an exact HTTPS document before opening any credential material.
+  let tab = await deps.getActiveTab();
+  if (tab === null || !isSecurePage(tab.url) || !matchesTab(tab.url, meta.urlDomain)) {
+    const hostUrl = loginUrlForDomain(meta.urlDomain);
+    if (hostUrl === null) return { status: "blocked", reason: "domain-mismatch" };
+    tab = await deps.openLoginTab(hostUrl);
+    if (tab === null) return { status: "blocked", reason: "navigation-failed" };
+    if (!isSecurePage(tab.url) || !matchesTab(tab.url, meta.urlDomain)) {
+      return { status: "blocked", reason: "domain-mismatch" };
+    }
   }
 
-  const url = loginUrlForDomain(meta.urlDomain);
-  if (url === null) return { status: "blocked", reason: "domain-mismatch" };
+  const current = await fillPreparedEntry(deps, meta, tab, false, true);
+  if (current.status !== "no-form") return current;
 
-  // Navigation carries only the already-decrypted discovery host. The password
-  // is not opened until the new tab has a live, exact top-frame document on the
-  // same HTTPS host.
-  const tab = await deps.openLoginTab(url);
-  if (tab === null) return { status: "blocked", reason: "navigation-failed" };
-  if (!isSecurePage(tab.url) || !matchesTab(tab.url, meta.urlDomain)) {
+  let nextUrl: string | null;
+  try {
+    const plaintext = await deps.data.revealEntry(meta.vaultId, meta.id);
+    if (!isCredential(plaintext)) return { status: "blocked", reason: "not-fillable" };
+    if (!matchesTab(tab.url, plaintext.content.urlDomain)) return { status: "blocked", reason: "domain-mismatch" };
+    // The encrypted URL is user input, not authority to widen the browser-bound origin.
+    nextUrl = plaintext.content.url
+      ? savedLoginUrl(plaintext.content.url, tab.url)
+      : loginUrlForDomain(meta.urlDomain);
+  } catch (error) {
+    return { status: "blocked", reason: fillReasonFor(error) };
+  }
+  if (nextUrl === null) return { status: "blocked", reason: "domain-mismatch" };
+  if (nextUrl === tab.url) return current;
+
+  const next = await deps.openLoginTab(nextUrl);
+  if (next === null) return { status: "blocked", reason: "navigation-failed" };
+  if (!isSecurePage(next.url) || !matchesTab(next.url, meta.urlDomain)
+    || new URL(next.url).origin !== new URL(tab.url).origin) {
     return { status: "blocked", reason: "domain-mismatch" };
   }
-  return fillPreparedEntry(deps, meta, tab, false, true);
+  // Do not carry plaintext across navigation; reveal again under the current session.
+  return fillPreparedEntry(deps, meta, next, false, true);
+}
+
+function savedLoginUrl(value: string, boundUrl: string): string | null {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.username === "" && url.password === ""
+      && url.origin === new URL(boundUrl).origin ? url.href : null;
+  } catch {
+    return null;
+  }
 }
 
 async function fillPreparedEntry(
