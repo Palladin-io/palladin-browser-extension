@@ -25,8 +25,32 @@ function fixture() {
   return { transport, send, prepare: () => prepareLoginFrame(top, transport, () => active), hide: () => { visible = []; }, revokeOnLookup: () => { revokeOnLookup = true; },
     change: (field: string, value: unknown, index = 1) => { Object.assign(frames![index]!, { [field]: value }); },
     duplicate: () => { frames!.push({ ...frames![1]!, frameId: 3, documentId: 'other-browser' }); },
+    addTechnicalFrame: (parentFrameId = 2) => { frames!.push({ ...frames![1]!, frameId: frames!.length + 2, parentFrameId,
+      parentDocumentId: parentFrameId === 0 ? 'outer-browser' : 'child-browser', documentId: `technical-${frames!.length}`, url: 'https://metrics.example.net/frame' }); },
   };
 }
+it('keeps a unique direct login target when nested technical frames exist or appear', async () => {
+  const f = fixture();
+  f.addTechnicalFrame();
+  const selected = await f.prepare();
+  expect(selected?.page.page?.url).toBe(childUrl);
+  expect(selected?.form).toEqual(form);
+  f.addTechnicalFrame();
+  f.send.mockClear();
+  await selected!.deps.fillDeferred!(7, { channel: 'palladin.agent-live/deferred-fill', documentId: childDocument,
+    pendingId: 'd'.repeat(32), expectedDomain: 'idmsa.apple.com', form: selected!.form,
+    values: [{ entryFieldId: 'credential.username', value: 'synthetic@example.test' }], expiresAt: Date.now() + 1000 });
+  expect(f.send.mock.calls.at(-1)?.slice(0, 2)).toEqual([7, 'child-browser']);
+  expect(f.send.mock.calls.at(-1)?.[2]).toMatchObject({ channel: 'palladin.agent-live/deferred-fill' });
+});
+it('rejects an additional direct child before preparation and before delivery', async () => {
+  const f = fixture(), selected = await f.prepare();
+  f.addTechnicalFrame(0);
+  expect(await f.prepare()).toBeNull();
+  f.send.mockClear();
+  expect(await selected!.deps.getPageById(7)).toBeNull();
+  expect(f.send).not.toHaveBeenCalled();
+});
 it('targets messages to the browser-owned document, never broadcasts a credential to frames', async () => {
   const f = fixture(), selected = await f.prepare();
   expect(selected?.page.page?.url).toBe(childUrl);
@@ -35,6 +59,14 @@ it('targets messages to the browser-owned document, never broadcasts a credentia
     expectedDomain: 'idmsa.apple.com', form: selected!.form, values: [{ entryFieldId: 'credential.username', value: 'synthetic@example.test' }], expiresAt: Date.now() + 1000 });
   expect(f.send.mock.calls.at(-1)?.slice(0, 2)).toEqual([7, 'child-browser']);
   expect(await selected!.deps.getPageById(8)).toBeNull();
+});
+it.each(['apple.com', 'appstoreconnect.apple.com', 'apple.com.evil.example'])('does not deliver framed credentials authorized for %s', async expectedDomain => {
+  const f = fixture(), selected = await f.prepare();
+  f.send.mockClear();
+  expect(await selected!.deps.fillDeferred!(7, { channel: 'palladin.agent-live/deferred-fill', documentId: childDocument,
+    pendingId: 'd'.repeat(32), expectedDomain, form: selected!.form,
+    values: [{ entryFieldId: 'credential.username', value: 'synthetic@example.test' }], expiresAt: Date.now() + 1000 })).toBeNull();
+  expect(f.send.mock.calls.some(call => (call[2] as { channel: string }).channel === 'palladin.agent-live/deferred-fill')).toBe(false);
 });
 it.each(['foreign', 'http', 'nested', 'cached', 'duplicate', 'hidden', 'outer-url', 'outer-document', 'child-document', 'child-path', 'native-disconnect'])('rejects %s after preparation before sending values', async scenario => {
   const f = fixture(), selected = await f.prepare();
