@@ -681,7 +681,8 @@ describe("inline autofill field discovery", () => {
       return nativeAttachShadow.call(this, { ...init, mode: "open" });
     });
     document.body.innerHTML = `<form><input autocomplete="username"><input type="password"></form>`;
-    const send = vi.fn(async () => ({
+    const send = vi.fn(async (command: { type: string }) => command.type === "inline/open-palladin"
+      ? ({ ok: true, kind: "surface", status: "unavailable" }) : ({
       ok: true,
       kind: "suggestions",
       status,
@@ -696,6 +697,9 @@ describe("inline autofill field discovery", () => {
         expect(root?.querySelector(".panel")?.hasAttribute("hidden")).toBe(false);
         expect(root?.querySelector(".open-palladin")?.textContent).toBe(expectedAction);
       });
+      document.querySelector("palladin-autofill")!.shadowRoot!.querySelector<HTMLButtonElement>(".open-palladin")!.click();
+      await vi.waitFor(() => expect(document.querySelector("palladin-autofill")!.shadowRoot!.textContent)
+        .toContain("Open your browser’s Extensions menu and click Palladin to continue."));
       expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: "inline/fill" }));
     } finally {
       subject.stop();

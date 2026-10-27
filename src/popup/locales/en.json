@@ -212,6 +212,7 @@
   "inline.unlockPalladin": "Unlock Palladin",
   "inline.signInPalladin": "Sign in to Palladin",
   "inline.unavailable": "Palladin suggestions are temporarily unavailable.",
+  "inline.openFromToolbar": "Open your browser’s Extensions menu and click Palladin to continue.",
   "inline.filling": "Filling login...",
   "inline.filled": "Login filled",
   "inline.passwordUpdated": "Password for {name} was updated - fill again",

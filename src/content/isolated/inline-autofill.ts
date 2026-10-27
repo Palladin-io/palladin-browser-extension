@@ -83,6 +83,7 @@ type InlineKey =
   | "inline.unlockPalladin"
   | "inline.signInPalladin"
   | "inline.unavailable"
+  | "inline.openFromToolbar"
   | "inline.filling"
   | "inline.filled"
   | "inline.passwordUpdated"
@@ -896,7 +897,7 @@ class InlineWidget {
       this.close();
       return;
     }
-    this.renderStatus("inline.unavailable");
+    this.renderStatus("inline.openFromToolbar");
   }
 
   private renderSuggestions(entries: readonly InlineAutofillSuggestion[]): void {

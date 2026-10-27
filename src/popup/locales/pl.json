@@ -212,6 +212,7 @@
   "inline.unlockPalladin": "Odblokuj Palladin",
   "inline.signInPalladin": "Zaloguj się do Palladin",
   "inline.unavailable": "Podpowiedzi Palladin są chwilowo niedostępne.",
+  "inline.openFromToolbar": "Otwórz menu rozszerzeń przeglądarki i kliknij Palladin, aby kontynuować.",
   "inline.filling": "Wypełnianie logowania...",
   "inline.filled": "Dane logowania wypełnione",
   "inline.passwordUpdated": "Hasło dla {name} zostało zaktualizowane - wypełnij ponownie",

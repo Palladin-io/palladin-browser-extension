@@ -17,6 +17,11 @@ Chrome, Chromium, Brave, Edge, and Opera intentionally share one artifact. Do
 not add an Opera fork or a second Chromium overlay. A store may wrap or sign the
 artifact differently, but it must not change the runtime bundle or permissions.
 
+Inline Unlock/Sign in requests the native toolbar popup. Chrome 120–126 restricts
+`action.openPopup()` to policy-installed extensions; when the API is absent or
+refuses the request, the inline surface directs the user to open Palladin from
+the browser’s Extensions menu. It does not open a side panel.
+
 Build all artifacts with:
 
 ```bash
