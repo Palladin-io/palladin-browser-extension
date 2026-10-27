@@ -19,6 +19,8 @@ const profile = await mkdtemp(path.join(tmpdir(), 'palladin-inline-'));
 let context, popup;
 const username = 'synthetic@example.test';
 const password = 'Synthetic-inline-password!42';
+const podketoHome = await readFile('tests/fixtures/forms/podketo-login-2026-10-27/home.html', 'utf8');
+const podketo = await readFile('tests/fixtures/forms/podketo-login-2026-10-27/page.html', 'utf8');
 const proton = await readFile('tests/fixtures/forms/proton-login-2026-09-20/page.html', 'utf8');
 const linkedin = await readFile('tests/fixtures/forms/linkedin-login-2026-09-20/page.html', 'utf8');
 const aws = await readFile('tests/fixtures/forms/aws-root-identifier-2026-09-20/page.html', 'utf8');
@@ -32,7 +34,7 @@ const tomojdomUsername = '12345678';
 const apple = await readFile('tests/fixtures/forms/apple-idmsa-signin-2026-09-16/page.html', 'utf8');
 try {
   const vault = api.vaults[0];
-  for (const host of ['proton.example.test', 'jetbrains.example.test', 'linkedin.example.test', 'aws.example.test', 'idmsa.apple.com', 'tomojdom.pl', 'app.livekid.com']) {
+  for (const host of ['podketo.pl', 'proton.example.test', 'jetbrains.example.test', 'linkedin.example.test', 'aws.example.test', 'idmsa.apple.com', 'tomojdom.pl', 'app.livekid.com']) {
     const entryId = randomUUID();
     const secret = { schema: 'palladin.member-secret.v1', entryType: 'credential', memberLabel: host,
       agentLabel: null, discoverable: false, description: null, icon: null, color: null, agentFieldAccess: { memberLabel: 'never', agentLabel: 'never', description: 'never', icon: 'never', color: 'never',
@@ -47,7 +49,7 @@ try {
       agentDiscoveryRevision: null, agentDiscoveryRevisionHighWatermark: '0', deliveryPolicy: 'standard',
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
   }
-  vault.detail.memberSequence = '8'; vault.detail.entryCount = 7;
+  vault.detail.memberSequence = '9'; vault.detail.entryCount = 8;
   const extension = path.join(profile, 'dist/chromium');
   await promisify(execFile)(process.execPath, ['node_modules/vite/bin/vite.js', 'build', '--outDir', extension], {
     env: { ...process.env, PALLADIN_TARGET: 'chromium', PALLADIN_CHANNEL: 'production', VITE_API_URL: api.url, VITE_POSTHOG_KEY: '' }, maxBuffer: 4 * 1024 * 1024,
@@ -60,6 +62,15 @@ try {
   await context.route('https://**/*', route => {
     const url = new URL(route.request().url());
     const host = url.hostname;
+    if (host === 'podketo.pl') {
+      // Chromium follows fulfilled HTTP redirects outside Playwright routing.
+      // Model the observed navigation in-page to keep every response synthetic.
+      if (url.pathname === '/login.php') return route.fulfill({ contentType: 'text/html',
+        body: `<script>location.replace('/pl/signin.html')</script>` });
+      if (!['/', '/pl/signin.html'].includes(url.pathname)) return route.abort();
+      return route.fulfill({ contentType: 'text/html; charset=utf-8', body:
+        `<style>input{display:block;width:400px;height:50px}</style>${url.pathname === '/' ? podketoHome : podketo}<script>globalThis.submissions=0;document.querySelectorAll('form').forEach(form=>form.addEventListener('submit',e=>{e.preventDefault();globalThis.submissions++}))</script>` });
+    }
     if (['tomojdom.pl', 'app.livekid.com'].includes(host)) {
       if (!['/', '/en/'].includes(url.pathname)) return route.abort();
       return route.fulfill({ contentType: 'text/html; charset=utf-8', body:
@@ -130,6 +141,17 @@ try {
         && shield.right < field.right && shield.left > field.left;
     }, selector), `shield aligned to ${selector}`);
   };
+  await page.goto('https://podketo.pl/');
+  await page.waitForTimeout(500);
+  assert.equal(await page.locator('palladin-autofill').count(), 0);
+  assert.equal(await page.locator('#mailing_email').inputValue(), '');
+  await page.getByRole('link', { name: 'Zaloguj się', exact: true }).click();
+  await page.waitForURL('https://podketo.pl/pl/signin.html');
+  await wait(async () => await page.locator('#user_pass').inputValue() === password, 'Podketo automatic fill');
+  assert.equal(await page.locator('#user_login').inputValue(), username);
+  assert.equal(await page.evaluate(() => globalThis.submissions), 0);
+  await aligned('#user_login');
+  console.log('PASS: Podketo automatic fill and shield, no submit');
   await page.goto('https://app.livekid.com/');
   await wait(async () => await page.locator('input[name="password"]').inputValue() === password, 'LiveKid visible pair automatic fill');
   assert.equal(await page.locator('input[name="mail"]').inputValue(), username);

@@ -11,6 +11,13 @@ Credential without requiring focus, a click, or browser user activation. This is
 the chosen password-manager UX, not a missing authorization check. Automatic
 fill is always fill-only and never submits the form.
 
+The toolbar's explicit **Log in** action can navigate after `no-form`: it uses the
+saved Credential URL only after binding the exact HTTPS host, and only within
+that browser-authored origin (including port, with no URL userinfo). The final
+redirected document is checked again and the entry is re-revealed under the
+current session. A missing URL retains the host-root fallback. This navigation
+does not apply to automatic fill or grant related hosts automatic authority.
+
 A content-script fill request never renews the session's idle deadline or its
 shared-unlock authorization. The same channel includes passive automatic fills,
 so it is not evidence of trusted user activity. The native extension surface's
