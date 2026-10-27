@@ -234,9 +234,9 @@ When the session is locked or signed out, the closed-shadow menu can open the
 browser-owned Palladin toolbar popup directly from the user's click. This command
 carries only the document binding and never a credential value.
 
-Field focus keeps an empty exact-host suggestion result hidden; clicking the
-shield explicitly may display the empty state. The chooser displays Entry and
-Vault names without generated identifiers or ordinal suffixes. Stored public
+Field focus keeps empty exact-host suggestions and unavailable responses hidden;
+clicking the shield explicitly may display the empty or unavailable state. The
+chooser displays Entry and Vault names without generated identifiers or ordinal suffixes. Stored public
 asset icons resolve to bounded PNG bytes in the worker from the selected API
 only, never from the decrypted URL or the visited page. Settings displays the
 installed manifest version in both compact and split views.

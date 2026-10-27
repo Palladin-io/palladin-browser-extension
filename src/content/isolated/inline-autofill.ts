@@ -839,13 +839,14 @@ class InlineWidget {
     }
     const raw = await this.loadSuggestions();
     if (generation !== this.openGeneration) return;
-    if (source === "focus" && isInlineAutofillResult(raw) && raw.ok
-      && raw.kind === "suggestions" && raw.status === "ready" && raw.entries.length === 0) return;
-    this.panel.hidden = false;
     if (!isInlineAutofillResult(raw) || !raw.ok || raw.kind !== "suggestions") {
+      if (source === "focus") return;
+      this.panel.hidden = false;
       this.renderStatus("inline.unavailable");
       return;
     }
+    if (source === "focus" && raw.status === "ready" && raw.entries.length === 0) return;
+    this.panel.hidden = false;
     if (raw.status === "locked") return this.renderSessionRequired("locked");
     if (raw.status === "signed-out") return this.renderSessionRequired("signed-out");
     if (raw.entries.length === 0) return this.renderStatus("inline.empty");

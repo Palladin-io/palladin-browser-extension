@@ -484,7 +484,10 @@ describe("inline autofill field discovery", () => {
     } finally { subject.stop(); attachShadow.mockRestore(); }
   });
 
-  it("keeps empty suggestions silent on field focus but shows them from the launcher", async () => {
+  it.each([
+    [{ ok: true, kind: "suggestions", status: "ready", entries: [] }, "No Palladin login matches this website."],
+    [{ ok: false, code: "unavailable" }, "Palladin suggestions are temporarily unavailable."],
+  ])("keeps unavailable or empty suggestions silent on focus (%j)", async (response, expectedMessage) => {
     const nativeAttachShadow = Element.prototype.attachShadow;
     const attachShadow = vi.spyOn(Element.prototype, "attachShadow").mockImplementation(function (
       this: Element,
@@ -493,12 +496,7 @@ describe("inline autofill field discovery", () => {
       return nativeAttachShadow.call(this, { ...init, mode: "open" });
     });
     document.body.innerHTML = `<form><input id="username" type="email"><input type="password"></form>`;
-    const send = vi.fn(async () => ({
-      ok: true,
-      kind: "suggestions",
-      status: "ready",
-      entries: [],
-    }));
+    const send = vi.fn(async () => response);
     const subject = startInlineAutofill(document, "a".repeat(32), send);
 
     try {
@@ -514,7 +512,7 @@ describe("inline autofill field discovery", () => {
 
       shadow.querySelector<HTMLButtonElement>(".launcher")!.click();
       expect(panel.querySelector(".loading")).not.toBeNull();
-      await vi.waitFor(() => expect(panel.textContent).toContain("No Palladin login matches this website."));
+      await vi.waitFor(() => expect(panel.textContent).toContain(expectedMessage));
       expect(panel.hidden).toBe(false);
     } finally {
       subject.stop();
