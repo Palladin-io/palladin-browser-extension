@@ -273,7 +273,7 @@ export class EntryActions {
     return this.withEntry(
       { vaultId: command.vaultId, entryId },
       operation,
-      'write',
+      command.type === 'workspace/approve-grant' ? 'write' : 'read',
       async ({ vault, detail, secret, vaultKey, assertEpoch }) => {
         const requestedMethods = methodsMask(grant.methods);
         const fieldIds = listCanonicalGrantableFieldIds(secret);

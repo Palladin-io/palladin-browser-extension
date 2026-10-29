@@ -437,6 +437,17 @@ describe('encrypted workspace operations', () => {
     expect(request.mock.calls.some((call) => call[1] === 'PUT')).toBe(false);
   });
 
+  it('keeps reviewing a grant read-only below the Vault key epoch floor', async () => {
+    const { actions, operation, request, client, keyEpochFloor } = setup();
+    mockGrantRequests(request);
+    const vault = await client.getVault();
+    await keyEpochFloor.observe(userId, { ...vault, memberKeyGeneration: 2,
+      currentKeyEpoch: { ...vault.currentKeyEpoch, vaultKeyVersion: 2 } }, async () => undefined);
+    await expect(actions.handle({ type: 'workspace/review-grant', vaultId, grantId }, operation))
+      .resolves.toMatchObject({ ok: true, data: { reason: 'Synthetic approved purpose', revision: '4' } });
+    expect(cryptoMocks.buildCanonicalGrantEnvelope).not.toHaveBeenCalled();
+  });
+
   it('does not open a replayed older Vault key epoch to build a grant envelope', async () => {
     const { actions, operation, request, client, keyEpochFloor } = setup();
     const vault = await client.getVault();
