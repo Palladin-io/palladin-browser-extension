@@ -18,12 +18,14 @@ export function startSafariSharedUnlockBrowser(environments: readonly SharedUnlo
     getTab: tabId => native.tabs.get(tabId),
     getFrame: tabId => native.webNavigation.getFrame({ tabId, frameId: 0 }),
   };
+  const current = typeof environments === "function" ? environments : () => environments;
   return startExternalSharedUnlockBrowser({ native, initialize,
     // Safari26 lacks onTabReplaced; native tab/document lookups still fence every use.
     ...(typeof native.webNavigation.onTabReplaced?.addListener === "function"
       && typeof native.webNavigation.onTabReplaced?.removeListener === "function"
       ? { tabReplacedEvent: native.webNavigation.onTabReplaced } : {}),
-    accept: (port, channelId, onClosed) => SafariSharedUnlockRoute.accept(port, browser, typeof environments === "function" ? environments() : environments, channelId, onClosed),
+    environments: current,
+    accept: (port, channelId, onClosed) => SafariSharedUnlockRoute.accept(port, browser, current(), channelId, onClosed),
     matchesCommit: (route, details) => route.documentId === details.documentId
       && (details.documentLifecycle === undefined || details.documentLifecycle === "active"),
     ...(onReady ? { onReady } : {}),
