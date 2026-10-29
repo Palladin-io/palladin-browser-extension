@@ -204,11 +204,7 @@ export function AuditPanel({
       className="workspace-panel audit-panel"
       aria-label={t('workspace.logs')}
     >
-      <div className="workspace-heading">
-        <div>
-          <h2>{t('workspace.logs')}</h2>
-          <p>{t('audit.subtitle')}</p>
-        </div>
+      <div className="workspace-toolbar">
         <FilterSelect
           aria-label={t('audit.filter')}
           value={filter}

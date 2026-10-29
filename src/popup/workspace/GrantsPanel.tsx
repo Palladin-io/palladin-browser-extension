@@ -452,6 +452,7 @@ export function GrantsPanel({
                     </fieldset>
                     <Button
                       type="submit"
+                      variant="positive"
                       loading={busy}
                       disabled={
                         !methods ||

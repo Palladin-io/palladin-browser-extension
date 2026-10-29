@@ -7,7 +7,7 @@ import { Spinner } from "./Spinner";
  * `sm`, no `md`). `loading` swaps the label for a spinner and disables the
  * control so an in-flight request can't be double-submitted.
  */
-export type ButtonVariant = "accent" | "subtle" | "ghost" | "danger";
+export type ButtonVariant = "accent" | "subtle" | "ghost" | "danger" | "positive";
 
 export interface ButtonProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className"> {

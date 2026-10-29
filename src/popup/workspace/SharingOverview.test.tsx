@@ -92,3 +92,18 @@ it('places active links first, newest within each group, including appended page
   expect(screen.queryByText(/Expires/)).toBeNull();
   expect(screen.getAllByRole('button', { name: 'Revoke link' }).every(button => button.textContent === '')).toBe(true);
 });
+
+it('filters loaded links by status without issuing a new request and keeps pagination available', async () => {
+  const send = vi.fn().mockResolvedValue({ ok: true, data: { items: [
+    { vaultId: 'vault', entryId: 'entry-0', share: { ...share, shareId: 'active', status: 'active' } },
+    { vaultId: 'vault', entryId: 'entry-1', share: { ...share, shareId: 'revoked', status: 'revoked' } },
+  ], nextCursor: 'next' } });
+  render(<SharingOverview client={createWorkspaceClient(send)} vaultClient={{} as VaultClient} entries={entries.map((entry, i) => ({ ...entry, name: `Entry ${i}` }))} />);
+  await screen.findByRole('button', { name: 'Entry 0 · Personal' });
+  fireEvent.change(screen.getByRole('combobox', { name: 'Status of loaded links' }), { target: { value: 'revoked' } });
+  expect(screen.queryByRole('button', { name: 'Entry 0 · Personal' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Entry 1 · Personal' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Load more' })).toBeTruthy();
+  expect(send).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole('heading', { name: 'Sharing' })).toBeNull();
+});

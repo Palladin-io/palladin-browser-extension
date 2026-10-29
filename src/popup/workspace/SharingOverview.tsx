@@ -1,3 +1,4 @@
+import { FilterSelect } from '../components/FilterSelect';
 import { PopupIcon } from '../components/PopupIcon';
 import { RefreshButton } from '../components/RefreshButton';
 import { useEffect, useRef, useState } from 'react';
@@ -17,6 +18,7 @@ export function SharingOverview({ client, vaultClient, entries }: {
   client: WorkspaceClient; vaultClient: VaultClient; entries: readonly EntryMetadata[];
 }) {
   const { t } = useI18n();
+  const [status, setStatus] = useState('');
   const [rows, setRows] = useState<SharedEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
@@ -75,14 +77,18 @@ export function SharingOverview({ client, vaultClient, entries }: {
     {...(selected ? { initialEntry: selected } : {})} initialCreate={creating} initialProtectionShare={editing ?? undefined}
     onClose={() => { setSelected(null); setEditing(null); setCreating(false); void load(); }} />;
   return <section className="workspace-panel sharing-panel" aria-label={t('workspace.shares')}>
-    <div className="workspace-heading"><div><h2>{t('workspace.shares')}</h2><p>{t('share.existing')}</p></div>
+    <div className="workspace-toolbar">
+      <FilterSelect aria-label={t('share.filterLoaded')} value={status} onChange={event => setStatus(event.target.value)}>
+        <option value="">{t('share.all')}</option>
+        {Object.entries(shareStates).map(([value, key]) => <option key={value} value={value}>{t(key)}</option>)}
+      </FilterSelect>
       <RefreshButton busy={loading || busy} onClick={() => void load()} />
-      <Button onClick={() => setCreating(true)}>{t('share.create')}</Button>
+      <button type="button" className="toolbar-icon toolbar-primary" title={t('share.create')} aria-label={t('share.create')} onClick={() => setCreating(true)}><PopupIcon name="share" /></button>
     </div>
     {error ? <WorkspaceError error={error} /> : null}
     {loading && !rows.length ? <LoadingSkeleton /> : null}
-    {!loading && !error && !rows.length ? <p className="workspace-empty">{t('share.empty')}</p> : null}
-    {[...rows].sort((a, b) => Number(b.share.status === 'active') - Number(a.share.status === 'active') || Date.parse(b.share.createdAt) - Date.parse(a.share.createdAt) || b.share.shareId.localeCompare(a.share.shareId)).map(({ vaultId, entryId, share }) => {
+    {!loading && !error && !rows.some(row => !status || row.share.status === status) ? <p className="workspace-empty">{t('share.empty')}</p> : null}
+    {rows.filter(row => !status || row.share.status === status).sort((a, b) => Number(b.share.status === 'active') - Number(a.share.status === 'active') || Date.parse(b.share.createdAt) - Date.parse(a.share.createdAt) || b.share.shareId.localeCompare(a.share.shareId)).map(({ vaultId, entryId, share }) => {
       const entry = entries.find(entry => entry.id === entryId && entry.vaultId === vaultId);
       const name = entry?.name ?? t('share.unavailableEntry');
       return <div className="shared-entry-management" key={share.shareId}><div className="shared-entry-summary"><button className="shared-entry-row" disabled={!entry || busy} aria-label={entry ? `${name} · ${entry.vaultName}` : name} onClick={() => entry && setSelected(entry)}>
@@ -103,6 +109,7 @@ export function SharingOverview({ client, vaultClient, entries }: {
       </div></div> : null}
       </div>;
     })}
-    {cursor ? <div ref={sentinel} className="audit-sentinel">{loading && rows.length > 0 ? <LoadingSkeleton /> : error ? <Button onClick={() => void load(cursor)}>{t('vault.retry')}</Button> : null}</div> : null}
+    {status && cursor ? <p className="share-hint">{t('share.filterLoadedHint')}</p> : null}
+    {cursor ? <div ref={sentinel} className="audit-sentinel">{loading && rows.length > 0 ? <LoadingSkeleton /> : error ? <Button onClick={() => void load(cursor)}>{t('vault.retry')}</Button> : <Button variant="subtle" onClick={() => void load(cursor)}>{t('workspace.more')}</Button>}</div> : null}
   </section>;
 }
