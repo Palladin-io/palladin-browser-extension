@@ -11,9 +11,11 @@ export function startChromiumSharedUnlockBrowser(environments: readonly SharedUn
     getTab: tabId => chrome.tabs.get(tabId),
     getFrame: tabId => chrome.webNavigation.getFrame({ tabId, frameId: 0 }),
   };
+  const current = typeof environments === "function" ? environments : () => environments;
   return startExternalSharedUnlockBrowser({ native: chrome, initialize,
     tabReplacedEvent: chrome.webNavigation.onTabReplaced,
-    accept: (port, channelId, onClosed) => ChromiumSharedUnlockRoute.accept(port, browser, typeof environments === "function" ? environments() : environments, channelId, onClosed),
+    environments: current,
+    accept: (port, channelId, onClosed) => ChromiumSharedUnlockRoute.accept(port, browser, current(), channelId, onClosed),
     matchesCommit: (route, details) => route.documentId === details.documentId && details.documentLifecycle === "active",
     ...(onReady ? { onReady } : {}),
   });

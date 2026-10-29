@@ -1,3 +1,4 @@
+import type { SharedUnlockEnvironment } from "../../shared/config/shared-unlock-environments";
 import type { SharedUnlockOperationFrame } from "../../shared/messaging/shared-unlock-operation";
 import { randomBytes, toBase64Url } from "@palladin/crypto";
 import { SHARED_UNLOCK_BROWSER_PORT, isSharedUnlockBrowserMessage, type SharedUnlockBrowserReady } from "../../shared/messaging/shared-unlock-browser";
@@ -8,6 +9,7 @@ type DocumentRoute = SharedUnlockBrowserRoute & { readonly tabId: number; readon
 interface ExternalBrowserOptions<Route extends DocumentRoute> {
   readonly native: ExternalSharedUnlockBrowserApi;
   initialize(): Promise<unknown>;
+  environments(): readonly SharedUnlockEnvironment[];
   accept(port: chrome.runtime.Port, channelId: string, onClosed: () => void): Route | null;
   matchesCommit(route: Route, details: chrome.webNavigation.WebNavigationFramedCallbackDetails): boolean;
   tabReplacedEvent?: chrome.webNavigation.WebNavigationEvent<chrome.webNavigation.WebNavigationReplacementCallbackDetails>;
@@ -23,11 +25,18 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
   const navigating = new Set<number>();
   let stopped = false;
   let suspensions = 0;
+  let initialized = false;
+  const configuredOrigin = (port: chrome.runtime.Port) => options.environments().some(item => item.webOrigin === port.sender?.origin);
   const retire = (tabId: number) => { active.get(tabId)?.close(); active.delete(tabId); };
   const connect = (port: chrome.runtime.Port) => {
     if (port.name !== SHARED_UNLOCK_BROWSER_PORT) return;
+    const tabId = port.sender?.tab?.id;
+    // Any Web page may connect, so a foreign origin must not consume the shared
+    // budget. Before configuration loads, a per-tab cap bounds pending Ports.
+    const admitted = Number.isSafeInteger(tabId) && (initialized ? configuredOrigin(port)
+      : [...documents.values()].filter(document => document.tabId === tabId).length < 2);
     // Bound pending handshakes as well as ready routes. No durable queue.
-    if (stopped || suspensions > 0 || connections.size >= 64) {
+    if (stopped || suspensions > 0 || !admitted || connections.size >= 64) {
       try { port.disconnect(); } catch { /* gone */ } return;
     }
     let route: Route | null = null;
@@ -50,6 +59,11 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
       else { try { port.disconnect(); } catch { /* gone */ } }
     };
     const timeout = setTimeout(disconnect, 5000);
+    const admitConfigured = async () => {
+      await initialize();
+      initialized = true;
+      if (!configuredOrigin(port)) disconnect();
+    };
     const message = (raw: unknown) => {
       if (!isSharedUnlockBrowserMessage(raw)) { disconnect(); return; }
       if (ready && route && raw.type === "operation") {
@@ -72,7 +86,7 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
       if (helloStarted || raw.type !== "hello") { disconnect(); return; }
       helloStarted = true;
       void (async () => {
-        await initialize();
+        await admitConfigured();
         if (disconnected) return;
         const channelId = toBase64Url(await randomBytes(32));
         if (disconnected) return;
@@ -95,11 +109,10 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
       })().catch(disconnect);
     };
     connections.add(disconnect);
-    if (Number.isSafeInteger(port.sender?.tab?.id)) {
-      documents.set(disconnect, { tabId: port.sender!.tab!.id!, documentId: port.sender?.documentId });
-    }
+    documents.set(disconnect, { tabId: tabId!, documentId: port.sender?.documentId });
     port.onMessage.addListener(message);
     port.onDisconnect.addListener(disconnect);
+    if (!initialized) void admitConfigured().catch(disconnect);
   };
   const beforeNavigate = ({ tabId, frameId }: { tabId: number; frameId: number }) => {
     if (frameId !== 0) return;
