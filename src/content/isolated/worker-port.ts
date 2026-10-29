@@ -34,6 +34,7 @@ export function createReconnectingWorkerPort(
   connect: () => ContentWorkerPort,
   onMessage: (message: unknown) => void,
   consumeDisconnectReason: () => ContentPortDisconnectReason,
+  onDisconnected?: () => void,
 ): ReconnectingWorkerPort {
   let current: ContentWorkerPort | null = null;
   let immediateWorkerReconnectUsed = false;
@@ -56,6 +57,7 @@ export function createReconnectingWorkerPort(
       const reason = consumeDisconnectReason();
       if (current !== next) return;
       current = null;
+      onDisconnected?.();
       if (reason === "context-invalidated") {
         invalidateContext();
         return;

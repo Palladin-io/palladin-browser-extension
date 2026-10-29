@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -132,5 +132,18 @@ describe("AddEntryForm", () => {
     await user.click(screen.getByRole("button", { name: "Save entry" }));
     expect(await screen.findByText("Couldn't save this entry")).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toHaveValue("secret");
+  });
+});
+
+describe('capture draft reuse', () => {
+  it('conceals captured values and saves edits only through the injected action', async () => {
+    const manual = vi.fn(); const captured = vi.fn(async () => ({ status: 'saved' }) as const);
+    render(<AddEntryForm client={client(manual)} initialEntry={{ entryType: 'key', label: 'Captured', value: 'synthetic-captured-value' }} onSave={captured} />);
+    const value = screen.getByLabelText('Secret value'); expect(value).toHaveAttribute('type', 'password');
+    expect(value).toHaveValue('synthetic-captured-value'); expect(captured).not.toHaveBeenCalled();
+    fireEvent.change(value, { target: { value: 'edited-captured-value' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save entry' }));
+    await waitFor(() => expect(captured).toHaveBeenCalledWith({ entryType: 'key', label: 'Captured', value: 'edited-captured-value' }));
+    expect(manual).not.toHaveBeenCalled();
   });
 });

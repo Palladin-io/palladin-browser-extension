@@ -646,7 +646,7 @@ export function isVaultCommand(value: unknown): value is VaultCommand {
   }
 }
 
-function isManualEntrySaveInput(value: unknown): value is ManualEntrySaveInput {
+export function isManualEntrySaveInput(value: unknown): value is ManualEntrySaveInput {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const entry = value as Record<string, unknown>;
   if (!validLabel(entry.label) || typeof entry.entryType !== "string") return false;

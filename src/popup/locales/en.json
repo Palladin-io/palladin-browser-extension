@@ -542,5 +542,16 @@
   "grant.wholeVault": "Entire vault",
   "grant.expiresAt": "Expires",
   "grant.noExpiry": "No expiry date",
-  "grant.expiryOnApproval": "Set when approving"
+  "grant.expiryOnApproval": "Set when approving",
+  "secretCapture.notice": "A key or payment card is ready to review in Palladin. You can also open Palladin from the browser toolbar.",
+  "secretCapture.locked": "Unlock Palladin, then generate the key or enter the card again. Nothing was retained.",
+  "secretCapture.review": "Review in Palladin",
+  "secretCapture.dismiss": "Dismiss",
+  "secretCapture.title": "Save captured item",
+  "secretCapture.vault": "Destination Vault",
+  "secretCapture.personal": "Personal (default)",
+  "secretCapture.mute": "Never prompt on this site",
+  "secretCapture.expired": "This capture expired or its source changed. Capture it again.",
+  "secretCapture.duplicate": "This exact item is already in the selected Vault. Nothing was changed.",
+  "secretCapture.unavailable": "No writable Vault is available."
 }

@@ -1039,7 +1039,7 @@ describe('Protocol2VaultDataService canonical password capture', () => {
       'expiryYear',
       'notes',
     ])
-    expect(client.createEntry).toHaveBeenCalled()
+    expect(client.createEntry).toHaveBeenCalledWith('token', expect.objectContaining({ deliveryPolicy: 'injectOnly' }))
   })
 
   it('creates canonical manual credential, key, and script entries with no implicit Agent disclosure', async () => {
@@ -1309,3 +1309,35 @@ describe('Entry deletion', () => {
     expect(cache.removeVault).toHaveBeenCalledWith(USER_ID, VAULT_ID)
   })
 })
+
+
+describe('captured Entry write fence', () => {
+  it('rejects invalid target Vault and a stale final mutation fence', async () => {
+    const { service, client } = harness(); await service.refresh();
+    const input = { entryType: 'key', label: 'Captured', value: 'synthetic-key' } as const;
+    await expect(service.saveEntry(input, 'missing')).rejects.toThrow();
+    let checked = false;
+    await expect(service.saveEntry(input, VAULT_ID, async () => { checked = true; throw Error('stale'); })).rejects.toThrow();
+    expect(checked).toBe(true);
+    expect(client.createEntry).not.toHaveBeenCalled();
+  });
+});
+
+describe('captured mutation async session races', () => {
+  it('checks key identity after the last asynchronous user lookup', async () => {
+    const { service, client, session } = harness(); await service.refresh();
+    let final = false;
+    const user = session.getUserId;
+    session.getUserId = async () => { const result = await user(); if (final) session.getPrivateKey = () => null; return result; };
+    await expect(service.saveEntry({ entryType: 'key', label: 'Capture', value: 'synthetic-value' }, VAULT_ID, async () => { final = true; })).rejects.toThrow();
+    expect(client.createEntry).not.toHaveBeenCalled();
+  });
+  it('rechecks source authorization after access-token refresh before retrying a mutation', async () => {
+    const { service, client, session } = harness(); await service.refresh();
+    let current = true; let checks = 0;
+    client.createEntry.mockRejectedValueOnce(new VaultClientError('unauthorized', 'expired'));
+    session.refreshAccessToken = async () => { current = false; return 'refreshed'; };
+    await expect(service.saveEntry({ entryType: 'key', label: 'Capture', value: 'synthetic-value' }, VAULT_ID, async () => { checks++; if (!current) throw Error('stale'); })).rejects.toThrow();
+    expect(client.createEntry).toHaveBeenCalledTimes(1); expect(checks).toBe(2);
+  });
+});

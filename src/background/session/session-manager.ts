@@ -1303,6 +1303,7 @@ export class SessionManager {
     this.sharedUnlockReceiverAbort?.abort();
     this.sharedUnlockReceiverAbort = null;
     this.wipeInFlightKeyMaterial();
+    this.hooks.emitTerminating();
   }
 
   private clearPendingTotp(): void {

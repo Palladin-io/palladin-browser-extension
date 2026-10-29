@@ -1,3 +1,4 @@
+import { SecretCapturePrompt, useSecretCapture } from '../capture/SecretCapturePrompt';
 import { PopupViewProvider, usePopupView } from "../view/PopupView";
 import type { PopupViewState, PopupEntryRef } from "../../shared/messaging/popup-view";
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
@@ -76,6 +77,7 @@ function UnlockedContent({
   const pendingGrants = usePendingGrants(workspaceClient);
   const capture = useCapturePrompt(promptClient);
   const list = useVaultList(client, viewRevision);
+  const [secretCapture, clearSecretCapture] = useSecretCapture(viewRevision);
   const navigation = usePopupView()!;
   const { query, vaultFilter, view, selected, scope } = navigation.state;
   const setQuery = (query: string) => navigation.update({ query, scrollTop: 0, visibleCount: 100 });
@@ -147,6 +149,7 @@ function UnlockedContent({
           <PopupIcon name="plus" />
         </button>
       </Header>
+      {secretCapture ? <SecretCapturePrompt key={secretCapture.id} review={secretCapture} client={client} onDone={clearSecretCapture} /> : null}
       <h2 className="sr-only">{t('vault.title')}</h2>
       {capture.prompt !== null && view === 'vault' ? (
         <CapturePrompt

@@ -542,5 +542,16 @@
   "grant.wholeVault": "Cały sejf",
   "grant.expiresAt": "Wygasa",
   "grant.noExpiry": "Bez daty wygaśnięcia",
-  "grant.expiryOnApproval": "Ustalane przy zatwierdzaniu"
+  "grant.expiryOnApproval": "Ustalane przy zatwierdzaniu",
+  "secretCapture.notice": "Klucz lub karta płatnicza czeka na sprawdzenie w Palladin. Możesz też otworzyć Palladin z paska narzędzi przeglądarki.",
+  "secretCapture.locked": "Odblokuj Palladin, a potem wygeneruj klucz lub wpisz kartę ponownie. Dane nie zostały zachowane.",
+  "secretCapture.review": "Sprawdź w Palladin",
+  "secretCapture.dismiss": "Odrzuć",
+  "secretCapture.title": "Zapisz wykryty element",
+  "secretCapture.vault": "Docelowy sejf",
+  "secretCapture.personal": "Osobisty (domyślny)",
+  "secretCapture.mute": "Nie pytaj na tej stronie",
+  "secretCapture.expired": "Wykryte dane wygasły lub ich źródło się zmieniło. Wykryj je ponownie.",
+  "secretCapture.duplicate": "Identyczny element jest już w wybranym sejfie. Nic nie zmieniono.",
+  "secretCapture.unavailable": "Brak sejfu z możliwością zapisu."
 }
