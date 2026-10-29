@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SIGN_IN_PROVIDERS, type SignInProvider } from '../signin/providers';
 import type {
   AuditLogItem,
   EntrySharesPage,
@@ -53,6 +54,20 @@ export const workspaceCommandSchema = z.discriminatedUnion('type', [
     })
     .strict(),
   z.object({ type: z.literal('workspace/detail'), ...scope }).strict(),
+  z
+    .object({
+      type: z.literal('workspace/sign-in'),
+      ...scope,
+      binding: z
+        .object({
+          provider: z.enum(SIGN_IN_PROVIDERS),
+          account: z.string().max(256).nullable(),
+        })
+        .strict()
+        .nullable(),
+      locale: z.enum(['en', 'pl']),
+    })
+    .strict(),
   z
     .object({
       type: z.literal('workspace/field'),
@@ -138,6 +153,9 @@ export interface EntryFieldView {
   type: 'text' | 'multiline' | 'concealed' | 'totp';
   value: string | null;
 }
+export type EntrySignInView =
+  | { status: 'absent' | 'unrecognized' | 'ambiguous' | 'unsupported' }
+  | { status: 'recognized'; provider: SignInProvider; account: string | null };
 export interface GrantReview {
   reason: string;
   grant: OrgGrant;
@@ -159,7 +177,8 @@ export interface WorkspaceResults {
   'workspace/grant-reason': { reason: string | null };
   'workspace/review-grant': GrantReview;
   'workspace/approve-grant': null;
-  'workspace/detail': { fields: EntryFieldView[] };
+  'workspace/detail': { fields: EntryFieldView[]; signIn?: EntrySignInView };
+  'workspace/sign-in': null;
   'workspace/field': { value: string; expiresIn?: number };
   'workspace/create-share': { url: string; shareId: string };
   'workspace/discard-share': null;

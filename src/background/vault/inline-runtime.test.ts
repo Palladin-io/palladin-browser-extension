@@ -176,6 +176,33 @@ describe("inline autofill content runtime", () => {
     expect(cleared).toMatchObject({ entries: [{ entryId: "entry-1" }, { entryId: "entry-2" }] });
   });
 
+  it("ranks an explicitly chosen provider account above recency and reports Palladin fills", async () => {
+    const recency = new InMemoryInlineAutofillRecency();
+    recency.remember(sender.url!, "vault-1", "entry-1");
+    const second: EntryMetadata = { ...entries[0]!, id: "entry-2", name: "Work", username: "grace@example.com" };
+    const filled = vi.fn();
+    const preferred = vi.fn((_tab: number, _url: string, candidates: readonly EntryMetadata[]) =>
+      candidates.find((entry) => entry.id === "entry-2") ?? null);
+    const subject = deps({ recency, getMetadata: async () => [entries[0]!, second], signIn: { preferred, filled } });
+    const listed = await handleInlineAutofillContentMessage(subject, {
+      channel: INLINE_AUTOFILL_CHANNEL, type: "inline/list", documentId,
+    }, sender, "extension-id");
+    expect(listed).toMatchObject({ entries: [{ entryId: "entry-2" }, { entryId: "entry-1" }] });
+    expect(preferred).toHaveBeenCalledWith(7, sender.url, expect.any(Array));
+
+    await handleInlineAutofillContentMessage(subject, {
+      channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", intent: "automatic", documentId,
+      vaultId: "vault-1", entryId: "entry-2", scope: "exact", loginTargetId: "login-2",
+    }, sender, "extension-id");
+    expect(filled).toHaveBeenCalledWith(7, sender.url, "grace@example.com");
+
+    preferred.mockReturnValue(null);
+    const fallback = await handleInlineAutofillContentMessage(subject, {
+      channel: INLINE_AUTOFILL_CHANNEL, type: "inline/list", documentId,
+    }, sender, "extension-id");
+    expect(fallback).toMatchObject({ entries: [{ entryId: "entry-2" }, { entryId: "entry-1" }] });
+  });
+
   it("allows Apple's same-origin child frame and rejects unrelated frames", async () => {
     const subject = deps();
     const appleSender = {
