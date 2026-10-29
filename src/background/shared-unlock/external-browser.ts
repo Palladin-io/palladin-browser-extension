@@ -21,6 +21,8 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
   const { native, initialize, onReady } = options;
   const active = new Map<number, Route>();
   const connections = new Set<() => void>();
+  // Ports that connected before configuration loaded; they enter `connections` only once their origin is configured.
+  const unverified = new Set<() => void>();
   const documents = new Map<() => void, { tabId: number; documentId: string | undefined }>();
   const navigating = new Set<number>();
   let stopped = false;
@@ -32,11 +34,12 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
     if (port.name !== SHARED_UNLOCK_BROWSER_PORT) return;
     const tabId = port.sender?.tab?.id;
     // Any Web page may connect, so a foreign origin must not consume the shared
-    // budget. Before configuration loads, a per-tab cap bounds pending Ports.
-    const admitted = Number.isSafeInteger(tabId) && (initialized ? configuredOrigin(port)
+    // budget. Before configuration loads, a per-tab cap bounds unverified Ports.
+    const admitted = Number.isSafeInteger(tabId) && (initialized
+      ? configuredOrigin(port) && connections.size < 64
       : [...documents.values()].filter(document => document.tabId === tabId).length < 2);
     // Bound pending handshakes as well as ready routes. No durable queue.
-    if (stopped || suspensions > 0 || !admitted || connections.size >= 64) {
+    if (stopped || suspensions > 0 || !admitted) {
       try { port.disconnect(); } catch { /* gone */ } return;
     }
     let route: Route | null = null;
@@ -51,6 +54,7 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
       pendingOperations.length = 0;
       clearTimeout(timeout);
       connections.delete(disconnect);
+      unverified.delete(disconnect);
       documents.delete(disconnect);
       port.onMessage.removeListener(message);
       port.onDisconnect.removeListener(disconnect);
@@ -62,7 +66,10 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
     const admitConfigured = async () => {
       await initialize();
       initialized = true;
-      if (!configuredOrigin(port)) disconnect();
+      if (disconnected) return;
+      const pending = unverified.delete(disconnect);
+      if (!configuredOrigin(port) || (pending && connections.size >= 64)) { disconnect(); return; }
+      if (pending) connections.add(disconnect);
     };
     const message = (raw: unknown) => {
       if (!isSharedUnlockBrowserMessage(raw)) { disconnect(); return; }
@@ -108,11 +115,14 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
         onReady?.(route);
       })().catch(disconnect);
     };
-    connections.add(disconnect);
     documents.set(disconnect, { tabId: tabId!, documentId: port.sender?.documentId });
     port.onMessage.addListener(message);
     port.onDisconnect.addListener(disconnect);
-    if (!initialized) void admitConfigured().catch(disconnect);
+    if (initialized) { connections.add(disconnect); return; }
+    unverified.add(disconnect);
+    // Evict the oldest so a configured panel arriving after a pre-configuration flood still gets in.
+    if (unverified.size > 64) unverified.values().next().value!();
+    void admitConfigured().catch(disconnect);
   };
   const beforeNavigate = ({ tabId, frameId }: { tabId: number; frameId: number }) => {
     if (frameId !== 0) return;
@@ -150,7 +160,7 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
     /** Server changes retire even pending routes before the first asynchronous step. */
     suspend() {
       suspensions += 1;
-      for (const disconnect of [...connections]) disconnect();
+      for (const disconnect of [...connections, ...unverified]) disconnect();
       let resumed = false;
       return () => { if (!resumed) { resumed = true; suspensions -= 1; } };
     },
@@ -163,7 +173,7 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
       native.webNavigation.onErrorOccurred.removeListener(failed);
       options.tabReplacedEvent?.removeListener(replaced);
       native.tabs.onRemoved.removeListener(removed);
-      for (const disconnect of [...connections]) disconnect();
+      for (const disconnect of [...connections, ...unverified]) disconnect();
       active.clear(); navigating.clear(); documents.clear();
     },
   };

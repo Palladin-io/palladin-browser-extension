@@ -155,6 +155,7 @@ describe("Chromium shared unlock runtime channel", () => {
   });
   it("bounds pending handshakes and releases capacity on timeout", async () => {
     const f = fixture(); for (let i = 0; i < 64; i += 1) f.port(i);
+    await settle();
     const denied = f.port(65); expect(denied.disconnect).toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(5000); const accepted = f.port(); accepted.onMessage.emit(hello); await settle();
     expect(accepted.postMessage).toHaveBeenCalledOnce(); f.controller.close();
@@ -178,6 +179,21 @@ describe("Chromium shared unlock runtime channel", () => {
     foreign.forEach((p, i) => { if (i % 2 === 0) p.onMessage.emit(hello); });
     if (state === "initializing") finish();
     await settle();
+    expect(panel.postMessage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "ready" }));
+    expect(accept).toHaveBeenCalledOnce();
+    expect(foreign.every(p => p.disconnect.mock.calls.length > 0)).toBe(true);
+    f.controller.close(); accept.mockRestore();
+  });
+  it("keeps origin-unverified Ports from many tabs outside the shared budget until configuration loads", async () => {
+    let finish!: () => void;
+    const initialization = new Promise<void>(resolve => { finish = resolve; });
+    const accept = vi.spyOn(ChromiumSharedUnlockRoute, "accept");
+    const f = fixture(() => initialization);
+    const foreign = Array.from({ length: 64 }, (_, i) => f.port(100 + Math.floor(i / 2), "https://attacker.example.test"));
+    const panel = f.port(); panel.onMessage.emit(hello);
+    // The unverified pool is bounded too: the newest Port evicts the oldest.
+    expect(foreign[0].disconnect).toHaveBeenCalled(); expect(foreign[1].disconnect).not.toHaveBeenCalled();
+    finish(); await settle();
     expect(panel.postMessage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "ready" }));
     expect(accept).toHaveBeenCalledOnce();
     expect(foreign.every(p => p.disconnect.mock.calls.length > 0)).toBe(true);
