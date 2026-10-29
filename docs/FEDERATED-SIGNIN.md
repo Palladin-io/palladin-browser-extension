@@ -20,14 +20,25 @@ path:
 
 ```json
 { "id": "custom:<uuid v4>", "label": "Sign-in method", "type": "palladin.signin.v1",
-  "value": { "provider": "google", "account": "alice@example.com" } }
+  "value": { "provider": "google", "account": "alice@example.com",
+             "entry": { "vaultId": "<uuid>", "entryId": "<uuid>" } } }
 ```
 
 - `provider` is a closed set; `account` is the provider account identifier the
   user confirmed (NFC, trimmed, 1..256) or `null` when only the provider is known.
-- Agent access is always `never`. The shared `@palladin/crypto` policy rejects any
-  other mode for a non-standard custom type, so the binding is never delivered to
-  Agents, never part of discovery and never part of the MemberIndex.
+- `entry` references the provider Credential (for example the Google account
+  entry) and is set only when the user picks a **discoverable** Palladin
+  Credential of that provider; a typed or unknown account has `entry: null`.
+  A popup edit keeps the reference only for an unchanged provider and account.
+- Agent access is `never` or `discovery` (`@palladin/crypto` >= 0.14.0). A new
+  field is discoverable exactly when its Credential is discoverable; replacing a
+  recognized field keeps its access. `onGrant*` is always rejected, so the field
+  is never delivered in a grant and never part of the MemberIndex.
+- With `discovery`, the shared SDK projects only
+  `{"id":"signIn","value":"{\"entry\":…,\"provider\":…,\"schema\":\"palladin.signin.v1\"}"}`
+  into Agent Discovery — **never the account**. An Agent can then request the
+  normal, user-approved grant for the referenced provider Credential and sign in
+  through the provider page with Inject. Two discoverable methods expose nothing.
 - One Credential represents one account at one service host. Several service
   accounts are several Credentials; several provider accounts are different
   `account` values. Nothing is merged by provider or domain.

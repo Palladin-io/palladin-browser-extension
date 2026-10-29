@@ -39,7 +39,9 @@ function signInView(secret: currentVaultPlaintext.MemberSecretV1): EntrySignInVi
   if (secret.entryType !== 'credential') return { status: 'unsupported' };
   const state = readSignInBinding(secret);
   return state.status === 'recognized'
-    ? { status: 'recognized', provider: state.binding.provider, account: state.binding.account }
+    ? { status: 'recognized', provider: state.binding.provider, account: state.binding.account,
+      linked: state.binding.entry !== null,
+      agentVisible: secret.discoverable && secret.agentFieldAccess[state.fieldId] === 'discovery' }
     : { status: state.status };
 }
 
@@ -59,7 +61,7 @@ export class EntryActions {
       session: Protocol2SessionAccessor;
       data: Pick<Protocol2VaultDataService, 'revealCurrentEntry'>;
       webUrl(): string;
-      setSignIn?(vaultId: string, entryId: string, binding: SignInBinding | null, label: string,
+      setSignIn?(vaultId: string, entryId: string, binding: Omit<SignInBinding, 'entry'> | null, label: string,
         stillAuthorized: () => Promise<boolean>): Promise<unknown>;
     },
   ) {}

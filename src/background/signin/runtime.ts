@@ -5,8 +5,9 @@ import { sessionManager } from '../session/runtime'
 import { browserDocumentIdForTab } from '../tab-documents'
 import { credentialWriter, vaultData } from '../vault/runtime'
 import { FederatedSignInCoordinator, type SignInSource } from './coordinator'
-import { matchesTab } from '@shared/security/domain'
-import { readSignInBinding } from '@shared/signin/binding'
+import { matchesTab, registrableDomain } from '@shared/security/domain'
+import { normalizeSignInAccount, readSignInBinding } from '@shared/signin/binding'
+import { SIGN_IN_PROVIDER_ACCOUNT_DOMAINS } from '@shared/signin/providers'
 import { ENTRY_TYPE_CREDENTIAL } from '../vault/entry-metadata'
 
 let sessionGeneration = 0
@@ -14,7 +15,22 @@ let sessionGeneration = 0
 export const federatedSignIn = new FederatedSignInCoordinator({
   getSession: async () => (await sessionManager.getUserId()) === null ? null
     : { unlocked: sessionManager.getKeys() !== null, generation: sessionGeneration },
-  metadata: () => vaultData.getMetadata(),
+  providerAccounts: async (provider) => {
+    const domains = SIGN_IN_PROVIDER_ACCOUNT_DOMAINS[provider]
+    const candidates = (await vaultData.getMetadata()).filter((entry) => entry.type === ENTRY_TYPE_CREDENTIAL
+      && entry.username && domains.includes(registrableDomain(entry.urlDomain) ?? '')).slice(0, 20)
+    const accounts = []
+    for (const entry of candidates) {
+      const account = normalizeSignInAccount(entry.username ?? null)
+      if (account === null) continue
+      try {
+        // Only a discoverable provider Credential may become an Agent-visible reference.
+        const secret = await vaultData.revealCurrentEntry(entry.vaultId, entry.id)
+        accounts.push({ account, entry: secret.discoverable ? { vaultId: entry.vaultId, entryId: entry.id } : null })
+      } catch { accounts.push({ account, entry: null }) }
+    }
+    return accounts
+  },
   targets: (url) => credentialWriter.signInTargets(url),
   localBindings: async (url) => {
     const metadata = (await vaultData.getMetadata()).filter((entry) => entry.type === ENTRY_TYPE_CREDENTIAL

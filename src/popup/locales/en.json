@@ -581,5 +581,7 @@
   "signIn.cancel": "Cancel",
   "signIn.saving": "Saving...",
   "signIn.error": "Could not save the sign-in method. Try again.",
-  "signIn.tooLong": "Use at most 256 characters."
+  "signIn.tooLong": "Use at most 256 characters.",
+  "signIn.agentVisible": "Agents can see the provider for this site, not the account.",
+  "signIn.agentVisibleLinked": "Agents can see the provider and which Palladin entry to request, never the account. Using it still needs your approval."
 }

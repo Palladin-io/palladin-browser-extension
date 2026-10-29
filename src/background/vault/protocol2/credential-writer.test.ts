@@ -290,16 +290,16 @@ describe('captured Credential canonical writer', () => {
         username: 'alice', signIn: { status: 'absent' } }] })
     })
 
-    it('updates only the sign-in field with never Agent access and keeps password, grants and policy', async () => {
+    it('updates only the sign-in field, discoverable but never grantable, and keeps password, grants and policy', async () => {
       client.getActiveGrants.mockResolvedValue([grant])
       await writer.saveSignIn(url, { action: 'update', vaultId: VAULT, entryId: ENTRY, revision: '4' },
-        { provider: 'google', account: 'work@corp.com' }, 'Sign-in method', authorized)
+        { provider: 'google', account: 'work@corp.com', entry: null }, 'Sign-in method', authorized)
       const next = sealed()
       expect(next.content.password).toBe('old-pass')
       expect(next.content.username).toBe('alice')
       const field = next.content.customFields.find((candidate) => candidate.type === 'palladin.signin.v1')!
-      expect(field.value).toEqual({ provider: 'google', account: 'work@corp.com' })
-      expect(next.agentFieldAccess[field.id]).toBe('never')
+      expect(field.value).toEqual({ provider: 'google', account: 'work@corp.com', entry: null })
+      expect(next.agentFieldAccess[field.id]).toBe('discovery')
       expect(next.agentFieldAccess['credential.password']).toBe(secret.agentFieldAccess['credential.password'])
       const grantFields = cryptoMocks.buildCanonicalGrantEnvelope.mock.calls[0]![0].approvedFieldIds
       expect(grantFields).not.toContain(field.id)
@@ -308,32 +308,47 @@ describe('captured Credential canonical writer', () => {
 
     it('creates a password-less record that automatic fill cannot select', async () => {
       const result = await writer.saveSignIn(url, { action: 'create', vaultId: VAULT },
-        { provider: 'apple', account: null }, 'Metoda logowania', authorized)
+        { provider: 'apple', account: null, entry: null }, 'Metoda logowania', authorized)
       expect(result.action).toBe('created')
       const next = sealed()
       expect(next.content).toMatchObject({ username: '', password: '', urlDomain: 'accounts.example.com', url: 'https://accounts.example.com' })
       expect(next.content.customFields).toEqual([expect.objectContaining({ label: 'Metoda logowania',
-        type: 'palladin.signin.v1', value: { provider: 'apple', account: null } })])
+        type: 'palladin.signin.v1', value: { provider: 'apple', account: null, entry: null } })])
     })
 
     it('rejects a stale revision, another host and a revoked authorization before writing', async () => {
       await expect(writer.saveSignIn(url, { action: 'update', vaultId: VAULT, entryId: ENTRY, revision: '3' },
-        { provider: 'google', account: null }, 'Sign-in method', authorized)).rejects.toThrow()
+        { provider: 'google', account: null, entry: null }, 'Sign-in method', authorized)).rejects.toThrow()
       await expect(writer.saveSignIn('https://evil.example.net/', { action: 'update', vaultId: VAULT, entryId: ENTRY, revision: '4' },
-        { provider: 'google', account: null }, 'Sign-in method', authorized)).rejects.toThrow()
+        { provider: 'google', account: null, entry: null }, 'Sign-in method', authorized)).rejects.toThrow()
       authorized.mockResolvedValue(false)
       await expect(writer.saveSignIn(url, { action: 'create', vaultId: VAULT },
-        { provider: 'google', account: null }, 'Sign-in method', authorized)).rejects.toThrow()
+        { provider: 'google', account: null, entry: null }, 'Sign-in method', authorized)).rejects.toThrow()
       await expect(writer.saveSignIn('http://accounts.example.com/', { action: 'create', vaultId: VAULT },
-        { provider: 'google', account: null }, 'Sign-in method', async () => true)).rejects.toThrow()
+        { provider: 'google', account: null, entry: null }, 'Sign-in method', async () => true)).rejects.toThrow()
       expect(client.updateEntry).not.toHaveBeenCalled()
       expect(client.createEntry).not.toHaveBeenCalled()
+    })
+
+    it('popup edits keep the provider Entry reference only for an unchanged provider and account', async () => {
+      const providerEntry = { vaultId: '77777777-7777-4777-8777-777777777777', entryId: '88888888-8888-4888-8888-888888888888' }
+      const bound = { ...secret, agentFieldAccess: { ...secret.agentFieldAccess, 'custom:99999999-9999-4999-8999-999999999999': 'discovery' as const },
+        content: { ...secret.content, customFields: [{ id: 'custom:99999999-9999-4999-8999-999999999999', label: 'Sign-in method',
+          type: 'palladin.signin.v1', value: { provider: 'google', account: 'Work@Corp.com', entry: providerEntry } }] } }
+      cryptoMocks.openCurrentMemberSecret.mockResolvedValue(bound)
+      await writer.setEntrySignIn(VAULT, ENTRY, { provider: 'google', account: 'work@corp.com' }, 'Sign-in method', authorized)
+      let field = sealed().content.customFields.find((candidate) => candidate.type === 'palladin.signin.v1')!
+      expect(field.value).toMatchObject({ entry: providerEntry })
+      expect(sealed().agentFieldAccess[field.id]).toBe('discovery')
+      await writer.setEntrySignIn(VAULT, ENTRY, { provider: 'google', account: 'other@corp.com' }, 'Sign-in method', authorized)
+      field = sealed().content.customFields.find((candidate) => candidate.type === 'palladin.signin.v1')!
+      expect(field.value).toMatchObject({ account: 'other@corp.com', entry: null })
     })
 
     it('removes the binding from the popup without touching other fields', async () => {
       const bound = { ...secret, agentFieldAccess: { ...secret.agentFieldAccess, 'custom:99999999-9999-4999-8999-999999999999': 'never' as const },
         content: { ...secret.content, customFields: [{ id: 'custom:99999999-9999-4999-8999-999999999999', label: 'Sign-in method',
-          type: 'palladin.signin.v1', value: { provider: 'google', account: 'a@b.c' } }] } }
+          type: 'palladin.signin.v1', value: { provider: 'google', account: 'a@b.c', entry: null } }] } }
       cryptoMocks.openCurrentMemberSecret.mockResolvedValue(bound)
       await writer.setEntrySignIn(VAULT, ENTRY, null, '', authorized)
       expect(sealed().content.customFields).toEqual([])

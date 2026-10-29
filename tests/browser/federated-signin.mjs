@@ -44,7 +44,7 @@ function page(url) {
 
 try {
   await api.addCredential({ label: 'Alpha Google', username: 'alice@gmail.example', password: 'Synthetic-google-1!', urlDomain: 'accounts.google.com' })
-  await api.addCredential({ label: 'Beta Google', username: 'work@corp.example', password: 'Synthetic-google-2!', urlDomain: 'accounts.google.com' })
+  const workGoogle = await api.addCredential({ label: 'Beta Google', username: 'work@corp.example', password: 'Synthetic-google-2!', urlDomain: 'accounts.google.com' })
   const existing = await api.addCredential({ label: 'Synthetic service', username: 'alice', password: 'Synthetic-service-password!', urlDomain: 'app.example.test' })
 
   const extension = path.join(profile, 'dist/chromium')
@@ -87,7 +87,9 @@ try {
     const wait = async (check, label, timeout = 15000) => {
       const end = Date.now() + timeout
       while (Date.now() < end) { if (await check()) return; await new Promise((resolve) => setTimeout(resolve, 100)) }
-      throw new Error(`Browser acceptance timed out: ${label}; API: ${api.requests.slice(-8).join(', ')}`)
+      const visible = (await ax()).filter((node) => ['button', 'radio', 'region', 'StaticText'].includes(node.role?.value))
+        .map((node) => `${node.role.value}:${node.name?.value ?? ''}`).slice(-40).join(' | ')
+      throw new Error(`Browser acceptance timed out: ${label}; surface: ${visible}; API: ${api.requests.slice(-8).join(', ')}`)
     }
     const click = async (role, name) => {
       await wait(() => find(role, name), String(name))
@@ -137,11 +139,13 @@ try {
   assert.deepEqual({ username: createdSecret.content.username, password: createdSecret.content.password,
     urlDomain: createdSecret.content.urlDomain }, { username: '', password: '', urlDomain: 'app.example.test' })
   const field = createdSecret.content.customFields.find((candidate) => candidate.type === 'palladin.signin.v1')
-  assert.deepEqual(field.value, { provider: 'google', account: 'work@corp.example' })
-  assert.equal(createdSecret.agentFieldAccess[field.id], 'never')
+  assert.deepEqual(field.value, { provider: 'google', account: 'work@corp.example',
+    entry: { vaultId: workGoogle.vaultId, entryId: workGoogle.entryId } })
+  assert.equal(createdSecret.agentFieldAccess[field.id], 'discovery', 'Discoverable Credential exposes provider + Entry to Agents')
+  assert.notEqual(created.request.agentDiscovery, null)
   assertNoOAuthValues(created.request, 'Encrypted create request')
   assert(!JSON.stringify(created.request).includes('work@corp.example'), 'Provider account travels only encrypted')
-  console.log('PASS: same-tab Google round trip remembered the explicitly chosen account as an encrypted, never-Agent field')
+  console.log('PASS: same-tab Google round trip remembered the chosen account with its discoverable provider Entry reference')
 
   // Next visit: suggestion requires a click, Palladin clicks the unique page
   // button and ranks the chosen provider account for automatic identifier fill.
@@ -183,7 +187,7 @@ try {
   const updatedSecret = await api.decrypt(updated)
   assert.equal(updatedSecret.content.password, 'Synthetic-service-password!')
   assert.deepEqual(updatedSecret.content.customFields.find((candidate) => candidate.type === 'palladin.signin.v1').value,
-    { provider: 'github', account: null })
+    { provider: 'github', account: null, entry: null })
   assertNoOAuthValues(updated.request, 'Encrypted update request')
   await oauthPopup.close()
   console.log('PASS: popup GitHub flow prompted only in the opener tab and updated the chosen existing account')

@@ -15,7 +15,7 @@ import {
 } from '@palladin/crypto'
 type MemberSecretV1 = currentVaultPlaintext.MemberSecretV1
 import { matchesTab } from '@shared/security/domain'
-import { readSignInBinding, withSignInBinding, type SignInBinding, type SignInBindingState } from '@shared/signin/binding'
+import { readSignInBinding, sameSignInAccount, withSignInBinding, type SignInBinding, type SignInBindingState } from '@shared/signin/binding'
 import type { SubmittedCredential } from '@shared/messaging/credential-capture'
 import type { CredentialCaptureChoices, CredentialWriteTarget } from '../../capture/credential-coordinator'
 import { ENTRY_TYPE_CREDENTIAL } from '../entry-metadata'
@@ -224,12 +224,21 @@ export class Protocol2CredentialWriter {
   }
 
   /** Popup edit/remove of the sign-in method on one Credential the member already opened. */
+  /**
+   * Popup edit/remove. A typed edit cannot name an Agent-visible provider
+   * Credential: the existing reference survives only an unchanged provider and account.
+   */
   async setEntrySignIn(
-    vaultId: string, entryId: string, binding: SignInBinding | null, label: string,
+    vaultId: string, entryId: string, edit: Omit<SignInBinding, 'entry'> | null, label: string,
     stillAuthorized: () => Promise<boolean>,
   ): Promise<{ revision: string }> {
-    return { revision: await this.mutateCredential(vaultId, entryId, null, null,
-      (secret) => withSignInBinding(secret, binding, label), stillAuthorized) }
+    return { revision: await this.mutateCredential(vaultId, entryId, null, null, (secret) => {
+      if (edit === null) return withSignInBinding(secret, null, label)
+      const previous = readSignInBinding(secret)
+      const entry = previous.status === 'recognized' && previous.binding.provider === edit.provider
+        && sameSignInAccount(previous.binding.account, edit.account) ? previous.binding.entry : null
+      return withSignInBinding(secret, { ...edit, entry }, label)
+    }, stillAuthorized) }
   }
 
   private async mutateCredential(

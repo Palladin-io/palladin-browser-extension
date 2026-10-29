@@ -1,5 +1,5 @@
-import type { currentVaultPlaintext } from '@palladin/crypto';
-import { isSignInProvider, type SignInProvider } from './providers';
+import { SIGN_IN_FIELD_TYPE, signInMethodValueSchema, type currentVaultPlaintext } from '@palladin/crypto';
+import type { SignInProvider } from './providers';
 
 type MemberSecretV1 = currentVaultPlaintext.MemberSecretV1;
 type CustomField = MemberSecretV1['content']['customFields'][number];
@@ -7,15 +7,23 @@ type CustomField = MemberSecretV1['content']['customFields'][number];
 /**
  * `palladin.signin.v1` lives inside the encrypted Credential MemberSecret as a
  * canonical custom field, so it syncs with the Entry and never reaches the
- * server, agents, discovery or the MemberIndex. Contract: brain
- * `Technical/Federated Sign-in Methods.md`.
+ * server or the MemberIndex. With Agent access `discovery`, the shared SDK
+ * projects only the provider and the provider Credential reference into Agent
+ * Discovery — never the account. Contract: `docs/FEDERATED-SIGNIN.md`.
  */
-export const SIGN_IN_FIELD_TYPE = 'palladin.signin.v1';
+export { SIGN_IN_FIELD_TYPE };
 export const MAX_SIGN_IN_ACCOUNT_LENGTH = 256;
+
+export interface SignInEntryReference {
+  readonly vaultId: string;
+  readonly entryId: string;
+}
 
 export interface SignInBinding {
   readonly provider: SignInProvider;
   readonly account: string | null;
+  /** Discoverable provider Credential an Agent may request; set only from an explicit choice. */
+  readonly entry: SignInEntryReference | null;
 }
 
 export type SignInBindingState =
@@ -31,14 +39,7 @@ export function normalizeSignInAccount(value: string | null): string | null {
 }
 
 export function isSignInBinding(value: unknown): value is SignInBinding {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
-  const record = value as Record<string, unknown>;
-  const keys = Object.keys(record).sort();
-  if (keys.length !== 2 || keys[0] !== 'account' || keys[1] !== 'provider') return false;
-  if (!isSignInProvider(record.provider)) return false;
-  const account = record.account;
-  return account === null || (typeof account === 'string' && account.length > 0
-    && account.length <= MAX_SIGN_IN_ACCOUNT_LENGTH && account === account.normalize('NFC').trim());
+  return signInMethodValueSchema.safeParse(value).success;
 }
 
 export function readSignInBinding(secret: MemberSecretV1): SignInBindingState {
@@ -47,14 +48,17 @@ export function readSignInBinding(secret: MemberSecretV1): SignInBindingState {
   if (fields.length === 0) return { status: 'absent' };
   if (fields.length > 1) return { status: 'ambiguous' };
   const field = fields[0]!;
-  if (!isSignInBinding(field.value)) return { status: 'unrecognized' };
-  return { status: 'recognized', binding: { provider: field.value.provider, account: field.value.account }, fieldId: field.id };
+  const parsed = signInMethodValueSchema.safeParse(field.value);
+  if (!parsed.success) return { status: 'unrecognized' };
+  return { status: 'recognized', fieldId: field.id,
+    binding: { provider: parsed.data.provider, account: parsed.data.account, entry: parsed.data.entry } };
 }
 
 /**
- * Replaces every sign-in field with exactly one (or removes them) and keeps the
- * canonical Agent policy `never` for the new field. All other fields and
- * policies are preserved unchanged.
+ * Replaces every sign-in field with exactly one (or removes them). A replaced
+ * recognized field keeps its Agent access; a new one is discoverable exactly
+ * when the Credential itself is discoverable. All other fields and policies are
+ * preserved unchanged.
  */
 export function withSignInBinding(
   secret: MemberSecretV1,
@@ -65,6 +69,8 @@ export function withSignInBinding(
   if (secret.entryType !== 'credential') throw new Error('Sign-in methods require a Credential');
   const account = binding === null ? null : normalizeSignInAccount(binding.account);
   if (account !== null && account.length > MAX_SIGN_IN_ACCOUNT_LENGTH) throw new Error('Sign-in account is too long');
+  const previous = readSignInBinding(secret);
+  const previousAccess = previous.status === 'recognized' ? secret.agentFieldAccess[previous.fieldId] : undefined;
   const removed = new Set(secret.content.customFields
     .filter((field) => field.type === SIGN_IN_FIELD_TYPE).map((field) => field.id));
   const kept = secret.content.customFields.filter((field) => !removed.has(field.id));
@@ -73,9 +79,12 @@ export function withSignInBinding(
   const customFields: CustomField[] = [...kept];
   if (binding !== null) {
     const id = `custom:${createId().toLowerCase()}`;
+    const entry = binding.entry === null ? null
+      : { vaultId: binding.entry.vaultId.toLowerCase(), entryId: binding.entry.entryId.toLowerCase() };
     customFields.push({ id, label: label.normalize('NFC').trim().slice(0, 128) || 'Sign-in method',
-      type: SIGN_IN_FIELD_TYPE, value: { provider: binding.provider, account } });
-    agentFieldAccess[id] = 'never';
+      type: SIGN_IN_FIELD_TYPE, value: { provider: binding.provider, account, entry } });
+    agentFieldAccess[id] = previousAccess === 'never' || previousAccess === 'discovery'
+      ? previousAccess : secret.discoverable ? 'discovery' : 'never';
   }
   return { ...secret, agentFieldAccess, content: { ...secret.content, customFields } };
 }
@@ -84,4 +93,9 @@ export function withSignInBinding(
 export function sameSignInAccount(left: string | null, right: string | null): boolean {
   if (left === null || right === null) return left === right;
   return left.normalize('NFC').trim().toLocaleLowerCase('en') === right.normalize('NFC').trim().toLocaleLowerCase('en');
+}
+
+export function sameSignInEntry(left: SignInEntryReference | null, right: SignInEntryReference | null): boolean {
+  if (left === null || right === null) return left === right;
+  return left.vaultId.toLowerCase() === right.vaultId.toLowerCase() && left.entryId.toLowerCase() === right.entryId.toLowerCase();
 }

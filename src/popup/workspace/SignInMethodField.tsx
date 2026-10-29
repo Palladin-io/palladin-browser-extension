@@ -35,7 +35,10 @@ export function SignInMethodField({
     try {
       await client.send({ type: 'workspace/sign-in', vaultId, entryId, binding, locale: locale === 'pl' ? 'pl' : 'en' });
       setEditing(false);
-      onChanged(binding === null ? { status: 'absent' } : { status: 'recognized', ...binding });
+      onChanged(binding === null ? { status: 'absent' } : { status: 'recognized', ...binding,
+        linked: view.status === 'recognized' && view.linked && view.provider === binding.provider
+          && (view.account ?? '').toLocaleLowerCase('en') === (binding.account ?? '').toLocaleLowerCase('en'),
+        agentVisible: view.status === 'recognized' ? view.agentVisible : false });
     } catch {
       setError(true);
     } finally {
@@ -53,7 +56,11 @@ export function SignInMethodField({
     <div className="detail-field sign-in-method" aria-label={t('signIn.section')}>
       <span>
         <small>{t('signIn.section')}</small>
-        {!editing ? <span className="detail-field-value">{summary}</span> : (
+        {!editing ? <span className="detail-field-value">{summary}</span> : null}
+        {!editing && view.status === 'recognized' && view.agentVisible ? (
+          <span className="entry-status">{t(view.linked ? 'signIn.agentVisibleLinked' : 'signIn.agentVisible')}</span>
+        ) : null}
+        {!editing ? null : (
           <span className="sign-in-method-form">
             <FilterSelect aria-label={t('signIn.provider')} value={provider} disabled={busy}
               onChange={(event) => setProvider(event.target.value as SignInProvider)}>

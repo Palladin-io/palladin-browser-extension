@@ -581,5 +581,7 @@
   "signIn.cancel": "Anuluj",
   "signIn.saving": "Zapisywanie...",
   "signIn.error": "Nie udało się zapisać metody logowania. Spróbuj ponownie.",
-  "signIn.tooLong": "Użyj maksymalnie 256 znaków."
+  "signIn.tooLong": "Użyj maksymalnie 256 znaków.",
+  "signIn.agentVisible": "Agenci widzą dostawcę dla tej strony, ale nie konto.",
+  "signIn.agentVisibleLinked": "Agenci widzą dostawcę i który wpis Palladin wskazać we wniosku, nigdy konta. Użycie nadal wymaga Twojej zgody."
 }

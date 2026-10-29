@@ -8,7 +8,9 @@ import type {
   SignInTargetOption,
 } from '@shared/messaging/federated-signin';
 import { registrableDomain } from '@shared/security/domain';
-import { normalizeSignInAccount, sameSignInAccount, type SignInBinding } from '@shared/signin/binding';
+import {
+  normalizeSignInAccount, sameSignInAccount, sameSignInEntry, type SignInBinding, type SignInEntryReference,
+} from '@shared/signin/binding';
 import {
   classifyProviderUrl,
   isAuthorizationErrorReturn,
@@ -31,6 +33,11 @@ export interface SignInSource {
   readonly url: string;
 }
 
+export interface ProviderAccount {
+  readonly account: string;
+  readonly entry: SignInEntryReference | null;
+}
+
 export interface SignInSession {
   readonly unlocked: boolean;
   readonly generation: number;
@@ -38,7 +45,8 @@ export interface SignInSession {
 
 export interface FederatedSignInDeps {
   getSession(): Promise<SignInSession | null>;
-  metadata(): Promise<EntryMetadata[]>;
+  /** Provider Credentials from the local cache; `entry` is set only for discoverable ones. */
+  providerAccounts(provider: SignInProvider): Promise<ProviderAccount[]>;
   targets(url: string): Promise<SignInTargets>;
   /** Exact-host Credentials read from the local encrypted cache only. */
   localBindings(url: string): Promise<SignInTargets['credentials']>;
@@ -52,7 +60,7 @@ export interface FederatedSignInDeps {
 
 interface StoredPrompt {
   readonly view: SignInPrompt;
-  readonly accounts: Map<string, string | null>;
+  readonly accounts: Map<string, { account: string | null; entry: SignInEntryReference | null }>;
   readonly targets: Map<string, SignInWriteTarget>;
   readonly documentId: string;
   readonly browserDocumentId: string;
@@ -66,9 +74,12 @@ interface Flow {
   provider: SignInProvider | null;
   phase: 'started' | 'provider' | 'returned';
   usedAccount: string | null;
+  usedEntry: SignInEntryReference | null;
   usedManually: boolean;
   chosen: SignInBinding | null;
   prompt: StoredPrompt | null;
+  /** Single in-flight build per document, so concurrent refreshes return the same prompt IDs. */
+  building: { readonly documentKey: string; readonly view: Promise<SignInPrompt | null> } | null;
   error: boolean;
 }
 
@@ -178,7 +189,8 @@ export class FederatedSignInCoordinator {
    * automatic fill is only offered as an option: the user may still switch
    * accounts in the provider's own chooser, which Palladin cannot observe.
    */
-  providerFilled(tabId: number, url: string, entry: Pick<EntryMetadata, 'username' | 'urlDomain'> | undefined,
+  providerFilled(tabId: number, url: string,
+    entry: Pick<EntryMetadata, 'username' | 'urlDomain' | 'vaultId' | 'id'> | undefined,
     intent: 'automatic' | 'manual'): void {
     if (!isProviderSignInHost(url)) return;
     const flow = this.flowForProviderTab(tabId) ?? this.flows.get(tabId);
@@ -186,6 +198,7 @@ export class FederatedSignInCoordinator {
     if (flow?.phase !== 'provider' || flow.provider === null || account === null || account.length > 256) return;
     if (!SIGN_IN_PROVIDER_ACCOUNT_DOMAINS[flow.provider].includes(registrableDomain(entry?.urlDomain) ?? '')) return;
     flow.usedAccount = account;
+    flow.usedEntry = entry === undefined ? null : { vaultId: entry.vaultId, entryId: entry.id };
     flow.usedManually = intent === 'manual';
   }
 
@@ -193,9 +206,12 @@ export class FederatedSignInCoordinator {
   preferredProviderEntry(tabId: number, url: string, candidates: readonly EntryMetadata[]): EntryMetadata | null {
     if (!isProviderSignInHost(url)) return null;
     const flow = this.flowForProviderTab(tabId) ?? this.flows.get(tabId);
-    const account = flow?.chosen?.account ?? null;
-    if (flow?.phase !== 'provider' || account === null || flow.chosen?.provider !== flow.provider) return null;
-    const matches = candidates.filter((entry) => sameSignInAccount(entry.username ?? null, account));
+    const chosen = flow?.chosen ?? null;
+    if (flow?.phase !== 'provider' || chosen === null || chosen.provider !== flow.provider) return null;
+    const matches = chosen.entry !== null
+      ? candidates.filter((entry) => sameSignInEntry({ vaultId: entry.vaultId, entryId: entry.id }, chosen.entry))
+      : chosen.account === null ? []
+        : candidates.filter((entry) => sameSignInAccount(entry.username ?? null, chosen.account));
     return matches.length === 1 ? matches[0]! : null;
   }
 
@@ -236,7 +252,7 @@ export class FederatedSignInCoordinator {
       if (oldest) this.flows.delete(oldest[0]);
     }
     const flow: Flow = { serviceTabId: tabId, serviceOrigin, startedAt: this.now(), providerTabIds: new Set(),
-      provider: null, phase: 'started', usedAccount: null, usedManually: false, chosen: null, prompt: null, error: false };
+      provider: null, phase: 'started', usedAccount: null, usedEntry: null, usedManually: false, chosen: null, prompt: null, building: null, error: false };
     this.flows.set(tabId, flow);
     return flow;
   }
@@ -258,7 +274,9 @@ export class FederatedSignInCoordinator {
       if (previous === undefined || !page.authorizationRequest) return;
       flow = this.start(tabId, previous);
     }
-    if (flow.provider !== null && flow.provider !== page.provider) { flow.usedAccount = null; flow.usedManually = false; }
+    if (flow.provider !== null && flow.provider !== page.provider) {
+      flow.usedAccount = null; flow.usedEntry = null; flow.usedManually = false;
+    }
     flow.provider = page.provider;
     flow.phase = 'provider';
     if (tabId !== flow.serviceTabId) flow.providerTabIds.add(tabId);
@@ -340,8 +358,17 @@ export class FederatedSignInCoordinator {
       && flow.prompt.documentId === source.documentId) {
       return flow.error ? { ...flow.prompt.view, error: 'save-failed' } : flow.prompt.view;
     }
-    const provider = flow.provider;
-    const [targets, metadata] = await Promise.all([this.deps.targets(flow.serviceOrigin), this.deps.metadata()]);
+    const documentKey = `${source.browserDocumentId}:${source.documentId}`;
+    if (flow.building?.documentKey === documentKey) return flow.building.view;
+    const view = this.buildPrompt(flow, source, session, site);
+    flow.building = { documentKey, view };
+    try { return await view; } finally { if (flow.building?.view === view) flow.building = null; }
+  }
+
+  private async buildPrompt(flow: Flow, source: SignInSource, session: SignInSession, site: string): Promise<SignInPrompt | null> {
+    const provider = flow.provider!;
+    const [targets, providerAccounts] = await Promise.all([
+      this.deps.targets(flow.serviceOrigin), this.deps.providerAccounts(provider)]);
     if ((await this.deps.getSession())?.generation !== session.generation || this.flows.get(source.tabId) !== flow) return null;
     const chosenSame = flow.chosen?.provider === provider;
     // A Palladin fill of a different account than the one chosen is an account switch: never suppress or guess.
@@ -355,30 +382,39 @@ export class FederatedSignInCoordinator {
       this.flows.delete(source.tabId);
       return null;
     }
-    const accounts = new Map<string, string | null>();
+    const accounts = new Map<string, { account: string | null; entry: SignInEntryReference | null }>();
     const accountViews: SignInAccountOption[] = [];
-    const addAccount = (value: string | null, sourceKind: SignInAccountSource) => {
-      if (value !== null && [...accounts.values()].some((existing) => sameSignInAccount(existing, value))) return;
+    // An Agent-visible reference is attached only to a discoverable provider Credential the user can pick.
+    const discoverable = (entry: SignInEntryReference | null) => entry === null ? null
+      : providerAccounts.find((candidate) => sameSignInEntry(candidate.entry, entry))?.entry ?? null;
+    const addAccount = (value: string | null, entry: SignInEntryReference | null, sourceKind: SignInAccountSource) => {
+      const existing = value === null ? undefined
+        : [...accounts.values()].find((candidate) => sameSignInAccount(candidate.account, value));
+      if (existing !== undefined) {
+        if (existing.entry === null && entry !== null) existing.entry = entry;
+        return;
+      }
       const id = this.createId();
-      accounts.set(id, value);
+      accounts.set(id, { account: value, entry });
       accountViews.push({ id, label: value ?? '', source: sourceKind });
     };
-    if (flow.chosen?.provider === provider && flow.chosen.account !== null) addAccount(flow.chosen.account, 'chosen');
-    if (flow.usedAccount !== null) addAccount(flow.usedAccount, 'used');
+    if (flow.chosen?.provider === provider && flow.chosen.account !== null) {
+      addAccount(flow.chosen.account, discoverable(flow.chosen.entry), 'chosen');
+    }
+    if (flow.usedAccount !== null) addAccount(flow.usedAccount, discoverable(flow.usedEntry), 'used');
     for (const credential of targets.credentials) {
       if (credential.signIn.status === 'recognized' && credential.signIn.binding.provider === provider
-        && credential.signIn.binding.account !== null) addAccount(credential.signIn.binding.account, 'saved');
+        && credential.signIn.binding.account !== null) {
+        addAccount(credential.signIn.binding.account, discoverable(credential.signIn.binding.entry), 'saved');
+      }
     }
-    const providerDomains = SIGN_IN_PROVIDER_ACCOUNT_DOMAINS[provider];
-    const vaultAccounts = metadata.filter((entry) => entry.type === 1 && entry.username
-      && providerDomains.includes(registrableDomain(entry.urlDomain) ?? ''))
-      .map((entry) => normalizeSignInAccount(entry.username!)).filter((value): value is string => value !== null
-        && value.length <= 256)
-      .sort((left, right) => left.localeCompare(right));
-    for (const value of vaultAccounts.slice(0, MAX_VAULT_ACCOUNTS)) addAccount(value, 'vault');
-    addAccount(null, 'none');
+    const vaultAccounts = [...providerAccounts]
+      .filter((candidate) => candidate.account.length <= 256)
+      .sort((left, right) => left.account.localeCompare(right.account));
+    for (const candidate of vaultAccounts.slice(0, MAX_VAULT_ACCOUNTS)) addAccount(candidate.account, candidate.entry, 'vault');
+    addAccount(null, null, 'none');
     const defaultAccountId = preferred === null ? null
-      : [...accounts.entries()].find(([, value]) => sameSignInAccount(value, preferred))?.[0] ?? null;
+      : [...accounts.entries()].find(([, value]) => sameSignInAccount(value.account, preferred))?.[0] ?? null;
 
     const targetMap = new Map<string, SignInWriteTarget>();
     const targetViews: SignInTargetOption[] = [];
@@ -388,7 +424,8 @@ export class FederatedSignInCoordinator {
       targetMap.set(id, { action: 'update', vaultId: credential.vaultId, entryId: credential.entryId, revision: credential.revision });
       targetViews.push({ id, action: 'update', vaultLabel: credential.vaultLabel,
         label: credential.username ? `${credential.label} (${credential.username})` : credential.label,
-        current: credential.signIn.status === 'recognized' ? credential.signIn.binding : null });
+        current: credential.signIn.status === 'recognized'
+          ? { provider: credential.signIn.binding.provider, account: credential.signIn.binding.account } : null });
     }
     let defaultTargetId: string | null = null;
     for (const vault of targets.vaults) {
@@ -419,7 +456,8 @@ export class FederatedSignInCoordinator {
     if (!stored.accounts.has(command.accountId) || !stored.targets.has(command.targetId)) return { status: 'stale' };
     const session = await this.deps.getSession();
     if (!session?.unlocked) return { status: 'prompt', prompt: await this.prompt(source) };
-    const binding: SignInBinding = { provider: flow.provider, account: stored.accounts.get(command.accountId)! };
+    const chosenAccount = stored.accounts.get(command.accountId)!;
+    const binding: SignInBinding = { provider: flow.provider, account: chosenAccount.account, entry: chosenAccount.entry };
     const stillAuthorized = async () => (await this.deps.getSession())?.generation === session.generation
       && this.flows.get(source.tabId) === flow && await this.deps.isCurrentDocument(source);
     try {

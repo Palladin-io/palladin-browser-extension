@@ -22,8 +22,9 @@ function setup(signIn: unknown, reply: (command: WorkspaceCommand) => WorkspaceR
 
 describe('sign-in method in the popup', () => {
   it('shows a remembered provider account and removes it only on an explicit action', async () => {
-    const send = setup({ status: 'recognized', provider: 'google', account: 'work@corp.com' });
+    const send = setup({ status: 'recognized', provider: 'google', account: 'work@corp.com', linked: true, agentVisible: true });
     expect(await screen.findByText('Google · work@corp.com')).toBeVisible();
+    expect(screen.getByText(/Agents can see the provider and which Palladin entry to request, never the account/)).toBeVisible();
     await userEvent.click(screen.getByRole('button', { name: 'Forget sign-in method' }));
     expect(send).toHaveBeenLastCalledWith({ type: 'workspace/sign-in', vaultId, entryId, binding: null, locale: 'en' });
     expect(await screen.findByText('Password or not remembered')).toBeVisible();

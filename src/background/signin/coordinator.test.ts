@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   FEDERATED_SIGNIN_CHANNEL,
+  isFederatedSignInResult,
   type FederatedSignInCommand,
   type SignInPrompt,
 } from '@shared/messaging/federated-signin';
@@ -30,7 +31,8 @@ function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata
     vaults: [{ vaultId: 'vault-1', label: 'Personal', isDefault: true }], credentials: options.credentials ?? [] }));
   const coordinator = new FederatedSignInCoordinator({
     getSession: async () => session,
-    metadata: async () => options.metadata ?? [],
+    providerAccounts: async () => (options.metadata ?? []).map((entry) => ({ account: entry.username!,
+      entry: entry.id.startsWith('hidden') ? null : { vaultId: entry.vaultId, entryId: entry.id } })),
     targets,
     localBindings: async () => options.credentials ?? [],
     save,
@@ -54,8 +56,8 @@ function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata
   };
 }
 
-function googleEntry(username: string) {
-  return { username, urlDomain: 'accounts.google.com' };
+function googleEntry(username: string, id = `g-${username}`) {
+  return { username, urlDomain: 'accounts.google.com', vaultId: 'vault-1', id };
 }
 
 function provider(entry: Partial<EntryMetadata> & { id: string; username: string }): EntryMetadata {
@@ -83,7 +85,7 @@ describe('FederatedSignInCoordinator', () => {
     const result = await h.send({ type: 'confirm', promptId: view.id, accountId: work.id, targetId: view.defaultTargetId!, locale: 'pl' });
     expect(result).toEqual({ status: 'saved', action: 'updated' });
     expect(h.save).toHaveBeenCalledWith('https://app.example.com', { action: 'create', vaultId: 'vault-1' },
-      { provider: 'google', account: 'work@corp.com' }, 'Metoda logowania', expect.any(Function));
+      { provider: 'google', account: 'work@corp.com', entry: { vaultId: 'vault-1', entryId: 'g2' } }, 'Metoda logowania', expect.any(Function));
     expect(await h.prompt()).toBeNull();
   });
 
@@ -171,8 +173,8 @@ describe('FederatedSignInCoordinator', () => {
   });
 
   it('suggests every remembered account for the host and requires an explicit choice', async () => {
-    const work: SignInBinding = { provider: 'google', account: 'work@corp.com' };
-    const personal: SignInBinding = { provider: 'google', account: 'alice@gmail.com' };
+    const work: SignInBinding = { provider: 'google', account: 'work@corp.com', entry: null };
+    const personal: SignInBinding = { provider: 'google', account: 'alice@gmail.com', entry: null };
     const h = harness({ credentials: [
       credential('e1', { status: 'recognized', binding: work, fieldId: 'custom:x' }),
       credential('e2', { status: 'recognized', binding: personal, fieldId: 'custom:y' }),
@@ -215,7 +217,7 @@ describe('FederatedSignInCoordinator', () => {
 
   it('does not prompt again when the exact provider account is already remembered', async () => {
     const h = harness({ credentials: [credential('e1', { status: 'recognized', fieldId: 'custom:x',
-      binding: { provider: 'google', account: 'work@corp.com' } })] });
+      binding: { provider: 'google', account: 'work@corp.com', entry: null } })] });
     h.coordinator.documentConnected(1, SERVICE, undefined);
     h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
     h.coordinator.providerFilled(1, 'https://accounts.google.com/v3/signin/identifier', googleEntry('WORK@corp.com'), 'manual');
@@ -225,7 +227,7 @@ describe('FederatedSignInCoordinator', () => {
 
   it('does not prompt after choosing a remembered provider-only method, but does after switching provider', async () => {
     const h = harness({ credentials: [credential('e1', { status: 'recognized', fieldId: 'custom:x',
-      binding: { provider: 'google', account: null } })] });
+      binding: { provider: 'google', account: null, entry: null } })] });
     h.coordinator.documentConnected(1, SERVICE, undefined);
     const suggested = await h.send({ type: 'suggest' });
     const id = suggested.status === 'suggestions' ? suggested.suggestions[0]!.id : '';
@@ -262,7 +264,7 @@ describe('FederatedSignInCoordinator', () => {
     h.coordinator.documentConnected(1, SERVICE, undefined);
     h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
     h.coordinator.providerFilled(1, 'https://accounts.google.com/v3/signin/identifier',
-      { username: 'octo', urlDomain: 'github.com' }, 'manual');
+      { username: 'octo', urlDomain: 'github.com', vaultId: 'vault-1', id: 'gh-1' }, 'manual');
     h.coordinator.documentConnected(1, SERVICE, undefined);
     const view = (await h.prompt())!;
     expect(view.accounts.map((account) => account.label)).toEqual(['']);
@@ -270,7 +272,7 @@ describe('FederatedSignInCoordinator', () => {
 
   it('does not suppress the prompt when the user switched to another account than the chosen one', async () => {
     const h = harness({ credentials: [credential('e1', { status: 'recognized', fieldId: 'custom:x',
-      binding: { provider: 'google', account: 'work@corp.com' } })] });
+      binding: { provider: 'google', account: 'work@corp.com', entry: null } })] });
     h.coordinator.documentConnected(1, SERVICE, undefined);
     const suggested = await h.send({ type: 'suggest' });
     await h.send({ type: 'choose', suggestionId: suggested.status === 'suggestions' ? suggested.suggestions[0]!.id : '' });
@@ -310,6 +312,54 @@ describe('FederatedSignInCoordinator', () => {
     expect(view.site).toBe('app.example.com');
     await h.send({ type: 'confirm', promptId: view.id, accountId: view.accounts[0]!.id, targetId: view.targets[0]!.id, locale: 'en' }, from);
     expect(h.save).toHaveBeenCalledWith('https://app.example.com', expect.anything(), expect.anything(), 'Sign-in method', expect.any(Function));
+  });
+
+
+  it('links only a discoverable provider Credential and never a hidden one', async () => {
+    const h = harness({ metadata: [provider({ id: 'hidden-g1', username: 'private@gmail.com' }), provider({ id: 'g2', username: 'work@corp.com' })] });
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    const view = (await h.prompt())!;
+    const hidden = view.accounts.find((account) => account.label === 'private@gmail.com')!;
+    await h.send({ type: 'confirm', promptId: view.id, accountId: hidden.id, targetId: view.defaultTargetId!, locale: 'en' });
+    expect(h.save).toHaveBeenLastCalledWith(expect.anything(), expect.anything(),
+      { provider: 'google', account: 'private@gmail.com', entry: null }, 'Sign-in method', expect.any(Function));
+  });
+
+  it('ranks the exact chosen provider Entry even when two Credentials share the username', async () => {
+    const chosenEntry = { vaultId: 'vault-2', entryId: 'g-team' };
+    const h = harness({ credentials: [credential('e1', { status: 'recognized', fieldId: 'custom:x',
+      binding: { provider: 'google', account: 'shared@corp.com', entry: chosenEntry } })] });
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    const suggested = await h.send({ type: 'suggest' });
+    await h.send({ type: 'choose', suggestionId: suggested.status === 'suggestions' ? suggested.suggestions[0]!.id : '' });
+    h.coordinator.documentConnected(1, 'https://accounts.google.com/v3/signin/identifier?x=1', undefined);
+    const candidates = [provider({ id: 'g-personal', username: 'shared@corp.com' }),
+      provider({ id: 'g-team', vaultId: 'vault-2', username: 'shared@corp.com' })];
+    expect(h.coordinator.preferredProviderEntry(1, 'https://accounts.google.com/v3/signin/identifier', candidates)?.id).toBe('g-team');
+  });
+
+  it('returns the same prompt to concurrent refreshes of one document', async () => {
+    const h = harness({ metadata: [provider({ id: 'g1', username: 'alice@gmail.com' })] });
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    const [first, second] = await Promise.all([h.prompt(), h.prompt()]);
+    expect(first!.id).toBe(second!.id);
+    expect(first!.accounts.map((account) => account.id)).toEqual(second!.accounts.map((account) => account.id));
+    expect(h.targets).toHaveBeenCalledTimes(1);
+  });
+
+  it('produces a prompt the content guard accepts when a target already has a linked method', async () => {
+    const h = harness({ credentials: [credential('e1', { status: 'recognized', fieldId: 'custom:x',
+      binding: { provider: 'google', account: 'work@corp.com', entry: { vaultId: 'vault-1', entryId: 'g2' } } })] });
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    h.coordinator.documentConnected(1, 'https://github.com/login/oauth/authorize?client_id=x', undefined);
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    const result = await h.send({ type: 'get' });
+    expect(isFederatedSignInResult(result)).toBe(true);
+    expect(JSON.stringify(result)).not.toContain('g2');
   });
 
   it('rejects forged, stale and cross-document confirmations', async () => {

@@ -155,7 +155,7 @@ export interface EntryFieldView {
 }
 export type EntrySignInView =
   | { status: 'absent' | 'unrecognized' | 'ambiguous' | 'unsupported' }
-  | { status: 'recognized'; provider: SignInProvider; account: string | null };
+  | { status: 'recognized'; provider: SignInProvider; account: string | null; linked: boolean; agentVisible: boolean };
 export interface GrantReview {
   reason: string;
   grant: OrgGrant;
