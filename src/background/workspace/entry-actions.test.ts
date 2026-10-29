@@ -154,8 +154,10 @@ function mockGrantRequests(request: ReturnType<typeof setup>['request']) {
       encodedSealedKeyPackage: 'AA',
     },
   };
-  request.mockImplementation(async (path) =>
-    path.endsWith(`/grants/${grantId}`)
+  // Mirrors the request layer, which runs `beforeSend` immediately before each fetch.
+  request.mockImplementation(async (path, _method, _body, beforeSend) => {
+    beforeSend?.();
+    return path.endsWith(`/grants/${grantId}`)
       ? {
           id: grantId,
           vaultId,
@@ -172,8 +174,8 @@ function mockGrantRequests(request: ReturnType<typeof setup>['request']) {
         ? { agentId, publicKey: 'AA', recipientKeyVersion: 3, accessEpoch: 2 }
         : path.endsWith(`/entries/${entryId}`)
           ? { currentRevision: '4' }
-          : null,
-  );
+          : null;
+  });
   return reason;
 }
 
@@ -375,6 +377,7 @@ describe('encrypted workspace operations', () => {
         queryLimit: 3,
         fieldSelectionMode: 'selected',
       }),
+      expect.any(Function),
     );
     request.mockClear();
     cryptoMocks.openEncryptedReason.mockRejectedValue(
@@ -415,7 +418,7 @@ describe('encrypted workspace operations', () => {
     expect(cryptoMocks.buildCanonicalGrantEnvelope).not.toHaveBeenCalled();
   });
 
-  it.each(['before building the envelope', 'before submitting'])('rejects an approval when a concurrent operation raises the floor %s', async (boundary) => {
+  it.each(['before building the envelope', 'before submitting', 'while the request layer authenticates'])('rejects an approval when a concurrent operation raises the floor %s', async (boundary) => {
     const { actions, operation, request, client, keyEpochFloor } = setup();
     mockGrantRequests(request);
     const vault = await client.getVault();
@@ -423,6 +426,14 @@ describe('encrypted workspace operations', () => {
       currentKeyEpoch: { ...vault.currentKeyEpoch, vaultKeyVersion: 2 } }, async () => undefined);
     if (boundary === 'before submitting') {
       cryptoMocks.buildCanonicalGrantEnvelope.mockImplementationOnce(async () => { await raise(); return { ciphertext: 'synthetic' }; });
+    } else if (boundary === 'while the request layer authenticates') {
+      const original = request.getMockImplementation()!;
+      request.mockImplementation(async (path, method, body, beforeSend) => {
+        if (method !== 'PUT') return original(path, method, body);
+        await raise();
+        beforeSend?.();
+        return null;
+      });
     } else {
       const original = request.getMockImplementation()!;
       request.mockImplementation(async (path, ...rest) => {
@@ -433,8 +444,9 @@ describe('encrypted workspace operations', () => {
     await expect(actions.handle({ type: 'workspace/approve-grant', vaultId, grantId, entryId, revision: '4',
       methods: 4, fields: ['credential.password'], selection: 'selected', policy: { kind: 'lifetime' } }, operation))
       .rejects.toMatchObject({ code: 'decrypt-failed' });
-    if (boundary !== 'before submitting') expect(cryptoMocks.buildCanonicalGrantEnvelope).not.toHaveBeenCalled();
-    expect(request.mock.calls.some((call) => call[1] === 'PUT')).toBe(false);
+    if (boundary === 'before building the envelope') expect(cryptoMocks.buildCanonicalGrantEnvelope).not.toHaveBeenCalled();
+    const put = request.mock.calls.findIndex((call) => call[1] === 'PUT');
+    expect(put === -1 || request.mock.settledResults[put]?.type === 'rejected').toBe(true);
   });
 
   it('keeps reviewing a grant read-only below the Vault key epoch floor', async () => {

@@ -430,7 +430,6 @@ export class EntryActions {
         )) as { currentRevision: string };
         if (latest.currentRevision !== command.revision)
           throw new WorkspaceError('conflict');
-        assertEpoch();
         await operation.request(
           `/api/vaults/${command.vaultId}/grants/${command.grantId}/approve`,
           'PUT',
@@ -441,6 +440,7 @@ export class EntryActions {
               .filter((_, index) => command.methods & (1 << index))
               .join(', '),
           },
+          assertEpoch,
         );
         return { ok: true, data: null };
       },

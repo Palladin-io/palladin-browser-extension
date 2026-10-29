@@ -14,6 +14,7 @@ import type {
   OfflineAccessContext,
 } from './contracts'
 import { VaultKeyEpochFloor } from './key-epoch-floor'
+import { VaultClientError } from '../transport'
 import { Protocol2VaultDataService, type Protocol2SessionAccessor } from './service'
 import { sharedCopySecret } from '../shared-copy'
 
@@ -1178,6 +1179,28 @@ describe('Vault key epoch floor raised during a canonical write', () => {
     expect(client.updateEntry).not.toHaveBeenCalled()
     expect(client.deleteEntry).not.toHaveBeenCalled()
   })
+})
+
+it.each(['create', 'update', 'delete'] as const)('rechecks the floor before retrying a canonical %s after token refresh', async (write) => {
+  const keyEpochFloor = new VaultKeyEpochFloor()
+  const { service, client, session } = harness([head], undefined, undefined, keyEpochFloor)
+  await service.refresh()
+  const submit = { create: client.createEntry, update: client.updateEntry, delete: client.deleteEntry }[write] as ReturnType<typeof vi.fn>
+  submit.mockRejectedValueOnce(new VaultClientError('unauthorized', 'expired'))
+  session.refreshAccessToken = async () => {
+    await keyEpochFloor.observe(USER_ID, { ...vault, memberKeyGeneration: 2,
+      currentKeyEpoch: { ...vault.currentKeyEpoch, vaultKeyVersion: 2 } }, async () => undefined)
+    return 'refreshed'
+  }
+  const run = write === 'create'
+    ? service.saveGeneratedPassword({ kind: 'registration', site: 'example.com',
+      url: 'https://accounts.example.com/register', password: 'generated-password' })
+    : write === 'update'
+      ? service.saveGeneratedPassword({ kind: 'password-change', site: 'example.com',
+        url: 'https://accounts.example.com/change-password', password: 'next-password' })
+      : service.deleteEntry(VAULT_ID, ENTRY_ID)
+  await expect(run).rejects.toMatchObject({ code: 'decrypt-failed' })
+  expect(submit).toHaveBeenCalledOnce()
 })
 
 describe('Entry deletion', () => {

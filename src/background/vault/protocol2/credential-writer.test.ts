@@ -6,6 +6,7 @@ import type { CredentialWriterDeps } from './credential-writer'
 import type { CredentialWriteTarget } from '../../capture/credential-coordinator'
 import type { EntryGrantContext } from './grant-context'
 import { VaultKeyEpochFloor } from './key-epoch-floor'
+import { VaultClientError } from '../transport'
 
 const cryptoMocks = vi.hoisted(() => ({
   openVaultProjection: vi.fn(), openCurrentMemberSecret: vi.fn(), openVaultDerivedEnvelope: vi.fn(),
@@ -369,6 +370,19 @@ describe('captured Credential canonical writer', () => {
       await expect(writer.save(credential, url, selected, authorized)).rejects.toMatchObject({ code: 'decrypt-failed' })
       expect(client.createEntry).not.toHaveBeenCalled()
       expect(client.updateEntry).not.toHaveBeenCalled()
+    })
+    it.each(['create', 'update'] as const)('rechecks the floor before retrying a %s after token refresh', async (action) => {
+      const selected = action === 'create' ? create : target
+      const submit = action === 'create' ? client.createEntry : client.updateEntry
+      submit.mockRejectedValueOnce(new VaultClientError('unauthorized', 'expired'))
+      client.getVault.mockResolvedValueOnce(projection(1))
+      writer = new Protocol2CredentialWriter({ client, data, canWrite, keyEpochFloor,
+        session: { getUserId: async () => USER, getPrivateKey: () => privateKey, getAccessToken: async () => 'token',
+          refreshAccessToken: async () => { await keyEpochFloor.observe(USER, projection(2), async () => undefined); return 'refreshed' } },
+      } as unknown as CredentialWriterDeps)
+
+      await expect(writer.save(credential, url, selected, authorized)).rejects.toMatchObject({ code: 'decrypt-failed' })
+      expect(submit).toHaveBeenCalledOnce()
     })
     it('keeps floors separate per Vault and per account', async () => {
       client.getVault.mockResolvedValueOnce(projection(2))

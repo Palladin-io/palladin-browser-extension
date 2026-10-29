@@ -19,7 +19,8 @@ export interface WorkspaceSession {
 export interface WorkspaceOperation {
   signal: AbortSignal;
   assertCurrent(): void;
-  request(path: string, method: string, body?: object): Promise<unknown>;
+  /** `beforeSend` runs immediately before every fetch, including the retry after a token refresh. */
+  request(path: string, method: string, body?: object, beforeSend?: () => void): Promise<unknown>;
 }
 export interface WorkspaceDependencies {
   actions?: {
@@ -80,9 +81,9 @@ export class WorkspaceService {
       const action = await this.deps.actions?.handle(command, {
         assertCurrent,
         signal: controller.signal,
-        request: async (path, method, body) => {
+        request: async (path, method, body, beforeSend) => {
           assertCurrent();
-          const result = await this.request(path, method, body);
+          const result = await this.request(path, method, body, beforeSend);
           assertCurrent();
           return result;
         },
@@ -192,6 +193,7 @@ export class WorkspaceService {
     path: string,
     method: string,
     body?: object,
+    beforeSend?: () => void,
   ): Promise<unknown> {
     const keys = this.deps.session.getKeys();
     const apiUrl = this.deps.apiUrl();
@@ -212,6 +214,7 @@ export class WorkspaceService {
       assertCurrent();
       for (let attempt = 0; attempt < 2; attempt++) {
         if (!token) throw new WorkspaceError('locked');
+        beforeSend?.();
         const response = await this.deps.fetch(
           `${apiUrl.replace(/\/$/, '')}${path}`,
           {
