@@ -92,6 +92,7 @@ describe('provider authorization endpoints', () => {
   it.each([
     ['https://accounts.google.com/o/oauth2/v2/auth?client_id=x', 'google'],
     ['https://accounts.google.com/v3/signin/identifier?continue=x', 'google'],
+    ['https://accounts.google.com/gsi/select?client_id=x&ux_mode=popup', 'google'],
     ['https://appleid.apple.com/auth/authorize?client_id=x', 'apple'],
     ['https://login.microsoftonline.com/common/oauth2/v2.0/authorize?x=1', 'microsoft'],
     ['https://login.live.com/oauth20_authorize.srf?x=1', 'microsoft'],
@@ -110,6 +111,7 @@ describe('provider authorization endpoints', () => {
     'https://user:pass@accounts.google.com/o/oauth2/v2/auth',
     'https://accounts.google.com:8443/o/oauth2/v2/auth',
     'https://mail.google.com/mail',
+    'https://accounts.google.com/gsi/client',
     'https://github.com/login',
     'https://github.com/settings',
     'https://www.facebook.com/login.php',

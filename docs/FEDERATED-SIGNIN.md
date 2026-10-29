@@ -47,7 +47,8 @@ Helpers: `src/shared/signin/binding.ts` (parse/write) and
 - The browser-authored top-frame URL of every document registered by the
   content Port (`port.sender.url`) and `tab.openerTabId` for popups. Provider
   identity comes only from exact HTTPS authorization endpoints
-  (`accounts.google.com/o/oauth2/...`, `appleid.apple.com/auth/authorize`,
+  (`accounts.google.com/o/oauth2/...` and the GIS popup `accounts.google.com/gsi/select`,
+  `appleid.apple.com/auth/authorize`,
   `login.microsoftonline.com/<tenant>/oauth2/.../authorize`,
   `login.live.com/oauth20_authorize.srf`, `github.com/login/oauth/authorize`,
   `www.facebook.com/<version>/dialog/oauth`). Lookalike hosts, ports, userinfo

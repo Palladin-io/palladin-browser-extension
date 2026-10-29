@@ -51,7 +51,7 @@ export function classifyProviderUrl(raw: string): ProviderPage | null {
   const page = (provider: SignInProvider): ProviderPage => ({ provider, authorizationRequest: false });
   switch (host) {
     case 'accounts.google.com':
-      if (/^\/o\/oauth2\//.test(path)) return request('google');
+      if (/^\/(?:o\/oauth2\/|gsi\/select(?:\/|$))/.test(path)) return request('google');
       return /^\/(?:signin\/oauth|v3\/signin\/|AccountChooser|ServiceLogin)/.test(path) ? page('google') : null;
     case 'appleid.apple.com':
       return /^\/auth\/(?:oauth2\/(?:v2\/)?)?authorize(?:\/|$)/.test(path) ? request('apple') : null;
