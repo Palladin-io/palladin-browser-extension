@@ -19,6 +19,14 @@ encrypted Entry sharing and organization logs. It is not release-ready: the
 additive shared SDK API must first be reviewed and released, then pinned from the
 registry with a clean-install build. See [workspace implementation and validation](EXTENSION-WORKSPACE.md).
 
+## Federated sign-in methods in review
+
+Remembering an external service's "Continue with Google/Apple/Microsoft/GitHub/
+Facebook" method and provider account is implemented with synthetic Chromium
+acceptance. Real-provider acceptance remains open; Firefox and Safari are
+unsupported until their sender gate has a document identity. See
+[federated sign-in methods](FEDERATED-SIGNIN.md).
+
 ## Shared unlock implementation in progress (CVT-583)
 
 The common Popup/Side Panel Settings surface now reads/writes the one Identity

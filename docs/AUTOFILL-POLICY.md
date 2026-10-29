@@ -86,6 +86,12 @@ The preference is held only in service-worker memory and is cleared on lock. It
 must never be persisted because that would create a plaintext host-to-Entry
 history outside the encrypted Vault.
 
+During an active federated sign-in flow, a provider account that the user
+explicitly chose from a remembered sign-in method ranks before step 1 on the
+provider's own sign-in page in that tab or its popup. It promotes exactly one
+exact-host candidate with the same username; it never adds a host, overwrites a
+value or submits. See [FEDERATED-SIGNIN.md](FEDERATED-SIGNIN.md).
+
 ## Non-negotiable gates
 
 - top-frame origin and browser-authored sender identity; only Apple's

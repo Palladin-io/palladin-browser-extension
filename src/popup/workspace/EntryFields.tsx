@@ -2,7 +2,8 @@ import { EntryTotpField } from './EntryTotpField';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { PopupIcon } from '../components/PopupIcon';
 import { useEffect, useRef, useState } from 'react';
-import type { EntryFieldView } from '../../shared/workspace/commands';
+import type { EntryFieldView, EntrySignInView } from '../../shared/workspace/commands';
+import { SignInMethodField } from './SignInMethodField';
 import type { WorkspaceClient } from './client';
 import type { VaultClient } from '../vault/client';
 import { useI18n, type TranslationKey } from '../i18n';
@@ -38,6 +39,7 @@ export function EntryFields({
   const { t } = useI18n();
   const [loading, setLoading] = useState(true);
   const [fields, setFields] = useState<EntryFieldView[]>([]);
+  const [signIn, setSignIn] = useState<EntrySignInView | null>(null);
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [error, setError] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
@@ -49,7 +51,9 @@ export function EntryFields({
     void client
       .send({ type: 'workspace/detail', vaultId, entryId })
       .then((result) => {
-        if (active.current) setFields(result.fields);
+        if (!active.current) return;
+        setFields(result.fields);
+        setSignIn(result.signIn ?? null);
       })
       .catch(() => {
         if (active.current) setError(true);
@@ -153,6 +157,9 @@ export function EntryFields({
             </div>
           ))}
       </div>
+      {signIn ? (
+        <SignInMethodField client={client} vaultId={vaultId} entryId={entryId} view={signIn} onChanged={setSignIn} />
+      ) : null}
       {error ? <p role="alert">{t('workspace.error')}</p> : null}
     </>
   );

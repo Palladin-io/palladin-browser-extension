@@ -55,6 +55,8 @@ import { FIREFOX_LEGACY_FILL_PORT } from "../../shared/messaging/firefox-legacy-
 import { startLegacyFirefoxFill } from "./firefox-legacy-fill";
 import { startShareSaveBridge } from './share-save';
 import { sharePageRequest } from '../../shared/messaging/share-save';
+import { isFederatedSignInRefresh } from '../../shared/messaging/federated-signin';
+import { startFederatedSignIn } from './federated-signin';
 
 const sessionNonce = generateNonce();
 const documentId = generateNonce();
@@ -125,11 +127,17 @@ const generatorSuggestion = window.top === window && window.location.protocol ==
 passwordCapture.controller.trustOverlay(element => generatorSuggestion?.isOwnedSurface(element) ?? false);
 let credentialCapture = window.top === window && window.location.protocol === "https:"
   ? startCredentialCapture(document, documentId) : null;
+const startTopFrameSignIn = () => window.top === window && window.location.protocol === "https:"
+  ? startFederatedSignIn(document, documentId, (element) => (inlineAutofill?.isOwnedSurface(element) ?? false)
+    || (generatorSuggestion?.isOwnedSurface(element) ?? false)
+    || (credentialCapture?.isOwnedSurface(element) ?? false)) : null;
+let federatedSignIn = startTopFrameSignIn();
 const agentInjectDom = createAgentInjectDomAccess(
   document,
   (element) => (inlineAutofill?.isOwnedSurface(element) ?? false)
     || (generatorSuggestion?.isOwnedSurface(element) ?? false)
-    || (credentialCapture?.isOwnedSurface(element) ?? false),
+    || (credentialCapture?.isOwnedSurface(element) ?? false)
+    || (federatedSignIn?.isOwnedSurface(element) ?? false),
 );
 
 const liveLogin = new LiveLogin(document, documentId, () => window.location.href, () => agentLoginFrameAllowed(window), agentInjectDom);
@@ -184,6 +192,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.status !== "unlocked") generatorSuggestion?.hide();
     }
     if (message.type === "surface/session-changed") void credentialCapture?.refresh();
+    if (message.type === "surface/session-changed") federatedSignIn?.sessionChanged(message.status === "unlocked");
+    return undefined;
+  }
+  if (isFederatedSignInRefresh(message)) {
+    if (_sender.id === chrome.runtime.id && _sender.tab === undefined) federatedSignIn?.refreshPrompt();
     return undefined;
   }
   if (isTabUrlRequestMessage(message)) {
@@ -261,12 +274,14 @@ window.addEventListener("pageshow", (event: PageTransitionEvent) => {
     port.reconnect();
     if (window.top === window && window.location.protocol === "https:") {
       credentialCapture = startCredentialCapture(document, documentId);
+      federatedSignIn = startTopFrameSignIn();
     }
   }
 });
 
 window.addEventListener("pagehide", () => sessionKeepalive.stop());
 window.addEventListener("pagehide", () => { credentialCapture?.stop(); credentialCapture = null; });
+window.addEventListener("pagehide", () => { federatedSignIn?.stop(); federatedSignIn = null; });
 window.addEventListener("unload", () => inlineAutofill?.stop(), { once: true });
 window.addEventListener('unload', () => generatorSuggestion?.stop(), { once: true });
 

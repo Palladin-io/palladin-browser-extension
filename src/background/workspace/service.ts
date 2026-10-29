@@ -134,6 +134,7 @@ export class WorkspaceService {
       case 'workspace/review-grant':
       case 'workspace/approve-grant':
       case 'workspace/detail':
+      case 'workspace/sign-in':
       case 'workspace/field':
       case 'workspace/create-share':
       case 'workspace/discard-share':
