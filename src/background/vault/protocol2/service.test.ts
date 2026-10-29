@@ -13,6 +13,7 @@ import type {
   MemberVaultKeyEnvelope,
   OfflineAccessContext,
 } from './contracts'
+import { VaultKeyEpochFloor } from './key-epoch-floor'
 import { Protocol2VaultDataService, type Protocol2SessionAccessor } from './service'
 import { sharedCopySecret } from '../shared-copy'
 
@@ -136,6 +137,7 @@ function harness(
   items: MemberSyncItem[] = [],
   now: () => number = () => 0,
   monotonicNow: () => number = () => 0,
+  keyEpochFloor = new VaultKeyEpochFloor(),
 ) {
   const active: ActiveCacheState = {
     namespace: 'active',
@@ -214,6 +216,7 @@ function harness(
     client: client as unknown as Protocol2VaultClient,
     cache: cache as unknown as MemberSyncCache,
     session,
+    keyEpochFloor,
     now,
     monotonicNow,
   })
@@ -1116,6 +1119,30 @@ describe('Protocol2VaultDataService canonical password capture', () => {
   })
 })
 
+describe('Vault key epoch floor on canonical writes', () => {
+  const writes = {
+    create: (service: Protocol2VaultDataService) => service.saveGeneratedPassword({ kind: 'registration',
+      site: 'example.com', url: 'https://accounts.example.com/register', password: 'generated-password' }),
+    update: (service: Protocol2VaultDataService) => service.saveGeneratedPassword({ kind: 'password-change',
+      site: 'example.com', url: 'https://accounts.example.com/change-password', password: 'next-password' }),
+    delete: (service: Protocol2VaultDataService) => service.deleteEntry(VAULT_ID, ENTRY_ID),
+  }
+
+  it.each(Object.keys(writes) as (keyof typeof writes)[])('rejects a %s sealed under an epoch older than one opened this session', async (write) => {
+    const keyEpochFloor = new VaultKeyEpochFloor()
+    await keyEpochFloor.observe(USER_ID, { ...vault, memberKeyGeneration: 2,
+      currentKeyEpoch: { ...vault.currentKeyEpoch, vaultKeyVersion: 2 } }, async () => undefined)
+    const { service, client } = harness([head], undefined, undefined, keyEpochFloor)
+    await service.refresh()
+
+    await expect(writes[write](service)).rejects.toMatchObject({ code: 'decrypt-failed' })
+    expect(cryptoMocks.sealCanonicalEntry).not.toHaveBeenCalled()
+    expect(cryptoMocks.sealCurrentCanonicalEntry).not.toHaveBeenCalled()
+    expect(client.createEntry).not.toHaveBeenCalled()
+    expect(client.updateEntry).not.toHaveBeenCalled()
+    expect(client.deleteEntry).not.toHaveBeenCalled()
+  })
+})
 
 describe('Entry deletion', () => {
   it('sends a recoverable encrypted deleted revision bound to the requested Entry', async () => {

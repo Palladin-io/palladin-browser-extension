@@ -23,6 +23,7 @@ import { VaultClientError } from '../transport'
 import { Protocol2MutationConflictError, type Protocol2VaultClient, type UpdateCanonicalEntryRequest } from './client'
 import type { EncryptedVaultSummary } from './contracts'
 import type { EntryGrantContext } from './grant-context'
+import type { VaultKeyEpochFloor } from './key-epoch-floor'
 import type { Protocol2SessionAccessor, Protocol2VaultDataService } from './service'
 
 type EntryDetail = Awaited<ReturnType<Protocol2VaultClient['getEntry']>>
@@ -31,6 +32,7 @@ export interface CredentialWriterDeps {
   readonly client: Protocol2VaultClient
   readonly session: Protocol2SessionAccessor
   readonly data: Pick<Protocol2VaultDataService, 'refresh' | 'getMetadata'>
+  readonly keyEpochFloor: VaultKeyEpochFloor
   canWrite(): Promise<boolean>
 }
 
@@ -51,7 +53,8 @@ export class Protocol2CredentialWriter {
     let personalIndex: number | null = null
     for (const listed of vaults) {
       const vault = await this.withAuth((token) => this.deps.client.getVault(token, listed.id))
-      const opened = await openVaultProjection(vault, privateKey, userId)
+      const opened = await this.deps.keyEpochFloor.observe(userId, vault,
+        () => openVaultProjection(vault, privateKey, userId))
       try {
         if (vault.isDefault) personalIndex = targets.length
         targets.push({ action: 'create', vaultId: vault.id, label: opened.metadata.name, vaultLabel: opened.metadata.name })
@@ -90,7 +93,8 @@ export class Protocol2CredentialWriter {
     const { privateKey, userId } = await this.context()
     if (!(await this.deps.canWrite()) || !(await stillAuthorized())) throw new VaultDataError('locked', 'Capture authorization changed')
     const vault = await this.withAuth((token) => this.deps.client.getVault(token, target.vaultId))
-    const opened = await openVaultProjection(vault, privateKey, userId)
+    const opened = await this.deps.keyEpochFloor.openForWrite(userId, vault,
+      () => openVaultProjection(vault, privateKey, userId))
     let discoveryKey: Uint8Array | undefined
     const authorized = async () => this.deps.session.getPrivateKey() === privateKey
       && await this.deps.session.getUserId() === userId && await stillAuthorized()

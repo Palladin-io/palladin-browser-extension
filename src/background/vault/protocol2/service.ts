@@ -50,6 +50,7 @@ import type {
   MemberVaultKeyEnvelope,
   OfflineAccessContext,
 } from './contracts'
+import type { VaultKeyEpochFloor } from './key-epoch-floor'
 
 const CACHE_PAGE_SIZE = 200
 const MAXIMUM_CLOCK_ROLLBACK_MS = 5 * 60_000
@@ -135,6 +136,7 @@ export interface Protocol2VaultDataServiceDeps {
   readonly client: Protocol2VaultClient
   readonly cache: MemberSyncCache
   readonly session: Protocol2SessionAccessor
+  readonly keyEpochFloor: VaultKeyEpochFloor
   readonly createNamespace?: () => string
   readonly now?: () => number
   readonly monotonicNow?: () => number
@@ -326,10 +328,10 @@ export class Protocol2VaultDataService implements VaultDataSource {
         this.currentVaults.set(vaultId, initialActive.vault)
         let vaultName: string
         try {
-          const opened = await openProjectionVault({
+          const opened = await this.deps.keyEpochFloor.observe(userId, initialActive.vault, () => openProjectionVault({
             ...initialActive.vault,
             memberVaultKey: initialActive.memberVaultKey,
-          }, privateKey, userId)
+          }, privateKey, userId))
           vaultKey = opened.vaultKey
           vaultName = opened.metadata.name
         } catch {
@@ -418,10 +420,10 @@ export class Protocol2VaultDataService implements VaultDataSource {
     try {
       this.validateActiveState(cached.active, userId, this.now())
       validateCompleteItem(cached.item, cached.active)
-      vaultKey = await openProjectionVaultKey({
+      vaultKey = await this.deps.keyEpochFloor.observe(userId, cached.active.vault, () => openProjectionVaultKey({
         ...cached.active.vault,
         memberVaultKey: cached.active.memberVaultKey,
-      }, privateKey, userId)
+      }, privateKey, userId))
       return await open(cached.item.entryKey, cached.item.memberSecret, vaultKey, {
         organizationId: cached.active.accessContext.organizationId,
         vaultId,
@@ -504,7 +506,8 @@ export class Protocol2VaultDataService implements VaultDataSource {
         let vaultKey: Uint8Array | null = null
         let discoveryKey: Uint8Array | null = null
         try {
-          vaultKey = await openProjectionVaultKey(vault, privateKey, userId)
+          vaultKey = await this.deps.keyEpochFloor.openForWrite(userId, vault,
+            () => openProjectionVaultKey(vault, privateKey, userId))
           const secret = await openCurrentMemberSecret(detail.entryKey, detail.memberSecret, vaultKey, {
             organizationId: vault.organizationId,
             vaultId,
@@ -596,7 +599,8 @@ export class Protocol2VaultDataService implements VaultDataSource {
     if (!privateKey || !userId) throw new VaultDataError('locked', 'Session is locked')
     const options: { id: string; name: string }[] = []
     for (const vault of this.currentVaults.values()) {
-      const opened = await openProjectionVault({ ...vault, memberVaultKey: vault.memberVaultKey }, privateKey, userId)
+      const opened = await this.deps.keyEpochFloor.observe(userId, vault,
+        () => openProjectionVault({ ...vault, memberVaultKey: vault.memberVaultKey }, privateKey, userId))
       try { options.push({ id: vault.id, name: opened.metadata.name }) }
       finally { wipe(opened.vaultKey) }
     }
@@ -647,7 +651,8 @@ export class Protocol2VaultDataService implements VaultDataSource {
     let vaultKey: Uint8Array | null = null
     let discoveryKey: Uint8Array | null = null
     try {
-      vaultKey = await openProjectionVaultKey(vault, privateKey, userId)
+      vaultKey = await this.deps.keyEpochFloor.openForWrite(userId, vault,
+        () => openProjectionVaultKey(vault, privateKey, userId))
       discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, vaultKey)
       const coordinates = {
         organizationId: vault.memberVaultKey.wrappedVaultKey.descriptor.scope.organizationId,
@@ -701,7 +706,8 @@ export class Protocol2VaultDataService implements VaultDataSource {
     let vaultKey: Uint8Array | null = null
     let discoveryKey: Uint8Array | null = null
     try {
-      vaultKey = await openProjectionVaultKey(vault, privateKey, userId)
+      vaultKey = await this.deps.keyEpochFloor.openForWrite(userId, vault,
+        () => openProjectionVaultKey(vault, privateKey, userId))
       discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, vaultKey)
       const previous = await openMemberSecret(detail.entryKey, detail.memberSecret, vaultKey, {
         organizationId: detail.organizationId,

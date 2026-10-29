@@ -5,6 +5,7 @@ import { Protocol2CredentialWriter } from './credential-writer'
 import type { CredentialWriterDeps } from './credential-writer'
 import type { CredentialWriteTarget } from '../../capture/credential-coordinator'
 import type { EntryGrantContext } from './grant-context'
+import { VaultKeyEpochFloor } from './key-epoch-floor'
 
 const cryptoMocks = vi.hoisted(() => ({
   openVaultProjection: vi.fn(), openCurrentMemberSecret: vi.fn(), openVaultDerivedEnvelope: vi.fn(),
@@ -40,6 +41,7 @@ const grant: EntryGrantContext = {
 describe('captured Credential canonical writer', () => {
   let writer: Protocol2CredentialWriter
   let privateKey: Uint8Array | null
+  let keyEpochFloor: VaultKeyEpochFloor
   const client = {
     listVaults: vi.fn(), getVault: vi.fn(), getEntry: vi.fn(), getActiveGrants: vi.fn(),
     issueEntryCreationChallenge: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), resolveWebsiteIcon: vi.fn(),
@@ -71,8 +73,9 @@ describe('captured Credential canonical writer', () => {
     cryptoMocks.sealCanonicalScriptExecutionPackage.mockResolvedValue({ ciphertext: 'script-package' })
     canWrite.mockResolvedValue(true)
     authorized.mockResolvedValue(true)
+    keyEpochFloor = new VaultKeyEpochFloor()
     writer = new Protocol2CredentialWriter({
-      client, data, canWrite, session: { getUserId: async () => USER, getPrivateKey: () => privateKey,
+      client, data, canWrite, keyEpochFloor, session: { getUserId: async () => USER, getPrivateKey: () => privateKey,
         getAccessToken: async () => 'token', refreshAccessToken: async () => 'refreshed' },
     } as unknown as CredentialWriterDeps)
   })
@@ -275,5 +278,94 @@ describe('captured Credential canonical writer', () => {
       finishRefresh()
       await saving
     }
+  })
+
+  describe('Vault key epoch floor', () => {
+    const create: CredentialWriteTarget = { action: 'create', vaultId: VAULT, label: 'Personal', vaultLabel: 'Personal' }
+    const registration = { kind: 'registration' as const, username: 'alice', password: 'captured', previousPassword: null }
+    const projection = (epoch: number) => ({ id: VAULT, organizationId: ORG, isDefault: true,
+      currentKeyEpoch: { vaultKeyVersion: epoch, vdkVersion: epoch, manifestSigningKeyVersion: 2 },
+      memberKeyGeneration: epoch, discoveryKey: {}, vaultPrivateKeys: [] })
+    const sealedEpochs = () => cryptoMocks.sealCanonicalCredentialEntry.mock.calls
+      .map(([coordinates]) => coordinates.vaultKeyVersion)
+
+    it.each(['create', 'update'] as const)('rejects a replayed older epoch before opening its key or sealing on %s', async (action) => {
+      const selected = action === 'create' ? create : target
+      client.getVault.mockResolvedValueOnce(projection(2))
+      await writer.save(credential, url, selected, authorized)
+      client.getVault.mockResolvedValueOnce(projection(1))
+
+      await expect(writer.save(credential, url, selected, authorized)).rejects.toMatchObject({ code: 'decrypt-failed' })
+      expect(cryptoMocks.openVaultProjection).toHaveBeenCalledTimes(1)
+      expect(sealedEpochs()).toEqual([2])
+      expect(action === 'create' ? client.createEntry : client.updateEntry).toHaveBeenCalledTimes(1)
+    })
+    it('rejects a replayed older member key generation at the same Vault key version', async () => {
+      client.getVault.mockResolvedValueOnce(projection(2))
+      await writer.save(registration, url, create, authorized)
+      client.getVault.mockResolvedValueOnce({ ...projection(2), memberKeyGeneration: 1 })
+
+      await expect(writer.save(registration, url, create, authorized)).rejects.toMatchObject({ code: 'decrypt-failed' })
+      expect(client.createEntry).toHaveBeenCalledTimes(1)
+    })
+    it('raises the floor from a Vault opened while preparing capture choices', async () => {
+      client.getVault.mockResolvedValueOnce(projection(2))
+      await writer.choices(registration, url)
+      client.getVault.mockResolvedValueOnce(projection(1))
+
+      await expect(writer.save(registration, url, create, authorized)).rejects.toMatchObject({ code: 'decrypt-failed' })
+      expect(client.createEntry).not.toHaveBeenCalled()
+    })
+    it('accepts a rising epoch and does not raise the floor from a projection that failed to open', async () => {
+      client.getVault.mockResolvedValueOnce(projection(2))
+      await writer.save(registration, url, create, authorized)
+      client.getVault.mockResolvedValueOnce(projection(4))
+      cryptoMocks.openVaultProjection.mockRejectedValueOnce(new Error('wrapper'))
+      await expect(writer.save(registration, url, create, authorized)).rejects.toThrow('wrapper')
+      client.getVault.mockResolvedValueOnce(projection(3))
+
+      await writer.save(registration, url, create, authorized)
+      expect(sealedEpochs()).toEqual([2, 3])
+    })
+    it('resets the floor on lock', async () => {
+      client.getVault.mockResolvedValueOnce(projection(2))
+      await writer.save(registration, url, create, authorized)
+      keyEpochFloor.clear()
+      client.getVault.mockResolvedValueOnce(projection(1))
+
+      await writer.save(registration, url, create, authorized)
+      expect(sealedEpochs()).toEqual([2, 1])
+    })
+    it('does not seed the next session from an open that finished after lock', async () => {
+      let finishOpen!: () => void
+      cryptoMocks.openVaultProjection.mockImplementationOnce(() => new Promise((resolve) => {
+        finishOpen = () => resolve({ vaultKey: new Uint8Array(32).fill(1), metadata: { name: 'Personal' } })
+      }))
+      client.getVault.mockResolvedValueOnce(projection(2))
+      const pending = writer.save(registration, url, create, authorized)
+      await vi.waitFor(() => expect(finishOpen).toBeDefined())
+      keyEpochFloor.clear()
+      finishOpen()
+      await pending
+      client.getVault.mockResolvedValueOnce(projection(1))
+
+      await writer.save(registration, url, create, authorized)
+      expect(sealedEpochs()).toEqual([2, 1])
+    })
+    it('keeps floors separate per Vault and per account', async () => {
+      client.getVault.mockResolvedValueOnce(projection(2))
+      await writer.save(registration, url, create, authorized)
+      const other = '88888888-8888-4888-8888-888888888888'
+      client.getVault.mockResolvedValueOnce({ ...projection(1), id: other })
+      await writer.save(registration, url, { ...create, vaultId: other }, authorized)
+      writer = new Protocol2CredentialWriter({ client, data, canWrite, keyEpochFloor,
+        session: { getUserId: async () => '99999999-9999-4999-8999-999999999999', getPrivateKey: () => privateKey,
+          getAccessToken: async () => 'token', refreshAccessToken: async () => 'refreshed' },
+      } as unknown as CredentialWriterDeps)
+      client.getVault.mockResolvedValueOnce(projection(1))
+
+      await writer.save(registration, url, create, authorized)
+      expect(sealedEpochs()).toEqual([2, 1, 1])
+    })
   })
 })
