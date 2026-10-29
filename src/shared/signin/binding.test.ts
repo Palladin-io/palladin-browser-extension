@@ -137,6 +137,10 @@ describe('provider authorization endpoints', () => {
     'https://accounts.google.com/gsi/client',
     'https://github.com/login',
     'https://github.com/settings',
+    'https://github.com/login?return_to=%2Flogin%2Foauth%2Fauthorize%2F..%2F..%2F..%2Fsettings%3Fclient_id%3Dx',
+    'https://github.com/login?return_to=%2Flogin%2Foauth%2Fauthorize-not-oauth%3Fclient_id%3Dx',
+    'https://github.com/login?return_to=https%3A%2F%2Fevil.example%2Flogin%2Foauth%2Fauthorize%3Fclient_id%3Dx',
+    'https://github.com/login/oauth/authorize-not-oauth?client_id=x',
     'https://www.facebook.com/login.php',
     'not a url',
   ])('rejects %s', (url) => {

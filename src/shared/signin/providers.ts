@@ -40,6 +40,8 @@ export interface ProviderPage {
  * here and intentionally fall back to the explicit choice in Palladin. Only the
  * presence of `client_id` is read; no OAuth parameter value is kept.
  */
+const GITHUB_AUTHORIZE_PATH = /^\/login\/oauth\/authorize\/?$/;
+
 export function classifyProviderUrl(raw: string): ProviderPage | null {
   let url: URL;
   try { url = new URL(raw); } catch { return null; }
@@ -61,12 +63,14 @@ export function classifyProviderUrl(raw: string): ProviderPage | null {
     case 'login.live.com':
       return path === '/oauth20_authorize.srf' ? request('microsoft') : null;
     case 'github.com':
-      if (/^\/login\/oauth\/authorize(?:\/|$)/.test(path)) return request('github');
+      if (GITHUB_AUTHORIZE_PATH.test(path)) return request('github');
       if (path !== '/login') return null;
       {
-        const returnTo = url.searchParams.get('return_to') ?? '';
-        if (!returnTo.startsWith('/login/oauth/authorize')) return null;
-        return { provider: 'github', authorizationRequest: new URL(returnTo, url.origin).searchParams.has('client_id') };
+        // Validate the normalized return URL, never a raw prefix (dot segments, look-alike paths).
+        let returnTo: URL;
+        try { returnTo = new URL(url.searchParams.get('return_to') ?? '', url.origin); } catch { return null; }
+        if (returnTo.origin !== url.origin || !GITHUB_AUTHORIZE_PATH.test(returnTo.pathname)) return null;
+        return { provider: 'github', authorizationRequest: returnTo.searchParams.has('client_id') };
       }
     case 'www.facebook.com':
     case 'm.facebook.com':
