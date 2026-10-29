@@ -45,6 +45,10 @@ export interface SignInSuggestion {
   readonly vaultLabel: string;
 }
 
+/** Transport limits shared by the worker (construction) and the content guard (validation). */
+export const MAX_SIGN_IN_PROMPT_ACCOUNTS = 32;
+export const MAX_SIGN_IN_PROMPT_TARGETS = 64;
+
 export type SignInAccountSource = 'chosen' | 'used' | 'saved' | 'vault' | 'none';
 
 export interface SignInAccountOption {
@@ -154,8 +158,8 @@ function prompt(value: unknown): value is SignInPrompt {
   const targets = value.targets;
   return id(value.id) && text(value.site, 1, 253) && isSignInProvider(value.provider)
     && (value.state === 'locked' || value.state === 'ready')
-    && Array.isArray(accounts) && accounts.length <= 32 && accounts.every(account)
-    && Array.isArray(targets) && targets.length <= 64 && targets.every(target)
+    && Array.isArray(accounts) && accounts.length <= MAX_SIGN_IN_PROMPT_ACCOUNTS && accounts.every(account)
+    && Array.isArray(targets) && targets.length <= MAX_SIGN_IN_PROMPT_TARGETS && targets.every(target)
     && (value.defaultAccountId === null || accounts.some((item) => (item as SignInAccountOption).id === value.defaultAccountId))
     && (value.defaultTargetId === null || targets.some((item) => (item as SignInTargetOption).id === value.defaultTargetId))
     && (value.error === undefined || value.error === 'save-failed')

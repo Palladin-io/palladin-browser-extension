@@ -51,8 +51,9 @@ export function classifyProviderUrl(raw: string): ProviderPage | null {
   switch (host) {
     case 'accounts.google.com':
       // OAuth redirects commit on /v3/signin or /signin/oauth with the relying party's client_id.
-      return /^\/(?:o\/oauth2\/|gsi\/select(?:\/|$)|signin\/oauth|v3\/signin\/|AccountChooser|ServiceLogin)/.test(path)
-        ? request('google') : null;
+      if (/^\/(?:o\/oauth2\/|gsi\/select(?:\/|$)|signin\/oauth|v3\/signin\/)/.test(path)) return request('google');
+      // Generic Google sign-in pages only continue an established flow, whatever their parameters.
+      return /^\/(?:AccountChooser|ServiceLogin)/.test(path) ? { provider: 'google', authorizationRequest: false } : null;
     case 'appleid.apple.com':
       return /^\/auth\/(?:oauth2\/(?:v2\/)?)?authorize(?:\/|$)/.test(path) ? request('apple') : null;
     case 'login.microsoftonline.com':

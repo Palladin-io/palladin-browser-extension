@@ -7,6 +7,7 @@ import type {
   SignInPrompt,
   SignInTargetOption,
 } from '@shared/messaging/federated-signin';
+import { MAX_SIGN_IN_PROMPT_ACCOUNTS, MAX_SIGN_IN_PROMPT_TARGETS } from '@shared/messaging/federated-signin';
 import { registrableDomain } from '@shared/security/domain';
 import {
   normalizeSignInAccount, sameSignInAccount, sameSignInEntry, type SignInBinding, type SignInEntryReference,
@@ -25,6 +26,7 @@ import type { SignInTargets, SignInWriteTarget } from '../vault/protocol2/creden
 const FLOW_TTL_MS = 10 * 60_000;
 const MAX_FLOWS = 20;
 const MAX_VAULT_ACCOUNTS = 10;
+const MAX_CREATE_TARGETS = 8;
 
 export interface SignInSource {
   readonly tabId: number;
@@ -397,6 +399,8 @@ export class FederatedSignInCoordinator {
     const contextOf = (entry: SignInEntryReference | null) => entry === null ? undefined
       : providerAccounts.find((candidate) => sameSignInEntry(candidate.entry, entry))?.context;
     const addAccount = (value: string | null, entry: SignInEntryReference | null, sourceKind: SignInAccountSource) => {
+      // Keep one slot for "Account not specified" within the content guard limit.
+      if (value !== null && accountViews.length >= MAX_SIGN_IN_PROMPT_ACCOUNTS - 1) return;
       if (value !== null && [...accounts.values()].some((candidate) => sameSignInAccount(candidate.account, value)
         && sameSignInEntry(candidate.entry, entry))) return;
       const id = this.createId();
@@ -424,7 +428,10 @@ export class FederatedSignInCoordinator {
 
     const targetMap = new Map<string, SignInWriteTarget>();
     const targetViews: SignInTargetOption[] = [];
-    for (const credential of targets.writable ? targets.credentials : []) {
+    // Create targets come first in the budget so a new record is always possible; updates fill the rest.
+    const createVaults = targets.vaults.slice(0, MAX_CREATE_TARGETS);
+    const updateBudget = MAX_SIGN_IN_PROMPT_TARGETS - createVaults.length;
+    for (const credential of (targets.writable ? targets.credentials : []).slice(0, updateBudget)) {
       if (credential.signIn.status === 'unrecognized' || credential.signIn.status === 'ambiguous') continue;
       const id = this.createId();
       targetMap.set(id, { action: 'update', vaultId: credential.vaultId, entryId: credential.entryId, revision: credential.revision });
@@ -434,7 +441,7 @@ export class FederatedSignInCoordinator {
           ? { provider: credential.signIn.binding.provider, account: credential.signIn.binding.account } : null });
     }
     let defaultTargetId: string | null = null;
-    for (const vault of targets.vaults) {
+    for (const vault of createVaults) {
       const id = this.createId();
       targetMap.set(id, { action: 'create', vaultId: vault.vaultId });
       targetViews.push({ id, action: 'create', label: site, vaultLabel: vault.label, current: null });

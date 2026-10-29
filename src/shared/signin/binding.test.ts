@@ -2,6 +2,7 @@ import { currentVaultPlaintext } from '@palladin/crypto';
 import { describe, expect, it } from 'vitest';
 import { readSignInBinding, sameSignInAccount, SIGN_IN_FIELD_TYPE, withSignInBinding } from './binding';
 import {
+  classifyProviderUrl,
   isAuthorizationErrorReturn,
   providerForAuthorizationUrl,
 } from './providers';
@@ -140,6 +141,13 @@ describe('provider authorization endpoints', () => {
     'not a url',
   ])('rejects %s', (url) => {
     expect(providerForAuthorizationUrl(url)).toBeNull();
+  });
+
+  it('marks generic provider pages as continuation-only regardless of parameters', () => {
+    expect(classifyProviderUrl('https://accounts.google.com/ServiceLogin?client_id=x')).toEqual({ provider: 'google', authorizationRequest: false });
+    expect(classifyProviderUrl('https://accounts.google.com/AccountChooser?client_id=x')).toEqual({ provider: 'google', authorizationRequest: false });
+    expect(classifyProviderUrl('https://accounts.google.com/v3/signin/identifier?client_id=x')).toEqual({ provider: 'google', authorizationRequest: true });
+    expect(classifyProviderUrl('https://accounts.google.com/v3/signin/identifier')).toEqual({ provider: 'google', authorizationRequest: false });
   });
 
   it('detects only the standard OAuth error parameter on return', () => {

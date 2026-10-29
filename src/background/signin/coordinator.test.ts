@@ -407,6 +407,34 @@ describe('FederatedSignInCoordinator', () => {
       { provider: 'google', account: 'shared@corp.com', entry: null }, 'Sign-in method', expect.any(Function));
   });
 
+  it('treats generic Google sign-in pages as continuation-only even with a client_id parameter', async () => {
+    const h = harness();
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    await h.send({ type: 'intent', provider: 'google' });
+    h.coordinator.documentConnected(1, 'https://accounts.google.com/ServiceLogin?client_id=x', undefined);
+    h.coordinator.documentConnected(1, 'https://accounts.google.com/AccountChooser?client_id=x', undefined);
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    expect(await h.prompt()).toBeNull();
+  });
+
+  it('keeps large prompts within the content guard limits and still offers a new record', async () => {
+    const many = Array.from({ length: 70 }, (_, index) => credential(`e${index}`, { status: 'absent' }, `user${index}`));
+    const accounts = Array.from({ length: 40 }, (_, index) => provider({ id: `g${index}`, username: `user${index}@gmail.com` }));
+    const h = harness({ credentials: many, metadata: accounts });
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    h.coordinator.providerFilled(1, 'https://accounts.google.com/v3/signin/identifier', googleEntry('user39@gmail.com', 'g39'), 'manual');
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    const result = await h.send({ type: 'get' });
+    expect(isFederatedSignInResult(result)).toBe(true);
+    const view = result.status === 'prompt' ? result.prompt! : null;
+    expect(view!.targets.length).toBeLessThanOrEqual(64);
+    expect(view!.targets.some((target) => target.action === 'create')).toBe(true);
+    expect(view!.accounts.length).toBeLessThanOrEqual(32);
+    expect(view!.accounts.at(-1)!.source).toBe('none');
+    expect(view!.accounts.find((account) => account.id === view!.defaultAccountId)?.label).toBe('user39@gmail.com');
+  });
+
   it('rejects forged, stale and cross-document confirmations', async () => {
     const h = harness();
     h.coordinator.documentConnected(1, SERVICE, undefined);
