@@ -23,12 +23,20 @@ export class VaultKeyEpochFloor {
 
   /** Rejects a projection below the floor before its key is opened, then raises the floor. */
   async openForWrite<T>(userId: string, vault: VaultKeyEpochSource, open: () => Promise<T>): Promise<T> {
+    this.assertCurrent(userId, vault)
+    return this.observe(userId, vault, open)
+  }
+
+  /**
+   * Another operation may raise the floor while a write awaits, so writes
+   * call this again immediately before sealing and before submitting.
+   */
+  assertCurrent(userId: string, vault: VaultKeyEpochSource): void {
     const floor = this.floors.get(floorKey(userId, vault.id))
     if (floor && (vault.currentKeyEpoch.vaultKeyVersion < floor.vaultKeyVersion
       || vault.memberKeyGeneration < floor.memberKeyGeneration)) {
       throw new VaultDataError('decrypt-failed', 'Vault key epoch rollback')
     }
-    return this.observe(userId, vault, open)
   }
 
   /** Raises the floor only after the projection's wrapper opened successfully. */

@@ -1144,6 +1144,42 @@ describe('Vault key epoch floor on canonical writes', () => {
   })
 })
 
+describe('Vault key epoch floor raised during a canonical write', () => {
+  const raised = { ...vault, memberKeyGeneration: 2, currentKeyEpoch: { ...vault.currentKeyEpoch, vaultKeyVersion: 2 } }
+  const cases = [
+    ['create', 'before sealing', 'openVaultDerivedEnvelope'],
+    ['create', 'before submitting', 'sealCanonicalEntry'],
+    ['update', 'before sealing', 'openMemberSecret'],
+    ['update', 'before submitting', 'sealCanonicalEntry'],
+    ['delete', 'before sealing', 'openCurrentMemberSecret'],
+    ['delete', 'before submitting', 'sealCurrentCanonicalEntry'],
+  ] as const
+
+  it.each(cases)('rejects a %s when a concurrent operation raises the floor %s', async (write, _boundary, step) => {
+    const keyEpochFloor = new VaultKeyEpochFloor()
+    const { service, client } = harness([head], undefined, undefined, keyEpochFloor)
+    await service.refresh()
+    const mock = cryptoMocks[step] as unknown as ReturnType<typeof vi.fn<(...args: unknown[]) => unknown>>
+    const original = mock.getMockImplementation()
+    mock.mockImplementationOnce(async (...args: unknown[]) => {
+      await keyEpochFloor.observe(USER_ID, raised, async () => undefined)
+      return original?.(...args)
+    })
+
+    const run = write === 'create'
+      ? service.saveGeneratedPassword({ kind: 'registration', site: 'example.com',
+        url: 'https://accounts.example.com/register', password: 'generated-password' })
+      : write === 'update'
+        ? service.saveGeneratedPassword({ kind: 'password-change', site: 'example.com',
+          url: 'https://accounts.example.com/change-password', password: 'next-password' })
+        : service.deleteEntry(VAULT_ID, ENTRY_ID)
+    await expect(run).rejects.toMatchObject({ code: 'decrypt-failed' })
+    expect(client.createEntry).not.toHaveBeenCalled()
+    expect(client.updateEntry).not.toHaveBeenCalled()
+    expect(client.deleteEntry).not.toHaveBeenCalled()
+  })
+})
+
 describe('Entry deletion', () => {
   it('sends a recoverable encrypted deleted revision bound to the requested Entry', async () => {
     const { service, client } = harness([head])

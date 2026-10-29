@@ -515,6 +515,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
             revision: detail.currentRevision,
           })
           discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, vaultKey)
+          this.deps.keyEpochFloor.assertCurrent(userId, vault)
           const material = await sealCurrentCanonicalEntry({
             organizationId: vault.organizationId,
             vaultId,
@@ -533,6 +534,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
             if (this.deps.session.getPrivateKey() !== privateKey || currentUserId !== userId) {
               throw new VaultDataError('locked', 'Session changed during deletion')
             }
+            this.deps.keyEpochFloor.assertCurrent(userId, vault)
             // The server may commit even when its response never reaches this worker.
             dispatched = true
             this.pendingPurges.add(`${userId}:${vaultId}`)
@@ -663,12 +665,14 @@ export class Protocol2VaultDataService implements VaultDataSource {
         vdkVersion: vault.currentKeyEpoch.vdkVersion,
         memberKeyGeneration: vault.memberKeyGeneration,
       }
+      this.deps.keyEpochFloor.assertCurrent(userId, vault)
       const material = entry.kind === 'current'
         ? await sealCurrentCanonicalEntry(coordinates, entry.secret, vaultKey, discoveryKey, 1)
         : await sealCanonicalEntry(coordinates, entry.secret, vaultKey, discoveryKey, 1)
       try {
         await this.withAuth(async (token) => {
           await assertCurrent?.()
+          this.deps.keyEpochFloor.assertCurrent(userId, vault)
           return this.deps.client.createEntry(token, {
             vaultId: vault.id,
             entryId,
@@ -729,6 +733,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
       const previousDiscovery = projectAgentDiscovery(previous)
       const nextDiscovery = projectAgentDiscovery(next)
       const discoveryChanged = JSON.stringify(previousDiscovery) !== JSON.stringify(nextDiscovery)
+      this.deps.keyEpochFloor.assertCurrent(userId, vault)
       const material = await sealCanonicalEntry({
         organizationId: detail.organizationId,
         vaultId: metadata.vaultId,
@@ -743,18 +748,21 @@ export class Protocol2VaultDataService implements VaultDataSource {
         memberKeyGeneration: vault.memberKeyGeneration,
       }, next, vaultKey, discoveryKey, 2)
       try {
-        await this.withAuth((token) => this.deps.client.updateEntry(token, {
-          vaultId: metadata.vaultId,
-          entryId: metadata.id,
-          baseRevision: detail.currentRevision,
-          newEntryKey: material.entryKey,
-          memberSecret: material.memberSecret,
-          memberIndex: material.memberIndex,
-          agentDiscoveryChanged: discoveryChanged,
-          agentDiscovery: discoveryChanged ? material.agentDiscovery : null,
-          deliveryPolicy: 'standard',
-          grantEnvelopes: [],
-        }))
+        await this.withAuth((token) => {
+          this.deps.keyEpochFloor.assertCurrent(userId, vault)
+          return this.deps.client.updateEntry(token, {
+            vaultId: metadata.vaultId,
+            entryId: metadata.id,
+            baseRevision: detail.currentRevision,
+            newEntryKey: material.entryKey,
+            memberSecret: material.memberSecret,
+            memberIndex: material.memberIndex,
+            agentDiscoveryChanged: discoveryChanged,
+            agentDiscovery: discoveryChanged ? material.agentDiscovery : null,
+            deliveryPolicy: 'standard',
+            grantEnvelopes: [],
+          })
+        })
       } catch (error) {
         if (error instanceof Protocol2MutationConflictError) {
           return { status: 'blocked', reason: 'grant-refresh-required' }

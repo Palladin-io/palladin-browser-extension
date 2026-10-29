@@ -352,6 +352,24 @@ describe('captured Credential canonical writer', () => {
       await writer.save(registration, url, create, authorized)
       expect(sealedEpochs()).toEqual([2, 1])
     })
+    it.each([
+      ['create', 'before sealing', () => client.issueEntryCreationChallenge],
+      ['create', 'before submitting', () => cryptoMocks.sealCanonicalCredentialEntry],
+      ['update', 'before sealing', () => client.getEntry],
+      ['update', 'before submitting', () => client.getActiveGrants],
+    ] as const)('rejects a %s when a concurrent operation raises the floor %s', async (action, _boundary, step) => {
+      const selected = action === 'create' ? create : target
+      client.getVault.mockResolvedValueOnce(projection(1))
+      const original = step().getMockImplementation()
+      step().mockImplementationOnce(async (...args: unknown[]) => {
+        await keyEpochFloor.observe(USER, projection(2), async () => undefined)
+        return (original as (...values: unknown[]) => unknown)(...args)
+      })
+
+      await expect(writer.save(credential, url, selected, authorized)).rejects.toMatchObject({ code: 'decrypt-failed' })
+      expect(client.createEntry).not.toHaveBeenCalled()
+      expect(client.updateEntry).not.toHaveBeenCalled()
+    })
     it('keeps floors separate per Vault and per account', async () => {
       client.getVault.mockResolvedValueOnce(projection(2))
       await writer.save(registration, url, create, authorized)

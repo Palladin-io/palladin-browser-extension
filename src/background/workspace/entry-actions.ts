@@ -274,7 +274,7 @@ export class EntryActions {
       { vaultId: command.vaultId, entryId },
       operation,
       'write',
-      async ({ vault, detail, secret, vaultKey }) => {
+      async ({ vault, detail, secret, vaultKey, assertEpoch }) => {
         const requestedMethods = methodsMask(grant.methods);
         const fieldIds = listCanonicalGrantableFieldIds(secret);
         if (
@@ -360,6 +360,7 @@ export class EntryActions {
         };
         if (agent.agentId !== grant.agentId || !agent.publicKey)
           throw new WorkspaceError('invalid');
+        assertEpoch();
         let material: object;
         if (grant.type === 'scriptExecution') {
           if (command.methods !== 2) throw new WorkspaceError('invalid');
@@ -429,6 +430,7 @@ export class EntryActions {
         )) as { currentRevision: string };
         if (latest.currentRevision !== command.revision)
           throw new WorkspaceError('conflict');
+        assertEpoch();
         await operation.request(
           `/api/vaults/${command.vaultId}/grants/${command.grantId}/approve`,
           'PUT',
@@ -490,6 +492,7 @@ export class EntryActions {
       detail: Awaited<ReturnType<Protocol2VaultClient['getEntry']>>;
       secret: currentVaultPlaintext.MemberSecretV1;
       vaultKey: Uint8Array;
+      assertEpoch: () => void;
     }) => Promise<T>,
   ) {
     const privateKey = this.deps.session.getPrivateKey();
@@ -533,7 +536,8 @@ export class EntryActions {
         },
       );
       operation.assertCurrent();
-      return await use({ vault, detail, secret, vaultKey: opened.vaultKey });
+      return await use({ vault, detail, secret, vaultKey: opened.vaultKey,
+        assertEpoch: () => this.deps.keyEpochFloor.assertCurrent(userId, vault) });
     } finally {
       wipe(opened.vaultKey);
     }
