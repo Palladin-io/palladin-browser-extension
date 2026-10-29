@@ -23,7 +23,8 @@ registry with a clean-install build. See [workspace implementation and validatio
 
 Remembering an external service's "Continue with Google/Apple/Microsoft/GitHub/
 Facebook" method and provider account is implemented with synthetic Chromium
-acceptance. Real-provider and Firefox/Safari acceptance remain open. See
+acceptance. Real-provider acceptance remains open; Firefox and Safari are
+unsupported until their sender gate has a document identity. See
 [federated sign-in methods](FEDERATED-SIGNIN.md).
 
 ## Shared unlock implementation in progress (CVT-583)

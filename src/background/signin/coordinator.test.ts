@@ -32,6 +32,7 @@ function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata
     getSession: async () => session,
     metadata: async () => options.metadata ?? [],
     targets,
+    localBindings: async () => options.credentials ?? [],
     save,
     isCurrentDocument: async () => true,
     notify,
@@ -51,6 +52,10 @@ function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata
     lock: () => { session = { unlocked: false, generation: session.generation + 1 }; coordinator.clear(); },
     advance: (ms: number) => { now += ms; },
   };
+}
+
+function googleEntry(username: string) {
+  return { username, urlDomain: 'accounts.google.com' };
 }
 
 function provider(entry: Partial<EntryMetadata> & { id: string; username: string }): EntryMetadata {
@@ -191,13 +196,13 @@ describe('FederatedSignInCoordinator', () => {
     expect(await h.prompt()).toBeNull();
   });
 
-  it('defaults to the account Palladin filled on the provider page but still offers every other choice', async () => {
+  it('defaults to the account the user explicitly filled on the provider page but still offers every other choice', async () => {
     const h = harness({ credentials: [credential('e1', { status: 'absent' }, 'first'), credential('e2', { status: 'absent' }, 'second')],
       metadata: [provider({ id: 'g1', username: 'alice@gmail.com' }), provider({ id: 'g2', username: 'work@corp.com' })] });
     h.coordinator.documentConnected(1, SERVICE, undefined);
     h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
-    h.coordinator.providerFilled(1, 'https://accounts.google.com/v3/signin/identifier', 'work@corp.com');
-    h.coordinator.providerFilled(1, 'https://app.example.com/', 'ignored@example.com');
+    h.coordinator.providerFilled(1, 'https://accounts.google.com/v3/signin/identifier', googleEntry('work@corp.com'), 'manual');
+    h.coordinator.providerFilled(1, 'https://app.example.com/', googleEntry('ignored@example.com'), 'manual');
     h.coordinator.documentConnected(1, SERVICE, undefined);
     const view = (await h.prompt())!;
     const defaultAccount = view.accounts.find((account) => account.id === view.defaultAccountId);
@@ -213,7 +218,7 @@ describe('FederatedSignInCoordinator', () => {
       binding: { provider: 'google', account: 'work@corp.com' } })] });
     h.coordinator.documentConnected(1, SERVICE, undefined);
     h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
-    h.coordinator.providerFilled(1, 'https://accounts.google.com/v3/signin/identifier', 'WORK@corp.com');
+    h.coordinator.providerFilled(1, 'https://accounts.google.com/v3/signin/identifier', googleEntry('WORK@corp.com'), 'manual');
     h.coordinator.documentConnected(1, SERVICE, undefined);
     expect(await h.prompt()).toBeNull();
   });
@@ -238,6 +243,73 @@ describe('FederatedSignInCoordinator', () => {
     h.coordinator.documentConnected(1, 'https://github.com/login/oauth/authorize?client_id=x', undefined);
     h.coordinator.documentConnected(1, SERVICE, undefined);
     expect((await h.prompt())?.provider).toBe('github');
+  });
+
+
+  it('offers but never preselects an account that only automatic fill used', async () => {
+    const h = harness({ metadata: [provider({ id: 'g1', username: 'alice@gmail.com' })] });
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    h.coordinator.providerFilled(1, 'https://accounts.google.com/v3/signin/identifier', googleEntry('alice@gmail.com'), 'automatic');
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    const view = (await h.prompt())!;
+    expect(view.defaultAccountId).toBeNull();
+    expect(view.accounts[0]).toMatchObject({ label: 'alice@gmail.com', source: 'used' });
+  });
+
+  it('ignores a Palladin fill of another provider during the flow', async () => {
+    const h = harness();
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    h.coordinator.providerFilled(1, 'https://accounts.google.com/v3/signin/identifier',
+      { username: 'octo', urlDomain: 'github.com' }, 'manual');
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    const view = (await h.prompt())!;
+    expect(view.accounts.map((account) => account.label)).toEqual(['']);
+  });
+
+  it('does not suppress the prompt when the user switched to another account than the chosen one', async () => {
+    const h = harness({ credentials: [credential('e1', { status: 'recognized', fieldId: 'custom:x',
+      binding: { provider: 'google', account: 'work@corp.com' } })] });
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    const suggested = await h.send({ type: 'suggest' });
+    await h.send({ type: 'choose', suggestionId: suggested.status === 'suggestions' ? suggested.suggestions[0]!.id : '' });
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    h.coordinator.providerFilled(1, 'https://accounts.google.com/v3/signin/identifier', googleEntry('alice@gmail.com'), 'manual');
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    const view = (await h.prompt())!;
+    expect(view.accounts.find((account) => account.id === view.defaultAccountId)?.label).toBe('alice@gmail.com');
+  });
+
+  it('does not attribute OAuth in a link-opened tab that loaded another site first to its opener', async () => {
+    const h = harness();
+    h.coordinator.documentConnected(1, 'https://bank.example.com/', undefined);
+    h.coordinator.documentConnected(5, 'https://news.example.org/', 1);
+    h.coordinator.documentConnected(5, GOOGLE_AUTH, 1);
+    h.coordinator.tabRemoved(5);
+    expect(await h.prompt(h.source(1, 'https://bank.example.com/'))).toBeNull();
+    expect(h.notify).not.toHaveBeenCalledWith(1);
+  });
+
+  it('unlinks a popup that browses to an unrelated site and keeps the opener quiet when it closes', async () => {
+    const h = harness();
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    h.coordinator.documentConnected(7, GOOGLE_AUTH, 1);
+    h.coordinator.documentConnected(7, 'https://unrelated.example.org/', 1);
+    h.coordinator.tabRemoved(7);
+    expect(await h.prompt()).toBeNull();
+  });
+
+  it('accepts a return to another host of the same registrable domain but writes for the start host', async () => {
+    const h = harness();
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    h.coordinator.documentConnected(1, 'https://www.example.com/welcome', undefined);
+    const from = h.source(1, 'https://www.example.com/welcome');
+    const view = (await h.prompt(from))!;
+    expect(view.site).toBe('app.example.com');
+    await h.send({ type: 'confirm', promptId: view.id, accountId: view.accounts[0]!.id, targetId: view.targets[0]!.id, locale: 'en' }, from);
+    expect(h.save).toHaveBeenCalledWith('https://app.example.com', expect.anything(), expect.anything(), 'Sign-in method', expect.any(Function));
   });
 
   it('rejects forged, stale and cross-document confirmations', async () => {

@@ -194,7 +194,7 @@ describe("inline autofill content runtime", () => {
       channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", intent: "automatic", documentId,
       vaultId: "vault-1", entryId: "entry-2", scope: "exact", loginTargetId: "login-2",
     }, sender, "extension-id");
-    expect(filled).toHaveBeenCalledWith(7, sender.url, "grace@example.com");
+    expect(filled).toHaveBeenCalledWith(7, sender.url, second, "automatic");
 
     preferred.mockReturnValue(null);
     const fallback = await handleInlineAutofillContentMessage(subject, {

@@ -99,6 +99,7 @@ describe('provider authorization endpoints', () => {
     ['https://github.com/login/oauth/authorize?client_id=x', 'github'],
     ['https://github.com/login?return_to=%2Flogin%2Foauth%2Fauthorize%3Fclient_id%3Dx', 'github'],
     ['https://www.facebook.com/v19.0/dialog/oauth?client_id=x', 'facebook'],
+    ['https://web.facebook.com/dialog/oauth?client_id=x', 'facebook'],
   ])('recognizes %s', (url, provider) => {
     expect(providerForAuthorizationUrl(url)).toBe(provider);
   });

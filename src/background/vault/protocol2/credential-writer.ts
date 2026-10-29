@@ -160,8 +160,12 @@ export class Protocol2CredentialWriter {
         if (writable) result.vaults.push({ vaultId: vault.id, label: opened.metadata.name, isDefault: vault.isDefault === true })
         for (const entry of metadata.filter((candidate) => candidate.vaultId === vault.id
           && candidate.type === ENTRY_TYPE_CREDENTIAL && matchesTab(url, candidate.urlDomain))) {
-          const detail = await this.withAuth((token) => this.deps.client.getEntry(token, vault.id, entry.id))
-          const secret = await this.openCredential(detail, vault, entry.id, opened.vaultKey, url)
+          let detail: EntryDetail
+          let secret: MemberSecretV1
+          try {
+            detail = await this.withAuth((token) => this.deps.client.getEntry(token, vault.id, entry.id))
+            secret = await this.openCredential(detail, vault, entry.id, opened.vaultKey, url)
+          } catch { continue /* One inconsistent Entry must not hide the others. */ }
           if (secret.entryType !== 'credential') continue
           result.credentials.push({ vaultId: vault.id, entryId: entry.id, revision: detail.currentRevision,
             label: secret.memberLabel, username: secret.content.username, vaultLabel: opened.metadata.name,

@@ -368,6 +368,20 @@ describe("inline autofill field discovery", () => {
     subject.stop();
   });
 
+  it("never automatically fills a password-less sign-in method record ranked first", async () => {
+    document.body.innerHTML = `<form><input id="username" autocomplete="username"><input type="password"></form>`;
+    const base = { vaultName: "Personal", urlDomain: "example.com", updatedAt: "2026-08-29T08:00:00Z", match: "exact" as const };
+    const send = vi.fn(async (command: { type: string }) => command.type === "inline/list" ? ({
+      ok: true, kind: "suggestions", status: "ready",
+      entries: [{ ...base, vaultId: "v1", entryId: "signin", name: "example.com", username: "" },
+        { ...base, vaultId: "v1", entryId: "password", name: "example.com", username: "ada@example.com" }],
+    }) : ({ ok: true, kind: "fill", status: "filled" }));
+    const subject = startInlineAutofill(document, "a".repeat(32), send);
+    await vi.waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: "inline/fill", entryId: "password" })));
+    expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: "inline/fill", entryId: "signin" }));
+    subject.stop();
+  });
+
   it("retries automatic fill after the unlocked Vault index becomes ready", async () => {
     document.body.innerHTML = `<form><input id="username" autocomplete="username"><input type="password"></form>`;
     const suggestion = {

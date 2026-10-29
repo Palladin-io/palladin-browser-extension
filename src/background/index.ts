@@ -454,7 +454,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
         recency: inlineAutofillRecency,
         signIn: {
           preferred: (tabId, url, candidates) => federatedSignIn.preferredProviderEntry(tabId, url, candidates),
-          filled: (tabId, url, username) => federatedSignIn.providerFilled(tabId, url, username),
+          filled: (tabId, url, entry, intent) => federatedSignIn.providerFilled(tabId, url, entry, intent),
         },
         fill: async (source, vaultId, entryId, scope, loginTargetId, intent) => {
           // This channel includes passive exact-host autofill. A fill request

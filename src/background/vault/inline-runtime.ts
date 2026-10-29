@@ -31,7 +31,7 @@ export interface InlineAutofillDeps {
   /** Federated sign-in: explicit provider-account choice for this tab, and Palladin-filled accounts. */
   readonly signIn?: {
     preferred(tabId: number, url: string, candidates: readonly EntryMetadata[]): EntryMetadata | null;
-    filled(tabId: number, url: string, username: string | undefined): void;
+    filled(tabId: number, url: string, entry: EntryMetadata | undefined, intent: "automatic" | "manual"): void;
   };
 }
 
@@ -136,7 +136,7 @@ export async function handleInlineAutofillContentMessage(
       deps.recency?.remember(source.url, raw.vaultId, raw.entryId);
       if (deps.signIn) {
         const filled = (await deps.getMetadata()).find((entry) => entry.vaultId === raw.vaultId && entry.id === raw.entryId);
-        deps.signIn.filled(source.id, source.url, filled?.username);
+        deps.signIn.filled(source.id, source.url, filled, raw.intent);
       }
     }
     return {

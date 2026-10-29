@@ -65,6 +65,7 @@ export function classifyProviderUrl(raw: string): ProviderPage | null {
         ? page('github') : null;
     case 'www.facebook.com':
     case 'm.facebook.com':
+    case 'web.facebook.com':
       return /^\/(?:v\d+\.\d+\/)?dialog\/oauth(?:\/|$)/.test(path) ? request('facebook') : null;
     default:
       return null;
@@ -80,7 +81,7 @@ export function isProviderSignInHost(raw: string): boolean {
   try {
     const host = new URL(raw).hostname.toLowerCase();
     return ['accounts.google.com', 'appleid.apple.com', 'idmsa.apple.com', 'login.microsoftonline.com',
-      'login.live.com', 'github.com', 'www.facebook.com', 'm.facebook.com'].includes(host);
+      'login.live.com', 'github.com', 'www.facebook.com', 'm.facebook.com', 'web.facebook.com'].includes(host);
   } catch { return false; }
 }
 

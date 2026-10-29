@@ -40,6 +40,8 @@ export interface FederatedSignInDeps {
   getSession(): Promise<SignInSession | null>;
   metadata(): Promise<EntryMetadata[]>;
   targets(url: string): Promise<SignInTargets>;
+  /** Exact-host Credentials read from the local encrypted cache only. */
+  localBindings(url: string): Promise<SignInTargets['credentials']>;
   save(url: string, target: SignInWriteTarget, binding: SignInBinding, label: string,
     stillAuthorized: () => Promise<boolean>): Promise<{ action: 'created' | 'updated' }>;
   isCurrentDocument(source: SignInSource): Promise<boolean>;
@@ -64,6 +66,7 @@ interface Flow {
   provider: SignInProvider | null;
   phase: 'started' | 'provider' | 'returned';
   usedAccount: string | null;
+  usedManually: boolean;
   chosen: SignInBinding | null;
   prompt: StoredPrompt | null;
   error: boolean;
@@ -98,6 +101,8 @@ function hostOf(url: string): string {
 export class FederatedSignInCoordinator {
   private readonly flows = new Map<number, Flow>();
   private readonly lastServiceOrigin = new Map<number, string>();
+  /** Tab IDs that already had a registered top-frame document; values only, kept across lock. */
+  private readonly knownTabs = new Set<number>();
   private readonly suggestions = new Map<string, StoredSuggestion>();
   private readonly mutedHosts = new Set<string>();
   private readonly now: () => number;
@@ -111,19 +116,28 @@ export class FederatedSignInCoordinator {
   /** Called for every browser-registered top-frame document. */
   documentConnected(tabId: number, url: string, openerTabId: number | undefined): void {
     this.expire();
+    const fresh = !this.knownTabs.has(tabId);
+    this.knownTabs.add(tabId);
     const page = classifyProviderUrl(url);
     if (page !== null) {
-      this.providerDocument(tabId, page, openerTabId);
+      this.providerDocument(tabId, page, fresh ? openerTabId : undefined);
       return;
     }
     if (isProviderSignInHost(url)) return;
     const origin = httpsOrigin(url);
     const popupFlow = this.flowForProviderTab(tabId);
     if (popupFlow !== null && popupFlow.serviceTabId !== tabId) {
-      if (isAuthorizationErrorReturn(url)) this.cancel(popupFlow);
-      else if (popupFlow.phase === 'provider' && origin !== null
-        && registrableDomain(origin) === registrableDomain(popupFlow.serviceOrigin)) this.returned(popupFlow);
-      return;
+      if (isAuthorizationErrorReturn(url)) {
+        this.cancel(popupFlow);
+        return;
+      }
+      if (popupFlow.phase === 'provider' && origin !== null
+        && registrableDomain(origin) === registrableDomain(popupFlow.serviceOrigin)) {
+        this.returned(popupFlow);
+        return;
+      }
+      // A popup that browses to an unrelated site no longer represents this sign-in.
+      popupFlow.providerTabIds.delete(tabId);
     }
     const flow = this.flows.get(tabId);
     if (flow !== undefined && flow.phase === 'provider') {
@@ -131,7 +145,8 @@ export class FederatedSignInCoordinator {
         if (isAuthorizationErrorReturn(url)) this.cancel(flow);
         else this.returned(flow);
       }
-    } else if (flow !== undefined && flow.phase === 'returned' && origin !== flow.serviceOrigin) {
+    } else if (flow !== undefined && flow.phase === 'returned' && (origin === null
+      || registrableDomain(origin) !== registrableDomain(flow.serviceOrigin))) {
       this.flows.delete(tabId);
     }
     if (origin !== null) this.lastServiceOrigin.set(tabId, origin);
@@ -140,6 +155,7 @@ export class FederatedSignInCoordinator {
 
   tabRemoved(tabId: number): void {
     this.lastServiceOrigin.delete(tabId);
+    this.knownTabs.delete(tabId);
     for (const [key, suggestion] of this.suggestions) if (suggestion.tabId === tabId) this.suggestions.delete(key);
     this.flows.delete(tabId);
     for (const flow of this.flows.values()) {
@@ -158,13 +174,19 @@ export class FederatedSignInCoordinator {
 
   /**
    * Account that Palladin itself filled on the provider page during this flow.
-   * The username comes from the unlocked MemberIndex, never from page text.
+   * The username comes from the unlocked MemberIndex, never from page text. An
+   * automatic fill is only offered as an option: the user may still switch
+   * accounts in the provider's own chooser, which Palladin cannot observe.
    */
-  providerFilled(tabId: number, url: string, username: string | undefined): void {
+  providerFilled(tabId: number, url: string, entry: Pick<EntryMetadata, 'username' | 'urlDomain'> | undefined,
+    intent: 'automatic' | 'manual'): void {
     if (!isProviderSignInHost(url)) return;
     const flow = this.flowForProviderTab(tabId) ?? this.flows.get(tabId);
-    const account = normalizeSignInAccount(username ?? null);
-    if (flow?.phase === 'provider' && account !== null && account.length <= 256) flow.usedAccount = account;
+    const account = normalizeSignInAccount(entry?.username ?? null);
+    if (flow?.phase !== 'provider' || flow.provider === null || account === null || account.length > 256) return;
+    if (!SIGN_IN_PROVIDER_ACCOUNT_DOMAINS[flow.provider].includes(registrableDomain(entry?.urlDomain) ?? '')) return;
+    flow.usedAccount = account;
+    flow.usedManually = intent === 'manual';
   }
 
   /** Explicitly chosen provider account to rank first on that provider's page. */
@@ -180,7 +202,7 @@ export class FederatedSignInCoordinator {
   async dispatch(command: FederatedSignInCommand, source: SignInSource): Promise<FederatedSignInResult> {
     this.expire();
     const origin = httpsOrigin(source.url);
-    if (command.documentId !== source.documentId || origin === null) return { status: 'stale' };
+    if (origin === null) return { status: 'stale' };
     switch (command.type) {
       case 'intent':
         this.start(source.tabId, origin);
@@ -214,7 +236,7 @@ export class FederatedSignInCoordinator {
       if (oldest) this.flows.delete(oldest[0]);
     }
     const flow: Flow = { serviceTabId: tabId, serviceOrigin, startedAt: this.now(), providerTabIds: new Set(),
-      provider: null, phase: 'started', usedAccount: null, chosen: null, prompt: null, error: false };
+      provider: null, phase: 'started', usedAccount: null, usedManually: false, chosen: null, prompt: null, error: false };
     this.flows.set(tabId, flow);
     return flow;
   }
@@ -236,7 +258,7 @@ export class FederatedSignInCoordinator {
       if (previous === undefined || !page.authorizationRequest) return;
       flow = this.start(tabId, previous);
     }
-    if (flow.provider !== null && flow.provider !== page.provider) flow.usedAccount = null;
+    if (flow.provider !== null && flow.provider !== page.provider) { flow.usedAccount = null; flow.usedManually = false; }
     flow.provider = page.provider;
     flow.phase = 'provider';
     if (tabId !== flow.serviceTabId) flow.providerTabIds.add(tabId);
@@ -245,6 +267,12 @@ export class FederatedSignInCoordinator {
   private activeFlow(tabId: number): Flow | null {
     const flow = this.flows.get(tabId);
     return flow === undefined || flow.phase === 'returned' ? null : flow;
+  }
+
+  /** The return may land on another host of the same registrable domain; writes stay bound to the start host. */
+  private sameService(url: string, flow: Flow): boolean {
+    const origin = httpsOrigin(url);
+    return origin !== null && registrableDomain(origin) === registrableDomain(flow.serviceOrigin);
   }
 
   private flowForProviderTab(tabId: number): Flow | null {
@@ -274,9 +302,10 @@ export class FederatedSignInCoordinator {
   private async suggest(source: SignInSource): Promise<FederatedSignInResult> {
     const session = await this.deps.getSession();
     if (!session?.unlocked) return { status: 'suggestions', suggestions: [] };
-    const targets = await this.deps.targets(source.url);
+    // Local encrypted cache only: an ordinary page load never asks the server about this site.
+    const local = await this.deps.localBindings(source.url);
     for (const [key, suggestion] of this.suggestions) if (suggestion.tabId === source.tabId) this.suggestions.delete(key);
-    const suggestions = targets.credentials.flatMap((credential) => {
+    const suggestions = local.flatMap((credential) => {
       if (credential.signIn.status !== 'recognized') return [];
       const id = this.createId();
       this.suggestions.set(id, { tabId: source.tabId, browserDocumentId: source.browserDocumentId,
@@ -300,7 +329,7 @@ export class FederatedSignInCoordinator {
   private async prompt(source: SignInSource): Promise<SignInPrompt | null> {
     const flow = this.flows.get(source.tabId);
     if (flow === undefined || flow.phase !== 'returned' || flow.provider === null
-      || httpsOrigin(source.url) !== flow.serviceOrigin) return null;
+      || !this.sameService(source.url, flow)) return null;
     const site = hostOf(flow.serviceOrigin);
     const session = await this.deps.getSession();
     if (!session?.unlocked) {
@@ -314,11 +343,14 @@ export class FederatedSignInCoordinator {
     const provider = flow.provider;
     const [targets, metadata] = await Promise.all([this.deps.targets(flow.serviceOrigin), this.deps.metadata()]);
     if ((await this.deps.getSession())?.generation !== session.generation || this.flows.get(source.tabId) !== flow) return null;
-    const preferred = flow.chosen?.provider === provider ? flow.chosen.account : flow.usedAccount;
     const chosenSame = flow.chosen?.provider === provider;
-    const alreadyRemembered = targets.credentials.some((credential) => credential.signIn.status === 'recognized'
-      && credential.signIn.binding.provider === provider
-      && (preferred !== null || chosenSame) && sameSignInAccount(credential.signIn.binding.account, preferred));
+    // A Palladin fill of a different account than the one chosen is an account switch: never suppress or guess.
+    const switched = chosenSame && flow.usedAccount !== null && !sameSignInAccount(flow.usedAccount, flow.chosen!.account);
+    const preferred = switched ? (flow.usedManually ? flow.usedAccount : null)
+      : chosenSame ? flow.chosen!.account : flow.usedManually ? flow.usedAccount : null;
+    const alreadyRemembered = !switched && (chosenSame || preferred !== null)
+      && targets.credentials.some((credential) => credential.signIn.status === 'recognized'
+        && credential.signIn.binding.provider === provider && sameSignInAccount(credential.signIn.binding.account, preferred));
     if (alreadyRemembered) {
       this.flows.delete(source.tabId);
       return null;
@@ -383,7 +415,7 @@ export class FederatedSignInCoordinator {
     const stored = flow?.prompt;
     if (flow === undefined || stored === undefined || stored === null || stored.view.id !== command.promptId
       || stored.browserDocumentId !== source.browserDocumentId || stored.documentId !== source.documentId
-      || httpsOrigin(source.url) !== flow.serviceOrigin || flow.provider === null) return { status: 'stale' };
+      || !this.sameService(source.url, flow) || flow.provider === null) return { status: 'stale' };
     if (!stored.accounts.has(command.accountId) || !stored.targets.has(command.targetId)) return { status: 'stale' };
     const session = await this.deps.getSession();
     if (!session?.unlocked) return { status: 'prompt', prompt: await this.prompt(source) };

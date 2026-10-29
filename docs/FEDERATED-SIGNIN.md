@@ -1,7 +1,10 @@
 # Federated sign-in methods
 
-Status: implemented on a feature branch; synthetic Chromium acceptance passes;
-real-provider and Firefox/Safari acceptance are open (see "Acceptance").
+Status: implemented on a feature branch for the Chromium family; synthetic
+Chromium acceptance passes; real-provider acceptance is open. **Firefox and
+Safari are currently unsupported:** the sender gate requires the browser-issued
+`sender.documentId`, which those targets do not provide, so every command is
+rejected as stale and nothing is observed or written there (see "Acceptance").
 
 This feature remembers how the user signs in to an **external** service with a
 federated provider ("Continue with Google", Apple, Microsoft, GitHub or
@@ -29,8 +32,9 @@ path:
   accounts are several Credentials; several provider accounts are different
   `account` values. Nothing is merged by provider or domain.
 - A new record created only to remember a method has an empty username and
-  password. Automatic exact-host autofill requires a username, so it never
-  selects such a record.
+  password. Automatic exact-host autofill skips candidates with an empty
+  username (`inline-autofill.ts`), so it never selects such a record; it stays
+  available as an explicit manual choice.
 - Unknown, malformed or duplicated `palladin.signin.v1` values are shown as
   unrecognized, never used for suggestions, and preserved unless the user
   explicitly replaces or removes them.
@@ -51,8 +55,12 @@ Helpers: `src/shared/signin/binding.ts` (parse/write) and
   `appleid.apple.com/auth/authorize`,
   `login.microsoftonline.com/<tenant>/oauth2/.../authorize`,
   `login.live.com/oauth20_authorize.srf`, `github.com/login/oauth/authorize`,
-  `www.facebook.com/<version>/dialog/oauth`). Lookalike hosts, ports, userinfo
-  and HTTP never match.
+  `www|m|web.facebook.com/<version>/dialog/oauth`). Lookalike hosts, ports,
+  userinfo and HTTP never match.
+- A popup is linked to its opener only when the provider document is the first
+  registered document of that tab. A link-opened tab that visited another site
+  first, or a popup that browses to an unrelated site, never attributes a flow to
+  the opener.
 - Without a click intent or an explicit suggestion choice, a flow can start
   only from a third-party authorization request (`client_id` present), never
   from the provider's own sign-in pages.
@@ -79,7 +87,14 @@ Palladin never reads provider page text to identify an account.
    account (Palladin-filled, already remembered, saved provider Credentials or
    "Account not specified") and where to remember it (an existing exact-host
    Credential or a new record). Nothing is preselected unless it comes from the
-   user's own earlier choice or Palladin's own fill in this flow.
+   user's own earlier choice or an explicit (manual) Palladin fill of a
+   Credential on that provider's account domain in this flow. An automatic fill
+   is offered but never preselected, because the user may switch accounts in the
+   provider's chooser; a fill that differs from the chosen account counts as an
+   account switch and still asks. Actions are ignored for 500 ms after the
+   surface appears, so a page-triggered prompt cannot capture a pending click.
+   A return to another host of the same registrable domain shows the prompt;
+   the write stays bound to the start host.
 5. "Remember" performs one canonical encrypted Entry update/create with fresh
    state, base revision, grant re-wrap and repeated document/session checks.
    "Not now" mutes the host until Palladin locks.
@@ -89,6 +104,11 @@ tab, are limited to twenty and are discarded on lock. Incognito tabs are not
 tracked. Nothing is persisted outside the encrypted Vault: no OAuth code, state,
 nonce, token, cookie, callback URL, provider password or account plaintext.
 OAuth requests and redirects are never modified; `login_hint` is not injected.
+
+Suggestions read only the local encrypted cache (`revealCurrentEntry`), so an
+ordinary page load never sends Entry requests to the server; inconsistent cached
+Entries are skipped. The prompt after a return reads fresh server state because
+it needs the current revision for the write.
 
 ## Next sign-in
 

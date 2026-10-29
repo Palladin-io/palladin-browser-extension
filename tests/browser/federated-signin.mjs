@@ -91,6 +91,8 @@ try {
     }
     const click = async (role, name) => {
       await wait(() => find(role, name), String(name))
+      // The closed surface ignores actions for 500 ms after it appears (anti-clickjacking).
+      await target.waitForTimeout(600)
       const node = await find(role, name)
       const { model } = await cdp.send('DOM.getBoxModel', { backendNodeId: node.backendDOMNodeId })
       await target.mouse.click((model.content[0] + model.content[4]) / 2, (model.content[1] + model.content[5]) / 2)
@@ -143,8 +145,12 @@ try {
 
   // Next visit: suggestion requires a click, Palladin clicks the unique page
   // button and ranks the chosen provider account for automatic identifier fill.
+  await tab.waitForTimeout(1500)
+  const requestsBeforeSuggestion = api.requests.length
   await tab.goto(`${SERVICE}/login`)
   await ui.wait(() => ui.find('region', 'Sign in with a remembered account'), 'remembered suggestion')
+  assert.deepEqual(api.requests.slice(requestsBeforeSuggestion).filter((request) => request.includes('/entries/')), [],
+    'Showing suggestions reads only the local encrypted cache')
   assert(tab.url().startsWith(`${SERVICE}/login`), 'A suggestion never navigates on its own')
   await ui.click('button', /Google · work@corp\.example/)
   await tab.waitForURL(/accounts\.google\.com/)

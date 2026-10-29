@@ -791,7 +791,8 @@ class InlineWidget {
         return;
       }
       if (raw.status !== "ready") return;
-      const preferredExact = raw.entries.find((entry) => entry.match === "exact"
+      // Automatic candidates require a username; password-less sign-in method records never qualify.
+      const preferredExact = raw.entries.find((entry) => entry.match === "exact" && entry.username.length > 0
         && (continuation === undefined || (entry.entryId === continuation.entryId
           && entry.vaultId === continuation.vaultId && entry.username === continuation.username)));
       if (preferredExact !== undefined) {

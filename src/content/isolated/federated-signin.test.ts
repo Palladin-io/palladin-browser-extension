@@ -124,6 +124,7 @@ describe('federated sign-in surface', () => {
 
   it('requires an explicit account and target before remembering and has no text inputs', async () => {
     surface.showResult({ status: 'prompt', prompt });
+    await vi.advanceTimersByTimeAsync(600);
     expect(document.querySelector('palladin-capture')!.shadowRoot).toBeNull();
     expect(shadow.querySelector('input, textarea, select')).toBeNull();
     expect(ui().queryByRole('button', { name: /^Remember for/ })).toBeNull();
@@ -139,6 +140,10 @@ describe('federated sign-in surface', () => {
 
   it('ignores untrusted or overlaid clicks', async () => {
     surface.showResult({ status: 'prompt', prompt: { ...prompt, defaultAccountId: 'account-work-123456', defaultTargetId: 'target-create-12345' } });
+    ui().getByRole('button', { name: 'Remember for New sign-in for app.example.com' }).click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(send, 'A click right after the surface appears is ignored').not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(600);
     acceptsAction.mockReturnValue(false);
     ui().getByRole('button', { name: 'Remember for New sign-in for app.example.com' }).click();
     await vi.advanceTimersByTimeAsync(0);
@@ -164,6 +169,7 @@ describe('federated sign-in surface', () => {
       { id: 'suggestion-0987654321', provider: 'google', account: 'alice@gmail.com', label: 'Home', vaultLabel: 'Personal' },
     ];
     surface.showSuggestions(suggestions);
+    await vi.advanceTimersByTimeAsync(600);
     expect(onChoose).not.toHaveBeenCalled();
     ui().getByRole('button', { name: /alice@gmail\.com/ }).click();
     expect(onChoose).toHaveBeenCalledExactlyOnceWith(suggestions[1]);
@@ -174,6 +180,7 @@ describe('federated sign-in surface', () => {
 
     onChoose.mockReturnValue('manual');
     surface.showSuggestions(suggestions);
+    await vi.advanceTimersByTimeAsync(600);
     ui().getByRole('button', { name: /work@corp\.com/ }).click();
     expect(ui().getByRole('status')).toHaveTextContent('Use the Google button on this page.');
   });

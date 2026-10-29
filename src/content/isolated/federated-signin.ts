@@ -26,6 +26,8 @@ type Send = (command: FederatedSignInCommand) => Promise<unknown>;
 
 const SUGGEST_DELAY_MS = 800;
 const PROMPT_DELAY_MS = 600;
+// A page can make the surface appear without user input; ignore clicks until it has been visible briefly.
+const ARMING_DELAY_MS = 500;
 
 /**
  * Closed-shadow surface for federated sign-in suggestions and confirmation. It
@@ -45,6 +47,7 @@ export class FederatedSignInSurface {
   private locale: UiLocale = 'en';
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
+  private armedAt = 0;
 
   constructor(
     private readonly doc: Document,
@@ -77,8 +80,10 @@ export class FederatedSignInSurface {
 
   showSuggestions(suggestions: readonly SignInSuggestion[]): void {
     if (this.disposed || this.mode === 'prompt' || suggestions.length === 0) return;
+    if (this.mode === 'note') this.hide();
     this.suggestions = suggestions;
     this.mode = 'suggestions';
+    this.armedAt = Date.now() + ARMING_DELAY_MS;
     this.render();
     this.mount();
   }
@@ -95,6 +100,7 @@ export class FederatedSignInSurface {
         if (this.closeTimer !== null) clearTimeout(this.closeTimer);
         this.closeTimer = setTimeout(() => this.hide(), 3 * 60_000);
       }
+      if (this.prompt?.id !== result.prompt.id) this.armedAt = Date.now() + ARMING_DELAY_MS;
       this.prompt = result.prompt;
       this.mode = 'prompt';
       this.render();
@@ -116,7 +122,9 @@ export class FederatedSignInSurface {
   }
 
   private mount(): void {
-    if (!this.surface.host.isConnected) this.doc.documentElement.append(this.surface.host);
+    if (this.surface.host.isConnected) return;
+    this.armedAt = Date.now() + ARMING_DELAY_MS;
+    this.doc.documentElement.append(this.surface.host);
   }
 
   private hide(): void {
@@ -300,7 +308,7 @@ export class FederatedSignInSurface {
     button.textContent = label;
     button.disabled = this.busy;
     button.addEventListener('click', (event) => {
-      if (!button.disabled && this.surface.acceptsAction(event, button)) void action();
+      if (!button.disabled && Date.now() >= this.armedAt && this.surface.acceptsAction(event, button)) void action();
     });
     return button;
   }
