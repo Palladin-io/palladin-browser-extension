@@ -32,6 +32,7 @@ function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata
   const coordinator = new FederatedSignInCoordinator({
     getSession: async () => session,
     providerAccounts: async () => (options.metadata ?? []).map((entry) => ({ account: entry.username!,
+      context: `${entry.name} \u00b7 ${entry.vaultName}`,
       entry: entry.id.startsWith('hidden') ? null : { vaultId: entry.vaultId, entryId: entry.id } })),
     targets,
     localBindings: async () => options.credentials ?? [],
@@ -188,7 +189,7 @@ describe('FederatedSignInCoordinator', () => {
 
     expect(await h.send({ type: 'choose', suggestionId: items[1]!.id }, h.source(2))).toEqual({ status: 'stale' });
     expect(await h.send({ type: 'choose', suggestionId: items[1]!.id })).toEqual({ status: 'chosen', provider: 'google' });
-    h.coordinator.documentConnected(1, 'https://accounts.google.com/v3/signin/identifier?x=1', undefined);
+    h.coordinator.documentConnected(1, 'https://accounts.google.com/v3/signin/identifier?client_id=x', undefined);
     const candidates = [provider({ id: 'g1', username: 'work@corp.com' }), provider({ id: 'g2', username: 'Alice@Gmail.com' })];
     expect(h.coordinator.preferredProviderEntry(1, 'https://accounts.google.com/v3/signin/identifier', candidates)?.id).toBe('g2');
     expect(h.coordinator.preferredProviderEntry(2, 'https://accounts.google.com/v3/signin/identifier', candidates)).toBeNull();
@@ -203,7 +204,7 @@ describe('FederatedSignInCoordinator', () => {
       metadata: [provider({ id: 'g1', username: 'alice@gmail.com' }), provider({ id: 'g2', username: 'work@corp.com' })] });
     h.coordinator.documentConnected(1, SERVICE, undefined);
     h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
-    h.coordinator.providerFilled(1, 'https://accounts.google.com/v3/signin/identifier', googleEntry('work@corp.com'), 'manual');
+    h.coordinator.providerFilled(1, 'https://accounts.google.com/v3/signin/identifier', googleEntry('work@corp.com', 'g2'), 'manual');
     h.coordinator.providerFilled(1, 'https://app.example.com/', googleEntry('ignored@example.com'), 'manual');
     h.coordinator.documentConnected(1, SERVICE, undefined);
     const view = (await h.prompt())!;
@@ -334,7 +335,7 @@ describe('FederatedSignInCoordinator', () => {
     h.coordinator.documentConnected(1, SERVICE, undefined);
     const suggested = await h.send({ type: 'suggest' });
     await h.send({ type: 'choose', suggestionId: suggested.status === 'suggestions' ? suggested.suggestions[0]!.id : '' });
-    h.coordinator.documentConnected(1, 'https://accounts.google.com/v3/signin/identifier?x=1', undefined);
+    h.coordinator.documentConnected(1, 'https://accounts.google.com/v3/signin/identifier?client_id=x', undefined);
     const candidates = [provider({ id: 'g-personal', username: 'shared@corp.com' }),
       provider({ id: 'g-team', vaultId: 'vault-2', username: 'shared@corp.com' })];
     expect(h.coordinator.preferredProviderEntry(1, 'https://accounts.google.com/v3/signin/identifier', candidates)?.id).toBe('g-team');
@@ -360,6 +361,50 @@ describe('FederatedSignInCoordinator', () => {
     const result = await h.send({ type: 'get' });
     expect(isFederatedSignInResult(result)).toBe(true);
     expect(JSON.stringify(result)).not.toContain('g2');
+  });
+
+  it('does not let a generic provider sign-in page establish the provider', async () => {
+    const h = harness();
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    await h.send({ type: 'intent', provider: 'google' });
+    h.coordinator.documentConnected(1, 'https://accounts.google.com/ServiceLogin?continue=https://mail.google.com', undefined);
+    h.coordinator.documentConnected(1, 'https://accounts.google.com/AccountChooser', undefined);
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    expect(await h.prompt()).toBeNull();
+
+    h.coordinator.documentConnected(2, SERVICE, undefined);
+    h.coordinator.documentConnected(2, GOOGLE_AUTH, undefined);
+    h.coordinator.documentConnected(2, 'https://accounts.google.com/AccountChooser', undefined);
+    h.coordinator.documentConnected(2, 'https://github.com/login?return_to=%2Flogin%2Foauth%2Fauthorize', undefined);
+    h.coordinator.documentConnected(2, SERVICE, undefined);
+    expect((await h.prompt(h.source(2)))?.provider).toBe('google');
+  });
+
+  it('accepts a Google OAuth redirect committed on /v3/signin with the relying party client_id', async () => {
+    const h = harness();
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    h.coordinator.documentConnected(1, 'https://accounts.google.com/v3/signin/identifier?client_id=x&service=lso', undefined);
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    expect((await h.prompt())?.provider).toBe('google');
+  });
+
+  it('keeps same-account Credentials and account-only choices separate', async () => {
+    const h = harness({
+      credentials: [credential('e1', { status: 'recognized', fieldId: 'custom:x',
+        binding: { provider: 'google', account: 'shared@corp.com', entry: null } })],
+      metadata: [provider({ id: 'g-personal', username: 'shared@corp.com', name: 'Personal Google' }),
+        provider({ id: 'g-team', vaultId: 'vault-2', vaultName: 'Team', username: 'shared@corp.com', name: 'Team Google' })],
+    });
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    const view = (await h.prompt())!;
+    const shared = view.accounts.filter((account) => account.label === 'shared@corp.com');
+    expect(shared.map((account) => [account.source, account.context])).toEqual([
+      ['saved', undefined], ['vault', 'Personal Google \u00b7 Personal'], ['vault', 'Team Google \u00b7 Team']]);
+    await h.send({ type: 'confirm', promptId: view.id, accountId: shared[0]!.id, targetId: view.targets[0]!.id, locale: 'en' });
+    expect(h.save).toHaveBeenLastCalledWith(expect.anything(), expect.anything(),
+      { provider: 'google', account: 'shared@corp.com', entry: null }, 'Sign-in method', expect.any(Function));
   });
 
   it('rejects forged, stale and cross-document confirmations', async () => {

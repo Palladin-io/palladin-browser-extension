@@ -48,11 +48,11 @@ export function classifyProviderUrl(raw: string): ProviderPage | null {
   const path = url.pathname;
   const request = (provider: SignInProvider): ProviderPage =>
     ({ provider, authorizationRequest: url.searchParams.has('client_id') });
-  const page = (provider: SignInProvider): ProviderPage => ({ provider, authorizationRequest: false });
   switch (host) {
     case 'accounts.google.com':
-      if (/^\/(?:o\/oauth2\/|gsi\/select(?:\/|$))/.test(path)) return request('google');
-      return /^\/(?:signin\/oauth|v3\/signin\/|AccountChooser|ServiceLogin)/.test(path) ? page('google') : null;
+      // OAuth redirects commit on /v3/signin or /signin/oauth with the relying party's client_id.
+      return /^\/(?:o\/oauth2\/|gsi\/select(?:\/|$)|signin\/oauth|v3\/signin\/|AccountChooser|ServiceLogin)/.test(path)
+        ? request('google') : null;
     case 'appleid.apple.com':
       return /^\/auth\/(?:oauth2\/(?:v2\/)?)?authorize(?:\/|$)/.test(path) ? request('apple') : null;
     case 'login.microsoftonline.com':
@@ -61,8 +61,12 @@ export function classifyProviderUrl(raw: string): ProviderPage | null {
       return path === '/oauth20_authorize.srf' ? request('microsoft') : null;
     case 'github.com':
       if (/^\/login\/oauth\/authorize(?:\/|$)/.test(path)) return request('github');
-      return path === '/login' && (url.searchParams.get('return_to') ?? '').startsWith('/login/oauth/authorize')
-        ? page('github') : null;
+      if (path !== '/login') return null;
+      {
+        const returnTo = url.searchParams.get('return_to') ?? '';
+        if (!returnTo.startsWith('/login/oauth/authorize')) return null;
+        return { provider: 'github', authorizationRequest: new URL(returnTo, url.origin).searchParams.has('client_id') };
+      }
     case 'www.facebook.com':
     case 'm.facebook.com':
     case 'web.facebook.com':

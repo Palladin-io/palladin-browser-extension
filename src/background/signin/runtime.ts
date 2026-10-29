@@ -24,10 +24,15 @@ export const federatedSignIn = new FederatedSignInCoordinator({
       const account = normalizeSignInAccount(entry.username ?? null)
       if (account === null) continue
       try {
-        // Only a discoverable provider Credential may become an Agent-visible reference.
+        // Recheck the opened head: sync may have changed its type or site since the index scan.
         const secret = await vaultData.revealCurrentEntry(entry.vaultId, entry.id)
-        accounts.push({ account, entry: secret.discoverable ? { vaultId: entry.vaultId, entryId: entry.id } : null })
-      } catch { accounts.push({ account, entry: null }) }
+        if (secret.entryType !== 'credential' || !domains.includes(registrableDomain(secret.content.urlDomain) ?? '')) continue
+        const current = normalizeSignInAccount(secret.content.username)
+        if (current === null) continue
+        // Only a discoverable provider Credential may become an Agent-visible reference.
+        accounts.push({ account: current, context: `${secret.memberLabel} \u00b7 ${entry.vaultName}`,
+          entry: secret.discoverable ? { vaultId: entry.vaultId, entryId: entry.id } : null })
+      } catch { /* An unreadable cached Entry is not offered. */ }
     }
     return accounts
   },

@@ -36,6 +36,8 @@ export interface SignInSource {
 export interface ProviderAccount {
   readonly account: string;
   readonly entry: SignInEntryReference | null;
+  /** Entry name and Vault label shown so the user can tell same-account Credentials apart. */
+  readonly context: string;
 }
 
 export interface SignInSession {
@@ -274,6 +276,9 @@ export class FederatedSignInCoordinator {
       if (previous === undefined || !page.authorizationRequest) return;
       flow = this.start(tabId, previous);
     }
+    // Only an authorization request may establish or switch the provider; a
+    // generic provider sign-in page can merely continue an established flow.
+    if (flow.provider !== page.provider && !page.authorizationRequest) return;
     if (flow.provider !== null && flow.provider !== page.provider) {
       flow.usedAccount = null; flow.usedEntry = null; flow.usedManually = false;
     }
@@ -387,16 +392,17 @@ export class FederatedSignInCoordinator {
     // An Agent-visible reference is attached only to a discoverable provider Credential the user can pick.
     const discoverable = (entry: SignInEntryReference | null) => entry === null ? null
       : providerAccounts.find((candidate) => sameSignInEntry(candidate.entry, entry))?.entry ?? null;
+    // Each choice is one (account, Entry) pair: an account-only choice is never silently
+    // upgraded to an Entry reference, and same-account Credentials stay separate.
+    const contextOf = (entry: SignInEntryReference | null) => entry === null ? undefined
+      : providerAccounts.find((candidate) => sameSignInEntry(candidate.entry, entry))?.context;
     const addAccount = (value: string | null, entry: SignInEntryReference | null, sourceKind: SignInAccountSource) => {
-      const existing = value === null ? undefined
-        : [...accounts.values()].find((candidate) => sameSignInAccount(candidate.account, value));
-      if (existing !== undefined) {
-        if (existing.entry === null && entry !== null) existing.entry = entry;
-        return;
-      }
+      if (value !== null && [...accounts.values()].some((candidate) => sameSignInAccount(candidate.account, value)
+        && sameSignInEntry(candidate.entry, entry))) return;
       const id = this.createId();
       accounts.set(id, { account: value, entry });
-      accountViews.push({ id, label: value ?? '', source: sourceKind });
+      const context = contextOf(entry);
+      accountViews.push({ id, label: value ?? '', source: sourceKind, ...(context ? { context } : {}) });
     };
     if (flow.chosen?.provider === provider && flow.chosen.account !== null) {
       addAccount(flow.chosen.account, discoverable(flow.chosen.entry), 'chosen');

@@ -51,6 +51,7 @@ export interface SignInAccountOption {
   readonly id: string;
   readonly label: string;
   readonly source: SignInAccountSource;
+  readonly context?: string;
 }
 
 export interface SignInTargetOption {
@@ -135,8 +136,9 @@ function suggestion(value: unknown): value is SignInSuggestion {
 }
 
 function account(value: unknown): value is SignInAccountOption {
-  return record(value) && only(value, ['id', 'label', 'source']) && id(value.id) && text(value.label, 0, 512)
-    && ['chosen', 'used', 'saved', 'vault', 'none'].includes(value.source as string);
+  return record(value) && only(value, ['id', 'label', 'source', 'context']) && id(value.id) && text(value.label, 0, 512)
+    && ['chosen', 'used', 'saved', 'vault', 'none'].includes(value.source as string)
+    && (value.context === undefined || text(value.context, 1, 1024));
 }
 
 function target(value: unknown): value is SignInTargetOption {

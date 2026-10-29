@@ -72,9 +72,12 @@ Helpers: `src/shared/signin/binding.ts` (parse/write) and
   registered document of that tab. A link-opened tab that visited another site
   first, or a popup that browses to an unrelated site, never attributes a flow to
   the opener.
-- Without a click intent or an explicit suggestion choice, a flow can start
-  only from a third-party authorization request (`client_id` present), never
-  from the provider's own sign-in pages.
+- Only a third-party authorization request (`client_id` present, including
+  Google's `/v3/signin` and `/signin/oauth` redirects and GitHub's `return_to`)
+  can establish or switch the provider of a flow. A generic provider sign-in page
+  (for example `ServiceLogin` or `AccountChooser` without `client_id`) can only
+  continue a flow whose provider is already established, even after a click
+  intent or a suggestion choice.
 - The username of a provider Credential that Palladin itself filled on the
   provider page during the flow (taken from the unlocked MemberIndex).
 
@@ -104,6 +107,9 @@ Palladin never reads provider page text to identify an account.
    provider's chooser; a fill that differs from the chosen account counts as an
    account switch and still asks. Actions are ignored for 500 ms after the
    surface appears, so a page-triggered prompt cannot capture a pending click.
+   Each account choice is one (account, provider Credential) pair: Credentials with
+   the same account stay separate and show their Entry name and Vault, and an
+   account-only choice is never silently upgraded to an Entry reference.
    A return to another host of the same registrable domain shows the prompt;
    the write stays bound to the start host.
 5. "Remember" performs one canonical encrypted Entry update/create with fresh

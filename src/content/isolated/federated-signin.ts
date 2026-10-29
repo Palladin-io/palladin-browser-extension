@@ -24,7 +24,8 @@ type CopyKey = Extract<keyof typeof en, `signInToast.${string}`>;
 type Body<T> = T extends FederatedSignInCommand ? Omit<T, 'channel' | 'documentId'> : never;
 type Send = (command: FederatedSignInCommand) => Promise<unknown>;
 
-const SUGGEST_DELAY_MS = 800;
+// Bounded retries let login controls that render late (SPA, modal) still receive suggestions.
+const SUGGEST_DELAYS_MS = [800, 2_500, 6_000] as const;
 const PROMPT_DELAY_MS = 600;
 // A page can make the surface appear without user input; ignore clicks until it has been visible briefly.
 const ARMING_DELAY_MS = 500;
@@ -77,6 +78,11 @@ export class FederatedSignInSurface {
   isOwnedSurface(element: Element): boolean { return element === this.surface.host; }
 
   stop(): void { this.disposed = true; this.hide(); }
+
+  /** Lock or sign-out: remembered accounts must not stay visible or clickable. */
+  clearSuggestions(): void {
+    if (this.mode === 'suggestions' || this.mode === 'note') this.hide();
+  }
 
   showSuggestions(suggestions: readonly SignInSuggestion[]): void {
     if (this.disposed || this.mode === 'prompt' || suggestions.length === 0) return;
@@ -203,7 +209,7 @@ export class FederatedSignInSurface {
       });
       option.setAttribute('role', 'radio');
       option.setAttribute('aria-checked', String(account.id === this.accountId));
-      const hint = this.sourceHint(account);
+      const hint = [account.context, this.sourceHint(account)].filter((part): part is string => !!part).join(' \u00b7 ') || null;
       if (hint !== null) {
         const small = this.doc.createElement('span');
         small.className = 'choice-vault';
@@ -371,7 +377,7 @@ export function startFederatedSignIn(doc: Document, documentId: string, isOtherO
     if (result !== null) surface.showResult(result);
   };
   const suggest = async () => {
-    if (suggested || controls().length === 0) return;
+    if (suggested || stopped || controls().length === 0) return;
     suggested = true;
     const result = await dispatch({ type: 'suggest' });
     if (result?.status === 'suggestions') surface.showSuggestions(result.suggestions);
@@ -386,7 +392,7 @@ export function startFederatedSignIn(doc: Document, documentId: string, isOtherO
   };
   doc.addEventListener('click', clicked, true);
   const promptTimer = setTimeout(() => void refreshPrompt(), PROMPT_DELAY_MS);
-  const suggestTimer = setTimeout(() => void suggest(), SUGGEST_DELAY_MS);
+  const suggestTimers = SUGGEST_DELAYS_MS.map((delay) => setTimeout(() => void suggest(), delay));
   const applyPreferences = () => surface.setAppearance(
     resolveUiLocale(preferences.language, chrome.i18n.getUILanguage()), preferences.theme);
   const storageChanged = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
@@ -404,13 +410,17 @@ export function startFederatedSignIn(doc: Document, documentId: string, isOtherO
     isOwnedSurface: (element: Element) => surface.isOwnedSurface(element),
     refreshPrompt: () => void refreshPrompt(),
     sessionChanged(unlocked: boolean) {
+      if (!unlocked) {
+        surface.clearSuggestions();
+        suggested = false;
+      }
       void refreshPrompt();
       if (unlocked) void suggest();
     },
     stop() {
       stopped = true;
       clearTimeout(promptTimer);
-      clearTimeout(suggestTimer);
+      suggestTimers.forEach(clearTimeout);
       doc.removeEventListener('click', clicked, true);
       chrome.storage.onChanged.removeListener(storageChanged);
       surface.stop();

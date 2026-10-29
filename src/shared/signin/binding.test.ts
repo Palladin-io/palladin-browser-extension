@@ -112,7 +112,7 @@ describe('palladin.signin.v1 binding', () => {
 describe('provider authorization endpoints', () => {
   it.each([
     ['https://accounts.google.com/o/oauth2/v2/auth?client_id=x', 'google'],
-    ['https://accounts.google.com/v3/signin/identifier?continue=x', 'google'],
+    ['https://accounts.google.com/v3/signin/identifier?client_id=x', 'google'],
     ['https://accounts.google.com/gsi/select?client_id=x&ux_mode=popup', 'google'],
     ['https://appleid.apple.com/auth/authorize?client_id=x', 'apple'],
     ['https://login.microsoftonline.com/common/oauth2/v2.0/authorize?x=1', 'microsoft'],

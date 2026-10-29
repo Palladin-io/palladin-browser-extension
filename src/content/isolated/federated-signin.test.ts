@@ -8,7 +8,7 @@ import {
   type SignInSuggestion,
 } from '@shared/messaging/federated-signin';
 import { detectProviderControls, providerForControl, uniqueProviderControl } from './federated-signin-detect';
-import { FederatedSignInSurface } from './federated-signin';
+import { FederatedSignInSurface, startFederatedSignIn } from './federated-signin';
 
 const acceptsAction = vi.hoisted(() => vi.fn());
 vi.mock('./closed-surface', async (importOriginal) => {
@@ -183,5 +183,49 @@ describe('federated sign-in surface', () => {
     await vi.advanceTimersByTimeAsync(600);
     ui().getByRole('button', { name: /work@corp\.com/ }).click();
     expect(ui().getByRole('status')).toHaveTextContent('Use the Google button on this page.');
+  });
+  it('clears remembered-account suggestions on lock so they cannot be clicked', async () => {
+    surface.showSuggestions([{ id: 'suggestion-1234567890', provider: 'google', account: 'work@corp.com', label: 'Work', vaultLabel: 'Team' }]);
+    await vi.advanceTimersByTimeAsync(600);
+    surface.clearSuggestions();
+    expect(document.querySelector('palladin-capture')).toBeNull();
+    expect(onChoose).not.toHaveBeenCalled();
+  });
+
+  it('keeps a confirmation prompt when suggestions are cleared and shows Credential context', async () => {
+    surface.showResult({ status: 'prompt', prompt: { ...prompt, accounts: [
+      { id: 'account-ctx-1234567', label: 'shared@corp.com', source: 'vault', context: 'Team Google \u00b7 Team' },
+      ...prompt.accounts] } });
+    surface.clearSuggestions();
+    expect(ui().getByRole('radio', { name: /shared@corp\.com.*Team Google · Team/ })).toBeVisible();
+  });
+});
+
+describe('federated sign-in controller', () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.useRealTimers(); document.body.innerHTML = ''; });
+
+  it('retries suggestions for provider controls rendered after the first attempt', async () => {
+    vi.useFakeTimers();
+    const sendMessage = vi.fn(async (message: { type: string }) => message.type === 'suggest'
+      ? { status: 'suggestions', suggestions: [] } : { status: 'prompt', prompt: null });
+    vi.stubGlobal('chrome', {
+      runtime: { sendMessage },
+      storage: { onChanged: { addListener: vi.fn(), removeListener: vi.fn() }, local: { get: vi.fn(async () => ({})) } },
+      i18n: { getUILanguage: () => 'en' },
+    });
+    const hit = () => document.querySelector('button');
+    Object.assign(document, { elementFromPoint: hit, elementsFromPoint: () => [hit()].filter(Boolean) });
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      { left: 10, top: 10, width: 120, height: 32, right: 130, bottom: 42, x: 10, y: 10, toJSON: () => ({}) } as DOMRect);
+    Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, value: 1200 });
+    Object.defineProperty(document.documentElement, 'clientHeight', { configurable: true, value: 800 });
+    document.body.innerHTML = '';
+    const controller = startFederatedSignIn(document, DOCUMENT, () => false);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(sendMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'suggest' }));
+    document.body.innerHTML = '<button>Continue with Google</button>';
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'suggest' }));
+    controller.stop();
   });
 });
