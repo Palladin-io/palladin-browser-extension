@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChromiumSharedUnlockRoute } from "./chromium-route";
+import { ChromiumSharedUnlockRoute } from "./chromium-route";
 import { startChromiumSharedUnlockBrowser } from "./chromium-browser";
 import { SHARED_UNLOCK_BROWSER_PORT } from "../../shared/messaging/shared-unlock-browser";
 vi.mock("@palladin/crypto", () => ({ randomBytes: async () => new Uint8Array(32), toBase64Url: () => "A".repeat(43) }));
@@ -13,17 +13,18 @@ function event<T extends unknown[]>() {
 const environments = [{ apiUrl: "https://api.example.test", webOrigin: "https://app.example.test:8443" }];
 const hello = { type: "hello", protocol: SHARED_UNLOCK_BROWSER_PORT, apiUrl: environments[0].apiUrl, webNonce: "A".repeat(43) };
 const navigation = { tabId: 7, frameId: 0, documentId: "document-1", documentLifecycle: "active" };
-function fixture(initialize?: () => Promise<unknown>, onReady?: Parameters<typeof startChromiumSharedUnlockBrowser>[3]) {
+function fixture(initialize?: () => Promise<unknown>, onReady?: Parameters<typeof startChromiumSharedUnlockBrowser>[3],
+  configured = environments) {
   const api = { runtime: { id: "a".repeat(32), onConnectExternal: event<[chrome.runtime.Port]>() },
     tabs: { get: vi.fn(async (id: number) => ({ id, incognito: false })), onRemoved: event<[number]>() },
-    webNavigation: { getFrame: vi.fn(async () => ({ documentId: "document-1", documentLifecycle: "active", frameType: "outermost_frame", parentFrameId: -1, errorOccurred: false, url: environments[0].webOrigin })),
+    webNavigation: { getFrame: vi.fn(async () => ({ documentId: "document-1", documentLifecycle: "active", frameType: "outermost_frame", parentFrameId: -1, errorOccurred: false, url: configured[0].webOrigin })),
       onBeforeNavigate: event<[typeof navigation]>(), onCommitted: event<[typeof navigation]>(), onErrorOccurred: event<[typeof navigation]>(),
       onTabReplaced: event<[{ replacedTabId: number; tabId: number }]>() } };
   vi.stubGlobal("chrome", api);
-  const controller = startChromiumSharedUnlockBrowser(environments, () => environments[0].apiUrl, initialize, onReady);
-  const port = (tabId = 7) => {
+  const controller = startChromiumSharedUnlockBrowser(configured, () => configured[0].apiUrl, initialize, onReady);
+  const port = (tabId = 7, origin = configured[0].webOrigin) => {
     const connection = { name: SHARED_UNLOCK_BROWSER_PORT, sender: { tab: { id: tabId, incognito: false }, frameId: 0,
-      documentId: "document-1", documentLifecycle: "active", origin: environments[0].webOrigin, url: environments[0].webOrigin },
+      documentId: "document-1", documentLifecycle: "active", origin, url: origin },
       onMessage: event<[unknown]>(), onDisconnect: event<[]>(), postMessage: vi.fn(), disconnect: vi.fn() };
     // Local disconnect intentionally does NOT emit onDisconnect, matching the browser API.
     api.runtime.onConnectExternal.emit(connection as unknown as chrome.runtime.Port);
@@ -154,6 +155,7 @@ describe("Chromium shared unlock runtime channel", () => {
   });
   it("bounds pending handshakes and releases capacity on timeout", async () => {
     const f = fixture(); for (let i = 0; i < 64; i += 1) f.port(i);
+    await settle();
     const denied = f.port(65); expect(denied.disconnect).toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(5000); const accepted = f.port(); accepted.onMessage.emit(hello); await settle();
     expect(accepted.postMessage).toHaveBeenCalledOnce(); f.controller.close();
@@ -164,5 +166,43 @@ describe("Chromium shared unlock runtime channel", () => {
     const denied = f.port(); expect(denied.disconnect).toHaveBeenCalled(); second();
     const fresh = f.port(); fresh.onMessage.emit(hello); await settle(); expect(fresh.postMessage).toHaveBeenCalledOnce();
     expect(() => old.assertCurrent()).toThrow(); f.controller.close(); expect(f.api.runtime.onConnectExternal.listeners.size).toBe(0);
+  });
+  it.each(["initialized", "initializing"])("keeps the panel reachable when foreign origins flood the Port budget while %s", async state => {
+    const accept = vi.spyOn(ChromiumSharedUnlockRoute, "accept");
+    let finish!: () => void;
+    const initialization = new Promise<void>(resolve => { finish = resolve; });
+    const f = fixture(state === "initialized" ? undefined : () => initialization);
+    if (state === "initialized") { f.port(99).onMessage.emit(hello); await settle(); accept.mockClear(); }
+    const foreign = Array.from({ length: 64 }, (_, i) => f.port(state === "initialized" ? i : 7, "https://attacker.example.test"));
+    const panel = f.port(8); panel.onMessage.emit(hello);
+    // Even ports complete a hello; odd ports stay silent and must not wait for the timeout.
+    foreign.forEach((p, i) => { if (i % 2 === 0) p.onMessage.emit(hello); });
+    if (state === "initializing") finish();
+    await settle();
+    expect(panel.postMessage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "ready" }));
+    expect(accept).toHaveBeenCalledOnce();
+    expect(foreign.every(p => p.disconnect.mock.calls.length > 0)).toBe(true);
+    f.controller.close(); accept.mockRestore();
+  });
+  it("keeps origin-unverified Ports from many tabs outside the shared budget until configuration loads", async () => {
+    let finish!: () => void;
+    const initialization = new Promise<void>(resolve => { finish = resolve; });
+    const accept = vi.spyOn(ChromiumSharedUnlockRoute, "accept");
+    const f = fixture(() => initialization);
+    const foreign = Array.from({ length: 64 }, (_, i) => f.port(100 + Math.floor(i / 2), "https://attacker.example.test"));
+    const panel = f.port(); panel.onMessage.emit(hello);
+    // The unverified pool is bounded too: the newest Port evicts the oldest.
+    expect(foreign[0].disconnect).toHaveBeenCalled(); expect(foreign[1].disconnect).not.toHaveBeenCalled();
+    finish(); await settle();
+    expect(panel.postMessage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "ready" }));
+    expect(accept).toHaveBeenCalledOnce();
+    expect(foreign.every(p => p.disconnect.mock.calls.length > 0)).toBe(true);
+    f.controller.close(); accept.mockRestore();
+  });
+  it("admits a configured self-hosted panel origin", async () => {
+    const selfHosted = [{ apiUrl: "https://vault-api.self-hosted.test", webOrigin: "https://vault.self-hosted.test" }];
+    const f = fixture(undefined, undefined, selfHosted), p = f.port(); p.onMessage.emit({ ...hello, apiUrl: selfHosted[0].apiUrl }); await settle();
+    expect(p.postMessage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "ready", webOrigin: selfHosted[0].webOrigin }));
+    f.controller.close();
   });
 });

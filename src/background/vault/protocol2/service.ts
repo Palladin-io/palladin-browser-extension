@@ -50,6 +50,7 @@ import type {
   MemberVaultKeyEnvelope,
   OfflineAccessContext,
 } from './contracts'
+import type { VaultKeyEpochFloor } from './key-epoch-floor'
 
 const CACHE_PAGE_SIZE = 200
 const MAXIMUM_CLOCK_ROLLBACK_MS = 5 * 60_000
@@ -135,6 +136,7 @@ export interface Protocol2VaultDataServiceDeps {
   readonly client: Protocol2VaultClient
   readonly cache: MemberSyncCache
   readonly session: Protocol2SessionAccessor
+  readonly keyEpochFloor: VaultKeyEpochFloor
   readonly createNamespace?: () => string
   readonly now?: () => number
   readonly monotonicNow?: () => number
@@ -326,10 +328,10 @@ export class Protocol2VaultDataService implements VaultDataSource {
         this.currentVaults.set(vaultId, initialActive.vault)
         let vaultName: string
         try {
-          const opened = await openProjectionVault({
+          const opened = await this.deps.keyEpochFloor.observe(userId, initialActive.vault, () => openProjectionVault({
             ...initialActive.vault,
             memberVaultKey: initialActive.memberVaultKey,
-          }, privateKey, userId)
+          }, privateKey, userId))
           vaultKey = opened.vaultKey
           vaultName = opened.metadata.name
         } catch {
@@ -418,10 +420,10 @@ export class Protocol2VaultDataService implements VaultDataSource {
     try {
       this.validateActiveState(cached.active, userId, this.now())
       validateCompleteItem(cached.item, cached.active)
-      vaultKey = await openProjectionVaultKey({
+      vaultKey = await this.deps.keyEpochFloor.observe(userId, cached.active.vault, () => openProjectionVaultKey({
         ...cached.active.vault,
         memberVaultKey: cached.active.memberVaultKey,
-      }, privateKey, userId)
+      }, privateKey, userId))
       return await open(cached.item.entryKey, cached.item.memberSecret, vaultKey, {
         organizationId: cached.active.accessContext.organizationId,
         vaultId,
@@ -504,7 +506,8 @@ export class Protocol2VaultDataService implements VaultDataSource {
         let vaultKey: Uint8Array | null = null
         let discoveryKey: Uint8Array | null = null
         try {
-          vaultKey = await openProjectionVaultKey(vault, privateKey, userId)
+          vaultKey = await this.deps.keyEpochFloor.openForWrite(userId, vault,
+            () => openProjectionVaultKey(vault, privateKey, userId))
           const secret = await openCurrentMemberSecret(detail.entryKey, detail.memberSecret, vaultKey, {
             organizationId: vault.organizationId,
             vaultId,
@@ -512,6 +515,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
             revision: detail.currentRevision,
           })
           discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, vaultKey)
+          this.deps.keyEpochFloor.assertCurrent(userId, vault)
           const material = await sealCurrentCanonicalEntry({
             organizationId: vault.organizationId,
             vaultId,
@@ -530,6 +534,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
             if (this.deps.session.getPrivateKey() !== privateKey || currentUserId !== userId) {
               throw new VaultDataError('locked', 'Session changed during deletion')
             }
+            this.deps.keyEpochFloor.assertCurrent(userId, vault)
             // The server may commit even when its response never reaches this worker.
             dispatched = true
             this.pendingPurges.add(`${userId}:${vaultId}`)
@@ -596,7 +601,8 @@ export class Protocol2VaultDataService implements VaultDataSource {
     if (!privateKey || !userId) throw new VaultDataError('locked', 'Session is locked')
     const options: { id: string; name: string }[] = []
     for (const vault of this.currentVaults.values()) {
-      const opened = await openProjectionVault({ ...vault, memberVaultKey: vault.memberVaultKey }, privateKey, userId)
+      const opened = await this.deps.keyEpochFloor.observe(userId, vault,
+        () => openProjectionVault({ ...vault, memberVaultKey: vault.memberVaultKey }, privateKey, userId))
       try { options.push({ id: vault.id, name: opened.metadata.name }) }
       finally { wipe(opened.vaultKey) }
     }
@@ -647,7 +653,8 @@ export class Protocol2VaultDataService implements VaultDataSource {
     let vaultKey: Uint8Array | null = null
     let discoveryKey: Uint8Array | null = null
     try {
-      vaultKey = await openProjectionVaultKey(vault, privateKey, userId)
+      vaultKey = await this.deps.keyEpochFloor.openForWrite(userId, vault,
+        () => openProjectionVaultKey(vault, privateKey, userId))
       discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, vaultKey)
       const coordinates = {
         organizationId: vault.memberVaultKey.wrappedVaultKey.descriptor.scope.organizationId,
@@ -658,12 +665,14 @@ export class Protocol2VaultDataService implements VaultDataSource {
         vdkVersion: vault.currentKeyEpoch.vdkVersion,
         memberKeyGeneration: vault.memberKeyGeneration,
       }
+      this.deps.keyEpochFloor.assertCurrent(userId, vault)
       const material = entry.kind === 'current'
         ? await sealCurrentCanonicalEntry(coordinates, entry.secret, vaultKey, discoveryKey, 1)
         : await sealCanonicalEntry(coordinates, entry.secret, vaultKey, discoveryKey, 1)
       try {
         await this.withAuth(async (token) => {
           await assertCurrent?.()
+          this.deps.keyEpochFloor.assertCurrent(userId, vault)
           return this.deps.client.createEntry(token, {
             vaultId: vault.id,
             entryId,
@@ -701,7 +710,8 @@ export class Protocol2VaultDataService implements VaultDataSource {
     let vaultKey: Uint8Array | null = null
     let discoveryKey: Uint8Array | null = null
     try {
-      vaultKey = await openProjectionVaultKey(vault, privateKey, userId)
+      vaultKey = await this.deps.keyEpochFloor.openForWrite(userId, vault,
+        () => openProjectionVaultKey(vault, privateKey, userId))
       discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, vaultKey)
       const previous = await openMemberSecret(detail.entryKey, detail.memberSecret, vaultKey, {
         organizationId: detail.organizationId,
@@ -723,6 +733,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
       const previousDiscovery = projectAgentDiscovery(previous)
       const nextDiscovery = projectAgentDiscovery(next)
       const discoveryChanged = JSON.stringify(previousDiscovery) !== JSON.stringify(nextDiscovery)
+      this.deps.keyEpochFloor.assertCurrent(userId, vault)
       const material = await sealCanonicalEntry({
         organizationId: detail.organizationId,
         vaultId: metadata.vaultId,
@@ -737,18 +748,21 @@ export class Protocol2VaultDataService implements VaultDataSource {
         memberKeyGeneration: vault.memberKeyGeneration,
       }, next, vaultKey, discoveryKey, 2)
       try {
-        await this.withAuth((token) => this.deps.client.updateEntry(token, {
-          vaultId: metadata.vaultId,
-          entryId: metadata.id,
-          baseRevision: detail.currentRevision,
-          newEntryKey: material.entryKey,
-          memberSecret: material.memberSecret,
-          memberIndex: material.memberIndex,
-          agentDiscoveryChanged: discoveryChanged,
-          agentDiscovery: discoveryChanged ? material.agentDiscovery : null,
-          deliveryPolicy: 'standard',
-          grantEnvelopes: [],
-        }))
+        await this.withAuth((token) => {
+          this.deps.keyEpochFloor.assertCurrent(userId, vault)
+          return this.deps.client.updateEntry(token, {
+            vaultId: metadata.vaultId,
+            entryId: metadata.id,
+            baseRevision: detail.currentRevision,
+            newEntryKey: material.entryKey,
+            memberSecret: material.memberSecret,
+            memberIndex: material.memberIndex,
+            agentDiscoveryChanged: discoveryChanged,
+            agentDiscovery: discoveryChanged ? material.agentDiscovery : null,
+            deliveryPolicy: 'standard',
+            grantEnvelopes: [],
+          })
+        })
       } catch (error) {
         if (error instanceof Protocol2MutationConflictError) {
           return { status: 'blocked', reason: 'grant-refresh-required' }

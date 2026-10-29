@@ -41,8 +41,12 @@ export function startFirefoxSharedUnlockBrowser(environments: readonly SharedUnl
   const retire = (tabId: number) => { active.get(tabId)?.close(); active.delete(tabId); };
   const connect = (port: chrome.runtime.Port) => {
     if (port.name !== SHARED_UNLOCK_BROWSER_PORT) return;
-    // Bound pending handshakes as well as ready routes. No durable queue.
-    if (stopped || suspensions > 0 || connections.size >= 64) {
+    const tabId = port.sender?.tab?.id, frameId = port.sender?.frameId;
+    // Any Web page may embed the bridge, and its sender names no Web origin
+    // until the asynchronous frame check. A per-tab cap keeps one page from
+    // exhausting the shared budget. Bound pending handshakes as well as ready routes.
+    if (stopped || suspensions > 0 || !Number.isSafeInteger(tabId) || !Number.isSafeInteger(frameId)
+      || [...documents.values()].filter(document => document.tabId === tabId).length >= 2 || connections.size >= 64) {
       try { port.disconnect(); } catch { /* gone */ } return;
     }
     let route: FirefoxRuntimeRoute | null = null;
@@ -116,9 +120,7 @@ export function startFirefoxSharedUnlockBrowser(environments: readonly SharedUnl
       })().catch(disconnect);
     };
     connections.add(disconnect);
-    if (Number.isSafeInteger(port.sender?.tab?.id) && Number.isSafeInteger(port.sender?.frameId)) {
-      documents.set(disconnect, { tabId: port.sender!.tab!.id!, frameId: port.sender!.frameId! });
-    }
+    documents.set(disconnect, { tabId: tabId!, frameId: frameId! });
     port.onMessage.addListener(message);
     port.onDisconnect.addListener(disconnect);
   };

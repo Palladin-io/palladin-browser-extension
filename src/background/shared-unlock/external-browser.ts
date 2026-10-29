@@ -1,3 +1,4 @@
+import type { SharedUnlockEnvironment } from "../../shared/config/shared-unlock-environments";
 import type { SharedUnlockOperationFrame } from "../../shared/messaging/shared-unlock-operation";
 import { randomBytes, toBase64Url } from "@palladin/crypto";
 import { SHARED_UNLOCK_BROWSER_PORT, isSharedUnlockBrowserMessage, type SharedUnlockBrowserReady } from "../../shared/messaging/shared-unlock-browser";
@@ -8,6 +9,7 @@ type DocumentRoute = SharedUnlockBrowserRoute & { readonly tabId: number; readon
 interface ExternalBrowserOptions<Route extends DocumentRoute> {
   readonly native: ExternalSharedUnlockBrowserApi;
   initialize(): Promise<unknown>;
+  environments(): readonly SharedUnlockEnvironment[];
   accept(port: chrome.runtime.Port, channelId: string, onClosed: () => void): Route | null;
   matchesCommit(route: Route, details: chrome.webNavigation.WebNavigationFramedCallbackDetails): boolean;
   tabReplacedEvent?: chrome.webNavigation.WebNavigationEvent<chrome.webNavigation.WebNavigationReplacementCallbackDetails>;
@@ -19,15 +21,25 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
   const { native, initialize, onReady } = options;
   const active = new Map<number, Route>();
   const connections = new Set<() => void>();
+  // Ports that connected before configuration loaded; they enter `connections` only once their origin is configured.
+  const unverified = new Set<() => void>();
   const documents = new Map<() => void, { tabId: number; documentId: string | undefined }>();
   const navigating = new Set<number>();
   let stopped = false;
   let suspensions = 0;
+  let initialized = false;
+  const configuredOrigin = (port: chrome.runtime.Port) => options.environments().some(item => item.webOrigin === port.sender?.origin);
   const retire = (tabId: number) => { active.get(tabId)?.close(); active.delete(tabId); };
   const connect = (port: chrome.runtime.Port) => {
     if (port.name !== SHARED_UNLOCK_BROWSER_PORT) return;
+    const tabId = port.sender?.tab?.id;
+    // Any Web page may connect, so a foreign origin must not consume the shared
+    // budget. Before configuration loads, a per-tab cap bounds unverified Ports.
+    const admitted = Number.isSafeInteger(tabId) && (initialized
+      ? configuredOrigin(port) && connections.size < 64
+      : [...documents.values()].filter(document => document.tabId === tabId).length < 2);
     // Bound pending handshakes as well as ready routes. No durable queue.
-    if (stopped || suspensions > 0 || connections.size >= 64) {
+    if (stopped || suspensions > 0 || !admitted) {
       try { port.disconnect(); } catch { /* gone */ } return;
     }
     let route: Route | null = null;
@@ -42,6 +54,7 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
       pendingOperations.length = 0;
       clearTimeout(timeout);
       connections.delete(disconnect);
+      unverified.delete(disconnect);
       documents.delete(disconnect);
       port.onMessage.removeListener(message);
       port.onDisconnect.removeListener(disconnect);
@@ -50,6 +63,14 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
       else { try { port.disconnect(); } catch { /* gone */ } }
     };
     const timeout = setTimeout(disconnect, 5000);
+    const admitConfigured = async () => {
+      await initialize();
+      initialized = true;
+      if (disconnected) return;
+      const pending = unverified.delete(disconnect);
+      if (!configuredOrigin(port) || (pending && connections.size >= 64)) { disconnect(); return; }
+      if (pending) connections.add(disconnect);
+    };
     const message = (raw: unknown) => {
       if (!isSharedUnlockBrowserMessage(raw)) { disconnect(); return; }
       if (ready && route && raw.type === "operation") {
@@ -72,7 +93,7 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
       if (helloStarted || raw.type !== "hello") { disconnect(); return; }
       helloStarted = true;
       void (async () => {
-        await initialize();
+        await admitConfigured();
         if (disconnected) return;
         const channelId = toBase64Url(await randomBytes(32));
         if (disconnected) return;
@@ -94,12 +115,14 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
         onReady?.(route);
       })().catch(disconnect);
     };
-    connections.add(disconnect);
-    if (Number.isSafeInteger(port.sender?.tab?.id)) {
-      documents.set(disconnect, { tabId: port.sender!.tab!.id!, documentId: port.sender?.documentId });
-    }
+    documents.set(disconnect, { tabId: tabId!, documentId: port.sender?.documentId });
     port.onMessage.addListener(message);
     port.onDisconnect.addListener(disconnect);
+    if (initialized) { connections.add(disconnect); return; }
+    unverified.add(disconnect);
+    // Evict the oldest so a configured panel arriving after a pre-configuration flood still gets in.
+    if (unverified.size > 64) unverified.values().next().value!();
+    void admitConfigured().catch(disconnect);
   };
   const beforeNavigate = ({ tabId, frameId }: { tabId: number; frameId: number }) => {
     if (frameId !== 0) return;
@@ -137,7 +160,7 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
     /** Server changes retire even pending routes before the first asynchronous step. */
     suspend() {
       suspensions += 1;
-      for (const disconnect of [...connections]) disconnect();
+      for (const disconnect of [...connections, ...unverified]) disconnect();
       let resumed = false;
       return () => { if (!resumed) { resumed = true; suspensions -= 1; } };
     },
@@ -150,7 +173,7 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
       native.webNavigation.onErrorOccurred.removeListener(failed);
       options.tabReplacedEvent?.removeListener(replaced);
       native.tabs.onRemoved.removeListener(removed);
-      for (const disconnect of [...connections]) disconnect();
+      for (const disconnect of [...connections, ...unverified]) disconnect();
       active.clear(); navigating.clear(); documents.clear();
     },
   };

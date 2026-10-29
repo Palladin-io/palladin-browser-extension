@@ -221,3 +221,25 @@ it.each(['session', 'server'])('does not route an old mutation after %s changes 
   expect(await result).toEqual({ ok: false, code: 'locked' });
   expect(fetch).not.toHaveBeenCalled();
 });
+
+it.each(['token read', 'token refresh before retry'])('rechecks a mutation guard immediately before every fetch after %s', async step => {
+  let stale = false;
+  const keys = {};
+  const beforeSend = vi.fn(() => { if (stale) throw new Error('mutation no longer current'); });
+  const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(null, { status: 401 }));
+  const service = new WorkspaceService({
+    session: {
+      getKeys: () => keys,
+      getAccessToken: async () => { if (step === 'token read') stale = true; return 'test-token'; },
+      refreshAccessToken: async () => { stale = true; return 'fresh-test-token'; },
+    },
+    apiUrl: () => 'https://example.test', fetch,
+    actions: { handle: async (_command, operation) => {
+      await operation.request(`/api/vaults/${vaultId}/grants/${grantId}/approve`, 'PUT', {}, beforeSend);
+      return { ok: true, data: null };
+    }, clear() {} },
+  });
+  expect(await service.handle({ type: 'workspace/revoke-grant', vaultId, grantId })).toMatchObject({ ok: false });
+  expect(fetch).toHaveBeenCalledTimes(step === 'token read' ? 0 : 1);
+  expect(beforeSend).toHaveBeenCalledTimes(step === 'token read' ? 1 : 2);
+});

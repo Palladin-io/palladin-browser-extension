@@ -224,4 +224,10 @@ describe("Firefox shared unlock runtime channel", () => {
     const fresh = f.port(); fresh.onMessage.emit(hello); await settle(); expect(fresh.postMessage).toHaveBeenCalledOnce();
     expect(() => old.assertCurrent()).toThrow(); f.controller.close(); expect(f.api.runtime.onConnect.listeners.size).toBe(0);
   });
+  it("caps pending bridge Ports per tab so one page cannot exhaust the shared budget", async () => {
+    const f = fixture(); const flood = Array.from({ length: 64 }, () => f.port(9));
+    expect(flood.filter(p => p.disconnect.mock.calls.length === 0)).toHaveLength(2);
+    const panel = f.port(); panel.onMessage.emit(hello); await settle();
+    expect(panel.postMessage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "ready" })); f.controller.close();
+  });
 });
