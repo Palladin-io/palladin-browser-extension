@@ -94,7 +94,7 @@ export function SharingOverview({ client, vaultClient, entries }: {
       return <div className="shared-entry-management" key={share.shareId}><div className="shared-entry-summary"><button className="shared-entry-row" disabled={!entry || busy} aria-label={entry ? `${name} · ${entry.vaultName}` : name} onClick={() => entry && setSelected(entry)}>
         <EntryIcon name={name} type={entry?.type ?? 1} {...(entry?.icon ? { icon: entry.icon } : {})} />
         <span><strong>{name}</strong><small>{entry?.vaultName ? `${entry.vaultName} · ` : ''}{share.recipientEmail ?? t('share.anyone')}</small></span>
-        <span className="grant-status">{t(shareStates[share.status] ?? 'share.unknownStatus')}</span>
+        <span className="grant-status" data-status={share.status}>{t(shareStates[share.status] ?? 'share.unknownStatus')}</span>
       </button>
         <div className="workspace-actions">
           {entry && share.status === 'active' && ['none', 'password', 'pin'].includes(share.protection) ? <button type="button" className="toolbar-icon" disabled={busy} title={t('share.changeProtection')} aria-label={t('share.changeProtection')}

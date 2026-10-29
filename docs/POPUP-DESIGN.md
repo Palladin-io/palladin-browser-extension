@@ -7,9 +7,11 @@ as part of visual changes.
 
 - Tabs and navigation use a neutral text-colour outline for selection, rounded
   corners and no coloured underline or left stripe. The tab group retains its
-  own subtle neutral frame, as requested for the extension. In narrow side panels
+  own full-width frame with horizontal boundaries, flush with both popup edges.
+  The strip has no outer margin or rounded outer corners. In narrow side panels
   the group scrolls horizontally without a visible scrollbar. Edge fades and
-  translated arrow buttons indicate hidden tabs; arrows disappear at each end.
+  translated arrow buttons indicate hidden tabs; the fade masks the scrolling tabs
+  directly, without reserving a blank margin; arrows disappear at each end.
   Trackpad scrolling and keyboard focus remain available.
 - Status chips use a neutral surface and border, 6px corners, 11px medium text.
   Semantic status colour belongs to the text. Descriptive metadata stays neutral.
@@ -34,3 +36,8 @@ Component tests cover filters and access flows; `tests/browser/workspace.mjs`
 contains native geometry assertions across auth and workspace. Browser automation
 must run in its approved environment. A browser-tab component preview verifies
 appearance, not native-popup startup timing or Firefox/Safari runtime support.
+
+Inbox details separate the Entry heading, Agent identity/status, request reason and
+compact two-column metadata. Cards use the shared surface and border; the master
+rail has an explicit divider. List status chips sit below Entry names beside the
+short date; the full timestamp remains in the native tooltip and detail metadata.

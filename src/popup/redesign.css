@@ -152,9 +152,10 @@ body {
 }
 .tabs-frame {
   position: relative;
-  margin: 0 12px 12px;
-  border: 1px solid var(--cv-border);
-  border-radius: 8px;
+  margin: 0;
+  border: 0;
+  border-block: 1px solid var(--cv-border);
+  border-radius: 0;
   background: var(--cv-surface);
   flex-shrink: 0;
   min-width: 0;
@@ -162,7 +163,7 @@ body {
 .vault-tabs {
   overflow-x: auto;
   scrollbar-width: none;
-  border-radius: 8px;
+  border-radius: 0;
   box-shadow: none;
   display: flex;
   margin: 0;
@@ -172,14 +173,17 @@ body {
   background: transparent;
 }
 .vault-tabs::-webkit-scrollbar { display: none; }
-.tabs-frame:is([data-overflow-left='true'], [data-overflow-right='true']) .vault-tabs { padding-inline: 28px; scroll-padding-inline: 28px; }
+.tabs-frame .vault-tabs { scroll-padding-inline: 32px; }
+.tabs-frame[data-overflow-right='true'] .vault-tabs { mask-image: linear-gradient(to right, #000 calc(100% - 38px), transparent); }
+.tabs-frame[data-overflow-left='true'] .vault-tabs { mask-image: linear-gradient(to right, transparent, #000 38px); }
+.tabs-frame[data-overflow-left='true'][data-overflow-right='true'] .vault-tabs { mask-image: linear-gradient(to right, transparent, #000 38px, #000 calc(100% - 38px), transparent); }
 .tabs-scroll {
-  position: absolute; top: 4px; bottom: 4px; width: 26px;
+  position: absolute; top: 0; bottom: 0; width: 28px;
   display: grid; place-items: center; padding: 0;
   border: 0; border-radius: 5px; color: var(--cv-t2); cursor: pointer;
 }
-.tabs-scroll--left { left: 2px; background: linear-gradient(to right, var(--cv-surface) 65%, transparent); }
-.tabs-scroll--right { right: 2px; background: linear-gradient(to left, var(--cv-surface) 65%, transparent); }
+.tabs-scroll--left { left: 0; background: transparent; }
+.tabs-scroll--right { right: 0; background: transparent; }
 .tabs-scroll--left svg { transform: rotate(180deg); }
 .tabs-scroll:hover { color: var(--cv-t1); }
 .tabs-scroll:focus-visible { outline: 2px solid var(--cv-t1); outline-offset: -2px; }
@@ -1237,3 +1241,34 @@ html[data-extension-surface='side-panel'] .popup-header {
 .grant-agent-line { justify-content: flex-start; gap: 10px; }
 .grant-agent-line > strong { min-width: 0; overflow-wrap: anywhere; }
 .workspace-form { background: var(--cv-surface); }
+
+.grant-sidebar { padding: 12px; border-right-color: color-mix(in srgb, var(--cv-t2) 28%, var(--cv-border)); }
+.grant-list-controls { padding-bottom: 12px; margin-bottom: 8px; }
+.grant-list { gap: 8px; }
+.grant-row { align-items: flex-start; padding: 12px; border-radius: 8px; }
+.grant-row-content { display: flex; flex-direction: column; gap: 5px; min-width: 0; flex: 1; }
+.grant-row-content strong { overflow-wrap: anywhere; }
+.grant-row-content small { margin: 0; overflow-wrap: anywhere; }
+.grant-row-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 4px; }
+.grant-row-meta time { font-size: 10px; color: var(--cv-t3); }
+.grant-row .grant-status, .grant-agent-identity .grant-status { margin: 0; width: fit-content; }
+.grant-detail.entry-detail { padding: 16px; }
+.grant-information { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+.grant-information > .grant-detail-heading { padding: 0 0 4px; margin: 0; }
+.grant-information > .grant-agent-line { padding: 12px; border: 1px solid var(--cv-border); border-radius: 8px; background: var(--cv-surface); }
+.grant-agent-identity { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+.grant-agent-identity strong { font-weight: 500; overflow-wrap: anywhere; }
+.grant-information > .grant-purpose { padding: 12px; margin: 0; background: var(--cv-surface); }
+.grant-metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 12px; border: 1px solid var(--cv-border); border-radius: 8px; background: var(--cv-surface); }
+.grant-metadata .detail-field { padding: 0; border: 0; min-height: 0; }
+.grant-metadata dd { font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.grant-revoke-action { display: flex; justify-content: flex-end; }
+.grant-detail .workspace-form { margin: 0; }
+@media (max-width: 570px) {
+  .grant-sidebar { border-right: 0; border-bottom: 1px solid var(--cv-border); }
+}
+
+.grant-status[data-status='active'] { color: color-mix(in srgb, var(--cv-success) 60%, black); }
+.grant-status:is([data-status='denied'], [data-status='revoked']) { color: color-mix(in srgb, var(--cv-primary) 60%, black); }
+:root[data-theme='dark'] .grant-status[data-status='active'] { color: var(--cv-success); }
+:root[data-theme='dark'] .grant-status:is([data-status='denied'], [data-status='revoked']) { color: var(--cv-primary); }
