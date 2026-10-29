@@ -229,13 +229,16 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
     },
     async observeResize() {
       await evaluate(`(() => {
-        globalThis.__popupWidths = [];
+        globalThis.__popupSizes = [];
         let frames = 0;
-        const sample = () => { globalThis.__popupWidths.push(innerWidth); if (++frames < 60) requestAnimationFrame(sample); };
+        const sample = () => { globalThis.__popupSizes.push({ width: innerWidth, height: innerHeight }); if (++frames < 60) requestAnimationFrame(sample); };
         requestAnimationFrame(sample);
       })()`);
     },
-    async hadIntermediateWidth() { return evaluate('globalThis.__popupWidths?.some(width => width > 440 && width < 780) === true') },
+    async keptViewportSize(size) {
+      await wait(() => evaluate('globalThis.__popupSizes?.length >= 60'), 'popup resize sampling complete');
+      return evaluate(`globalThis.__popupSizes.every(size => size.width === ${Number(size.width)} && size.height === ${Number(size.height)})`);
+    },
     async waitWidth(min, max) { await wait(async () => { const size = await this.viewportSize(); return size.width >= min && size.width <= max }, 'popup resize settled') },
     async waitHeight(min, max) { await wait(async () => { const size = await this.viewportSize(); return size.height >= min && size.height <= max }, 'popup height settled') },
     async viewportSize() { return evaluate('({ width: innerWidth, height: innerHeight })') },

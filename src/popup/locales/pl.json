@@ -1,4 +1,11 @@
 {
+  "tabs.previous": "Poprzednie zakładki",
+  "tabs.more": "Dalsze zakładki",
+
+  "share.all": "Wszystkie linki",
+  "share.filterLoaded": "Status wczytanych linków",
+  "share.filterLoadedHint": "Filtr obejmuje wczytane linki. Wczytaj więcej, aby uwzględnić starsze linki.",
+
   "shareSave.title": "Zapisz udostępniony wpis",
   "shareSave.saved": "Zapisano w Twoim sejfie",
   "shareSave.vault": "Docelowy sejf",

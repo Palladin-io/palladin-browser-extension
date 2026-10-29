@@ -239,28 +239,13 @@ export function GrantsPanel({
               onClick={() => void select(grant)}
             >
               <AgentIcon iconKey={grant.agentIconKey} />
-              <span>
-                <strong>
-                  {grant.agentName ??
-                    (grant.agentId ? shortId(grant.agentId) : t('grant.agent'))}
-                </strong>
-                <span
-                  className="grant-status"
-                  data-pending={grant.status === 'pending'}
-                >
-                  {states[grant.status]
-                    ? t(states[grant.status]!)
-                    : grant.status}
+              <span className="grant-row-content">
+                <strong>{grant.agentName ?? (grant.agentId ? shortId(grant.agentId) : t('grant.agent'))}</strong>
+                <small>{entries.find(entry => entry.id === (grant.entryId ?? grant.scriptEntryId) && entry.vaultId === grant.vaultId)?.name ?? t('grant.entry')}</small>
+                <span className="grant-row-meta">
+                  <span className="grant-status" data-status={grant.status} data-pending={grant.status === 'pending'}>{states[grant.status] ? t(states[grant.status]!) : grant.status}</span>
+                  <time title={new Date(grant.createdAt).toLocaleString(locale)}>{new Date(grant.createdAt).toLocaleDateString(locale)}</time>
                 </span>
-                <small>
-                  {entries.find(
-                    (entry) =>
-                      entry.id === (grant.entryId ?? grant.scriptEntryId),
-                  )?.name ?? t('grant.entry')}
-                </small>
-                <small>
-                  {new Date(grant.createdAt).toLocaleString(locale)}
-                </small>
               </span>
             </button>
           ))}
@@ -278,23 +263,23 @@ export function GrantsPanel({
         </div>
         {selected ? (
           <div className="entry-detail grant-detail">
-            <div className="detail-fields grant-information">
-            <div className="detail-field detail-heading grant-detail-heading">
+            <div className="grant-information">
+            <div className="detail-heading grant-detail-heading">
               {entry ? <EntryIcon name={entry.name} type={entry.type} {...(entry.icon ? { icon: entry.icon } : {})} {...(entry.color ? { color: entry.color } : {})} /> : <span className="grant-avatar"><PopupIcon name={selected.type === 'full' ? 'vault' : 'key'} /></span>}
               <div className="detail-identity"><h2>{entry?.name ?? selected.entryLabel ?? (selected.type === 'full' ? t('grant.wholeVault') : t('grant.entry'))}</h2>
                 <p><PopupIcon name="vault" />{selectedVaultName ?? shortId(selected.vaultId)}</p>
               </div>
             </div>
-            <div className="detail-field grant-agent-line"><AgentIcon iconKey={selected.agentIconKey} /><strong>{selected.agentName ?? t('grant.agent')}</strong>
-              <span className="grant-status" data-pending={selected.status === 'pending'}>{states[selected.status] ? t(states[selected.status]!) : selected.status}</span>
+            <div className="grant-agent-line"><AgentIcon iconKey={selected.agentIconKey} /><span className="grant-agent-identity"><strong>{selected.agentName ?? t('grant.agent')}</strong>
+              <span className="grant-status" data-status={selected.status} data-pending={selected.status === 'pending'}>{states[selected.status] ? t(states[selected.status]!) : selected.status}</span></span>
             </div>
-            {selected.canRevoke ? <div className="detail-field grant-revoke-action">
+            {selected.canRevoke ? <div className="grant-revoke-action">
               <Button variant="danger" loading={busy} onClick={() => void decide('revoke')}>
                 <PopupIcon name="denied" />{t('grant.revoke')}
               </Button>
             </div> : null}
             {selected.encryptedReason ? (
-              <section className="detail-field grant-purpose" aria-label={t('grant.encryptedReason')}>
+              <section className="grant-purpose" aria-label={t('grant.encryptedReason')}>
                 <h4>{t('grant.encryptedReason')}</h4>
                 <p>{accessReason ?? review?.reason ?? t(reasonLoading ? 'workspace.loading' : 'grant.reasonUnavailable')}{!accessReason && !review?.reason && !reasonLoading && reasonFailure ? ` [${reasonFailure}]` : ''}</p>
               </section>
@@ -452,6 +437,7 @@ export function GrantsPanel({
                     </fieldset>
                     <Button
                       type="submit"
+                      variant="positive"
                       loading={busy}
                       disabled={
                         !methods ||

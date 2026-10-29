@@ -1,3 +1,4 @@
+import { ScrollableTabs } from '../components/ScrollableTabs';
 import { PopupViewProvider, usePopupView } from "../view/PopupView";
 import type { PopupViewState, PopupEntryRef } from "../../shared/messaging/popup-view";
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
@@ -161,11 +162,7 @@ function UnlockedContent({
           }}
         />
       ) : null}
-      <div
-        className="vault-tabs"
-        role="tablist"
-        aria-label={t('vault.popupView')}
-      >
+      <ScrollableTabs label={t('vault.popupView')} activeKey={view}>
         <button
           type="button"
           role="tab"
@@ -208,7 +205,7 @@ function UnlockedContent({
           {t('workspace.logs')}
         </button>
         {settings ? <button type="button" role="tab" aria-selected={view === 'settings'} onClick={() => setView('settings')}>{t('common.settings')}</button> : null}
-      </div>
+      </ScrollableTabs>
 
       <div className="vault-content">
         {view === 'add-entry' ? (

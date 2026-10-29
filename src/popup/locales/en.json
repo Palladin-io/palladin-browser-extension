@@ -1,4 +1,11 @@
 {
+  "tabs.previous": "Previous tabs",
+  "tabs.more": "More tabs",
+
+  "share.all": "All links",
+  "share.filterLoaded": "Status of loaded links",
+  "share.filterLoadedHint": "The filter applies to loaded links. Load more to include older links.",
+
   "shareSave.title": "Save shared entry",
   "shareSave.saved": "Saved to your vault",
   "shareSave.vault": "Destination vault",
