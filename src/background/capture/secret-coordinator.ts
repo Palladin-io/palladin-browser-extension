@@ -32,7 +32,7 @@ export class SecretCaptureCoordinator {
   private readonly pending = new Map<string, Pending>();
   private generation = 0;
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
-  private readonly tabEpochs = new Map<number, number>();
+  private readonly tabEpochs = new Map<number, symbol>();
   private readonly now: () => number;
   constructor(private readonly deps: Deps) { this.now = deps.now ?? Date.now; }
   clear(): void {
@@ -44,20 +44,20 @@ export class SecretCaptureCoordinator {
     this.pending.delete(id); clearTimeout(this.timers.get(id)); this.timers.delete(id);
   }
   clearTab(tabId: number): string[] {
-    this.tabEpochs.set(tabId, (this.tabEpochs.get(tabId) ?? 0) + 1);
+    this.tabEpochs.set(tabId, Symbol());
     const ids = [...this.pending.values()].filter(item => item.source.tabId === tabId).map(item => item.id);
     for (const id of ids) this.remove(id);
     return ids;
   }
   disconnected(tabId: number, documentId: string): string[] {
-    this.tabEpochs.set(tabId, (this.tabEpochs.get(tabId) ?? 0) + 1);
+    this.tabEpochs.set(tabId, Symbol());
     const ids = [...this.pending.values()].filter(item => item.source.tabId === tabId
       && (item.source.browserDocumentId === documentId || item.source.topDocumentId === documentId)).map(item => item.id);
     for (const id of ids) this.remove(id);
     return ids;
   }
   removedTab(tabId: number): string[] {
-    const ids = this.clearTab(tabId); this.tabEpochs.delete(tabId); this.generation++;
+    const ids = this.clearTab(tabId); this.tabEpochs.delete(tabId);
     return ids;
   }
   private prune(): void {
@@ -66,11 +66,13 @@ export class SecretCaptureCoordinator {
   private async authorized(item: Pending, generation: number, active = false): Promise<boolean> {
     const session = await this.deps.session();
     if (!session?.unlocked || session.profileId !== item.session.profileId || session.generation !== item.session.generation) return false;
+    if (await this.deps.muted(item.session.profileId, registrableDomain(item.source.url) ?? new URL(item.source.url).hostname)) return false;
     if (active && await this.deps.activeTabId() !== item.source.tabId || !await this.deps.current(item.source)) return false;
     return this.generation === generation && this.pending.get(item.id) === item && item.expires > this.now() && !item.dismissed;
   }
   async observe(candidate: SecretCandidate, source: SecretCaptureSource): Promise<SecretCaptureResult> {
-    this.prune(); const generation = this.generation; const tabEpoch = this.tabEpochs.get(source.tabId);
+    this.prune(); const generation = this.generation; const tabEpoch = this.tabEpochs.get(source.tabId) ?? Symbol();
+    this.tabEpochs.set(source.tabId, tabEpoch);
     const session = await this.deps.session();
     if (!session?.unlocked) return { status: 'locked' };
     if (!await this.deps.current(source)) return { status: 'stale' };

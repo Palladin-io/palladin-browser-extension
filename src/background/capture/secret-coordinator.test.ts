@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { SecretCaptureCoordinator, type SecretCaptureSource } from './secret-coordinator';
 
 const source: SecretCaptureSource = { tabId: 1, frameId: 2, browserDocumentId: 'frame', topDocumentId: 'top', documentId: 'local', url: 'https://pay.example.test/form' };
@@ -7,15 +7,17 @@ function fixture() {
   let now = 1; let generation = 1; let live = true; let fail = false; let writes = 0;
   let prepare: (() => Promise<void>) | undefined;
   let mutedHook: (() => void) | undefined;
+  let currentHook: (() => void) | undefined;
+  const mutedSites = new Set<string>();
   const coordinator = new SecretCaptureCoordinator({ now: () => now,
     session: async () => ({ profileId: 'profile', generation, unlocked: generation > 0 }),
-    current: async () => live, activeTabId: async () => 1, muted: async () => { mutedHook?.(); return false; },
-    mute: async () => {},
+    current: async () => { currentHook?.(); return live; }, activeTabId: async () => 1, muted: async (_profile, site) => { mutedHook?.(); return mutedSites.has(site); },
+    mute: async (_profile, site) => { mutedSites.add(site); },
     vaults: async () => { await prepare?.(); return [{ id: 'v', name: 'Personal', isDefault: true }]; },
     duplicate: async () => false,
     save: async (_entry, _vault, authorized) => { await prepare?.(); if (!await authorized()) throw Error(); if (fail) throw Error(); writes++; return { status: 'saved' }; },
   });
-  return { coordinator, whileObserving: (hook: () => void) => { mutedHook = hook; }, setNow: (v: number) => { now = v; }, lock: () => { generation = 0; coordinator.clear(); }, navigate: () => { live = false; },
+  return { coordinator, whileValidating: (hook: () => void) => { currentHook = hook; }, whileObserving: (hook: () => void) => { mutedHook = hook; }, setNow: (v: number) => { now = v; }, lock: () => { generation = 0; coordinator.clear(); }, navigate: () => { live = false; },
     failing: () => { fail = true; }, retry: () => { fail = false; }, prepare: (v: () => Promise<void>) => { prepare = v; }, writes: () => writes };
 }
 const entry = { entryType: 'key', label: 'Test', value: candidate.value } as const;
@@ -72,6 +74,7 @@ describe('secret capture coordinator', () => {
     let release!: () => void; f.prepare(() => new Promise<void>(resolve => { release = resolve; }));
     const pending = f.coordinator.save(('id' in first ? first.id : ''), 'v', entry); await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
     expect(await f.coordinator.save(('id' in first ? first.id : ''), 'v', entry)).toEqual({ status: 'busy' });
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'));
     f.lock(); release(); expect(await pending).toEqual({ status: 'stale' }); expect(f.writes()).toBe(0);
   });
 });
@@ -153,4 +156,31 @@ it('selects only the addressed current candidate and leaves other previews enric
   expect(await f.coordinator.observe(enriched, source)).toEqual(first);
   expect(await f.coordinator.review()).toMatchObject({ status: 'review', candidate: enriched });
   f.coordinator.clear();
+});
+
+
+it('preserves an active review when an unrelated tab closes during source validation', async () => {
+  const f = fixture(); const first = await f.coordinator.observe(candidate, source);
+  f.whileValidating(() => f.coordinator.removedTab(2));
+  expect(await f.coordinator.review()).toMatchObject({ status: 'review', id: 'id' in first ? first.id : '' });
+  expect(await f.coordinator.review()).toMatchObject({ status: 'review' });
+  f.coordinator.clear();
+});
+
+it('rejects an observation when its own tab closes during admission', async () => {
+  const f = fixture(); f.whileObserving(() => f.coordinator.removedTab(source.tabId));
+  expect(await f.coordinator.observe(candidate, source)).toEqual({ status: 'stale' });
+  expect(await f.coordinator.review()).toEqual({ status: 'empty' });
+  f.coordinator.clear();
+});
+
+it('mutes all queued candidates for the site while retaining a different site', async () => {
+  const f = fixture(); const first = await f.coordinator.observe(candidate, source);
+  const second = await f.coordinator.observe({ ...candidate, value: 'synthetic-other-key' }, { ...source, url: 'https://other.example.test/keys' });
+  const other = await f.coordinator.observe(candidate, { ...source, browserDocumentId: 'unrelated-frame', url: 'https://unrelated.test/keys' });
+  await f.coordinator.dismiss('id' in first ? first.id : '', true);
+  expect(await f.coordinator.beginReview('id' in second ? second.id : '')).toEqual({ status: 'empty' });
+  expect(await f.coordinator.save('id' in second ? second.id : '', 'v', entry)).toEqual({ status: 'stale' });
+  expect(await f.coordinator.review()).toMatchObject({ status: 'review', id: 'id' in other ? other.id : '' });
+  expect(f.writes()).toBe(0); f.coordinator.clear();
 });
