@@ -6,6 +6,7 @@ import {
 } from '@palladin/crypto';
 import { EntryActions } from './entry-actions';
 import { VaultClientError } from '../vault/transport';
+import { VaultKeyEpochFloor } from '../vault/protocol2/key-epoch-floor';
 import type { Protocol2VaultClient } from '../vault/protocol2/client';
 import { WorkspaceError, type WorkspaceOperation } from './service';
 import type { CreateEntryShareInput } from '../../shared/workspace/contracts';
@@ -52,7 +53,7 @@ function setup() {
     id: vaultId,
     organizationId,
     memberKeyGeneration: 1,
-    currentKeyEpoch: { agentMessageKeyVersion: 1 },
+    currentKeyEpoch: { vaultKeyVersion: 1, agentMessageKeyVersion: 1 },
     vaultPrivateKeys: [],
   };
   const detail = {
@@ -86,7 +87,9 @@ function setup() {
     getAccessToken: vi.fn(async () => 'test-token'),
     refreshAccessToken: vi.fn<() => Promise<string | null>>(async () => null),
   };
+  const keyEpochFloor = new VaultKeyEpochFloor();
   const actions = new EntryActions({
+    keyEpochFloor,
     data: { revealCurrentEntry: vi.fn(async () => source) },
     client: client as unknown as Pick<
       Protocol2VaultClient,
@@ -104,7 +107,7 @@ function setup() {
     assertCurrent: vi.fn(),
     request,
   };
-  return { actions, operation, request, client, detail, webUrl, session };
+  return { actions, operation, request, client, detail, webUrl, session, keyEpochFloor };
 }
 
 beforeEach(() => vi.resetAllMocks());
@@ -405,6 +408,20 @@ describe('encrypted workspace operations', () => {
       ),
     ).rejects.toMatchObject({ code: 'invalid' });
     expect(cryptoMocks.buildCanonicalGrantEnvelope).not.toHaveBeenCalled();
+  });
+
+  it('does not open a replayed older Vault key epoch to build a grant envelope', async () => {
+    const { actions, operation, request, client, keyEpochFloor } = setup();
+    const vault = await client.getVault();
+    await keyEpochFloor.observe(userId, { ...vault, memberKeyGeneration: 2,
+      currentKeyEpoch: { ...vault.currentKeyEpoch, vaultKeyVersion: 2 } }, async () => undefined);
+    request.mockResolvedValue({ id: grantId, vaultId, entryId, agentId, type: 'granular', methods: 'Inject' });
+    await expect(actions.handle({ type: 'workspace/approve-grant', vaultId, grantId, entryId, revision: '4',
+      methods: 4, fields: ['credential.password'], selection: 'selected', policy: { kind: 'lifetime' } }, operation))
+      .rejects.toMatchObject({ code: 'decrypt-failed' });
+    expect(cryptoMocks.openVaultProjection).not.toHaveBeenCalled();
+    expect(cryptoMocks.buildCanonicalGrantEnvelope).not.toHaveBeenCalled();
+    expect(request.mock.calls.some((call) => call[1] === 'PUT')).toBe(false);
   });
 });
 

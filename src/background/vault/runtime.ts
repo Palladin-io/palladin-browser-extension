@@ -52,7 +52,7 @@ const session: Protocol2SessionAccessor = {
   getPrivateKey: () => sessionManager.getKeys()?.privateKey ?? null,
 };
 
-const keyEpochFloor = new VaultKeyEpochFloor();
+export const keyEpochFloor = new VaultKeyEpochFloor();
 sessionManager.hooks.onLocked(() => keyEpochFloor.clear());
 
 const protocol2Client = new Protocol2VaultClient((...args) => fetch(...args), () => serverConfig.networkApiUrl);

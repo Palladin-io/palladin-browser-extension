@@ -29,6 +29,7 @@ import type {
   ShareCreationChallenge,
 } from '../../shared/workspace/contracts';
 import type { Protocol2VaultClient } from '../vault/protocol2/client';
+import type { VaultKeyEpochFloor } from '../vault/protocol2/key-epoch-floor';
 import type { Protocol2VaultDataService, Protocol2SessionAccessor } from '../vault/protocol2/service';
 import { WorkspaceError, type WorkspaceOperation } from './service';
 
@@ -47,6 +48,7 @@ export class EntryActions {
       client: Pick<Protocol2VaultClient, 'getVault' | 'getEntry'>;
       session: Protocol2SessionAccessor;
       data: Pick<Protocol2VaultDataService, 'revealCurrentEntry'>;
+      keyEpochFloor: VaultKeyEpochFloor;
       webUrl(): string;
     },
   ) {}
@@ -148,6 +150,7 @@ export class EntryActions {
     return this.withEntry(
       command,
       operation,
+      'read',
       async ({ vault, detail, secret }) => {
         const challenge = (await operation.request(
           `${this.path(command)}/creation-challenge`,
@@ -220,7 +223,8 @@ export class EntryActions {
     const vault = await this.withAuth(operation, token => this.deps.client.getVault(token, command.vaultId, operation.signal));
     operation.assertCurrent();
     if (vault.id !== command.vaultId) throw new WorkspaceError('invalid');
-    const opened = await openVaultProjection(vault, privateKey, userId).catch(() => { throw new WorkspaceError('reason-key'); });
+    const opened = await this.deps.keyEpochFloor.observe(userId, vault, () => openVaultProjection(vault, privateKey, userId))
+      .catch(() => { throw new WorkspaceError('reason-key'); });
     try {
       operation.assertCurrent();
       // Historical reasons use their signed key version; authenticated grant/Vault state supplies scope authority.
@@ -269,6 +273,7 @@ export class EntryActions {
     return this.withEntry(
       { vaultId: command.vaultId, entryId },
       operation,
+      'write',
       async ({ vault, detail, secret, vaultKey }) => {
         const requestedMethods = methodsMask(grant.methods);
         const fieldIds = listCanonicalGrantableFieldIds(secret);
@@ -375,6 +380,7 @@ export class EntryActions {
                 this.withEntry(
                   { vaultId: vault.id, entryId: id },
                   operation,
+                  'read',
                   async ({ secret, detail }) => ({
                     secret,
                     revision: detail.currentRevision,
@@ -478,6 +484,7 @@ export class EntryActions {
   private async withEntry<T>(
     scope: { vaultId: string; entryId: string },
     operation: WorkspaceOperation,
+    access: 'read' | 'write',
     use: (entry: {
       vault: Awaited<ReturnType<Protocol2VaultClient['getVault']>>;
       detail: Awaited<ReturnType<Protocol2VaultClient['getEntry']>>;
@@ -507,7 +514,11 @@ export class EntryActions {
       detail.organizationId !== vault.organizationId
     )
       throw new WorkspaceError('invalid');
-    const opened = await openVaultProjection(vault, privateKey, userId);
+    const open = () => openVaultProjection(vault, privateKey, userId);
+    // Grant material is sealed under this key, so a write must not accept a rolled-back epoch.
+    const opened = access === 'write'
+      ? await this.deps.keyEpochFloor.openForWrite(userId, vault, open)
+      : await this.deps.keyEpochFloor.observe(userId, vault, open);
     try {
       operation.assertCurrent();
       const secret = await openCurrentMemberSecret(
