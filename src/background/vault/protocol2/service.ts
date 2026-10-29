@@ -560,7 +560,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
     }
   }
 
-  async saveEntry(input: ManualEntrySaveInput): Promise<ManualEntrySaveResult> {
+  async saveEntry(input: ManualEntrySaveInput, vaultId?: string, assertCurrent?: () => Promise<void>, isCurrent?: () => boolean): Promise<ManualEntrySaveResult> {
     if (this.currentVaults.size === 0) await this.refresh()
     let secret: MemberSecretV1
     switch (input.entryType) {
@@ -582,22 +582,22 @@ export class Protocol2VaultDataService implements VaultDataSource {
         break
       }
     }
-    const result = await this.createCanonicalEntry({ kind: 'legacy', secret })
+    const result = await this.createCanonicalEntry({ kind: 'legacy', secret }, vaultId, assertCurrent, isCurrent)
     return result.status === 'created'
       ? { status: 'saved' }
       : { status: 'blocked', reason: 'grant-refresh-required' }
   }
 
   /** Extension-owned confirmation options. Names are decrypted only in worker memory. */
-  async sharedCopyVaults(): Promise<readonly { id: string; name: string }[]> {
+  async sharedCopyVaults(): Promise<readonly { id: string; name: string; isDefault: boolean }[]> {
     if (this.currentVaults.size === 0) await this.refresh()
     const privateKey = this.deps.session.getPrivateKey()
     const userId = await this.deps.session.getUserId()
     if (!privateKey || !userId) throw new VaultDataError('locked', 'Session is locked')
-    const options: { id: string; name: string }[] = []
+    const options: { id: string; name: string; isDefault: boolean }[] = []
     for (const vault of this.currentVaults.values()) {
       const opened = await openProjectionVault({ ...vault, memberVaultKey: vault.memberVaultKey }, privateKey, userId)
-      try { options.push({ id: vault.id, name: opened.metadata.name }) }
+      try { options.push({ id: vault.id, name: opened.metadata.name, isDefault: vault.isDefault }) }
       finally { wipe(opened.vaultKey) }
     }
     return options
@@ -625,6 +625,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
     entry: { kind: 'legacy'; secret: MemberSecretV1 } | { kind: 'current'; secret: currentVaultPlaintext.MemberSecretV1 },
     selectedVaultId?: string,
     assertCurrent?: () => Promise<void>,
+    isCurrent?: () => boolean,
   ): Promise<Extract<GeneratedPasswordSaveResult, { status: 'created' | 'blocked' }>> {
     const privateKey = this.deps.session.getPrivateKey()
     if (privateKey === null) throw new VaultDataError('locked', 'Session is locked')
@@ -664,11 +665,13 @@ export class Protocol2VaultDataService implements VaultDataSource {
       try {
         await this.withAuth(async (token) => {
           await assertCurrent?.()
+          const currentUserId = await this.deps.session.getUserId()
+          if (this.deps.session.getPrivateKey() !== privateKey || currentUserId !== userId || isCurrent?.() === false) throw new VaultDataError('locked', 'Session changed while preparing Entry')
           return this.deps.client.createEntry(token, {
             vaultId: vault.id,
             entryId,
             ...material,
-            deliveryPolicy: 'standard',
+            deliveryPolicy: entry.secret.entryType === 'creditCard' ? 'injectOnly' : 'standard',
           })
         })
       } catch (error) {

@@ -1,3 +1,4 @@
+import { startSecretCapture } from './secret-capture';
 import { isAgentFrameListRequest } from '@shared/messaging/agent-frame';
 import { agentLoginFrameAllowed, visibleLoginFrameUrls } from './agent-frame';
 import { isDeferredFillMessage, isDeferredCommitMessage, isDeferredCancelMessage } from '@shared/messaging/agent-deferred';
@@ -61,6 +62,7 @@ const documentId = generateNonce();
 const selfOrigin = window.location.origin;
 
 let port: ReturnType<typeof createReconnectingWorkerPort>;
+let secretCapture: ReturnType<typeof startSecretCapture> | null = null;
 const sessionKeepalive = createSessionKeepalive(
   (message) => port.postMessage(message),
   {
@@ -74,6 +76,7 @@ port = createReconnectingWorkerPort(
   (raw) => {
     if (isSessionLivenessControl(raw)) {
       sessionKeepalive.setEnabled(raw.enabled);
+      if (raw.enabled && !secretCapture && window.location.protocol === "https:") secretCapture = startSecretCapture(document, documentId);
       return;
     }
     if (isBridgeMessage(raw) && raw.type === 'share-save/response') {
@@ -97,6 +100,7 @@ port = createReconnectingWorkerPort(
     if (/extension context invalidated/i.test(message)) return "context-invalidated";
     return /back\/forward cache/i.test(message) ? "bfcache" : "worker";
   },
+  () => { secretCapture?.stop(); secretCapture = null; },
 );
 const shareSaveResponses = new Map<string, (value: unknown) => void>();
 if (window === window.top) {
@@ -125,11 +129,13 @@ const generatorSuggestion = window.top === window && window.location.protocol ==
 passwordCapture.controller.trustOverlay(element => generatorSuggestion?.isOwnedSurface(element) ?? false);
 let credentialCapture = window.top === window && window.location.protocol === "https:"
   ? startCredentialCapture(document, documentId) : null;
+secretCapture = window.location.protocol === 'https:' ? startSecretCapture(document, documentId) : null;
 const agentInjectDom = createAgentInjectDomAccess(
   document,
   (element) => (inlineAutofill?.isOwnedSurface(element) ?? false)
     || (generatorSuggestion?.isOwnedSurface(element) ?? false)
-    || (credentialCapture?.isOwnedSurface(element) ?? false),
+    || (credentialCapture?.isOwnedSurface(element) ?? false)
+    || (secretCapture?.isOwnedSurface(element) ?? false),
 );
 
 const liveLogin = new LiveLogin(document, documentId, () => window.location.href, () => agentLoginFrameAllowed(window), agentInjectDom);
@@ -183,7 +189,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       inlineAutofill?.handleSessionChanged(message.status);
       if (message.status !== "unlocked") generatorSuggestion?.hide();
     }
-    if (message.type === "surface/session-changed") void credentialCapture?.refresh();
+    if (message.type === "surface/session-changed") {
+      void credentialCapture?.refresh();
+      if (message.status === "unlocked" && !secretCapture && window.location.protocol === "https:") {
+        secretCapture = startSecretCapture(document, documentId);
+      }
+      void secretCapture?.refresh(message.status === "unlocked");
+    }
     return undefined;
   }
   if (isTabUrlRequestMessage(message)) {
@@ -259,6 +271,7 @@ window.addEventListener("message", (event: MessageEvent) => {
 window.addEventListener("pageshow", (event: PageTransitionEvent) => {
   if (event.persisted) {
     port.reconnect();
+    if (window.location.protocol === "https:") secretCapture = startSecretCapture(document, documentId);
     if (window.top === window && window.location.protocol === "https:") {
       credentialCapture = startCredentialCapture(document, documentId);
     }
@@ -266,6 +279,7 @@ window.addEventListener("pageshow", (event: PageTransitionEvent) => {
 });
 
 window.addEventListener("pagehide", () => sessionKeepalive.stop());
+window.addEventListener("pagehide", () => { secretCapture?.stop(); secretCapture = null; });
 window.addEventListener("pagehide", () => { credentialCapture?.stop(); credentialCapture = null; });
 window.addEventListener("unload", () => inlineAutofill?.stop(), { once: true });
 window.addEventListener('unload', () => generatorSuggestion?.stop(), { once: true });

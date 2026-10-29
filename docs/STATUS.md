@@ -68,6 +68,13 @@ and server-change suspension. Nine local actual-product Chromium checks passed;
 this channel does not yet invoke the session/crypto components or supply the Web
 application adapter. Other browser/OS/distributed-artifact acceptance remains open.
 
+## Local API key/card capture implementation
+
+Proactive capture now has a local explicit-review flow using the native side
+panel/action popup and encrypted canonical Entry creation. It is covered by a
+synthetic Chromium corpus; this is not real-provider, Firefox/Safari or card
+production release acceptance. See [capture behavior and acceptance](SECRET-CAPTURE.md).
+
 ## Development baseline
 
 - One buildable source tree with a locked dependency graph.
