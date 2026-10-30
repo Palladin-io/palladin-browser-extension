@@ -263,14 +263,14 @@ export function GrantsPanel({
           <div className="entry-detail grant-detail">
             <div className="grant-information">
             <div className="grant-summary-card"><div className="grant-identities">
-<div className="grant-identity-column"><h4>{t('grant.agent')}</h4>            <div className="grant-agent-line"><AgentIcon iconKey={selected.agentIconKey} /><span className="grant-agent-identity"><strong>{selected.agentName ?? t('grant.agent')}</strong>
+<div className="grant-identity-column"><h4>{t('grant.agent')}</h4>            <div className="grant-agent-line"><AgentIcon iconKey={selected.agentIconKey} /><span className="grant-agent-identity"><strong title={selected.agentName ?? t('grant.agent')}>{selected.agentName ?? t('grant.agent')}</strong>
               <span className="grant-status" data-status={selected.status} data-pending={selected.status === 'pending'}>{states[selected.status] ? t(states[selected.status]!) : selected.status}</span></span>
             </div>
 </div>
 <div className="grant-identity-column"><h4>{t('grant.resource')}</h4>            <div className="detail-heading grant-detail-heading">
               {entry ? <EntryIcon name={entry.name} type={entry.type} {...(entry.icon ? { icon: entry.icon } : {})} {...(entry.color ? { color: entry.color } : {})} /> : <span className="grant-avatar"><PopupIcon name={selected.type === 'full' ? 'vault' : 'key'} /></span>}
-              <div className="detail-identity"><h2>{entry?.name ?? selected.entryLabel ?? (selected.type === 'full' ? t('grant.wholeVault') : t('grant.entry'))}</h2>
-                <p><PopupIcon name="vault" />{selectedVaultName ?? shortId(selected.vaultId)}</p>
+              <div className="detail-identity"><h2 title={entry?.name ?? selected.entryLabel ?? (selected.type === 'full' ? t('grant.wholeVault') : t('grant.entry'))}>{entry?.name ?? selected.entryLabel ?? (selected.type === 'full' ? t('grant.wholeVault') : t('grant.entry'))}</h2>
+                <p title={selectedVaultName ?? shortId(selected.vaultId)}><PopupIcon name="vault" />{selectedVaultName ?? shortId(selected.vaultId)}</p>
               </div>
             </div>
 </div></div>

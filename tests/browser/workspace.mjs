@@ -81,7 +81,7 @@ try {
   await popup.screenshot(path.join(output, 'intro-light.png'));
   const initialSize = await popup.viewportSize();
   assert.equal(initialSize.width, 400, 'Auth uses a compact native width');
-  assert.equal(initialSize.height, 480, 'Auth uses a compact native height');
+  assert.equal(initialSize.height, 360, 'Auth uses a compact native height');
   await popup.click('Continue to Palladin');
   await popup.waitButton('Sign in');
   assert.equal((await popup.configureConnection({ name: 'Synthetic workspace API', apiUrl: api.url,
@@ -91,7 +91,7 @@ try {
   assert.equal(brand.weight, '800');
   assert.equal(brand.size, '19px');
   assert.equal(brand.spacing, '-0.19px');
-  await popup.waitHeight(480, 480);
+  await popup.waitHeight(360, 360);
   assert.deepEqual(await popup.viewportSize(), initialSize, 'Sign-in must not resize the native popup');
   await popup.screenshot(path.join(output, 'sign-in-light.png'));
   await popup.fill('input[type=email]', api.email); await popup.fill('input[type=password]', api.password); await popup.click('Sign in');
@@ -169,9 +169,9 @@ try {
   await popup.observeResize();
   await popup.click('Lock'); await popup.waitText('Master password');
   await popup.waitWidth(400, 400);
-  await popup.waitHeight(480, 480);
+  await popup.waitHeight(360, 360);
   assert.deepEqual(await popup.viewportSize(), initialSize, 'Lock must preserve native popup bounds');
-  assert.equal((await popup.viewportSize()).height, 480, 'Locked screen returns to compact auth bounds');
+  assert.equal((await popup.viewportSize()).height, 360, 'Locked screen returns to compact auth bounds');
   await popup.screenshot(path.join(output, 'unlock-light.png'));
   assert(!await popup.hasText('synthetic@example.test'));
   await popup.click('Settings');

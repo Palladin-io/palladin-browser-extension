@@ -26,7 +26,7 @@ as part of visual changes.
 - Identity icons retain their framed, neutral surface. Grain belongs to the
   content canvas, not the logo or navigation rails. The texture and 180px tile
   match the panel, with a feathered diagonal band: 92% light / 93% dark cover.
-- The native popup starts at 400 x 480 CSS pixels for loading, onboarding,
+- The native popup starts at 400 x 360 CSS pixels for loading, onboarding,
   sign-in and unlock. The unlocked workspace expands to 780 x 580; standalone
   settings use 400 x 580. Phase changes resize immediately without dimension
   transitions. Side-panel bounds remain browser-owned.
@@ -99,11 +99,14 @@ both Entry and Vault IDs. Clicking the corresponding main tab resets that scope.
 This is covered through UnlockedScreen and the worker-message transport, not
 only the synthetic preview navigation.
 
-The unlocked footer shows the manifest version immediately before Lock and
-Sign out. Split-view settings do not duplicate it; standalone locked settings
+The unlocked footer places the manifest version after Open web panel with a
+vertical separator; Lock and Sign out stay right-aligned. Split-view settings do not duplicate it; standalone locked settings
 retain the version because the workspace footer is absent.
 
 Inbox and Sharing list titles/resource names remain one line with ellipsis and
 a full native hover title. Grant approval groups limit/duration, operations and
 fields into separated sections within one form card, reusing bordered checkbox
 rows and full-width custom selects. Permission defaults remain unchanged.
+
+Detail identity titles also use a single ellipsized line with a full hover title,
+so long Agent/resource names do not increase the identity-card height.

@@ -77,7 +77,7 @@ export function EntryDetail({
           {...(entry.color ? { color: entry.color } : {})}
         />
         <div className="detail-identity">
-          <h2>{entry.name}</h2>
+          <h2 title={entry.name}>{entry.name}</h2>
           <p>{entry.vaultName}</p>
         </div>
   </>;

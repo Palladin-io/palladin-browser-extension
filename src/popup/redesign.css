@@ -56,14 +56,14 @@
 html,
 body {
   width: var(--popup-width, 400px);
-  height: var(--popup-height, 480px);
-  max-height: var(--popup-height, 480px);
+  height: var(--popup-height, 360px);
+  max-height: var(--popup-height, 360px);
   margin: 0;
   overflow: hidden;
 }
 .popup {
   width: 100%;
-  height: min(var(--popup-height, 480px), 100vh);
+  height: min(var(--popup-height, 360px), 100vh);
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -1426,3 +1426,17 @@ html[data-extension-surface='side-panel'] .popup-header {
 .grant-control-section .filter-select { width: 100%; display: flex; flex-direction: column; align-items: stretch; }
 .grant-control-section .filter-options { position: static; width: 100%; max-width: none; box-sizing: border-box; margin-top: 6px; }
 .grant-control-section .workspace-check { padding: 8px 10px; border: 1px solid var(--cv-border); border-radius: 6px; background: var(--cv-input-bg); }
+
+.grant-agent-identity { flex: 1; min-width: 0; }
+.grant-agent-identity > strong { max-width: 100%; }
+.grant-agent-identity > strong,
+.grant-identity-column .detail-identity h2,
+.share-identity-card .detail-identity h2,
+.share-form-identity .detail-identity h2,
+.entry-identity-card .detail-identity h2 { display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.grant-identity-column .detail-identity p { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.grant-identity-column .detail-identity p .popup-icon { display: inline-block; vertical-align: middle; margin-right: 5px; }
+
+.vault-footer > .link-btn { margin-right: 0; }
+.vault-footer > .vault-footer-version { margin-right: auto; }
+.vault-footer-version > span { margin-right: 8px; color: var(--cv-border); }

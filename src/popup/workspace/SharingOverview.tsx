@@ -111,7 +111,7 @@ export function SharingOverview({ client, vaultClient, entries }: {
     {focused ? <div className="entry-detail grant-detail share-overview-detail">
       <div className="detail-heading share-identity-card">
         <EntryIcon name={focusedEntry?.name ?? t('share.unavailableEntry')} type={focusedEntry?.type ?? 1} {...(focusedEntry?.icon ? { icon: focusedEntry.icon } : {})} />
-        <div className="detail-identity"><h2>{focusedEntry?.name ?? t('share.unavailableEntry')}</h2><p>{focusedEntry?.vaultName}</p></div>
+        <div className="detail-identity"><h2 title={focusedEntry?.name ?? t('share.unavailableEntry')}>{focusedEntry?.name ?? t('share.unavailableEntry')}</h2><p>{focusedEntry?.vaultName}</p></div>
         <span className="grant-status" data-status={focused.share.status}>{t(shareStates[focused.share.status] ?? 'share.unknownStatus')}</span>
       </div>
       <dl className="grant-metadata">

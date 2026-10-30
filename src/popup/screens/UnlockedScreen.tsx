@@ -397,8 +397,8 @@ function UnlockedFooter({
         <PopupIcon name="external" />
         {t('vault.openWebPanel')}
       </button>
+      {version ? <span className="vault-footer-version"><span aria-hidden="true">|</span> {t('settings.version', { version })}</span> : null}
       <div className="vault-footer-actions">
-        {version ? <span className="vault-footer-version">{t('settings.version', { version })}</span> : null}
         <button className="toolbar-icon" aria-label={t('vault.lock')} title={t('vault.lock')} disabled={busy !== null} onClick={() => void run('lock', onLock)}>
           {busy === 'lock' ? <Spinner /> : <PopupIcon name="lock" />}
         </button>
