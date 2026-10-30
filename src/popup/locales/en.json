@@ -425,7 +425,7 @@
   "share.revoke": "Revoke link",
   "share.choose": "Choose an entry to share or manage its links.",
   "common.cancel": "Cancel",
-  "grant.pending": "Pending decision",
+  "grant.pending": "Pending",
   "grant.active": "Active",
   "grant.denied": "Denied",
   "grant.revoked": "Revoked",
@@ -549,5 +549,13 @@
   "grant.wholeVault": "Entire vault",
   "grant.expiresAt": "Expires",
   "grant.noExpiry": "No expiry date",
-  "grant.expiryOnApproval": "Set when approving"
+  "grant.expiryOnApproval": "Set when approving",
+  "grant.resource": "Resource",
+  "grant.hours": "{count} h",
+  "share.select": "Select a link to see its details",
+  "share.createdAt": "Created",
+  "share.recipient": "Recipient",
+  "share.entryLinks": "All links for this entry",
+  "grant.otherMethods": "Other operations",
+  "grant.unrequestedMethods": "The agent did not request these operations. Granting them requires a separate request."
 }

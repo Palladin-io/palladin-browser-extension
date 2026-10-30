@@ -131,8 +131,8 @@ export function AuditPanel({
   const { t, locale } = useI18n();
   const [items, setItems] = useState<AuditLogItem[]>([]);
   const [members, setMembers] = useState<MemberIdentity[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [filter, setFilter] = useState('');
+  const [cursor, setCursor] = useState<Record<string, string> | null>(null);
+  const [filter, setFilter] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const revision = useRef(0);
@@ -145,7 +145,7 @@ export function AuditPanel({
     },
     [client],
   );
-  async function load(next?: string) {
+  async function load(next?: Record<string, string>) {
     if (next && inFlight.current) return;
     inFlight.current = true;
     setPageError(false);
@@ -153,29 +153,26 @@ export function AuditPanel({
     setBusy(true);
     setError(false);
     try {
-      const page = await client.send({
+      const keys = next ? Object.keys(next) : filter.length ? filter : [''];
+      const pages = await Promise.all(keys.map(async key => ({ key, page: await client.send({
         type: 'workspace/audit',
+        ...(key ? { eventType: key } : {}),
         ...(entryId ? { entryId } : {}),
         ...(vaultId ? { vaultId } : {}),
-        ...(filter ? { eventType: filter } : {}),
-        ...(next ? { cursor: next } : {}),
-      });
+        ...(next?.[key] ? { cursor: next[key] } : {}),
+      }) })));
+      const page = { items: pages.flatMap(result => result.page.items).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || a.id.localeCompare(b.id)) };
+      const nextCursors = Object.fromEntries(pages.flatMap(result => result.page.nextCursor ? [[result.key, result.page.nextCursor]] : []));
+
       const identities = await client.members(
         page.items.flatMap((item) => (item.userId ? [item.userId] : [])),
       );
       if (revision.current !== run) return;
       setMembers(identities);
-      setItems((previous) =>
-        next
-          ? [
-              ...previous,
-              ...page.items.filter(
-                (item) => !previous.some((row) => row.id === item.id),
-              ),
-            ]
-          : page.items,
-      );
-      setCursor(page.nextCursor);
+      setItems(previous => (next
+        ? [...previous, ...page.items.filter(item => !previous.some(row => row.id === item.id))]
+        : page.items).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || a.id.localeCompare(b.id)));
+      setCursor(Object.keys(nextCursors).length ? nextCursors : null);
     } catch (error) {
       if (revision.current === run) { setError(error); setPageError(Boolean(next)); }
     } finally {
@@ -205,10 +202,10 @@ export function AuditPanel({
       aria-label={t('workspace.logs')}
     >
       <div className="workspace-toolbar">
-        <FilterSelect
+        <FilterSelect multiple
           aria-label={t('audit.filter')}
           value={filter}
-          onChange={(event) => setFilter(event.target.value)}
+          onValueChange={setFilter}
         >
           <option value="">{t('workspace.all')}</option>
           {Object.entries(eventKeys).map(([value, key]) => (

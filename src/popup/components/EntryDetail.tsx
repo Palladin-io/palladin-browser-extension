@@ -87,7 +87,7 @@ export function EntryDetail({
         <PopupIcon name="back" />
         {t('common.back')}
       </button>
-      {!sharing ? <div className="detail-heading">
+      {!sharing ? <div className="detail-heading entry-identity-card">
         {identity}
         {(entry.type === 1 && entry.urlDomain) || entry.type === 3 ? (
           <Button loading={busy} onClick={() => void fill()}>

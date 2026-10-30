@@ -1,3 +1,4 @@
+import { FilterSelect } from '../components/FilterSelect';
 import { configuredPanelUrl } from '@shared/config/web-app';
 import { PopupIcon } from '../components/PopupIcon';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
@@ -286,9 +287,7 @@ export function SharingPanel({
       className="workspace-panel sharing-panel"
       aria-label={t('workspace.shares')}
     >
-      {embedded ? <div className="detail-heading">{heading}
-        {!links.length ? <Button type="submit" form={formId} loading={busy}>{t(attempt ? 'share.retry' : 'share.create')}</Button> : null}
-      </div> : null}
+      {embedded ? <div className="detail-heading share-form-identity">{heading}</div> : null}
       {!embedded ? <div className="workspace-heading">
         <div>
           {!embedded ? <h2>{t('workspace.shares')}</h2> : null}
@@ -302,10 +301,10 @@ export function SharingPanel({
       </div> : null}
       {!initialEntry ? <label className="workspace-label">
         {t('share.entry')}
-        <select
+        <FilterSelect aria-label={t('share.entry')}
           value={entryKey}
           disabled={busy}
-          onChange={(event) => setEntryKey(event.target.value)}
+          onValueChange={setEntryKey}
         >
           <option value="">{t('detail.select')}</option>
           {entries.map((entry) => (
@@ -316,7 +315,7 @@ export function SharingPanel({
               {entry.name} · {entry.vaultName}
             </option>
           ))}
-        </select>
+        </FilterSelect>
       </label> : null}
       {entry ? (
         <>
@@ -329,7 +328,6 @@ export function SharingPanel({
           >
             {!embedded ? <div className="share-source"><EntryIcon name={entry.name} type={entry.type} {...(entry.icon ? {icon: entry.icon} : {})} /><span><strong>{entry.name}</strong><small>{entry.vaultName}</small></span></div> : null}
             {!embedded ? <h3>{t(links.length ? 'share.created' : changing ? 'share.changeProtection' : 'share.create')}</h3> : null}
-            {!links.length && !changing ? <p className="share-hint">{t('share.snapshotNotice')}</p> : null}
             {links.length ? (
               <div className="share-result">
                 <p>{t('share.linkNotice')}</p>
@@ -370,15 +368,13 @@ export function SharingPanel({
                       <details className="share-section"><summary><span>{t('share.recipients')}</span><span>{named ? email || t('share.named') : t('share.anyone')}</span><PopupIcon name="chevron" /></summary><div>
                       <label>
                         {t('share.recipients')}
-                        <select
+                        <FilterSelect aria-label={t('share.recipients')} disabled={busy || attempt !== null}
                           value={named ? 'named' : 'anyone'}
-                          onChange={(event) =>
-                            setNamed(event.target.value === 'named')
-                          }
+                          onValueChange={value => setNamed(value === 'named')}
                         >
                           <option value="anyone">{t('share.anyone')}</option>
                           <option value="named">{t('share.named')}</option>
-                        </select>
+                        </FilterSelect>
                       </label>
                       {named ? (
                         <label>
@@ -400,10 +396,10 @@ export function SharingPanel({
                   <>
                     <label>
                       {t('share.protection')}
-                      <select
+                      <FilterSelect aria-label={t('share.protection')} disabled={busy || attempt !== null}
                         value={protection}
-                        onChange={(event) => {
-                          setProtection(event.target.value as ShareProtection);
+                        onValueChange={value => {
+                          setProtection(value as ShareProtection);
                           setSecret('');
                           setConfirmation('');
                         }}
@@ -411,7 +407,7 @@ export function SharingPanel({
                         <option value="none">{t('share.none')}</option>
                         <option value="password">{t('share.password')}</option>
                         <option value="pin">{t('share.pin')}</option>
-                      </select>
+                      </FilterSelect>
                     </label>
                     {protection !== 'none' ? (
                       <label>
@@ -454,20 +450,16 @@ export function SharingPanel({
 
                         <label>
                           {t('share.expiry')}
-                          <select
-                            value={hours}
-                            onChange={(event) =>
-                              setHours(
-                                Number(event.target.value) as typeof hours,
-                              )
-                            }
+                          <FilterSelect aria-label={t('share.expiry')} disabled={busy || attempt !== null}
+                            value={String(hours)}
+                            onValueChange={value => setHours(Number(value) as typeof hours)}
                           >
                             {[1, 24, 72, 168].map((value) => (
-                              <option key={value} value={value}>
+                              <option key={value} value={String(value)}>
                                 {t('share.hours', { count: value })}
                               </option>
                             ))}
-                          </select>
+                          </FilterSelect>
                         </label>
                     </div></details>
                     <details className="share-section"><summary><span>{t('share.receipts')}</span><span>{receipts || t('share.unlimited')}</span><PopupIcon name="chevron" /></summary><div>
@@ -502,7 +494,7 @@ export function SharingPanel({
                   <p role="alert">{t('share.inputError')}</p>
                 ) : null}
                 {attempt && error ? <p>{t('share.retryNotice')}</p> : null}
-                {!embedded ? <div className="workspace-actions share-form-actions">
+                <div className="workspace-actions share-form-actions">
                   <Button type="submit" loading={busy}>
                     {t(
                       changing
@@ -515,7 +507,7 @@ export function SharingPanel({
                   <Button variant="subtle" disabled={busy} onClick={() => { reset(); setCreating(false); if (embedded || initialProtectionShare) onClose?.(); }}>
                       {t('common.cancel')}
                     </Button>
-                </div> : null}
+                </div>
               </>
             )}
           </form> : null}

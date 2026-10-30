@@ -48,7 +48,8 @@ it('retries only an unfinished named recipient with the same operation ID', asyn
     />,
   );
   await user.click(screen.getByText('Who can open', { selector: 'summary span' }));
-  await user.selectOptions(screen.getByLabelText('Who can open'), 'named');
+  await user.click(screen.getByRole('combobox', { name: 'Who can open' }));
+  await user.click(screen.getByRole('option', { name: 'Specific recipient' }));
   await user.type(
     screen.getByLabelText('Recipient email'),
     'one@example.test,two@example.test',

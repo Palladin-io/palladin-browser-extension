@@ -42,8 +42,8 @@ export function GrantsPanel({
 }): React.JSX.Element {
   const { t, locale } = useI18n();
   const [items, setItems] = useState<OrgGrant[]>([]);
-  const [status, setStatus] = useState('');
-  const [cursor, setCursor] = useState<string | null>(null);
+  const [status, setStatus] = useState<string[]>([]);
+  const [cursor, setCursor] = useState<Record<string, string> | null>(null);
   const [selected, setSelected] = useState<OrgGrant | null>(null);
   const [accessReason, setAccessReason] = useState<string | null>(null);
   const [reasonFailure, setReasonFailure] = useState<string | null>(null);
@@ -71,30 +71,27 @@ export function GrantsPanel({
       generation.current++;
     };
   }, []);
-  async function load(next?: string, quiet = false) {
+  async function load(next?: Record<string, string>, quiet = false) {
     const run = ++generation.current;
     if (!quiet) setLoading(true);
     setError(false);
     try {
-      const page = await client.send({
+      const keys = next ? Object.keys(next) : status.length ? status : [''];
+      const pages = await Promise.all(keys.map(async key => ({ key, page: await client.send({
         type: 'workspace/grants',
-        ...(status ? { status } : {}),
+        ...(key ? { status: key } : {}),
         ...(entryId ? { entryId } : {}),
         ...(vaultId ? { vaultId } : {}),
-        ...(next ? { cursor: next } : {}),
-      });
+        ...(next?.[key] ? { cursor: next[key] } : {}),
+      }) })));
+      const page = { items: pages.flatMap(result => result.page.items).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || a.id.localeCompare(b.id)) };
+      const nextCursors = Object.fromEntries(pages.flatMap(result => result.page.nextCursor ? [[result.key, result.page.nextCursor]] : []));
+
       if (!mounted.current || run !== generation.current) return;
-      setItems((previous) =>
-        next
-          ? [
-              ...previous,
-              ...page.items.filter(
-                (row) => !previous.some((item) => item.id === row.id),
-              ),
-            ]
-          : page.items,
-      );
-      setCursor(page.nextCursor);
+      setItems(previous => (next
+        ? [...previous, ...page.items.filter(item => !previous.some(row => row.id === item.id))]
+        : page.items).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || a.id.localeCompare(b.id)));
+      setCursor(Object.keys(nextCursors).length ? nextCursors : null);
     } catch (error) {
       if (mounted.current && run === generation.current) setError(error);
     } finally {
@@ -104,6 +101,8 @@ export function GrantsPanel({
   }
   useEffect(() => {
     setItems([]);
+    setCursor(null);
+    setLoading(true);
     setSelected(null);
     setReview(null);
     return () => {
@@ -222,8 +221,8 @@ export function GrantsPanel({
       <div className="grants-layout">
         <div className="grant-sidebar">
           <div className="grant-list-controls">
-            <FilterSelect aria-label={t('grant.filter')} value={status} disabled={busy}
-              onChange={(event) => setStatus(event.target.value)}>
+            <FilterSelect multiple aria-label={t('grant.filter')} value={status} disabled={actionBusy}
+              onValueChange={setStatus}>
               <option value="">{t('grant.all')}</option>
               {Object.entries(states).map(([value, key]) => <option key={value} value={value}>{t(key)}</option>)}
             </FilterSelect>
@@ -241,10 +240,9 @@ export function GrantsPanel({
               <AgentIcon iconKey={grant.agentIconKey} />
               <span className="grant-row-content">
                 <strong>{grant.agentName ?? (grant.agentId ? shortId(grant.agentId) : t('grant.agent'))}</strong>
-                <small>{entries.find(entry => entry.id === (grant.entryId ?? grant.scriptEntryId) && entry.vaultId === grant.vaultId)?.name ?? t('grant.entry')}</small>
-                <span className="grant-row-meta">
+                <span className="grant-list-resource">
+                  <small>{entries.find(entry => entry.id === (grant.entryId ?? grant.scriptEntryId) && entry.vaultId === grant.vaultId)?.name ?? t('grant.entry')}</small>
                   <span className="grant-status" data-status={grant.status} data-pending={grant.status === 'pending'}>{states[grant.status] ? t(states[grant.status]!) : grant.status}</span>
-                  <time title={new Date(grant.createdAt).toLocaleString(locale)}>{new Date(grant.createdAt).toLocaleDateString(locale)}</time>
                 </span>
               </span>
             </button>
@@ -264,15 +262,18 @@ export function GrantsPanel({
         {selected ? (
           <div className="entry-detail grant-detail">
             <div className="grant-information">
-            <div className="detail-heading grant-detail-heading">
+            <div className="grant-summary-card"><div className="grant-identities">
+<div className="grant-identity-column"><h4>{t('grant.agent')}</h4>            <div className="grant-agent-line"><AgentIcon iconKey={selected.agentIconKey} /><span className="grant-agent-identity"><strong>{selected.agentName ?? t('grant.agent')}</strong>
+              <span className="grant-status" data-status={selected.status} data-pending={selected.status === 'pending'}>{states[selected.status] ? t(states[selected.status]!) : selected.status}</span></span>
+            </div>
+</div>
+<div className="grant-identity-column"><h4>{t('grant.resource')}</h4>            <div className="detail-heading grant-detail-heading">
               {entry ? <EntryIcon name={entry.name} type={entry.type} {...(entry.icon ? { icon: entry.icon } : {})} {...(entry.color ? { color: entry.color } : {})} /> : <span className="grant-avatar"><PopupIcon name={selected.type === 'full' ? 'vault' : 'key'} /></span>}
               <div className="detail-identity"><h2>{entry?.name ?? selected.entryLabel ?? (selected.type === 'full' ? t('grant.wholeVault') : t('grant.entry'))}</h2>
                 <p><PopupIcon name="vault" />{selectedVaultName ?? shortId(selected.vaultId)}</p>
               </div>
             </div>
-            <div className="grant-agent-line"><AgentIcon iconKey={selected.agentIconKey} /><span className="grant-agent-identity"><strong>{selected.agentName ?? t('grant.agent')}</strong>
-              <span className="grant-status" data-status={selected.status} data-pending={selected.status === 'pending'}>{states[selected.status] ? t(states[selected.status]!) : selected.status}</span></span>
-            </div>
+</div></div>
             {selected.canRevoke ? <div className="grant-revoke-action">
               <Button variant="danger" loading={busy} onClick={() => void decide('revoke')}>
                 <PopupIcon name="denied" />{t('grant.revoke')}
@@ -281,9 +282,10 @@ export function GrantsPanel({
             {selected.encryptedReason ? (
               <section className="grant-purpose" aria-label={t('grant.encryptedReason')}>
                 <h4>{t('grant.encryptedReason')}</h4>
-                <p>{accessReason ?? review?.reason ?? t(reasonLoading ? 'workspace.loading' : 'grant.reasonUnavailable')}{!accessReason && !review?.reason && !reasonLoading && reasonFailure ? ` [${reasonFailure}]` : ''}</p>
+                <p title={accessReason ?? review?.reason ?? undefined} tabIndex={0}>{accessReason ?? review?.reason ?? t(reasonLoading ? 'workspace.loading' : 'grant.reasonUnavailable')}{!accessReason && !review?.reason && !reasonLoading && reasonFailure ? ` [${reasonFailure}]` : ''}</p>
               </section>
             ) : null}
+            </div>
             <dl className="grant-metadata">
               <div className="detail-field"><dt>{t('grant.expiresAt')}</dt><dd>{selected.expiresAt ? new Date(selected.expiresAt).toLocaleString(locale) : t(selected.status === 'pending' ? 'grant.expiryOnApproval' : 'grant.noExpiry')}</dd></div>
               <div className="detail-field"><dt>{t('grant.requestedAt')}</dt><dd>{new Date(selected.createdAt).toLocaleString(locale)}</dd></div>
@@ -305,41 +307,32 @@ export function GrantsPanel({
                     <fieldset disabled={busy}>
                       <label>
                         {t('grant.limit')}
-                        <select
+                        <FilterSelect
+                          aria-label={t('grant.limit')}
                           value={policy}
-                          onChange={(event) =>
-                            setPolicy(event.target.value as typeof policy)
-                          }
+                          disabled={busy}
+                          onValueChange={value => setPolicy(value as typeof policy)}
                         >
                           <option value="time">{t('grant.time')}</option>
                           <option value="uses">{t('grant.uses')}</option>
                           <option value="lifetime">
                             {t('grant.lifetime')}
                           </option>
-                        </select>
+                        </FilterSelect>
                       </label>
                       {policy === 'time' ? (
                         <>
-                          <label>
-                            {t('grant.duration')}
-                            <select
-                              value={duration}
-                              onChange={(event) =>
-                                setDuration(event.target.value)
-                              }
-                            >
-                              {[5, 15, 30, 60, 120, 360, 720, 1440].map(
-                                (value) => (
-                                  <option key={value} value={value}>
-                                    {t('grant.minutes', { count: value })}
-                                  </option>
-                                ),
-                              )}
-                              <option value="custom">
-                                {t('grant.custom')}
-                              </option>
-                            </select>
-                          </label>
+                          <div className="grant-duration" role="group" aria-label={t('grant.duration')}>
+                            <span className="field-label">{t('grant.duration')}</span>
+                            <div className="grant-duration-grid">
+                              {[5, 15, 30, 60, 120, 360, 720, 1440].map(value => (
+                                <button type="button" key={value} aria-pressed={duration === String(value)} onClick={() => setDuration(String(value))}>
+                                  {t(value < 60 ? 'grant.minutes' : 'grant.hours', { count: value < 60 ? value : value / 60 })}
+                                </button>
+                              ))}
+                            </div>
+                            <button type="button" className="grant-custom-duration" aria-pressed={duration === 'custom'} onClick={() => setDuration('custom')}>{t('grant.custom')}</button>
+                          </div>
                           {duration === 'custom' ? (
                             <input
                               aria-label={t('grant.custom')}
@@ -394,6 +387,20 @@ export function GrantsPanel({
                             )}
                           </label>
                         ))}
+                      {([1, 2, 4] as const).some(bit => !(review.methods & bit)) ? (
+                        <details className="grant-other-methods">
+                          <summary>{t('grant.otherMethods')}<PopupIcon name="chevron" /></summary>
+                          <div className="grant-other-method-options">
+                            <p>{t('grant.unrequestedMethods')}</p>
+                            {([1, 2, 4] as const).filter(bit => !(review.methods & bit)).map(bit => (
+                              <label key={bit} className="workspace-check">
+                                <input type="checkbox" checked={false} disabled />
+                                {t(bit === 1 ? 'grant.get' : bit === 2 ? 'grant.exec' : 'grant.inject')}
+                              </label>
+                            ))}
+                          </div>
+                        </details>
+                      ) : null}
                       {methods & 1 ? (
                         <p className="grant-reason">{t('grant.getWarning')}</p>
                       ) : null}
@@ -435,19 +442,6 @@ export function GrantsPanel({
                         </>
                       ) : null}
                     </fieldset>
-                    <Button
-                      type="submit"
-                      variant="positive"
-                      loading={busy}
-                      disabled={
-                        !methods ||
-                        (review.grant.type === 'granular' &&
-                          !allFields &&
-                          !fields.length)
-                      }
-                    >
-                      {t('grant.approve')}
-                    </Button>
                   </>
                 ) : (
                   <Button
@@ -458,6 +452,24 @@ export function GrantsPanel({
                     {t('grant.review')}
                   </Button>
                 )}
+                <div className="grant-decision-actions">
+                  <Button type="button" variant="danger" disabled={busy} onClick={() => void decide('deny')}>
+                    {t('grant.deny')}
+                  </Button>
+                    <Button
+                      type="submit"
+                      variant="positive"
+                      loading={busy}
+                      disabled={
+                        !review || !methods ||
+                        (review?.grant.type === 'granular' &&
+                          !allFields &&
+                          !fields.length)
+                      }
+                    >
+                      {t('grant.approve')}
+                    </Button>
+                </div>
                 <label className="grant-denial-reason">
                   {t('grant.denyReason')}
                   <input
@@ -466,13 +478,7 @@ export function GrantsPanel({
                     onChange={(event) => setReason(event.target.value)}
                   />
                 </label>
-                <Button
-                  variant="subtle"
-                  disabled={busy}
-                  onClick={() => void decide('deny')}
-                >
-                  {t('grant.deny')}
-                </Button>
+
               </form>
             ) : null}
           </div>

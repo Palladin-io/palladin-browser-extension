@@ -17,8 +17,9 @@ type SharedEntry = WorkspaceResults['workspace/my-shares']['items'][number];
 export function SharingOverview({ client, vaultClient, entries }: {
   client: WorkspaceClient; vaultClient: VaultClient; entries: readonly EntryMetadata[];
 }) {
-  const { t } = useI18n();
-  const [status, setStatus] = useState('');
+  const { t, locale } = useI18n();
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [status, setStatus] = useState<string[]>([]);
   const [rows, setRows] = useState<SharedEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
@@ -27,7 +28,6 @@ export function SharingOverview({ client, vaultClient, entries }: {
   const [editing, setEditing] = useState<SharedEntry['share'] | null>(null);
   const [revoking, setRevoking] = useState<SharedEntry | null>(null);
   const [busy, setBusy] = useState(false);
-  const [creating, setCreating] = useState(false);
   const generation = useRef(0);
   const lifetime = useRef(0);
   const inFlight = useRef(false);
@@ -60,56 +60,76 @@ export function SharingOverview({ client, vaultClient, entries }: {
   useEffect(() => {
     inFlight.current = false;
     setBusy(false); setRevoking(null);
-    setRows([]); setCursor(null);
+    setRows([]); setCursor(null); setFocusedId(null); setSelected(null); setEditing(null);
     void load();
     return () => { generation.current++; lifetime.current++; };
   }, [client]);
   useEffect(() => {
     const target = sentinel.current;
-    if (!target || !cursor || loading || error || selected || creating || typeof IntersectionObserver === 'undefined') return;
+    if (!target || !cursor || loading || error || selected || typeof IntersectionObserver === 'undefined') return;
     const observer = new IntersectionObserver(records => {
       if (records.some(record => record.isIntersecting)) void load(cursor);
-    }, { root: target.closest('.sharing-panel'), rootMargin: '120px' });
+    }, { root: target.closest('.grant-list'), rootMargin: '120px' });
     observer.observe(target);
     return () => observer.disconnect();
-  }, [cursor, loading, error, selected, creating]);
-  if (selected || creating) return <SharingPanel client={client} vaultClient={vaultClient} entries={entries}
-    {...(selected ? { initialEntry: selected } : {})} initialCreate={creating} initialProtectionShare={editing ?? undefined}
-    onClose={() => { setSelected(null); setEditing(null); setCreating(false); void load(); }} />;
-  return <section className="workspace-panel sharing-panel" aria-label={t('workspace.shares')}>
-    <div className="workspace-toolbar">
-      <FilterSelect aria-label={t('share.filterLoaded')} value={status} onChange={event => setStatus(event.target.value)}>
+  }, [cursor, loading, error, selected]);
+  if (selected) return <SharingPanel client={client} vaultClient={vaultClient} entries={entries}
+    {...(selected ? { initialEntry: selected } : {})} initialProtectionShare={editing ?? undefined}
+    onClose={() => { setSelected(null); setEditing(null); void load(); }} />;
+  const focused = rows.find(row => row.share.shareId === focusedId && (!status.length || status.includes(row.share.status)));
+  const focusedEntry = focused ? entries.find(entry => entry.id === focused.entryId && entry.vaultId === focused.vaultId) : undefined;
+  return <section className="workspace-panel sharing-panel sharing-overview" aria-label={t('workspace.shares')}>
+    <div className="grants-layout"><div className="grant-sidebar">
+    <div className="grant-list-controls">
+      <FilterSelect multiple aria-label={t('share.filterLoaded')} value={status} onValueChange={setStatus}>
         <option value="">{t('share.all')}</option>
         {Object.entries(shareStates).map(([value, key]) => <option key={value} value={value}>{t(key)}</option>)}
       </FilterSelect>
       <RefreshButton busy={loading || busy} onClick={() => void load()} />
-      <button type="button" className="toolbar-icon toolbar-primary" title={t('share.create')} aria-label={t('share.create')} onClick={() => setCreating(true)}><PopupIcon name="share" /></button>
     </div>
+    <div className="grant-list">
     {error ? <WorkspaceError error={error} /> : null}
     {loading && !rows.length ? <LoadingSkeleton /> : null}
-    {!loading && !error && !rows.some(row => !status || row.share.status === status) ? <p className="workspace-empty">{t('share.empty')}</p> : null}
-    {rows.filter(row => !status || row.share.status === status).sort((a, b) => Number(b.share.status === 'active') - Number(a.share.status === 'active') || Date.parse(b.share.createdAt) - Date.parse(a.share.createdAt) || b.share.shareId.localeCompare(a.share.shareId)).map(({ vaultId, entryId, share }) => {
+    {!loading && !error && !rows.some(row => !status.length || status.includes(row.share.status)) ? <p className="workspace-empty">{t('share.empty')}</p> : null}
+    {rows.filter(row => !status.length || status.includes(row.share.status)).sort((a, b) => Number(b.share.status === 'active') - Number(a.share.status === 'active') || Date.parse(b.share.createdAt) - Date.parse(a.share.createdAt) || b.share.shareId.localeCompare(a.share.shareId)).map(({ vaultId, entryId, share }) => {
       const entry = entries.find(entry => entry.id === entryId && entry.vaultId === vaultId);
       const name = entry?.name ?? t('share.unavailableEntry');
-      return <div className="shared-entry-management" key={share.shareId}><div className="shared-entry-summary"><button className="shared-entry-row" disabled={!entry || busy} aria-label={entry ? `${name} · ${entry.vaultName}` : name} onClick={() => entry && setSelected(entry)}>
+      return <div className="shared-entry-management" key={share.shareId}><div className="shared-entry-summary"><button className="shared-entry-row grant-row" aria-pressed={focusedId === share.shareId} disabled={busy} aria-label={entry ? `${name} · ${entry.vaultName}` : name} onClick={() => setFocusedId(share.shareId)}>
         <EntryIcon name={name} type={entry?.type ?? 1} {...(entry?.icon ? { icon: entry.icon } : {})} />
-        <span><strong>{name}</strong><small>{entry?.vaultName ? `${entry.vaultName} · ` : ''}{share.recipientEmail ?? t('share.anyone')}</small></span>
-        <span className="grant-status" data-status={share.status}>{t(shareStates[share.status] ?? 'share.unknownStatus')}</span>
+        <span className="grant-row-content"><strong>{name}</strong>
+          <span className="grant-list-resource"><small title={share.recipientEmail ?? t('share.anyone')}>{share.recipientEmail ?? t('share.anyone')}</small>
+            <span className="grant-status" data-status={share.status}>{t(shareStates[share.status] ?? 'share.unknownStatus')}</span>
+          </span>
+        </span>
       </button>
-        <div className="workspace-actions">
-          {entry && share.status === 'active' && ['none', 'password', 'pin'].includes(share.protection) ? <button type="button" className="toolbar-icon" disabled={busy} title={t('share.changeProtection')} aria-label={t('share.changeProtection')}
-            onClick={() => { setEditing(share); setSelected(entry); }}><PopupIcon name="edit" /></button> : null}
-          {['active', 'locked', 'suspended', 'consumed'].includes(share.status) ? <button type="button" className="toolbar-icon" disabled={busy} title={t('share.revoke')} aria-label={t('share.revoke')}
-            onClick={() => setRevoking({ vaultId, entryId, share })}><PopupIcon name="denied" /></button> : null}
-        </div>
       </div>
-      {revoking?.share.shareId === share.shareId ? <div className="share-revoke-confirm"><p>{t('share.revokeNotice')}</p><div className="workspace-actions">
+      </div>;
+    })}
+    {status.length > 0 && cursor ? <p className="share-hint">{t('share.filterLoadedHint')}</p> : null}
+    {cursor ? <div ref={sentinel} className="audit-sentinel">{loading && rows.length > 0 ? <LoadingSkeleton /> : error ? <Button onClick={() => void load(cursor)}>{t('vault.retry')}</Button> : <Button variant="subtle" onClick={() => void load(cursor)}>{t('workspace.more')}</Button>}</div> : null}
+    </div></div>
+    {focused ? <div className="entry-detail grant-detail share-overview-detail">
+      <div className="detail-heading share-identity-card">
+        <EntryIcon name={focusedEntry?.name ?? t('share.unavailableEntry')} type={focusedEntry?.type ?? 1} {...(focusedEntry?.icon ? { icon: focusedEntry.icon } : {})} />
+        <div className="detail-identity"><h2>{focusedEntry?.name ?? t('share.unavailableEntry')}</h2><p>{focusedEntry?.vaultName}</p></div>
+        <span className="grant-status" data-status={focused.share.status}>{t(shareStates[focused.share.status] ?? 'share.unknownStatus')}</span>
+      </div>
+      <dl className="grant-metadata">
+        <div className="detail-field"><dt>{t('share.recipient')}</dt><dd>{focused.share.recipientEmail ?? t('share.anyone')}</dd></div>
+        <div className="detail-field"><dt>{t('share.createdAt')}</dt><dd>{new Date(focused.share.createdAt).toLocaleString(locale)}</dd></div>
+        <div className="detail-field"><dt>{t('grant.expiresAt')}</dt><dd>{focused.share.expiresAt ? new Date(focused.share.expiresAt).toLocaleString(locale) : t('grant.noExpiry')}</dd></div>
+      </dl>
+      <div className="share-management-card"><div className="workspace-actions share-detail-actions">
+        {focusedEntry && focused.share.status === 'active' && ['none', 'password', 'pin'].includes(focused.share.protection) ? <Button variant="subtle" disabled={busy} onClick={() => { setEditing(focused.share); setSelected(focusedEntry); }}><PopupIcon name="edit" />{t('share.changeProtection')}</Button> : null}
+        {['active', 'locked', 'suspended', 'consumed'].includes(focused.share.status) ? <Button variant="danger" disabled={busy} onClick={() => setRevoking(focused)}><PopupIcon name="denied" />{t('share.revoke')}</Button> : null}
+      </div>
+      {revoking?.share.shareId === focused.share.shareId ? <div className="share-revoke-confirm"><p>{t('share.revokeNotice')}</p><div className="workspace-actions">
         <Button variant="subtle" disabled={busy} onClick={() => setRevoking(null)}>{t('common.cancel')}</Button>
         <Button variant="danger" loading={busy} onClick={() => void revoke()}>{t('share.revoke')}</Button>
       </div></div> : null}
-      </div>;
-    })}
-    {status && cursor ? <p className="share-hint">{t('share.filterLoadedHint')}</p> : null}
-    {cursor ? <div ref={sentinel} className="audit-sentinel">{loading && rows.length > 0 ? <LoadingSkeleton /> : error ? <Button onClick={() => void load(cursor)}>{t('vault.retry')}</Button> : <Button variant="subtle" onClick={() => void load(cursor)}>{t('workspace.more')}</Button>}</div> : null}
+      {focusedEntry ? <Button variant="subtle" disabled={busy} onClick={() => setSelected(focusedEntry)}>{t('share.entryLinks')}</Button> : null}
+      </div>
+    </div> : <div className="detail-empty">{t('share.select')}</div>}
+    </div>
   </section>;
 }

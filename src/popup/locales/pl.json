@@ -425,7 +425,7 @@
   "share.revoke": "Unieważnij link",
   "share.choose": "Wybierz wpis, aby go udostępnić lub zarządzać jego linkami.",
   "common.cancel": "Anuluj",
-  "grant.pending": "Oczekuje na decyzję",
+  "grant.pending": "Oczekuje",
   "grant.active": "Aktywny",
   "grant.denied": "Odrzucony",
   "grant.revoked": "Cofnięty",
@@ -549,5 +549,13 @@
   "grant.wholeVault": "Cały sejf",
   "grant.expiresAt": "Wygasa",
   "grant.noExpiry": "Bez daty wygaśnięcia",
-  "grant.expiryOnApproval": "Ustalane przy zatwierdzaniu"
+  "grant.expiryOnApproval": "Ustalane przy zatwierdzaniu",
+  "grant.resource": "Zasób",
+  "grant.hours": "{count} godz.",
+  "share.select": "Wybierz link, aby zobaczyć szczegóły",
+  "share.createdAt": "Utworzono",
+  "share.recipient": "Odbiorca",
+  "share.entryLinks": "Wszystkie linki tego wpisu",
+  "grant.otherMethods": "Pozostałe operacje",
+  "grant.unrequestedMethods": "Agent nie poprosił o te operacje. Ich przyznanie wymaga osobnej prośby."
 }

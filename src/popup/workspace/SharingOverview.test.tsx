@@ -53,7 +53,8 @@ function management() {
 }
 it('edits the selected link directly without another list request', async () => {
   const send = management();
-  fireEvent.click(await screen.findByRole('button', { name: 'Change protection' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Synthetic · Personal' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Change protection' }));
   expect(screen.getByRole('button', { name: 'Open web panel' })).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Save protection' }));
   await waitFor(() => expect(send).toHaveBeenCalledWith({ type: 'workspace/protect-share', vaultId: 'vault', entryId: 'entry-0', shareId: 'share-1', protection: 'none', protectionSecret: null }));
@@ -62,7 +63,8 @@ it('edits the selected link directly without another list request', async () => 
 });
 it('requires confirmation to revoke and preserves retry after a failed mutation', async () => {
   const send = management();
-  fireEvent.click(await screen.findByRole('button', { name: 'Revoke link' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Synthetic · Personal' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Revoke link' }));
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(send).toHaveBeenCalledTimes(1);
   fireEvent.click(screen.getByRole('button', { name: 'Revoke link' }));
@@ -70,7 +72,7 @@ it('requires confirmation to revoke and preserves retry after a failed mutation'
   fireEvent.click(screen.getAllByRole('button', { name: 'Revoke link' })[1]!);
   await screen.findByRole('alert');
   fireEvent.click(screen.getAllByRole('button', { name: 'Revoke link' })[1]!);
-  await screen.findByText('Revoked');
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Synthetic · Personal' })).toHaveTextContent('Revoked'));
   expect(send).toHaveBeenLastCalledWith({ type: 'workspace/revoke-share', vaultId: 'vault', entryId: 'entry-0', shareId: 'share-1' });
   expect(screen.queryByRole('button', { name: 'Revoke link' })).toBeNull();
 });
@@ -90,7 +92,7 @@ it('places active links first, newest within each group, including appended page
   expect(screen.getAllByRole('button', { name: /^Entry/ }).map(button => button.getAttribute('aria-label')))
     .toEqual(['Entry 2 · Personal', 'Entry 1 · Personal', 'Entry 0 · Personal', 'Entry 3 · Personal']);
   expect(screen.queryByText(/Expires/)).toBeNull();
-  expect(screen.getAllByRole('button', { name: 'Revoke link' }).every(button => button.textContent === '')).toBe(true);
+  expect(screen.queryByRole('button', { name: 'Revoke link' })).toBeNull();
 });
 
 it('filters loaded links by status without issuing a new request and keeps pagination available', async () => {
@@ -100,10 +102,29 @@ it('filters loaded links by status without issuing a new request and keeps pagin
   ], nextCursor: 'next' } });
   render(<SharingOverview client={createWorkspaceClient(send)} vaultClient={{} as VaultClient} entries={entries.map((entry, i) => ({ ...entry, name: `Entry ${i}` }))} />);
   await screen.findByRole('button', { name: 'Entry 0 · Personal' });
-  fireEvent.change(screen.getByRole('combobox', { name: 'Status of loaded links' }), { target: { value: 'revoked' } });
+  fireEvent.click(screen.getByRole('combobox', { name: 'Status of loaded links' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Revoked' }));
   expect(screen.queryByRole('button', { name: 'Entry 0 · Personal' })).toBeNull();
   expect(screen.getByRole('button', { name: 'Entry 1 · Personal' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Load more' })).toBeTruthy();
   expect(send).toHaveBeenCalledTimes(1);
   expect(screen.queryByRole('heading', { name: 'Sharing' })).toBeNull();
+});
+
+it('selects link details without refetching and clears the visible detail when filtered out', async () => {
+  const send = management();
+  fireEvent.click(await screen.findByRole('button', { name: 'Synthetic · Personal' }));
+  expect(screen.getByRole('heading', { name: 'Synthetic' })).toBeInTheDocument();
+  expect(screen.getByText('Created')).toBeInTheDocument();
+  expect(send).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole('combobox', { name: 'Status of loaded links' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Revoked' }));
+  expect(screen.queryByRole('heading', { name: 'Synthetic' })).toBeNull();
+  expect(screen.getByText('Select a link to see its details')).toBeInTheDocument();
+});
+
+it('does not offer link creation from the sharing overview', async () => {
+  management();
+  await screen.findByRole('button', { name: 'Synthetic · Personal' });
+  expect(screen.queryByRole('button', { name: 'Create link' })).toBeNull();
 });

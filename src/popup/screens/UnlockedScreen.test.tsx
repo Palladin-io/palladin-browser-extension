@@ -79,6 +79,31 @@ beforeEach(() => {
 const noop = async (): Promise<void> => {};
 
 describe("UnlockedScreen", () => {
+  it.each([
+    ['Agent access', 'Inbox', 'workspace/grants'],
+    ['Logs', 'Logs', 'workspace/audit'],
+  ])('opens %s scoped to the selected Entry and clears scope from the main tab', async (action, tab, commandType) => {
+    const transport = vi.mocked(chrome.runtime.sendMessage).getMockImplementation()!;
+    vi.mocked(chrome.runtime.sendMessage).mockImplementation(async (...args) => {
+      const command = args[0] as { type?: string };
+      if (['workspace/grants', 'workspace/audit', 'workspace/members'].includes(command.type ?? '')) {
+        return { ok: true, data: { items: [], nextCursor: null } };
+      }
+      return transport(...args);
+    });
+    const user = userEvent.setup();
+    render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={makeClient()} captureClient={makeCaptureClient()} />);
+    await user.click(await screen.findByText('API token'));
+    await user.click(await screen.findByRole('button', { name: action }));
+    await waitFor(() => expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+      type: commandType, entryId: KEY.id, vaultId: KEY.vaultId,
+    }));
+    expect(screen.getByRole('tab', { name: tab })).toHaveAttribute('aria-selected', 'true');
+    vi.mocked(chrome.runtime.sendMessage).mockClear();
+    await user.click(screen.getByRole('tab', { name: tab }));
+    await waitFor(() => expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: commandType }));
+  });
+
   it('keeps the acknowledged success until Done despite vault and pending invalidations', async () => {
     const pending = { id: '11111111-1111-4111-8111-111111111111', title: 'Shared login',
       entryType: 'credential', vaults: [{ id: '22222222-2222-4222-8222-222222222222', name: 'Personal' }] };
