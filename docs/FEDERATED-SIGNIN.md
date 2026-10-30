@@ -30,7 +30,7 @@ path:
   entry) and is set only when the user picks a **discoverable** Palladin
   Credential of that provider; a typed or unknown account has `entry: null`.
   A popup edit keeps the reference only for an unchanged provider and account.
-- Agent access is `never` or `discovery` (`@palladin/crypto` >= 0.14.0). A new
+- Agent access is `never` or `discovery` (`@palladin/crypto` >= 0.15.0). A new
   field is discoverable exactly when its Credential is discoverable; replacing a
   recognized field keeps its access. `onGrant*` is always rejected, so the field
   is never delivered in a grant and never part of the MemberIndex.
