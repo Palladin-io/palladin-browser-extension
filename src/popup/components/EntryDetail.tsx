@@ -112,11 +112,16 @@ export function EntryDetail({
         {t('workspace.grants')}
         <PopupIcon name="chevron" />
       </button>
-      <button className="detail-link" onClick={() => onShares ? onShares() : setSharing(true)}>
+      <button className="detail-link" onClick={() => setSharing(true)}>
+        <PopupIcon name="share" />
+        {t('share.action')}
+        <PopupIcon name="chevron" />
+      </button>
+      {onShares ? <button className="detail-link" onClick={onShares}>
         <PopupIcon name="share" />
         {t('workspace.shares')}
         <PopupIcon name="chevron" />
-      </button>
+      </button> : null}
       <button className="detail-link" onClick={onLogs}>
         <PopupIcon name="logs" />
         {t('workspace.logs')}
