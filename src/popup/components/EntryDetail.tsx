@@ -18,11 +18,13 @@ export function EntryDetail({
   workspaceClient,
   onGrants,
   onLogs,
+  onShares,
 }: {
   entry: EntryMetadata;
   workspaceClient: WorkspaceClient;
   onGrants(): void;
   onLogs(): void;
+  onShares?(): void;
   client: VaultClient;
   onBack(): void;
 }): React.JSX.Element {
@@ -110,9 +112,9 @@ export function EntryDetail({
         {t('workspace.grants')}
         <PopupIcon name="chevron" />
       </button>
-      <button className="detail-link" onClick={() => setSharing(true)}>
+      <button className="detail-link" onClick={() => onShares ? onShares() : setSharing(true)}>
         <PopupIcon name="share" />
-        {t('share.action')}
+        {t('workspace.shares')}
         <PopupIcon name="chevron" />
       </button>
       <button className="detail-link" onClick={onLogs}>

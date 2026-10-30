@@ -1,3 +1,5 @@
+import { FilterSelect } from '../components/FilterSelect';
+import { PopupIcon } from '../components/PopupIcon';
 import { useState } from "react";
 
 import type {
@@ -30,7 +32,7 @@ const INITIAL = {
   notes: "",
 };
 
-export function AddEntryForm({ client }: { readonly client: VaultClient }): React.JSX.Element {
+export function AddEntryForm({ client, onBack }: { readonly client: VaultClient; readonly onBack?: (() => void) | undefined }): React.JSX.Element {
   const { t } = useI18n();
   const [entryType, setEntryType] = useState<EntryType>("credential");
   const [draft, setDraft] = useState(INITIAL);
@@ -68,21 +70,16 @@ export function AddEntryForm({ client }: { readonly client: VaultClient }): Reac
 
   return (
     <form className="entry-form" onSubmit={(event) => void submit(event)}>
-      <p className="entry-form-note">{t("entry.note")}</p>
-      <label>
-        <span className="field-label">{t("entry.type")}</span>
-        <select
-          className="field-input entry-form-select"
-          value={entryType}
-          onChange={(event) => changeType(event.target.value as EntryType)}
-        >
-          <option value="credential">{t("entry.typeCredential")}</option>
-          <option value="key">{t("entry.typeKey")}</option>
-          <option value="script">{t("entry.typeScript")}</option>
-          <option value="creditCard">{t("entry.typeCard")}</option>
-        </select>
-      </label>
-
+      <div className="entry-create-header">
+        {onBack ? <button type="button" className="link-btn" disabled={status === 'saving'} onClick={onBack}><PopupIcon name="back" />{t('common.back')}</button> : null}
+        <FilterSelect aria-label={t('entry.type')} value={entryType} disabled={status === 'saving'} onValueChange={value => changeType(value as EntryType)}>
+          <option value="credential">{t('entry.typeCredential')}</option>
+          <option value="key">{t('entry.typeKey')}</option>
+          <option value="script">{t('entry.typeScript')}</option>
+          <option value="creditCard">{t('entry.typeCard')}</option>
+        </FilterSelect>
+      </div>
+      <div className="entry-create-scroll"><div className="entry-create-fields">
       <EntryField
         label={t("entry.label")}
         value={draft.label}
@@ -127,9 +124,13 @@ export function AddEntryForm({ client }: { readonly client: VaultClient }): Reac
 
       <EntryTextArea label={t("entry.notes")} value={draft.notes} onChange={(value) => update("notes", value)} maxLength={4096} />
       <CustomFieldsEditor fields={customFields} onChange={setCustomFields} />
+      </div></div>
+      <div className="entry-create-footer">
+      {onBack ? <Button variant="subtle" disabled={status === 'saving'} onClick={onBack}>{t('common.cancel')}</Button> : null}
       <Button type="submit" loading={status === "saving"} disabled={status === "saving"}>
         {t("entry.save")}
       </Button>
+      </div>
       <p className="entry-form-status" role="status">{statusMessage(status, t)}</p>
     </form>
   );

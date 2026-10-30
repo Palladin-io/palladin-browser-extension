@@ -1,3 +1,4 @@
+import { EntryScopeHeader } from '../components/EntryScopeHeader';
 import { EntryIcon } from '../components/EntryIcon';
 import { PopupIcon } from '../components/PopupIcon';
 import { FilterSelect } from '../components/FilterSelect';
@@ -33,12 +34,14 @@ export function GrantsPanel({
   entries,
   entryId,
   vaultId,
+  onBack,
 }: {
   client: WorkspaceClient;
   revision: number;
   entries: readonly EntryMetadata[];
   entryId?: string | undefined;
   vaultId?: string | undefined;
+  onBack?: (() => void) | undefined;
 }): React.JSX.Element {
   const { t, locale } = useI18n();
   const [items, setItems] = useState<OrgGrant[]>([]);
@@ -221,11 +224,11 @@ export function GrantsPanel({
       <div className="grants-layout">
         <div className="grant-sidebar">
           <div className="grant-list-controls">
-            <FilterSelect multiple aria-label={t('grant.filter')} value={status} disabled={actionBusy}
+            {entryId ? <EntryScopeHeader entry={entries.find(entry => entry.id === entryId && entry.vaultId === vaultId)} onBack={onBack} /> : (<FilterSelect multiple aria-label={t('grant.filter')} value={status} disabled={actionBusy}
               onValueChange={setStatus}>
               <option value="">{t('grant.all')}</option>
               {Object.entries(states).map(([value, key]) => <option key={value} value={value}>{t(key)}</option>)}
-            </FilterSelect>
+            </FilterSelect>)}
             <RefreshButton busy={busy} onClick={() => void load()} />
           </div>
           <div className="grant-list">

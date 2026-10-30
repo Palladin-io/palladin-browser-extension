@@ -82,11 +82,12 @@ describe("UnlockedScreen", () => {
   it.each([
     ['Agent access', 'Inbox', 'workspace/grants'],
     ['Logs', 'Logs', 'workspace/audit'],
+    ['Sharing', 'Sharing', 'workspace/shares'],
   ])('opens %s scoped to the selected Entry and clears scope from the main tab', async (action, tab, commandType) => {
     const transport = vi.mocked(chrome.runtime.sendMessage).getMockImplementation()!;
     vi.mocked(chrome.runtime.sendMessage).mockImplementation(async (...args) => {
       const command = args[0] as { type?: string };
-      if (['workspace/grants', 'workspace/audit', 'workspace/members'].includes(command.type ?? '')) {
+      if (['workspace/grants', 'workspace/audit', 'workspace/members', 'workspace/shares', 'workspace/my-shares'].includes(command.type ?? '')) {
         return { ok: true, data: { items: [], nextCursor: null } };
       }
       return transport(...args);
@@ -101,7 +102,7 @@ describe("UnlockedScreen", () => {
     expect(screen.getByRole('tab', { name: tab })).toHaveAttribute('aria-selected', 'true');
     vi.mocked(chrome.runtime.sendMessage).mockClear();
     await user.click(screen.getByRole('tab', { name: tab }));
-    await waitFor(() => expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: commandType }));
+    await waitFor(() => expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: commandType === 'workspace/shares' ? 'workspace/my-shares' : commandType }));
   });
 
   it('keeps the acknowledged success until Done despite vault and pending invalidations', async () => {

@@ -189,7 +189,7 @@ function UnlockedContent({
           type="button"
           role="tab"
           aria-selected={view === 'shares'}
-          onClick={() => setView('shares')}
+          onClick={() => { setScope(null); setView('shares'); }}
         >
           {t('workspace.shares')}
         </button>
@@ -208,25 +208,19 @@ function UnlockedContent({
       </ScrollableTabs>
 
       <div className="vault-content">
-        {view === 'add-entry' ? (
-          <button
-            className="link-btn workspace-back"
-            onClick={() => setView('vault')}
-          >
-            <PopupIcon name="back" />
-            {t('common.back')}
-          </button>
-        ) : null}
         {view === 'settings' ? settings : view === 'grants' ? (
           <GrantsPanel
             revision={pendingGrants.revision}
             client={workspaceClient}
             entries={list.all}
+            onBack={() => { setScope(null); setView('vault'); }}
             entryId={scope?.id}
             vaultId={scope?.vaultId}
           />
         ) : view === 'shares' ? (
           <SharingOverview
+            scope={scope}
+            onBack={() => { setScope(null); setView('vault'); }}
             client={workspaceClient}
             vaultClient={client}
             entries={list.all}
@@ -235,11 +229,12 @@ function UnlockedContent({
           <AuditPanel
             client={workspaceClient}
             entries={list.all}
+            onBack={() => { setScope(null); setView('vault'); }}
             entryId={scope?.id}
             vaultId={scope?.vaultId}
           />
         ) : view === 'add-entry' ? (
-          <AddEntryForm client={client} />
+          <AddEntryForm client={client} onBack={() => setView('vault')} />
         ) : view === 'generator' ? (
           capturePrompt === null ? (
             <GeneratorPanel client={client} />
@@ -310,6 +305,7 @@ function UnlockedContent({
                       setScope(current);
                       setView('grants');
                     }}
+                    onShares={() => { setScope(current); setView('shares'); }}
                     onLogs={() => {
                       setScope(current);
                       setView('logs');

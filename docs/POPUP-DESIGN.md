@@ -110,3 +110,12 @@ rows and full-width custom selects. Permission defaults remain unchanged.
 
 Detail identity titles also use a single ellipsized line with a full hover title,
 so long Agent/resource names do not increase the identity-card height.
+
+Entry-scoped Inbox, Logs and Sharing replace global filters with EntryScopeHeader
+(identity plus Back). Back restores the selected Entry; main tabs clear scope.
+Sharing uses workspace/shares with both Vault/Entry IDs, not a local filter of
+the global paginated list. Entry detail keeps the header Share action for creation
+and the Sharing navigation row for existing links.
+Create Entry uses a pinned Back/type-selector header, one scrolling field card
+and pinned Cancel/Save actions, matching the web form hierarchy. Type and back
+actions are disabled while saving; drafts stay memory-only and clear on success.

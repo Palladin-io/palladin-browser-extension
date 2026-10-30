@@ -1,3 +1,4 @@
+import { EntryScopeHeader } from '../components/EntryScopeHeader';
 import { FilterSelect } from '../components/FilterSelect';
 import { PopupIcon } from '../components/PopupIcon';
 import { RefreshButton } from '../components/RefreshButton';
@@ -14,8 +15,10 @@ import { Button } from '../components/Button';
 import { useI18n } from '../i18n';
 
 type SharedEntry = WorkspaceResults['workspace/my-shares']['items'][number];
-export function SharingOverview({ client, vaultClient, entries }: {
+export function SharingOverview({ client, vaultClient, entries, scope, onBack }: {
   client: WorkspaceClient; vaultClient: VaultClient; entries: readonly EntryMetadata[];
+  scope?: { id: string; vaultId: string } | null | undefined;
+  onBack?: (() => void) | undefined;
 }) {
   const { t, locale } = useI18n();
   const [focusedId, setFocusedId] = useState<string | null>(null);
@@ -38,7 +41,7 @@ export function SharingOverview({ client, vaultClient, entries }: {
     inFlight.current = true;
     setLoading(true); setError(null);
     try {
-      const page = await client.send({ type: 'workspace/my-shares', ...(next ? { cursor: next } : {}) });
+      const page = scope ? await client.send({ type: 'workspace/shares', vaultId: scope.vaultId, entryId: scope.id, ...(next ? { cursor: next } : {}) }).then(page => ({ ...page, items: page.items.map(share => ({ vaultId: scope.vaultId, entryId: scope.id, share })) })) : await client.send({ type: 'workspace/my-shares', ...(next ? { cursor: next } : {}) });
       if (run !== generation.current) return;
       setRows(current => next ? [...current, ...page.items.filter(item => !current.some(row => row.share.shareId === item.share.shareId))] : page.items);
       setCursor(page.nextCursor);
@@ -63,7 +66,7 @@ export function SharingOverview({ client, vaultClient, entries }: {
     setRows([]); setCursor(null); setFocusedId(null); setSelected(null); setEditing(null);
     void load();
     return () => { generation.current++; lifetime.current++; };
-  }, [client]);
+  }, [client, scope?.id, scope?.vaultId]);
   useEffect(() => {
     const target = sentinel.current;
     if (!target || !cursor || loading || error || selected || typeof IntersectionObserver === 'undefined') return;
@@ -81,10 +84,10 @@ export function SharingOverview({ client, vaultClient, entries }: {
   return <section className="workspace-panel sharing-panel sharing-overview" aria-label={t('workspace.shares')}>
     <div className="grants-layout"><div className="grant-sidebar">
     <div className="grant-list-controls">
-      <FilterSelect multiple aria-label={t('share.filterLoaded')} value={status} onValueChange={setStatus}>
+      {scope ? <EntryScopeHeader entry={entries.find(entry => entry.id === scope.id && entry.vaultId === scope.vaultId)} onBack={onBack} /> : (<FilterSelect multiple aria-label={t('share.filterLoaded')} value={status} onValueChange={setStatus}>
         <option value="">{t('share.all')}</option>
         {Object.entries(shareStates).map(([value, key]) => <option key={value} value={value}>{t(key)}</option>)}
-      </FilterSelect>
+      </FilterSelect>)}
       <RefreshButton busy={loading || busy} onClick={() => void load()} />
     </div>
     <div className="grant-list">

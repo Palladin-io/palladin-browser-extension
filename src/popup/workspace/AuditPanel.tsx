@@ -1,3 +1,4 @@
+import { EntryScopeHeader } from '../components/EntryScopeHeader';
 import { FilterSelect } from '../components/FilterSelect';
 import { RefreshButton } from '../components/RefreshButton';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
@@ -122,11 +123,13 @@ export function AuditPanel({
   entries,
   entryId,
   vaultId,
+  onBack,
 }: {
   client: WorkspaceClient;
   entries: readonly EntryMetadata[];
   entryId?: string | undefined;
   vaultId?: string | undefined;
+  onBack?: (() => void) | undefined;
 }): React.JSX.Element {
   const { t, locale } = useI18n();
   const [items, setItems] = useState<AuditLogItem[]>([]);
@@ -202,7 +205,7 @@ export function AuditPanel({
       aria-label={t('workspace.logs')}
     >
       <div className="workspace-toolbar">
-        <FilterSelect multiple
+        {entryId ? <EntryScopeHeader entry={entries.find(entry => entry.id === entryId && entry.vaultId === vaultId)} onBack={onBack} /> : (<FilterSelect multiple
           aria-label={t('audit.filter')}
           value={filter}
           onValueChange={setFilter}
@@ -213,7 +216,7 @@ export function AuditPanel({
               {t(key)}
             </option>
           ))}
-        </FilterSelect>
+        </FilterSelect>)}
         <RefreshButton busy={busy} onClick={() => void load()} />
       </div>
       {error ? <WorkspaceError error={error} /> : null}
