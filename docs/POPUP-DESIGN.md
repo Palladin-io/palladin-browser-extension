@@ -26,10 +26,11 @@ as part of visual changes.
 - Identity icons retain their framed, neutral surface. Grain belongs to the
   content canvas, not the logo or navigation rails. The texture and 180px tile
   match the panel, with a feathered diagonal band: 92% light / 93% dark cover.
-- The native popup reserves 780 x 580 CSS pixels through `viewport.css` before
-  React or the worker reply. Loading, login, unlock and workspace retain those
-  bounds, without width/height transitions. Auth forms remain narrow. This trades
-  extra auth whitespace for a stable opening. Side-panel bounds remain browser-owned.
+- The native popup starts at 400 x 480 CSS pixels for loading, onboarding,
+  sign-in and unlock. The unlocked workspace expands to 780 x 580; standalone
+  settings use 400 x 580. Phase changes resize immediately without dimension
+  transitions. Side-panel bounds remain browser-owned.
+
 
 ## Verification boundary
 
@@ -97,3 +98,12 @@ Entry-detail Agent access and Logs actions open their workspace tabs scoped by
 both Entry and Vault IDs. Clicking the corresponding main tab resets that scope.
 This is covered through UnlockedScreen and the worker-message transport, not
 only the synthetic preview navigation.
+
+The unlocked footer shows the manifest version immediately before Lock and
+Sign out. Split-view settings do not duplicate it; standalone locked settings
+retain the version because the workspace footer is absent.
+
+Inbox and Sharing list titles/resource names remain one line with ellipsis and
+a full native hover title. Grant approval groups limit/duration, operations and
+fields into separated sections within one form card, reusing bordered checkbox
+rows and full-width custom selects. Permission defaults remain unchanged.

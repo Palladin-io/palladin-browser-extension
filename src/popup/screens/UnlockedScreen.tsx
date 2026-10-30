@@ -375,6 +375,7 @@ function UnlockedFooter({
 >): React.JSX.Element {
   const { t } = useI18n();
   const [busy, setBusy] = useState<'lock' | 'signout' | null>(null);
+  const version = chrome.runtime.getManifest?.().version;
 
   async function run(
     kind: 'lock' | 'signout',
@@ -397,6 +398,7 @@ function UnlockedFooter({
         {t('vault.openWebPanel')}
       </button>
       <div className="vault-footer-actions">
+        {version ? <span className="vault-footer-version">{t('settings.version', { version })}</span> : null}
         <button className="toolbar-icon" aria-label={t('vault.lock')} title={t('vault.lock')} disabled={busy !== null} onClick={() => void run('lock', onLock)}>
           {busy === 'lock' ? <Spinner /> : <PopupIcon name="lock" />}
         </button>

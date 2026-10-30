@@ -96,7 +96,7 @@ export function SharingOverview({ client, vaultClient, entries }: {
       const name = entry?.name ?? t('share.unavailableEntry');
       return <div className="shared-entry-management" key={share.shareId}><div className="shared-entry-summary"><button className="shared-entry-row grant-row" aria-pressed={focusedId === share.shareId} disabled={busy} aria-label={entry ? `${name} · ${entry.vaultName}` : name} onClick={() => setFocusedId(share.shareId)}>
         <EntryIcon name={name} type={entry?.type ?? 1} {...(entry?.icon ? { icon: entry.icon } : {})} />
-        <span className="grant-row-content"><strong>{name}</strong>
+        <span className="grant-row-content"><strong title={name}>{name}</strong>
           <span className="grant-list-resource"><small title={share.recipientEmail ?? t('share.anyone')}>{share.recipientEmail ?? t('share.anyone')}</small>
             <span className="grant-status" data-status={share.status}>{t(shareStates[share.status] ?? 'share.unknownStatus')}</span>
           </span>

@@ -1,1 +1,4 @@
-html, body { width: 780px; height: 580px; margin: 0; overflow: hidden; }
+html { --popup-width: 400px; --popup-height: 480px; }
+html:has(.popup[data-phase='unlocked']) { --popup-width: 780px; --popup-height: 580px; }
+html:has(.popup[data-phase='settings']) { --popup-height: 580px; }
+html, body { width: var(--popup-width); height: var(--popup-height); margin: 0; overflow: hidden; }

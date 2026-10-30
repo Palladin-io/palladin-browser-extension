@@ -556,6 +556,7 @@
   "share.createdAt": "Utworzono",
   "share.recipient": "Odbiorca",
   "share.entryLinks": "Wszystkie linki tego wpisu",
+  "grant.fieldsLabel": "Dostępne pola",
   "grant.otherMethods": "Pozostałe operacje",
   "grant.unrequestedMethods": "Agent nie poprosił o te operacje. Ich przyznanie wymaga osobnej prośby."
 }

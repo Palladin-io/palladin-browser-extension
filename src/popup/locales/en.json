@@ -556,6 +556,7 @@
   "share.createdAt": "Created",
   "share.recipient": "Recipient",
   "share.entryLinks": "All links for this entry",
+  "grant.fieldsLabel": "Accessible fields",
   "grant.otherMethods": "Other operations",
   "grant.unrequestedMethods": "The agent did not request these operations. Granting them requires a separate request."
 }

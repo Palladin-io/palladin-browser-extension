@@ -239,9 +239,9 @@ export function GrantsPanel({
             >
               <AgentIcon iconKey={grant.agentIconKey} />
               <span className="grant-row-content">
-                <strong>{grant.agentName ?? (grant.agentId ? shortId(grant.agentId) : t('grant.agent'))}</strong>
+                <strong title={grant.agentName ?? (grant.agentId ? shortId(grant.agentId) : t('grant.agent'))}>{grant.agentName ?? (grant.agentId ? shortId(grant.agentId) : t('grant.agent'))}</strong>
                 <span className="grant-list-resource">
-                  <small>{entries.find(entry => entry.id === (grant.entryId ?? grant.scriptEntryId) && entry.vaultId === grant.vaultId)?.name ?? t('grant.entry')}</small>
+                  <small title={entries.find(entry => entry.id === (grant.entryId ?? grant.scriptEntryId) && entry.vaultId === grant.vaultId)?.name ?? t('grant.entry')}>{entries.find(entry => entry.id === (grant.entryId ?? grant.scriptEntryId) && entry.vaultId === grant.vaultId)?.name ?? t('grant.entry')}</small>
                   <span className="grant-status" data-status={grant.status} data-pending={grant.status === 'pending'}>{states[grant.status] ? t(states[grant.status]!) : grant.status}</span>
                 </span>
               </span>
@@ -305,6 +305,7 @@ export function GrantsPanel({
                 {review ? (
                   <>
                     <fieldset disabled={busy}>
+                      <div className="grant-control-section">
                       <label>
                         {t('grant.limit')}
                         <FilterSelect
@@ -362,7 +363,9 @@ export function GrantsPanel({
                       ) : (
                         <p>{t('grant.lifetimeWarning')}</p>
                       )}
-                      <p>{t('grant.methods')}</p>
+                      </div>
+                      <div className="grant-control-section">
+                      <p className="field-label">{t('grant.methods')}</p>
                       {([1, 2, 4] as const)
                         .filter((bit) => review.methods & bit)
                         .map((bit) => (
@@ -404,8 +407,10 @@ export function GrantsPanel({
                       {methods & 1 ? (
                         <p className="grant-reason">{t('grant.getWarning')}</p>
                       ) : null}
+                      </div>
                       {review.grant.type === 'granular' ? (
-                        <>
+                        <div className="grant-control-section">
+                          <p className="field-label">{t('grant.fieldsLabel')}</p>
                           <label className="workspace-check">
                             <input
                               type="checkbox"
@@ -439,7 +444,7 @@ export function GrantsPanel({
                                 </label>
                               ))
                             : null}
-                        </>
+                        </div>
                       ) : null}
                     </fieldset>
                   </>

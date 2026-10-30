@@ -1,3 +1,4 @@
+@import './viewport.css';
 @font-face {
   font-family: Inter;
   font-style: normal;
@@ -54,15 +55,15 @@
 }
 html,
 body {
-  width: 780px;
-  height: 580px;
-  max-height: 580px;
+  width: var(--popup-width, 400px);
+  height: var(--popup-height, 480px);
+  max-height: var(--popup-height, 480px);
   margin: 0;
   overflow: hidden;
 }
 .popup {
   width: 100%;
-  height: min(580px, 100vh);
+  height: min(var(--popup-height, 480px), 100vh);
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -1412,3 +1413,16 @@ html[data-extension-surface='side-panel'] .popup-header {
 
 .sharing-panel .filter-select { display: flex; flex-direction: column; align-items: stretch; width: 100%; }
 .sharing-panel .filter-options { position: static; box-sizing: border-box; width: 100%; max-width: none; margin-top: 6px; max-height: 180px; }
+
+.vault-footer-version { font-size: 11px; color: var(--cv-t3); white-space: nowrap; }
+
+.grant-row-content > strong, .grant-list-resource > small { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.grants-panel .workspace-form fieldset { gap: 0; }
+.grant-control-section { display: flex; flex-direction: column; gap: 12px; padding: 16px 0; }
+.grant-control-section:first-child { padding-top: 0; }
+.grant-control-section:last-child { padding-bottom: 0; }
+.grant-control-section + .grant-control-section { border-top: 1px solid var(--cv-border); }
+.grant-control-section > p { margin: 0; }
+.grant-control-section .filter-select { width: 100%; display: flex; flex-direction: column; align-items: stretch; }
+.grant-control-section .filter-options { position: static; width: 100%; max-width: none; box-sizing: border-box; margin-top: 6px; }
+.grant-control-section .workspace-check { padding: 8px 10px; border: 1px solid var(--cv-border); border-radius: 6px; background: var(--cv-input-bg); }
