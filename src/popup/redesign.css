@@ -1437,6 +1437,7 @@ html[data-extension-surface='side-panel'] .popup-header {
 .grant-identity-column .detail-identity p { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .grant-identity-column .detail-identity p .popup-icon { display: inline-block; vertical-align: middle; margin-right: 5px; }
 
-.vault-footer > .link-btn { margin-right: 0; }
-.vault-footer > .vault-footer-version { margin-right: auto; }
+.vault-footer-info { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.vault-footer-info > .link-btn { white-space: nowrap; }
+.vault-footer-actions { justify-self: end; }
 .vault-footer-version > span { margin-right: 8px; color: var(--cv-border); }
