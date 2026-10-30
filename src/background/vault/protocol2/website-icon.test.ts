@@ -64,3 +64,15 @@ describe('website icon catalog lookup', () => {
     await expect(client.resolveWebsiteIcon('expired', 'www.reddit.com')).rejects.toMatchObject({ code: 'unauthorized' })
   })
 })
+
+it('resolves a manually chosen catalog ID through the selected API, not a popup URL', async () => {
+  const fetch = vi.fn(async () => Response.json({ items: [asset] }))
+  const client = new Protocol2VaultClient(fetch, 'https://self-hosted.example/palladin')
+  expect(await client.getCatalogIcon('token', asset.id)).toEqual({ kind: 'publicAsset', assetId: asset.id, revision: asset.revision, url: asset.url })
+  expect(fetch).toHaveBeenCalledWith('https://self-hosted.example/palladin/api/public-assets/by-ids', expect.objectContaining({ body: JSON.stringify({ assetIds: [asset.id] }) }))
+})
+
+it('does not substitute a different catalog result for the selected ID', async () => {
+  const client = new Protocol2VaultClient(async () => Response.json({ items: [] }), 'https://api.example.com')
+  await expect(client.getCatalogIcon('token', asset.id)).rejects.toThrow('Icon unavailable')
+})

@@ -1,3 +1,4 @@
+import { EntryGlyph, isEntryGlyph } from "./EntryGlyph";
 import { PopupIcon } from "./PopupIcon";
 import { useState } from "react";
 import { usePublicAssetImage } from "./PublicAssetImages";
@@ -19,7 +20,7 @@ export interface EntryIconProps {
 export function EntryIcon({ name, type, icon, color }: EntryIconProps): React.JSX.Element {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const imageUrl = usePublicAssetImage(icon);
-  const style = color ? { backgroundColor: color, color: "#fff" } : undefined;
+  const style = color ? { color } : undefined;
   const label = name.trim() || "Entry";
 
   return (
@@ -33,7 +34,7 @@ export function EntryIcon({ name, type, icon, color }: EntryIconProps): React.JS
           onError={() => setFailedUrl(imageUrl)}
         />
       ) : (
-        <TypeIcon type={type} />
+        icon && isEntryGlyph(icon) ? <EntryGlyph name={icon} /> : <TypeIcon type={type} />
       )}
     </span>
   );

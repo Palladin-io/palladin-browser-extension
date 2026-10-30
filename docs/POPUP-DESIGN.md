@@ -119,3 +119,19 @@ for creation, plus a separate Sharing navigation row for existing links.
 Create Entry uses a pinned Back/type-selector header, one scrolling field card
 and pinned Cancel/Save actions, matching the web form hierarchy. Type and back
 actions are disabled while saving; drafts stay memory-only and clear on success.
+
+Create Entry places the type selector at the right of Back, the framed icon
+selector beside Name, and Username/Password in equal columns (stacked below
+450px). Only the field body scrolls; the outer form reserves no second gutter.
+Entry Login uses the neutral `contrast` button. Server-setting checkboxes reuse
+bordered settings rows and the dark-red checked accent.
+
+The icon dialog offers the web's Entry glyph vocabulary, six presentation colors,
+and a searchable public service catalog. Selection is saved in encrypted Entry
+presentation with icon/color Agent disclosure still disabled. The popup sends
+only an allowlisted glyph or catalog ID and a six-digit hex color; the worker
+resolves catalog metadata from the selected API inside the initiating session
+fence. Rendering never uses an arbitrary URL supplied by the popup or ciphertext.
+Custom image upload is still pending: installed @palladin/crypto 0.13.0 does not
+export the web's encrypted presentation-asset container operations. This picker
+is not yet full web parity; upload/read support must use the shared crypto package.

@@ -177,6 +177,18 @@ export class Protocol2VaultClient {
     }
   }
 
+  async getCatalogIcon(accessToken: string, assetId: string): Promise<currentVaultPlaintext.PublicAssetVaultIconV1> {
+    const response = await this.request('/api/public-assets/by-ids', accessToken, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ assetIds: [assetId] }),
+    })
+    if (!response.ok) throw new VaultClientError('network', 'Icon unavailable')
+    const page = await readBoundedJson(response) as { items: { id: string; revision: number; url: string }[] }
+    const asset = page.items.find(item => item.id === assetId)
+    if (!asset) throw new VaultClientError('network', 'Icon unavailable')
+    return { kind: 'publicAsset', assetId, revision: asset.revision, url: asset.url }
+  }
+
   async resolveWebsiteIcon(
     accessToken: string,
     input: string,

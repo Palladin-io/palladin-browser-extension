@@ -1,3 +1,4 @@
+import { validEntryPresentation } from "@shared/entry-icons";
 /**
  * Typed command channel between the popup and the service worker for vault data
  * — the list/search view, on-demand reveal (copy), on-demand TOTP, and the
@@ -653,27 +654,27 @@ function isManualEntrySaveInput(value: unknown): value is ManualEntrySaveInput {
   const optionalNotes = entry.notes === undefined
     || (typeof entry.notes === "string" && entry.notes.length <= 4096);
   const optionalCustomFields = entry.customFields === undefined || isManualCustomFields(entry.customFields);
-  if (!optionalNotes || !optionalCustomFields) return false;
+  if (!optionalNotes || !optionalCustomFields || !validEntryPresentation(entry)) return false;
   switch (entry.entryType) {
     case "credential":
-      return hasOnlyKeys(entry, ["entryType", "label", "username", "password", "url", "notes", "customFields"])
+      return hasOnlyKeys(entry, ["entryType", "label", "username", "password", "url", "notes", "customFields", "icon", "color"])
         && typeof entry.username === "string" && entry.username.length <= 512
         && typeof entry.password === "string" && entry.password.length > 0 && entry.password.length <= 4096
         && (entry.url === undefined || (typeof entry.url === "string" && entry.url.length <= 2048));
     case "key":
-      return hasOnlyKeys(entry, ["entryType", "label", "value", "notes", "customFields"])
+      return hasOnlyKeys(entry, ["entryType", "label", "value", "notes", "customFields", "icon", "color"])
         && typeof entry.value === "string" && entry.value.length > 0 && entry.value.length <= 16_384;
     case "script":
-      return hasOnlyKeys(entry, ["entryType", "label", "source", "interpreter", "notes", "customFields"])
+      return hasOnlyKeys(entry, ["entryType", "label", "source", "interpreter", "notes", "customFields", "icon", "color"])
         && typeof entry.source === "string" && entry.source.length > 0 && entry.source.length <= 65_536
         && (entry.interpreter === "bash" || entry.interpreter === "sh"
           || entry.interpreter === "node" || entry.interpreter === "python");
     case "creditCard":
       return hasOnlyKeys(entry, [
         "entryType", "label", "cardholderName", "cardNumber", "cvv", "expiryMonth",
-        "expiryYear", "billingAddress", "notes", "customFields",
+        "expiryYear", "billingAddress", "notes", "customFields", "icon", "color",
       ]) && isCreditCardSaveInput(Object.fromEntries(
-        Object.entries(entry).filter(([key]) => key !== "entryType"),
+        Object.entries(entry).filter(([key]) => !["entryType", "icon", "color"].includes(key)),
       ));
     default:
       return false;

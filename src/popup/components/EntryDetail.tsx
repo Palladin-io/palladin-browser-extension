@@ -92,7 +92,7 @@ export function EntryDetail({
       {!sharing ? <div className="detail-heading entry-identity-card">
         {identity}
         {(entry.type === 1 && entry.urlDomain) || entry.type === 3 ? (
-          <Button loading={busy} onClick={() => void fill()}>
+          <Button variant="contrast" loading={busy} onClick={() => void fill()}>
             {t(entry.type === 3 ? 'common.fill' : 'vault.logIn')}
           </Button>
         ) : null}

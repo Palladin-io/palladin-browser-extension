@@ -146,6 +146,7 @@ function harness(
     maxObservedWallTime: 0,
   }
   const client = {
+    getCatalogIcon: vi.fn<Protocol2VaultClient['getCatalogIcon']>(),
     listVaults: vi.fn(async () => [vault]),
     resolveWebsiteIcon: vi.fn<Protocol2VaultClient['resolveWebsiteIcon']>(async () => null),
     delta: vi.fn(async () => ({
@@ -991,6 +992,32 @@ describe('Protocol2VaultDataService canonical password capture', () => {
       url: 'https://example.com/register',
       password: 'generated-password',
     })).resolves.toEqual({ status: 'blocked', reason: 'grant-refresh-required' })
+  })
+
+  it('does not save a draft in a replacement session after catalog lookup', async () => {
+    const { service, client, session } = harness()
+    await service.refresh()
+    let resolve!: (value: Awaited<ReturnType<Protocol2VaultClient['getCatalogIcon']>>) => void
+    client.getCatalogIcon.mockReturnValue(new Promise(done => { resolve = done }))
+    const saving = service.saveEntry({ entryType: 'key', label: 'Example', value: 'synthetic',
+      icon: 'public-asset:11111111-1111-4111-8111-111111111111' })
+    const rejected = expect(saving).rejects.toThrow('Session changed')
+    await vi.waitFor(() => expect(client.getCatalogIcon).toHaveBeenCalled())
+    session.getPrivateKey = () => new Uint8Array(32).fill(9)
+    resolve({ kind: 'publicAsset', assetId: USER_ID, revision: 1, url: 'https://example.test/icon.png' })
+    await rejected
+    expect(client.issueEntryCreationChallenge).not.toHaveBeenCalled()
+    expect(client.createEntry).not.toHaveBeenCalled()
+  })
+
+  it('seals the selected glyph and color without exposing them to Agents', async () => {
+    const { service } = harness()
+    await service.refresh()
+    await service.saveEntry({ entryType: 'key', label: 'Example', value: 'synthetic', icon: 'cloud', color: '#60A5FA' })
+    expect(cryptoMocks.sealCanonicalEntry.mock.calls[0]?.[1]).toMatchObject({
+      icon: { kind: 'glyph', value: 'cloud' }, color: '#60A5FA',
+      agentFieldAccess: { icon: 'never', color: 'never' },
+    })
   })
 
   it('creates a canonical card with only cardholder, PAN, optional CVV, expiry, billing, notes, and neutral custom fields', async () => {

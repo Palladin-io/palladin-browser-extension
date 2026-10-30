@@ -11,6 +11,22 @@ function client(saveEntry = vi.fn(async () => ({ status: "saved" }) as const)): 
 }
 
 describe("AddEntryForm", () => {
+  it('saves a selected glyph and resets the choice with the form', async () => {
+    HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+    const saveEntry = vi.fn(async () => ({ status: 'saved' }) as const);
+    render(<AddEntryForm client={client(saveEntry)} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Choose icon' }));
+    await user.click(screen.getByRole('button', { name: 'Cloud' }));
+    await user.click(screen.getByRole('button', { name: 'Icon color #60A5FA' }));
+    await user.click(screen.getAllByRole('button', { name: 'Close icon picker' })[0]!);
+    await user.type(screen.getByLabelText('Name'), 'Example');
+    await user.type(screen.getByLabelText('Password'), 'synthetic');
+    await user.click(screen.getByRole('button', { name: 'Save entry' }));
+    await waitFor(() => expect(saveEntry).toHaveBeenCalledWith(expect.objectContaining({ icon: 'cloud', color: '#60A5FA' })));
+    await user.click(screen.getByRole('button', { name: 'Choose icon' }));
+    expect(screen.getByRole('button', { name: 'Cloud' })).toHaveAttribute('aria-pressed', 'false');
+  });
   it("offers every canonical entry type", async () => {
     render(<AddEntryForm client={client()} />);
     await userEvent.setup().click(screen.getByRole("combobox", { name: "Entry type" }));

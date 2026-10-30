@@ -1,3 +1,5 @@
+import { ENTRY_CREDENTIAL, ENTRY_KEY, ENTRY_SCRIPT, ENTRY_CREDIT_CARD } from '../vault/entry-type';
+import { EntryIconPicker } from '../components/EntryIconPicker';
 import { FilterSelect } from '../components/FilterSelect';
 import { PopupIcon } from '../components/PopupIcon';
 import { useState } from "react";
@@ -35,6 +37,7 @@ const INITIAL = {
 export function AddEntryForm({ client, onBack }: { readonly client: VaultClient; readonly onBack?: (() => void) | undefined }): React.JSX.Element {
   const { t } = useI18n();
   const [entryType, setEntryType] = useState<EntryType>("credential");
+  const [presentation, setPresentation] = useState<{ icon?: string; color?: string }>({});
   const [draft, setDraft] = useState(INITIAL);
   const [customFields, setCustomFields] = useState<ManualCustomFieldInput[]>([]);
   const [status, setStatus] = useState<SaveStatus>("idle");
@@ -47,6 +50,7 @@ export function AddEntryForm({ client, onBack }: { readonly client: VaultClient;
   function changeType(next: EntryType): void {
     setEntryType(next);
     setDraft(INITIAL);
+    setPresentation({});
     setCustomFields([]);
     setStatus("idle");
   }
@@ -55,12 +59,13 @@ export function AddEntryForm({ client, onBack }: { readonly client: VaultClient;
     event.preventDefault();
     setStatus("saving");
     try {
-      const result = await client.saveEntry(toSaveInput(entryType, draft, customFields));
+      const result = await client.saveEntry({ ...toSaveInput(entryType, draft, customFields), ...presentation });
       if (result.status === "blocked") {
         setStatus("blocked");
         return;
       }
       setDraft(INITIAL);
+    setPresentation({});
       setCustomFields([]);
       setStatus("saved");
     } catch {
@@ -80,6 +85,8 @@ export function AddEntryForm({ client, onBack }: { readonly client: VaultClient;
         </FilterSelect>
       </div>
       <div className="entry-create-scroll"><div className="entry-create-fields">
+      <div className="entry-create-name">
+      <EntryIconPicker value={presentation} onChange={setPresentation} disabled={status === "saving"} type={entryType === 'credential' ? ENTRY_CREDENTIAL : entryType === 'key' ? ENTRY_KEY : entryType === 'script' ? ENTRY_SCRIPT : ENTRY_CREDIT_CARD} />
       <EntryField
         label={t("entry.label")}
         value={draft.label}
@@ -87,10 +94,13 @@ export function AddEntryForm({ client, onBack }: { readonly client: VaultClient;
         required
         autoComplete="off"
       />
+      </div>
 
       {entryType === "credential" ? <>
+        <div className="entry-create-credentials">
         <EntryField label={t("entry.username")} value={draft.username} onChange={(value) => update("username", value)} autoComplete="username" maxLength={512} />
         <EntryField label={t("entry.password")} value={draft.password} onChange={(value) => update("password", value)} required autoComplete="new-password" type="password" maxLength={4096} />
+        </div>
         <EntryField label={t("entry.url")} value={draft.url} onChange={(value) => update("url", value)} autoComplete="url" type="url" maxLength={2048} placeholder="https://example.com" />
       </> : null}
 
