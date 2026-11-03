@@ -5,7 +5,7 @@ import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { usePendingGrants } from '../workspace/usePendingGrants';
 import { GrantsPanel } from '../workspace/GrantsPanel';
 import { SharingOverview } from '../workspace/SharingOverview';
-import { AuditPanel } from '../workspace/AuditPanel';
+import { AuditPanel, type AuditTarget } from '../workspace/AuditPanel';
 import { createWorkspaceClient } from '../workspace/client';
 import { Header } from '../components/Header';
 import { PopupIcon } from '../components/PopupIcon';
@@ -73,6 +73,7 @@ function UnlockedContent({
     () => captureClient ?? createCaptureClient(),
     [captureClient],
   );
+  const [auditTarget, setAuditTarget] = useState<AuditTarget | undefined>();
   const workspaceClient = useMemo(() => createWorkspaceClient(), []);
   const pendingGrants = usePendingGrants(workspaceClient);
   const capture = useCapturePrompt(promptClient);
@@ -82,7 +83,11 @@ function UnlockedContent({
   const setQuery = (query: string) => navigation.update({ query, scrollTop: 0, visibleCount: 100 });
   const setVaultFilter = (value: string[] | null | ((previous: string[] | null) => string[] | null)) =>
     navigation.update({ vaultFilter: typeof value === 'function' ? value(vaultFilter) : value, scrollTop: 0, visibleCount: 100 });
-  const setView = (view: PopupViewState['view']) => navigation.update({ view });
+  const setView = (view: PopupViewState['view']) => { setAuditTarget(undefined); navigation.update({ view }); };
+  const showLogs = (target: AuditTarget) => {
+    setAuditTarget(target);
+    navigation.update({ view: 'logs', scope: target.entryId ? { id: target.entryId, vaultId: target.vaultId } : null });
+  };
   const entryRef = (entry: PopupEntryRef | null) => entry ? { id: entry.id, vaultId: entry.vaultId } : null;
   const setSelected = (entry: PopupEntryRef | null) => navigation.update({ selected: entryRef(entry) });
   const setScope = (entry: PopupEntryRef | null) => navigation.update({ scope: entryRef(entry) });
@@ -210,6 +215,7 @@ function UnlockedContent({
       <div className="vault-content">
         {view === 'settings' ? settings : view === 'grants' ? (
           <GrantsPanel
+            onShowLogs={showLogs}
             revision={pendingGrants.revision}
             client={workspaceClient}
             entries={list.all}
@@ -219,6 +225,7 @@ function UnlockedContent({
           />
         ) : view === 'shares' ? (
           <SharingOverview
+            onShowLogs={showLogs}
             scope={scope}
             onBack={() => { setScope(null); setView('vault'); }}
             client={workspaceClient}
@@ -227,11 +234,12 @@ function UnlockedContent({
           />
         ) : view === 'logs' ? (
           <AuditPanel
+            target={auditTarget}
             client={workspaceClient}
             entries={list.all}
-            onBack={() => { setScope(null); setView('vault'); }}
+            onBack={() => { setScope(null); setView(auditTarget?.kind === 'share' ? 'shares' : auditTarget ? 'grants' : 'vault'); }}
             entryId={scope?.id}
-            vaultId={scope?.vaultId}
+            vaultId={auditTarget?.vaultId ?? scope?.vaultId}
           />
         ) : view === 'add-entry' ? (
           <AddEntryForm client={client} onBack={() => setView('vault')} />

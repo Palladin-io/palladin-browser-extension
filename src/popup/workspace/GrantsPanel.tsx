@@ -1,3 +1,5 @@
+import { AuditPanel, type AuditTarget } from './AuditPanel';
+import { RelativeTime } from '../components/RelativeTime';
 import { useWorkspaceListRevision } from './useWorkspaceListRevision';
 import { EntryScopeHeader } from '../components/EntryScopeHeader';
 import { EntryIcon } from '../components/EntryIcon';
@@ -35,8 +37,9 @@ export function GrantsPanel({
   entries,
   entryId,
   vaultId,
-  onBack,
+  onBack, onShowLogs,
 }: {
+  onShowLogs?: ((target: AuditTarget) => void) | undefined;
   client: WorkspaceClient;
   revision: number;
   entries: readonly EntryMetadata[];
@@ -44,7 +47,7 @@ export function GrantsPanel({
   vaultId?: string | undefined;
   onBack?: (() => void) | undefined;
 }): React.JSX.Element {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const listRevision = useWorkspaceListRevision(client, 'workspace/grants');
   const [items, setItems] = useState<OrgGrant[]>([]);
   const [status, setStatus] = useState<string[]>([]);
@@ -292,13 +295,16 @@ export function GrantsPanel({
             ) : null}
             </div>
             <dl className="grant-metadata">
-              <div className="detail-field"><dt>{t('grant.expiresAt')}</dt><dd>{selected.expiresAt ? new Date(selected.expiresAt).toLocaleString(locale) : t(selected.status === 'pending' ? 'grant.expiryOnApproval' : 'grant.noExpiry')}</dd></div>
-              <div className="detail-field"><dt>{t('grant.requestedAt')}</dt><dd>{new Date(selected.createdAt).toLocaleString(locale)}</dd></div>
+              <div className="detail-field"><dt>{t('grant.expiresAt')}</dt><dd>{selected.expiresAt ? <RelativeTime value={selected.expiresAt} /> : t(selected.status === 'pending' ? 'grant.expiryOnApproval' : 'grant.noExpiry')}</dd></div>
+              <div className="detail-field"><dt>{t('grant.requestedAt')}</dt><dd><RelativeTime value={selected.createdAt} /></dd></div>
               {selected.createdBy ? <>
                 <div className="detail-field"><dt>{t('grant.grantedBy')}</dt><dd>{selected.createdByName ?? shortId(selected.createdBy)}</dd></div>
-                <div className="detail-field"><dt>{t('grant.grantedAt')}</dt><dd>{selected.grantedAt ? new Date(selected.grantedAt).toLocaleString(locale) : t('grant.dateUnavailable')}</dd></div>
+                <div className="detail-field"><dt>{t('grant.grantedAt')}</dt><dd>{selected.grantedAt ? <RelativeTime value={selected.grantedAt} /> : t('grant.dateUnavailable')}</dd></div>
               </> : null}
             </dl></div>
+            {onShowLogs ? <AuditPanel client={client} entries={entries} vaultId={selected.vaultId} entryId={selected.entryId ?? undefined}
+              target={{ kind: 'grant', id: selected.id, vaultId: selected.vaultId, entryId: selected.entryId ?? undefined }} preview
+              onViewAll={() => onShowLogs?.({ kind: 'grant', id: selected.id, vaultId: selected.vaultId, entryId: selected.entryId ?? undefined })} /> : null}
             {selected.status === 'pending' ? (
               <form
                 className="workspace-form"

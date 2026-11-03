@@ -1493,3 +1493,15 @@ html[data-extension-surface='side-panel'] .popup-header {
 
 .popup[data-phase="locked"]:has(> .auth-brand-header) .auth-form-panel { min-height:0; flex-shrink:1; overflow-y:auto; }
 .popup[data-phase="locked"] .auth-form-panel > .form { margin-bottom:0; }
+
+.share-management-card .share-detail-actions { display:flex; flex-wrap:nowrap; gap:8px; justify-content:flex-start; }
+.share-management-card .share-detail-actions .btn { min-width:0; padding:8px; font-size:11px; white-space:nowrap; }
+.share-management-card .share-detail-actions .btn:last-child { margin-left:auto; }
+.audit-preview.workspace-panel { height:auto; padding:16px; border:1px solid var(--cv-border); border-radius:8px; background:var(--cv-surface); overflow:visible; flex:none; margin-top:16px; }
+.audit-preview .workspace-toolbar { justify-content:space-between; margin-bottom:8px; }
+.audit-preview h3 { margin:0; font-size:13px; font-weight:600; }
+.audit-preview .audit-event { padding:10px 0; }
+.audit-preview .audit-primary { align-items:flex-start; }
+.audit-preview .audit-chips[hidden] { display:none; }
+.audit-preview .audit-list { overflow:visible; }
+@media(max-width:450px) { .share-management-card .share-detail-actions { flex-wrap:wrap; } .share-management-card .share-detail-actions .btn:last-child { margin-left:0; } }

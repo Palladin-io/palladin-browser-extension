@@ -1,3 +1,5 @@
+import { AuditPanel, type AuditTarget } from './AuditPanel';
+import { RelativeTime } from '../components/RelativeTime';
 import { useWorkspaceListRevision } from './useWorkspaceListRevision';
 import { EntryScopeHeader } from '../components/EntryScopeHeader';
 import { FilterSelect } from '../components/FilterSelect';
@@ -16,12 +18,13 @@ import { Button } from '../components/Button';
 import { useI18n } from '../i18n';
 
 type SharedEntry = WorkspaceResults['workspace/my-shares']['items'][number];
-export function SharingOverview({ client, vaultClient, entries, scope, onBack }: {
+export function SharingOverview({ client, vaultClient, entries, scope, onBack, onShowLogs }: {
   client: WorkspaceClient; vaultClient: VaultClient; entries: readonly EntryMetadata[];
+  onShowLogs?: ((target: AuditTarget) => void) | undefined;
   scope?: { id: string; vaultId: string } | null | undefined;
   onBack?: (() => void) | undefined;
 }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const listRevision = useWorkspaceListRevision(client, scope ? 'workspace/shares' : 'workspace/my-shares');
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [status, setStatus] = useState<string[]>([]);
@@ -121,19 +124,24 @@ export function SharingOverview({ client, vaultClient, entries, scope, onBack }:
       </div>
       <dl className="grant-metadata">
         <div className="detail-field"><dt>{t('share.recipient')}</dt><dd>{focused.share.recipientEmail ?? t('share.anyone')}</dd></div>
-        <div className="detail-field"><dt>{t('share.createdAt')}</dt><dd>{new Date(focused.share.createdAt).toLocaleString(locale)}</dd></div>
-        <div className="detail-field"><dt>{t('grant.expiresAt')}</dt><dd>{focused.share.expiresAt ? new Date(focused.share.expiresAt).toLocaleString(locale) : t('grant.noExpiry')}</dd></div>
+        <div className="detail-field"><dt>{t('share.createdAt')}</dt><dd><RelativeTime value={focused.share.createdAt} /></dd></div>
+        <div className="detail-field"><dt>{t('grant.expiresAt')}</dt><dd>{focused.share.expiresAt ? <RelativeTime value={focused.share.expiresAt} /> : t('grant.noExpiry')}</dd></div>
+        <div className="detail-field"><dt>{t("share.sharedBy")}</dt><dd>{t("share.you")}</dd></div>
       </dl>
       <div className="share-management-card"><div className="workspace-actions share-detail-actions">
         {focusedEntry && focused.share.status === 'active' && ['none', 'password', 'pin'].includes(focused.share.protection) ? <Button variant="subtle" disabled={busy} onClick={() => { setEditing(focused.share); setSelected(focusedEntry); }}><PopupIcon name="edit" />{t('share.changeProtection')}</Button> : null}
         {['active', 'locked', 'suspended', 'consumed'].includes(focused.share.status) ? <Button variant="danger" disabled={busy} onClick={() => setRevoking(focused)}><PopupIcon name="denied" />{t('share.revoke')}</Button> : null}
+      {focusedEntry ? <Button variant="subtle" disabled={busy} title={t('share.entryLinks')} onClick={() => setSelected(focusedEntry)}>{t('share.allLinks')}</Button> : null}
       </div>
       {revoking?.share.shareId === focused.share.shareId ? <div className="share-revoke-confirm"><p>{t('share.revokeNotice')}</p><div className="workspace-actions">
         <Button variant="subtle" disabled={busy} onClick={() => setRevoking(null)}>{t('common.cancel')}</Button>
         <Button variant="danger" loading={busy} onClick={() => void revoke()}>{t('share.revoke')}</Button>
       </div></div> : null}
-      {focusedEntry ? <Button variant="subtle" disabled={busy} onClick={() => setSelected(focusedEntry)}>{t('share.entryLinks')}</Button> : null}
+
       </div>
+      {onShowLogs ? <AuditPanel client={client} entries={entries} vaultId={focused.vaultId} entryId={focused.entryId}
+        target={{ kind: 'share', id: focused.share.shareId, vaultId: focused.vaultId, entryId: focused.entryId }} preview
+        onViewAll={() => onShowLogs?.({ kind: 'share', id: focused.share.shareId, vaultId: focused.vaultId, entryId: focused.entryId })} /> : null}
     </div> : <div className="detail-empty">{t('share.select')}</div>}
     </div>
   </section>;
