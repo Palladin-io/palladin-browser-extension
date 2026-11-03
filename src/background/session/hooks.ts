@@ -18,10 +18,22 @@ export interface SessionLifecycleEvent {
 
 export type SessionHookListener = (event: SessionLifecycleEvent) => void;
 
-/** Tiny synchronous event bus for `unlocked` / `locked`. */
+/** Termination is synchronous; committed locked events may follow awaited closing work. */
 export class SessionHooks {
+  private readonly onTerminatingListeners = new Set<() => void>();
   private readonly onUnlockedListeners = new Set<SessionHookListener>();
   private readonly onLockedListeners = new Set<SessionHookListener>();
+
+  onTerminating(listener: () => void): () => void {
+    this.onTerminatingListeners.add(listener);
+    return () => this.onTerminatingListeners.delete(listener);
+  }
+
+  emitTerminating(): void {
+    for (const listener of this.onTerminatingListeners) {
+      try { listener(); } catch { /* Cleanup observers must not prevent key destruction. */ }
+    }
+  }
 
   onUnlocked(listener: SessionHookListener): () => void {
     this.onUnlockedListeners.add(listener);

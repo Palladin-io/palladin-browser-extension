@@ -23,6 +23,7 @@ import { VaultClientError } from '../transport'
 import { Protocol2MutationConflictError, type Protocol2VaultClient, type UpdateCanonicalEntryRequest } from './client'
 import type { EncryptedVaultSummary } from './contracts'
 import type { EntryGrantContext } from './grant-context'
+import type { VaultKeyEpochFloor } from './key-epoch-floor'
 import type { Protocol2SessionAccessor, Protocol2VaultDataService } from './service'
 
 type EntryDetail = Awaited<ReturnType<Protocol2VaultClient['getEntry']>>
@@ -31,6 +32,7 @@ export interface CredentialWriterDeps {
   readonly client: Protocol2VaultClient
   readonly session: Protocol2SessionAccessor
   readonly data: Pick<Protocol2VaultDataService, 'refresh' | 'getMetadata'>
+  readonly keyEpochFloor: VaultKeyEpochFloor
   canWrite(): Promise<boolean>
 }
 
@@ -51,7 +53,8 @@ export class Protocol2CredentialWriter {
     let personalIndex: number | null = null
     for (const listed of vaults) {
       const vault = await this.withAuth((token) => this.deps.client.getVault(token, listed.id))
-      const opened = await openVaultProjection(vault, privateKey, userId)
+      const opened = await this.deps.keyEpochFloor.observe(userId, vault,
+        () => openVaultProjection(vault, privateKey, userId))
       try {
         if (vault.isDefault) personalIndex = targets.length
         targets.push({ action: 'create', vaultId: vault.id, label: opened.metadata.name, vaultLabel: opened.metadata.name })
@@ -90,8 +93,10 @@ export class Protocol2CredentialWriter {
     const { privateKey, userId } = await this.context()
     if (!(await this.deps.canWrite()) || !(await stillAuthorized())) throw new VaultDataError('locked', 'Capture authorization changed')
     const vault = await this.withAuth((token) => this.deps.client.getVault(token, target.vaultId))
-    const opened = await openVaultProjection(vault, privateKey, userId)
+    const opened = await this.deps.keyEpochFloor.openForWrite(userId, vault,
+      () => openVaultProjection(vault, privateKey, userId))
     let discoveryKey: Uint8Array | undefined
+    const assertEpoch = () => this.deps.keyEpochFloor.assertCurrent(userId, vault)
     const authorized = async () => this.deps.session.getPrivateKey() === privateKey
       && await this.deps.session.getUserId() === userId && await stillAuthorized()
     try {
@@ -101,12 +106,14 @@ export class Protocol2CredentialWriter {
         const icon = await this.withAuth(token => this.deps.client.resolveWebsiteIcon(token, site.hostname))
         const secret = { ...createCapturedCredentialSecret({ label: site.hostname, username: credential.username,
           password: credential.password, url: site.origin, urlDomain: site.hostname }), icon: icon ?? null }
+        assertEpoch()
         const material = await sealCanonicalCredentialEntry({ organizationId: vault.organizationId, vaultId: vault.id,
           entryId, revision: '1', vaultKeyVersion: vault.currentKeyEpoch.vaultKeyVersion,
           vdkVersion: vault.currentKeyEpoch.vdkVersion, memberKeyGeneration: vault.memberKeyGeneration,
         }, secret, opened.vaultKey, discoveryKey, 1)
         const created = await this.withAuth(async (token) => {
           if (!(await authorized())) throw new VaultDataError('locked', 'Capture authorization changed')
+          assertEpoch()
           return this.deps.client.createEntry(token, { vaultId: vault.id, entryId, ...material, deliveryPolicy: 'standard' })
         })
         void this.refreshAfterWrite()
@@ -118,6 +125,7 @@ export class Protocol2CredentialWriter {
       if (target.exactAccount && previous.content.username !== credential.username) throw new Protocol2MutationConflictError()
       const next = { ...previous, content: { ...previous.content, password: credential.password } }
       const revision = (BigInt(detail.currentRevision) + 1n).toString()
+      assertEpoch()
       const material = await sealCanonicalCredentialEntry({ organizationId: vault.organizationId, vaultId: vault.id,
         entryId: target.entryId, revision, entryKeyRevision: '1', entryKeyVersion: detail.currentKeyVersion + 1,
         memberIndexRevision: (BigInt(detail.memberIndexRevision) + 1n).toString(),
@@ -130,6 +138,7 @@ export class Protocol2CredentialWriter {
       const discoveryChanged = JSON.stringify(projectCanonicalCredentialDiscovery(previous)) !== JSON.stringify(projectCanonicalCredentialDiscovery(next))
       const saved = await this.withAuth(async (token) => {
         if (!(await authorized())) throw new VaultDataError('locked', 'Capture authorization changed')
+        assertEpoch()
         return this.deps.client.updateEntry(token, { vaultId: vault.id, entryId: target.entryId,
           baseRevision: detail.currentRevision, newEntryKey: material.entryKey,
           memberSecret: material.memberSecret, memberIndex: material.memberIndex,

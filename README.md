@@ -99,7 +99,8 @@ a build.
 For a complete local smoke test - sign-in, user autofill, generated-password
 capture, card fill, and the macOS Chrome Agent Inject path - follow
 [`docs/LOCAL-TESTING.md`](docs/LOCAL-TESTING.md). Use disposable development
-data only.
+data only. Proactive API key/card creation and its synthetic browser acceptance
+are documented in [secret capture](docs/SECRET-CAPTURE.md).
 
 `npm run build` builds all three target manifests. Use `npm run build:chromium`,
 `npm run build:firefox`, or `npm run build:safari` for one target, and the matching

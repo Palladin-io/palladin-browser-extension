@@ -21,9 +21,9 @@ function fixture(initialize?: () => Promise<unknown>, onReady?: Parameters<typeo
   vi.stubGlobal("browser", api);
   vi.stubGlobal("chrome", { runtime: { onConnectExternal: { addListener: () => { throw new Error("Wrong native namespace"); } } } });
   const controller = startSafariSharedUnlockBrowser(environments, () => environments[0].apiUrl, initialize, onReady)!;
-  const port = (tabId = 7) => {
-    const connection = { name: SHARED_UNLOCK_BROWSER_PORT, sender: { tab: { id: tabId, incognito: false, url: environments[0].webOrigin }, frameId: 0,
-      documentId: "11111111-1111-4111-8111-111111111111", origin: environments[0].webOrigin, url: environments[0].webOrigin },
+  const port = (tabId = 7, origin = environments[0].webOrigin) => {
+    const connection = { name: SHARED_UNLOCK_BROWSER_PORT, sender: { tab: { id: tabId, incognito: false, url: origin }, frameId: 0,
+      documentId: "11111111-1111-4111-8111-111111111111", origin, url: origin },
       onMessage: event<[unknown]>(), onDisconnect: event<[]>(), postMessage: vi.fn(), disconnect: vi.fn() };
     // Local disconnect intentionally does NOT emit onDisconnect, matching the browser API.
     api.runtime.onConnectExternal.emit(connection as unknown as chrome.runtime.Port);
@@ -87,5 +87,12 @@ describe("Safari native external Port adapter", () => {
       attemptId: "A".repeat(43), payload: { kind: "cancel" } });
     await settle(); expect(received).not.toHaveBeenCalled(); expect(route.signal.aborted).toBe(true);
     expect(p.disconnect).toHaveBeenCalledOnce(); controller.close();
+  });
+  it("refuses a foreign-origin Port before it consumes the shared budget", async () => {
+    const f = fixture(), panel = f.port(); panel.onMessage.emit(hello); await settle();
+    const foreign = Array.from({ length: 64 }, (_, i) => f.port(i + 10, "https://attacker.example.test"));
+    expect(foreign.every(p => p.disconnect.mock.calls.length === 1 && p.onMessage.listeners.size === 0)).toBe(true);
+    const next = f.port(8); next.onMessage.emit(hello); await settle();
+    expect(next.postMessage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "ready" })); f.controller.close();
   });
 });

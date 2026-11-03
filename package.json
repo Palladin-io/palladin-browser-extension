@@ -26,6 +26,7 @@
     "test": "npm run check:docs && npm run check:icons && vitest run",
     "test:watch": "vitest",
     "test:browser:inline": "node tests/browser/inline-autofill.mjs",
+    "test:browser:secret-capture": "node tests/browser/secret-capture.mjs",
     "test:browser:capture": "node tests/browser/credential-capture.mjs",
     "test:browser:generator": "node tests/browser/generator.mjs",
     "test:browser:shared-unlock-platform": "node tests/browser/shared-unlock-platform-probe.mjs",

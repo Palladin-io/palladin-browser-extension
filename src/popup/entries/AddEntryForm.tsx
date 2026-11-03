@@ -8,6 +8,7 @@ import type {
   ManualCustomFieldInput,
   ManualCustomFieldType,
   ManualEntrySaveInput,
+  ManualEntrySaveResult,
 } from "../../background/vault/protocol2/service";
 import { Button } from "../components/Button";
 import { useI18n, type Translate } from "../i18n";
@@ -34,12 +35,18 @@ const INITIAL = {
   notes: "",
 };
 
-export function AddEntryForm({ client, onBack }: { readonly client: VaultClient; readonly onBack?: (() => void) | undefined }): React.JSX.Element {
+export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack }: {
+  readonly client: VaultClient;
+  readonly onBack?: (() => void) | undefined;
+  readonly initialEntry?: ManualEntrySaveInput;
+  readonly onSave?: (entry: ManualEntrySaveInput) => Promise<ManualEntrySaveResult>;
+  readonly onSaved?: () => void;
+}): React.JSX.Element {
   const { t } = useI18n();
-  const [entryType, setEntryType] = useState<EntryType>("credential");
+  const [entryType, setEntryType] = useState<EntryType>(initialEntry?.entryType ?? "credential");
+  const [draft, setDraft] = useState(() => ({ ...INITIAL, ...initialEntry }));
+  const [customFields, setCustomFields] = useState<ManualCustomFieldInput[]>([...(initialEntry?.customFields ?? [])]);
   const [presentation, setPresentation] = useState<{ icon?: string; color?: string }>({});
-  const [draft, setDraft] = useState(INITIAL);
-  const [customFields, setCustomFields] = useState<ManualCustomFieldInput[]>([]);
   const [status, setStatus] = useState<SaveStatus>("idle");
 
   function update<K extends keyof typeof INITIAL>(field: K, value: (typeof INITIAL)[K]): void {
@@ -59,7 +66,7 @@ export function AddEntryForm({ client, onBack }: { readonly client: VaultClient;
     event.preventDefault();
     setStatus("saving");
     try {
-      const result = await client.saveEntry({ ...toSaveInput(entryType, draft, customFields), ...presentation });
+      const result = await (onSave ?? client.saveEntry)({ ...toSaveInput(entryType, draft, customFields), ...presentation });
       if (result.status === "blocked") {
         setStatus("blocked");
         return;
@@ -68,6 +75,7 @@ export function AddEntryForm({ client, onBack }: { readonly client: VaultClient;
     setPresentation({});
       setCustomFields([]);
       setStatus("saved");
+      onSaved?.();
     } catch {
       setStatus("error");
     }
@@ -77,7 +85,7 @@ export function AddEntryForm({ client, onBack }: { readonly client: VaultClient;
     <form className="entry-form" onSubmit={(event) => void submit(event)}>
       <div className="entry-create-header">
         {onBack ? <button type="button" className="link-btn" disabled={status === 'saving'} onClick={onBack}><PopupIcon name="back" />{t('common.back')}</button> : null}
-        <FilterSelect aria-label={t('entry.type')} value={entryType} disabled={status === 'saving'} onValueChange={value => changeType(value as EntryType)}>
+        <FilterSelect aria-label={t('entry.type')} value={entryType} disabled={status === 'saving' || initialEntry !== undefined} onValueChange={value => changeType(value as EntryType)}>
           <option value="credential">{t('entry.typeCredential')}</option>
           <option value="key">{t('entry.typeKey')}</option>
           <option value="script">{t('entry.typeScript')}</option>
@@ -105,7 +113,7 @@ export function AddEntryForm({ client, onBack }: { readonly client: VaultClient;
       </> : null}
 
       {entryType === "key" ? (
-        <EntryTextArea label={t("entry.value")} value={draft.value} onChange={(value) => update("value", value)} required maxLength={16_384} monospace />
+        initialEntry ? <EntryField label={t("entry.value")} value={draft.value} onChange={(value) => update("value", value)} required maxLength={16_384} autoComplete="off" type="password" /> : <EntryTextArea label={t("entry.value")} value={draft.value} onChange={(value) => update("value", value)} required maxLength={16_384} monospace />
       ) : null}
 
       {entryType === "script" ? <>
@@ -123,7 +131,7 @@ export function AddEntryForm({ client, onBack }: { readonly client: VaultClient;
 
       {entryType === "creditCard" ? <>
         <EntryField label={t("card.cardholder")} value={draft.cardholderName} onChange={(value) => update("cardholderName", value)} required autoComplete="cc-name" />
-        <EntryField label={t("card.number")} value={draft.cardNumber} onChange={(value) => update("cardNumber", value)} required autoComplete="cc-number" inputMode="numeric" pattern="[0-9 -]{8,32}" maxLength={32} />
+        <EntryField label={t("card.number")} value={draft.cardNumber} onChange={(value) => update("cardNumber", value)} required autoComplete={initialEntry ? "off" : "cc-number"} type={initialEntry ? "password" : "text"} inputMode="numeric" pattern="[0-9 -]{8,32}" maxLength={32} />
         <EntryField label={t("card.cvv")} value={draft.cvv} onChange={(value) => update("cvv", value)} autoComplete="off" type="password" inputMode="numeric" pattern="[0-9]{3,4}" maxLength={4} />
         <div className="entry-form-expiry">
           <EntryField label={t("card.expiryMonth")} value={draft.expiryMonth} onChange={(value) => update("expiryMonth", value)} required autoComplete="cc-exp-month" inputMode="numeric" pattern="(0[1-9]|1[0-2])" placeholder={t("card.expiryMonthPlaceholder")} />
