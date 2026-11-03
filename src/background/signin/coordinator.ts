@@ -445,7 +445,8 @@ export class FederatedSignInCoordinator {
       const id = this.createId();
       targetMap.set(id, { action: 'create', vaultId: vault.vaultId });
       targetViews.push({ id, action: 'create', label: site, vaultLabel: vault.label, current: null });
-      if (vault.isDefault && targets.credentials.length === 0) defaultTargetId = id;
+      // Preselect only when it is the single possible destination; otherwise the user picks the Vault.
+      if (createVaults.length === 1 && targets.credentials.length === 0) defaultTargetId = id;
     }
     const sameProvider = targetViews.filter((target) => target.current?.provider === provider);
     if (sameProvider.length === 1 && preferred !== null && sameSignInAccount(sameProvider[0]!.current!.account, null)) {

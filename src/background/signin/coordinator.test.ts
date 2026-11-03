@@ -21,14 +21,14 @@ function credential(entryId: string, signIn: Credential['signIn'], username = ''
   return { vaultId: 'vault-1', entryId, revision: '3', label: `Example ${entryId}`, username, vaultLabel: 'Personal', signIn };
 }
 
-function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata[]; unlocked?: boolean; save?: () => Promise<{ action: 'created' | 'updated' }> } = {}) {
+function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata[]; unlocked?: boolean; save?: () => Promise<{ action: 'created' | 'updated' }>; vaults?: SignInTargets['vaults'] } = {}) {
   let counter = 0;
   let session = { unlocked: options.unlocked ?? true, generation: 1 };
   let now = 1_000;
   const notify = vi.fn();
   const save = vi.fn(options.save ?? (async () => ({ action: 'updated' as const })));
   const targets = vi.fn(async (): Promise<SignInTargets> => ({ writable: true,
-    vaults: [{ vaultId: 'vault-1', label: 'Personal', isDefault: true }], credentials: options.credentials ?? [] }));
+    vaults: options.vaults ?? [{ vaultId: 'vault-1', label: 'Personal', isDefault: true }], credentials: options.credentials ?? [] }));
   const coordinator = new FederatedSignInCoordinator({
     getSession: async () => session,
     providerAccounts: async () => (options.metadata ?? []).map((entry) => ({ account: entry.username!,
@@ -67,6 +67,17 @@ function provider(entry: Partial<EntryMetadata> & { id: string; username: string
 }
 
 describe('FederatedSignInCoordinator', () => {
+  it('lets the user pick the Vault for a new record when several are writable', async () => {
+    const h = harness({ vaults: [{ vaultId: 'vault-1', label: 'Personal', isDefault: true },
+      { vaultId: 'vault-2', label: 'Team', isDefault: false }] });
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    h.coordinator.documentConnected(1, 'https://app.example.com/callback?code=c&state=s', undefined);
+    const view = (await h.prompt())!;
+    expect(view.targets.map((target) => target.vaultLabel)).toEqual(['Personal', 'Team']);
+    expect(view.defaultTargetId).toBeNull();
+  });
+
   it('asks only after a same-tab provider round trip and saves the explicit choice', async () => {
     const h = harness({ metadata: [provider({ id: 'g1', username: 'alice@gmail.com' }), provider({ id: 'g2', username: 'work@corp.com' })] });
     h.coordinator.documentConnected(1, SERVICE, undefined);
