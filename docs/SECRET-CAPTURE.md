@@ -105,3 +105,17 @@ the traversal budget are unsupported. An open shadow attached without an
 observable event is discovered on a later scoped scan or interaction. Card
 production release gates remain unchanged; see [status](STATUS.md) and
 [browser compatibility](BROWSER-COMPATIBILITY.md).
+
+TOTP setup capture has a separate synthetic Chromium acceptance harness:
+
+```sh
+npm run test:browser:totp-capture
+```
+
+It exercises a synthetic setup link, local QR pixel decoding, encrypted Credential
+creation and confirmed replacement, manual no-result and ambiguous-result copy,
+and extension storage exclusion. The fixture does not establish real-site
+compatibility. It uses a synthetic change event for the destination select; the
+save and replacement confirmation use native browser input. Cross-origin tainted
+images, inaccessible frames, camera and clipboard are outside this flow. When
+multiple distinct setups are visible, isolate the intended one and scan again.

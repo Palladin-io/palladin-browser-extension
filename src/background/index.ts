@@ -1,3 +1,5 @@
+import { isTotpContentCommand, isTotpPopupCommand } from '@shared/messaging/totp-capture';
+import { handleTotpContent, handleTotpPopup, totpCaptureCoordinator, totpSessionGeneration, publishTotpInvalidation, clearTotpObservation } from './capture/totp-runtime';
 import { dispatchSecretCapturePopup } from './capture/secret-dispatch';
 import { isSecretCaptureContentCommand } from '@shared/messaging/secret-capture';
 import { secretCaptureCoordinator, secretCaptureFrames, handleSecretCaptureContent, handleSecretCapturePopup, publishSecretCaptureInvalidation } from './capture/secret-runtime';
@@ -292,6 +294,7 @@ chrome.runtime.onConnect.addListener((port) => {
   const unregisterCapture = secretCaptureFrames.register(port.sender, chrome.runtime.id);
   if (unregisterCapture) port.onDisconnect.addListener(() => {
     const candidateIds = secretCaptureCoordinator.disconnected(port.sender!.tab!.id!, port.sender!.documentId!);
+    if (port.sender!.frameId === 0) { if (totpCaptureCoordinator.clearDocument(port.sender!.tab!.id!, port.sender!.documentId!)) publishTotpInvalidation(); }
     unregisterCapture();
     publishSecretCaptureInvalidation(candidateIds);
   });
@@ -364,12 +367,28 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   return false;
 });
 
-chrome.tabs.onRemoved.addListener((tabId) => credentialCaptureCoordinator.clearTab(tabId));
+chrome.tabs.onRemoved.addListener((tabId) => { credentialCaptureCoordinator.clearTab(tabId); if (totpCaptureCoordinator.clearTab(tabId)) publishTotpInvalidation(); clearTotpObservation(tabId); });
 chrome.tabs.onRemoved.addListener((tabId) => { publishSecretCaptureInvalidation(secretCaptureCoordinator.removedTab(tabId)); secretCaptureFrames.clearTab(tabId); });
 chrome.tabs.onUpdated.addListener((tabId, change) => {
   // Loading also describes unrelated child-frame navigation; document Ports bind teardown.
   if (!change.url) return;
+  if (totpCaptureCoordinator.clearTab(tabId)) publishTotpInvalidation(); clearTotpObservation(tabId);
   publishSecretCaptureInvalidation(secretCaptureCoordinator.clearTab(tabId));
+});
+chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
+  if (!isTotpContentCommand(raw)) return false;
+  if (raw.type === 'open') {
+    const source = secretCaptureFrames.source(sender, chrome.runtime.id, raw.documentId);
+    if (!source || source.frameId !== 0 || sender.tab?.windowId === undefined) { sendResponse({ status: 'stale' }); return false; }
+    void openSidePanel(undefined, undefined, sender.tab.windowId).then(opened => sendResponse({ status: opened ? 'accepted' : 'error' })).catch(() => sendResponse({ status: 'error' }));
+    return true;
+  }
+  const expectedGeneration = totpSessionGeneration();
+  void withServerOperation(() => handleTotpContent(raw, sender, expectedGeneration)).then(result => {
+    sendResponse(result);
+    if (result.status === 'accepted') void chrome.runtime.sendMessage({ type: 'totp-capture/available' }).catch(() => undefined);
+  }).catch(() => sendResponse({ status: 'error' }));
+  return true;
 });
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isSecretCaptureContentCommand(raw)) return false;
@@ -476,6 +495,12 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 // to capture and then the vault command surface.
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isTrustedExtensionPage(sender, chrome.runtime.id, chrome.runtime.getURL(""))) return false;
+  if (isTotpPopupCommand(raw)) {
+    void withServerOperation(() => handleTotpPopup(raw)).then(result => {
+      sendResponse(result); if (result.status === 'saved') publishSurfaceState(vaultChanged());
+    }).catch(() => sendResponse({ status: 'error' }));
+    return true;
+  }
   const shareCommand = sharePopupCommand.safeParse(raw);
   if (shareCommand.success) {
     void (async () => {

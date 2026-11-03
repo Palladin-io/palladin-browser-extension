@@ -15,7 +15,7 @@ export function publishSecretCaptureInvalidation(candidateIds: readonly string[]
   if (candidateIds.length) void chrome.runtime.sendMessage({ type: 'secret-capture/invalidated', candidateIds } satisfies SecretCaptureInvalidation).catch(() => undefined);
 }
 export const secretCaptureFrames = new SecretCaptureFrames(browserDocumentIdForTab);
-async function current(source: SecretCaptureSource): Promise<boolean> {
+export async function currentSecretCaptureDocument(source: SecretCaptureSource): Promise<boolean> {
   if (browserDocumentIdForTab(source.tabId) !== source.topDocumentId) return false;
   const sender = { id: chrome.runtime.id, tab: { id: source.tabId }, frameId: source.frameId, documentId: source.browserDocumentId, url: source.url } as chrome.runtime.MessageSender;
   if (!secretCaptureFrames.source(sender, chrome.runtime.id, source.documentId)) return false;
@@ -31,7 +31,7 @@ export const secretCaptureCoordinator = new SecretCaptureCoordinator({
     await initializeServerConfig(); const userId = await sessionManager.getUserId();
     return userId ? { profileId: `${serverConfig.apiUrl}:${userId}`, generation, unlocked: sessionManager.getKeys() !== null } : null;
   },
-  current,
+  current: currentSecretCaptureDocument,
   activeTabId: async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id ?? null,
   muted: (profile, host) => capturePreferences.isMuted(profile, host),
   mute: (profile, host) => capturePreferences.mute(profile, host),

@@ -213,6 +213,9 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
           saveDisabled: form.querySelector('button[type="submit"]')?.disabled };
       })()`)
     },
+    async optionValue(selector, index) {
+      return evaluate(`document.querySelector(${JSON.stringify(selector)})?.options[${Number(index)}]?.value`)
+    },
     // Test-only HTML selection for non-security presentation preferences.
     async select(selector, value) {
       await wait(() => evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`), selector)
