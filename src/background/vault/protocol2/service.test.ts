@@ -13,6 +13,8 @@ import type {
   MemberVaultKeyEnvelope,
   OfflineAccessContext,
 } from './contracts'
+import { VaultKeyEpochFloor } from './key-epoch-floor'
+import { VaultClientError } from '../transport'
 import { Protocol2VaultDataService, type Protocol2SessionAccessor } from './service'
 import { sharedCopySecret } from '../shared-copy'
 
@@ -136,6 +138,7 @@ function harness(
   items: MemberSyncItem[] = [],
   now: () => number = () => 0,
   monotonicNow: () => number = () => 0,
+  keyEpochFloor = new VaultKeyEpochFloor(),
 ) {
   const active: ActiveCacheState = {
     namespace: 'active',
@@ -214,6 +217,7 @@ function harness(
     client: client as unknown as Protocol2VaultClient,
     cache: cache as unknown as MemberSyncCache,
     session,
+    keyEpochFloor,
     now,
     monotonicNow,
   })
@@ -1035,7 +1039,7 @@ describe('Protocol2VaultDataService canonical password capture', () => {
       'expiryYear',
       'notes',
     ])
-    expect(client.createEntry).toHaveBeenCalled()
+    expect(client.createEntry).toHaveBeenCalledWith('token', expect.objectContaining({ deliveryPolicy: 'injectOnly' }))
   })
 
   it('creates canonical manual credential, key, and script entries with no implicit Agent disclosure', async () => {
@@ -1116,6 +1120,88 @@ describe('Protocol2VaultDataService canonical password capture', () => {
   })
 })
 
+describe('Vault key epoch floor on canonical writes', () => {
+  const writes = {
+    create: (service: Protocol2VaultDataService) => service.saveGeneratedPassword({ kind: 'registration',
+      site: 'example.com', url: 'https://accounts.example.com/register', password: 'generated-password' }),
+    update: (service: Protocol2VaultDataService) => service.saveGeneratedPassword({ kind: 'password-change',
+      site: 'example.com', url: 'https://accounts.example.com/change-password', password: 'next-password' }),
+    delete: (service: Protocol2VaultDataService) => service.deleteEntry(VAULT_ID, ENTRY_ID),
+  }
+
+  it.each(Object.keys(writes) as (keyof typeof writes)[])('rejects a %s sealed under an epoch older than one opened this session', async (write) => {
+    const keyEpochFloor = new VaultKeyEpochFloor()
+    await keyEpochFloor.observe(USER_ID, { ...vault, memberKeyGeneration: 2,
+      currentKeyEpoch: { ...vault.currentKeyEpoch, vaultKeyVersion: 2 } }, async () => undefined)
+    const { service, client } = harness([head], undefined, undefined, keyEpochFloor)
+    await service.refresh()
+
+    await expect(writes[write](service)).rejects.toMatchObject({ code: 'decrypt-failed' })
+    expect(cryptoMocks.sealCanonicalEntry).not.toHaveBeenCalled()
+    expect(cryptoMocks.sealCurrentCanonicalEntry).not.toHaveBeenCalled()
+    expect(client.createEntry).not.toHaveBeenCalled()
+    expect(client.updateEntry).not.toHaveBeenCalled()
+    expect(client.deleteEntry).not.toHaveBeenCalled()
+  })
+})
+
+describe('Vault key epoch floor raised during a canonical write', () => {
+  const raised = { ...vault, memberKeyGeneration: 2, currentKeyEpoch: { ...vault.currentKeyEpoch, vaultKeyVersion: 2 } }
+  const cases = [
+    ['create', 'before sealing', 'openVaultDerivedEnvelope'],
+    ['create', 'before submitting', 'sealCanonicalEntry'],
+    ['update', 'before sealing', 'openMemberSecret'],
+    ['update', 'before submitting', 'sealCanonicalEntry'],
+    ['delete', 'before sealing', 'openCurrentMemberSecret'],
+    ['delete', 'before submitting', 'sealCurrentCanonicalEntry'],
+  ] as const
+
+  it.each(cases)('rejects a %s when a concurrent operation raises the floor %s', async (write, _boundary, step) => {
+    const keyEpochFloor = new VaultKeyEpochFloor()
+    const { service, client } = harness([head], undefined, undefined, keyEpochFloor)
+    await service.refresh()
+    const mock = cryptoMocks[step] as unknown as ReturnType<typeof vi.fn<(...args: unknown[]) => unknown>>
+    const original = mock.getMockImplementation()
+    mock.mockImplementationOnce(async (...args: unknown[]) => {
+      await keyEpochFloor.observe(USER_ID, raised, async () => undefined)
+      return original?.(...args)
+    })
+
+    const run = write === 'create'
+      ? service.saveGeneratedPassword({ kind: 'registration', site: 'example.com',
+        url: 'https://accounts.example.com/register', password: 'generated-password' })
+      : write === 'update'
+        ? service.saveGeneratedPassword({ kind: 'password-change', site: 'example.com',
+          url: 'https://accounts.example.com/change-password', password: 'next-password' })
+        : service.deleteEntry(VAULT_ID, ENTRY_ID)
+    await expect(run).rejects.toMatchObject({ code: 'decrypt-failed' })
+    expect(client.createEntry).not.toHaveBeenCalled()
+    expect(client.updateEntry).not.toHaveBeenCalled()
+    expect(client.deleteEntry).not.toHaveBeenCalled()
+  })
+})
+
+it.each(['create', 'update', 'delete'] as const)('rechecks the floor before retrying a canonical %s after token refresh', async (write) => {
+  const keyEpochFloor = new VaultKeyEpochFloor()
+  const { service, client, session } = harness([head], undefined, undefined, keyEpochFloor)
+  await service.refresh()
+  const submit = { create: client.createEntry, update: client.updateEntry, delete: client.deleteEntry }[write] as ReturnType<typeof vi.fn>
+  submit.mockRejectedValueOnce(new VaultClientError('unauthorized', 'expired'))
+  session.refreshAccessToken = async () => {
+    await keyEpochFloor.observe(USER_ID, { ...vault, memberKeyGeneration: 2,
+      currentKeyEpoch: { ...vault.currentKeyEpoch, vaultKeyVersion: 2 } }, async () => undefined)
+    return 'refreshed'
+  }
+  const run = write === 'create'
+    ? service.saveGeneratedPassword({ kind: 'registration', site: 'example.com',
+      url: 'https://accounts.example.com/register', password: 'generated-password' })
+    : write === 'update'
+      ? service.saveGeneratedPassword({ kind: 'password-change', site: 'example.com',
+        url: 'https://accounts.example.com/change-password', password: 'next-password' })
+      : service.deleteEntry(VAULT_ID, ENTRY_ID)
+  await expect(run).rejects.toMatchObject({ code: 'decrypt-failed' })
+  expect(submit).toHaveBeenCalledOnce()
+})
 
 describe('Entry deletion', () => {
   it('sends a recoverable encrypted deleted revision bound to the requested Entry', async () => {
@@ -1223,3 +1309,35 @@ describe('Entry deletion', () => {
     expect(cache.removeVault).toHaveBeenCalledWith(USER_ID, VAULT_ID)
   })
 })
+
+
+describe('captured Entry write fence', () => {
+  it('rejects invalid target Vault and a stale final mutation fence', async () => {
+    const { service, client } = harness(); await service.refresh();
+    const input = { entryType: 'key', label: 'Captured', value: 'synthetic-key' } as const;
+    await expect(service.saveEntry(input, 'missing')).rejects.toThrow();
+    let checked = false;
+    await expect(service.saveEntry(input, VAULT_ID, async () => { checked = true; throw Error('stale'); })).rejects.toThrow();
+    expect(checked).toBe(true);
+    expect(client.createEntry).not.toHaveBeenCalled();
+  });
+});
+
+describe('captured mutation async session races', () => {
+  it('checks key identity after the last asynchronous user lookup', async () => {
+    const { service, client, session } = harness(); await service.refresh();
+    let final = false;
+    const user = session.getUserId;
+    session.getUserId = async () => { const result = await user(); if (final) session.getPrivateKey = () => null; return result; };
+    await expect(service.saveEntry({ entryType: 'key', label: 'Capture', value: 'synthetic-value' }, VAULT_ID, async () => { final = true; })).rejects.toThrow();
+    expect(client.createEntry).not.toHaveBeenCalled();
+  });
+  it('rechecks source authorization after access-token refresh before retrying a mutation', async () => {
+    const { service, client, session } = harness(); await service.refresh();
+    let current = true; let checks = 0;
+    client.createEntry.mockRejectedValueOnce(new VaultClientError('unauthorized', 'expired'));
+    session.refreshAccessToken = async () => { current = false; return 'refreshed'; };
+    await expect(service.saveEntry({ entryType: 'key', label: 'Capture', value: 'synthetic-value' }, VAULT_ID, async () => { checks++; if (!current) throw Error('stale'); })).rejects.toThrow();
+    expect(client.createEntry).toHaveBeenCalledTimes(1); expect(checks).toBe(2);
+  });
+});

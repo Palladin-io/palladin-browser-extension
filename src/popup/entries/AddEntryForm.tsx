@@ -4,6 +4,7 @@ import type {
   ManualCustomFieldInput,
   ManualCustomFieldType,
   ManualEntrySaveInput,
+  ManualEntrySaveResult,
 } from "../../background/vault/protocol2/service";
 import { Button } from "../components/Button";
 import { useI18n, type Translate } from "../i18n";
@@ -30,11 +31,16 @@ const INITIAL = {
   notes: "",
 };
 
-export function AddEntryForm({ client }: { readonly client: VaultClient }): React.JSX.Element {
+export function AddEntryForm({ client, initialEntry, onSave, onSaved }: {
+  readonly client: VaultClient;
+  readonly initialEntry?: ManualEntrySaveInput;
+  readonly onSave?: (entry: ManualEntrySaveInput) => Promise<ManualEntrySaveResult>;
+  readonly onSaved?: () => void;
+}): React.JSX.Element {
   const { t } = useI18n();
-  const [entryType, setEntryType] = useState<EntryType>("credential");
-  const [draft, setDraft] = useState(INITIAL);
-  const [customFields, setCustomFields] = useState<ManualCustomFieldInput[]>([]);
+  const [entryType, setEntryType] = useState<EntryType>(initialEntry?.entryType ?? "credential");
+  const [draft, setDraft] = useState(() => ({ ...INITIAL, ...initialEntry }));
+  const [customFields, setCustomFields] = useState<ManualCustomFieldInput[]>([...(initialEntry?.customFields ?? [])]);
   const [status, setStatus] = useState<SaveStatus>("idle");
 
   function update<K extends keyof typeof INITIAL>(field: K, value: (typeof INITIAL)[K]): void {
@@ -53,7 +59,7 @@ export function AddEntryForm({ client }: { readonly client: VaultClient }): Reac
     event.preventDefault();
     setStatus("saving");
     try {
-      const result = await client.saveEntry(toSaveInput(entryType, draft, customFields));
+      const result = await (onSave ?? client.saveEntry)(toSaveInput(entryType, draft, customFields));
       if (result.status === "blocked") {
         setStatus("blocked");
         return;
@@ -61,6 +67,7 @@ export function AddEntryForm({ client }: { readonly client: VaultClient }): Reac
       setDraft(INITIAL);
       setCustomFields([]);
       setStatus("saved");
+      onSaved?.();
     } catch {
       setStatus("error");
     }
@@ -74,6 +81,7 @@ export function AddEntryForm({ client }: { readonly client: VaultClient }): Reac
         <select
           className="field-input entry-form-select"
           value={entryType}
+          disabled={initialEntry !== undefined}
           onChange={(event) => changeType(event.target.value as EntryType)}
         >
           <option value="credential">{t("entry.typeCredential")}</option>
@@ -98,7 +106,7 @@ export function AddEntryForm({ client }: { readonly client: VaultClient }): Reac
       </> : null}
 
       {entryType === "key" ? (
-        <EntryTextArea label={t("entry.value")} value={draft.value} onChange={(value) => update("value", value)} required maxLength={16_384} monospace />
+        initialEntry ? <EntryField label={t("entry.value")} value={draft.value} onChange={(value) => update("value", value)} required maxLength={16_384} autoComplete="off" type="password" /> : <EntryTextArea label={t("entry.value")} value={draft.value} onChange={(value) => update("value", value)} required maxLength={16_384} monospace />
       ) : null}
 
       {entryType === "script" ? <>
@@ -116,7 +124,7 @@ export function AddEntryForm({ client }: { readonly client: VaultClient }): Reac
 
       {entryType === "creditCard" ? <>
         <EntryField label={t("card.cardholder")} value={draft.cardholderName} onChange={(value) => update("cardholderName", value)} required autoComplete="cc-name" />
-        <EntryField label={t("card.number")} value={draft.cardNumber} onChange={(value) => update("cardNumber", value)} required autoComplete="cc-number" inputMode="numeric" pattern="[0-9 -]{8,32}" maxLength={32} />
+        <EntryField label={t("card.number")} value={draft.cardNumber} onChange={(value) => update("cardNumber", value)} required autoComplete={initialEntry ? "off" : "cc-number"} type={initialEntry ? "password" : "text"} inputMode="numeric" pattern="[0-9 -]{8,32}" maxLength={32} />
         <EntryField label={t("card.cvv")} value={draft.cvv} onChange={(value) => update("cvv", value)} autoComplete="off" type="password" inputMode="numeric" pattern="[0-9]{3,4}" maxLength={4} />
         <div className="entry-form-expiry">
           <EntryField label={t("card.expiryMonth")} value={draft.expiryMonth} onChange={(value) => update("expiryMonth", value)} required autoComplete="cc-exp-month" inputMode="numeric" pattern="(0[1-9]|1[0-2])" placeholder={t("card.expiryMonthPlaceholder")} />

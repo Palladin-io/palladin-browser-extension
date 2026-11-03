@@ -583,5 +583,16 @@
   "signIn.error": "Nie udało się zapisać metody logowania. Spróbuj ponownie.",
   "signIn.tooLong": "Użyj maksymalnie 256 znaków.",
   "signIn.agentVisible": "Agenci widzą dostawcę dla tej strony, ale nie konto.",
-  "signIn.agentVisibleLinked": "Agenci widzą dostawcę i który wpis Palladin wskazać we wniosku, nigdy konta. Użycie nadal wymaga Twojej zgody."
+  "signIn.agentVisibleLinked": "Agenci widzą dostawcę i który wpis Palladin wskazać we wniosku, nigdy konta. Użycie nadal wymaga Twojej zgody.",
+  "secretCapture.notice": "Klucz lub karta płatnicza czeka na sprawdzenie w Palladin. Możesz też otworzyć Palladin z paska narzędzi przeglądarki.",
+  "secretCapture.locked": "Odblokuj Palladin, a potem wygeneruj klucz lub wpisz kartę ponownie. Dane nie zostały zachowane.",
+  "secretCapture.review": "Sprawdź w Palladin",
+  "secretCapture.dismiss": "Odrzuć",
+  "secretCapture.title": "Zapisz wykryty element",
+  "secretCapture.vault": "Docelowy sejf",
+  "secretCapture.personal": "Osobisty (domyślny)",
+  "secretCapture.mute": "Nie pytaj na tej stronie",
+  "secretCapture.expired": "Wykryte dane wygasły lub ich źródło się zmieniło. Wykryj je ponownie.",
+  "secretCapture.duplicate": "Identyczny element jest już w wybranym sejfie. Nic nie zmieniono.",
+  "secretCapture.unavailable": "Brak sejfu z możliwością zapisu."
 }

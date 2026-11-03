@@ -164,9 +164,11 @@ describe("manual closing command boundary", () => {
     const account = await buildTestAccount(); let finish!: () => void;
     const record = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));
     const manager = await makeManager(account, record); await manager.login(account.email, account.password);
+    let terminated = false; manager.hooks.onTerminating(() => { terminated = true; });
     const keys = manager.getKeys()!; let completed = false;
     const result = dispatchSessionCommand(manager, { type: "session/lock" }).then(value => { completed = true; return value; });
     expect(manager.getKeys()).toBeNull(); expect(keys.masterKey.every(byte => byte === 0)).toBe(true);
+    expect(terminated).toBe(true);
     await vi.waitFor(() => expect(record).toHaveBeenCalledOnce()); expect(completed).toBe(false);
     finish(); expect(await result).toMatchObject({ ok: true, status: "locked" }); await manager.logout();
   });

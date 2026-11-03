@@ -7,7 +7,7 @@ const state = vi.hoisted(() => ({
   config: { get networkApiUrl(): string { if (state.blocked) throw new Error('HTTP consent required'); return this.apiUrl; }, apiUrl: 'https://api.example.test', activeConnection: undefined as { webUrl: string } | undefined },
   actions: null as null | { webUrl(): string },
 }));
-vi.mock('../vault/runtime', () => ({ vaultData: {} }));
+vi.mock('../vault/runtime', () => ({ vaultData: {}, keyEpochFloor: {} }));
 vi.mock('../../shared/config/web-app', () => ({ webAppUrl: 'https://panel.example.test' }));
 vi.mock('../config/env', () => ({ env: { apiUrl: 'https://api.example.test' } }));
 vi.mock('../config/server-runtime', () => ({ serverConfig: state.config }));

@@ -32,6 +32,7 @@ import type { ActiveTab, VaultCommandDeps } from "./commands";
 import { IndexedDbProtocol2Cache } from "./protocol2/cache";
 import { Protocol2VaultClient } from "./protocol2/client";
 import { Protocol2CredentialWriter } from "./protocol2/credential-writer";
+import { VaultKeyEpochFloor } from "./protocol2/key-epoch-floor";
 import {
   Protocol2VaultDataService,
   type Protocol2SessionAccessor,
@@ -51,15 +52,19 @@ const session: Protocol2SessionAccessor = {
   getPrivateKey: () => sessionManager.getKeys()?.privateKey ?? null,
 };
 
+export const keyEpochFloor = new VaultKeyEpochFloor();
+sessionManager.hooks.onLocked(() => keyEpochFloor.clear());
+
 const protocol2Client = new Protocol2VaultClient((...args) => fetch(...args), () => serverConfig.networkApiUrl);
 export const vaultData = new Protocol2VaultDataService({
   client: protocol2Client,
   cache: new IndexedDbProtocol2Cache(),
   session,
+  keyEpochFloor,
 });
 
 export const credentialWriter = new Protocol2CredentialWriter({
-  client: protocol2Client, session, data: vaultData,
+  client: protocol2Client, session, data: vaultData, keyEpochFloor,
   canWrite: async () => hasVaultManagePermission(await sessionManager.getAccessToken()),
 });
 

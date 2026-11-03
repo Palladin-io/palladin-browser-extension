@@ -131,3 +131,10 @@ describe("reconnecting isolated-world worker Port", () => {
     expect(second.postMessage).toHaveBeenCalledWith(message);
   });
 });
+
+it('notifies lifecycle teardown on worker disconnect before reconnecting', () => {
+  const order: string[] = []; const listeners: (() => void)[] = [];
+  const connect = () => { order.push('connect'); return { onMessage: { addListener() {} }, onDisconnect: { addListener(fn: () => void) { listeners.push(fn); } }, postMessage() {}, disconnect() {} }; };
+  createReconnectingWorkerPort(connect, () => {}, () => 'worker', () => order.push('teardown'));
+  listeners[0]!(); expect(order).toEqual(['connect','teardown','connect']);
+});

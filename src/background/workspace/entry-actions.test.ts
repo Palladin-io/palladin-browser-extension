@@ -6,6 +6,7 @@ import {
 } from '@palladin/crypto';
 import { EntryActions } from './entry-actions';
 import { VaultClientError } from '../vault/transport';
+import { VaultKeyEpochFloor } from '../vault/protocol2/key-epoch-floor';
 import type { Protocol2VaultClient } from '../vault/protocol2/client';
 import { WorkspaceError, type WorkspaceOperation } from './service';
 import type { CreateEntryShareInput } from '../../shared/workspace/contracts';
@@ -52,7 +53,7 @@ function setup() {
     id: vaultId,
     organizationId,
     memberKeyGeneration: 1,
-    currentKeyEpoch: { agentMessageKeyVersion: 1 },
+    currentKeyEpoch: { vaultKeyVersion: 1, agentMessageKeyVersion: 1 },
     vaultPrivateKeys: [],
   };
   const detail = {
@@ -86,7 +87,9 @@ function setup() {
     getAccessToken: vi.fn(async () => 'test-token'),
     refreshAccessToken: vi.fn<() => Promise<string | null>>(async () => null),
   };
+  const keyEpochFloor = new VaultKeyEpochFloor();
   const actions = new EntryActions({
+    keyEpochFloor,
     data: { revealCurrentEntry: vi.fn(async () => source) },
     client: client as unknown as Pick<
       Protocol2VaultClient,
@@ -104,7 +107,76 @@ function setup() {
     assertCurrent: vi.fn(),
     request,
   };
-  return { actions, operation, request, client, detail, webUrl, session };
+  return { actions, operation, request, client, detail, webUrl, session, keyEpochFloor };
+}
+
+function mockGrantRequests(request: ReturnType<typeof setup>['request']) {
+  const scope = {
+    organizationId,
+    vaultId,
+    entryId,
+    grantOrRequestId: grantId,
+    agentId,
+    memberId: null,
+  };
+  const reason = {
+    descriptor: {
+      protocolVersion: 2,
+      cryptoSuiteId: 'palladin-vault-xchacha-v1',
+      purpose: 'encryptedReason',
+      scope,
+      resourceRevision: '1',
+      keyVersion: 1,
+      memberKeyGeneration: 1,
+      binding: {
+        wrapperSuiteId: 'palladin-x25519-sealed-box-v1',
+        recipientKeyVersion: 1,
+        recipientKeyFingerprint: 'AA',
+        requestedMethods: 4,
+      },
+    },
+    encodedSuitePayload: 'AA',
+    agentSignature: 'AA',
+    wrappedReasonDek: {
+      descriptor: {
+        protocolVersion: 2,
+        wrapperSuiteId: 'palladin-x25519-sealed-box-v1',
+        purpose: 'reasonDek',
+        scope,
+        resourceRevision: '1',
+        wrappedKeyVersion: 1,
+        memberKeyGeneration: 1,
+        recipientKeyKind: 'vaultMessageX25519',
+        recipientKeyVersion: 1,
+        recipientFingerprint: 'AA',
+        parentDescriptorHash: 'AA',
+      },
+      encodedSealedKeyPackage: 'AA',
+    },
+  };
+  // Mirrors the request layer, which runs `beforeSend` immediately before each fetch.
+  request.mockImplementation(async (path, _method, _body, beforeSend) => {
+    beforeSend?.();
+    return path.endsWith(`/grants/${grantId}`)
+      ? {
+          id: grantId,
+          vaultId,
+          entryId,
+          agentId,
+          type: 'granular',
+          methods: 'Inject',
+          encryptedReason: reason,
+          agentSigningPublicKey: 'AA',
+          agentSigningKeyVersion: 1,
+          agentSigningKeyFingerprint: 'AA',
+        }
+      : path.endsWith(`/agents/${agentId}`)
+        ? { agentId, publicKey: 'AA', recipientKeyVersion: 3, accessEpoch: 2 }
+        : path.endsWith(`/entries/${entryId}`)
+          ? { currentRevision: '4' }
+          : null;
+  });
+  return reason;
 }
 
 beforeEach(() => vi.resetAllMocks());
@@ -249,69 +321,7 @@ describe('encrypted workspace operations', () => {
 
   it('binds reason reads and approval to authenticated scope, reviewed revision, fields, methods and policy', async () => {
     const { actions, operation, request, client } = setup();
-    const scope = {
-      organizationId,
-      vaultId,
-      entryId,
-      grantOrRequestId: grantId,
-      agentId,
-      memberId: null,
-    };
-    const reason = {
-      descriptor: {
-        protocolVersion: 2,
-        cryptoSuiteId: 'palladin-vault-xchacha-v1',
-        purpose: 'encryptedReason',
-        scope,
-        resourceRevision: '1',
-        keyVersion: 1,
-        memberKeyGeneration: 1,
-        binding: {
-          wrapperSuiteId: 'palladin-x25519-sealed-box-v1',
-          recipientKeyVersion: 1,
-          recipientKeyFingerprint: 'AA',
-          requestedMethods: 4,
-        },
-      },
-      encodedSuitePayload: 'AA',
-      agentSignature: 'AA',
-      wrappedReasonDek: {
-        descriptor: {
-          protocolVersion: 2,
-          wrapperSuiteId: 'palladin-x25519-sealed-box-v1',
-          purpose: 'reasonDek',
-          scope,
-          resourceRevision: '1',
-          wrappedKeyVersion: 1,
-          memberKeyGeneration: 1,
-          recipientKeyKind: 'vaultMessageX25519',
-          recipientKeyVersion: 1,
-          recipientFingerprint: 'AA',
-          parentDescriptorHash: 'AA',
-        },
-        encodedSealedKeyPackage: 'AA',
-      },
-    };
-    request.mockImplementation(async (path) =>
-      path.endsWith(`/grants/${grantId}`)
-        ? {
-            id: grantId,
-            vaultId,
-            entryId,
-            agentId,
-            type: 'granular',
-            methods: 'Inject',
-            encryptedReason: reason,
-            agentSigningPublicKey: 'AA',
-            agentSigningKeyVersion: 1,
-            agentSigningKeyFingerprint: 'AA',
-          }
-        : path.endsWith(`/agents/${agentId}`)
-          ? { agentId, publicKey: 'AA', recipientKeyVersion: 3, accessEpoch: 2 }
-          : path.endsWith(`/entries/${entryId}`)
-            ? { currentRevision: '4' }
-            : null,
-    );
+    const reason = mockGrantRequests(request);
     expect(await actions.handle({ type: 'workspace/grant-reason', vaultId, grantId }, operation)).toEqual({
       ok: true, data: { reason: 'Synthetic approved purpose' },
     });
@@ -367,6 +377,7 @@ describe('encrypted workspace operations', () => {
         queryLimit: 3,
         fieldSelectionMode: 'selected',
       }),
+      expect.any(Function),
     );
     request.mockClear();
     cryptoMocks.openEncryptedReason.mockRejectedValue(
@@ -405,6 +416,62 @@ describe('encrypted workspace operations', () => {
       ),
     ).rejects.toMatchObject({ code: 'invalid' });
     expect(cryptoMocks.buildCanonicalGrantEnvelope).not.toHaveBeenCalled();
+  });
+
+  it.each(['before building the envelope', 'before submitting', 'while the request layer authenticates'])('rejects an approval when a concurrent operation raises the floor %s', async (boundary) => {
+    const { actions, operation, request, client, keyEpochFloor } = setup();
+    mockGrantRequests(request);
+    const vault = await client.getVault();
+    const raise = () => keyEpochFloor.observe(userId, { ...vault, memberKeyGeneration: 2,
+      currentKeyEpoch: { ...vault.currentKeyEpoch, vaultKeyVersion: 2 } }, async () => undefined);
+    if (boundary === 'before submitting') {
+      cryptoMocks.buildCanonicalGrantEnvelope.mockImplementationOnce(async () => { await raise(); return { ciphertext: 'synthetic' }; });
+    } else if (boundary === 'while the request layer authenticates') {
+      const original = request.getMockImplementation()!;
+      request.mockImplementation(async (path, method, body, beforeSend) => {
+        if (method !== 'PUT') return original(path, method, body);
+        await raise();
+        beforeSend?.();
+        return null;
+      });
+    } else {
+      const original = request.getMockImplementation()!;
+      request.mockImplementation(async (path, ...rest) => {
+        if (path.endsWith(`/agents/${agentId}`)) await raise();
+        return original(path, ...rest);
+      });
+    }
+    await expect(actions.handle({ type: 'workspace/approve-grant', vaultId, grantId, entryId, revision: '4',
+      methods: 4, fields: ['credential.password'], selection: 'selected', policy: { kind: 'lifetime' } }, operation))
+      .rejects.toMatchObject({ code: 'decrypt-failed' });
+    if (boundary === 'before building the envelope') expect(cryptoMocks.buildCanonicalGrantEnvelope).not.toHaveBeenCalled();
+    const put = request.mock.calls.findIndex((call) => call[1] === 'PUT');
+    expect(put === -1 || request.mock.settledResults[put]?.type === 'rejected').toBe(true);
+  });
+
+  it('keeps reviewing a grant read-only below the Vault key epoch floor', async () => {
+    const { actions, operation, request, client, keyEpochFloor } = setup();
+    mockGrantRequests(request);
+    const vault = await client.getVault();
+    await keyEpochFloor.observe(userId, { ...vault, memberKeyGeneration: 2,
+      currentKeyEpoch: { ...vault.currentKeyEpoch, vaultKeyVersion: 2 } }, async () => undefined);
+    await expect(actions.handle({ type: 'workspace/review-grant', vaultId, grantId }, operation))
+      .resolves.toMatchObject({ ok: true, data: { reason: 'Synthetic approved purpose', revision: '4' } });
+    expect(cryptoMocks.buildCanonicalGrantEnvelope).not.toHaveBeenCalled();
+  });
+
+  it('does not open a replayed older Vault key epoch to build a grant envelope', async () => {
+    const { actions, operation, request, client, keyEpochFloor } = setup();
+    const vault = await client.getVault();
+    await keyEpochFloor.observe(userId, { ...vault, memberKeyGeneration: 2,
+      currentKeyEpoch: { ...vault.currentKeyEpoch, vaultKeyVersion: 2 } }, async () => undefined);
+    request.mockResolvedValue({ id: grantId, vaultId, entryId, agentId, type: 'granular', methods: 'Inject' });
+    await expect(actions.handle({ type: 'workspace/approve-grant', vaultId, grantId, entryId, revision: '4',
+      methods: 4, fields: ['credential.password'], selection: 'selected', policy: { kind: 'lifetime' } }, operation))
+      .rejects.toMatchObject({ code: 'decrypt-failed' });
+    expect(cryptoMocks.openVaultProjection).not.toHaveBeenCalled();
+    expect(cryptoMocks.buildCanonicalGrantEnvelope).not.toHaveBeenCalled();
+    expect(request.mock.calls.some((call) => call[1] === 'PUT')).toBe(false);
   });
 });
 

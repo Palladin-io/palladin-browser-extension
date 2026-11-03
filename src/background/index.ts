@@ -1,3 +1,6 @@
+import { dispatchSecretCapturePopup } from './capture/secret-dispatch';
+import { isSecretCaptureContentCommand } from '@shared/messaging/secret-capture';
+import { secretCaptureCoordinator, secretCaptureFrames, handleSecretCaptureContent, handleSecretCapturePopup, publishSecretCaptureInvalidation } from './capture/secret-runtime';
 import { PopupViewStore } from "./popup-view";
 import { shareSource } from './share-save/source';
 import { isConnectionCommand, handleConnectionCommand, saveConnectionSharingPreference } from "./config/connection-commands";
@@ -288,6 +291,12 @@ chrome.runtime.onConnect.addListener((port) => {
     return;
   }
   const unregisterDocument = registerTopFrameDocument(port, chrome.runtime.id);
+  const unregisterCapture = secretCaptureFrames.register(port.sender, chrome.runtime.id);
+  if (unregisterCapture) port.onDisconnect.addListener(() => {
+    const candidateIds = secretCaptureCoordinator.disconnected(port.sender!.tab!.id!, port.sender!.documentId!);
+    unregisterCapture();
+    publishSecretCaptureInvalidation(candidateIds);
+  });
   if (unregisterDocument !== null) {
     if (shareSave.clearReplacedDocument(port.sender!.tab!.id!, port.sender!.documentId!)) publishShareSaveChanged();
     port.onDisconnect.addListener(() => {
@@ -386,6 +395,27 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
     } catch { sendResponse({ status: "unavailable" }); }
     finally { lease.release(); }
   })();
+  return true;
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => { publishSecretCaptureInvalidation(secretCaptureCoordinator.removedTab(tabId)); secretCaptureFrames.clearTab(tabId); });
+chrome.tabs.onUpdated.addListener((tabId, change) => {
+  // Loading also describes unrelated child-frame navigation; document Ports bind teardown.
+  if (!change.url) return;
+  publishSecretCaptureInvalidation(secretCaptureCoordinator.clearTab(tabId));
+});
+chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
+  if (!isSecretCaptureContentCommand(raw)) return false;
+  if (raw.type === 'open') {
+    const source = secretCaptureFrames.source(sender, chrome.runtime.id, raw.documentId);
+    if (!source || sender.tab?.windowId === undefined) { sendResponse({ status: 'stale' }); return false; }
+    void openSidePanel(undefined, undefined, sender.tab.windowId).then(opened => sendResponse({ status: opened ? 'accepted' : 'error' })).catch(() => sendResponse({ status: 'error' }));
+    return true;
+  }
+  void withServerOperation(() => handleSecretCaptureContent(raw, sender)).then(result => {
+    sendResponse(result);
+    if (result.status === 'accepted') void chrome.runtime.sendMessage({ type: 'secret-capture/available' }).catch(() => undefined);
+  }).catch(() => sendResponse({ status: 'error' }));
   return true;
 });
 chrome.tabs.onRemoved.addListener((tabId) => {
@@ -594,6 +624,12 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
       const sessionResult = await handleRuntimeMessage(sessionManager, raw);
       if (sessionResult !== null) {
         sendResponse(sessionResult);
+        return;
+      }
+      const secretResult = dispatchSecretCapturePopup(raw, sender, chrome.runtime.id, chrome.runtime.getURL(''), handleSecretCapturePopup);
+      if (secretResult !== null) {
+        const result = await secretResult; sendResponse(result);
+        if (result.status === 'saved') publishSurfaceState(vaultChanged());
         return;
       }
       const captureResult = handleCapturePopupRuntimeMessage(raw);
