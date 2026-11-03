@@ -40,7 +40,7 @@ export function startTotpCapture(doc: Document, documentId: string, options: Opt
     if (result && typeof result === 'object' && 'status' in result && result.status === 'accepted' && 'id' in result && typeof result.id === 'string') {
       candidateId = result.id; if (!manual) notice.show(false); return 'found';
     }
-    if (result && typeof result === 'object' && 'status' in result && result.status === 'dismissed') { candidateId = null; notice.hide(); }
+    if (result && typeof result === 'object' && 'status' in result && result.status === 'dismissed') { dismissed = true; candidateId = null; notice.hide(); }
     return 'empty';
   }
   const schedule = (invalidate = true) => {

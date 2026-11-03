@@ -119,3 +119,7 @@ compatibility. It uses a synthetic change event for the destination select; the
 save and replacement confirmation use native browser input. Cross-origin tainted
 images, inaccessible frames, camera and clipboard are outside this flow. When
 multiple distinct setups are visible, isolate the intended one and scan again.
+
+After the content script receives a dismissal response, passive TOTP detection is
+paused for that document, including changed configurations. The user can scan
+again explicitly or navigate to a new document to resume detection.
