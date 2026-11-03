@@ -40,7 +40,8 @@ try {
     viewport: { width: 1200, height: 850 }, args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--remote-debugging-port=0'] });
   await context.route('https://totp.example.test/**', route => {
     const pagePath = new URL(route.request().url()).pathname;
-    const content = pagePath === '/mutate' || pagePath === '/push' ? `<fieldset><legend>Authenticator code</legend>${'<input maxlength="1">'.repeat(6)}</fieldset><script>document.querySelector('input').addEventListener('input', () => { if (location.pathname === '/push') history.pushState({}, '', '/changed'); else document.querySelector('form').after(document.querySelector('fieldset')); }, { once: true });</script>`
+    const content = pagePath === '/split-sms' ? `${'<input maxlength="1" autocomplete="one-time-code">'.repeat(5)}<input maxlength="1" autocomplete="one-time-code" aria-label="SMS code">`
+      : pagePath === '/mutate' || pagePath === '/push' ? `<fieldset><legend>Authenticator code</legend>${'<input maxlength="1">'.repeat(6)}</fieldset><script>document.querySelector('input').addEventListener('input', () => { if (location.pathname === '/push') history.pushState({}, '', '/changed'); else document.querySelector('form').after(document.querySelector('fieldset')); }, { once: true });</script>`
       : pagePath === '/identifier' ? '<input autocomplete="username"><button>Next</button>'
       : pagePath === '/password' ? '<input type="password"><button>Sign in</button>'
       : pagePath === '/split' ? `<fieldset><legend>Authenticator code</legend>${'<input maxlength="1">'.repeat(6)}</fieldset>`
@@ -105,6 +106,10 @@ try {
   }
   const split = await context.newPage(); await split.goto('https://totp.example.test/split');
   await split.waitForFunction(() => [...document.querySelectorAll('input')].every(input => /^\d$/.test(input.value)));
+  const splitSms = await context.newPage(); await splitSms.goto('https://totp.example.test/split-sms');
+  await splitSms.waitForTimeout(800);
+  assert.equal(await splitSms.locator('input').evaluateAll(inputs => inputs.every(input => input.value === '')), true, 'SMS-labelled split member blocks the group');
+  await splitSms.close();
   for (const suffix of ['sms', 'filled']) {
     const negative = await context.newPage(); await negative.goto(`https://totp.example.test/${suffix}`);
     await negative.waitForTimeout(600);

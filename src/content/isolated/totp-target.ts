@@ -55,6 +55,7 @@ export function discoverTotpTargets(doc: Document): HTMLInputElement[][] {
       const sections = new Set(siblings.map(other => autocompleteTokens(other).find(token => token.startsWith('section-')) ?? ''));
       if ((siblings.length === 6 || siblings.length === 8)
         && sections.size === 1
+        && siblings.every(other => totpScope(other) === scope && !ALTERNATIVE.test(normalizedControlLabels(other).join(' ')))
         && siblings.every(other => autocompleteTokens(other).every(token => !token || token === 'one-time-code' || token === 'on' || token === 'off' || token.startsWith('section-')))
         && (OTP_LABEL.test(`${text} ${labels}`) || siblings.every(hasOneTimeCodeHint))) {
         siblings.forEach(other => grouped.add(other));

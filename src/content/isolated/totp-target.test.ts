@@ -178,3 +178,12 @@ it('rejects a split group spanning different autocomplete sections', () => {
   document.body.innerHTML = `<form>${'<input maxlength="1" autocomplete="section-a one-time-code">'.repeat(3)}${'<input maxlength="1" autocomplete="section-b one-time-code">'.repeat(3)}</form>`;
   expect(semantics.discoverTotpTargets(document)).toEqual([]);
 });
+
+it.each([
+  ['SMS code', 0], ['SMS code', 3], ['SMS code', 5],
+  ['Recovery code', 0], ['Recovery code', 3], ['Recovery code', 5],
+])('rejects split group with %s at index %i', (label, index) => {
+  document.body.innerHTML = `<form>${'<input maxlength="1" autocomplete="one-time-code">'.repeat(6)}</form>`;
+  document.querySelectorAll('input')[index]!.setAttribute('aria-label', label);
+  expect(semantics.discoverTotpTargets(document)).toEqual([]);
+});
