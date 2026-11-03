@@ -287,3 +287,56 @@ it("discards suggestions if the session locks while an icon loads", async () => 
   }), { channel: INLINE_AUTOFILL_CHANNEL, type: "inline/list", documentId }, sender, "extension-id");
   expect(result).toEqual({ ok: true, kind: "suggestions", status: "locked", entries: [] });
 });
+
+it('keeps the selected exact-host account independent in each tab across navigation', async () => {
+  const recency = new InMemoryInlineAutofillRecency();
+  const second = { ...entries[0]!, id: 'entry-2', name: 'Second', username: 'grace@example.com' };
+  const subject = deps({ recency, getMetadata: async () => [entries[0]!, second] });
+  const fill = (entryId: string) => ({ channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', intent: 'manual', documentId,
+    vaultId: 'vault-1', entryId, scope: 'exact', loginTargetId: 'login-1' });
+  const tab2 = { ...sender, tab: { id: 8, url: sender.url } } as chrome.runtime.MessageSender;
+  await handleInlineAutofillContentMessage(subject, fill('entry-1'), sender, 'extension-id');
+  await handleInlineAutofillContentMessage(subject, fill('entry-2'), tab2, 'extension-id');
+  const next = { ...sender, url: 'https://accounts.example.com/mfa', tab: { id: 7, url: 'https://accounts.example.com/mfa' } } as chrome.runtime.MessageSender;
+  const result = await handleInlineAutofillContentMessage(subject, { channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', documentId, purpose: 'totp' }, next, 'extension-id');
+  expect(result).toMatchObject({ entries: [{ entryId: 'entry-1' }, { entryId: 'entry-2' }] });
+});
+
+
+it('routes a TOTP request only from the authenticated top-frame document', async () => {
+  const fill = vi.fn<InlineAutofillDeps['fill']>(async () => ({ status: 'filled' }) as const);
+  const cmd = { channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', intent: 'automatic', documentId,
+    vaultId: 'vault-1', entryId: 'entry-1', scope: 'exact', loginTargetId: 'otp-1', purpose: 'totp' };
+  expect(await handleInlineAutofillContentMessage(deps({ fill }), cmd, sender, 'extension-id'))
+    .toEqual({ ok: true, kind: 'fill', status: 'filled' });
+  expect(fill.mock.calls[0]![6]).toBe('totp');
+  const child = { ...sender, frameId: 1 } as chrome.runtime.MessageSender;
+  expect(await handleInlineAutofillContentMessage(deps({ fill }), cmd, child, 'extension-id')).toEqual({ ok: false, code: 'unavailable' });
+});
+
+it('retains a missing tab account as an explicit continuation instead of silently switching accounts', async () => {
+  const recency = new InMemoryInlineAutofillRecency();
+  recency.rememberForTab(7, sender.url!, 'vault-1', 'removed');
+  const result = await handleInlineAutofillContentMessage(deps({ recency }), {
+    channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', documentId, purpose: 'totp',
+  }, sender, 'extension-id');
+  expect(result).toMatchObject({ continuation: { vaultId: 'vault-1', entryId: 'removed' }, entries: [{ entryId: 'entry-1' }] });
+});
+
+it('does not restore account continuity when an earlier fill completes after lock or foreign navigation', async () => {
+  for (const invalidation of ['lock', 'navigation', 'close'] as const) {
+    const recency = new InMemoryInlineAutofillRecency();
+    let release!: () => void;
+    const wait = new Promise<void>(resolve => { release = resolve; });
+    const subject = deps({ recency, fill: async () => { await wait; return { status: 'filled' }; } });
+    const request = handleInlineAutofillContentMessage(subject, { channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', intent: 'manual',
+      documentId, vaultId: 'vault-1', entryId: 'entry-1', scope: 'exact', loginTargetId: 'login-1' }, sender, 'extension-id');
+    await Promise.resolve(); await Promise.resolve();
+    if (invalidation === 'lock') recency.clear();
+    else if (invalidation === 'navigation') recency.navigation(7, 'https://foreign.example.test/');
+    else recency.clearTab(7);
+    release(); await request;
+    expect(recency.preferredForTab(7, sender.url!)).toBeNull();
+    expect(recency.preferred(sender.url!)).toBeNull();
+  }
+});

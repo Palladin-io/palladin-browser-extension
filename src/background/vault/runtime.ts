@@ -178,6 +178,7 @@ async function sendFill(
     )) {
       return { ok: false, reason: "target-changed" };
     }
+    assertSessionCurrent?.();
     const outcome = await chrome.tabs.sendMessage(
       target.id,
       {

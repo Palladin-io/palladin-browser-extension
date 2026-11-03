@@ -20,12 +20,15 @@ import {
   type InlineAutofillCommand,
   type InlineAutofillSuggestion,
 } from "@shared/messaging";
-import { queryOpenElements } from "./open-dom";
+import { discoverTotpTargets, fillTotp, isCurrentTotpTarget } from './totp-target';
+import { matchesTab } from '@shared/security/domain';
+import { composedForm, queryOpenElements } from "./open-dom";
 import { extensionBuildTarget, type ExtensionBuildTarget } from "@shared/config/build-target";
 import {
   performBoundFill,
   discardLoginTargetFill,
   isCurrentLoginTarget,
+  isFillable,
   loginTargetFor,
   submitFilledLoginTarget,
   type LoginTarget,
@@ -152,6 +155,12 @@ const SHADOW_PROBE_INTERVAL_MS = 250;
 const SHADOW_PROBE_BATCH = 256;
 
 class InlineAutofillController {
+  private manualLoginPending = false;
+  private automaticTotpUrl: string | null = null;
+  private attemptedTotp = new WeakSet<HTMLInputElement>();
+  private totpGeneration = 0;
+  private readonly totpSurfaces = new Map<HTMLInputElement, { host: HTMLElement; panel: HTMLElement; button: HTMLButtonElement; target: HTMLInputElement[] }>();
+  private totpPending: { id: string; target: HTMLInputElement[]; url: string; parents: (Element | null)[]; intent: "automatic" | "manual" } | null = null;
   private readonly widgets = new Map<HTMLInputElement, InlineWidget>();
   private observer: MutationObserver | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -283,6 +292,8 @@ class InlineAutofillController {
 
   stop(): void {
     this.continuation = null;
+    this.totpGeneration++; this.totpPending = null;
+    for (const surface of this.totpSurfaces.values()) surface.host.remove(); this.totpSurfaces.clear();
     clearAutomaticFillProvenance(this.doc);
     this.stopped = true;
     this.observer?.disconnect();
@@ -331,6 +342,18 @@ class InlineAutofillController {
   }
 
   performFillRequest(request: FillRequestMessage): FillOutcome {
+    const otp = request.fields.find(field => field.kind === 'totp');
+    if (otp) {
+      const pending = this.totpPending;
+      this.totpPending = null;
+      if (!pending || pending.id !== request.loginTargetId || request.documentId !== this.documentId
+        || pending.url !== this.doc.location.href || this.doc.location.origin !== request.expectedOrigin
+        || request.expectedDomain === null || !matchesTab(pending.url, request.expectedDomain)
+        || pending.target.some((input, index) => input.parentElement !== pending.parents[index] || !isFillable(input))
+        || pending.intent !== request.intent || typeof otp.expiresAt !== 'number' || typeof otp.username !== 'string') return { ok: false, reason: 'target-changed' };
+      return fillTotp(this.doc, pending.target, otp.value, otp.expiresAt, otp.username, pending.intent === 'manual')
+        ? { ok: true } : { ok: false, reason: 'target-changed' };
+    }
     const target = request.loginTargetId === null ? null : this.resolveLoginTarget(request.loginTargetId);
     const outcome = performBoundFill(this.doc, request, this.doc.location.href, this.documentId, target, () => {
       this.continuation = null;
@@ -346,10 +369,14 @@ class InlineAutofillController {
     this.invalidateSuggestions();
     // A restarted worker may announce only the fresh unlock, with no prior lock event.
     this.clearSessionState();
-    if (status === 'unlocked') this.retryAutomaticFill();
+    if (status === 'unlocked') { this.retryAutomaticFill(); this.scheduleScan(); }
   }
 
   clearSessionState(): void {
+    this.totpGeneration++; this.totpPending = null;
+    this.attemptedTotp = new WeakSet();
+    this.automaticTotpUrl = null;
+    for (const surface of this.totpSurfaces.values()) { surface.panel.replaceChildren(); surface.panel.hidden = true; }
     this.continuation = null;
     clearAutomaticFillProvenance(this.doc);
     for (const widget of this.widgets.values()) widget.clearSessionState();
@@ -360,6 +387,7 @@ class InlineAutofillController {
   }
 
   isOwnedSurface(element: Element): boolean {
+    if ([...this.totpSurfaces.values()].some(surface => surface.host === element)) return true;
     for (const widget of this.widgets.values()) {
       if (widget.host === element) return true;
     }
@@ -376,6 +404,7 @@ class InlineAutofillController {
 
   private readonly reposition = (): void => {
     for (const widget of this.widgets.values()) widget.reposition();
+    for (const surface of this.totpSurfaces.values()) this.positionTotpSurface(surface);
   };
 
   private scheduleReposition(): void {
@@ -455,7 +484,16 @@ class InlineAutofillController {
         send: this.send,
         locale: () => this.locale,
         theme: () => resolvedTheme(this.theme, this.doc.defaultView),
-        onManualFill: () => { this.continuation = null; },
+        onManualFill: () => {
+          this.continuation = null; this.totpGeneration++; this.totpPending = null;
+          this.attemptedTotp = new WeakSet(); this.automaticTotpUrl = null; this.manualLoginPending = true;
+        },
+        onManualSettled: success => {
+          this.manualLoginPending = false;
+          if (!success) this.automaticTotpUrl = this.doc.location.href;
+          this.scheduleScan();
+        },
+        onAutomaticSettled: () => this.scheduleScan(),
         onAutomaticFill: entry => {
           if (this.doc.location.origin !== 'https://tomojdom.pl' || loginTarget.username === null
             || loginTarget.password !== null || loginTarget.sourceDocument !== this.doc
@@ -488,11 +526,108 @@ class InlineAutofillController {
       }
     }
     this.observeOpenRoots();
+    const view = this.doc.defaultView;
+    const otpTargets = view && view.top === view ? discoverTotpTargets(this.doc) : [];
+    for (const [anchor, surface] of this.totpSurfaces) {
+      if (!surface.host.isConnected || !isCurrentTotpTarget(this.doc, surface.target, true)) {
+        surface.host.remove(); this.totpSurfaces.delete(anchor);
+      }
+    }
+    for (const target of otpTargets) {
+      if (target.every(isFillable) && !this.totpSurfaces.has(target[0]!)) this.mountTotpChooser(target);
+    }
+    if (otpTargets.length === 1 && otpTargets[0]!.every(isFillable)) {
+      const target = otpTargets[0]!;
+      const scope = composedForm(target[0]!);
+      const loginPending = [...this.widgets.values()].some(widget => widget.ownsForm(scope) && !widget.didCompleteAutomaticFill());
+      if (!loginPending && !this.manualLoginPending && this.automaticTotpUrl !== this.doc.location.href && !this.attemptedTotp.has(target[0]!)) {
+        this.attemptedTotp.add(target[0]!);
+        void this.autoFillTotp(target);
+      }
+    }
     const currentUrl = this.doc.location.href;
     const first = this.widgets.values().next().value as InlineWidget | undefined;
     if (first !== undefined && this.automaticFillUrl !== currentUrl) {
       this.automaticFillUrl = currentUrl;
       void first.autoFillPreferredExact();
+    }
+  }
+
+  private async autoFillTotp(target: HTMLInputElement[]): Promise<void> {
+    const generation = this.totpGeneration;
+    const url = this.doc.location.href;
+    if (target.some(input => input.value !== '')) return;
+    const raw = await this.send({ channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', documentId: this.documentId, purpose: 'totp' }).catch(() => null);
+    if (this.stopped || generation !== this.totpGeneration || this.doc.location.href !== url
+      || !isCurrentTotpTarget(this.doc, target) || target.some(input => input.value !== '')
+      || !isInlineAutofillResult(raw) || !raw.ok || raw.kind !== 'suggestions' || raw.status !== 'ready') return;
+    const entry = raw.entries.find(item => item.match === 'exact' && (raw.continuation === undefined
+      || (item.vaultId === raw.continuation.vaultId && item.entryId === raw.continuation.entryId)));
+    if (!entry) return;
+    this.automaticTotpUrl = url;
+    await this.sendTotp(target, entry, 'automatic');
+  }
+
+  private async sendTotp(target: HTMLInputElement[], entry: InlineAutofillSuggestion, intent: 'automatic' | 'manual'): Promise<void> {
+    const id = `otp-${this.nextLoginTargetId++}`;
+    const pending = { id, target, intent, url: this.doc.location.href, parents: target.map(input => input.parentElement) };
+    this.totpPending = pending;
+    try {
+      await this.send({ channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', purpose: 'totp', intent,
+        documentId: this.documentId, vaultId: entry.vaultId, entryId: entry.entryId, scope: entry.match, loginTargetId: id });
+    } finally { if (this.totpPending === pending) this.totpPending = null; }
+  }
+
+  private mountTotpChooser(target: HTMLInputElement[]): void {
+    const surface = createClosedSurface(this.doc, 'palladin-autofill');
+    const style = this.doc.createElement('style'); style.textContent = INLINE_STYLES;
+    const button = this.doc.createElement('button'); button.type = 'button'; button.className = 'launcher';
+    button.title = message(this.locale, 'inline.open'); button.setAttribute('aria-label', button.title);
+    button.append(createBrandIcon(this.doc));
+    const panel = this.doc.createElement('div'); panel.className = 'panel'; panel.hidden = true;
+    surface.shadow.append(style, button, panel);
+    surface.host.style.setProperty('width', '26px', 'important'); surface.host.style.setProperty('height', '26px', 'important');
+    surface.host.dataset['theme'] = resolvedTheme(this.theme, this.doc.defaultView);
+    this.doc.documentElement.append(surface.host);
+    const state = { host: surface.host, panel, button, target };
+    this.totpSurfaces.set(target[0]!, state); this.positionTotpSurface(state);
+    button.addEventListener('click', () => { void (async () => {
+      const generation = this.totpGeneration;
+      const raw = await this.send({ channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', purpose: 'totp', documentId: this.documentId }).catch(() => null);
+      if (generation !== this.totpGeneration || this.totpSurfaces.get(target[0]!)?.host !== surface.host || !isCurrentTotpTarget(this.doc, target, true)
+        || !isInlineAutofillResult(raw) || !raw.ok || raw.kind !== 'suggestions' || raw.status !== 'ready') return;
+      const list = this.doc.createElement('div'); list.className = 'list';
+      for (const entry of raw.entries) {
+        const option = this.doc.createElement('button'); option.type = 'button'; option.className = 'option';
+        const text = this.doc.createElement('span'); text.className = 'entry-text';
+        const name = this.doc.createElement('strong'); name.textContent = entry.name; text.append(name);
+        if (entry.username && entry.username !== entry.name) { const account = this.doc.createElement('span'); account.className = 'entry-name'; account.textContent = entry.username; text.append(account); }
+        const detail = this.doc.createElement('small'); detail.textContent = suggestionDetail(entry, this.locale); text.append(detail);
+        const icon = this.doc.createElement('span'); icon.className = 'entry-icon'; icon.setAttribute('aria-hidden', 'true'); icon.append(createCredentialIcon(this.doc));
+        option.append(icon, text);
+        option.addEventListener('click', () => { panel.hidden = true; void this.sendTotp(target, entry, 'manual'); });
+        list.append(option);
+      }
+      panel.replaceChildren(createInlineTitle(this.doc, this.locale), list); panel.hidden = false;
+    })(); });
+  }
+
+  private positionTotpSurface(surface: { host: HTMLElement; panel: HTMLElement; target: HTMLInputElement[] }): void {
+    const rect = surface.target[0]!.getBoundingClientRect();
+    const view = this.doc.defaultView;
+    if (rect.width < 40 || rect.height < 20 || rect.bottom < 0 || rect.top > (view?.innerHeight ?? 0)) {
+      surface.host.style.setProperty('display', 'none', 'important'); return;
+    }
+    const edgeGap = Math.min(18, Math.max(8, (rect.height - 26) / 2));
+    const left = Math.max(4, rect.right - 26 - edgeGap);
+    surface.host.style.setProperty('display', 'block', 'important');
+    surface.host.style.setProperty('left', `${left}px`, 'important');
+    surface.host.style.setProperty('top', `${Math.max(4, rect.top + (rect.height - 26) / 2)}px`, 'important');
+    const width = Math.min(344, rect.width, Math.max(0, (view?.innerWidth ?? 0) - 24));
+    if (width > 0) {
+      surface.panel.style.width = `${width}px`;
+      const panelLeft = Math.min(Math.max(12, rect.right - width), Math.max(12, (view?.innerWidth ?? 0) - width - 12));
+      surface.panel.style.left = `${panelLeft - left}px`;
     }
   }
 
@@ -509,7 +644,20 @@ class InlineAutofillController {
     this.locale = resolveUiLocale(preferences.language, systemLanguage);
     this.theme = preferences.theme;
     for (const widget of this.widgets.values()) widget.refreshPreferences();
+    for (const surface of this.totpSurfaces.values()) {
+      surface.host.dataset['theme'] = resolvedTheme(this.theme, this.doc.defaultView);
+      surface.button.title = message(this.locale, 'inline.open'); surface.button.setAttribute('aria-label', surface.button.title);
+    }
   }
+}
+
+function createInlineTitle(doc: Document, locale: UiLocale): HTMLDivElement {
+  const title = doc.createElement('div'); title.className = 'title';
+  const icon = createBrandIcon(doc); icon.className = 'title-icon';
+  const wordmark = doc.createElement('span'); wordmark.className = 'wordmark'; wordmark.textContent = 'Palladin';
+  const suffix = doc.createElement('span'); suffix.className = 'wordmark-tld'; suffix.textContent = '.io'; wordmark.append(suffix);
+  title.setAttribute('aria-label', message(locale, 'inline.title')); title.append(icon, wordmark);
+  return title;
 }
 
 interface InlineWidgetOptions {
@@ -524,6 +672,8 @@ interface InlineWidgetOptions {
   readonly closeOthers: () => void;
   readonly onAutomaticFill: (entry: InlineAutofillSuggestion) => void;
   readonly onManualFill: () => void;
+  readonly onManualSettled: (success: boolean) => void;
+  readonly onAutomaticSettled: () => void;
 }
 
 interface PendingInlineFill {
@@ -605,6 +755,10 @@ class InlineWidget {
       && target.password === this.options.loginTarget.password
       && target.accountIdentity === this.options.loginTarget.accountIdentity
       && target.form === this.options.loginTarget.form;
+  }
+
+  ownsForm(form: HTMLFormElement | null): boolean {
+    return form !== null && this.options.loginTarget.form === form;
   }
 
   didCompleteAutomaticFill(): boolean {
@@ -799,6 +953,7 @@ class InlineWidget {
       }
     } finally {
       this.automaticFillInFlight = false;
+      this.options.onAutomaticSettled();
       if (this.automaticFillRetryRequested && !this.automaticFillCompleted && !this.destroyed) {
         this.automaticFillRetryRequested = false;
         void this.autoFillPreferredExact();
@@ -977,20 +1132,7 @@ class InlineWidget {
   }
 
   private createTitle(): HTMLDivElement {
-    const title = this.options.doc.createElement("div");
-    title.className = "title";
-    const titleIcon = createBrandIcon(this.options.doc);
-    titleIcon.className = "title-icon";
-    const titleText = this.options.doc.createElement("span");
-    titleText.className = "wordmark";
-    titleText.textContent = "Palladin";
-    const suffix = this.options.doc.createElement("span");
-    suffix.className = "wordmark-tld";
-    suffix.textContent = ".io";
-    titleText.append(suffix);
-    title.setAttribute("aria-label", message(this.options.locale(), "inline.title"));
-    title.append(titleIcon, titleText);
-    return title;
+    return createInlineTitle(this.options.doc, this.options.locale());
   }
 
   private async fill(
@@ -1024,6 +1166,7 @@ class InlineWidget {
       initialValues: loginValueSnapshot(this.options.loginTarget),
     };
     this.pendingFill = operation;
+    let succeeded = false;
     try {
       if (!silent) this.renderStatus("inline.filling");
       let raw: unknown;
@@ -1069,8 +1212,10 @@ class InlineWidget {
             : raw.status === "unavailable" ? "inline.unavailable" : "inline.blocked");
         if (raw.status === "filled") setTimeout(() => this.close(), 700);
       }
-      return raw.status === "filled";
+      succeeded = raw.status === "filled";
+      return succeeded;
     } finally {
+      if (!silent) this.options.onManualSettled(succeeded);
       if (this.pendingFill === operation) this.invalidatePendingFill();
     }
   }

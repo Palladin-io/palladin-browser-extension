@@ -38,7 +38,8 @@
     "test:form-corpus": "npm run check:form-corpus && vitest run src/content/isolated/production-form-corpus.test.ts",
     "test:browser:form-corpus": "node tests/browser/form-corpus.mjs",
     "test:browser:workspace": "node tests/browser/workspace.mjs",
-    "test:browser:totp-capture": "node tests/browser/totp-capture.mjs"
+    "test:browser:totp-capture": "node tests/browser/totp-capture.mjs",
+    "test:browser:totp-autofill": "node tests/browser/totp-autofill.mjs"
   },
   "dependencies": {
     "@microsoft/signalr": "10.0.0",

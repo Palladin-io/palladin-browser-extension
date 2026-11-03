@@ -18,6 +18,7 @@
  */
 
 export type FillFieldKind =
+  | "totp"
   | "username"
   | "password"
   | "generated"
@@ -33,6 +34,8 @@ export type FillFieldKind =
 export interface FillField {
   readonly kind: FillFieldKind;
   readonly value: string;
+  readonly expiresAt?: number;
+  readonly username?: string;
 }
 
 export const FILL_REQUEST_CHANNEL = "palladin.fill/request" as const;
@@ -67,8 +70,12 @@ export type FillOutcome =
 
 function isFillField(value: unknown): value is FillField {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const field = value as { kind?: unknown; value?: unknown; expiresAt?: unknown; username?: unknown };
+  if (field.kind === "totp") return hasOnlyKeys(value as Record<string, unknown>, ["kind", "value", "expiresAt", "username"])
+    && typeof field.value === "string" && /^(?:\d{6}|\d{8})$/.test(field.value)
+    && typeof field.username === "string" && field.username.length <= 4096
+    && typeof field.expiresAt === "number" && Number.isSafeInteger(field.expiresAt) && field.expiresAt > 0;
   if (!hasOnlyKeys(value as Record<string, unknown>, ["kind", "value"])) return false;
-  const field = value as { kind?: unknown; value?: unknown };
   return (
     (field.kind === "username"
       || field.kind === "password"
@@ -138,9 +145,12 @@ export function isFillRequestMessage(value: unknown): value is FillRequestMessag
     message.fields.every(isFillField) &&
     (message.loginTargetId === null || (
       message.submit === false &&
-      message.fields.some((field) => field.kind === "password") &&
-      message.fields.every((field) => field.kind === "username" || field.kind === "password")
+      ((message.fields.some((field) => field.kind === "password") &&
+        message.fields.every((field) => field.kind === "username" || field.kind === "password"))
+        || (message.expectedDomain !== null && message.intent !== undefined
+          && message.fields.length === 1 && message.fields[0].kind === "totp"))
     )) &&
+    (!message.fields.some(field => field.kind === "totp") || message.loginTargetId !== null) &&
     (!message.submit || (
       message.fields.some((field) => field.kind === "password") &&
       message.fields.every((field) => field.kind === "username" || field.kind === "password")

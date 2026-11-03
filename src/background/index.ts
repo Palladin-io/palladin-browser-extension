@@ -367,11 +367,12 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   return false;
 });
 
-chrome.tabs.onRemoved.addListener((tabId) => { credentialCaptureCoordinator.clearTab(tabId); if (totpCaptureCoordinator.clearTab(tabId)) publishTotpInvalidation(); clearTotpObservation(tabId); });
+chrome.tabs.onRemoved.addListener((tabId) => { inlineAutofillRecency.clearTab(tabId); credentialCaptureCoordinator.clearTab(tabId); if (totpCaptureCoordinator.clearTab(tabId)) publishTotpInvalidation(); clearTotpObservation(tabId); });
 chrome.tabs.onRemoved.addListener((tabId) => { publishSecretCaptureInvalidation(secretCaptureCoordinator.removedTab(tabId)); secretCaptureFrames.clearTab(tabId); });
 chrome.tabs.onUpdated.addListener((tabId, change) => {
   // Loading also describes unrelated child-frame navigation; document Ports bind teardown.
   if (!change.url) return;
+  inlineAutofillRecency.navigation(tabId, change.url);
   if (totpCaptureCoordinator.clearTab(tabId)) publishTotpInvalidation(); clearTotpObservation(tabId);
   publishSecretCaptureInvalidation(secretCaptureCoordinator.clearTab(tabId));
 });
@@ -468,7 +469,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
         getMetadata: () => vaultData.getMetadata(),
         loadIcon: (icon) => loadInlineIcon(serverConfig.apiUrl, icon),
         recency: inlineAutofillRecency,
-        fill: async (source, vaultId, entryId, scope, loginTargetId, intent) => {
+        fill: async (source, vaultId, entryId, scope, loginTargetId, intent, purpose) => {
           // This channel includes passive exact-host autofill. A fill request
           // is not trusted own activity and must never renew session deadlines.
           return fillInlineSelectedEntry(
@@ -479,6 +480,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
             scope,
             loginTargetId,
             intent,
+            purpose,
           );
         },
       }, raw, sender, chrome.runtime.id);

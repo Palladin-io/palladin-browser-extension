@@ -5,11 +5,13 @@ export type InlineAutofillCommand =
       readonly channel: typeof INLINE_AUTOFILL_CHANNEL;
       readonly type: "inline/list";
       readonly documentId: string;
+      readonly purpose?: "totp";
     }
   | {
       readonly channel: typeof INLINE_AUTOFILL_CHANNEL;
       readonly type: "inline/fill";
       readonly intent: "automatic" | "manual";
+      readonly purpose?: "totp";
       readonly documentId: string;
       readonly vaultId: string;
       readonly entryId: string;
@@ -43,6 +45,7 @@ export type InlineAutofillResult =
       readonly kind: "suggestions";
       readonly status: "ready" | "locked" | "signed-out";
       readonly entries: readonly InlineAutofillSuggestion[];
+      readonly continuation?: { readonly vaultId: string; readonly entryId: string };
     }
   | {
       readonly ok: true;
@@ -61,7 +64,8 @@ export function isInlineAutofillCommand(value: unknown): value is InlineAutofill
     return false;
   }
   if (value.type === "inline/list") {
-    return hasOnlyKeys(value, ["channel", "type", "documentId"]);
+    return hasOnlyKeys(value, ["channel", "type", "documentId", "purpose"])
+      && (value.purpose === undefined || value.purpose === "totp");
   }
   if (value.type === "inline/open-palladin") {
     return hasOnlyKeys(value, ["channel", "type", "documentId"]);
@@ -76,7 +80,9 @@ export function isInlineAutofillCommand(value: unknown): value is InlineAutofill
       "scope",
       "loginTargetId",
       "intent",
+      "purpose",
     ])
+      && (value.purpose === undefined || value.purpose === "totp")
       && validOpaqueId(value.vaultId)
       && validOpaqueId(value.entryId)
       && validOpaqueId(value.loginTargetId)
@@ -101,11 +107,14 @@ export function isInlineAutofillResult(value: unknown): value is InlineAutofillR
       && (value.status === "opened" || value.status === "unavailable");
   }
   if (value.kind !== "suggestions"
-    || !hasOnlyKeys(value, ["ok", "kind", "status", "entries"])
+    || !hasOnlyKeys(value, ["ok", "kind", "status", "entries", "continuation"])
     || (value.status !== "ready" && value.status !== "locked" && value.status !== "signed-out")
     || !Array.isArray(value.entries)
     || value.entries.length > 100) return false;
-  return value.entries.every(isSuggestion);
+  return (value.continuation === undefined || (isRecord(value.continuation)
+    && hasOnlyKeys(value.continuation, ["vaultId", "entryId"])
+    && validOpaqueId(value.continuation.vaultId) && validOpaqueId(value.continuation.entryId)))
+    && value.entries.every(isSuggestion);
 }
 
 function isSuggestion(value: unknown): value is InlineAutofillSuggestion {

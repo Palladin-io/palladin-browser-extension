@@ -882,3 +882,45 @@ describe('manual Entry presentation boundary', () => {
     expect(isVaultCommand({ type: 'vault/entry-save', entry: { ...entry, color } })).toBe(false);
   });
 });
+
+it('delivers only the current RFC TOTP code with an absolute expiration for an inline OTP request', async () => {
+  const world = buildVaultWorld();
+  const original = world.secrets.get('entry-cred')!;
+  if (original.entryType !== 'credential') throw new Error('fixture');
+  world.secrets.set('entry-cred', { ...original, content: { ...original.content, totp: {
+    secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', algorithm: 'SHA1', digits: 8, period: 30, issuer: null, account: null,
+  } } });
+  const { deps, sendFill } = await makeHarness(world, { id: 1, url: HTTPS_MATCH });
+  deps.now = () => 59000;
+  deps.captureFillSession = () => () => {};
+  const tab = { id: 1, url: HTTPS_MATCH, documentId: 'document-1', browserDocumentId: 'browser-document-1' };
+  const result = await fillInlineSelectedEntry(deps, tab, 'vault-1', 'entry-cred', 'exact', 'otp-1', 'automatic', 'totp');
+  expect(result).toEqual({ status: 'filled' });
+  expect(sendFill.mock.calls[0]![2]).toEqual([{ kind: 'totp', value: '94287082', expiresAt: 60000, username: 'ada@example.com' }]);
+});
+
+it('blocks TOTP delivery if the unlocked session changes during generation', async () => {
+  const world = buildVaultWorld();
+  const { deps, sendFill } = await makeHarness(world, { id: 1, url: HTTPS_MATCH });
+  let checks = 0;
+  deps.captureFillSession = () => () => { if (++checks > 1) throw new Error('locked'); };
+  const tab = { id: 1, url: HTTPS_MATCH, documentId: 'document-1', browserDocumentId: 'browser-document-1' };
+  expect((await fillInlineSelectedEntry(deps, tab, 'vault-1', 'entry-cred', 'exact', 'otp-1', 'automatic', 'totp')).status).toBe('blocked');
+  expect(sendFill).not.toHaveBeenCalled();
+});
+
+it('blocks OTP autofill when multiple custom TOTP sources have no canonical choice', async () => {
+  const world = buildVaultWorld();
+  const original = world.secrets.get('entry-cred')!;
+  if (original.entryType !== 'credential') throw new Error('fixture');
+  const params = { secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', algorithm: 'SHA1' as const, digits: 6 as const, period: 30 };
+  world.secrets.set('entry-cred', { ...original, content: { ...original.content, totp: null, customFields: [
+    { id: 'custom:one', label: 'First', type: 'totp', value: params },
+    { id: 'custom:two', label: 'Second', type: 'totp', value: params },
+  ] } });
+  const { deps, sendFill } = await makeHarness(world, { id: 1, url: HTTPS_MATCH });
+  deps.captureFillSession = () => () => {};
+  const tab = { id: 1, url: HTTPS_MATCH, documentId: 'document-1', browserDocumentId: 'browser-document-1' };
+  expect((await fillInlineSelectedEntry(deps, tab, 'vault-1', 'entry-cred', 'exact', 'otp-1', 'automatic', 'totp')).status).toBe('blocked');
+  expect(sendFill).not.toHaveBeenCalled();
+});

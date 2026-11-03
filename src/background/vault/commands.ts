@@ -307,6 +307,7 @@ export async function fillInlineSelectedEntry(
   scope: "exact" | "related",
   loginTargetId: string,
   intent: "automatic" | "manual",
+  purpose?: "totp",
 ): Promise<FillResult> {
   if (!isSecurePage(tab.url)) return { status: "blocked", reason: "insecure-page" };
   const meta = (await deps.data.getMetadata()).find(
@@ -321,7 +322,7 @@ export async function fillInlineSelectedEntry(
   if (!matchesTab(tab.url, meta.urlDomain, related ? { exactSubdomain: false } : undefined)) {
     return { status: "blocked", reason: "domain-mismatch" };
   }
-  return fillPreparedEntry(deps, meta, tab, related, false, loginTargetId, intent);
+  return fillPreparedEntry(deps, meta, tab, related, false, loginTargetId, intent, purpose);
 }
 
 async function openAndFillLogin(
@@ -395,6 +396,7 @@ async function fillPreparedEntry(
   submit = false,
   loginTargetId?: string,
   intent?: "automatic" | "manual",
+  purpose?: "totp",
 ): Promise<FillResult> {
   // Re-check the origin gate at click time, not just when the list was drawn.
   if (meta.type === ENTRY_TYPE_CREDENTIAL && !matchesTab(
@@ -417,7 +419,7 @@ async function fillPreparedEntry(
   let plaintext: MemberSecretV1;
   let assertSessionCurrent: (() => void) | undefined;
   try {
-    if (tab.documentTransport === "legacy-firefox-port") {
+    if (purpose === "totp" || tab.documentTransport === "legacy-firefox-port") {
       assertSessionCurrent = deps.captureFillSession?.();
       if (!assertSessionCurrent) throw new VaultDataError("locked", "Fill session unavailable");
     }
@@ -454,6 +456,24 @@ async function fillPreparedEntry(
     allowRelatedDomain ? { exactSubdomain: false } : undefined,
   )) {
     return { status: "blocked", reason: "domain-mismatch" };
+  }
+
+  if (purpose === "totp") {
+    if (!plaintext.content.totp && plaintext.content.customFields.filter(field => field.type === "totp").length > 1)
+      return { status: "blocked", reason: "not-fillable" };
+    const params = extractTotpParams(plaintext);
+    if (!params) return { status: "blocked", reason: "not-fillable" };
+    try {
+      const now = deps.now?.() ?? Date.now();
+      const code = await generateTotp(params, now);
+      assertSessionCurrent?.();
+      const expiresAt = Math.floor(now / (code.period * 1000)) * code.period * 1000 + code.period * 1000;
+      if ((deps.now?.() ?? Date.now()) >= expiresAt) return { status: "blocked", reason: "not-fillable" };
+      const domain = allowRelatedDomain ? exactHttpsHost(tab.url) : currentDomain;
+      if (!domain) return { status: "blocked", reason: "domain-mismatch" };
+      return fillResult(await deps.sendFill(tab, domain, [{ kind: "totp", value: code.code, expiresAt, username: credentialUsername(plaintext) }], false,
+        loginTargetId, assertSessionCurrent, intent));
+    } catch (error) { return { status: "blocked", reason: fillReasonFor(error) }; }
   }
 
   const fields: FillField[] = [];

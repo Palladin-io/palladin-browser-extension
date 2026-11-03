@@ -82,6 +82,28 @@ matches the normalized active HTTPS host. Related entries are excluded.
    login form once for the current URL. Tomojdom may complete that same bound
    operation with the one-use password continuation described above.
 
+For an authenticator stage, one separate automatic TOTP delivery is permitted at
+that URL in the current content document, including when a login stage is replaced
+at the same URL. A successful exact-host selection is remembered separately for
+each tab and takes precedence on subsequent same-host stages; if that Entry is no
+longer available, automatic TOTP does not select a different one. Tab continuity is
+cleared on lock, tab close or navigation to a different host. A full reload creates a
+new content-document controller; a URL or session change permits another automatic
+attempt. Explicit choice in the closed surface remains available for retry. A
+visible account identifier that differs from the selected Credential vetoes the code.
+Related-host selection authorizes only that explicit operation.
+
+TOTP detection accepts one-time-code autocomplete or authenticator/MFA labels,
+including coherent six- or eight-digit groups and open shadow roots. Explicit SMS,
+email delivery, recovery, backup and payment codes are excluded. Ambiguous known
+targets require an explicit choice. Codes are generated in the worker just before
+delivery, carry an expiration, and are checked again between isolated-world writes.
+The seed never leaves the worker. A canonical Credential TOTP takes precedence over
+custom TOTP fields; without one, multiple custom TOTP fields block autofill. Existing
+OTP values are never replaced, and OTP fill never submits or refreshes a filled code.
+Closed shadow roots are inaccessible. These guarantees are covered by synthetic
+fixtures and are not a claim of acceptance on a live service.
+
 The preference is held only in service-worker memory and is cleared on lock. It
 must never be persisted because that would create a plaintext host-to-Entry
 history outside the encrypted Vault.

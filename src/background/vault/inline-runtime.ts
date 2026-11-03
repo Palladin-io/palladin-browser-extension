@@ -26,6 +26,7 @@ export interface InlineAutofillDeps {
     scope: "exact" | "related",
     loginTargetId: string,
     intent: "automatic" | "manual",
+    purpose?: "totp",
   ): Promise<FillResult>;
   readonly recency?: InlineAutofillRecency;
 }
@@ -34,6 +35,9 @@ export interface InlineAutofillRecency {
   preferred(url: string): { readonly vaultId: string; readonly entryId: string } | null;
   remember(url: string, vaultId: string, entryId: string): void;
   clear(): void;
+  capture?(tabId: number, url: string): () => boolean;
+  preferredForTab?(tabId: number, url: string): { readonly vaultId: string; readonly entryId: string } | null;
+  rememberForTab?(tabId: number, url: string, vaultId: string, entryId: string): void;
 }
 
 /**
@@ -41,6 +45,10 @@ export interface InlineAutofillRecency {
  * history of sites and Entry IDs outside the encrypted Vault.
  */
 export class InMemoryInlineAutofillRecency implements InlineAutofillRecency {
+  private sessionVersion = 0;
+  private readonly tabVersions = new Map<number, number>();
+  private readonly tabHosts = new Map<number, string | null>();
+  private readonly byTab = new Map<number, { host: string; vaultId: string; entryId: string }>();
   private readonly byHost = new Map<string, { readonly vaultId: string; readonly entryId: string }>();
 
   preferred(url: string): { readonly vaultId: string; readonly entryId: string } | null {
@@ -53,7 +61,36 @@ export class InMemoryInlineAutofillRecency implements InlineAutofillRecency {
     if (host !== null) this.byHost.set(host, { vaultId, entryId });
   }
 
+  preferredForTab(tabId: number, url: string): { vaultId: string; entryId: string } | null {
+    const selected = this.byTab.get(tabId);
+    if (!selected) return null;
+    if (selected.host !== exactHttpsHost(url)) { this.byTab.delete(tabId); return null; }
+    return selected;
+  }
+
+  rememberForTab(tabId: number, url: string, vaultId: string, entryId: string): void {
+    const host = exactHttpsHost(url);
+    if (host !== null) this.byTab.set(tabId, { host, vaultId, entryId });
+  }
+
+  capture(tabId: number, url: string): () => boolean {
+    this.navigation(tabId, url);
+    const session = this.sessionVersion, version = this.tabVersions.get(tabId) ?? 0;
+    return () => session === this.sessionVersion && version === (this.tabVersions.get(tabId) ?? 0);
+  }
+  clearTab(tabId: number): void {
+    this.byTab.delete(tabId); this.tabHosts.delete(tabId);
+    this.tabVersions.set(tabId, (this.tabVersions.get(tabId) ?? 0) + 1);
+  }
+  navigation(tabId: number, url: string): void {
+    const host = exactHttpsHost(url);
+    if (this.tabHosts.has(tabId) && this.tabHosts.get(tabId) !== host) this.clearTab(tabId);
+    this.tabHosts.set(tabId, host);
+  }
+
   clear(): void {
+    this.sessionVersion++; this.tabVersions.clear(); this.tabHosts.clear();
+    this.byTab.clear();
     this.byHost.clear();
   }
 }
@@ -69,7 +106,7 @@ export async function handleInlineAutofillContentMessage(
   try {
     const source = inlineAutofillSource(raw, sender, extensionId)
       ?? (sender.documentId == null ? await deps.resolveLegacySource?.(raw.documentId, sender) : null);
-    if (!source) return { ok: false, code: "unavailable" };
+    if (!source || (raw.type === "inline/fill" && raw.purpose === "totp" && sender.frameId !== 0)) return { ok: false, code: "unavailable" };
     const status = await deps.getStatus();
     if (raw.type === "inline/list") {
       if (status !== "unlocked") {
@@ -79,7 +116,8 @@ export async function handleInlineAutofillContentMessage(
       const exact = searchEntries(entriesForTab(metadata, source.url), "")
         .filter((entry) => entry.type === ENTRY_TYPE_CREDENTIAL && entry.urlDomain)
         .map((entry) => ({ entry, match: "exact" as const }));
-      const preferred = deps.recency?.preferred(source.url) ?? null;
+      const continuation = raw.purpose === "totp" ? deps.recency?.preferredForTab?.(source.id, source.url) ?? null : null;
+      const preferred = continuation ?? deps.recency?.preferred(source.url) ?? null;
       if (preferred !== null) {
         exact.sort((left, right) => Number(
           right.entry.vaultId === preferred.vaultId && right.entry.id === preferred.entryId,
@@ -113,9 +151,10 @@ export async function handleInlineAutofillContentMessage(
         })));
       const currentStatus = await deps.getStatus();
       if (currentStatus !== "unlocked") return { ok: true, kind: "suggestions", status: currentStatus, entries: [] };
-      return { ok: true, kind: "suggestions", status: "ready", entries };
+      return { ok: true, kind: "suggestions", status: "ready", entries, ...(continuation ? { continuation: { vaultId: continuation.vaultId, entryId: continuation.entryId } } : {}) };
     }
     if (status !== "unlocked") return { ok: true, kind: "fill", status: "blocked" };
+    const stillCurrent = deps.recency?.capture?.(source.id, source.url);
     const fill = await deps.fill(
       source,
       raw.vaultId,
@@ -123,9 +162,11 @@ export async function handleInlineAutofillContentMessage(
       raw.scope,
       raw.loginTargetId,
       raw.intent,
+      ...(raw.purpose === "totp" ? ["totp" as const] : []),
     );
-    if (fill.status === "filled" && raw.scope === "exact") {
+    if (fill.status === "filled" && raw.scope === "exact" && (stillCurrent?.() ?? true)) {
       deps.recency?.remember(source.url, raw.vaultId, raw.entryId);
+      deps.recency?.rememberForTab?.(source.id, source.url, raw.vaultId, raw.entryId);
     }
     return {
       ok: true,
