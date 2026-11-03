@@ -610,7 +610,7 @@
   "icon.glyph.category": "Category",
   "icon.glyph.school": "School",
   "audit.recent": "Recent activity",
-  "audit.viewAll": "Show logs",
+  "audit.viewAll": "Show more",
   "audit.moreHistory": "No matching events in this part of the history. Open logs to browse older events.",
   "share.sharedBy": "Shared by",
   "share.you": "You",

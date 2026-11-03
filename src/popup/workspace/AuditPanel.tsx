@@ -220,7 +220,7 @@ export function AuditPanel({
       aria-label={t('workspace.logs')}
     >
       <div className="workspace-toolbar">
-        {preview ? <><h3>{t("audit.recent")}</h3><Button variant="subtle" onClick={onViewAll}>{t("audit.viewAll")}</Button></> : <>
+        {preview ? <h3>{t("audit.recent")}</h3> : <>
         {entryId || target ? <EntryScopeHeader entry={entries.find(entry => entry.id === entryId && entry.vaultId === vaultId)} onBack={onBack} /> : (<FilterSelect multiple
           aria-label={t('audit.filter')}
           value={filter}
@@ -245,7 +245,7 @@ export function AuditPanel({
         <p className="workspace-empty">{t(cursor && target ? 'audit.moreHistory' : 'audit.empty')}</p>
       ) : null}
       <div className="audit-list">
-        {(preview ? visibleItems.slice(0, 3) : visibleItems).map((item) => {
+        {(preview ? visibleItems.slice(0, 10) : visibleItems).map((item) => {
           const entry = entries.find(
             (entry) =>
               entry.id === item.entryId &&
@@ -301,6 +301,7 @@ export function AuditPanel({
           );
         })}
       </div>
+      {preview && (visibleItems.length > 10 || cursor) ? <div className="audit-preview-footer"><Button variant="contrast" onClick={onViewAll}>{t("audit.viewAll")}</Button></div> : null}
       {cursor && !preview ? <div ref={sentinel} className="audit-sentinel">{busy ? <LoadingSkeleton /> : pageError ? <Button onClick={() => void load(cursor)}>{t('vault.retry')}</Button> : target ? <Button variant="subtle" onClick={() => void load(cursor)}>{t('workspace.more')}</Button> : null}</div> : null}
     </section>
   );

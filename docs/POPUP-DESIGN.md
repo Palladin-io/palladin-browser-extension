@@ -164,8 +164,9 @@ narrow layout. Created/expiry/decision timestamps use localized relative time
 with the exact date in a hover title. Shared by displays You because both share
 list endpoints return only links created by the authenticated user.
 
-Inbox and Sharing details include up to three recent matching audit events and
-a Show logs action. Matching requires the same Vault and exact grantId/shareId
+Inbox and Sharing details include up to ten recent matching audit events using
+the same padded rows as Logs. Show more sits below the list only when it has
+more than ten matching events or the server reports another page. Matching requires the same Vault and exact grantId/shareId
 metadata; entry scope alone must not mix different grants or links. The current
 API has no grant/share filter, so previews inspect only the first cached page.
 An empty preview with older pages explains this limit. Dedicated Logs retains
