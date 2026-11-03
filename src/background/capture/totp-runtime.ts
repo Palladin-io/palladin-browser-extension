@@ -49,8 +49,8 @@ export async function handleTotpContent(command: TotpContentCommand, sender: chr
       && observationSequences.get(source.tabId)?.sequence === command.sequence;
     if (!(await currentSecretCaptureDocument(source)) || !current()) return { status: 'stale' as const };
     if (command.type === 'advance') return { status: 'advanced' as const };
-    if (command.type === 'invalidate') { if (totpCaptureCoordinator.clearDocument(source.tabId, source.browserDocumentId)) publishTotpInvalidation(); return { status: 'dismissed' as const }; }
-    return totpCaptureCoordinator.observe(command.uri, source, current);
+    if (command.type === 'invalidate') { if (totpCaptureCoordinator.invalidateDocument(source.tabId, source.browserDocumentId)) publishTotpInvalidation(); return { status: 'dismissed' as const }; }
+    return totpCaptureCoordinator.observe(command.uri, source, current, command.manual);
   }
   return { status: 'stale' as const };
 }

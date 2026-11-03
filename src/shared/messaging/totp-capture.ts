@@ -2,7 +2,7 @@ import type { CapturedTotpIdentityFields } from '@shared/totp-capture';
 export const TOTP_CAPTURE_CHANNEL = 'palladin.totp-capture' as const;
 type Base = { channel: typeof TOTP_CAPTURE_CHANNEL };
 export type TotpContentCommand = Base & { documentId: string } & (
-  | { type: 'observe'; uri: string; sequence: number } | { type: 'open'; id: string } | { type: 'invalidate'; sequence: number } | { type: 'advance'; sequence: number });
+  | { type: 'observe'; uri: string; sequence: number; manual: boolean } | { type: 'open'; id: string } | { type: 'invalidate'; sequence: number } | { type: 'advance'; sequence: number });
 export type TotpPopupCommand = Base & (
   | { type: 'get' | 'scan' } | { type: 'dismiss'; id: string }
   | { type: 'save'; id: string; targetId: string; replace: boolean; create?: { label: string; username: string } });
@@ -12,7 +12,7 @@ function bounded(x: unknown, max: number): x is string { return typeof x === 'st
 export function isTotpContentCommand(x: unknown): x is TotpContentCommand {
   if (!record(x) || x.channel !== TOTP_CAPTURE_CHANNEL || !bounded(x.documentId, 128)) return false;
   const keys = ['channel', 'documentId', 'type'];
-  if (x.type === 'observe') return only(x, [...keys, 'uri', 'sequence']) && bounded(x.uri, 2048) && Number.isSafeInteger(x.sequence) && (x.sequence as number) >= 0;
+  if (x.type === 'observe') return only(x, [...keys, 'uri', 'sequence', 'manual']) && bounded(x.uri, 2048) && typeof x.manual === 'boolean' && Number.isSafeInteger(x.sequence) && (x.sequence as number) >= 0;
   if (x.type === 'open') return only(x, [...keys, 'id']) && bounded(x.id, 128);
   return (x.type === 'invalidate' || x.type === 'advance') && only(x, [...keys, 'sequence']) && Number.isSafeInteger(x.sequence) && (x.sequence as number) >= 0;
 }

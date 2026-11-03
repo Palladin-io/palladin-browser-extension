@@ -130,3 +130,40 @@ it('keeps target identifiers stable when two native reviews load concurrently', 
   const [left, right] = await Promise.all([first, second]);
   expect(left).toEqual(right); c.clear();
 });
+it('keeps a canceled setup suppressed only for the original fixed lifetime', async () => {
+  vi.useFakeTimers();
+  try {
+    const c = new TotpCaptureCoordinator({ session: async () => ({ profileId: 'user', generation: 1, unlocked: true }),
+      current: async () => true, sourceMatches: async () => true, activeTabId: async () => 1, choices: async () => [target], save: async () => ({}) });
+    const first = await c.observe(uri, source); if (first.status !== 'accepted') throw Error('missing');
+    await vi.advanceTimersByTimeAsync(170_000); await c.dismiss(first.id);
+    expect(c.invalidateDocument(source.tabId, source.browserDocumentId)).toBe(false);
+    expect(await c.observe(uri, source)).toEqual({ status: 'dismissed' });
+    expect(await c.save(first.id, 'target', true)).toEqual({ status: 'stale' });
+    await vi.advanceTimersByTimeAsync(10_000);
+    const afterExpiry = await c.observe(uri, source); expect(afterExpiry.status).toBe('accepted');
+    if (afterExpiry.status !== 'accepted') throw Error('missing new candidate');
+    expect(afterExpiry.id).not.toBe(first.id); c.clear();
+  } finally { vi.useRealTimers(); }
+});
+it('does not resurrect a canceled candidate when an in-flight review finishes', async () => {
+  let release!: (targets: typeof target[]) => void;
+  const c = new TotpCaptureCoordinator({ session: async () => ({ profileId: 'user', generation: 1, unlocked: true }),
+    current: async () => true, sourceMatches: async () => true, activeTabId: async () => 1,
+    choices: () => new Promise(resolve => { release = resolve; }), save: async () => ({}) });
+  const candidate = await c.observe(uri, source); if (candidate.status !== 'accepted') throw Error('missing');
+  const pending = c.review(); await vi.waitFor(() => expect(release).toBeDefined());
+  await c.dismiss(candidate.id); release([target]);
+  expect(await pending).toEqual({ status: 'empty' }); c.clear();
+});
+it('retains cancellation when an in-flight source verification fails afterward', async () => {
+  let release!: (matches: boolean) => void;
+  const c = new TotpCaptureCoordinator({ session: async () => ({ profileId: 'user', generation: 1, unlocked: true }),
+    current: async () => true, sourceMatches: () => new Promise(resolve => { release = resolve; }),
+    activeTabId: async () => 1, choices: async () => [target], save: async () => ({}) });
+  const candidate = await c.observe(uri, source); const review = await c.review();
+  if (candidate.status !== 'accepted' || review.status !== 'ready') throw Error('missing');
+  const saving = c.save(review.id, review.targets[0]!.id, true); await vi.waitFor(() => expect(release).toBeDefined());
+  await c.dismiss(candidate.id); release(false); expect(await saving).toEqual({ status: 'stale' });
+  expect(await c.observe(uri, source)).toEqual({ status: 'dismissed' }); c.clear();
+});

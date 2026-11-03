@@ -53,3 +53,21 @@ it.each(['class', 'aria-hidden'])('rescans when an ancestor changes %s visibilit
   await vi.advanceTimersByTimeAsync(400);
   expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'invalidate' })); capture.stop();
 });
+it('native cancel suppresses unchanged canvas polls, while manual retry and changed setup remain available', async () => {
+  vi.useFakeTimers(); document.body.innerHTML = '<canvas width="64" height="64"></canvas>';
+  const { TotpCaptureCoordinator } = await import('../../background/capture/totp-coordinator');
+  const source = { tabId: 1, frameId: 0, browserDocumentId: 'browser', topDocumentId: 'browser', documentId: 'document', url: 'https://example.com/setup' };
+  const coordinator = new TotpCaptureCoordinator({ session: async () => ({ profileId: 'user', generation: 1, unlocked: true }),
+    current: async () => true, sourceMatches: async () => true, activeTabId: async () => 1, choices: async () => [], save: async () => ({}) });
+  let observed = uri;
+  const capture = startTotpCapture(document, 'document', { detect: () => [observed], notice: { show: vi.fn(), hide: vi.fn(), stop: vi.fn() },
+    send: command => command.type === 'observe' ? coordinator.observe(command.uri, source, () => true, command.manual) : Promise.resolve({ status: 'dismissed' }) });
+  await vi.advanceTimersByTimeAsync(400); const first = await coordinator.review(); if (first.status !== 'ready') throw Error('missing');
+  await coordinator.dismiss(first.id); await vi.advanceTimersByTimeAsync(5_000);
+  expect(await coordinator.review()).toEqual({ status: 'empty' });
+  expect(await capture.scan()).toBe('found'); const retry = await coordinator.review(); if (retry.status !== 'ready') throw Error('missing retry');
+  expect(retry.id).not.toBe(first.id); await coordinator.dismiss(retry.id);
+  observed = uri.replace('JBSWY3DPEHPK3PXP', 'KRSXG5DSNFXGOIDB'); await vi.advanceTimersByTimeAsync(5_000);
+  const changed = await coordinator.review(); expect(changed.status).toBe('ready');
+  capture.stop(); coordinator.clear();
+});

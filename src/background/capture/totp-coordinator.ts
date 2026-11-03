@@ -16,7 +16,7 @@ interface Deps {
 }
 interface Pending {
   id: string; source: SecretCaptureSource; session: Session; totp: CapturedTotp; expires: number;
-  targets: Map<string, TotpWriteTarget>; loaded: boolean; loading: Promise<boolean> | null; saving: boolean;
+  targets: Map<string, TotpWriteTarget>; loaded: boolean; loading: Promise<boolean> | null; saving: boolean; dismissed: boolean;
 }
 export class TotpCaptureCoordinator {
   private readonly pending = new Map<number, Pending>();
@@ -28,8 +28,12 @@ export class TotpCaptureCoordinator {
   clearDocument(tabId: number, browserDocumentId: string): boolean {
     return this.pending.get(tabId)?.source.browserDocumentId === browserDocumentId && this.clearTab(tabId);
   }
+  invalidateDocument(tabId: number, browserDocumentId: string): boolean {
+    const pending = this.pending.get(tabId);
+    return !!pending && !pending.dismissed && this.clearDocument(tabId, browserDocumentId);
+  }
   clearTab(tabId: number): boolean { const removed = this.pending.delete(tabId); const timer = this.timers.get(tabId); if (timer) clearTimeout(timer); this.timers.delete(tabId); return removed; }
-  async observe(uri: string, source: SecretCaptureSource, initiatingSessionCurrent: () => boolean = () => true): Promise<{ status: 'accepted'; id: string } | { status: 'invalid' | 'stale' }> {
+  async observe(uri: string, source: SecretCaptureSource, initiatingSessionCurrent: () => boolean = () => true, manual = false): Promise<{ status: 'accepted'; id: string } | { status: 'invalid' | 'stale' | 'dismissed' }> {
     if (source.frameId !== 0 || source.browserDocumentId !== source.topDocumentId || !source.url.startsWith('https://')) return { status: 'stale' };
     const parsed = parseCapturedTotp(uri);
     if (!parsed || (parsed.digits !== 6 && parsed.digits !== 8)) return { status: 'invalid' };
@@ -40,10 +44,15 @@ export class TotpCaptureCoordinator {
     const totp: CapturedTotp = { ...parsed, digits: parsed.digits as 6 | 8, issuer: parsed.issuer ?? null, account: parsed.account ?? null };
     const existing = this.pending.get(source.tabId);
     if (existing && existing.expires > this.now() && existing.source.browserDocumentId === source.browserDocumentId
-      && existing.session.generation === session.generation && capturedTotpIdentity(existing.totp) === capturedTotpIdentity(totp)) return { status: 'accepted', id: existing.id };
+      && existing.source.documentId === source.documentId && existing.source.url === source.url
+      && existing.session.profileId === session.profileId && existing.session.generation === session.generation
+      && capturedTotpIdentity(existing.totp) === capturedTotpIdentity(totp)) {
+      if (existing.dismissed) { if (!manual) return { status: 'dismissed' }; }
+      else return { status: 'accepted', id: existing.id };
+    }
     if (this.pending.size >= 8 && !existing) this.clearTab(this.pending.keys().next().value!);
     this.clearTab(source.tabId);
-    const pending: Pending = { id: this.createId(), source, session, totp, expires: this.now() + 180_000, targets: new Map(), loaded: false, loading: null, saving: false };
+    const pending: Pending = { id: this.createId(), source, session, totp, expires: this.now() + 180_000, targets: new Map(), loaded: false, loading: null, saving: false, dismissed: false };
     this.pending.set(source.tabId, pending);
     const tabId = source.tabId, id = pending.id;
     this.timers.set(tabId, setTimeout(() => { if (this.pending.get(tabId)?.id === id) { this.clearTab(tabId); this.deps.invalidated?.(); } }, 180_000));
@@ -51,9 +60,9 @@ export class TotpCaptureCoordinator {
   }
   private async valid(p: Pending): Promise<boolean> {
     const session = await this.deps.session();
-    return this.pending.get(p.source.tabId) === p && p.expires > this.now() && !!session?.unlocked
+    return this.pending.get(p.source.tabId) === p && !p.dismissed && p.expires > this.now() && !!session?.unlocked
       && session.profileId === p.session.profileId && session.generation === p.session.generation
-      && await this.deps.current(p.source) && this.pending.get(p.source.tabId) === p;
+      && await this.deps.current(p.source) && this.pending.get(p.source.tabId) === p && !p.dismissed;
   }
   async review() {
     const tab = await this.deps.activeTabId(); const p = tab === null ? undefined : this.pending.get(tab);
@@ -85,7 +94,7 @@ export class TotpCaptureCoordinator {
     const authorized = async () => {
       if (!(await this.valid(p))) return false;
       if (!(await this.deps.sourceMatches(p.source, p.totp))) {
-        if (this.pending.get(p.source.tabId) === p) { this.clearTab(p.source.tabId); this.deps.invalidated?.(); }
+        if (this.pending.get(p.source.tabId) === p && !p.dismissed) { this.clearTab(p.source.tabId); this.deps.invalidated?.(); }
         return false;
       }
       return this.valid(p);
@@ -99,7 +108,8 @@ export class TotpCaptureCoordinator {
     finally { p.saving = false; }
   }
   async dismiss(id: string): Promise<void> {
-    const tab = await this.deps.activeTabId(); if (tab !== null && this.pending.get(tab)?.id === id) this.clearTab(tab);
+    const tab = await this.deps.activeTabId(); const pending = tab === null ? undefined : this.pending.get(tab);
+    if (pending?.id === id) { pending.dismissed = true; pending.targets.clear(); pending.loaded = false; }
   }
 }
 

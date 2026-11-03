@@ -35,11 +35,12 @@ export function startTotpCapture(doc: Document, documentId: string, options: Opt
       await send({ channel: TOTP_CAPTURE_CHANNEL, type: 'invalidate', documentId, sequence: epoch }).catch(() => undefined);
       return values.length ? 'ambiguous' : 'empty';
     }
-    const result = await send({ channel: TOTP_CAPTURE_CHANNEL, type: 'observe', documentId, uri: values[0]!.uri, sequence: epoch }).catch(() => null);
+    const result = await send({ channel: TOTP_CAPTURE_CHANNEL, type: 'observe', documentId, uri: values[0]!.uri, sequence: epoch, manual }).catch(() => null);
     if (stopped || generation !== epoch) return 'empty';
     if (result && typeof result === 'object' && 'status' in result && result.status === 'accepted' && 'id' in result && typeof result.id === 'string') {
       candidateId = result.id; if (!manual) notice.show(false); return 'found';
     }
+    if (result && typeof result === 'object' && 'status' in result && result.status === 'dismissed') { candidateId = null; notice.hide(); }
     return 'empty';
   }
   const schedule = (invalidate = true) => {

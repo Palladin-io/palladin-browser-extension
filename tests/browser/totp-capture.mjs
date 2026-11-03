@@ -27,6 +27,7 @@ try {
   context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: true, viewport: { width: 1200, height: 850 }, locale: 'en-US',
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--remote-debugging-port=0'] })
   const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker'); const extensionId = new URL(worker.url()).host
+  await worker.evaluate(() => { globalThis.syntheticTotpObservations = 0; chrome.runtime.onMessage.addListener(message => { if (message.channel === 'palladin.totp-capture' && message.type === 'observe') globalThis.syntheticTotpObservations++; }); })
   await context.route('https://**/*', route => route.fulfill({ contentType: 'text/html', body: `<html><body><h1>Authenticator setup</h1>${route.request().url().includes('/blank') ? '' : `<a href="${uri}">Set up</a>`}</body></html>` }))
   const onboarding = context.pages().find(p => p.url().includes('/onboarding/')) ?? await context.waitForEvent('page', { predicate: p => p.url().includes('/onboarding/') })
   await onboarding.close(); popup = await openNativePopup(worker, profile, extensionId)
@@ -78,6 +79,13 @@ try {
   await page.evaluate(() => document.body.append(document.createElement('span')))
   await new Promise(resolve => setTimeout(resolve, 700))
   assert.equal(await popup.inputValue('section[aria-label="Save authenticator"] input'), 'Canvas draft', 'unrelated mutation preserves native draft')
+  const observationsBeforeCancel = await worker.evaluate(() => globalThis.syntheticTotpObservations)
+  await popup.click('Cancel'); await new Promise(resolve => setTimeout(resolve, 5_500))
+  assert((await worker.evaluate(() => globalThis.syntheticTotpObservations)) > observationsBeforeCancel, 'canvas poll actually ran after Cancel')
+  assert.equal(await popup.hasText('Save authenticator'), false, 'Cancel suppresses unchanged canvas proposal')
+  await popup.click('Scan QR on page'); await popup.waitText('Save authenticator')
+  await popup.select(selector, await popup.optionValue(selector, 1)); await popup.fill('section[aria-label="Save authenticator"] input', 'Canvas draft')
+
   await page.evaluate(() => { document.querySelector('canvas').getContext('2d').drawImage(globalThis.syntheticQrImages[1], 0, 0) })
   await popup.click('Save authenticator')
   await new Promise(resolve => setTimeout(resolve, 7_000)) // Outlast the icon resolver and its timeout before asserting no mutation.
@@ -101,5 +109,5 @@ try {
   assert(!storage.includes(seed) && !storage.includes(nextSeed) && !storage.includes(qr) && !storage.includes(originalQr))
   assert(await popup.webStorageExcludes([seed, nextSeed, qr, originalQr]))
   assert.deepEqual(api.errors, [])
-  console.log('PASS: synthetic URI create, locally decoded QR, confirmed replacement, manual no-result/ambiguity, canvas-only detection, stale pixel rejection, draft stability and storage exclusion')
+  console.log('PASS: synthetic URI create, locally decoded QR, confirmed replacement, manual no-result/ambiguity, canvas-only detection, cancel/poll/manual retry, stale pixel rejection, draft stability and storage exclusion')
 } finally { popup?.close(); await context?.close(); await api.close(); await rm(profile, { recursive: true, force: true }) }
