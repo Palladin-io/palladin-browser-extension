@@ -228,4 +228,32 @@ describe('federated sign-in controller', () => {
     expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'suggest' }));
     controller.stop();
   });
+
+  it('asks for suggestions again after unlocking a page that loaded locked', async () => {
+    vi.useFakeTimers();
+    const sendMessage = vi.fn(async (message: { type: string }) => message.type === 'suggest'
+      ? { status: 'suggestions', suggestions: [] } : { status: 'prompt', prompt: null });
+    vi.stubGlobal('chrome', {
+      runtime: { sendMessage },
+      storage: { onChanged: { addListener: vi.fn(), removeListener: vi.fn() }, local: { get: vi.fn(async () => ({})) } },
+      i18n: { getUILanguage: () => 'en' },
+    });
+    const hit = () => document.querySelector('button');
+    Object.assign(document, { elementFromPoint: hit, elementsFromPoint: () => [hit()].filter(Boolean) });
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      { left: 10, top: 10, width: 120, height: 32, right: 130, bottom: 42, x: 10, y: 10, toJSON: () => ({}) } as DOMRect);
+    Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, value: 1200 });
+    Object.defineProperty(document.documentElement, 'clientHeight', { configurable: true, value: 800 });
+    document.body.innerHTML = '<button>Continue with Google</button>';
+    const controller = startFederatedSignIn(document, DOCUMENT, () => false);
+    await vi.advanceTimersByTimeAsync(60_000);
+    const suggests = () => sendMessage.mock.calls.filter(([message]) => message.type === 'suggest').length;
+    const beforeUnlock = suggests();
+    expect(beforeUnlock).toBeGreaterThan(0);
+
+    controller.sessionChanged(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(suggests()).toBe(beforeUnlock + 1);
+    controller.stop();
+  });
 });

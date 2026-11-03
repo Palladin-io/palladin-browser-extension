@@ -381,7 +381,8 @@ export function startFederatedSignIn(doc: Document, documentId: string, isOtherO
     suggested = true;
     const result = await dispatch({ type: 'suggest' });
     if (result?.status === 'suggestions') surface.showSuggestions(result.suggestions);
-    else suggested = false;
+    // A locked Vault answers with no suggestions; unlocking must be able to ask again.
+    if (result?.status !== 'suggestions' || result.suggestions.length === 0) suggested = false;
   };
   const clicked = (event: MouseEvent) => {
     if (!event.isTrusted || !(event.target instanceof Element)) return;

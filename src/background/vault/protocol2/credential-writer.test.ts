@@ -418,6 +418,29 @@ describe('captured Credential canonical writer', () => {
       expect(sealedEpochs()).toEqual([2])
       expect(client.updateEntry).toHaveBeenCalledTimes(1)
     })
+    it('raises the floor from Vaults opened while preparing sign-in targets', async () => {
+      data.getMetadata.mockResolvedValue([])
+      client.getVault.mockResolvedValueOnce(projection(2))
+      await writer.signInTargets(url)
+      client.getVault.mockResolvedValueOnce(projection(1))
+
+      await expect(writer.saveSignIn(url, { action: 'create', vaultId: VAULT },
+        { provider: 'google', account: null, entry: null }, 'Sign-in method', authorized))
+        .rejects.toMatchObject({ code: 'decrypt-failed' })
+      expect(client.createEntry).not.toHaveBeenCalled()
+    })
+    it('rejects a replayed older epoch before sealing a new sign-in record', async () => {
+      client.getVault.mockResolvedValueOnce(projection(2))
+      await writer.save(registration, url, create, authorized)
+      client.getVault.mockResolvedValueOnce(projection(1))
+
+      await expect(writer.saveSignIn(url, { action: 'create', vaultId: VAULT },
+        { provider: 'google', account: null, entry: null }, 'Sign-in method', authorized))
+        .rejects.toMatchObject({ code: 'decrypt-failed' })
+      expect(cryptoMocks.openVaultProjection).toHaveBeenCalledTimes(1)
+      expect(sealedEpochs()).toEqual([2])
+      expect(client.createEntry).toHaveBeenCalledTimes(1)
+    })
     it('resets the floor on lock', async () => {
       client.getVault.mockResolvedValueOnce(projection(2))
       await writer.save(registration, url, create, authorized)

@@ -162,7 +162,8 @@ export class Protocol2CredentialWriter {
     const result: SignInTargets = { writable, vaults: [], credentials: [] }
     for (const listed of vaults) {
       const vault = await this.withAuth((token) => this.deps.client.getVault(token, listed.id))
-      const opened = await openVaultProjection(vault, privateKey, userId)
+      const opened = await this.deps.keyEpochFloor.observe(userId, vault,
+        () => openVaultProjection(vault, privateKey, userId))
       try {
         if (writable) result.vaults.push({ vaultId: vault.id, label: opened.metadata.name, isDefault: vault.isDefault === true })
         for (const entry of metadata.filter((candidate) => candidate.vaultId === vault.id
@@ -204,8 +205,10 @@ export class Protocol2CredentialWriter {
     const { privateKey, userId } = await this.context()
     if (!(await this.deps.canWrite()) || !(await stillAuthorized())) throw new VaultDataError('locked', 'Sign-in authorization changed')
     const vault = await this.withAuth((token) => this.deps.client.getVault(token, target.vaultId))
-    const opened = await openVaultProjection(vault, privateKey, userId)
+    const opened = await this.deps.keyEpochFloor.openForWrite(userId, vault,
+      () => openVaultProjection(vault, privateKey, userId))
     let discoveryKey: Uint8Array | undefined
+    const assertEpoch = () => this.deps.keyEpochFloor.assertCurrent(userId, vault)
     try {
       discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, opened.vaultKey)
       const entryId = await this.withAuth((token) => this.deps.client.issueEntryCreationChallenge(token, vault.id))
@@ -213,6 +216,7 @@ export class Protocol2CredentialWriter {
       const secret = withSignInBinding({ ...createCapturedCredentialSecret({ label: site.hostname, username: '',
         password: '', url: site.origin, urlDomain: site.hostname }), icon: icon ?? null }, binding, label)
       if (secret.entryType !== 'credential') throw new Error('Sign-in methods require a Credential')
+      assertEpoch()
       const material = await sealCanonicalCredentialEntry({ organizationId: vault.organizationId, vaultId: vault.id,
         entryId, revision: '1', vaultKeyVersion: vault.currentKeyEpoch.vaultKeyVersion,
         vdkVersion: vault.currentKeyEpoch.vdkVersion, memberKeyGeneration: vault.memberKeyGeneration,
@@ -220,6 +224,7 @@ export class Protocol2CredentialWriter {
       const created = await this.withAuth(async (token) => {
         if (this.deps.session.getPrivateKey() !== privateKey || await this.deps.session.getUserId() !== userId
           || !(await stillAuthorized())) throw new VaultDataError('locked', 'Sign-in authorization changed')
+        assertEpoch()
         return this.deps.client.createEntry(token, { vaultId: vault.id, entryId, ...material, deliveryPolicy: 'standard' })
       })
       void this.refreshAfterWrite()
