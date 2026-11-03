@@ -1,4 +1,4 @@
-import { parseCapturedTotp } from '@shared/totp-capture';
+import { capturedTotpIdentity, parseCapturedTotp } from '@shared/totp-capture';
 import type { CapturedTotp, TotpWriteTarget } from '../vault/protocol2/credential-writer';
 import type { SecretCaptureSource } from './secret-coordinator';
 
@@ -6,6 +6,7 @@ interface Session { profileId: string; generation: number; unlocked: boolean }
 interface Deps {
   session(): Promise<Session | null>;
   current(source: SecretCaptureSource): Promise<boolean>;
+  sourceMatches(source: SecretCaptureSource, expected: CapturedTotp): Promise<boolean>;
   activeTabId(): Promise<number | null>;
   choices(url: string): Promise<TotpWriteTarget[]>;
   save(totp: CapturedTotp, url: string, target: TotpWriteTarget, authorized: () => Promise<boolean>, create?: { label: string; username: string }): Promise<unknown>;
@@ -15,7 +16,7 @@ interface Deps {
 }
 interface Pending {
   id: string; source: SecretCaptureSource; session: Session; totp: CapturedTotp; expires: number;
-  targets: Map<string, TotpWriteTarget>; loaded: boolean; saving: boolean;
+  targets: Map<string, TotpWriteTarget>; loaded: boolean; loading: Promise<boolean> | null; saving: boolean;
 }
 export class TotpCaptureCoordinator {
   private readonly pending = new Map<number, Pending>();
@@ -39,10 +40,10 @@ export class TotpCaptureCoordinator {
     const totp: CapturedTotp = { ...parsed, digits: parsed.digits as 6 | 8, issuer: parsed.issuer ?? null, account: parsed.account ?? null };
     const existing = this.pending.get(source.tabId);
     if (existing && existing.expires > this.now() && existing.source.browserDocumentId === source.browserDocumentId
-      && existing.session.generation === session.generation && JSON.stringify(existing.totp) === JSON.stringify(totp)) return { status: 'accepted', id: existing.id };
+      && existing.session.generation === session.generation && capturedTotpIdentity(existing.totp) === capturedTotpIdentity(totp)) return { status: 'accepted', id: existing.id };
     if (this.pending.size >= 8 && !existing) this.clearTab(this.pending.keys().next().value!);
     this.clearTab(source.tabId);
-    const pending: Pending = { id: this.createId(), source, session, totp, expires: this.now() + 180_000, targets: new Map(), loaded: false, saving: false };
+    const pending: Pending = { id: this.createId(), source, session, totp, expires: this.now() + 180_000, targets: new Map(), loaded: false, loading: null, saving: false };
     this.pending.set(source.tabId, pending);
     const tabId = source.tabId, id = pending.id;
     this.timers.set(tabId, setTimeout(() => { if (this.pending.get(tabId)?.id === id) { this.clearTab(tabId); this.deps.invalidated?.(); } }, 180_000));
@@ -58,9 +59,14 @@ export class TotpCaptureCoordinator {
     const tab = await this.deps.activeTabId(); const p = tab === null ? undefined : this.pending.get(tab);
     if (!p || !(await this.valid(p))) return { status: 'empty' as const };
     if (!p.loaded) {
-      const targets = await this.deps.choices(p.source.url);
-      if (!(await this.valid(p))) return { status: 'empty' as const };
-      p.targets = new Map(targets.map(target => [this.createId(), target])); p.loaded = true;
+      if (!p.loading) p.loading = (async () => {
+        const targets = await this.deps.choices(p.source.url);
+        if (!(await this.valid(p))) return false;
+        p.targets = new Map(targets.map(target => [this.createId(), target])); p.loaded = true;
+        return true;
+      })();
+      try { if (!(await p.loading)) return { status: 'empty' as const }; }
+      finally { p.loading = null; }
     }
     const targets = [...p.targets].map(([id, target]) => ({ id, action: target.action, label: target.label,
       vaultLabel: target.vaultLabel, hasTotp: target.action === 'update' && target.hasTotp }));
@@ -76,8 +82,17 @@ export class TotpCaptureCoordinator {
     if (target.action === 'update' && target.hasTotp && !replace) return { status: 'confirmation-required' as const };
     if (target.action === 'create' && (!create || !create.label.trim() || create.label.length > 512 || create.username.length > 512)) return { status: 'invalid' as const };
     p.saving = true;
+    const authorized = async () => {
+      if (!(await this.valid(p))) return false;
+      if (!(await this.deps.sourceMatches(p.source, p.totp))) {
+        if (this.pending.get(p.source.tabId) === p) { this.clearTab(p.source.tabId); this.deps.invalidated?.(); }
+        return false;
+      }
+      return this.valid(p);
+    };
     try {
-      await this.deps.save(p.totp, p.source.url, target, () => this.valid(p), create);
+      if (!(await authorized())) return { status: 'stale' as const };
+      await this.deps.save(p.totp, p.source.url, target, authorized, create);
       if (this.pending.get(p.source.tabId) === p) this.clearTab(p.source.tabId);
       return { status: 'saved' as const };
     } catch { return await this.valid(p) ? { status: 'error' as const } : { status: 'stale' as const }; }

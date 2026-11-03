@@ -1,5 +1,5 @@
 import { startTotpCapture } from './totp-capture';
-import { TOTP_CAPTURE_CHANNEL } from '@shared/messaging/totp-capture';
+import { TOTP_CAPTURE_CHANNEL, isTotpVerificationRequest } from '@shared/messaging/totp-capture';
 import { startSecretCapture } from './secret-capture';
 import { isAgentFrameListRequest } from '@shared/messaging/agent-frame';
 import { agentLoginFrameAllowed, visibleLoginFrameUrls } from './agent-frame';
@@ -160,6 +160,10 @@ if (extensionBuildTarget === "firefox" && window === window.top && location.prot
 // written into the page's inputs but is NEVER forwarded to the main-world script
 // (see the Port relay below, which explicitly excludes fill traffic).
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (isTotpVerificationRequest(message)) {
+    sendResponse(_sender.id === chrome.runtime.id && _sender.tab === undefined && !!totpCapture && totpCapture.matches(message.expected));
+    return undefined;
+  }
   if (message && typeof message === 'object' && message.channel === TOTP_CAPTURE_CHANNEL && message.type === 'scan-page') {
     if (_sender.id !== chrome.runtime.id || _sender.tab !== undefined || !totpCapture) { sendResponse(false); return undefined; }
     void totpCapture.scan().then(sendResponse).catch(() => sendResponse(false)); return true;

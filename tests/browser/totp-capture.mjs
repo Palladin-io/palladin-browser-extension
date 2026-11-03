@@ -16,6 +16,7 @@ const profile = await mkdtemp(path.join(tmpdir(), 'palladin-totp-'))
 const seed = 'JBSWY3DPEHPK3PXP', nextSeed = 'KRSXG5DSNFXGOIDB'
 const uri = `otpauth://totp/Synthetic:alice?secret=${seed}&issuer=Synthetic`
 const qr = (await readFile('tests/browser/fixtures/totp-setup.png')).toString('base64')
+const originalQr = (await readFile('tests/browser/fixtures/totp-setup-original.png')).toString('base64')
 let context, popup
 const wait = async (check, label) => { const end = Date.now() + 12000; while (Date.now() < end) { if (await check()) return; await new Promise(r => setTimeout(r, 100)) } throw Error(`Timeout: ${label}`) }
 try {
@@ -61,6 +62,31 @@ try {
   await new Promise(resolve => setTimeout(resolve, 600)); popup = await openNativePopup(worker, profile, extensionId)
   await popup.click('Scan QR on page'); await popup.waitText('Multiple authenticator setups found.')
   assert.equal(api.writes.length, 2, 'ambiguous scan performs no write')
+  await popup.dismiss(); popup = null; await page.goto('https://canvas.capture.example.test/blank')
+  await page.evaluate(async ([firstQr, secondQr]) => {
+    const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 256; document.body.append(canvas)
+    const images = await Promise.all([firstQr, secondQr].map(encoded => new Promise((resolve, reject) => {
+      const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = `data:image/png;base64,${encoded}`
+    })))
+    globalThis.syntheticQrImages = images
+  }, [qr, originalQr])
+  await new Promise(resolve => setTimeout(resolve, 900))
+  await page.evaluate(() => { document.querySelector('canvas').getContext('2d').drawImage(globalThis.syntheticQrImages[0], 0, 0) })
+  await wait(() => page.locator('palladin-capture').count(), 'canvas-only automatic discovery')
+  popup = await openNativePopup(worker, profile, extensionId); await popup.waitText('Save authenticator')
+  await popup.select(selector, await popup.optionValue(selector, 1)); await popup.fill('section[aria-label="Save authenticator"] input', 'Canvas draft')
+  await page.evaluate(() => document.body.append(document.createElement('span')))
+  await new Promise(resolve => setTimeout(resolve, 700))
+  assert.equal(await popup.inputValue('section[aria-label="Save authenticator"] input'), 'Canvas draft', 'unrelated mutation preserves native draft')
+  await page.evaluate(() => { document.querySelector('canvas').getContext('2d').drawImage(globalThis.syntheticQrImages[1], 0, 0) })
+  await popup.click('Save authenticator')
+  await new Promise(resolve => setTimeout(resolve, 7_000)) // Outlast the icon resolver and its timeout before asserting no mutation.
+  assert.equal(api.writes.length, 2, 'pixel-only canvas change blocks stale save')
+  await popup.click('Scan QR on page'); await popup.waitText('Save authenticator')
+  await popup.select(selector, await popup.optionValue(selector, 1)); await popup.fill('section[aria-label="Save authenticator"] input', 'Canvas current')
+  await popup.click('Save authenticator'); await wait(() => api.writes.length === 3, 'unchanged current canvas can save')
+  const canvasSaved = await api.decrypt(api.writes[2]); assert.equal(canvasSaved.content.totp.secret, seed)
+
   const storage = JSON.stringify(await worker.evaluate(async () => {
     const stores = []
     for (const info of await indexedDB.databases()) {
@@ -72,8 +98,8 @@ try {
     }
     return [await chrome.storage.local.get(null), await chrome.storage.session.get(null), await chrome.storage.sync.get(null), stores]
   }))
-  assert(!storage.includes(seed) && !storage.includes(nextSeed) && !storage.includes(qr))
-  assert(await popup.webStorageExcludes([seed, nextSeed, qr]))
+  assert(!storage.includes(seed) && !storage.includes(nextSeed) && !storage.includes(qr) && !storage.includes(originalQr))
+  assert(await popup.webStorageExcludes([seed, nextSeed, qr, originalQr]))
   assert.deepEqual(api.errors, [])
-  console.log('PASS: synthetic URI create, locally decoded QR, confirmed replacement, manual no-result/ambiguity and storage exclusion')
+  console.log('PASS: synthetic URI create, locally decoded QR, confirmed replacement, manual no-result/ambiguity, canvas-only detection, stale pixel rejection, draft stability and storage exclusion')
 } finally { popup?.close(); await context?.close(); await api.close(); await rm(profile, { recursive: true, force: true }) }

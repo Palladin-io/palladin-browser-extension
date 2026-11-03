@@ -1,5 +1,7 @@
 import { TOTP_CAPTURE_CHANNEL, type TotpContentCommand } from '@shared/messaging/totp-capture';
-import { detectTotpUris, scanTotpQr } from './totp-detection';
+import { capturedTotpIdentity, parseCapturedTotp, type CapturedTotpIdentityFields } from '@shared/totp-capture';
+import type { TotpParams } from '@palladin/crypto';
+import { detectTotpUris, scanTotpQr, hasVisibleTotpCanvas } from './totp-detection';
 import { SecretCaptureNotice } from './secret-notice';
 interface Options {
   send?(command: TotpContentCommand): Promise<unknown>;
@@ -17,16 +19,23 @@ export function startTotpCapture(doc: Document, documentId: string, options: Opt
       await send({ channel: TOTP_CAPTURE_CHANNEL, type: 'invalidate', documentId, sequence: generation });
     } else await send({ channel: TOTP_CAPTURE_CHANNEL, type: 'open', documentId, id: candidateId });
   }, 'totp');
+  function configurations() {
+    const unique = new Map<string, { uri: string; params: TotpParams }>();
+    for (const uri of detect(doc).slice(0, 16)) {
+      const params = parseCapturedTotp(uri); if (params) unique.set(capturedTotpIdentity(params), { uri, params });
+    }
+    return [...unique.values()];
+  }
   async function scan(manual = false): Promise<'found' | 'empty' | 'ambiguous'> {
     if (stopped || dismissed && !manual) return 'empty';
     if (manual) { dismissed = false; generation++; }
-    const epoch = generation; const values = [...new Set(detect(doc))];
+    const epoch = generation; const values = configurations();
     if (values.length !== 1) {
       candidateId = null; notice.hide();
       await send({ channel: TOTP_CAPTURE_CHANNEL, type: 'invalidate', documentId, sequence: epoch }).catch(() => undefined);
       return values.length ? 'ambiguous' : 'empty';
     }
-    const result = await send({ channel: TOTP_CAPTURE_CHANNEL, type: 'observe', documentId, uri: values[0]!, sequence: epoch }).catch(() => null);
+    const result = await send({ channel: TOTP_CAPTURE_CHANNEL, type: 'observe', documentId, uri: values[0]!.uri, sequence: epoch }).catch(() => null);
     if (stopped || generation !== epoch) return 'empty';
     if (result && typeof result === 'object' && 'status' in result && result.status === 'accepted' && 'id' in result && typeof result.id === 'string') {
       candidateId = result.id; if (!manual) notice.show(false); return 'found';
@@ -36,8 +45,7 @@ export function startTotpCapture(doc: Document, documentId: string, options: Opt
   const schedule = (invalidate = true) => {
     generation++;
     if (invalidate) {
-      candidateId = null; notice.hide();
-      void send({ channel: TOTP_CAPTURE_CHANNEL, type: 'invalidate', documentId, sequence: generation }).catch(() => undefined);
+      void send({ channel: TOTP_CAPTURE_CHANNEL, type: 'advance', documentId, sequence: generation }).catch(() => undefined);
     }
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => { timer = undefined; void scan(); }, 350);
@@ -47,11 +55,16 @@ export function startTotpCapture(doc: Document, documentId: string, options: Opt
     return !!element && (!!element.closest('a,output,img,canvas') || !!element.querySelector('a[href^="otpauth:"],output,img,canvas'));
   };
   const observer = new MutationObserver(records => {
-    if (records.some(record => relevant(record.target) || [...record.addedNodes, ...record.removedNodes].some(relevant))) schedule();
+    if (records.some(record => record.type === 'childList'
+      ? [...record.addedNodes, ...record.removedNodes].some(relevant) || !!(record.target instanceof Element && record.target.closest('a,output,canvas'))
+      : relevant(record.target))) schedule();
   });
-  observer.observe(doc.body ?? doc.documentElement, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['src', 'href', 'hidden', 'style'] });
+  observer.observe(doc.body ?? doc.documentElement, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['src', 'href', 'hidden', 'style', 'class', 'aria-hidden'] });
   const onLoad = () => schedule();
   doc.addEventListener('load', onLoad, true);
   schedule(false);
-  return { scan: () => scan(true), isOwnedSurface: (element: Element) => notice.isOwnedSurface?.(element) ?? false, stop() { stopped = true; generation++; observer.disconnect(); doc.removeEventListener('load', onLoad, true); if (timer) clearTimeout(timer); candidateId = null; notice.stop(); } };
+  const canvasTimer = setInterval(() => { if (!stopped && !dismissed && doc.visibilityState !== 'hidden' && hasVisibleTotpCanvas(doc)) { generation++; void scan(); } }, 5_000);
+  return { scan: () => scan(true), matches: (expected: CapturedTotpIdentityFields) => {
+    const values = configurations(); return !stopped && values.length === 1 && capturedTotpIdentity(values[0]!.params) === capturedTotpIdentity(expected);
+  }, isOwnedSurface: (element: Element) => notice.isOwnedSurface?.(element) ?? false, stop() { stopped = true; generation++; observer.disconnect(); clearInterval(canvasTimer); doc.removeEventListener('load', onLoad, true); if (timer) clearTimeout(timer); candidateId = null; notice.stop(); } };
 }

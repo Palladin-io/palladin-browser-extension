@@ -21,3 +21,8 @@ export function parseCapturedTotp(value: string): TotpParams | null {
   } catch { return null; }
 }
 
+/** Canonical identity for in-memory comparison only; never expose or persist it. */
+export type CapturedTotpIdentityFields = Pick<TotpParams, 'secret' | 'algorithm' | 'digits' | 'period'> & { issuer?: string | null; account?: string | null };
+export function capturedTotpIdentity(value: CapturedTotpIdentityFields): string {
+  return JSON.stringify([value.secret.replace(/=+$/, ''), value.algorithm, value.digits, value.period, value.issuer ?? null, value.account ?? null]);
+}

@@ -24,6 +24,32 @@ it('invalidates an in-flight observation as soon as the rendered setup changes',
   const notice = { show: vi.fn(), hide: vi.fn(), stop: vi.fn() };
   const capture = startTotpCapture(document, 'document', { send, detect: () => [uri], notice });
   await vi.advanceTimersByTimeAsync(350); document.body.append(document.createElement('img'));
-  await Promise.resolve(); expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'invalidate' }));
+  await Promise.resolve(); expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'advance' }));
   finish({ status: 'accepted', id: 'old' }); await Promise.resolve(); expect(notice.show).not.toHaveBeenCalled(); capture.stop();
+});
+it('treats equivalent link and QR URIs as one setup', async () => {
+  const equivalent = 'otpauth://totp/Example%3Aalice?digits=6&period=30&secret=JBSWY3DPEHPK3PXP';
+  const send = vi.fn(async () => ({ status: 'accepted', id: 'candidate' }));
+  const capture = startTotpCapture(document, 'document', { send, detect: () => [uri, equivalent], notice: { show: vi.fn(), hide: vi.fn(), stop: vi.fn() } });
+  expect(await capture.scan()).toBe('found');
+  expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'observe' })); capture.stop();
+});
+it('keeps the pending proposal when unrelated body content changes', async () => {
+  vi.useFakeTimers(); document.body.innerHTML = `<a href="${uri}">setup</a>`;
+  const send = vi.fn(async () => ({ status: 'accepted', id: 'candidate' }));
+  const capture = startTotpCapture(document, 'document', { send, notice: { show: vi.fn(), hide: vi.fn(), stop: vi.fn() } });
+  await vi.advanceTimersByTimeAsync(400); send.mockClear();
+  document.body.append(document.createElement('span')); await vi.advanceTimersByTimeAsync(400);
+  expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'invalidate' })); capture.stop();
+});
+it.each(['class', 'aria-hidden'])('rescans when an ancestor changes %s visibility', async attribute => {
+  vi.useFakeTimers(); document.body.innerHTML = `<div><a href="${uri}">setup</a></div>`;
+  const send = vi.fn(async () => ({ status: 'accepted', id: 'candidate' }));
+  const capture = startTotpCapture(document, 'document', { send, notice: { show: vi.fn(), hide: vi.fn(), stop: vi.fn() } });
+  await vi.advanceTimersByTimeAsync(400); send.mockClear();
+  const parent = document.querySelector('div')!;
+  if (attribute === 'class') { const style = document.createElement('style'); style.textContent = '.concealed { display:none }'; document.head.append(style); parent.className = 'concealed'; }
+  else parent.setAttribute('aria-hidden', 'true');
+  await vi.advanceTimersByTimeAsync(400);
+  expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'invalidate' })); capture.stop();
 });

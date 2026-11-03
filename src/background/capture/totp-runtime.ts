@@ -3,6 +3,8 @@ import { initializeServerConfig, serverConfig } from '../config/server-runtime';
 import { sessionManager } from '../session/runtime';
 import { credentialWriter } from '../vault/runtime';
 import { currentSecretCaptureDocument, secretCaptureFrames } from './secret-runtime';
+import type { CapturedTotp } from '../vault/protocol2/credential-writer';
+import type { SecretCaptureSource } from './secret-coordinator';
 import { TotpCaptureCoordinator } from './totp-coordinator';
 let generation = 0;
 const observationSequences = new Map<number, { document: string; sequence: number }>();
@@ -13,6 +15,17 @@ export const totpCaptureCoordinator = new TotpCaptureCoordinator({
     return userId ? { profileId: `${serverConfig.apiUrl}:${userId}`, generation, unlocked: sessionManager.getKeys() !== null } : null;
   },
   current: currentSecretCaptureDocument,
+  sourceMatches: async (source: SecretCaptureSource, expected: CapturedTotp) => {
+    try {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const sequence = observationSequences.get(source.tabId);
+        const matches = await chrome.tabs.sendMessage(source.tabId,
+          { channel: TOTP_CAPTURE_CHANNEL, type: 'verify-page', expected }, { documentId: source.browserDocumentId });
+        if (sequence === observationSequences.get(source.tabId)) return matches === true;
+      }
+      return false;
+    } catch { return false; }
+  },
   invalidated: publishTotpInvalidation,
   activeTabId: async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id ?? null,
   choices: url => credentialWriter.totpChoices(url),
@@ -28,13 +41,14 @@ export async function handleTotpContent(command: TotpContentCommand, sender: chr
   const source = secretCaptureFrames.source(sender, chrome.runtime.id, command.documentId);
   if (generation !== expectedGeneration || !source || source.frameId !== 0) return { status: 'stale' as const };
   const document = `${source.browserDocumentId}:${source.documentId}`;
-  if (command.type === 'observe' || command.type === 'invalidate') {
+  if (command.type === 'observe' || command.type === 'invalidate' || command.type === 'advance') {
     const previous = observationSequences.get(source.tabId);
     if (previous?.document === document && command.sequence < previous.sequence) return { status: 'stale' as const };
     observationSequences.set(source.tabId, { document, sequence: command.sequence });
     const current = () => generation === expectedGeneration && observationSequences.get(source.tabId)?.document === document
       && observationSequences.get(source.tabId)?.sequence === command.sequence;
     if (!(await currentSecretCaptureDocument(source)) || !current()) return { status: 'stale' as const };
+    if (command.type === 'advance') return { status: 'advanced' as const };
     if (command.type === 'invalidate') { if (totpCaptureCoordinator.clearDocument(source.tabId, source.browserDocumentId)) publishTotpInvalidation(); return { status: 'dismissed' as const }; }
     return totpCaptureCoordinator.observe(command.uri, source, current);
   }

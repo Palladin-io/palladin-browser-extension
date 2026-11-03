@@ -48,3 +48,7 @@ export function scanTotpQr(doc: Document, decode: (pixels: Uint8ClampedArray, wi
 function decodeQr(pixels: Uint8ClampedArray, width: number, height: number): string | null {
   return jsQR(pixels, width, height, { inversionAttempts: 'attemptBoth' })?.data ?? null;
 }
+
+export function hasVisibleTotpCanvas(doc: Document): boolean {
+  return Array.from(doc.querySelectorAll('canvas')).slice(0, 32).some(canvas => canvas.width > 0 && canvas.height > 0 && canvas.width <= 8192 && canvas.height <= 8192 && visible(canvas));
+}
