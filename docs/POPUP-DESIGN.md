@@ -182,3 +182,7 @@ scoped Sharing overview.
 Entry details reuse the recent-activity preview, scoped by Vault and Entry.
 Show more is a quiet text action below the list (with keyboard focus styling),
 not a bordered button; it opens the dedicated Logs view for the same scope.
+
+Audit rows use the web panel's 3px semantic left border, colored with the existing
+event token in full Logs and embedded previews. Footer icon, label and version
+are vertically centered together; the label and version retain equal line-height.
