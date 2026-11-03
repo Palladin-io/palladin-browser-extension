@@ -63,7 +63,7 @@ export function SignInMethodField({
         {!editing ? null : (
           <span className="sign-in-method-form">
             <FilterSelect aria-label={t('signIn.provider')} value={provider} disabled={busy}
-              onChange={(event) => setProvider(event.target.value as SignInProvider)}>
+              onValueChange={(value) => setProvider(value as SignInProvider)}>
               {SIGN_IN_PROVIDERS.map((value) => <option key={value} value={value}>{SIGN_IN_PROVIDER_NAMES[value]}</option>)}
             </FilterSelect>
             <FormInput label={t('signIn.account')} placeholder={t('signIn.accountHint')} value={account} disabled={busy}

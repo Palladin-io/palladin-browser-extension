@@ -33,7 +33,8 @@ describe('sign-in method in the popup', () => {
   it('adds a provider with a trimmed optional account', async () => {
     const send = setup({ status: 'absent' });
     await userEvent.click(await screen.findByRole('button', { name: 'Remember a sign-in method' }));
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Provider' }), 'github');
+    await userEvent.click(screen.getByRole('combobox', { name: 'Provider' }));
+    await userEvent.click(screen.getByRole('option', { name: 'GitHub' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'Provider account' }), '  octo  ');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(send).toHaveBeenLastCalledWith({ type: 'workspace/sign-in', vaultId, entryId,
