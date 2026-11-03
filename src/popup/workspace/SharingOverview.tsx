@@ -128,17 +128,16 @@ export function SharingOverview({ client, vaultClient, entries, scope, onBack, o
         <div className="detail-field"><dt>{t('grant.expiresAt')}</dt><dd>{focused.share.expiresAt ? <RelativeTime value={focused.share.expiresAt} /> : t('grant.noExpiry')}</dd></div>
         <div className="detail-field"><dt>{t("share.sharedBy")}</dt><dd>{t("share.you")}</dd></div>
       </dl>
-      <div className="share-management-card"><div className="workspace-actions share-detail-actions">
+      {['active', 'locked', 'suspended', 'consumed'].includes(focused.share.status) ? <div className="share-management-card"><div className="workspace-actions share-detail-actions">
         {focusedEntry && focused.share.status === 'active' && ['none', 'password', 'pin'].includes(focused.share.protection) ? <Button variant="subtle" disabled={busy} onClick={() => { setEditing(focused.share); setSelected(focusedEntry); }}><PopupIcon name="edit" />{t('share.changeProtection')}</Button> : null}
         {['active', 'locked', 'suspended', 'consumed'].includes(focused.share.status) ? <Button variant="danger" disabled={busy} onClick={() => setRevoking(focused)}><PopupIcon name="denied" />{t('share.revoke')}</Button> : null}
-      {focusedEntry ? <Button variant="subtle" disabled={busy} title={t('share.entryLinks')} onClick={() => setSelected(focusedEntry)}>{t('share.allLinks')}</Button> : null}
       </div>
       {revoking?.share.shareId === focused.share.shareId ? <div className="share-revoke-confirm"><p>{t('share.revokeNotice')}</p><div className="workspace-actions">
         <Button variant="subtle" disabled={busy} onClick={() => setRevoking(null)}>{t('common.cancel')}</Button>
         <Button variant="danger" loading={busy} onClick={() => void revoke()}>{t('share.revoke')}</Button>
       </div></div> : null}
 
-      </div>
+      </div> : null}
       {onShowLogs ? <AuditPanel client={client} entries={entries} vaultId={focused.vaultId} entryId={focused.entryId}
         target={{ kind: 'share', id: focused.share.shareId, vaultId: focused.vaultId, entryId: focused.entryId }} preview
         onViewAll={() => onShowLogs?.({ kind: 'share', id: focused.share.shareId, vaultId: focused.vaultId, entryId: focused.entryId })} /> : null}

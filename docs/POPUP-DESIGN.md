@@ -165,10 +165,16 @@ with the exact date in a hover title. Shared by displays You because both share
 list endpoints return only links created by the authenticated user.
 
 Inbox and Sharing details include up to ten recent matching audit events using
-the same padded rows as Logs. Show more sits below the list only when it has
+the same padded rows as Logs. The heading and log list sit directly on the
+detail canvas without an additional outer card. Show more sits below the list only when it has
 more than ten matching events or the server reports another page. Matching requires the same Vault and exact grantId/shareId
 metadata; entry scope alone must not mix different grants or links. The current
 API has no grant/share filter, so previews inspect only the first cached page.
 An empty preview with older pages explains this limit. Dedicated Logs retains
 the target and offers explicit Load more, without automatically scanning all
 history. Global Logs clears that target and retains its usual pagination.
+
+Sharing detail actions contain only Change protection and Revoke link. The legacy
+All links action and its old list have been removed; unavailable actions do not
+leave an empty action card. Entry Sharing navigation still opens the current
+scoped Sharing overview.

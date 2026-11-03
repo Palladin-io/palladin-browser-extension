@@ -1,7 +1,6 @@
 import { FilterSelect } from '../components/FilterSelect';
 import { configuredPanelUrl } from '@shared/config/web-app';
 import { PopupIcon } from '../components/PopupIcon';
-import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { WorkspaceError } from './WorkspaceError';
 import { EntryIcon } from '../components/EntryIcon';
 import {
@@ -56,16 +55,13 @@ export function SharingPanel({
 }): React.JSX.Element {
   const formId = useId();
   const [creating, setCreating] = useState(initialCreate);
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const [entryKey, setEntryKey] = useState(
     initialEntry ? `${initialEntry.vaultId}:${initialEntry.id}` : '',
   );
   const entry = entries.find(
     (entry) => `${entry.vaultId}:${entry.id}` === entryKey,
   );
-  const [items, setItems] = useState<EntryShareListItem[]>([]);
-  const [loadingList, setLoadingList] = useState(false);
-  const [cursor, setCursor] = useState<string | null>(null);
   const [hours, setHours] = useState<1 | 24 | 72 | 168>(24);
   const [receipts, setReceipts] = useState('');
   const [named, setNamed] = useState(false);
@@ -86,50 +82,17 @@ export function SharingPanel({
   const [copyFailed, setCopyFailed] = useState(false);
   const [changing, setChanging] = useState<string | null>(null);
   const operations = useRef<string[]>([]);
-  const generation = useRef(0);
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
     return () => {
       alive.current = false;
-      generation.current++;
       for (const operationId of operations.current)
         void client
           .send({ type: 'workspace/discard-share', operationId })
           .catch(() => undefined);
     };
   }, [client]);
-  async function load(next?: string) {
-    if (!entry) return;
-    const revision = ++generation.current;
-    setLoadingList(true);
-    setError(false);
-    try {
-      const page = await client.send({
-        type: 'workspace/shares',
-        vaultId: entry.vaultId,
-        entryId: entry.id,
-        ...(next ? { cursor: next } : {}),
-      });
-      if (generation.current !== revision || !alive.current) return;
-      setItems((previous) =>
-        next
-          ? [
-              ...previous,
-              ...page.items.filter(
-                (row) => !previous.some((item) => item.shareId === row.shareId),
-              ),
-            ]
-          : page.items,
-      );
-      setCursor(page.nextCursor);
-    } catch (error) {
-      if (generation.current === revision && alive.current) setError(error);
-    } finally {
-      if (generation.current === revision && alive.current)
-        setLoadingList(false);
-    }
-  }
   function reset() {
     for (const operationId of operations.current)
       void client
@@ -148,15 +111,10 @@ export function SharingPanel({
   }
   useEffect(() => {
     reset();
-    setItems([]);
-    setCursor(null);
     if (initialProtectionShare) {
       setChanging(initialProtectionShare.shareId);
       setProtection(initialProtectionShare.protection as ShareProtection);
-    } else if (!creating) void load();
-    return () => {
-      generation.current++;
-    };
+    }
   }, [entryKey, client, creating, initialProtectionShare]);
   async function create() {
     if (!entry || busy) return;
@@ -230,24 +188,6 @@ export function SharingPanel({
       if (alive.current) setCopyFailed(true);
     }
   }
-  async function revoke(shareId: string) {
-    if (!entry) return;
-    setBusy(true);
-    setError(false);
-    try {
-      await client.send({
-        type: 'workspace/revoke-share',
-        vaultId: entry.vaultId,
-        entryId: entry.id,
-        shareId,
-      });
-      await load();
-    } catch (error) {
-      if (alive.current) setError(error);
-    } finally {
-      if (alive.current) setBusy(false);
-    }
-  }
   async function changeProtection() {
     if (!entry || !changing) return;
     if (
@@ -275,7 +215,6 @@ export function SharingPanel({
       setSecret('');
       setConfirmation('');
       if (initialProtectionShare && onClose) onClose();
-      else await load();
     } catch (error) {
       if (alive.current) setError(error);
     } finally {
@@ -512,70 +451,7 @@ export function SharingPanel({
             )}
           </form> : null}
           {error ? <WorkspaceError error={error} /> : null}
-          {!creating && !changing ? <>
-          <h3>{t('share.existing')}</h3>
-          {loadingList && !items.length ? <LoadingSkeleton /> : !items.length ? (
-            !error ? <p className="workspace-empty">{t('share.empty')}</p> : null
-          ) : (
-            items.map((item) => (
-              <article className="share-row" key={item.shareId}>
-                <div>
-                  <strong>{item.recipientEmail ?? t('share.anyone')}</strong>
-                  <p>
-                    {t('share.expires', {
-                      date: new Date(item.expiresAt).toLocaleString(locale),
-                    })}{' '}
-                    · {t('share.deliveries', { count: item.deliveryCount })}
-                  </p>
-                  <small>
-                    {t(shareStates[item.status] ?? 'share.unknownStatus')}
-                    {item.sourceChanged ? ` · ${t('share.sourceChanged')}` : ''}
-                  </small>
-                </div>
-                {['active', 'locked', 'suspended', 'consumed'].includes(
-                  item.status,
-                ) ? (
-                  <div className="workspace-actions">
-                    {item.status === 'active' ? (
-                      <Button
-                        variant="subtle"
-                        disabled={busy}
-                        onClick={() => {
-                          reset();
-                          setProtection(
-                            item.protection === 'pin' ||
-                              item.protection === 'password'
-                              ? item.protection
-                              : 'none',
-                          );
-                          setChanging(item.shareId);
-                        }}
-                      >
-                        {t('share.changeProtection')}
-                      </Button>
-                    ) : null}
-                    <Button
-                      variant="subtle"
-                      disabled={busy}
-                      onClick={() => void revoke(item.shareId)}
-                    >
-                      {t('share.revoke')}
-                    </Button>
-                  </div>
-                ) : null}
-              </article>
-            ))
-          )}
-          {cursor ? (
-            <Button
-              variant="subtle"
-              disabled={busy}
-              onClick={() => void load(cursor)}
-            >
-              {t('workspace.more')}
-            </Button>
-          ) : null}
-          </> : null}
+
         </>
       ) : (
         <p className="workspace-empty">{t('share.choose')}</p>
