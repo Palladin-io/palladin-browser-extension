@@ -1,3 +1,4 @@
+import { useWorkspaceListRevision } from './useWorkspaceListRevision';
 import { EntryScopeHeader } from '../components/EntryScopeHeader';
 import { EntryIcon } from '../components/EntryIcon';
 import { PopupIcon } from '../components/PopupIcon';
@@ -44,6 +45,7 @@ export function GrantsPanel({
   onBack?: (() => void) | undefined;
 }): React.JSX.Element {
   const { t, locale } = useI18n();
+  const listRevision = useWorkspaceListRevision(client, 'workspace/grants');
   const [items, setItems] = useState<OrgGrant[]>([]);
   const [status, setStatus] = useState<string[]>([]);
   const [cursor, setCursor] = useState<Record<string, string> | null>(null);
@@ -114,7 +116,7 @@ export function GrantsPanel({
   }, [client, status, entryId, vaultId]);
   useEffect(() => {
     void load(undefined, items.length > 0);
-  }, [client, status, entryId, vaultId, revision]);
+  }, [client, status, entryId, vaultId, revision, listRevision]);
   async function select(grant: OrgGrant) {
     setSelected(grant);
     setReview(null);
@@ -229,7 +231,7 @@ export function GrantsPanel({
               <option value="">{t('grant.all')}</option>
               {Object.entries(states).map(([value, key]) => <option key={value} value={value}>{t(key)}</option>)}
             </FilterSelect>)}
-            <RefreshButton busy={busy} onClick={() => void load()} />
+            <RefreshButton busy={busy} onClick={() => { client.invalidate?.(['workspace/grants'], false); void load(); }} />
           </div>
           <div className="grant-list">
           {items.map((grant) => (

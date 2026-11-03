@@ -59,6 +59,7 @@ it.each([true, false])('clears inherited loading after a quiet refresh supersede
   await screen.findByRole('button', { name: /Active agent/ });
   fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
   expect(screen.getByRole('button', { name: /Active agent/ })).toBeDisabled();
+  client.invalidate!(['workspace/grants'], false);
   rerender(<GrantsPanel client={client} revision={1} entries={[]} />);
   await act(async () => { finishQuiet(success ? page : { ok: false, code: 'network' }); });
   expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled();
@@ -167,4 +168,20 @@ it('preselects requested operations and keeps unrequested ones disabled in a col
   fireEvent.click(screen.getByText('Other operations'));
   expect(other.open).toBe(true);
   expect(screen.getByRole('checkbox', { name: /Get -/ })).toBeDisabled();
+});
+
+it('reuses the list when returning to Inbox and refreshes visible rows after invalidation', async () => {
+  const grant = { id: 'grant', vaultId: 'vault', agentName: 'Cached agent', status: 'active', type: 'full', createdAt: '2026-10-01T10:00:00Z' };
+  const send = vi.fn().mockResolvedValue({ ok: true, data: { items: [grant], nextCursor: null } });
+  const client = createWorkspaceClient(send);
+  const first = render(<GrantsPanel client={client} revision={0} entries={[]} />);
+  await screen.findByRole('button', { name: /Cached agent/ });
+  first.unmount();
+  render(<GrantsPanel client={client} revision={0} entries={[]} />);
+  await screen.findByRole('button', { name: /Cached agent/ });
+  expect(send).toHaveBeenCalledTimes(1);
+  send.mockResolvedValue({ ok: true, data: { items: [{ ...grant, agentName: 'Updated agent' }], nextCursor: null } });
+  act(() => client.invalidate!(['workspace/grants', 'workspace/audit']));
+  await screen.findByRole('button', { name: /Updated agent/ });
+  expect(send).toHaveBeenCalledTimes(2);
 });

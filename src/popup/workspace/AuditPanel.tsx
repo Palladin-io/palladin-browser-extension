@@ -1,3 +1,4 @@
+import { useWorkspaceListRevision } from './useWorkspaceListRevision';
 import { EntryScopeHeader } from '../components/EntryScopeHeader';
 import { FilterSelect } from '../components/FilterSelect';
 import { RefreshButton } from '../components/RefreshButton';
@@ -132,6 +133,7 @@ export function AuditPanel({
   onBack?: (() => void) | undefined;
 }): React.JSX.Element {
   const { t, locale } = useI18n();
+  const listRevision = useWorkspaceListRevision(client, 'workspace/audit');
   const [items, setItems] = useState<AuditLogItem[]>([]);
   const [members, setMembers] = useState<MemberIdentity[]>([]);
   const [cursor, setCursor] = useState<Record<string, string> | null>(null);
@@ -185,11 +187,11 @@ export function AuditPanel({
   useEffect(() => {
     setItems([]);
     setCursor(null);
-    void load();
     return () => {
       revision.current++;
     };
   }, [client, entryId, vaultId, filter]);
+  useEffect(() => { void load(); }, [client, entryId, vaultId, filter, listRevision]);
   useEffect(() => {
     const target = sentinel.current;
     if (!target || !cursor || busy || pageError || typeof IntersectionObserver === 'undefined') return;
@@ -217,7 +219,7 @@ export function AuditPanel({
             </option>
           ))}
         </FilterSelect>)}
-        <RefreshButton busy={busy} onClick={() => void load()} />
+        <RefreshButton busy={busy} onClick={() => { client.invalidate?.(['workspace/audit'], false); void load(); }} />
       </div>
       {error ? <WorkspaceError error={error} /> : null}
       {busy && !items.length ? (

@@ -1,3 +1,4 @@
+import { useWorkspaceListRevision } from './useWorkspaceListRevision';
 import { EntryScopeHeader } from '../components/EntryScopeHeader';
 import { FilterSelect } from '../components/FilterSelect';
 import { PopupIcon } from '../components/PopupIcon';
@@ -21,6 +22,7 @@ export function SharingOverview({ client, vaultClient, entries, scope, onBack }:
   onBack?: (() => void) | undefined;
 }) {
   const { t, locale } = useI18n();
+  const listRevision = useWorkspaceListRevision(client, scope ? 'workspace/shares' : 'workspace/my-shares');
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [status, setStatus] = useState<string[]>([]);
   const [rows, setRows] = useState<SharedEntry[]>([]);
@@ -64,9 +66,9 @@ export function SharingOverview({ client, vaultClient, entries, scope, onBack }:
     inFlight.current = false;
     setBusy(false); setRevoking(null);
     setRows([]); setCursor(null); setFocusedId(null); setSelected(null); setEditing(null);
-    void load();
     return () => { generation.current++; lifetime.current++; };
   }, [client, scope?.id, scope?.vaultId]);
+  useEffect(() => { inFlight.current = false; void load(); }, [client, scope?.id, scope?.vaultId, listRevision]);
   useEffect(() => {
     const target = sentinel.current;
     if (!target || !cursor || loading || error || selected || typeof IntersectionObserver === 'undefined') return;
@@ -88,7 +90,7 @@ export function SharingOverview({ client, vaultClient, entries, scope, onBack }:
         <option value="">{t('share.all')}</option>
         {Object.entries(shareStates).map(([value, key]) => <option key={value} value={value}>{t(key)}</option>)}
       </FilterSelect>)}
-      <RefreshButton busy={loading || busy} onClick={() => void load()} />
+      <RefreshButton busy={loading || busy} onClick={() => { client.invalidate?.(['workspace/shares', 'workspace/my-shares'], false); void load(); }} />
     </div>
     <div className="grant-list">
     {error ? <WorkspaceError error={error} /> : null}

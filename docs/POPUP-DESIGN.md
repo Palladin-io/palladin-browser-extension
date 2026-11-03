@@ -142,3 +142,19 @@ unlock form instead of clipping actions. The neutral contrast Login button is
 outlined with transparent fill and a subtle hover surface, not a solid inverse
 fill. Footer link/version share a 12px/18px baseline. Inbox/Sharing use one
 1px `--cv-border` master divider; the detail adds no second border.
+
+Inbox, Sharing and Logs cache list responses in the unlocked popup's
+WorkspaceClient for 60 seconds from successful completion. Switching tabs reuses
+fresh pages and coalesces concurrent identical reads; expiry is checked on the
+next read, without a new background polling timer. Cache keys include filters,
+Vault/Entry scope and cursor; the map is bounded to 100 pages and disappears
+with the unlocked popup. Secrets, decrypted reasons, approval previews and
+mutations are never cached by this mechanism.
+
+Worker realtime workspace notifications and changed grant summaries invalidate
+Inbox/Logs. Successful grant decisions invalidate Inbox/Logs; successful share
+creation, revocation or protection changes invalidate global/scoped Sharing and
+Logs. Mounted lists refresh while retaining existing rows. Manual Refresh
+bypasses freshness. Invalidation drops pending entries as well; their late
+responses cannot repopulate the cache. Authoritative mutation/review checks
+remain in the worker and backend.
