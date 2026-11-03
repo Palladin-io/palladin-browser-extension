@@ -1,3 +1,4 @@
+import { AuditPanel } from '../workspace/AuditPanel';
 import { SharingPanel } from '../workspace/SharingPanel';
 import { EntryFields } from '../workspace/EntryFields';
 import type { WorkspaceClient } from '../workspace/client';
@@ -18,11 +19,13 @@ export function EntryDetail({
   workspaceClient,
   onGrants,
   onLogs,
+  onShares,
 }: {
   entry: EntryMetadata;
   workspaceClient: WorkspaceClient;
   onGrants(): void;
   onLogs(): void;
+  onShares?(): void;
   client: VaultClient;
   onBack(): void;
 }): React.JSX.Element {
@@ -77,7 +80,7 @@ export function EntryDetail({
           {...(entry.color ? { color: entry.color } : {})}
         />
         <div className="detail-identity">
-          <h2>{entry.name}</h2>
+          <h2 title={entry.name}>{entry.name}</h2>
           <p>{entry.vaultName}</p>
         </div>
   </>;
@@ -87,10 +90,10 @@ export function EntryDetail({
         <PopupIcon name="back" />
         {t('common.back')}
       </button>
-      {!sharing ? <div className="detail-heading">
+      {!sharing ? <div className="detail-heading entry-identity-card">
         {identity}
         {(entry.type === 1 && entry.urlDomain) || entry.type === 3 ? (
-          <Button loading={busy} onClick={() => void fill()}>
+          <Button variant="contrast" loading={busy} onClick={() => void fill()}>
             {t(entry.type === 3 ? 'common.fill' : 'vault.logIn')}
           </Button>
         ) : null}
@@ -115,6 +118,11 @@ export function EntryDetail({
         {t('share.action')}
         <PopupIcon name="chevron" />
       </button>
+      {onShares ? <button className="detail-link" onClick={onShares}>
+        <PopupIcon name="share" />
+        {t('workspace.shares')}
+        <PopupIcon name="chevron" />
+      </button> : null}
       <button className="detail-link" onClick={onLogs}>
         <PopupIcon name="logs" />
         {t('workspace.logs')}
@@ -151,6 +159,7 @@ export function EntryDetail({
         </div>
       ) : null}
       </div>
+      {!sharing ? <AuditPanel client={workspaceClient} entries={[entry]} vaultId={entry.vaultId} entryId={entry.id} preview onViewAll={onLogs} /> : null}
       </div>
       {message ? (
         <p role="status" className="entry-status">

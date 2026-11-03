@@ -5,7 +5,7 @@ import type { ServerConfigClient } from "../config/client";
 
 import { loadPublicAssetPng } from "@shared/public-asset-image";
 
-const ApiUrlContext = createContext<string | null>(null);
+export const ApiUrlContext = createContext<string | null>(null);
 
 export function PublicAssetImages({ client, children }: {
   client: ServerConfigClient;

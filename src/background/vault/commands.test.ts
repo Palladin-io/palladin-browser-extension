@@ -868,3 +868,17 @@ describe("Entry deletion command boundary", () => {
     ]) expect(isVaultCommand(invalid)).toBe(false);
   });
 });
+
+
+describe('manual Entry presentation boundary', () => {
+  const entry = { entryType: 'key', label: 'Example', value: 'synthetic' };
+  it.each(['vpn_key', 'public-asset:11111111-1111-4111-8111-111111111111'])('accepts a supported icon %s', icon => {
+    expect(isVaultCommand({ type: 'vault/entry-save', entry: { ...entry, icon, color: '#60A5FA' } })).toBe(true);
+  });
+  it.each(['https://host.test/icon.png', 'data:image/svg+xml,test', 'blob:preview', '<svg/>', 'asset:other'])('rejects an unsupported icon %s', icon => {
+    expect(isVaultCommand({ type: 'vault/entry-save', entry: { ...entry, icon } })).toBe(false);
+  });
+  it.each(['red', 'url(https://host.test)', '#xyz123', 123])('rejects invalid color %s', color => {
+    expect(isVaultCommand({ type: 'vault/entry-save', entry: { ...entry, color } })).toBe(false);
+  });
+});

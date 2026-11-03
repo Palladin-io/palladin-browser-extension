@@ -29,6 +29,8 @@ export function usePendingGrants(client: WorkspaceClient): {
                 : null,
           );
           const nextSummary = JSON.stringify(summary);
+          if (!invalidate && previousSummary !== null && nextSummary !== previousSummary)
+            client.invalidate?.(['workspace/grants', 'workspace/audit']);
           if (invalidate || nextSummary !== previousSummary) setRevision((value) => value + 1);
           previousSummary = nextSummary;
         }
@@ -48,8 +50,10 @@ export function usePendingGrants(client: WorkspaceClient): {
         message !== null &&
         'type' in message &&
         message.type === 'workspace/changed'
-      )
+      ) {
+        client.invalidate?.(['workspace/grants', 'workspace/audit']);
         void refresh(true);
+      }
     };
     const messages =
       typeof chrome === 'undefined' ? undefined : chrome.runtime?.onMessage;

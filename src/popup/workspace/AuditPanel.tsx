@@ -1,3 +1,6 @@
+import { RelativeTime } from '../components/RelativeTime';
+import { useWorkspaceListRevision } from './useWorkspaceListRevision';
+import { EntryScopeHeader } from '../components/EntryScopeHeader';
 import { FilterSelect } from '../components/FilterSelect';
 import { RefreshButton } from '../components/RefreshButton';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
@@ -117,22 +120,34 @@ const eventKeys: Record<string, TranslationKey> = {
 const shorten = (id: string) =>
   id.length > 18 ? `${id.slice(0, 8)}…${id.slice(-6)}` : id;
 
+export interface AuditTarget { kind: "grant" | "share"; id: string; vaultId: string; entryId?: string | undefined }
+export function matchesAuditTarget(item: AuditLogItem, target: AuditTarget): boolean {
+  return item.vaultId === target.vaultId && item.metadata?.[target.kind === "grant" ? "grantId" : "shareId"] === target.id;
+}
+
 export function AuditPanel({
   client,
   entries,
   entryId,
   vaultId,
+  onBack,
+  target, preview = false, onViewAll,
 }: {
+  target?: AuditTarget | undefined;
+  preview?: boolean;
+  onViewAll?: (() => void) | undefined;
   client: WorkspaceClient;
   entries: readonly EntryMetadata[];
   entryId?: string | undefined;
   vaultId?: string | undefined;
+  onBack?: (() => void) | undefined;
 }): React.JSX.Element {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
+  const listRevision = useWorkspaceListRevision(client, 'workspace/audit');
   const [items, setItems] = useState<AuditLogItem[]>([]);
   const [members, setMembers] = useState<MemberIdentity[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [filter, setFilter] = useState('');
+  const [cursor, setCursor] = useState<Record<string, string> | null>(null);
+  const [filter, setFilter] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const revision = useRef(0);
@@ -145,7 +160,7 @@ export function AuditPanel({
     },
     [client],
   );
-  async function load(next?: string) {
+  async function load(next?: Record<string, string>) {
     if (next && inFlight.current) return;
     inFlight.current = true;
     setPageError(false);
@@ -153,29 +168,26 @@ export function AuditPanel({
     setBusy(true);
     setError(false);
     try {
-      const page = await client.send({
+      const keys = next ? Object.keys(next) : filter.length ? filter : [''];
+      const pages = await Promise.all(keys.map(async key => ({ key, page: await client.send({
         type: 'workspace/audit',
+        ...(key ? { eventType: key } : {}),
         ...(entryId ? { entryId } : {}),
         ...(vaultId ? { vaultId } : {}),
-        ...(filter ? { eventType: filter } : {}),
-        ...(next ? { cursor: next } : {}),
-      });
+        ...(next?.[key] ? { cursor: next[key] } : {}),
+      }) })));
+      const page = { items: pages.flatMap(result => result.page.items).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || a.id.localeCompare(b.id)) };
+      const nextCursors = Object.fromEntries(pages.flatMap(result => result.page.nextCursor ? [[result.key, result.page.nextCursor]] : []));
+
       const identities = await client.members(
         page.items.flatMap((item) => (item.userId ? [item.userId] : [])),
       );
       if (revision.current !== run) return;
       setMembers(identities);
-      setItems((previous) =>
-        next
-          ? [
-              ...previous,
-              ...page.items.filter(
-                (item) => !previous.some((row) => row.id === item.id),
-              ),
-            ]
-          : page.items,
-      );
-      setCursor(page.nextCursor);
+      setItems(previous => (next
+        ? [...previous, ...page.items.filter(item => !previous.some(row => row.id === item.id))]
+        : page.items).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || a.id.localeCompare(b.id)));
+      setCursor(Object.keys(nextCursors).length ? nextCursors : null);
     } catch (error) {
       if (revision.current === run) { setError(error); setPageError(Boolean(next)); }
     } finally {
@@ -185,12 +197,14 @@ export function AuditPanel({
   useEffect(() => {
     setItems([]);
     setCursor(null);
-    void load();
     return () => {
       revision.current++;
     };
-  }, [client, entryId, vaultId, filter]);
+  }, [client, entryId, vaultId, filter, target?.id, target?.kind]);
+  useEffect(() => { void load(); }, [client, entryId, vaultId, filter, listRevision, target?.id, target?.kind]);
+  const scoped = target !== undefined;
   useEffect(() => {
+    if (preview || scoped) return;
     const target = sentinel.current;
     if (!target || !cursor || busy || pageError || typeof IntersectionObserver === 'undefined') return;
     const observer = new IntersectionObserver(records => {
@@ -198,21 +212,19 @@ export function AuditPanel({
     }, { root: target.closest('.audit-panel'), rootMargin: '120px' });
     observer.observe(target);
     return () => observer.disconnect();
-  }, [cursor, busy, pageError]);
+  }, [cursor, busy, pageError, preview, scoped]);
+  const visibleItems = target ? items.filter(item => matchesAuditTarget(item, target)) : items;
   return (
     <section
-      className="workspace-panel audit-panel"
+      className={`workspace-panel audit-panel${preview ? " audit-preview" : ""}`}
       aria-label={t('workspace.logs')}
     >
-      <div className="workspace-heading">
-        <div>
-          <h2>{t('workspace.logs')}</h2>
-          <p>{t('audit.subtitle')}</p>
-        </div>
-        <FilterSelect
+      <div className="workspace-toolbar">
+        {preview ? <h3>{t("audit.recent")}</h3> : <>
+        {entryId || target ? <EntryScopeHeader entry={entries.find(entry => entry.id === entryId && entry.vaultId === vaultId)} onBack={onBack} /> : (<FilterSelect multiple
           aria-label={t('audit.filter')}
           value={filter}
-          onChange={(event) => setFilter(event.target.value)}
+          onValueChange={setFilter}
         >
           <option value="">{t('workspace.all')}</option>
           {Object.entries(eventKeys).map(([value, key]) => (
@@ -220,18 +232,20 @@ export function AuditPanel({
               {t(key)}
             </option>
           ))}
-        </FilterSelect>
-        <RefreshButton busy={busy} onClick={() => void load()} />
+        </FilterSelect>)}
+        <RefreshButton busy={busy} onClick={() => { client.invalidate?.(['workspace/audit'], false); void load(); }} />
+        </>}
       </div>
+      {!preview && target ? <p className="audit-context-label">{t(target.kind === 'grant' ? 'audit.scopeGrant' : 'audit.scopeShare')} · {shorten(target.id)}</p> : null}
       {error ? <WorkspaceError error={error} /> : null}
       {busy && !items.length ? (
         <LoadingSkeleton />
       ) : null}
-      {!busy && !error && !items.length ? (
-        <p className="workspace-empty">{t('audit.empty')}</p>
+      {!busy && !error && !visibleItems.length ? (
+        <p className="workspace-empty">{t(cursor && target ? 'audit.moreHistory' : 'audit.empty')}</p>
       ) : null}
       <div className="audit-list">
-        {items.map((item) => {
+        {(preview ? visibleItems.slice(0, 10) : visibleItems).map((item) => {
           const entry = entries.find(
             (entry) =>
               entry.id === item.entryId &&
@@ -265,10 +279,8 @@ export function AuditPanel({
                     ? t(eventKeys[item.eventType]!)
                     : t('audit.unknownEvent', { event: item.eventType })}
                 </p>
-                <time dateTime={item.createdAt}>
-                  {new Date(item.createdAt).toLocaleString(locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                </time></div>
-                <div className="audit-chips">
+                <RelativeTime value={item.createdAt} /></div>
+                <div className="audit-chips" hidden={preview}>
                   <span className="audit-type">{eventKeys[item.eventType] ? t(eventKeys[item.eventType]!) : t('audit.unknownEvent', { event: item.eventType })}</span>
                   {entry ? (
                     <span><PopupIcon name="key" />{entry.name}</span>
@@ -289,7 +301,8 @@ export function AuditPanel({
           );
         })}
       </div>
-      {cursor ? <div ref={sentinel} className="audit-sentinel">{busy ? <LoadingSkeleton /> : pageError ? <Button onClick={() => void load(cursor)}>{t('vault.retry')}</Button> : null}</div> : null}
+      {preview && (visibleItems.length > 10 || cursor) ? <div className="audit-preview-footer"><button type="button" className="audit-more-link" onClick={onViewAll}>{t("audit.viewAll")}</button></div> : null}
+      {cursor && !preview ? <div ref={sentinel} className="audit-sentinel">{busy ? <LoadingSkeleton /> : pageError ? <Button onClick={() => void load(cursor)}>{t('vault.retry')}</Button> : target ? <Button variant="subtle" onClick={() => void load(cursor)}>{t('workspace.more')}</Button> : null}</div> : null}
     </section>
   );
 }

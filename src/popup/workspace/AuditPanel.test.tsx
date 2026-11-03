@@ -51,3 +51,34 @@ it.each(['en', 'pl'] as const)('keeps unknown audit event identifiers visible in
   render(<I18nProvider locale={locale}><AuditPanel client={client} entries={[]} /></I18nProvider>);
   expect((await screen.findAllByText(`${locale === 'en' ? 'Other event' : 'Inne zdarzenie'}: vault.future-action`)).length).toBeGreaterThan(0);
 });
+
+it('previews only the selected link and opens its dedicated activity view', async () => {
+  const event = { eventType: 'entry-share.created', actorType: 'system', vaultId: 'vault', entryId: 'entry', createdAt: '2026-11-03T12:00:00Z' };
+  const send = vi.fn(async (command: WorkspaceCommand) => ({ ok: true as const, data: { items: command.type === 'workspace/members' ? [] : [
+    { ...event, id: 'other', metadata: { shareId: 'other-share' } },
+    ...Array.from({ length: 11 }, (_, i) => i).map(i => ({ ...event, id: `matching-${i}`, metadata: { shareId: 'selected-share' } })),
+  ], nextCursor: 'next' } }));
+  const onViewAll = vi.fn();
+  const { container } = render(<AuditPanel client={createWorkspaceClient(send)} entries={[]} entryId="entry" vaultId="vault"
+    preview target={{ kind: 'share', id: 'selected-share', vaultId: 'vault', entryId: 'entry' }} onViewAll={onViewAll} />);
+  await waitFor(() => expect(container.querySelectorAll('.audit-event')).toHaveLength(10));
+  expect(container.querySelector('time')).toHaveAttribute('title');
+  await act(async () => screen.getByRole('button', { name: 'Show more' }).click());
+  expect(onViewAll).toHaveBeenCalledOnce();
+  expect(send.mock.calls.filter(([command]) => command.type === 'workspace/audit')).toHaveLength(1);
+});
+
+it('does not present another grant history as the selected grant history', async () => {
+  const client = createWorkspaceClient(async () => ({ ok: true, data: { items: [{ id: 'other', eventType: 'grant.approved', actorType: 'system', vaultId: 'vault', metadata: { grantId: 'other' }, createdAt: '2026-11-03T12:00:00Z' }], nextCursor: 'older' } }));
+  const { container } = render(<AuditPanel client={client} entries={[]} vaultId="vault" target={{ kind: 'grant', id: 'chosen', vaultId: 'vault' }} />);
+  await screen.findByText(/No matching events in this part/);
+  expect(container.querySelectorAll('.audit-event')).toHaveLength(0);
+  expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument();
+});
+
+it('shows a complete short preview without a redundant navigation button', async () => {
+  const client = createWorkspaceClient(async () => ({ ok: true, data: { items: [{ id: 'event', eventType: 'grant.approved', actorType: 'system', vaultId: 'vault', metadata: { grantId: 'chosen' }, createdAt: '2026-11-03T12:00:00Z' }], nextCursor: null } }));
+  const { container } = render(<AuditPanel client={client} entries={[]} vaultId="vault" preview target={{ kind: 'grant', id: 'chosen', vaultId: 'vault' }} onViewAll={vi.fn()} />);
+  await waitFor(() => expect(container.querySelectorAll('.audit-event')).toHaveLength(1));
+  expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
+});

@@ -100,9 +100,9 @@ export function ServerSettings({
         />
         <FormInput label={t("settings.server.panelUrl")} type="url" value={webUrl} disabled={current === null || busy}
           onChange={event => { setWebUrl(event.target.value); setAllowHttp(false); }} />
-        <label className="field-label"><input type="checkbox" checked={enabled} disabled={busy}
+        <label className="settings-check"><input type="checkbox" checked={enabled} disabled={busy}
           onChange={event => setEnabled(event.target.checked)} /> {t("settings.server.sharedUnlock")}</label>
-        <label className="field-label"><input type="checkbox" checked={allowHttp} disabled={busy}
+        <label className="settings-check"><input type="checkbox" checked={allowHttp} disabled={busy}
           onChange={event => setAllowHttp(event.target.checked)} /> {t("settings.server.allowHttp")}</label>
         {(input.trim().startsWith("http:") || webUrl.trim().startsWith("http:")) &&
           <p className="settings-warning" role="note">{t("settings.server.httpWarning")}</p>}

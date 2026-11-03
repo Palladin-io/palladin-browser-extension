@@ -71,7 +71,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   // `userEvent.setup()` provides a working navigator.clipboard stub; the copy
   // test reads it back. We only need to stub chrome for the deep-link buttons.
-  Object.assign(globalThis, { chrome: { tabs: { create: vi.fn() }, runtime: { sendMessage: vi.fn(async (command: { type: string }) => command.type === 'config/connections/get' ? { ok: true, state: { connections: [], activeApiUrl: 'https://api.example.test' } } : command.type === 'workspace/detail'
+  Object.assign(globalThis, { chrome: { tabs: { create: vi.fn() }, runtime: { getManifest: () => ({ version: '0.1.3' }), sendMessage: vi.fn(async (command: { type: string }) => command.type === 'config/connections/get' ? { ok: true, state: { connections: [], activeApiUrl: 'https://api.example.test' } } : command.type === 'workspace/detail'
     ? { ok: true, data: { revision: '1', fields: [{ id: 'credential.username', label: '', type: 'text', value: 'ada@example.com' }, { id: 'credential.password', label: '', type: 'concealed', value: null }] } }
     : command.type === 'workspace/field' ? { ok: true, data: { value: 's3cr3t' } } : { ok: true }) } } });
 });
@@ -79,6 +79,32 @@ beforeEach(() => {
 const noop = async (): Promise<void> => {};
 
 describe("UnlockedScreen", () => {
+  it.each([
+    ['Agent access', 'Inbox', 'workspace/grants'],
+    ['Logs', 'Logs', 'workspace/audit'],
+    ['Sharing', 'Sharing', 'workspace/shares'],
+  ])('opens %s scoped to the selected Entry and clears scope from the main tab', async (action, tab, commandType) => {
+    const transport = vi.mocked(chrome.runtime.sendMessage).getMockImplementation()!;
+    vi.mocked(chrome.runtime.sendMessage).mockImplementation(async (...args) => {
+      const command = args[0] as { type?: string };
+      if (['workspace/grants', 'workspace/audit', 'workspace/members', 'workspace/shares', 'workspace/my-shares'].includes(command.type ?? '')) {
+        return { ok: true, data: { items: [], nextCursor: null } };
+      }
+      return transport(...args);
+    });
+    const user = userEvent.setup();
+    render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={makeClient()} captureClient={makeCaptureClient()} />);
+    await user.click(await screen.findByText('API token'));
+    await user.click(await screen.findByRole('button', { name: action }));
+    await waitFor(() => expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+      type: commandType, entryId: KEY.id, vaultId: KEY.vaultId,
+    }));
+    expect(screen.getByRole('tab', { name: tab })).toHaveAttribute('aria-selected', 'true');
+    vi.mocked(chrome.runtime.sendMessage).mockClear();
+    await user.click(screen.getByRole('tab', { name: tab }));
+    await waitFor(() => expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: commandType === 'workspace/shares' ? 'workspace/my-shares' : commandType }));
+  });
+
   it('keeps the acknowledged success until Done despite vault and pending invalidations', async () => {
     const pending = { id: '11111111-1111-4111-8111-111111111111', title: 'Shared login',
       entryType: 'credential', vaults: [{ id: '22222222-2222-4222-8222-222222222222', name: 'Personal' }] };
@@ -166,6 +192,7 @@ describe("UnlockedScreen", () => {
     expect(screen.getAllByText("Example login")).toHaveLength(1);
     expect(screen.getByText("API token")).toBeInTheDocument();
     expect(screen.getAllByText("Vault: Personal").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("Version 0.1.3")).toBeInTheDocument();
     expect(container.querySelector('img[src="https://assets.palladin.io/github.png"]')).not.toBeInTheDocument();
   });
 

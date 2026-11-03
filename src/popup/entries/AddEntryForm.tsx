@@ -1,3 +1,7 @@
+import { ENTRY_CREDENTIAL, ENTRY_KEY, ENTRY_SCRIPT, ENTRY_CREDIT_CARD } from '../vault/entry-type';
+import { EntryIconPicker } from '../components/EntryIconPicker';
+import { FilterSelect } from '../components/FilterSelect';
+import { PopupIcon } from '../components/PopupIcon';
 import { useState } from "react";
 
 import type {
@@ -31,8 +35,9 @@ const INITIAL = {
   notes: "",
 };
 
-export function AddEntryForm({ client, initialEntry, onSave, onSaved }: {
+export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack }: {
   readonly client: VaultClient;
+  readonly onBack?: (() => void) | undefined;
   readonly initialEntry?: ManualEntrySaveInput;
   readonly onSave?: (entry: ManualEntrySaveInput) => Promise<ManualEntrySaveResult>;
   readonly onSaved?: () => void;
@@ -41,6 +46,7 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved }: {
   const [entryType, setEntryType] = useState<EntryType>(initialEntry?.entryType ?? "credential");
   const [draft, setDraft] = useState(() => ({ ...INITIAL, ...initialEntry }));
   const [customFields, setCustomFields] = useState<ManualCustomFieldInput[]>([...(initialEntry?.customFields ?? [])]);
+  const [presentation, setPresentation] = useState<{ icon?: string; color?: string }>({});
   const [status, setStatus] = useState<SaveStatus>("idle");
 
   function update<K extends keyof typeof INITIAL>(field: K, value: (typeof INITIAL)[K]): void {
@@ -51,6 +57,7 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved }: {
   function changeType(next: EntryType): void {
     setEntryType(next);
     setDraft(INITIAL);
+    setPresentation({});
     setCustomFields([]);
     setStatus("idle");
   }
@@ -59,12 +66,13 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved }: {
     event.preventDefault();
     setStatus("saving");
     try {
-      const result = await (onSave ?? client.saveEntry)(toSaveInput(entryType, draft, customFields));
+      const result = await (onSave ?? client.saveEntry)({ ...toSaveInput(entryType, draft, customFields), ...presentation });
       if (result.status === "blocked") {
         setStatus("blocked");
         return;
       }
       setDraft(INITIAL);
+    setPresentation({});
       setCustomFields([]);
       setStatus("saved");
       onSaved?.();
@@ -75,22 +83,18 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved }: {
 
   return (
     <form className="entry-form" onSubmit={(event) => void submit(event)}>
-      <p className="entry-form-note">{t("entry.note")}</p>
-      <label>
-        <span className="field-label">{t("entry.type")}</span>
-        <select
-          className="field-input entry-form-select"
-          value={entryType}
-          disabled={initialEntry !== undefined}
-          onChange={(event) => changeType(event.target.value as EntryType)}
-        >
-          <option value="credential">{t("entry.typeCredential")}</option>
-          <option value="key">{t("entry.typeKey")}</option>
-          <option value="script">{t("entry.typeScript")}</option>
-          <option value="creditCard">{t("entry.typeCard")}</option>
-        </select>
-      </label>
-
+      <div className="entry-create-header">
+        {onBack ? <button type="button" className="link-btn" disabled={status === 'saving'} onClick={onBack}><PopupIcon name="back" />{t('common.back')}</button> : null}
+        <FilterSelect aria-label={t('entry.type')} value={entryType} disabled={status === 'saving' || initialEntry !== undefined} onValueChange={value => changeType(value as EntryType)}>
+          <option value="credential">{t('entry.typeCredential')}</option>
+          <option value="key">{t('entry.typeKey')}</option>
+          <option value="script">{t('entry.typeScript')}</option>
+          <option value="creditCard">{t('entry.typeCard')}</option>
+        </FilterSelect>
+      </div>
+      <div className="entry-create-scroll"><div className="entry-create-fields">
+      <div className="entry-create-name">
+      <EntryIconPicker value={presentation} onChange={setPresentation} disabled={status === "saving"} type={entryType === 'credential' ? ENTRY_CREDENTIAL : entryType === 'key' ? ENTRY_KEY : entryType === 'script' ? ENTRY_SCRIPT : ENTRY_CREDIT_CARD} />
       <EntryField
         label={t("entry.label")}
         value={draft.label}
@@ -98,10 +102,13 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved }: {
         required
         autoComplete="off"
       />
+      </div>
 
       {entryType === "credential" ? <>
+        <div className="entry-create-credentials">
         <EntryField label={t("entry.username")} value={draft.username} onChange={(value) => update("username", value)} autoComplete="username" maxLength={512} />
         <EntryField label={t("entry.password")} value={draft.password} onChange={(value) => update("password", value)} required autoComplete="new-password" type="password" maxLength={4096} />
+        </div>
         <EntryField label={t("entry.url")} value={draft.url} onChange={(value) => update("url", value)} autoComplete="url" type="url" maxLength={2048} placeholder="https://example.com" />
       </> : null}
 
@@ -135,9 +142,13 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved }: {
 
       <EntryTextArea label={t("entry.notes")} value={draft.notes} onChange={(value) => update("notes", value)} maxLength={4096} />
       <CustomFieldsEditor fields={customFields} onChange={setCustomFields} />
+      </div></div>
+      <div className="entry-create-footer">
+      {onBack ? <Button variant="subtle" disabled={status === 'saving'} onClick={onBack}>{t('common.cancel')}</Button> : null}
       <Button type="submit" loading={status === "saving"} disabled={status === "saving"}>
         {t("entry.save")}
       </Button>
+      </div>
       <p className="entry-form-status" role="status">{statusMessage(status, t)}</p>
     </form>
   );
