@@ -212,8 +212,10 @@ export class FederatedSignInCoordinator {
     const flow = this.flowForProviderTab(tabId) ?? this.flows.get(tabId);
     const chosen = flow?.chosen ?? null;
     if (flow?.phase !== 'provider' || chosen === null || chosen.provider !== flow.provider) return null;
+    // A referenced Credential whose username changed must not redirect the explicitly chosen account.
     const matches = chosen.entry !== null
-      ? candidates.filter((entry) => sameSignInEntry({ vaultId: entry.vaultId, entryId: entry.id }, chosen.entry))
+      ? candidates.filter((entry) => sameSignInEntry({ vaultId: entry.vaultId, entryId: entry.id }, chosen.entry)
+        && (chosen.account === null || sameSignInAccount(entry.username ?? null, chosen.account)))
       : chosen.account === null ? []
         : candidates.filter((entry) => sameSignInAccount(entry.username ?? null, chosen.account));
     return matches.length === 1 ? matches[0]! : null;

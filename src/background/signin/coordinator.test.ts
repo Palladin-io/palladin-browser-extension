@@ -352,6 +352,19 @@ describe('FederatedSignInCoordinator', () => {
     expect(h.coordinator.preferredProviderEntry(1, 'https://accounts.google.com/v3/signin/identifier', candidates)?.id).toBe('g-team');
   });
 
+  it('does not rank a referenced provider Credential whose account changed since it was remembered', async () => {
+    const chosenEntry = { vaultId: 'vault-2', entryId: 'g-team' };
+    const h = harness({ credentials: [credential('e1', { status: 'recognized', fieldId: 'custom:x',
+      binding: { provider: 'google', account: 'alice@corp.com', entry: chosenEntry } })] });
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    const suggested = await h.send({ type: 'suggest' });
+    await h.send({ type: 'choose', suggestionId: suggested.status === 'suggestions' ? suggested.suggestions[0]!.id : '' });
+    h.coordinator.documentConnected(1, 'https://accounts.google.com/v3/signin/identifier?client_id=x', undefined);
+    const candidates = [provider({ id: 'g-alice', username: 'alice@corp.com' }),
+      provider({ id: 'g-team', vaultId: 'vault-2', username: 'bob@corp.com' })];
+    expect(h.coordinator.preferredProviderEntry(1, 'https://accounts.google.com/v3/signin/identifier', candidates)).toBeNull();
+  });
+
   it('returns the same prompt to concurrent refreshes of one document', async () => {
     const h = harness({ metadata: [provider({ id: 'g1', username: 'alice@gmail.com' })] });
     h.coordinator.documentConnected(1, SERVICE, undefined);
