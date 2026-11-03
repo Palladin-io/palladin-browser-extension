@@ -340,3 +340,15 @@ it('does not restore account continuity when an earlier fill completes after loc
     expect(recency.preferred(sender.url!)).toBeNull();
   }
 });
+
+it('preserves each tab account through ordinary password and OTP lists', async () => {
+  const recency = new InMemoryInlineAutofillRecency();
+  const second = { ...entries[0]!, id: 'entry-2', name: 'Second', username: 'grace@example.com' };
+  const subject = deps({ recency, getMetadata: async () => [entries[0]!, second] });
+  const cmd = (entryId: string) => ({ channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', intent: 'manual', documentId, vaultId: 'vault-1', entryId, scope: 'exact', loginTargetId: 'login-1' });
+  const tab2 = { ...sender, tab: { id: 8, url: sender.url } } as chrome.runtime.MessageSender;
+  await handleInlineAutofillContentMessage(subject, cmd('entry-1'), sender, 'extension-id');
+  await handleInlineAutofillContentMessage(subject, cmd('entry-2'), tab2, 'extension-id');
+  const list = await handleInlineAutofillContentMessage(subject, { channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', documentId }, sender, 'extension-id');
+  expect(list).toMatchObject({ continuation: { vaultId: 'vault-1', entryId: 'entry-1' }, entries: [{ entryId: 'entry-1' }, { entryId: 'entry-2' }] });
+});

@@ -218,3 +218,118 @@ it('shows a chooser for each known OTP target when discovery is ambiguous', asyn
     expect(document.querySelectorAll<HTMLInputElement>('input')[0]!.value).toBe('');
   } finally { subject.stop(); shadow.mockRestore(); }
 });
+
+it.each(['scope', 'owner', 'url', 'value'])('rejects %s changes while OTP delivery is pending', async change => {
+  vi.stubGlobal('chrome', { storage: { local: { get: async () => ({}) } }, i18n: { getUILanguage: () => 'en' } });
+  document.body.innerHTML = `<form id="a"><fieldset><legend>Authenticator code</legend>${'<input maxlength="1">'.repeat(6)}</fieldset></form><form id="b"></form>`;
+  let deliver!: (command: Extract<InlineAutofillCommand, { type: 'inline/fill' }>) => void;
+  let subject: ReturnType<typeof startInlineAutofill>;
+  const send = async (command: InlineAutofillCommand) => {
+    if (command.type === 'inline/list') return { ok: true, kind: 'suggestions', status: 'ready', entries: [{ vaultId: 'v1', entryId: 'e1', name: 'Example', username: 'ada', vaultName: 'Personal', urlDomain: 'example.com', updatedAt: '2026-01-01T00:00:00Z', match: 'exact' }] };
+    if (command.type === 'inline/fill') await new Promise<void>(resolve => { deliver = cmd => {
+      const result = subject.performFillRequest({ channel: 'palladin.fill/request', documentId: 'a'.repeat(32), expectedOrigin: 'https://example.com', expectedDomain: 'example.com', submit: false, intent: cmd.intent, loginTargetId: cmd.loginTargetId, fields: [{ kind: 'totp', value: '123456', expiresAt: Date.now() + 10000, username: 'ada' }] });
+      expect(result.ok).toBe(false); resolve();
+    }; deliverCommand = command; });
+    return { ok: true, kind: 'fill', status: 'filled' };
+  };
+  let deliverCommand: Extract<InlineAutofillCommand, { type: 'inline/fill' }>;
+  const initialUrl = location.href;
+  subject = startInlineAutofill(document, 'a'.repeat(32), send);
+  try {
+    await vi.waitFor(() => expect(deliver).toBeDefined());
+    if (change === 'scope') document.querySelector('#b')!.append(document.querySelector('fieldset')!);
+    else if (change === 'owner') document.querySelector('input')!.setAttribute('form', 'b');
+    else if (change === 'url') history.pushState({}, '', '/other');
+    else document.querySelector('input')!.value = '7';
+    deliver(deliverCommand!);
+    expect(document.querySelectorAll<HTMLInputElement>('input')[1]!.value).toBe('');
+  } finally { history.replaceState({}, '', initialUrl); subject.stop(); }
+});
+
+it('does not switch account on a password stage when the remembered account is missing', async () => {
+  vi.stubGlobal('chrome', { storage: { local: { get: async () => ({}) } }, i18n: { getUILanguage: () => 'en' } });
+  document.body.innerHTML = '<form><input type="password"><button>Sign in</button></form>';
+  const send = vi.fn(async () => ({ ok: true, kind: 'suggestions', status: 'ready', continuation: { vaultId: 'v1', entryId: 'missing' }, entries: [{ vaultId: 'v1', entryId: 'other', name: 'Other', username: 'ada', vaultName: 'Personal', urlDomain: 'example.com', updatedAt: '2026-01-01T00:00:00Z', match: 'exact' }] }));
+  const subject = startInlineAutofill(document, 'a'.repeat(32), send);
+  try { await new Promise(resolve => setTimeout(resolve, 200)); expect(send.mock.calls).toHaveLength(1); }
+  finally { subject.stop(); }
+});
+
+it.each(['manual-first', 'automatic-first'])('manual OTP selection wins over an older automatic lookup (%s)', async order => {
+  vi.stubGlobal('chrome', { storage: { local: { get: async () => ({}) } }, i18n: { getUILanguage: () => 'en' } });
+  const native = Element.prototype.attachShadow;
+  const shadow = vi.spyOn(Element.prototype, 'attachShadow').mockImplementation(function (this: Element, init) { return native.call(this, { ...init, mode: 'open' }); });
+  document.body.innerHTML = '<form><input autocomplete="one-time-code"></form>';
+  const entries = ['first', 'second'].map(id => ({ vaultId: 'v1', entryId: id, name: id, username: id, vaultName: 'Personal', urlDomain: 'example.com', updatedAt: '2026-01-01T00:00:00Z', match: 'exact' as const }));
+  let releaseList!: () => void;
+  const blocked = new Promise<void>(resolve => { releaseList = resolve; });
+  let lists = 0;
+  const fills: Extract<InlineAutofillCommand, { type: 'inline/fill' }>[] = [];
+  const releases: (() => void)[] = [];
+  let subject: ReturnType<typeof startInlineAutofill>;
+  const send = async (command: InlineAutofillCommand) => {
+    if (command.type === 'inline/list') { if (++lists === 1) await blocked; return { ok: true, kind: 'suggestions', status: 'ready', entries }; }
+    if (command.type === 'inline/fill') { fills.push(command); await new Promise<void>(resolve => releases.push(resolve)); }
+    return { ok: true, kind: 'fill', status: 'filled' };
+  };
+  subject = startInlineAutofill(document, 'a'.repeat(32), send);
+  try {
+    const root = document.querySelector('palladin-autofill')!.shadowRoot!;
+    root.querySelector<HTMLButtonElement>('.launcher')!.click();
+    await vi.waitFor(() => expect(root.querySelectorAll('.option')).toHaveLength(2));
+    if (order === 'automatic-first') { releaseList(); await vi.waitFor(() => expect(fills).toHaveLength(1)); }
+    root.querySelectorAll<HTMLButtonElement>('.option')[1]!.click();
+    await vi.waitFor(() => expect(fills.some(item => item.intent === 'manual')).toBe(true));
+    if (order === 'manual-first') { releaseList(); await new Promise(resolve => setTimeout(resolve, 50)); expect(fills).toHaveLength(1); }
+    const manual = fills.find(item => item.intent === 'manual')!;
+    const old = fills.find(item => item.intent === 'automatic');
+    const request = (item: typeof manual) => ({ channel: 'palladin.fill/request' as const, documentId: 'a'.repeat(32), expectedOrigin: 'https://example.com', expectedDomain: 'example.com', submit: false, intent: item.intent, loginTargetId: item.loginTargetId, fields: [{ kind: 'totp' as const, value: '123456', expiresAt: Date.now() + 10000, username: item.entryId }] });
+    if (old) expect(subject.performFillRequest(request(old)).ok).toBe(false);
+    expect(subject.performFillRequest(request(manual)).ok).toBe(true);
+  } finally { releaseList(); releases.forEach(resolve => resolve()); subject.stop(); shadow.mockRestore(); }
+});
+
+it.each(['second-choice', 'user-edit'])('binds manual OTP replacement to the latest choice and original values (%s)', async scenario => {
+  vi.stubGlobal('chrome', { storage: { local: { get: async () => ({}) } }, i18n: { getUILanguage: () => 'en' } });
+  const native = Element.prototype.attachShadow;
+  const shadow = vi.spyOn(Element.prototype, 'attachShadow').mockImplementation(function (this: Element, init) { return native.call(this, { ...init, mode: 'open' }); });
+  document.body.innerHTML = '<form><input autocomplete="one-time-code" value="111111"></form>';
+  const entries = ['first', 'second'].map(id => ({ vaultId: 'v1', entryId: id, name: id, username: id, vaultName: 'Personal', urlDomain: 'example.com', updatedAt: '2026-01-01T00:00:00Z', match: 'exact' as const }));
+  const fills: Extract<InlineAutofillCommand, { type: 'inline/fill' }>[] = [];
+  const releases: (() => void)[] = [];
+  const send = async (command: InlineAutofillCommand) => {
+    if (command.type === 'inline/list') return { ok: true, kind: 'suggestions', status: 'ready', entries };
+    if (command.type === 'inline/fill') { fills.push(command); await new Promise<void>(resolve => releases.push(resolve)); }
+    return { ok: true, kind: 'fill', status: 'filled' };
+  };
+  const subject = startInlineAutofill(document, 'a'.repeat(32), send);
+  try {
+    const root = document.querySelector('palladin-autofill')!.shadowRoot!;
+    const choose = async (index: number) => { root.querySelector<HTMLButtonElement>('.launcher')!.click(); await vi.waitFor(() => expect(root.querySelectorAll('.option')).toHaveLength(2)); root.querySelectorAll<HTMLButtonElement>('.option')[index]!.click(); };
+    await choose(0); await vi.waitFor(() => expect(fills).toHaveLength(1));
+    if (scenario === 'second-choice') { await choose(1); await vi.waitFor(() => expect(fills).toHaveLength(2)); }
+    else document.querySelector('input')!.value = '222222';
+    const request = (item: typeof fills[number]) => ({ channel: 'palladin.fill/request' as const, documentId: 'a'.repeat(32), expectedOrigin: 'https://example.com', expectedDomain: 'example.com', submit: false, intent: item.intent, loginTargetId: item.loginTargetId, fields: [{ kind: 'totp' as const, value: '123456', expiresAt: Date.now() + 10000, username: item.entryId }] });
+    expect(subject.performFillRequest(request(fills[0]!)).ok).toBe(false);
+    if (scenario === 'second-choice') { expect(subject.performFillRequest(request(fills[1]!)).ok).toBe(true); expect(document.querySelector('input')!.value).toBe('123456'); }
+    else expect(document.querySelector('input')!.value).toBe('222222');
+  } finally { releases.forEach(resolve => resolve()); subject.stop(); shadow.mockRestore(); }
+});
+
+it('stops a split OTP write if session lock occurs in an input handler', async () => {
+  vi.stubGlobal('chrome', { storage: { local: { get: async () => ({}) } }, i18n: { getUILanguage: () => 'en' } });
+  document.body.innerHTML = `<form><fieldset><legend>Authenticator code</legend>${'<input maxlength="1">'.repeat(6)}</fieldset></form>`;
+  let subject: ReturnType<typeof startInlineAutofill>;
+  const send = async (command: InlineAutofillCommand) => {
+    if (command.type === 'inline/list') return { ok: true, kind: 'suggestions', status: 'ready', entries: [{ vaultId: 'v1', entryId: 'e1', name: 'Example', username: 'ada', vaultName: 'Personal', urlDomain: 'example.com', updatedAt: '2026-01-01T00:00:00Z', match: 'exact' }] };
+    if (command.type === 'inline/fill') {
+      const outcome = subject.performFillRequest({ channel: 'palladin.fill/request', documentId: 'a'.repeat(32), expectedOrigin: 'https://example.com', expectedDomain: 'example.com', submit: false, intent: command.intent, loginTargetId: command.loginTargetId, fields: [{ kind: 'totp', value: '123456', expiresAt: Date.now() + 10000, username: 'ada' }] });
+      expect(outcome.ok).toBe(false);
+    }
+    return { ok: true, kind: 'fill', status: 'blocked' };
+  };
+  document.querySelector('input')!.addEventListener('input', () => subject.handleSessionChanged('locked'));
+  subject = startInlineAutofill(document, 'a'.repeat(32), send);
+  try { await vi.waitFor(() => expect(document.querySelectorAll<HTMLInputElement>('input')[0]!.value).toBe('1')); expect(document.querySelectorAll<HTMLInputElement>('input')[1]!.value).toBe(''); }
+  finally { subject.stop(); }
+});

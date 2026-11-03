@@ -20,7 +20,7 @@ import {
   type InlineAutofillCommand,
   type InlineAutofillSuggestion,
 } from "@shared/messaging";
-import { discoverTotpTargets, fillTotp, isCurrentTotpTarget } from './totp-target';
+import { bindTotpTarget, discoverTotpTargets, fillTotp, isCurrentTotpTarget, type TotpBinding } from './totp-target';
 import { matchesTab } from '@shared/security/domain';
 import { composedForm, queryOpenElements } from "./open-dom";
 import { extensionBuildTarget, type ExtensionBuildTarget } from "@shared/config/build-target";
@@ -160,7 +160,7 @@ class InlineAutofillController {
   private attemptedTotp = new WeakSet<HTMLInputElement>();
   private totpGeneration = 0;
   private readonly totpSurfaces = new Map<HTMLInputElement, { host: HTMLElement; panel: HTMLElement; button: HTMLButtonElement; target: HTMLInputElement[] }>();
-  private totpPending: { id: string; target: HTMLInputElement[]; url: string; parents: (Element | null)[]; intent: "automatic" | "manual" } | null = null;
+  private totpPending: { id: string; target: HTMLInputElement[]; url: string; binding: TotpBinding; intent: "automatic" | "manual" } | null = null;
   private readonly widgets = new Map<HTMLInputElement, InlineWidget>();
   private observer: MutationObserver | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -345,14 +345,15 @@ class InlineAutofillController {
     const otp = request.fields.find(field => field.kind === 'totp');
     if (otp) {
       const pending = this.totpPending;
-      this.totpPending = null;
       if (!pending || pending.id !== request.loginTargetId || request.documentId !== this.documentId
         || pending.url !== this.doc.location.href || this.doc.location.origin !== request.expectedOrigin
         || request.expectedDomain === null || !matchesTab(pending.url, request.expectedDomain)
-        || pending.target.some((input, index) => input.parentElement !== pending.parents[index] || !isFillable(input))
+        || !pending.binding.current()
         || pending.intent !== request.intent || typeof otp.expiresAt !== 'number' || typeof otp.username !== 'string') return { ok: false, reason: 'target-changed' };
-      return fillTotp(this.doc, pending.target, otp.value, otp.expiresAt, otp.username, pending.intent === 'manual')
-        ? { ok: true } : { ok: false, reason: 'target-changed' };
+      const outcome = fillTotp(this.doc, pending.target, otp.value, otp.expiresAt, otp.username, pending.intent === 'manual', pending.binding,
+        () => this.totpPending === pending && !this.stopped);
+      if (this.totpPending === pending) this.totpPending = null;
+      return outcome ? { ok: true } : { ok: false, reason: 'target-changed' };
     }
     const target = request.loginTargetId === null ? null : this.resolveLoginTarget(request.loginTargetId);
     const outcome = performBoundFill(this.doc, request, this.doc.location.href, this.documentId, target, () => {
@@ -556,21 +557,23 @@ class InlineAutofillController {
   private async autoFillTotp(target: HTMLInputElement[]): Promise<void> {
     const generation = this.totpGeneration;
     const url = this.doc.location.href;
-    if (target.some(input => input.value !== '')) return;
+    const binding = bindTotpTarget(this.doc, target);
+    if (!binding || target.some(input => input.value !== '')) return;
     const raw = await this.send({ channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', documentId: this.documentId, purpose: 'totp' }).catch(() => null);
-    if (this.stopped || generation !== this.totpGeneration || this.doc.location.href !== url
-      || !isCurrentTotpTarget(this.doc, target) || target.some(input => input.value !== '')
+    if (this.stopped || generation !== this.totpGeneration || this.totpPending?.intent === 'manual' || this.doc.location.href !== url
+      || !binding.current() || !isCurrentTotpTarget(this.doc, target) || target.some(input => input.value !== '')
       || !isInlineAutofillResult(raw) || !raw.ok || raw.kind !== 'suggestions' || raw.status !== 'ready') return;
     const entry = raw.entries.find(item => item.match === 'exact' && (raw.continuation === undefined
       || (item.vaultId === raw.continuation.vaultId && item.entryId === raw.continuation.entryId)));
     if (!entry) return;
     this.automaticTotpUrl = url;
-    await this.sendTotp(target, entry, 'automatic');
+    await this.sendTotp(target, entry, 'automatic', binding);
   }
 
-  private async sendTotp(target: HTMLInputElement[], entry: InlineAutofillSuggestion, intent: 'automatic' | 'manual'): Promise<void> {
+  private async sendTotp(target: HTMLInputElement[], entry: InlineAutofillSuggestion, intent: 'automatic' | 'manual', binding = bindTotpTarget(this.doc, target)): Promise<void> {
+    if (!binding || !binding.current()) return;
     const id = `otp-${this.nextLoginTargetId++}`;
-    const pending = { id, target, intent, url: this.doc.location.href, parents: target.map(input => input.parentElement) };
+    const pending = { id, target, intent, url: binding.url, binding };
     this.totpPending = pending;
     try {
       await this.send({ channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', purpose: 'totp', intent,
@@ -605,7 +608,10 @@ class InlineAutofillController {
         const detail = this.doc.createElement('small'); detail.textContent = suggestionDetail(entry, this.locale); text.append(detail);
         const icon = this.doc.createElement('span'); icon.className = 'entry-icon'; icon.setAttribute('aria-hidden', 'true'); icon.append(createCredentialIcon(this.doc));
         option.append(icon, text);
-        option.addEventListener('click', () => { panel.hidden = true; void this.sendTotp(target, entry, 'manual'); });
+        option.addEventListener('click', () => {
+          this.totpGeneration++; this.totpPending = null;
+          panel.hidden = true; void this.sendTotp(target, entry, 'manual');
+        });
         list.append(option);
       }
       panel.replaceChildren(createInlineTitle(this.doc, this.locale), list); panel.hidden = false;
@@ -946,6 +952,7 @@ class InlineWidget {
       }
       if (raw.status !== "ready") return;
       const preferredExact = raw.entries.find((entry) => entry.match === "exact"
+        && (raw.continuation === undefined || (entry.vaultId === raw.continuation.vaultId && entry.entryId === raw.continuation.entryId))
         && (continuation === undefined || (entry.entryId === continuation.entryId
           && entry.vaultId === continuation.vaultId && entry.username === continuation.username)));
       if (preferredExact !== undefined) {

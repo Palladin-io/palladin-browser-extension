@@ -116,7 +116,7 @@ export async function handleInlineAutofillContentMessage(
       const exact = searchEntries(entriesForTab(metadata, source.url), "")
         .filter((entry) => entry.type === ENTRY_TYPE_CREDENTIAL && entry.urlDomain)
         .map((entry) => ({ entry, match: "exact" as const }));
-      const continuation = raw.purpose === "totp" ? deps.recency?.preferredForTab?.(source.id, source.url) ?? null : null;
+      const continuation = deps.recency?.preferredForTab?.(source.id, source.url) ?? null;
       const preferred = continuation ?? deps.recency?.preferred(source.url) ?? null;
       if (preferred !== null) {
         exact.sort((left, right) => Number(

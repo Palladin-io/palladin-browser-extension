@@ -21,7 +21,7 @@ try {
   const entryId = randomUUID();
   const secret = { schema: 'palladin.member-secret.v1', entryType: 'credential', memberLabel: name,
     agentLabel: null, discoverable: false, description: null, icon: null, color: null, agentFieldAccess: { memberLabel: 'never', agentLabel: 'never', description: 'never', icon: 'never', color: 'never', entryType: 'never', 'credential.username': 'never', 'credential.password': 'never', 'credential.url': 'never', 'credential.urlDomain': 'never', 'credential.totp': 'never', notes: 'never' },
-    content: { username, password: 'synthetic-password', url: 'https://totp.example.test/login',
+    content: { username, password: `synthetic-${name}-password`, url: 'https://totp.example.test/login',
       urlDomain: 'totp.example.test', totp: { secret: seed, algorithm: 'SHA1', digits: 6, period: 30, issuer: null, account: null }, notes: null, customFields: [] } };
   const material = await crypto.sealCanonicalEntry({ organizationId: vault.detail.organizationId, vaultId: vault.detail.id,
     entryId, revision: '1', vaultKeyVersion: 1, vdkVersion: 1, memberKeyGeneration: 1 }, secret, vault.vaultKey, vault.discoveryKey, 1);
@@ -40,7 +40,8 @@ try {
     viewport: { width: 1200, height: 850 }, args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--remote-debugging-port=0'] });
   await context.route('https://totp.example.test/**', route => {
     const pagePath = new URL(route.request().url()).pathname;
-    const content = pagePath === '/identifier' ? '<input autocomplete="username"><button>Next</button>'
+    const content = pagePath === '/mutate' || pagePath === '/push' ? `<fieldset><legend>Authenticator code</legend>${'<input maxlength="1">'.repeat(6)}</fieldset><script>document.querySelector('input').addEventListener('input', () => { if (location.pathname === '/push') history.pushState({}, '', '/changed'); else document.querySelector('form').after(document.querySelector('fieldset')); }, { once: true });</script>`
+      : pagePath === '/identifier' ? '<input autocomplete="username"><button>Next</button>'
       : pagePath === '/password' ? '<input type="password"><button>Sign in</button>'
       : pagePath === '/split' ? `<fieldset><legend>Authenticator code</legend>${'<input maxlength="1">'.repeat(6)}</fieldset>`
       : pagePath === '/sms' ? 'Code sent by SMS<input autocomplete="one-time-code">'
@@ -61,7 +62,6 @@ try {
   assert.equal(await page.locator('input[autocomplete="username"]').inputValue(), 'first@example.test');
   const second = await context.newPage(); await second.goto('https://totp.example.test/login');
   await second.waitForFunction(() => /^\d{6}$/.test(document.querySelector('input[autocomplete="one-time-code"]').value));
-  await second.locator('input[autocomplete="one-time-code"]').fill('');
   await second.locator('input[autocomplete="username"]').fill('second@example.test');
   const cdp = await context.newCDPSession(second);
   const click = async name => {
@@ -79,17 +79,30 @@ try {
   const otpRect = await second.locator('input[autocomplete="one-time-code"]').boundingBox();
   await second.mouse.click(otpRect.x + otpRect.width - 21, otpRect.y + 13);
   await click('B synthetic login');
-  await second.waitForFunction(() => /^\d{6}$/.test(document.querySelector('input[autocomplete="one-time-code"]').value), null, { timeout: 10000 });
+  const now = Date.now();
+  const secondCodes = await Promise.all([-30000, 0, 30000].map(offset => crypto.generateTotp({ secret: 'JBSWY3DPEHPK3PXP', algorithm: 'SHA1', digits: 6, period: 30 }, now + offset)));
+  await second.waitForFunction(codes => codes.includes(document.querySelector('input[autocomplete="one-time-code"]').value), secondCodes.map(item => item.code), { timeout: 10000 });
+  await page.goto('https://totp.example.test/password');
+  await page.waitForFunction(() => document.querySelector('input').value !== '');
+  assert.equal(await page.locator('input').evaluate(input => input.value === 'synthetic-A synthetic login-password'), true, 'first tab password retained its account');
   await page.goto('https://totp.example.test/mfa');
   await page.waitForFunction(() => /^\d{6}$/.test(document.querySelector('input[autocomplete="one-time-code"]').value));
-  const firstCode = await crypto.generateTotp({ secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', algorithm: 'SHA1', digits: 6, period: 30 });
-  assert.equal(await page.locator('input').evaluate((input, code) => input.value === code, firstCode.code), true, 'first tab kept its account');
+  const firstNow = Date.now();
+  const firstCodes = await Promise.all([-30000, 0].map(offset => crypto.generateTotp({ secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', algorithm: 'SHA1', digits: 6, period: 30 }, firstNow + offset)));
+  assert.equal(await page.locator('input').evaluate((input, codes) => codes.includes(input.value), firstCodes.map(item => item.code)), true, 'first tab kept its account');
   const staged = await context.newPage(); await staged.goto('https://totp.example.test/identifier');
   await staged.waitForFunction(() => document.querySelector('input').value !== '', null, { timeout: 10000 });
   await staged.goto('https://totp.example.test/password');
   await staged.waitForFunction(() => document.querySelector('input').value !== '', null, { timeout: 10000 });
   await staged.goto('https://totp.example.test/mfa');
   await staged.waitForFunction(() => /^\d{6}$/.test(document.querySelector('input').value), null, { timeout: 10000 });
+  for (const suffix of ['mutate', 'push']) {
+    const stale = await context.newPage(); await stale.goto(`https://totp.example.test/${suffix}`);
+    await stale.waitForFunction(() => document.querySelector('input').value !== '', null, { timeout: 10000 });
+    await stale.waitForTimeout(300);
+    assert.equal(await stale.locator('input').nth(1).inputValue(), '', 'changed scope or URL stops later digit');
+    await stale.close();
+  }
   const split = await context.newPage(); await split.goto('https://totp.example.test/split');
   await split.waitForFunction(() => [...document.querySelectorAll('input')].every(input => /^\d$/.test(input.value)));
   for (const suffix of ['sms', 'filled']) {

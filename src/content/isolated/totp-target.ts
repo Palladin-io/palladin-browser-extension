@@ -1,6 +1,6 @@
 import { isFillable } from './credential-form-analysis';
 import { normalizedControlLabels } from './control-labels';
-import { hasOneTimeCodeHint } from './form-semantics';
+import { autocompleteTokens, hasOneTimeCodeHint } from './form-semantics';
 import { isIdentifiedUsername, isVisibleScopeHint, scopeInputs } from './login-controls';
 import { composedForm, composedParent, queryOpenElements } from './open-dom';
 
@@ -52,7 +52,11 @@ export function discoverTotpTargets(doc: Document): HTMLInputElement[][] {
       const parent = input.parentElement;
       if (!parent || grouped.has(input)) continue;
       const siblings = inputs.filter(other => other.parentElement === parent && other.maxLength === 1);
-      if ((siblings.length === 6 || siblings.length === 8) && OTP_LABEL.test(`${text} ${labels}`)) {
+      const sections = new Set(siblings.map(other => autocompleteTokens(other).find(token => token.startsWith('section-')) ?? ''));
+      if ((siblings.length === 6 || siblings.length === 8)
+        && sections.size === 1
+        && siblings.every(other => autocompleteTokens(other).every(token => !token || token === 'one-time-code' || token === 'on' || token === 'off' || token.startsWith('section-')))
+        && (OTP_LABEL.test(`${text} ${labels}`) || siblings.every(hasOneTimeCodeHint))) {
         siblings.forEach(other => grouped.add(other));
         targets.push(siblings);
       }
@@ -67,19 +71,49 @@ export function isCurrentTotpTarget(doc: Document, target: readonly HTMLInputEle
     && candidate.every((input, index) => input === target[index] && input.isConnected && input.ownerDocument === doc));
 }
 
-/** Writes only to a still-bound empty target, stopping on synchronous page mutations. */
-export function fillTotp(doc: Document, target: readonly HTMLInputElement[], code: string, expiresAt: number, username?: string, allowAmbiguous = false): boolean {
-  if (!/^(?:\d{6}|\d{8})$/.test(code) || (target.length !== 1 && target.length !== code.length)) return false;
-  const parents = target.map(input => input.parentElement);
-  const values = target.map(() => '');
-  const scope = target[0] ? totpScope(target[0]) : null;
+export interface TotpBinding {
+  readonly target: readonly HTMLInputElement[];
+  readonly scope: Element;
+  readonly url: string;
+  readonly initialValues: readonly string[];
+  readonly current: () => boolean;
+}
+
+/** Capture independent DOM ownership and values before contacting the worker. */
+export function bindTotpTarget(doc: Document, target: readonly HTMLInputElement[]): TotpBinding | null {
+  if (!target[0]) return null;
+  const scope = totpScope(target[0]);
+  const url = doc.location.href;
+  const owners = target.map(composedForm);
+  const chains = target.map(input => {
+    const result: Element[] = [];
+    for (let node: Element | null = input; node; node = composedParent(node)) result.push(node);
+    return result;
+  });
+  const initialValues = target.map(input => input.value);
+  return { target, scope, url, initialValues, current: () => doc.location.href === url && target.every((input, index) => {
+    const chain: Element[] = [];
+    for (let node: Element | null = input; node; node = composedParent(node)) chain.push(node);
+    return input.ownerDocument === doc && input.isConnected && isFillable(input)
+      && totpScope(input) === scope && composedForm(input) === owners[index]
+      && chain.length === chains[index]!.length && chain.every((element, offset) => element === chains[index]![offset]);
+  }) };
+}
+
+/** Writes only to the pre-bound target, stopping on synchronous page mutations. */
+export function fillTotp(doc: Document, target: readonly HTMLInputElement[], code: string, expiresAt: number,
+  username?: string, allowAmbiguous = false, binding = bindTotpTarget(doc, target), operationCurrent: () => boolean = () => true): boolean {
+  if (!binding || binding.target !== target || !/^(?:\d{6}|\d{8})$/.test(code)
+    || (target.length !== 1 && target.length !== code.length)) return false;
+  const values = [...binding.initialValues];
+  if (!allowAmbiguous && values.some(value => value !== '')) return false;
   const identityMatches = () => {
-    if (!scope) return false;
-    const identities = scopeInputs(scope as HTMLElement).filter(input => isIdentifiedUsername(input) && isVisibleScopeHint(input));
+    const identities = scopeInputs(binding.scope as HTMLElement).filter(input => isIdentifiedUsername(input) && isVisibleScopeHint(input));
     return identities.length <= 1 && identities.every(input => input.value === '' || (username !== undefined && input.value === username));
   };
-  const valid = () => Date.now() < expiresAt && identityMatches() && isCurrentTotpTarget(doc, target, allowAmbiguous)
-    && target.every((input, index) => input.parentElement === parents[index] && isFillable(input) && input.value === values[index]);
+  const valid = () => Date.now() < expiresAt && operationCurrent() && binding.current() && identityMatches()
+    && isCurrentTotpTarget(doc, target, allowAmbiguous)
+    && target.every((input, index) => input.value === values[index]);
   if (!valid()) return false;
   for (let index = 0; index < target.length; index++) {
     if (!valid()) return false;
