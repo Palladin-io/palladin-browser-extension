@@ -135,3 +135,10 @@ fence. Rendering never uses an arbitrary URL supplied by the popup or ciphertext
 Custom image upload is still pending: installed @palladin/crypto 0.13.0 does not
 export the web's encrypted presentation-asset container operations. This picker
 is not yet full web parity; upload/read support must use the shared crypto package.
+
+Unlock uses a separate compact 400×292px viewport (348px with the optional
+biometric action); sign-in remains 400×360px. Validation can scroll inside the
+unlock form instead of clipping actions. The neutral contrast Login button is
+outlined with transparent fill and a subtle hover surface, not a solid inverse
+fill. Footer link/version share a 12px/18px baseline. Inbox/Sharing use one
+1px `--cv-border` master divider; the detail adds no second border.

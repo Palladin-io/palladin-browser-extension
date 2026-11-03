@@ -169,9 +169,9 @@ try {
   await popup.observeResize();
   await popup.click('Lock'); await popup.waitText('Master password');
   await popup.waitWidth(400, 400);
-  await popup.waitHeight(360, 360);
-  assert.deepEqual(await popup.viewportSize(), initialSize, 'Lock must preserve native popup bounds');
-  assert.equal((await popup.viewportSize()).height, 360, 'Locked screen returns to compact auth bounds');
+  await popup.waitHeight(292, 292);
+  assert.equal((await popup.viewportSize()).width, 400, 'Lock preserves the compact auth width');
+  assert.equal((await popup.viewportSize()).height, 292, 'Unlock removes unused vertical space');
   await popup.screenshot(path.join(output, 'unlock-light.png'));
   assert(!await popup.hasText('synthetic@example.test'));
   await popup.click('Settings');

@@ -392,7 +392,7 @@ export function UnlockedFooter({
       <div className="vault-footer-info">
       <button type="button" className="link-btn link-btn--palladin" onClick={() => void configuredPanelUrl().then(url => chrome.tabs.create({ url })).catch(() => {})}>
         <PopupIcon name="external" />
-        {t('vault.openWebPanel')}
+        <span>{t('vault.openWebPanel')}</span>
       </button>
       {version ? <span className="vault-footer-version"><span aria-hidden="true">|</span> {t('settings.version', { version })}</span> : null}
       </div>
