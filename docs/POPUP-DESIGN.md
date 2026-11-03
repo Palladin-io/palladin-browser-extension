@@ -178,3 +178,7 @@ Sharing detail actions contain only Change protection and Revoke link. The legac
 All links action and its old list have been removed; unavailable actions do not
 leave an empty action card. Entry Sharing navigation still opens the current
 scoped Sharing overview.
+
+Entry details reuse the recent-activity preview, scoped by Vault and Entry.
+Show more is a quiet text action below the list (with keyboard focus styling),
+not a bordered button; it opens the dedicated Logs view for the same scope.

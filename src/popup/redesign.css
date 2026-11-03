@@ -1503,3 +1503,7 @@ html[data-extension-surface='side-panel'] .popup-header {
 .audit-preview .audit-chips[hidden] { display:none; }
 .audit-preview-footer { display:flex; justify-content:center; padding-top:12px; }
 @media(max-width:450px) { .share-management-card .share-detail-actions { flex-wrap:wrap; } .share-management-card .share-detail-actions .btn:last-child { margin-left:0; } }
+
+.audit-more-link { border:0; background:transparent; padding:4px 8px; color:var(--cv-t2); font:inherit; font-size:12px; cursor:pointer; }
+.audit-more-link:hover { color:var(--cv-t1); text-decoration:underline; }
+.audit-more-link:focus-visible { outline:2px solid var(--cv-t1); outline-offset:2px; border-radius:4px; }

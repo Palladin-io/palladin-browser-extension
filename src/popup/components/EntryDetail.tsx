@@ -1,3 +1,4 @@
+import { AuditPanel } from '../workspace/AuditPanel';
 import { SharingPanel } from '../workspace/SharingPanel';
 import { EntryFields } from '../workspace/EntryFields';
 import type { WorkspaceClient } from '../workspace/client';
@@ -158,6 +159,7 @@ export function EntryDetail({
         </div>
       ) : null}
       </div>
+      {!sharing ? <AuditPanel client={workspaceClient} entries={[entry]} vaultId={entry.vaultId} entryId={entry.id} preview onViewAll={onLogs} /> : null}
       </div>
       {message ? (
         <p role="status" className="entry-status">

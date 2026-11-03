@@ -301,7 +301,7 @@ export function AuditPanel({
           );
         })}
       </div>
-      {preview && (visibleItems.length > 10 || cursor) ? <div className="audit-preview-footer"><Button variant="contrast" onClick={onViewAll}>{t("audit.viewAll")}</Button></div> : null}
+      {preview && (visibleItems.length > 10 || cursor) ? <div className="audit-preview-footer"><button type="button" className="audit-more-link" onClick={onViewAll}>{t("audit.viewAll")}</button></div> : null}
       {cursor && !preview ? <div ref={sentinel} className="audit-sentinel">{busy ? <LoadingSkeleton /> : pageError ? <Button onClick={() => void load(cursor)}>{t('vault.retry')}</Button> : target ? <Button variant="subtle" onClick={() => void load(cursor)}>{t('workspace.more')}</Button> : null}</div> : null}
     </section>
   );

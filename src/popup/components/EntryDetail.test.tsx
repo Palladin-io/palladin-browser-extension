@@ -10,7 +10,7 @@ function renderDetail(client: VaultClient, onShares = vi.fn()) {
   return render(<EntryDetail
     client={client}
     entry={{ id: 'entry-1', vaultId: 'vault-1', vaultName: 'Personal', name: 'Example login', type: 1, urlDomain: 'example.com', updatedAt: '' }}
-    workspaceClient={createWorkspaceClient(async () => ({ ok: true, data: { revision: '1', fields: [] } }))}
+    workspaceClient={createWorkspaceClient(async command => ({ ok: true, data: command.type === 'workspace/audit' || command.type === 'workspace/members' ? { items: [], nextCursor: null } : { revision: '1', fields: [] } }))}
     onBack={vi.fn()} onGrants={vi.fn()} onLogs={vi.fn()} onShares={onShares}
   />);
 }
@@ -56,4 +56,16 @@ it('keeps Share creation separate from the shared-link list', async () => {
   await user.click(screen.getAllByRole('button', { name: 'Share' }).at(-1)!);
   expect(screen.getByRole('button', { name: 'Create link' })).toBeInTheDocument();
   expect(onShares).toHaveBeenCalledOnce();
+});
+
+it('loads recent activity for the selected Entry and opens its Logs', async () => {
+  const onLogs = vi.fn();
+  const send = vi.fn(async (command: { type: string }) => ({ ok: true as const, data: command.type === 'workspace/audit'
+    ? { items: [], nextCursor: 'older' } : command.type === 'workspace/members' ? { items: [] } : { revision: '1', fields: [] } }));
+  render(<EntryDetail client={{ credentialUsername: vi.fn(async () => ''), totp: vi.fn(async () => null) } as unknown as VaultClient}
+    entry={{ id: 'entry-1', vaultId: 'vault-1', vaultName: 'Personal', name: 'Example', type: 1, updatedAt: '' }}
+    workspaceClient={createWorkspaceClient(send)} onBack={vi.fn()} onGrants={vi.fn()} onLogs={onLogs} />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Show more' }));
+  expect(send).toHaveBeenCalledWith({ type: 'workspace/audit', entryId: 'entry-1', vaultId: 'vault-1' });
+  expect(onLogs).toHaveBeenCalledOnce();
 });
