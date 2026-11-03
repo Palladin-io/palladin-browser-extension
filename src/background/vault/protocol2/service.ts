@@ -105,7 +105,7 @@ export type ManualEntrySaveResult =
   | { readonly status: 'saved' }
   | { readonly status: 'blocked'; readonly reason: 'grant-refresh-required' }
 
-export type ManualEntrySaveInput =
+export type ManualEntrySaveInput = { readonly icon?: string; readonly color?: string } & (
   | {
       readonly entryType: 'credential'
       readonly label: string
@@ -130,7 +130,7 @@ export type ManualEntrySaveInput =
       readonly notes?: string
       readonly customFields?: readonly ManualCustomFieldInput[]
     }
-  | ({ readonly entryType: 'creditCard' } & CreditCardSaveInput)
+  | ({ readonly entryType: 'creditCard' } & CreditCardSaveInput))
 
 export interface Protocol2VaultDataServiceDeps {
   readonly client: Protocol2VaultClient
@@ -587,7 +587,10 @@ export class Protocol2VaultDataService implements VaultDataSource {
         break
       }
     }
-    const result = await this.createCanonicalEntry({ kind: 'legacy', secret }, vaultId, assertCurrent, isCurrent)
+    if (input.icon && !input.icon.startsWith('public-asset:')) secret.icon = { kind: 'glyph', value: input.icon }
+    if (input.color) secret.color = input.color
+    const result = await this.createCanonicalEntry({ kind: 'legacy', secret }, vaultId, assertCurrent, isCurrent,
+      input.icon?.startsWith('public-asset:') ? input.icon.slice(13) : undefined)
     return result.status === 'created'
       ? { status: 'saved' }
       : { status: 'blocked', reason: 'grant-refresh-required' }
@@ -632,6 +635,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
     selectedVaultId?: string,
     assertCurrent?: () => Promise<void>,
     isCurrent?: () => boolean,
+    catalogAssetId?: string,
   ): Promise<Extract<GeneratedPasswordSaveResult, { status: 'created' | 'blocked' }>> {
     const privateKey = this.deps.session.getPrivateKey()
     if (privateKey === null) throw new VaultDataError('locked', 'Session is locked')
@@ -641,6 +645,10 @@ export class Protocol2VaultDataService implements VaultDataSource {
       : [...this.currentVaults.values()].find((candidate) => candidate.isDefault)
         ?? [...this.currentVaults.values()][0]
     if (vault === undefined) throw new VaultDataError('network', 'No Vault is available')
+    if (catalogAssetId) {
+      const icon = await this.withAuth(token => this.deps.client.getCatalogIcon(token, catalogAssetId))
+      entry.secret.icon = icon
+    }
     if (entry.secret.entryType === 'credential' && entry.secret.icon === null && entry.secret.content.urlDomain) {
       const hostname = entry.secret.content.urlDomain
       const icon = await this.withAuth(token => this.deps.client.resolveWebsiteIcon(token, hostname))

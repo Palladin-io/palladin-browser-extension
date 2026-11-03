@@ -11,9 +11,26 @@ function client(saveEntry = vi.fn(async () => ({ status: "saved" }) as const)): 
 }
 
 describe("AddEntryForm", () => {
+  it('saves a selected glyph and resets the choice with the form', async () => {
+    HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+    const saveEntry = vi.fn(async () => ({ status: 'saved' }) as const);
+    render(<AddEntryForm client={client(saveEntry)} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Choose icon' }));
+    await user.click(screen.getByRole('button', { name: 'Cloud' }));
+    await user.click(screen.getByRole('button', { name: 'Icon color #60A5FA' }));
+    await user.click(screen.getAllByRole('button', { name: 'Close icon picker' })[0]!);
+    await user.type(screen.getByLabelText('Name'), 'Example');
+    await user.type(screen.getByLabelText('Password'), 'synthetic');
+    await user.click(screen.getByRole('button', { name: 'Save entry' }));
+    await waitFor(() => expect(saveEntry).toHaveBeenCalledWith(expect.objectContaining({ icon: 'cloud', color: '#60A5FA' })));
+    await user.click(screen.getByRole('button', { name: 'Choose icon' }));
+    expect(screen.getByRole('button', { name: 'Cloud' })).toHaveAttribute('aria-pressed', 'false');
+  });
   it("offers every canonical entry type", async () => {
     render(<AddEntryForm client={client()} />);
-    const options = screen.getByLabelText("Entry type").querySelectorAll("option");
+    await userEvent.setup().click(screen.getByRole("combobox", { name: "Entry type" }));
+    const options = screen.getAllByRole("option");
     expect([...options].map((option) => option.textContent)).toEqual([
       "Login", "API key", "Script", "Payment card",
     ]);
@@ -99,19 +116,22 @@ describe("AddEntryForm", () => {
     const user = userEvent.setup();
     const type = screen.getByLabelText("Entry type");
 
-    await user.selectOptions(type, "key");
+    await user.click(type);
+    await user.click(screen.getByRole("option", { name: "API key" }));
     await user.type(screen.getByLabelText("Name"), "API token");
     await user.type(screen.getByLabelText("Secret value"), "secret-key");
     await user.click(screen.getByRole("button", { name: "Save entry" }));
     await waitFor(() => expect(saveEntry).toHaveBeenLastCalledWith({ entryType: "key", label: "API token", value: "secret-key" }));
 
-    await user.selectOptions(type, "script");
+    await user.click(type);
+    await user.click(screen.getByRole("option", { name: "Script" }));
     await user.type(screen.getByLabelText("Name"), "Deploy");
     await user.type(screen.getByLabelText("Script source"), "echo ok");
     await user.click(screen.getByRole("button", { name: "Save entry" }));
     await waitFor(() => expect(saveEntry).toHaveBeenLastCalledWith({ entryType: "script", label: "Deploy", source: "echo ok", interpreter: "bash" }));
 
-    await user.selectOptions(type, "creditCard");
+    await user.click(type);
+    await user.click(screen.getByRole("option", { name: "Payment card" }));
     await user.type(screen.getByLabelText("Name"), "Personal card");
     await user.type(screen.getByLabelText("Cardholder name"), "Ada Lovelace");
     await user.type(screen.getByLabelText("Card number"), "4111 1111 1111 1111");

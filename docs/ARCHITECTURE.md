@@ -28,6 +28,8 @@ copy comes from exact-parity locale catalogs, while manifest/store-facing copy
 uses MV3 `_locales`. Theme tokens mirror the web panel and never alter the
 worker's session, key, or authorization state.
 
+The popup component and sizing standard is documented in [POPUP-DESIGN.md](POPUP-DESIGN.md).
+
 ### Shared unlock completion in Popup and Side Panel
 
 The single-use automatic receiver emits a completion only after its own committed

@@ -1,3 +1,4 @@
+import { ScrollableTabs } from '../components/ScrollableTabs';
 import { SecretCapturePrompt, useSecretCapture } from '../capture/SecretCapturePrompt';
 import { PopupViewProvider, usePopupView } from "../view/PopupView";
 import type { PopupViewState, PopupEntryRef } from "../../shared/messaging/popup-view";
@@ -5,7 +6,7 @@ import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { usePendingGrants } from '../workspace/usePendingGrants';
 import { GrantsPanel } from '../workspace/GrantsPanel';
 import { SharingOverview } from '../workspace/SharingOverview';
-import { AuditPanel } from '../workspace/AuditPanel';
+import { AuditPanel, type AuditTarget } from '../workspace/AuditPanel';
 import { createWorkspaceClient } from '../workspace/client';
 import { Header } from '../components/Header';
 import { PopupIcon } from '../components/PopupIcon';
@@ -73,6 +74,7 @@ function UnlockedContent({
     () => captureClient ?? createCaptureClient(),
     [captureClient],
   );
+  const [auditTarget, setAuditTarget] = useState<AuditTarget | undefined>();
   const workspaceClient = useMemo(() => createWorkspaceClient(), []);
   const pendingGrants = usePendingGrants(workspaceClient);
   const capture = useCapturePrompt(promptClient);
@@ -83,7 +85,11 @@ function UnlockedContent({
   const setQuery = (query: string) => navigation.update({ query, scrollTop: 0, visibleCount: 100 });
   const setVaultFilter = (value: string[] | null | ((previous: string[] | null) => string[] | null)) =>
     navigation.update({ vaultFilter: typeof value === 'function' ? value(vaultFilter) : value, scrollTop: 0, visibleCount: 100 });
-  const setView = (view: PopupViewState['view']) => navigation.update({ view });
+  const setView = (view: PopupViewState['view']) => { setAuditTarget(undefined); navigation.update({ view }); };
+  const showLogs = (target: AuditTarget) => {
+    setAuditTarget(target);
+    navigation.update({ view: 'logs', scope: target.entryId ? { id: target.entryId, vaultId: target.vaultId } : null });
+  };
   const entryRef = (entry: PopupEntryRef | null) => entry ? { id: entry.id, vaultId: entry.vaultId } : null;
   const setSelected = (entry: PopupEntryRef | null) => navigation.update({ selected: entryRef(entry) });
   const setScope = (entry: PopupEntryRef | null) => navigation.update({ scope: entryRef(entry) });
@@ -164,11 +170,7 @@ function UnlockedContent({
           }}
         />
       ) : null}
-      <div
-        className="vault-tabs"
-        role="tablist"
-        aria-label={t('vault.popupView')}
-      >
+      <ScrollableTabs label={t('vault.popupView')} activeKey={view}>
         <button
           type="button"
           role="tab"
@@ -195,7 +197,7 @@ function UnlockedContent({
           type="button"
           role="tab"
           aria-selected={view === 'shares'}
-          onClick={() => setView('shares')}
+          onClick={() => { setScope(null); setView('shares'); }}
         >
           {t('workspace.shares')}
         </button>
@@ -211,41 +213,39 @@ function UnlockedContent({
           {t('workspace.logs')}
         </button>
         {settings ? <button type="button" role="tab" aria-selected={view === 'settings'} onClick={() => setView('settings')}>{t('common.settings')}</button> : null}
-      </div>
+      </ScrollableTabs>
 
       <div className="vault-content">
-        {view === 'add-entry' ? (
-          <button
-            className="link-btn workspace-back"
-            onClick={() => setView('vault')}
-          >
-            <PopupIcon name="back" />
-            {t('common.back')}
-          </button>
-        ) : null}
         {view === 'settings' ? settings : view === 'grants' ? (
           <GrantsPanel
+            onShowLogs={showLogs}
             revision={pendingGrants.revision}
             client={workspaceClient}
             entries={list.all}
+            onBack={() => { setScope(null); setView('vault'); }}
             entryId={scope?.id}
             vaultId={scope?.vaultId}
           />
         ) : view === 'shares' ? (
           <SharingOverview
+            onShowLogs={showLogs}
+            scope={scope}
+            onBack={() => { setScope(null); setView('vault'); }}
             client={workspaceClient}
             vaultClient={client}
             entries={list.all}
           />
         ) : view === 'logs' ? (
           <AuditPanel
+            target={auditTarget}
             client={workspaceClient}
             entries={list.all}
+            onBack={() => { setScope(null); setView(auditTarget?.kind === 'share' ? 'shares' : auditTarget ? 'grants' : 'vault'); }}
             entryId={scope?.id}
-            vaultId={scope?.vaultId}
+            vaultId={auditTarget?.vaultId ?? scope?.vaultId}
           />
         ) : view === 'add-entry' ? (
-          <AddEntryForm client={client} />
+          <AddEntryForm client={client} onBack={() => setView('vault')} />
         ) : view === 'generator' ? (
           capturePrompt === null ? (
             <GeneratorPanel client={client} />
@@ -316,6 +316,7 @@ function UnlockedContent({
                       setScope(current);
                       setView('grants');
                     }}
+                    onShares={() => { setScope(current); setView('shares'); }}
                     onLogs={() => {
                       setScope(current);
                       setView('logs');
@@ -372,7 +373,7 @@ function ListSection({
   );
 }
 
-function UnlockedFooter({
+export function UnlockedFooter({
   onLock,
   onSignOut,
 }: Pick<
@@ -381,6 +382,7 @@ function UnlockedFooter({
 >): React.JSX.Element {
   const { t } = useI18n();
   const [busy, setBusy] = useState<'lock' | 'signout' | null>(null);
+  const version = chrome.runtime.getManifest?.().version;
 
   async function run(
     kind: 'lock' | 'signout',
@@ -398,10 +400,13 @@ function UnlockedFooter({
 
   return (
     <div className="vault-footer">
+      <div className="vault-footer-info">
       <button type="button" className="link-btn link-btn--palladin" onClick={() => void configuredPanelUrl().then(url => chrome.tabs.create({ url })).catch(() => {})}>
         <PopupIcon name="external" />
-        {t('vault.openWebPanel')}
+        <span>{t('vault.openWebPanel')}</span>
       </button>
+      {version ? <span className="vault-footer-version"><span aria-hidden="true">|</span> {t('settings.version', { version })}</span> : null}
+      </div>
       <div className="vault-footer-actions">
         <button className="toolbar-icon" aria-label={t('vault.lock')} title={t('vault.lock')} disabled={busy !== null} onClick={() => void run('lock', onLock)}>
           {busy === 'lock' ? <Spinner /> : <PopupIcon name="lock" />}

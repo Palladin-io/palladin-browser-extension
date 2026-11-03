@@ -79,7 +79,9 @@ try {
   popup = await openNativePopup(worker, profile, extensionId);
   await popup.waitButton('Continue to Palladin');
   await popup.screenshot(path.join(output, 'intro-light.png'));
-  assert((await popup.viewportSize()).width <= 440, 'Onboarding should use the compact popup');
+  const initialSize = await popup.viewportSize();
+  assert.equal(initialSize.width, 400, 'Auth uses a compact native width');
+  assert.equal(initialSize.height, 360, 'Auth uses a compact native height');
   await popup.click('Continue to Palladin');
   await popup.waitButton('Sign in');
   assert.equal((await popup.configureConnection({ name: 'Synthetic workspace API', apiUrl: api.url,
@@ -89,13 +91,14 @@ try {
   assert.equal(brand.weight, '800');
   assert.equal(brand.size, '19px');
   assert.equal(brand.spacing, '-0.19px');
-  await popup.waitHeight(350, 370);
-  assert((await popup.viewportSize()).height <= 370, 'Sign-in must not reserve workspace height');
+  await popup.waitHeight(360, 360);
+  assert.deepEqual(await popup.viewportSize(), initialSize, 'Sign-in must not resize the native popup');
   await popup.screenshot(path.join(output, 'sign-in-light.png'));
   await popup.fill('input[type=email]', api.email); await popup.fill('input[type=password]', api.password); await popup.click('Sign in');
   await popup.waitText('No entries yet.');
   await popup.waitWidth(780, 800);
-  assert((await popup.viewportSize()).width >= 780, 'Unlock must expand the existing native popup');
+  await popup.waitHeight(580, 580);
+  assert.deepEqual(await popup.viewportSize(), { width: 780, height: 580 }, 'Workspace expands after sign-in');
   await popup.click('Add entry');
   await popup.fill('.entry-form input[autocomplete=off]', 'Synthetic account');
   await popup.fill('.entry-form input[autocomplete=username]', 'synthetic@example.test');
@@ -165,11 +168,10 @@ try {
   await popup.click('Vault', 'tab');
   await popup.observeResize();
   await popup.click('Lock'); await popup.waitText('Master password');
-  await popup.waitWidth(420, 440);
-  assert(await popup.hadIntermediateWidth(), 'Native popup width should animate between locked and unlocked sizes');
-  assert((await popup.viewportSize()).width <= 440, 'Lock must restore the compact popup');
-  await popup.waitHeight(280, 300);
-  assert((await popup.viewportSize()).height <= 300, 'Unlock should fit its short form');
+  await popup.waitWidth(400, 400);
+  await popup.waitHeight(292, 292);
+  assert.equal((await popup.viewportSize()).width, 400, 'Lock preserves the compact auth width');
+  assert.equal((await popup.viewportSize()).height, 292, 'Unlock removes unused vertical space');
   await popup.screenshot(path.join(output, 'unlock-light.png'));
   assert(!await popup.hasText('synthetic@example.test'));
   await popup.click('Settings');

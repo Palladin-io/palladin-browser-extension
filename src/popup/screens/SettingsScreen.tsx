@@ -38,7 +38,6 @@ export function SettingsScreen({
         {openSection === 'appearance' ? <AppearanceSettings embedded /> :
           openSection === 'server' ? <ServerSettings onChanged={onServerChanged} embedded /> :
           openSection === 'capture' ? <CaptureSettings /> : <SharedUnlockSettings />}
-        {versionLabel}
       </section>
     </div>
   );
