@@ -289,13 +289,13 @@ try {
     await page.locator('[autocomplete="cc-number"]').fill(pan); await pause(600)
     await openReview()
     const count = api.writes.length
-    await popup.fill('.entry-form > label input', 'Unsaved capture name', { replace: true })
+    await popup.fill('.entry-create-name input', 'Unsaved capture name', { replace: true })
     await popup.fill('input[autocomplete="cc-name"]', 'Unsaved Cardholder')
     await popup.fill('input[autocomplete="cc-exp-month"]', '11')
     await popup.fill('input[autocomplete="cc-exp-year"]', '2034')
     await popup.fill('input[type="password"][maxlength="4"]', cvv)
     await popup.select('.capture-prompt > label select', api.vaults[1].detail.id)
-    const edits = { '.entry-form > label input': 'Unsaved capture name', 'input[autocomplete="cc-name"]': 'Unsaved Cardholder',
+    const edits = { '.entry-create-name input': 'Unsaved capture name', 'input[autocomplete="cc-name"]': 'Unsaved Cardholder',
       'input[autocomplete="cc-exp-month"]': '11', 'input[autocomplete="cc-exp-year"]': '2034',
       'input[type="password"][maxlength="4"]': cvv, '> label select': api.vaults[1].detail.id }
     for (const [selector, value] of Object.entries(edits)) assert(await popup.secretCaptureFieldsMatch({ [selector]: value }), `Native edit applied before navigation: ${selector}`)

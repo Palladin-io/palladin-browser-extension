@@ -668,5 +668,20 @@
   "secretCapture.mute": "Nie pytaj na tej stronie",
   "secretCapture.expired": "Wykryte dane wygasły lub ich źródło się zmieniło. Wykryj je ponownie.",
   "secretCapture.duplicate": "Identyczny element jest już w wybranym sejfie. Nic nie zmieniono.",
-  "secretCapture.unavailable": "Brak sejfu z możliwością zapisu."
+  "secretCapture.unavailable": "Brak sejfu z możliwością zapisu.",
+  "totpCapture.notice": "Wykryto konfigurację uwierzytelniania na tej stronie.",
+  "totpCapture.title": "Zapisz uwierzytelniacz",
+  "totpCapture.credential": "Dane logowania",
+  "totpCapture.choose": "Wybierz dane logowania",
+  "totpCapture.create": "Utwórz dane logowania",
+  "totpCapture.name": "Nazwa",
+  "totpCapture.username": "Nazwa użytkownika",
+  "totpCapture.replace": "Zastąp istniejący uwierzytelniacz",
+  "totpCapture.save": "Zapisz uwierzytelniacz",
+  "totpCapture.cancel": "Anuluj",
+  "totpCapture.scan": "Skanuj kod QR na stronie",
+  "totpCapture.noResult": "Nie znaleziono czytelnej konfiguracji uwierzytelniacza. Niektóre obrazy lub ramki są niedostępne.",
+  "totpCapture.error": "Nie udało się zapisać uwierzytelniacza. Spróbuj ponownie.",
+  "totpCapture.source": "Wykryto na {origin}",
+  "totpCapture.ambiguous": "Znaleziono wiele konfiguracji. Pozostaw widoczny tylko właściwy kod QR lub link i zeskanuj ponownie."
 }

@@ -20,65 +20,101 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: safari-boundary-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   safari-boundary:
     runs-on: macos-26
-    timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        background: [classic-worker, module-worker, document, product]
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
       - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        if: matrix.background == 'product'
         with:
           node-version: 22
           cache: npm
       - name: Build the configured Safari product
-        if: matrix.background == 'product'
+        id: build
+        continue-on-error: true
         env:
           VITE_API_URL: http://127.0.0.1:55083
           VITE_POSTHOG_KEY: ''
         run: |
           npm ci
           npm run build:safari
-      - name: Observe native Safari extension boundary
-        shell: bash
-        env:
-          SAFARI_FIXTURE_BACKGROUND: ${{ matrix.background }}
-        run: |
-          set -euo pipefail
-          mkdir -p test-results/shared-unlock-safari-boundary
-          # Only the disposable GitHub-hosted VM changes this setting.
-          sudo /usr/bin/safaridriver --enable
-          /usr/bin/safaridriver -p 55187 > test-results/shared-unlock-safari-boundary/driver.log 2>&1 &
-          safari_driver_pid=$!
-          trap 'kill "$safari_driver_pid" 2>/dev/null || true; wait "$safari_driver_pid" 2>/dev/null || true' EXIT
-          python3 - <<'PY'
-          import socket
-          import time
-          for attempt in range(50):
-              try:
-                  with socket.create_connection(('127.0.0.1', 55187), timeout=1):
-                      break
-              except OSError:
-                  time.sleep(0.2)
-          else:
-              raise SystemExit('SafariDriver did not start')
-          PY
-          if [ "$SAFARI_FIXTURE_BACKGROUND" = product ]; then
-            python3 tests/browser/shared-unlock-safari-boundary.py --ci-screenshot-on-failure --ci-grant-fixture-access --product-extension dist/safari
-          else
-            python3 tests/browser/shared-unlock-safari-boundary.py --ci-screenshot-on-failure --ci-grant-fixture-access --background-kind "$SAFARI_FIXTURE_BACKGROUND"
-          fi
-      - name: Retain synthetic Safari observations
+      - name: Safari boundary - classic-worker
+        id: classic_worker
+        if: ${{ !cancelled() }}
+        timeout-minutes: 10
+        continue-on-error: true
+        run: bash scripts/run-safari-boundary.sh classic-worker
+      - name: Safari boundary - module-worker
+        id: module_worker
+        if: ${{ !cancelled() }}
+        timeout-minutes: 10
+        continue-on-error: true
+        run: bash scripts/run-safari-boundary.sh module-worker
+      - name: Safari boundary - document
+        id: document
+        if: ${{ !cancelled() }}
+        timeout-minutes: 10
+        continue-on-error: true
+        run: bash scripts/run-safari-boundary.sh document
+      - name: Safari boundary - product
+        id: product
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 10
+        continue-on-error: true
+        run: bash scripts/run-safari-boundary.sh product
+      - name: Retain Safari classic-worker observations
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: shared-unlock-safari-boundary-${{ matrix.background }}
-          path: test-results/shared-unlock-safari-*/
+          name: shared-unlock-safari-boundary-classic-worker
+          path: test-results/shared-unlock-safari/classic-worker/
           if-no-files-found: error
           retention-days: 7
+      - name: Retain Safari module-worker observations
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: shared-unlock-safari-boundary-module-worker
+          path: test-results/shared-unlock-safari/module-worker/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Retain Safari document observations
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: shared-unlock-safari-boundary-document
+          path: test-results/shared-unlock-safari/document/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Retain Safari product observations
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: shared-unlock-safari-boundary-product
+          path: test-results/shared-unlock-safari/product/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Require all Safari variants to pass
+        if: ${{ !cancelled() }}
+        env:
+          BUILD: ${{ steps.build.outcome }}
+          CLASSIC_WORKER: ${{ steps.classic_worker.outcome }}
+          MODULE_WORKER: ${{ steps.module_worker.outcome }}
+          DOCUMENT: ${{ steps.document.outcome }}
+          PRODUCT: ${{ steps.product.outcome }}
+        run: |
+          failed=0
+          printf '| Check | Result |\n| --- | --- |\n' >> "$GITHUB_STEP_SUMMARY"
+          for check in BUILD CLASSIC_WORKER MODULE_WORKER DOCUMENT PRODUCT; do
+            result="${!check}"
+            printf '| %s | %s |\n' "$check" "$result" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$result" != success ]; then failed=1; fi
+          done
+          exit "$failed"

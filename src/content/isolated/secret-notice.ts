@@ -14,7 +14,7 @@ export class SecretCaptureNotice {
       this.preferences = parseUiPreferences(changes[UI_PREFERENCES_STORAGE_KEY]?.newValue); this.render();
     }
   };
-  constructor(private readonly doc: Document, private readonly act: (type: 'open' | 'dismiss') => Promise<void>) {
+  constructor(private readonly doc: Document, private readonly act: (type: 'open' | 'dismiss') => Promise<void>, private readonly kind: 'secret' | 'totp' = 'secret') {
     this.surface = createClosedSurface(doc, 'palladin-capture');
     for (const [key, value] of Object.entries({ top: '16px', right: '16px', width: 'min(340px, calc(100vw - 32px))', 'pointer-events': 'auto' })) this.surface.host.style.setProperty(key, value, 'important');
     if (typeof chrome !== 'undefined') {
@@ -43,7 +43,7 @@ export class SecretCaptureNotice {
     style.textContent = `:host{--cv-bg:#fff;--cv-t1:#0c0e12;--cv-border:rgba(12,14,18,.1);--cv-primary:#E54645} :host([data-dark]){--cv-bg:#1f232b;--cv-t1:#e8eaed;--cv-border:rgba(232,234,237,.1)} .panel{padding:14px;border:1px solid var(--cv-border);border-radius:12px;background:var(--cv-bg);color:var(--cv-t1);box-shadow:0 12px 32px rgba(0,0,0,.16);font:14px/1.4 system-ui} p{margin:0 0 12px} button{font:inherit;cursor:pointer;border:0;border-radius:8px;padding:8px 12px;background:var(--cv-primary);color:#fff} button+button{margin-left:8px;background:transparent;color:var(--cv-t1)} button:focus-visible{outline:2px solid var(--cv-primary);outline-offset:2px}`;
     this.surface.host.toggleAttribute('data-dark', !!dark);
     const panel = this.doc.createElement('div'); panel.className = 'panel'; panel.setAttribute('role','status');
-    const text = this.doc.createElement('p'); text.textContent = copy[this.locked ? 'secretCapture.locked' : 'secretCapture.notice']; panel.append(text);
+    const text = this.doc.createElement('p'); text.textContent = copy[this.locked ? 'secretCapture.locked' : this.kind === 'totp' ? 'totpCapture.notice' : 'secretCapture.notice']; panel.append(text);
     for (const type of ['open','dismiss'] as const) {
       const button = this.doc.createElement('button'); button.type = 'button'; button.textContent = copy[type === 'open' ? 'secretCapture.review' : 'secretCapture.dismiss'];
       button.addEventListener('click', event => { if (this.surface.acceptsAction(event, button)) void this.act(type).catch(() => undefined); }); panel.append(button);

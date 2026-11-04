@@ -83,3 +83,15 @@ it('accepts the private epoch only on a bound automatic fill, never a manual cap
     expect(isFillRequestMessage({ ...base, ...mutation })).toBe(false);
   }
 });
+
+it('accepts only a bound, expiring numeric TOTP without submission or mixed values', () => {
+  const otp = { ...request, loginTargetId: 'otp-1', intent: 'automatic', fields: [{ kind: 'totp', value: '123456', expiresAt: 60000, username: 'ada' }] };
+  expect(isFillRequestMessage(otp)).toBe(true);
+  for (const mutation of [
+    { loginTargetId: null }, { submit: true }, { expectedDomain: null },
+    { fields: [{ kind: 'totp', value: '123456' }] },
+    { fields: [{ kind: 'totp', value: 'abcdef', expiresAt: 60000 }] },
+    { fields: [{ kind: 'totp', value: '123456', expiresAt: -1 }] },
+    { fields: [{ kind: 'totp', value: '123456', expiresAt: 60000 }, { kind: 'password', value: 'secret' }] },
+  ]) expect(isFillRequestMessage({ ...otp, ...mutation })).toBe(false);
+});

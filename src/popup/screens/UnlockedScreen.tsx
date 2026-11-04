@@ -1,3 +1,4 @@
+import { TotpCaptureSurface } from '../capture/TotpCapturePrompt';
 import { ScrollableTabs } from '../components/ScrollableTabs';
 import { SecretCapturePrompt, useSecretCapture } from '../capture/SecretCapturePrompt';
 import { PopupViewProvider, usePopupView } from "../view/PopupView";
@@ -155,6 +156,7 @@ function UnlockedContent({
           <PopupIcon name="plus" />
         </button>
       </Header>
+      <TotpCaptureSurface revision={viewRevision} />
       {secretCapture ? <SecretCapturePrompt key={secretCapture.id} review={secretCapture} client={client} onDone={clearSecretCapture} /> : null}
       <h2 className="sr-only">{t('vault.title')}</h2>
       {capture.prompt !== null && view === 'vault' ? (

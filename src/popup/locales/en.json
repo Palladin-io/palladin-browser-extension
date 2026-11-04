@@ -668,5 +668,20 @@
   "secretCapture.mute": "Never prompt on this site",
   "secretCapture.expired": "This capture expired or its source changed. Capture it again.",
   "secretCapture.duplicate": "This exact item is already in the selected Vault. Nothing was changed.",
-  "secretCapture.unavailable": "No writable Vault is available."
+  "secretCapture.unavailable": "No writable Vault is available.",
+  "totpCapture.notice": "Authenticator setup detected on this page.",
+  "totpCapture.title": "Save authenticator",
+  "totpCapture.credential": "Credential",
+  "totpCapture.choose": "Choose a Credential",
+  "totpCapture.create": "Create a Credential",
+  "totpCapture.name": "Name",
+  "totpCapture.username": "Username",
+  "totpCapture.replace": "Replace existing authenticator",
+  "totpCapture.save": "Save authenticator",
+  "totpCapture.cancel": "Cancel",
+  "totpCapture.scan": "Scan QR on page",
+  "totpCapture.noResult": "No readable authenticator setup found on this page. Some images or frames cannot be read.",
+  "totpCapture.error": "Could not save authenticator. Try again.",
+  "totpCapture.source": "Detected on {origin}",
+  "totpCapture.ambiguous": "Multiple authenticator setups found. Leave only the intended QR code or link visible, then scan again."
 }

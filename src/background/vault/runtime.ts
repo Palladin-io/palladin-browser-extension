@@ -178,6 +178,7 @@ async function sendFill(
     )) {
       return { ok: false, reason: "target-changed" };
     }
+    assertSessionCurrent?.();
     const outcome = await chrome.tabs.sendMessage(
       target.id,
       {
@@ -215,6 +216,7 @@ export const vaultCommandDeps: VaultCommandDeps = {
   entryWriter: vaultData,
   entryDeleter: vaultData,
   getActiveTab,
+  resolveTabDocument,
   openLoginTab,
   sendFill,
   clipboard: { available: clipboardCopyAvailable, arm: () => clipboardGuard.arm() },
