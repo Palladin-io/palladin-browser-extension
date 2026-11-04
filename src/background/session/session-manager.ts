@@ -21,6 +21,7 @@ import {
   deriveIdentityV1,
   deriveIdentityV2,
   fromBase64Url,
+  KEY_WRAPPER_SUITE,
   openBrowserSessionEnvelope,
   sealBrowserSessionEnvelope,
   toBase64Url,
@@ -829,6 +830,11 @@ export class SessionManager {
         );
       }
       this.assertAuthenticatedAccount(account, bootstrap, auth.userId);
+      const memberKeySuiteId = memberKeySuiteForProfile(identityProfileVersion(bootstrap));
+      // The account's key publication must name the suite its security version requires.
+      if ((account.memberPublicKeySuiteId ?? KEY_WRAPPER_SUITE.legacy) !== memberKeySuiteId) {
+        throw new SessionError("unsupported-security", "Member key suite does not match the Identity profile");
+      }
       const material = {
         accountId: account.userId,
         kdf: {
@@ -891,7 +897,7 @@ export class SessionManager {
       const keys = {
         masterKey,
         privateKey,
-        memberKeySuiteId: memberKeySuiteForProfile(identityProfileVersion(bootstrap)),
+        memberKeySuiteId,
         memberKeyVersion,
       };
       privateKey = null;

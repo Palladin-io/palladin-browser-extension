@@ -47,7 +47,10 @@ export type SecretKeyTransferStatus = "pending" | "ready";
 interface ActiveTransfer {
   readonly scope: SecretKeyScope;
   readonly keyPair: PairingKeyPair;
+  /** API path identifier (UUID text). */
   readonly transferId: string;
+  /** The same identifier as the pairing protocol encodes it in the QR and transcript. */
+  readonly pairingTransferId: string;
   readonly challenge: string;
   readonly pollToken: string;
   readonly expiresAt: number;
@@ -57,6 +60,15 @@ interface PendingSecret {
   readonly scope: SecretKeyScope;
   readonly secret: Uint8Array;
   readonly expiresAt: number;
+}
+
+const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** identity-kdf v3 `transferId`: the 16 network-order bytes of the session UUID, base64url. */
+function pairingTransferId(transferId: string): string {
+  if (!CANONICAL_UUID.test(transferId)) throw transferFailed();
+  const hex = transferId.replaceAll("-", "");
+  return toBase64Url(Uint8Array.from({ length: 16 }, (_, index) => Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16)));
 }
 
 function transferFailed(): SessionError {
@@ -91,19 +103,20 @@ export class SecretKeyEnrollment {
       const now = this.now();
       const serverExpiry = Date.parse(session.expiresAt);
       const expiresAt = Math.min(Number.isFinite(serverExpiry) ? serverExpiry : now, now + MAXIMUM_TRANSFER_MS);
+      const pairingId = pairingTransferId(session.transferId);
       let offer: SecretKeyTransferOffer;
       try {
         offer = {
           qrPayload: encodePairingQr({
             flow: "recipient-shows-qr",
-            transferId: session.transferId,
+            transferId: pairingId,
             recipientPublicKeyDigest: pairingRecipientKeyDigest(keyPair.publicKey),
           }),
           // The SAS commits to this device's own key and the account from the
           // login bootstrap, so a relayed substitute key shows a different code.
           sas: computePairingSas({
             accountId: scope.accountId,
-            transferId: session.transferId,
+            transferId: pairingId,
             challenge: session.challenge,
             recipientPublicKey: keyPair.publicKey,
           }),
@@ -116,6 +129,7 @@ export class SecretKeyEnrollment {
         scope,
         keyPair,
         transferId: session.transferId,
+        pairingTransferId: pairingId,
         challenge: session.challenge,
         pollToken: session.pollToken,
         expiresAt,
@@ -153,7 +167,7 @@ export class SecretKeyEnrollment {
     let secret: Uint8Array;
     try {
       secret = await openPairingEnvelope(
-        { accountId: transfer.scope.accountId, transferId: transfer.transferId, challenge: transfer.challenge },
+        { accountId: transfer.scope.accountId, transferId: transfer.pairingTransferId, challenge: transfer.challenge },
         transfer.keyPair,
         { kemCiphertext: claim.kemCiphertext, ciphertext: claim.ciphertext },
       );

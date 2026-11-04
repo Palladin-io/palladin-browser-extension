@@ -15,6 +15,7 @@ import {
   IDENTITY_KDF_PROFILE,
   IDENTITY_KDF_PROFILE_ID,
   IDENTITY_SECURITY_VERSION,
+  KEY_WRAPPER_SUITE,
   randomBytes,
   toBase64,
   toBase64Url,
@@ -185,6 +186,7 @@ export interface MockBackendOptions {
   unknownEmail?: string;
   logoutResponse?: Promise<Response>;
   memberKeyVersion?: number | null;
+  memberPublicKeySuiteId?: string;
 }
 
 const PSEUDO_ACCOUNT_ID = "ffeeddcc-bbaa-4a99-8877-665544332211";
@@ -283,6 +285,8 @@ export function mockBackend(
           },
           encryptedPrivateKey: account.encryptedPrivateKey,
           memberKeyVersion: options.memberKeyVersion === undefined ? 1 : options.memberKeyVersion,
+          memberPublicKeySuiteId: options.memberPublicKeySuiteId
+            ?? (account.accountSecret ? KEY_WRAPPER_SUITE.active : KEY_WRAPPER_SUITE.legacy),
         }),
       );
     }

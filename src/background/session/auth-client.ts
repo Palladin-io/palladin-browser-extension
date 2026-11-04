@@ -79,6 +79,8 @@ export interface AccountResponse {
   readonly encryptedPrivateKey?: string;
   /** Authenticated member key directory version of that private key. */
   readonly memberKeyVersion?: number | null;
+  /** Key-wrapper suite of the member public key; absent on pre-suite accounts (read-only suite). */
+  readonly memberPublicKeySuiteId?: string | null;
 }
 
 export type FetchLike = typeof fetch;

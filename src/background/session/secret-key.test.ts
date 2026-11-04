@@ -29,21 +29,22 @@ import {
 import { MasterPasswordUnlock } from "./unlock-source";
 
 const API = "https://api.test";
-const TRANSFER_ID = toBase64Url(new Uint8Array(16).fill(7));
+const TRANSFER_ID = "07070707-0707-4707-8707-070707070707";
+const PAIRING_TRANSFER_ID = toBase64Url(Uint8Array.from([7, 7, 7, 7, 7, 7, 0x47, 7, 0x87, 7, 7, 7, 7, 7, 7, 7]));
 const CHALLENGE = toBase64Url(new Uint8Array(32).fill(9));
 const POLL_TOKEN = "poll-token";
 const OTHER_ACCOUNT_ID = "99887766-5544-4332-8110-ffeeddccbbaa";
 
 interface TransferBackend {
   recipientPublicKey: Uint8Array | null;
-  envelope: PairingEnvelope | null;
+  envelope: PairingEnvelope | "consumed" | null;
   claimStatus: number | null;
   cancelled: string[];
 }
 
 function harness(account: TestAccount, device = new FakeAccountSecretDevice(), transfer: TransferBackend = {
   recipientPublicKey: null, envelope: null, claimStatus: null, cancelled: [],
-}, options: MockBackendOptions = {}, storage = new FakeStorageArea()) {
+}, options: MockBackendOptions = {}, storage = new FakeStorageArea(), transferId = TRANSFER_ID) {
   const backend = mockBackend(account, options);
   const loginBodies: Record<string, unknown>[] = [];
   const doFetch: FetchLike = async (input, init) => {
@@ -51,14 +52,17 @@ function harness(account: TestAccount, device = new FakeAccountSecretDevice(), t
     const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
     if (url === `${API}/api/auth/secret-key-transfers`) {
       transfer.recipientPublicKey = fromBase64Url(String(body["recipientPublicKey"]), 1216);
-      return Response.json({ transferId: TRANSFER_ID, challenge: CHALLENGE, pollToken: POLL_TOKEN,
+      return Response.json({ transferId, challenge: CHALLENGE, pollToken: POLL_TOKEN,
         expiresAt: new Date(1_000_000 + 300_000).toISOString() });
     }
     if (url === `${API}/api/auth/secret-key-transfers/${TRANSFER_ID}/claim`) {
       if (body["pollToken"] !== POLL_TOKEN) return new Response(null, { status: 404 });
       if (transfer.claimStatus) return new Response(null, { status: transfer.claimStatus });
       if (!transfer.envelope) return new Response(null, { status: 202 });
-      return Response.json({ accountId: account.accountId, ...transfer.envelope });
+      if (transfer.envelope === "consumed") return new Response(null, { status: 410 });
+      const envelope = transfer.envelope;
+      transfer.envelope = "consumed";
+      return Response.json({ accountId: account.accountId, ...envelope });
     }
     if (url === `${API}/api/auth/secret-key-transfers/${TRANSFER_ID}` && init?.method === "DELETE") {
       transfer.cancelled.push(String(body["pollToken"]));
@@ -184,6 +188,15 @@ describe("Identity v2 sign-in with the Secret Key", () => {
     expect(restarted.mgr.getKeys()).toMatchObject({ memberKeySuiteId: KEY_WRAPPER_SUITE.active, memberKeyVersion: 7 });
   });
 
+  it("refuses a member key publication whose suite contradicts the Identity profile", async () => {
+    const device = new FakeAccountSecretDevice();
+    await device.store(account.accountId, secret);
+    const { mgr } = harness(account, device, undefined, { memberPublicKeySuiteId: KEY_WRAPPER_SUITE.legacy });
+
+    await expect(mgr.login(account.email, account.password)).rejects.toMatchObject({ code: "unsupported-security" });
+    expect(mgr.getKeys()).toBeNull();
+  });
+
   it("refuses to sign in when the account names no member key version", async () => {
     const device = new FakeAccountSecretDevice();
     await device.store(account.accountId, secret);
@@ -222,6 +235,7 @@ describe("Secret Key transfer to this browser (recipient-shows-qr)", () => {
     expect(offer.expiresAt).toBeLessThanOrEqual(1_000_000 + 300_000);
     await expect(mgr.secretKey.pollTransfer()).resolves.toBe("pending");
 
+    expect(parsePairingQr(offer.qrPayload)).toMatchObject({ transferId: PAIRING_TRANSFER_ID });
     const approved = await approveFromSender(offer.qrPayload, transfer.recipientPublicKey!, account.accountId, secret);
     expect(approved.sas).toBe(offer.sas);
     transfer.envelope = approved.envelope;
@@ -237,7 +251,7 @@ describe("Secret Key transfer to this browser (recipient-shows-qr)", () => {
     const offer = await mgr.secretKey.startTransfer();
     const relayed = (await generatePairingKeyPair()).publicKey;
 
-    expect(computePairingSas({ accountId: account.accountId, transferId: TRANSFER_ID, challenge: CHALLENGE,
+    expect(computePairingSas({ accountId: account.accountId, transferId: PAIRING_TRANSFER_ID, challenge: CHALLENGE,
       recipientPublicKey: relayed })).not.toBe(offer.sas);
     await expect(approveFromSender(offer.qrPayload, relayed, account.accountId, secret))
       .rejects.toMatchObject({ code: "recipient-key-digest-mismatch" });
@@ -274,6 +288,13 @@ describe("Secret Key transfer to this browser (recipient-shows-qr)", () => {
     now.value += 300_000;
     await expect(mgr.secretKey.pollTransfer()).rejects.toMatchObject({ code: "secret-key-transfer-failed" });
     expect(transfer.cancelled).toContain(POLL_TOKEN);
+  });
+
+  it("ends the transfer when the backend relays a non-canonical transfer id", async () => {
+    const { mgr } = harness(account, undefined, undefined, {}, undefined, "07070707-0707-4707-8707-07070707070");
+
+    await mgr.login(account.email, account.password);
+    await expect(mgr.secretKey.startTransfer()).rejects.toMatchObject({ code: "secret-key-transfer-failed" });
   });
 
   it("cannot start a transfer before a sign-in named the account", async () => {
