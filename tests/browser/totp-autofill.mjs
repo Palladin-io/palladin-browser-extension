@@ -43,6 +43,7 @@ try {
     const content = pagePath === '/split-sms' ? `${'<input maxlength="1" autocomplete="one-time-code">'.repeat(5)}<input maxlength="1" autocomplete="one-time-code" aria-label="SMS code">`
       : pagePath === '/mutate' || pagePath === '/push' ? `<fieldset><legend>Authenticator code</legend>${'<input maxlength="1">'.repeat(6)}</fieldset><script>document.querySelector('input').addEventListener('input', () => { if (location.pathname === '/push') history.pushState({}, '', '/changed'); else document.querySelector('form').after(document.querySelector('fieldset')); }, { once: true });</script>`
       : pagePath === '/native' ? '<input autocomplete="username"><input type="password"><button>Sign in</button>'
+      : pagePath === '/native-prefilled' ? '<input autocomplete="username" value="old-user"><input type="password" value="old-password"><input autocomplete="one-time-code"><button>Sign in</button>'
       : pagePath === '/prefilled' ? '<input autocomplete="username" value="old-user"><input type="password"><input autocomplete="one-time-code">'
       : pagePath === '/spa' ? '<input autocomplete="one-time-code">'
       : pagePath === '/identifier' ? '<input autocomplete="username"><button>Next</button>'
@@ -105,6 +106,16 @@ try {
   const firstNow = Date.now();
   const firstCodes = await Promise.all([-30000, 0].map(offset => crypto.generateTotp({ secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', algorithm: 'SHA1', digits: 6, period: 30 }, firstNow + offset)));
   assert.equal(await page.locator('input').evaluate((input, codes) => codes.includes(input.value), firstCodes.map(item => item.code)), true, 'first tab kept its account');
+  // The native popup can fill a combined prepopulated form without leaving it.
+  const nativeCombined = await context.newPage(); await nativeCombined.goto('https://totp.example.test/native-prefilled');
+  await nativeCombined.waitForTimeout(500);
+  assert.equal(await nativeCombined.locator('input[autocomplete="one-time-code"]').inputValue(), '');
+  await nativeCombined.bringToFront(); popup = await openNativePopup(worker, profile, extensionId);
+  await popup.click(/B synthetic login/); await popup.click('Log in');
+  const combinedNow = Date.now();
+  const combinedCodes = await Promise.all([-30000, 0, 30000].map(offset => crypto.generateTotp({ secret: 'JBSWY3DPEHPK3PXP', algorithm: 'SHA1', digits: 6, period: 30 }, combinedNow + offset)));
+  await nativeCombined.waitForFunction(codes => codes.includes(document.querySelector('input[autocomplete="one-time-code"]').value), combinedCodes.map(item => item.code), { timeout: 10000 });
+  await popup.dismiss(); popup = null; await nativeCombined.close();
   // Existing username prevents passive credential fill; a closed-surface choice
   // must complete before the same-form OTP is selected.
   const prefilled = await context.newPage(); await prefilled.goto('https://totp.example.test/prefilled');
@@ -127,7 +138,8 @@ try {
   // The same input is emptied by a synthetic SPA transition and re-used at a new URL.
   const spa = await context.newPage(); await spa.goto('https://totp.example.test/spa');
   await spa.waitForFunction(() => /^\d{6}$/.test(document.querySelector('input').value), null, { timeout: 10000 });
-  await spa.evaluate(() => { const input = document.querySelector('input'); input.value = ''; history.pushState({}, '', '/spa-next'); document.querySelector('form').append(document.createElement('span')); });
+  await spa.waitForTimeout(500);
+  await spa.evaluate(() => { document.querySelector('input').value = ''; history.pushState({}, '', '/spa-next'); });
   await spa.waitForFunction(() => /^\d{6}$/.test(document.querySelector('input').value), null, { timeout: 10000 });
   await spa.close();
   const staged = await context.newPage(); await staged.goto('https://totp.example.test/identifier');

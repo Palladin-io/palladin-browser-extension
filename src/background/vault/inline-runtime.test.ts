@@ -379,3 +379,60 @@ it('preserves each tab account through ordinary password and OTP lists', async (
   const list = await handleInlineAutofillContentMessage(subject, { channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', documentId }, sender, 'extension-id');
   expect(list).toMatchObject({ continuation: { vaultId: 'vault-1', entryId: 'entry-1' }, entries: [{ entryId: 'entry-1' }, { entryId: 'entry-2' }] });
 });
+
+it('does not return a stale account when a native selection completes during a list lookup', async () => {
+  const recency = new InMemoryInlineAutofillRecency(); recency.rememberForTab(7, sender.url!, 'vault-1', 'entry-1');
+  const second = { ...entries[0]!, id: 'entry-2', name: 'Second', username: 'grace@example.com' };
+  let release!: () => void, started!: () => void;
+  const wait = new Promise<void>(resolve => { release = resolve; }), ready = new Promise<void>(resolve => { started = resolve; });
+  const subject = deps({ recency, getMetadata: async () => [{ ...entries[0]!, icon: 'example-icon' }, second],
+    loadIcon: async () => { started(); await wait; return undefined; } });
+  const request = handleInlineAutofillContentMessage(subject, { channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', documentId, purpose: 'totp' }, sender, 'extension-id');
+  await ready;
+  const finish = recency.beginNative(7, sender.url!);
+  recency.rememberForTab(7, sender.url!, 'vault-1', 'entry-2'); finish(true); release();
+  const result = await request;
+  expect(result).not.toMatchObject({ continuation: { entryId: 'entry-1' } });
+});
+
+it('blocks an old automatic OTP command after a newer native choice has completed', async () => {
+  const recency = new InMemoryInlineAutofillRecency(); recency.rememberForTab(7, sender.url!, 'vault-1', 'entry-1');
+  const finish = recency.beginNative(7, sender.url!); recency.rememberForTab(7, sender.url!, 'vault-1', 'entry-2'); finish(true);
+  let writes = 0;
+  const result = await handleInlineAutofillContentMessage(deps({ recency, fill: async () => { writes++; return { status: 'filled' }; } }),
+    { channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', intent: 'automatic', documentId, vaultId: 'vault-1', entryId: 'entry-1', scope: 'exact', loginTargetId: 'otp-1', purpose: 'totp' }, sender, 'extension-id');
+  expect(result).toEqual({ ok: true, kind: 'fill', status: 'blocked' }); expect(writes).toBe(0);
+});
+
+it('keeps a native selection authoritative after automatic continuation of that same account', async () => {
+  const recency = new InMemoryInlineAutofillRecency();
+  const second = { ...entries[0]!, id: 'entry-2', name: 'Second', username: 'grace@example.com' };
+  const finish = recency.beginNative(7, sender.url!); recency.rememberForTab(7, sender.url!, 'vault-1', 'entry-2'); finish(true);
+  const subject = deps({ recency, getMetadata: async () => [entries[0]!, second], signIn: { preferred: () => entries[0]!, filled: () => {} } });
+  await handleInlineAutofillContentMessage(subject, { channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', intent: 'automatic', documentId, vaultId: 'vault-1', entryId: 'entry-2', scope: 'exact', loginTargetId: 'otp-1', purpose: 'totp' }, sender, 'extension-id');
+  const next = await handleInlineAutofillContentMessage(subject, { channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', documentId, purpose: 'totp' }, sender, 'extension-id');
+  expect(next).toMatchObject({ continuation: { entryId: 'entry-2' } });
+});
+
+it('does not dispatch an old automatic fill when native selection begins during session lookup', async () => {
+  const recency = new InMemoryInlineAutofillRecency(); recency.rememberForTab(7, sender.url!, 'vault-1', 'entry-1');
+  let release!: () => void, started!: () => void;
+  const blocked = new Promise<void>(resolve => { release = resolve; }), ready = new Promise<void>(resolve => { started = resolve; });
+  let writes = 0;
+  const subject = deps({ recency, getStatus: async () => { started(); await blocked; return 'unlocked'; }, fill: async () => { writes++; return { status: 'filled' }; } });
+  const request = handleInlineAutofillContentMessage(subject, { channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', intent: 'automatic', documentId, vaultId: 'vault-1', entryId: 'entry-1', scope: 'exact', loginTargetId: 'otp-1', purpose: 'totp' }, sender, 'extension-id');
+  await ready; const finish = recency.beginNative(7, sender.url!); release();
+  await new Promise(resolve => setTimeout(resolve, 20)); expect(writes).toBe(0);
+  recency.rememberForTab(7, sender.url!, 'vault-1', 'entry-2'); finish(true);
+  expect(await request).toEqual({ ok: true, kind: 'fill', status: 'blocked' }); expect(writes).toBe(0);
+});
+
+it('fails an earlier list closed when native selection fails during session lookup', async () => {
+  const recency = new InMemoryInlineAutofillRecency(); recency.rememberForTab(7, sender.url!, 'vault-1', 'entry-1');
+  let release!: () => void, started!: () => void;
+  const blocked = new Promise<void>(resolve => { release = resolve; }), ready = new Promise<void>(resolve => { started = resolve; });
+  const subject = deps({ recency, getStatus: async () => { started(); await blocked; return 'unlocked'; } });
+  const request = handleInlineAutofillContentMessage(subject, { channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', documentId, purpose: 'totp' }, sender, 'extension-id');
+  await ready; const finish = recency.beginNative(7, sender.url!); finish(false); release();
+  expect(await request).toEqual({ ok: false, code: 'unavailable' });
+});

@@ -276,10 +276,11 @@ class InlineAutofillController {
   }
 
   private scheduleShadowProbe(): void {
-    if (this.stopped || this.shadowProbeTimer !== null || this.shadowCandidates.length === 0) return;
+    if (this.stopped || this.shadowProbeTimer !== null || (this.shadowCandidates.length === 0 && this.totpSurfaces.size === 0)) return;
     this.shadowProbeTimer = setTimeout(() => {
       this.shadowProbeTimer = null;
       if (this.stopped) return;
+      if (this.totpScanUrl !== this.doc.location.href) this.scheduleScan();
       const count = Math.min(SHADOW_PROBE_BATCH, this.shadowCandidates.length);
       for (let index = 0; index < count; index++) {
         const host = this.shadowCandidates[this.shadowCursor]?.deref();
@@ -359,8 +360,14 @@ class InlineAutofillController {
     const target = request.loginTargetId === null ? null : this.resolveLoginTarget(request.loginTargetId);
     const outcome = performBoundFill(this.doc, request, this.doc.location.href, this.documentId, target, () => {
       this.continuation = null;
+      this.totpGeneration++; this.totpPending = null;
+      this.attemptedTotp = new WeakSet(); this.automaticTotpUrl = null;
       for (const widget of this.widgets.values()) widget.cancelAutomaticFill();
     });
+    if (outcome.ok && request.loginTargetId === null && request.fields.some(field => field.kind === 'password')) {
+      const matched = [...this.widgets.values()].filter(widget => widget.matchesNativeCredential(request.fields));
+      if (matched.length === 1) { matched[0]!.acknowledgeNativeCredential(); this.scheduleScan(); }
+    }
     if (outcome.ok && target !== null && request.intent === 'automatic') {
       for (const widget of this.widgets.values()) widget.acknowledgeAutomaticFill(request.loginTargetId!, target);
     }
@@ -375,6 +382,7 @@ class InlineAutofillController {
   }
 
   clearSessionState(): void {
+    this.manualLoginPending = false;
     this.totpGeneration++; this.totpPending = null;
     this.attemptedTotp = new WeakSet();
     this.automaticTotpUrl = null;
@@ -774,6 +782,18 @@ class InlineWidget {
   ownsForm(form: HTMLFormElement | null): boolean {
     return form !== null && this.options.loginTarget.form === form;
   }
+
+  matchesNativeCredential(fields: FillRequestMessage['fields']): boolean {
+    const target = this.options.loginTarget;
+    if (!isCurrentLoginTarget(target)) return false;
+    const username = fields.find(field => field.kind === 'username')?.value;
+    const password = fields.find(field => field.kind === 'password')?.value;
+    return password !== undefined && (target.username !== null || target.password !== null)
+      && (target.username === null || (username !== undefined && target.username.value === username))
+      && (target.password === null || target.password.value === password);
+  }
+
+  acknowledgeNativeCredential(): void { this.manualFillCompleted = true; }
 
   didCompleteCredentialFill(): boolean {
     return (this.automaticFillCompleted && !this.automaticFillInFlight) || this.manualFillCompleted;
@@ -1237,8 +1257,10 @@ class InlineWidget {
       if (!silent && succeeded) this.manualFillCompleted = true;
       return succeeded;
     } finally {
-      if (!silent) this.options.onManualSettled(succeeded);
-      if (this.pendingFill === operation) this.invalidatePendingFill();
+      if (this.pendingFill === operation) {
+        if (!silent) this.options.onManualSettled(succeeded);
+        this.invalidatePendingFill();
+      }
     }
   }
 

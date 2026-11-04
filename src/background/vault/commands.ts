@@ -311,6 +311,7 @@ export async function fillInlineSelectedEntry(
   loginTargetId: string,
   intent: "automatic" | "manual",
   purpose?: "totp",
+  assertOperationCurrent?: () => void,
 ): Promise<FillResult> {
   if (!isSecurePage(tab.url)) return { status: "blocked", reason: "insecure-page" };
   const meta = (await deps.data.getMetadata()).find(
@@ -325,7 +326,7 @@ export async function fillInlineSelectedEntry(
   if (!matchesTab(tab.url, meta.urlDomain, related ? { exactSubdomain: false } : undefined)) {
     return { status: "blocked", reason: "domain-mismatch" };
   }
-  return fillPreparedEntry(deps, meta, tab, related, false, loginTargetId, intent, purpose);
+  return fillPreparedEntry(deps, meta, tab, related, false, loginTargetId, intent, purpose, assertOperationCurrent);
 }
 
 async function openAndFillLogin(
@@ -384,20 +385,24 @@ async function openAndFillLogin(
 async function fillNativePreparedEntry(
   deps: VaultCommandDeps, meta: EntryMetadata, tab: ActiveTab, submit = false,
 ): Promise<FillResult> {
+  const finish = meta.type === ENTRY_TYPE_CREDENTIAL ? deps.inlineRecency?.beginNative?.(tab.id, tab.url) : undefined;
   const current = deps.inlineRecency?.capture?.(tab.id, tab.url);
-  const result = await fillPreparedEntry(deps, meta, tab, false, submit);
-  if (result.status === "filled" && meta.type === ENTRY_TYPE_CREDENTIAL && deps.inlineRecency && (current?.() ?? true)) {
-    const live = deps.resolveTabDocument ? await deps.resolveTabDocument(tab.id) : await deps.getActiveTab();
-    const sameDocument = live !== null && live.documentId === tab.documentId && live.url === tab.url
-      && live.browserDocumentId === tab.browserDocumentId && live.legacyFirefoxRouteId === tab.legacyFirefoxRouteId;
-    // An authenticated successful login may itself navigate to the next same-host
-    // stage before its reply arrives; ordinary fill grants no such continuation.
-    if (!live || live.id !== tab.id || (!sameDocument && !(submit && matchesTab(live.url, meta.urlDomain)))
-      || !(current?.() ?? true)) return result;
-    deps.inlineRecency.remember(tab.url, meta.vaultId, meta.id);
-    deps.inlineRecency.rememberForTab?.(tab.id, tab.url, meta.vaultId, meta.id);
-  }
-  return result;
+  let recorded = false;
+  try {
+    const result = await fillPreparedEntry(deps, meta, tab, false, submit);
+    if (result.status === "filled" && meta.type === ENTRY_TYPE_CREDENTIAL && deps.inlineRecency && (current?.() ?? true)) {
+      const live = deps.resolveTabDocument ? await deps.resolveTabDocument(tab.id) : await deps.getActiveTab();
+      const sameDocument = live !== null && live.documentId === tab.documentId && live.url === tab.url
+        && live.browserDocumentId === tab.browserDocumentId && live.legacyFirefoxRouteId === tab.legacyFirefoxRouteId;
+      // A successful authenticated submit can navigate before its reply arrives.
+      if (!live || live.id !== tab.id || (!sameDocument && !(submit && matchesTab(live.url, meta.urlDomain)))
+        || !(current?.() ?? true)) return result;
+      deps.inlineRecency.remember(tab.url, meta.vaultId, meta.id);
+      deps.inlineRecency.rememberForTab?.(tab.id, tab.url, meta.vaultId, meta.id);
+      recorded = true;
+    }
+    return result;
+  } finally { finish?.(recorded); }
 }
 
 function savedLoginUrl(value: string, boundUrl: string): string | null {
@@ -419,6 +424,7 @@ async function fillPreparedEntry(
   loginTargetId?: string,
   intent?: "automatic" | "manual",
   purpose?: "totp",
+  assertOperationCurrent?: () => void,
 ): Promise<FillResult> {
   // Re-check the origin gate at click time, not just when the list was drawn.
   if (meta.type === ENTRY_TYPE_CREDENTIAL && !matchesTab(
@@ -439,11 +445,12 @@ async function fillPreparedEntry(
   }
 
   let plaintext: MemberSecretV1;
-  let assertSessionCurrent: (() => void) | undefined;
+  let assertSessionCurrent: (() => void) | undefined = assertOperationCurrent;
   try {
     if (purpose === "totp" || tab.documentTransport === "legacy-firefox-port") {
-      assertSessionCurrent = deps.captureFillSession?.();
-      if (!assertSessionCurrent) throw new VaultDataError("locked", "Fill session unavailable");
+      const assertSession = deps.captureFillSession?.();
+      if (!assertSession) throw new VaultDataError("locked", "Fill session unavailable");
+      assertSessionCurrent = () => { assertOperationCurrent?.(); assertSession(); };
     }
     plaintext = await deps.data.revealEntry(meta.vaultId, meta.id);
     assertSessionCurrent?.();

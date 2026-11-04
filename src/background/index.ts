@@ -506,7 +506,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
           preferred: (tabId, url, candidates) => federatedSignIn.preferredProviderEntry(tabId, url, candidates),
           filled: (tabId, url, entry, intent) => federatedSignIn.providerFilled(tabId, url, entry, intent),
         },
-        fill: async (source, vaultId, entryId, scope, loginTargetId, intent, purpose) => {
+        fill: async (source, vaultId, entryId, scope, loginTargetId, intent, purpose, assertCurrent) => {
           // This channel includes passive exact-host autofill. A fill request
           // is not trusted own activity and must never renew session deadlines.
           return fillInlineSelectedEntry(
@@ -518,6 +518,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
             loginTargetId,
             intent,
             purpose,
+            assertCurrent,
           );
         },
       }, raw, sender, chrome.runtime.id);
