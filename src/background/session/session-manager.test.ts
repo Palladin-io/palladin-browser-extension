@@ -197,8 +197,8 @@ describe("SessionManager — full lifecycle", () => {
     });
     expect(fetchLoginKdf).toHaveBeenCalledTimes(1);
 
-    const [firstEmail, firstProfile, firstApiUrl] = fetchLoginKdf.mock.calls[0]!;
-    firstBootstrap.resolve(await originalFetchLoginKdf(firstEmail, firstProfile, firstApiUrl));
+    const [firstEmail, firstApiUrl] = fetchLoginKdf.mock.calls[0]!;
+    firstBootstrap.resolve(await originalFetchLoginKdf(firstEmail, firstApiUrl));
     await expect(firstLogin).resolves.toEqual({ status: "unlocked" });
     expect(await mgr.getStatus()).toBe("unlocked");
   }, 15_000);

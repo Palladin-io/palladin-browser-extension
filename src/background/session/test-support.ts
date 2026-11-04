@@ -8,6 +8,8 @@
 
 import {
   deriveIdentityV1,
+  deriveIdentityV2,
+  IDENTITY_ACCOUNT_SECRET_PROFILE,
   encryptWithKey,
   fromBase64Url,
   IDENTITY_KDF_PROFILE,
@@ -22,6 +24,7 @@ import {
 import type { AlarmScheduler } from "./auto-lock";
 import type { StorageArea } from "./session-store";
 import type { FetchLike } from "./auth-client";
+import type { AccountSecretDevice } from "./identity-profile";
 import type { AccountMaterial } from "./types";
 
 /** In-memory stand-in for `chrome.storage.session` (structured values). */
@@ -103,15 +106,35 @@ export interface TestAccount {
   readonly expectedAuthCredential: string;
   /** base64 of the private key the unlock must recover. */
   readonly privateKeyB64: string;
+  readonly profile: { readonly id: string; readonly securityVersion: number };
+  /** Identity v2 only: the Secret Key the derivation needs. */
+  readonly accountSecret: Uint8Array | null;
+}
+
+/** In-memory stand-in for the browser device wrapper; copies in and out like the real one. */
+export class FakeAccountSecretDevice implements AccountSecretDevice {
+  readonly secrets = new Map<string, Uint8Array>();
+  load(accountId: string): Promise<Uint8Array | null> {
+    const secret = this.secrets.get(accountId);
+    return Promise.resolve(secret ? secret.slice() : null);
+  }
+  store(accountId: string, accountSecret: Uint8Array): Promise<void> {
+    this.secrets.set(accountId, accountSecret.slice());
+    return Promise.resolve();
+  }
+  delete(accountId: string): Promise<void> {
+    this.secrets.delete(accountId);
+    return Promise.resolve();
+  }
 }
 
 export function accountMaterial(account: TestAccount): AccountMaterial {
   return {
     accountId: account.accountId,
     kdf: {
-      securityVersion: IDENTITY_SECURITY_VERSION,
-      minimumSecurityVersion: IDENTITY_SECURITY_VERSION,
-      profileId: IDENTITY_KDF_PROFILE_ID,
+      securityVersion: account.profile.securityVersion,
+      minimumSecurityVersion: account.profile.securityVersion,
+      profileId: account.profile.id,
       kdfSalt: account.kdfSalt,
     },
     encryptedPrivateKey: account.encryptedPrivateKey,
@@ -122,10 +145,13 @@ export function accountMaterial(account: TestAccount): AccountMaterial {
 export async function buildTestAccount(
   email = "user@palladin.test",
   password = "correct horse battery staple",
+  accountSecret: Uint8Array | null = null,
 ): Promise<TestAccount> {
   const accountId = "00112233-4455-4677-8899-aabbccddeeff";
   const kdfSalt = await randomBytes(16);
-  const identity = await deriveIdentityV1(password, accountId, kdfSalt);
+  const identity = accountSecret
+    ? await deriveIdentityV2(password, accountSecret, accountId, kdfSalt)
+    : await deriveIdentityV1(password, accountId, kdfSalt);
   const privateKey = await randomBytes(32);
   const encryptedPrivateKeyBytes = await encryptWithKey(privateKey, identity.masterKey);
   const encryptedPrivateKey = toBase64Url(encryptedPrivateKeyBytes);
@@ -145,6 +171,10 @@ export async function buildTestAccount(
     encryptedPrivateKey,
     expectedAuthCredential,
     privateKeyB64,
+    profile: accountSecret
+      ? { id: IDENTITY_ACCOUNT_SECRET_PROFILE.id, securityVersion: IDENTITY_ACCOUNT_SECRET_PROFILE.securityVersion }
+      : { id: IDENTITY_KDF_PROFILE_ID, securityVersion: IDENTITY_SECURITY_VERSION },
+    accountSecret: accountSecret ? accountSecret.slice() : null,
   };
 }
 
@@ -194,11 +224,11 @@ export function mockBackend(
     calls.push(url);
 
     if (url.endsWith("/api/auth/login/salt")) {
-      if (body["profileId"] !== IDENTITY_KDF_PROFILE_ID) return Promise.resolve(json(null, 400));
+      if (Object.keys(body).join() !== "email") return Promise.resolve(json(null, 400));
       return Promise.resolve(json({
         accountId: body["email"] === options.unknownEmail ? PSEUDO_ACCOUNT_ID : account.accountId,
-        profileId: IDENTITY_KDF_PROFILE_ID,
-        securityVersion: IDENTITY_SECURITY_VERSION,
+        profileId: account.profile.id,
+        securityVersion: account.profile.securityVersion,
         kdfSalt: account.kdfSalt,
         memoryKiB: IDENTITY_KDF_PROFILE.memoryKiB,
         iterations: IDENTITY_KDF_PROFILE.iterations,
@@ -209,8 +239,8 @@ export function mockBackend(
       if (
         body["email"] === options.unknownEmail
         || body["authCredential"] !== account.expectedAuthCredential
-        || body["securityVersion"] !== IDENTITY_SECURITY_VERSION
-        || body["kdfProfileId"] !== IDENTITY_KDF_PROFILE_ID
+        || body["securityVersion"] !== account.profile.securityVersion
+        || body["kdfProfileId"] !== account.profile.id
       ) return Promise.resolve(json(null, 401));
       if (options.totpRequired) {
         return Promise.resolve(json({ totpRequired: true, challengeToken: "challenge-1" }));
@@ -242,9 +272,9 @@ export function mockBackend(
           userId: account.accountId,
           email: account.email,
           kdf: {
-            securityVersion: IDENTITY_SECURITY_VERSION,
-            minimumSecurityVersion: IDENTITY_SECURITY_VERSION,
-            profileId: IDENTITY_KDF_PROFILE_ID,
+            securityVersion: account.profile.securityVersion,
+            minimumSecurityVersion: account.profile.securityVersion,
+            profileId: account.profile.id,
             kdfSalt: account.kdfSalt,
             credentialRevision: 1,
             privateKeyWrapRevision: 1,

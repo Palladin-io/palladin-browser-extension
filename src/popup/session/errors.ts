@@ -11,7 +11,7 @@
 import type { SessionErrorCode } from "../../background/session/types";
 import { translate, type Translate, type TranslationKey } from "../i18n";
 
-export type ErrorContext = "sign-in" | "totp" | "unlock";
+export type ErrorContext = "sign-in" | "totp" | "unlock" | "secret-key";
 
 /** Thrown by the {@link ./client.SessionClient} when the worker replies `ok:false`. */
 export class PopupSessionError extends Error {
@@ -42,6 +42,11 @@ const BY_CONTEXT: Record<ErrorContext, Partial<Record<SessionErrorCode, Translat
     "invalid-credentials": "error.invalidPassword",
     "incorrect-password": "error.invalidPassword",
     "not-authenticated": "error.sessionExpired",
+    "secret-key-required": "error.secretKeyMissing",
+  },
+  "secret-key": {
+    "secret-key-invalid": "error.secretKeyInvalid",
+    "secret-key-transfer-failed": "error.secretKeyTransferFailed",
   },
 };
 

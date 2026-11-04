@@ -14,6 +14,10 @@ import type {
   SessionCommand,
   SessionCommandResult,
 } from "../../background/session/commands";
+import type {
+  SecretKeyTransferOffer,
+  SecretKeyTransferStatus,
+} from "../../background/session/secret-key-enrollment";
 import type { LoginResult, SessionStatus } from "../../background/session/types";
 import { PopupSessionError } from "./errors";
 
@@ -23,6 +27,10 @@ export interface SessionClient {
   login(email: string, password: string): Promise<LoginResult>;
   completeTotp(challengeToken: string, code: string): Promise<SessionStatus>;
   cancelTotp(): Promise<void>;
+  startSecretKeyTransfer(): Promise<SecretKeyTransferOffer>;
+  pollSecretKeyTransfer(): Promise<SecretKeyTransferStatus>;
+  submitSecretKey(secretKey: string): Promise<void>;
+  cancelSecretKey(): Promise<void>;
   unlock(password: string): Promise<SessionStatus>;
   lock(): Promise<void>;
   logout(): Promise<void>;
@@ -76,6 +84,22 @@ export function createSessionClient(send: SendCommand = chromeSend): SessionClie
     },
     async cancelTotp() {
       await dispatch(send, { type: "session/cancelTotp" });
+    },
+    async startSecretKeyTransfer() {
+      const result = await dispatch(send, { type: "session/secretKey/startTransfer" });
+      if (!("transfer" in result)) throw new PopupSessionError("network");
+      return result.transfer;
+    },
+    async pollSecretKeyTransfer() {
+      const result = await dispatch(send, { type: "session/secretKey/pollTransfer" });
+      if (!("transferStatus" in result)) throw new PopupSessionError("network");
+      return result.transferStatus;
+    },
+    async submitSecretKey(secretKey) {
+      await dispatch(send, { type: "session/secretKey/submit", secretKey });
+    },
+    async cancelSecretKey() {
+      await dispatch(send, { type: "session/secretKey/cancel" });
     },
     async unlock(password) {
       const result = await dispatch(send, { type: "session/unlock", password });

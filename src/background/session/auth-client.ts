@@ -44,6 +44,18 @@ export interface LoginKdfBootstrap {
   readonly parallelism: number;
 }
 
+/** Recipient side of `recipient-shows-qr` Secret Key transfer (identity-kdf v3 device pairing). */
+export interface SecretKeyTransferSession {
+  readonly transferId: string;
+  readonly challenge: string;
+  readonly pollToken: string;
+  readonly expiresAt: string;
+}
+
+export type SecretKeyTransferClaim =
+  | { readonly status: "pending" }
+  | { readonly status: "delivered"; readonly kemCiphertext: string; readonly ciphertext: string };
+
 export function isTotpRequired(
   response: PasswordLoginResponse,
 ): response is TotpRequiredResponse {
@@ -131,18 +143,55 @@ export class AuthClient {
     return (await response.json()) as T;
   }
 
-  /** Pre-login salt fetch (anti-enumeration: unknown emails still get a salt). */
-  fetchLoginKdf(
-    email: string,
-    profileId: string,
-    expectedApiUrl?: string,
-  ): Promise<LoginKdfBootstrap> {
-    return this.postJson(
-      "/api/auth/login/salt",
-      { email, profileId },
-      undefined,
-      expectedApiUrl,
-    );
+  /**
+   * Pre-login KDF bootstrap: the account's registered profile (anti-enumeration:
+   * unknown emails still get a salt under the current profile).
+   */
+  fetchLoginKdf(email: string, expectedApiUrl?: string): Promise<LoginKdfBootstrap> {
+    return this.postJson("/api/auth/login/salt", { email }, undefined, expectedApiUrl);
+  }
+
+  createSecretKeyTransfer(recipientPublicKey: string, expectedApiUrl: string): Promise<SecretKeyTransferSession> {
+    return this.postJson("/api/auth/secret-key-transfers", { recipientPublicKey }, undefined, expectedApiUrl);
+  }
+
+  /** 202 while the sender has not approved; 200 delivers the envelope exactly once. */
+  async claimSecretKeyTransfer(
+    transferId: string,
+    pollToken: string,
+    expectedApiUrl: string,
+  ): Promise<SecretKeyTransferClaim> {
+    const path = `/api/auth/secret-key-transfers/${encodeURIComponent(transferId)}/claim`;
+    const apiUrl = this.boundApiUrl(expectedApiUrl);
+    let response: Response;
+    try {
+      response = await this.doFetch(`${apiUrl}${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pollToken }),
+      });
+    } catch {
+      throw new SessionError("network", "Secret Key transfer claim failed");
+    }
+    if (response.status === 202) return { status: "pending" };
+    if (response.status === 404 || response.status === 410) {
+      throw new SessionError("secret-key-transfer-failed", "Secret Key transfer is no longer available");
+    }
+    const body = await this.parse<{ kemCiphertext: string; ciphertext: string }>(response, path);
+    return { status: "delivered", kemCiphertext: body.kemCiphertext, ciphertext: body.ciphertext };
+  }
+
+  async cancelSecretKeyTransfer(transferId: string, pollToken: string, expectedApiUrl: string): Promise<void> {
+    try {
+      const apiUrl = this.boundApiUrl(expectedApiUrl);
+      await this.doFetch(`${apiUrl}/api/auth/secret-key-transfers/${encodeURIComponent(transferId)}`, {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pollToken }),
+      });
+    } catch {
+      /* The session expires server-side on its own. */
+    }
   }
 
   login(

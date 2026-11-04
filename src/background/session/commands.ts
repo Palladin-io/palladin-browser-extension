@@ -15,6 +15,7 @@
 import type { AutoLockPolicy } from "./auto-lock";
 import { isAutoLockPolicy } from "./auto-lock";
 import { getSessionCapabilities, type SessionCapabilities } from "./capabilities";
+import type { SecretKeyTransferOffer, SecretKeyTransferStatus } from "./secret-key-enrollment";
 import type { SessionManager } from "./session-manager";
 import {
   SessionError,
@@ -33,6 +34,10 @@ export type SessionCommand =
       readonly code: string;
     }
   | { readonly type: "session/cancelTotp" }
+  | { readonly type: "session/secretKey/startTransfer" }
+  | { readonly type: "session/secretKey/pollTransfer" }
+  | { readonly type: "session/secretKey/submit"; readonly secretKey: string }
+  | { readonly type: "session/secretKey/cancel" }
   | { readonly type: "session/unlock"; readonly password: string }
   | { readonly type: "session/lock" }
   | { readonly type: "session/logout" }
@@ -46,6 +51,8 @@ export type SessionCommandResult =
   | { readonly ok: true; readonly capabilities: SessionCapabilities }
   | { readonly ok: true; readonly login: LoginResult }
   | { readonly ok: true; readonly policy: AutoLockPolicy }
+  | { readonly ok: true; readonly transfer: SecretKeyTransferOffer }
+  | { readonly ok: true; readonly transferStatus: SecretKeyTransferStatus }
   | { readonly ok: true }
   | { readonly ok: false; readonly code: SessionErrorCode; readonly message: string };
 
@@ -80,6 +87,19 @@ export async function dispatchSessionCommand(
         return { ok: true, status: await manager.getStatus() };
       case "session/cancelTotp":
         manager.cancelTotp();
+        return { ok: true };
+      case "session/secretKey/startTransfer":
+        return { ok: true, transfer: await manager.secretKey.startTransfer() };
+      case "session/secretKey/pollTransfer":
+        return { ok: true, transferStatus: await manager.secretKey.pollTransfer() };
+      case "session/secretKey/submit":
+        if (typeof command.secretKey !== "string") {
+          return { ok: false, code: "secret-key-invalid", message: "Secret Key is required" };
+        }
+        manager.secretKey.submitSecretKey(command.secretKey);
+        return { ok: true };
+      case "session/secretKey/cancel":
+        manager.secretKey.cancel();
         return { ok: true };
       case "session/unlock":
         await manager.unlockWithPassword(command.password);

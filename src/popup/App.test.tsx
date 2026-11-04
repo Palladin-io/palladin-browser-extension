@@ -22,6 +22,10 @@ function makeClient(overrides: Partial<SessionClient> = {}): Fake {
     unlock: vi.fn(async () => "unlocked" as const),
     lock: vi.fn(async () => {}),
     logout: vi.fn(async () => {}),
+    startSecretKeyTransfer: vi.fn(async () => ({ qrPayload: "", sas: "", expiresAt: 0 })),
+    pollSecretKeyTransfer: vi.fn(async () => "pending" as const),
+    submitSecretKey: vi.fn(async () => {}),
+    cancelSecretKey: vi.fn(async () => {}),
     ...overrides,
   };
   return base as Fake;

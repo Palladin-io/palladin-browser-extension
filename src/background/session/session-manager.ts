@@ -15,14 +15,12 @@
 import type { SharedUnlockSourceSession } from "./shared-unlock-source";
 import type { SharedUnlockSettingsSession } from './shared-unlock-settings';
 import {
-  assertIdentityKdfProfile,
   type BrowserSessionEnvelope,
   type BrowserSessionEnvelopeContext,
   decryptWithKey,
   deriveIdentityV1,
+  deriveIdentityV2,
   fromBase64Url,
-  IDENTITY_KDF_PROFILE_ID,
-  IDENTITY_SECURITY_VERSION,
   openBrowserSessionEnvelope,
   sealBrowserSessionEnvelope,
   toBase64Url,
@@ -53,6 +51,16 @@ import { SessionStore } from "./session-store";
 import type { PrepareManualUnlock, PreparedManualUnlock } from "./manual-unlock";
 import { unlockDeadline, type SessionUnlockLimits, type SharedUnlockInstaller } from "./shared-unlock-install";
 import { MasterPasswordUnlock, type UnlockSource } from "./unlock-source";
+import {
+  browserAccountSecretDevice,
+  hasDeviceAccountSecret,
+  identityProfileVersion,
+  isRegisteredProfile,
+  loadDeviceAccountSecret,
+  MAXIMUM_SECURITY_VERSION,
+  type AccountSecretDevice,
+} from "./identity-profile";
+import { SecretKeyEnrollment } from "./secret-key-enrollment";
 import {
   SessionError,
   type AccountMaterial,
@@ -89,6 +97,7 @@ export interface SessionManagerDeps {
   recordManualClosing?: (accountId: string, action: "lock" | "logout") => Promise<void>;
   retireSharedUnlock?: (scope: Pick<SessionTokens, "userId" | "apiUrl">) => void;
   deliverManualClosing?: (session: SessionTokens, assertCurrent: () => void) => Promise<void>;
+  accountSecrets?: AccountSecretDevice;
 }
 
 export const PENDING_TOTP_TTL_MS = 5 * 60 * 1_000;
@@ -123,6 +132,8 @@ interface PendingTotpContext {
   readonly bootstrap: LoginKdfBootstrap & { readonly accountId: string };
   readonly masterKey: Uint8Array;
   readonly authCredential: Uint8Array;
+  /** Identity v2 only: proven by the private-key unwrap before it is stored on this device. */
+  readonly accountSecret: Uint8Array | null;
 }
 
 export class SessionManager {
@@ -142,8 +153,10 @@ export class SessionManager {
   private readonly recordManualClosing: SessionManagerDeps["recordManualClosing"];
   private readonly retireSharedUnlock: SessionManagerDeps["retireSharedUnlock"];
   private readonly deliverManualClosing: SessionManagerDeps["deliverManualClosing"];
+  private readonly accountSecrets: AccountSecretDevice;
 
   readonly hooks: SessionHooks;
+  readonly secretKey: SecretKeyEnrollment;
   private readonly sync: SyncTrigger;
   private readonly push: PushRegistration;
 
@@ -178,8 +191,10 @@ export class SessionManager {
     this.sync = deps.sync ?? new NoopSyncTrigger();
     this.push = deps.push ?? new NoopPushRegistration();
     this.now = deps.now ?? (() => Date.now());
+    this.accountSecrets = deps.accountSecrets ?? browserAccountSecretDevice;
+    this.secretKey = new SecretKeyEnrollment(this.authClient, this.now);
     this.createPasswordUnlock = deps.createPasswordUnlock
-      ?? ((password) => new MasterPasswordUnlock(password));
+      ?? ((password) => new MasterPasswordUnlock(password, this.accountSecrets));
     this.clientId = deps.clientId ?? "palladin-browser-extension-test-client";
     this.durableSessionTtlMs = deps.durableSessionTtlMs ?? DURABLE_SESSION_TTL_MS;
     this.prepareManualUnlock = deps.prepareManualUnlock;
@@ -618,16 +633,36 @@ export class SessionManager {
     this.clearPendingTotp();
     const generation = this.captureLifecycleGeneration();
     const apiUrl = this.authClient.currentApiUrl();
-    const bootstrap = await this.authClient.fetchLoginKdf(
-      email,
-      IDENTITY_KDF_PROFILE_ID,
-      apiUrl,
-    );
+    const bootstrap = await this.authClient.fetchLoginKdf(email, apiUrl);
     this.assertLifecycleGeneration(generation);
     this.assertApiUrl(apiUrl);
-    this.assertLoginBootstrap(bootstrap);
+    const version = identityProfileVersion(bootstrap);
+    const scope = { accountId: bootstrap.accountId, apiUrl };
+    let accountSecret: Uint8Array | null = null;
+    if (version === 2) {
+      // Keep the account scope so a stale device Secret Key can be replaced after a failed sign-in.
+      this.secretKey.require(scope);
+      accountSecret = this.secretKey.pendingSecret(scope)
+        ?? await loadDeviceAccountSecret(this.accountSecrets, bootstrap.accountId);
+      this.assertLifecycleGeneration(generation);
+      this.assertApiUrl(apiUrl);
+      if (!accountSecret) return { status: "secret-key-required" };
+    } else if (await hasDeviceAccountSecret(this.accountSecrets, bootstrap.accountId)) {
+      // This browser already proved the account uses a Secret Key; a password-only
+      // profile now would hand the server an offline-guessable credential.
+      throw new SessionError("unsupported-security", "Identity security downgrade refused");
+    }
+    let identity: Awaited<ReturnType<typeof deriveIdentityV1>>;
     const salt = fromBase64Url(bootstrap.kdfSalt, 16);
-    const identity = await deriveIdentityV1(password, bootstrap.accountId, salt);
+    try {
+      identity = accountSecret
+        ? await deriveIdentityV2(password, accountSecret, bootstrap.accountId, salt)
+        : await deriveIdentityV1(password, bootstrap.accountId, salt);
+    } catch (error) {
+      wipe(salt);
+      if (accountSecret) wipe(accountSecret);
+      throw error;
+    }
     this.trackInFlightKeyMaterial(identity.masterKey);
     this.trackInFlightKeyMaterial(identity.authCredential);
     let transferredMasterKey = false;
@@ -636,8 +671,8 @@ export class SessionManager {
       this.assertApiUrl(apiUrl);
       const response = await this.authClient.login({
         email,
-        securityVersion: IDENTITY_SECURITY_VERSION,
-        kdfProfileId: IDENTITY_KDF_PROFILE_ID,
+        securityVersion: bootstrap.securityVersion,
+        kdfProfileId: bootstrap.profileId,
         authCredential: toBase64Url(identity.authCredential),
       }, apiUrl);
       this.assertLifecycleGeneration(generation);
@@ -650,7 +685,9 @@ export class SessionManager {
           bootstrap,
           masterKey: identity.masterKey,
           authCredential: identity.authCredential.slice(),
+          accountSecret,
         };
+        accountSecret = null;
         this.pendingTotp = pending;
         try {
           this.pendingTotpTimer = this.pendingTotpTimers.schedule(() => {
@@ -658,11 +695,13 @@ export class SessionManager {
             if (this.pendingTotp !== pending) return;
             wipe(pending.masterKey);
             wipe(pending.authCredential);
+            if (pending.accountSecret) wipe(pending.accountSecret);
             this.pendingTotp = null;
           }, PENDING_TOTP_TTL_MS);
         } catch (error) {
           this.pendingTotp = null;
           wipe(pending.authCredential);
+          if (pending.accountSecret) wipe(pending.accountSecret);
           throw error;
         }
         transferredMasterKey = true;
@@ -676,12 +715,14 @@ export class SessionManager {
         generation,
         apiUrl,
         identity.authCredential,
+        accountSecret,
       );
       return { status: "unlocked" };
     } finally {
       this.untrackInFlightKeyMaterial(identity.masterKey);
       this.untrackInFlightKeyMaterial(identity.authCredential);
       wipe(salt);
+      if (accountSecret) wipe(accountSecret);
       wipe(identity.authCredential);
       if (!transferredMasterKey) wipe(identity.masterKey);
     }
@@ -728,22 +769,15 @@ export class SessionManager {
     this.cancelPendingTotpTimer();
     try {
       await this.establishSession(response, pending.masterKey, pending.bootstrap,
-        generation, pending.apiUrl, pending.authCredential);
+        generation, pending.apiUrl, pending.authCredential, pending.accountSecret);
     } finally {
       wipe(pending.authCredential);
+      if (pending.accountSecret) wipe(pending.accountSecret);
     }
   }
 
   cancelTotp(): void {
     this.clearPendingTotp();
-  }
-
-  private assertLoginBootstrap(bootstrap: LoginKdfBootstrap): void {
-    try {
-      assertIdentityKdfProfile(bootstrap);
-    } catch {
-      throw new SessionError("unsupported-security", "Unsupported Identity KDF profile");
-    }
   }
 
   private async establishSession(
@@ -753,6 +787,7 @@ export class SessionManager {
     generation: number,
     apiUrl: string,
     authCredential: Uint8Array,
+    accountSecret: Uint8Array | null,
   ): Promise<void> {
     let handedToSession = false;
     let persistedEnvelope: BrowserSessionEnvelope | null = null;
@@ -805,6 +840,16 @@ export class SessionManager {
       trackedPrivateKey = privateKey;
       this.trackInFlightKeyMaterial(privateKey);
       this.assertLifecycleGeneration(generation);
+      if (accountSecret) {
+        // The private-key unwrap just proved this Secret Key for the account.
+        try {
+          await this.accountSecrets.store(material.accountId, accountSecret);
+        } catch {
+          throw new SessionError("network", "Secret Key could not be kept on this browser");
+        }
+        this.secretKey.cancel();
+        this.assertLifecycleGeneration(generation);
+      }
 
       const issuedAt = this.now();
       const context: BrowserSessionEnvelopeContext = {
@@ -859,14 +904,13 @@ export class SessionManager {
       !account.kdf
       || account.userId !== authenticatedUserId
       || account.userId !== bootstrap.accountId
-      || account.kdf.securityVersion !== IDENTITY_SECURITY_VERSION
-      || account.kdf.minimumSecurityVersion > IDENTITY_SECURITY_VERSION
-      || account.kdf.profileId !== IDENTITY_KDF_PROFILE_ID
+      || account.kdf.securityVersion !== bootstrap.securityVersion
+      || account.kdf.minimumSecurityVersion > MAXIMUM_SECURITY_VERSION
+      || account.kdf.profileId !== bootstrap.profileId
       || account.kdf.kdfSalt !== bootstrap.kdfSalt
     ) {
       throw new SessionError("unsupported-security", "Identity KDF state mismatch");
     }
-    this.assertLoginBootstrap({ ...bootstrap, kdfSalt: account.kdf.kdfSalt });
   }
 
   // ─── Unlock (session locked, JWT may still be alive) ────────────────────────
@@ -1132,6 +1176,9 @@ export class SessionManager {
         }
         await this.runDurableMutation(() => this.store.clearAll());
         this.tokens = null;
+        this.secretKey.cancel();
+        // identity-kdf v3 device assistance: sign-out forgets this browser's Secret Key.
+        if (durableUserId) await this.accountSecrets.delete(durableUserId).catch(() => undefined);
         if (durableUserId) this.hooks.emitLocked({ userId: durableUserId });
       }
     } finally {
@@ -1184,8 +1231,7 @@ export class SessionManager {
     if (
       context.apiUrl !== this.authClient.currentApiUrl()
       || context.clientId !== this.clientId
-      || context.identitySecurityVersion !== IDENTITY_SECURITY_VERSION
-      || context.kdfProfileId !== IDENTITY_KDF_PROFILE_ID
+      || !isRegisteredProfile(context.identitySecurityVersion, context.kdfProfileId)
       || context.expiresAt <= this.now()
     ) {
       await this.invalidateBoundSession(context.accountId);
@@ -1311,6 +1357,7 @@ export class SessionManager {
     if (this.pendingTotp) {
       wipe(this.pendingTotp.masterKey);
       wipe(this.pendingTotp.authCredential);
+      if (this.pendingTotp.accountSecret) wipe(this.pendingTotp.accountSecret);
     }
     this.pendingTotp = null;
   }

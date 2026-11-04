@@ -230,7 +230,7 @@ export function App({
           </div>
         );
       case "signed-out":
-        return <SignInScreen onSignIn={session.signIn} onCreateAccount={onCreateAccount} />;
+        return <SignInScreen onSignIn={session.signIn} onCreateAccount={onCreateAccount} secretKey={sessionClient} />;
       case "totp":
         return <TotpScreen onSubmitTotp={session.submitTotp} onBack={session.cancelTotp} />;
       case "locked":

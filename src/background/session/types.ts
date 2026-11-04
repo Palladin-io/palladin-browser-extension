@@ -44,14 +44,16 @@ export interface AccountMaterial {
 export interface SessionKeys {
   /** 32-byte Argon2id-derived master key. */
   readonly masterKey: Uint8Array;
-  /** 32-byte X25519 private key recovered by unwrapping {@link AccountMaterial.encryptedPrivateKey}. */
+  /** 32-byte member private key recovered by unwrapping {@link AccountMaterial.encryptedPrivateKey}. */
   readonly privateKey: Uint8Array;
 }
 
 /** Result of starting a login: either fully done, or a pending TOTP second factor. */
 export type LoginResult =
   | { readonly status: "unlocked" }
-  | { readonly status: "totp-required"; readonly challengeToken: string };
+  | { readonly status: "totp-required"; readonly challengeToken: string }
+  /** Identity v2 account on a browser without its Secret Key; nothing was derived or sent. */
+  | { readonly status: "secret-key-required" };
 
 /** Typed failures so callers (popup) can localise without string-matching. */
 export type SessionErrorCode =
@@ -61,6 +63,9 @@ export type SessionErrorCode =
   | "unsupported-security"
   | "not-authenticated"
   | "rate-limited"
+  | "secret-key-required"
+  | "secret-key-invalid"
+  | "secret-key-transfer-failed"
   | "network";
 
 export class SessionError extends Error {

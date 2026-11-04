@@ -36,6 +36,7 @@ function setup(locale: Locale = 'en') {
     getStatus: async () => 'locked', getCapabilities: async () => ({ runtimeUnlock: false }),
     login: async () => ({ status: 'unlocked' }), completeTotp: async () => 'unlocked', cancelTotp: async () => {},
     unlock: async () => 'unlocked', lock: async () => {}, logout: async () => {},
+  startSecretKeyTransfer: async () => ({ qrPayload: '', sas: '', expiresAt: 0 }), pollSecretKeyTransfer: async () => 'pending' as const, submitSecretKey: async () => {}, cancelSecretKey: async () => {},
   };
   const mount = (target: typeof surface) => {
     surface = target;

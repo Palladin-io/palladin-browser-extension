@@ -258,6 +258,71 @@ body {
   color: var(--cv-t2);
 }
 
+/* ── Secret Key on a new browser ──────────────────────────────────────── */
+
+.secret-key-transfer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+/* A scannable code stays dark on light in both themes. */
+.secret-key-qr {
+  width: 148px;
+  height: 148px;
+  padding: 6px;
+  border-radius: 10px;
+  background: #ffffff;
+  fill: #000b2e;
+}
+
+.secret-key-sas {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--cv-btn-subtle-bg);
+  color: var(--cv-t3);
+  font-size: 11px;
+}
+
+.secret-key-sas strong {
+  color: var(--cv-t1);
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+}
+
+.secret-key-status {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  color: var(--cv-t2);
+  font-size: 11px;
+}
+
+.secret-key-status span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.secret-key-actions {
+  margin-top: 14px;
+}
+
+.secret-key-hint {
+  margin: 0;
+  color: var(--cv-t3);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 /* ── First-run password-manager guidance ───────────────────────────────── */
 
 .manager-intro {

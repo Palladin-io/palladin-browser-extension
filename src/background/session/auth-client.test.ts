@@ -41,7 +41,7 @@ describe("AuthClient refresh contract", () => {
 
 describe("AuthClient login rate limiting", () => {
   it.each([
-    ["KDF bootstrap", (client: AuthClient) => client.fetchLoginKdf("member@example.com", "profile")],
+    ["KDF bootstrap", (client: AuthClient) => client.fetchLoginKdf("member@example.com")],
     ["password login", (client: AuthClient) => client.login({
       email: "member@example.com",
       securityVersion: 1,

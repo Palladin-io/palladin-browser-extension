@@ -12,7 +12,8 @@ function deferred<T>() {
 const client = (overrides: Partial<SessionClient> = {}): SessionClient => ({
   getStatus: async () => 'locked', getCapabilities: async () => ({ runtimeUnlock: false }),
   login: async () => ({ status: 'unlocked' }), completeTotp: async () => 'unlocked', cancelTotp: async () => {},
-  unlock: async () => 'unlocked', lock: async () => {}, logout: async () => {}, ...overrides,
+  unlock: async () => 'unlocked', lock: async () => {}, logout: async () => {},
+  startSecretKeyTransfer: async () => ({ qrPayload: '', sas: '', expiresAt: 0 }), pollSecretKeyTransfer: async () => 'pending' as const, submitSecretKey: async () => {}, cancelSecretKey: async () => {}, ...overrides,
 });
 
 describe('surface session results cannot override newer worker state', () => {
@@ -30,7 +31,7 @@ describe('surface session results cannot override newer worker state', () => {
     const { result } = renderHook(() => useSession(api));
     await waitFor(() => expect(result.current.phase).toBe('locked'));
     if (method === 'submitTotp') await act(() => result.current.signIn('synthetic@example.test', 'synthetic-password'));
-    let pending!: Promise<void>;
+    let pending!: Promise<unknown>;
     act(() => { pending = method === 'signIn' ? result.current.signIn('synthetic@example.test', 'synthetic-password')
       : method === 'unlock' ? result.current.unlock('synthetic-password') : result.current.submitTotp('123456'); });
     act(() => result.current.synchronize('signed-out'));
@@ -41,7 +42,7 @@ describe('surface session results cannot override newer worker state', () => {
     const unlock = deferred<'unlocked'>(), api = client({ unlock: () => unlock.promise });
     const { result } = renderHook(() => useSession(api));
     await waitFor(() => expect(result.current.phase).toBe('locked'));
-    let pending!: Promise<void>;
+    let pending!: Promise<unknown>;
     act(() => { pending = result.current.unlock('synthetic-password'); });
     await act(() => result.current.signOut());
     await act(async () => { unlock.resolve('unlocked'); await pending; });

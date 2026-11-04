@@ -14,15 +14,21 @@
  */
 
 import {
-  assertIdentityKdfProfile,
   decryptWithKey,
   deriveIdentityV1,
+  deriveIdentityV2,
   fromBase64Url,
-  IDENTITY_KDF_PROFILE,
   NotImplementedError,
   wipe,
 } from "@palladin/crypto";
 
+import {
+  browserAccountSecretDevice,
+  identityProfileVersion,
+  loadDeviceAccountSecret,
+  MAXIMUM_SECURITY_VERSION,
+  type AccountSecretDevice,
+} from "./identity-profile";
 import type { AccountMaterial, SessionKeys } from "./types";
 import { SessionError } from "./types";
 
@@ -39,33 +45,41 @@ export interface UnlockSource {
 
 /**
  * The default source: the login password re-derives the master key through the
- * canonical Identity KDF and unwraps the private key. A failed
- * MAC on the unwrap means the wrong password — surfaced as `incorrect-password`.
+ * canonical Identity KDF and unwraps the private key. An Identity v2 account
+ * also needs this browser's Secret Key. A failed MAC on the unwrap means the
+ * wrong password — surfaced as `incorrect-password`.
  */
 export class MasterPasswordUnlock implements UnlockSource {
   readonly id = "master-password";
 
-  constructor(private readonly password: string) {}
+  constructor(
+    private readonly password: string,
+    private readonly accountSecrets: AccountSecretDevice = browserAccountSecretDevice,
+  ) {}
 
   async deriveKeys(material: AccountMaterial, onManualProof?: (authCredential: Uint8Array) => void): Promise<SessionKeys> {
-    try {
-      assertIdentityKdfProfile({
-        profileId: material.kdf.profileId,
-        securityVersion: material.kdf.securityVersion,
-        kdfSalt: material.kdf.kdfSalt,
-        memoryKiB: IDENTITY_KDF_PROFILE.memoryKiB,
-        iterations: IDENTITY_KDF_PROFILE.iterations,
-        parallelism: IDENTITY_KDF_PROFILE.parallelism,
-      });
-    } catch {
-      throw new SessionError("unsupported-security", "Unsupported Identity KDF profile");
-    }
-    if (material.kdf.minimumSecurityVersion > IDENTITY_KDF_PROFILE.securityVersion) {
+    const version = identityProfileVersion(material.kdf);
+    if (material.kdf.minimumSecurityVersion > MAXIMUM_SECURITY_VERSION) {
       throw new SessionError("unsupported-security", "A newer security version is required");
+    }
+    let accountSecret: Uint8Array | null = null;
+    if (version === 2) {
+      accountSecret = await loadDeviceAccountSecret(this.accountSecrets, material.accountId);
+      if (!accountSecret) throw new SessionError("secret-key-required", "This browser has no Secret Key");
     }
 
     const salt = fromBase64Url(material.kdf.kdfSalt, 16);
-    const identity = await deriveIdentityV1(this.password, material.accountId, salt);
+    let identity: Awaited<ReturnType<typeof deriveIdentityV1>>;
+    try {
+      identity = accountSecret
+        ? await deriveIdentityV2(this.password, accountSecret, material.accountId, salt)
+        : await deriveIdentityV1(this.password, material.accountId, salt);
+    } catch (error) {
+      wipe(salt);
+      throw error;
+    } finally {
+      if (accountSecret) wipe(accountSecret);
+    }
     let encryptedPrivateKey: Uint8Array | null = null;
     try {
       let privateKey: Uint8Array;
