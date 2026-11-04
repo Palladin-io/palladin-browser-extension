@@ -126,7 +126,13 @@ export class NativeOperationRouter {
       this.tabs.set(tab.id, operationId);
       request = { ...prepare, targetTabId: tab.id, targetUrl: tab.page.url };
     }
-    return handleNativeAgentMessage(operation.deps, this.replay, operation.session, request);
+    const response = await handleNativeAgentMessage(operation.deps, this.replay, operation.session, request);
+    // Resolving the legacy active-tab fallback is not explicit caller consent
+    // for capture. Keep its fill preparation but revoke capture authorization.
+    if (prepare && prepare.targetTabId === undefined && operation.session.prepared) {
+      delete operation.session.prepared.captureTargetUrl;
+    }
+    return response;
   }
 
   canDeliverCapture(response: OperationReply): boolean {

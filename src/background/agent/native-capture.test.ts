@@ -65,3 +65,16 @@ it('keeps capture delivery bound to its original operation even when an ID is re
   expect(router.canDeliverCapture(captured)).toBe(false);
   await router.dispose();
 });
+
+it.each(['legacy', 'operation'])('rejects capture after untargeted prepare in %s mode', async mode => {
+  const f = fixture(), router = new NativeOperationRouter(f.deps, f.replay);
+  const { targetTabId: _tab, targetUrl: _url, ...untargeted } = prepare;
+  const call = (message: unknown) => mode === 'legacy' ? f.call(message) : router.dispatch({ protocol, type: 'operation.request', operationId: 'd'.repeat(32), request: message });
+  try {
+    const prepared = await call(untargeted);
+    expect('response' in prepared ? prepared.response : prepared).toMatchObject({ type: 'prepare.result', outcome: 'ready' });
+    const captured = await call(request);
+    expect('response' in captured ? captured.response : captured).toMatchObject({ type: 'capture.result', outcome: 'rejected' });
+    expect(f.captureFields).not.toHaveBeenCalled();
+  } finally { await router.dispose(); }
+});
