@@ -882,3 +882,181 @@ describe('manual Entry presentation boundary', () => {
     expect(isVaultCommand({ type: 'vault/entry-save', entry: { ...entry, color } })).toBe(false);
   });
 });
+
+it('delivers only the current RFC TOTP code with an absolute expiration for an inline OTP request', async () => {
+  const world = buildVaultWorld();
+  const original = world.secrets.get('entry-cred')!;
+  if (original.entryType !== 'credential') throw new Error('fixture');
+  world.secrets.set('entry-cred', { ...original, content: { ...original.content, totp: {
+    secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', algorithm: 'SHA1', digits: 8, period: 30, issuer: null, account: null,
+  } } });
+  const { deps, sendFill } = await makeHarness(world, { id: 1, url: HTTPS_MATCH });
+  deps.now = () => 59000;
+  deps.captureFillSession = () => () => {};
+  const tab = { id: 1, url: HTTPS_MATCH, documentId: 'document-1', browserDocumentId: 'browser-document-1' };
+  const result = await fillInlineSelectedEntry(deps, tab, 'vault-1', 'entry-cred', 'exact', 'otp-1', 'automatic', 'totp');
+  expect(result).toEqual({ status: 'filled' });
+  expect(sendFill.mock.calls[0]![2]).toEqual([{ kind: 'totp', value: '94287082', expiresAt: 60000, username: 'ada@example.com' }]);
+});
+
+it('blocks TOTP delivery if the unlocked session changes during generation', async () => {
+  const world = buildVaultWorld();
+  const { deps, sendFill } = await makeHarness(world, { id: 1, url: HTTPS_MATCH });
+  let checks = 0;
+  deps.captureFillSession = () => () => { if (++checks > 1) throw new Error('locked'); };
+  const tab = { id: 1, url: HTTPS_MATCH, documentId: 'document-1', browserDocumentId: 'browser-document-1' };
+  expect((await fillInlineSelectedEntry(deps, tab, 'vault-1', 'entry-cred', 'exact', 'otp-1', 'automatic', 'totp')).status).toBe('blocked');
+  expect(sendFill).not.toHaveBeenCalled();
+});
+
+it('blocks OTP autofill when multiple custom TOTP sources have no canonical choice', async () => {
+  const world = buildVaultWorld();
+  const original = world.secrets.get('entry-cred')!;
+  if (original.entryType !== 'credential') throw new Error('fixture');
+  const params = { secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', algorithm: 'SHA1' as const, digits: 6 as const, period: 30 };
+  world.secrets.set('entry-cred', { ...original, content: { ...original.content, totp: null, customFields: [
+    { id: 'custom:one', label: 'First', type: 'totp', value: params },
+    { id: 'custom:two', label: 'Second', type: 'totp', value: params },
+  ] } });
+  const { deps, sendFill } = await makeHarness(world, { id: 1, url: HTTPS_MATCH });
+  deps.captureFillSession = () => () => {};
+  const tab = { id: 1, url: HTTPS_MATCH, documentId: 'document-1', browserDocumentId: 'browser-document-1' };
+  expect((await fillInlineSelectedEntry(deps, tab, 'vault-1', 'entry-cred', 'exact', 'otp-1', 'automatic', 'totp')).status).toBe('blocked');
+  expect(sendFill).not.toHaveBeenCalled();
+});
+
+it.each(['vault/fill', 'vault/login'] as const)('records successful native %s selection for the same tab, but not after invalidation', async type => {
+  const { InMemoryInlineAutofillRecency } = await import('./inline-runtime');
+  const recency = new InMemoryInlineAutofillRecency();
+  recency.rememberForTab(7, HTTPS_MATCH, 'vault-1', 'old-entry');
+  const h = await makeHarness(buildVaultWorld(), { id: 7, url: HTTPS_MATCH });
+  Object.assign(h.deps, { inlineRecency: recency });
+  const result = await dispatchVaultCommand(h.deps, { type, vaultId: 'vault-1', entryId: 'entry-cred' });
+  expect(result).toEqual({ ok: true, fill: { status: 'filled' } });
+  expect(recency.preferredForTab(7, HTTPS_MATCH)).toMatchObject({ vaultId: 'vault-1', entryId: 'entry-cred' });
+  recency.rememberForTab(7, HTTPS_MATCH, 'vault-1', 'old-entry');
+  h.sendFill.mockImplementationOnce(async () => { recency.clear(); return { ok: true }; });
+  await dispatchVaultCommand(h.deps, { type, vaultId: 'vault-1', entryId: 'entry-cred' });
+  expect(recency.preferredForTab(7, HTTPS_MATCH)).toBeNull();
+});
+
+it('does not restore a native selection after the bound tab navigates to a different same-host document', async () => {
+  const { InMemoryInlineAutofillRecency } = await import('./inline-runtime');
+  const recency = new InMemoryInlineAutofillRecency();
+  const h = await makeHarness(buildVaultWorld(), { id: 7, url: HTTPS_MATCH });
+  Object.assign(h.deps, { inlineRecency: recency });
+  h.sendFill.mockImplementationOnce(async () => {
+    h.deps.getActiveTab = async () => ({ id: 7, url: 'https://example.com/other', documentId: 'new-document', browserDocumentId: 'new-browser-document' });
+    return { ok: true };
+  });
+  await dispatchVaultCommand(h.deps, { type: 'vault/fill', vaultId: 'vault-1', entryId: 'entry-cred' });
+  expect(recency.preferredForTab(7, HTTPS_MATCH)).toBeNull();
+});
+
+it('keeps a successful native login selection after its same-host submit navigates to MFA', async () => {
+  const { InMemoryInlineAutofillRecency } = await import('./inline-runtime');
+  const recency = new InMemoryInlineAutofillRecency();
+  const h = await makeHarness(buildVaultWorld(), { id: 7, url: HTTPS_MATCH });
+  Object.assign(h.deps, { inlineRecency: recency });
+  h.sendFill.mockImplementationOnce(async () => {
+    h.deps.getActiveTab = async () => ({ id: 7, url: 'https://example.com/mfa', documentId: 'new-document', browserDocumentId: 'new-browser-document' });
+    return { ok: true };
+  });
+  expect(await dispatchVaultCommand(h.deps, { type: 'vault/login', vaultId: 'vault-1', entryId: 'entry-cred' }))
+    .toEqual({ ok: true, fill: { status: 'filled' } });
+  expect(recency.preferredForTab(7, 'https://example.com/mfa')).toMatchObject({ entryId: 'entry-cred' });
+});
+
+it.each(['failed', 'foreign-navigation'] as const)('does not remember a native login after %s', async scenario => {
+  const { InMemoryInlineAutofillRecency } = await import('./inline-runtime');
+  const recency = new InMemoryInlineAutofillRecency();
+  const h = await makeHarness(buildVaultWorld(), { id: 7, url: HTTPS_MATCH });
+  Object.assign(h.deps, { inlineRecency: recency });
+  h.sendFill.mockImplementationOnce(async () => {
+    if (scenario === 'foreign-navigation') {
+      recency.navigation(7, 'https://other.test/');
+      h.deps.getActiveTab = async () => ({ id: 7, url: 'https://other.test/', documentId: 'new', browserDocumentId: 'new-browser' });
+      return { ok: true };
+    }
+    return { ok: false, reason: 'no-form' };
+  });
+  await dispatchVaultCommand(h.deps, { type: 'vault/fill', vaultId: 'vault-1', entryId: 'entry-cred' });
+  expect(recency.preferredForTab(7, HTTPS_MATCH)).toBeNull();
+});
+
+it('waits for native login verification before offering OTP account continuation', async () => {
+  const { InMemoryInlineAutofillRecency, handleInlineAutofillContentMessage } = await import('./inline-runtime');
+  const { INLINE_AUTOFILL_CHANNEL } = await import('@shared/messaging');
+  const recency = new InMemoryInlineAutofillRecency();
+  recency.rememberForTab(7, HTTPS_MATCH, 'vault-1', 'old-entry');
+  const h = await makeHarness(buildVaultWorld(), { id: 7, url: HTTPS_MATCH });
+  let release!: (tab: ActiveTab) => void, started!: () => void;
+  const blocked = new Promise<ActiveTab>(resolve => { release = resolve; });
+  const ready = new Promise<void>(resolve => { started = resolve; });
+  Object.assign(h.deps, { inlineRecency: recency, resolveTabDocument: async () => { started(); return blocked; } });
+  const native = dispatchVaultCommand(h.deps, { type: 'vault/login', vaultId: 'vault-1', entryId: 'entry-cred' });
+  await ready;
+  const meta = [{ ...buildVaultWorld().metadata[0]!, username: 'ada@example.com' }, { ...buildVaultWorld().metadata[0]!, id: 'old-entry', username: 'old@example.com' }];
+  let settled = false;
+  const result = handleInlineAutofillContentMessage({ recency, getStatus: async () => 'unlocked', getMetadata: async () => meta,
+    fill: async () => ({ status: 'filled' }) }, { channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', documentId: 'a'.repeat(32), purpose: 'totp' },
+    { id: 'ext', frameId: 0, documentId: 'mfa-browser', url: 'https://example.com/mfa', tab: { id: 7, url: 'https://example.com/mfa' } } as chrome.runtime.MessageSender, 'ext').then(value => { settled = true; return value; });
+  await new Promise(resolve => setTimeout(resolve, 30));
+  try { expect(settled).toBe(false); }
+  finally { release({ id: 7, url: 'https://example.com/mfa', documentId: 'mfa-document', browserDocumentId: 'mfa-browser' }); }
+  await native;
+  expect(await result).toMatchObject({ continuation: { vaultId: 'vault-1', entryId: 'entry-cred' } });
+});
+
+it('fails the waiting OTP lookup closed when native login verification fails', async () => {
+  const { InMemoryInlineAutofillRecency, handleInlineAutofillContentMessage } = await import('./inline-runtime');
+  const { INLINE_AUTOFILL_CHANNEL } = await import('@shared/messaging');
+  const recency = new InMemoryInlineAutofillRecency(); recency.rememberForTab(7, HTTPS_MATCH, 'vault-1', 'old-entry');
+  const h = await makeHarness(buildVaultWorld(), { id: 7, url: HTTPS_MATCH });
+  let release!: (value: ActiveTab | null) => void, started!: () => void;
+  const blocked = new Promise<ActiveTab | null>(resolve => { release = resolve; });
+  const ready = new Promise<void>(resolve => { started = resolve; });
+  Object.assign(h.deps, { inlineRecency: recency, resolveTabDocument: async () => { started(); return blocked; } });
+  const native = dispatchVaultCommand(h.deps, { type: 'vault/login', vaultId: 'vault-1', entryId: 'entry-cred' }); await ready;
+  const lookup = handleInlineAutofillContentMessage({ recency, getStatus: async () => 'unlocked', getMetadata: async () => [], fill: async () => ({ status: 'filled' }) },
+    { channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', documentId: 'a'.repeat(32), purpose: 'totp' },
+    { id: 'ext', frameId: 0, documentId: 'mfa-browser', url: 'https://example.com/mfa', tab: { id: 7, url: 'https://example.com/mfa' } } as chrome.runtime.MessageSender, 'ext');
+  release(null); await native;
+  expect(await lookup).toEqual({ ok: false, code: 'unavailable' });
+});
+
+it('cancels an automatic OTP already decrypting when a native selection starts', async () => {
+  const { InMemoryInlineAutofillRecency } = await import('./inline-runtime');
+  const recency = new InMemoryInlineAutofillRecency();
+  const h = await makeHarness(buildVaultWorld(), { id: 7, url: HTTPS_MATCH });
+  h.deps.captureFillSession = () => () => {};
+  let release!: () => void, started!: () => void;
+  const blocked = new Promise<void>(resolve => { release = resolve; });
+  const ready = new Promise<void>(resolve => { started = resolve; });
+  const originalReveal = h.deps.data.revealEntry;
+  h.deps.data.revealEntry = async (...args) => { started(); await blocked; return originalReveal(...args); };
+  const current = recency.capture(7, HTTPS_MATCH);
+  const target = { id: 7, url: HTTPS_MATCH, documentId: 'document-1', browserDocumentId: 'browser-document-1' };
+  const result = fillInlineSelectedEntry(h.deps, target, 'vault-1', 'entry-cred', 'exact', 'otp-1', 'automatic', 'totp', () => { if (!current()) throw new Error('superseded'); });
+  await ready; const finish = recency.beginNative(7, HTTPS_MATCH); release();
+  expect((await result).status).toBe('blocked'); expect(h.sendFill).not.toHaveBeenCalled(); finish(false);
+});
+
+it.each(['lock', 'close', 'foreign'] as const)('fails pending OTP lookup closed after %s invalidation', async invalidation => {
+  const { InMemoryInlineAutofillRecency, handleInlineAutofillContentMessage } = await import('./inline-runtime');
+  const { INLINE_AUTOFILL_CHANNEL } = await import('@shared/messaging');
+  const recency = new InMemoryInlineAutofillRecency(); recency.rememberForTab(7, HTTPS_MATCH, 'vault-1', 'old-entry');
+  const h = await makeHarness(buildVaultWorld(), { id: 7, url: HTTPS_MATCH });
+  let release!: (value: ActiveTab) => void, started!: () => void;
+  const blocked = new Promise<ActiveTab>(resolve => { release = resolve; }), ready = new Promise<void>(resolve => { started = resolve; });
+  Object.assign(h.deps, { inlineRecency: recency, resolveTabDocument: async () => { started(); return blocked; } });
+  const native = dispatchVaultCommand(h.deps, { type: 'vault/login', vaultId: 'vault-1', entryId: 'entry-cred' }); await ready;
+  const lookup = handleInlineAutofillContentMessage({ recency, getStatus: async () => 'unlocked', getMetadata: async () => [], fill: async () => ({ status: 'filled' }) },
+    { channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', documentId: 'a'.repeat(32), purpose: 'totp' },
+    { id: 'ext', frameId: 0, documentId: 'mfa-browser', url: 'https://example.com/mfa', tab: { id: 7, url: 'https://example.com/mfa' } } as chrome.runtime.MessageSender, 'ext');
+  await new Promise(resolve => setTimeout(resolve, 10));
+  if (invalidation === 'lock') recency.clear(); else if (invalidation === 'close') recency.clearTab(7); else recency.navigation(7, 'https://other.test/');
+  expect(await lookup).toEqual({ ok: false, code: 'unavailable' });
+  release({ id: 7, url: 'https://example.com/mfa', documentId: 'new', browserDocumentId: 'new-browser' });
+  await native; expect(recency.preferredForTab(7, HTTPS_MATCH)).toBeNull();
+});

@@ -47,7 +47,8 @@ treat any violation below as a Critical (blocking) finding.
   hosts, form submission, cards, and neutral custom fields always require an
   explicit extension-owned action. Do not add a blanket user-intent requirement
   to automatic exact-host fill without an explicit product decision. Full
-  rationale and invariants: `docs/AUTOFILL-POLICY.md`. User autofill does not use
+  rationale and invariants: `docs/AUTOFILL-POLICY.md`. A separate bounded TOTP
+  stage may fill at the same URL under that policy. User autofill does not use
   grants. Agent grants are enforced by the Rust runtime before it sends prepared
   values over Native Messaging; the extension never evaluates grant policy.
 - **Security over convenience.** If a shortcut weakens the model, it is not

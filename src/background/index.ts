@@ -1,3 +1,5 @@
+import { isTotpContentCommand, isTotpPopupCommand } from '@shared/messaging/totp-capture';
+import { handleTotpContent, handleTotpPopup, totpCaptureCoordinator, totpSessionGeneration, publishTotpInvalidation, clearTotpObservation } from './capture/totp-runtime';
 import { dispatchSecretCapturePopup } from './capture/secret-dispatch';
 import { isSecretCaptureContentCommand } from '@shared/messaging/secret-capture';
 import { secretCaptureCoordinator, secretCaptureFrames, handleSecretCaptureContent, handleSecretCapturePopup, publishSecretCaptureInvalidation } from './capture/secret-runtime';
@@ -294,6 +296,7 @@ chrome.runtime.onConnect.addListener((port) => {
   const unregisterCapture = secretCaptureFrames.register(port.sender, chrome.runtime.id);
   if (unregisterCapture) port.onDisconnect.addListener(() => {
     const candidateIds = secretCaptureCoordinator.disconnected(port.sender!.tab!.id!, port.sender!.documentId!);
+    if (port.sender!.frameId === 0) { if (totpCaptureCoordinator.clearDocument(port.sender!.tab!.id!, port.sender!.documentId!)) publishTotpInvalidation(); }
     unregisterCapture();
     publishSecretCaptureInvalidation(candidateIds);
   });
@@ -370,7 +373,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   return false;
 });
 
-chrome.tabs.onRemoved.addListener((tabId) => credentialCaptureCoordinator.clearTab(tabId));
+chrome.tabs.onRemoved.addListener((tabId) => { inlineAutofillRecency.clearTab(tabId); credentialCaptureCoordinator.clearTab(tabId); if (totpCaptureCoordinator.clearTab(tabId)) publishTotpInvalidation(); clearTotpObservation(tabId); });
 chrome.tabs.onRemoved.addListener((tabId) => federatedSignIn.tabRemoved(tabId));
 
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
@@ -402,7 +405,24 @@ chrome.tabs.onRemoved.addListener((tabId) => { publishSecretCaptureInvalidation(
 chrome.tabs.onUpdated.addListener((tabId, change) => {
   // Loading also describes unrelated child-frame navigation; document Ports bind teardown.
   if (!change.url) return;
+  inlineAutofillRecency.navigation(tabId, change.url);
+  if (totpCaptureCoordinator.clearTab(tabId)) publishTotpInvalidation(); clearTotpObservation(tabId);
   publishSecretCaptureInvalidation(secretCaptureCoordinator.clearTab(tabId));
+});
+chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
+  if (!isTotpContentCommand(raw)) return false;
+  if (raw.type === 'open') {
+    const source = secretCaptureFrames.source(sender, chrome.runtime.id, raw.documentId);
+    if (!source || source.frameId !== 0 || sender.tab?.windowId === undefined) { sendResponse({ status: 'stale' }); return false; }
+    void openSidePanel(undefined, undefined, sender.tab.windowId).then(opened => sendResponse({ status: opened ? 'accepted' : 'error' })).catch(() => sendResponse({ status: 'error' }));
+    return true;
+  }
+  const expectedGeneration = totpSessionGeneration();
+  void withServerOperation(() => handleTotpContent(raw, sender, expectedGeneration)).then(result => {
+    sendResponse(result);
+    if (result.status === 'accepted') void chrome.runtime.sendMessage({ type: 'totp-capture/available' }).catch(() => undefined);
+  }).catch(() => sendResponse({ status: 'error' }));
+  return true;
 });
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isSecretCaptureContentCommand(raw)) return false;
@@ -486,7 +506,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
           preferred: (tabId, url, candidates) => federatedSignIn.preferredProviderEntry(tabId, url, candidates),
           filled: (tabId, url, entry, intent) => federatedSignIn.providerFilled(tabId, url, entry, intent),
         },
-        fill: async (source, vaultId, entryId, scope, loginTargetId, intent) => {
+        fill: async (source, vaultId, entryId, scope, loginTargetId, intent, purpose, assertCurrent) => {
           // This channel includes passive exact-host autofill. A fill request
           // is not trusted own activity and must never renew session deadlines.
           return fillInlineSelectedEntry(
@@ -497,6 +517,8 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
             scope,
             loginTargetId,
             intent,
+            purpose,
+            assertCurrent,
           );
         },
       }, raw, sender, chrome.runtime.id);
@@ -513,6 +535,12 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 // to capture and then the vault command surface.
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isTrustedExtensionPage(sender, chrome.runtime.id, chrome.runtime.getURL(""))) return false;
+  if (isTotpPopupCommand(raw)) {
+    void withServerOperation(() => handleTotpPopup(raw)).then(result => {
+      sendResponse(result); if (result.status === 'saved') publishSurfaceState(vaultChanged());
+    }).catch(() => sendResponse({ status: 'error' }));
+    return true;
+  }
   const shareCommand = sharePopupCommand.safeParse(raw);
   if (shareCommand.success) {
     void (async () => {
@@ -637,7 +665,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
         sendResponse(await captureResult);
         return;
       }
-      const vaultResult = await handleVaultRuntimeMessage(vaultCommandDeps, raw);
+      const vaultResult = await handleVaultRuntimeMessage({ ...vaultCommandDeps, inlineRecency: inlineAutofillRecency }, raw);
       if (vaultResult !== null) {
         sendResponse(vaultResult);
         if (vaultResult.ok && "entryDeleted" in vaultResult) publishSurfaceState(vaultChanged());

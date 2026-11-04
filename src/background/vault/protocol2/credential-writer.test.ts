@@ -81,6 +81,29 @@ describe('captured Credential canonical writer', () => {
     } as unknown as CredentialWriterDeps)
   })
 
+  it('lists exact-host Credentials without choosing an account from the URI', async () => {
+    const result = await writer.totpChoices(url)
+    expect(result.filter(x => x.action === 'update')).toMatchObject([{ entryId: ENTRY, revision: '4', hasTotp: false }])
+    expect((await writer.totpChoices('https://regional.example.com')).filter(x => x.action === 'update')).toEqual([])
+  })
+  it('updates only TOTP and preserves delivery policy and active grants', async () => {
+    client.getActiveGrants.mockResolvedValue([grant])
+    const totp = { secret: 'JBSWY3DPEHPK3PXP', algorithm: 'SHA1' as const, digits: 6 as const, period: 30, issuer: null, account: null }
+    await writer.saveTotp(totp, url, { action: 'update', vaultId: VAULT, entryId: ENTRY, revision: '4', label: 'Alice', vaultLabel: 'Personal', hasTotp: false }, authorized)
+    expect(cryptoMocks.sealCanonicalCredentialEntry.mock.calls[0]![1]).toEqual({ ...secret, content: { ...secret.content, totp } })
+    expect(client.updateEntry.mock.calls[0]![1]).toMatchObject({ baseRevision: '4', deliveryPolicy: 'injectOnly', grantEnvelopes: [{ ciphertext: 'grant-envelope' }] })
+  })
+  it('does not create a revision for the same TOTP configuration', async () => {
+    const totp = { secret: 'JBSWY3DPEHPK3PXP', algorithm: 'SHA1' as const, digits: 6 as const, period: 30, issuer: null, account: null }
+    cryptoMocks.openCurrentMemberSecret.mockResolvedValue({ ...secret, content: { ...secret.content, totp } })
+    await writer.saveTotp(totp, url, { action: 'update', vaultId: VAULT, entryId: ENTRY, revision: '4', label: 'Alice', vaultLabel: 'Personal', hasTotp: true }, authorized)
+    expect(client.updateEntry).not.toHaveBeenCalled()
+  })
+  it('rejects a changed TOTP target revision before writing', async () => {
+    const totp = { secret: 'JBSWY3DPEHPK3PXP', algorithm: 'SHA1' as const, digits: 6 as const, period: 30, issuer: null, account: null }
+    await expect(writer.saveTotp(totp, url, { action: 'update', vaultId: VAULT, entryId: ENTRY, revision: '3', label: 'Alice', vaultLabel: 'Personal', hasTotp: false }, authorized)).rejects.toThrow()
+    expect(client.updateEntry).not.toHaveBeenCalled()
+  })
   it('suggests exactly matched account updates, but registration defaults to Personal', async () => {
     expect((await writer.choices(credential, url)).defaultIndex).toBe(1)
     expect((await writer.choices({ ...credential, kind: 'registration', previousPassword: null }, url)).defaultIndex).toBe(0)

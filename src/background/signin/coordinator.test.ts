@@ -504,3 +504,22 @@ describe('FederatedSignInCoordinator', () => {
     expect((await h.prompt())?.state).toBe('locked');
   });
 });
+
+it('retains manual provider-account provenance after an automatic TOTP fill', async () => {
+  const { handleInlineAutofillContentMessage } = await import('../vault/inline-runtime');
+  const entry = provider({ id: 'g1', username: 'alice@gmail.com' });
+  const h = harness({ metadata: [entry] });
+  h.coordinator.documentConnected(1, SERVICE, undefined);
+  h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+  const sender = { id: 'ext', frameId: 0, documentId: 'browser-doc', url: 'https://accounts.google.com/signin',
+    tab: { id: 1, url: 'https://accounts.google.com/signin' } } as chrome.runtime.MessageSender;
+  const deps = { getStatus: async () => 'unlocked' as const, getMetadata: async () => [entry], fill: async () => ({ status: 'filled' as const }),
+    signIn: { preferred: () => null, filled: (tabId: number, url: string, filled: EntryMetadata | undefined, intent: 'automatic' | 'manual') => h.coordinator.providerFilled(tabId, url, filled, intent) } };
+  const command = { channel: 'palladin.inline-autofill.v1', type: 'inline/fill', documentId: 'a'.repeat(32),
+    vaultId: 'vault-1', entryId: 'g1', scope: 'exact', loginTargetId: 'target' };
+  await handleInlineAutofillContentMessage(deps, { ...command, intent: 'manual' }, sender, 'ext');
+  await handleInlineAutofillContentMessage(deps, { ...command, intent: 'automatic', purpose: 'totp' }, sender, 'ext');
+  h.coordinator.documentConnected(1, SERVICE, undefined);
+  const prompt = (await h.prompt())!;
+  expect(prompt.accounts.find(account => account.id === prompt.defaultAccountId)?.label).toBe('alice@gmail.com');
+});
