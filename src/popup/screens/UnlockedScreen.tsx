@@ -82,7 +82,6 @@ function UnlockedContent({
   const [secretCapture, clearSecretCapture] = useSecretCapture(viewRevision);
   const navigation = usePopupView()!;
   const { query, vaultFilter, view, selected, scope } = navigation.state;
-  const setQuery = (query: string) => navigation.update({ query, scrollTop: 0, visibleCount: 100 });
   const setVaultFilter = (value: string[] | null | ((previous: string[] | null) => string[] | null)) =>
     navigation.update({ vaultFilter: typeof value === 'function' ? value(vaultFilter) : value, scrollTop: 0, visibleCount: 100 });
   const setView = (view: PopupViewState['view']) => { setAuditTarget(undefined); navigation.update({ view }); };
@@ -135,8 +134,8 @@ function UnlockedContent({
         <SearchBar
           value={query}
           onChange={(value) => {
-            setQuery(value);
-            setView('vault');
+            setAuditTarget(undefined);
+            navigation.update({ query: value, view: 'vault', selected: null, scope: null, scrollTop: 0, visibleCount: 100 });
           }}
         />
         <button

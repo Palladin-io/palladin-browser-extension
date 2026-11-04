@@ -241,6 +241,29 @@ describe("UnlockedScreen", () => {
     expect(screen.queryByText("Example login")).not.toBeInTheDocument();
   });
 
+  it.each(['Inbox', 'Sharing', 'Logs', 'Settings'])("shows search results instead of the previous Entry detail when searching from %s", async (tab) => {
+    const transport = vi.mocked(chrome.runtime.sendMessage).getMockImplementation()!;
+    vi.mocked(chrome.runtime.sendMessage).mockImplementation(async (...args) => {
+      const command = args[0] as { type?: string };
+      if (['workspace/grants', 'workspace/audit', 'workspace/members', 'workspace/my-shares'].includes(command.type ?? '')) {
+        return { ok: true, data: { items: [], nextCursor: null } };
+      }
+      return transport(...args);
+    });
+    const user = userEvent.setup();
+    render(<UnlockedScreen settings={<p>Settings content</p>} onLock={noop} onSignOut={noop} vaultClient={makeClient()} captureClient={makeCaptureClient()} />);
+    await user.click(await screen.findByText('Example login'));
+    expect(await screen.findByRole('heading', { name: 'Example login' })).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: tab }));
+
+    await user.type(screen.getByLabelText('Search entries'), 'token');
+
+    expect(screen.getByRole('tab', { name: 'Vault' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('API token')).toBeInTheDocument();
+    expect(screen.queryByText('Example login')).not.toBeInTheDocument();
+    expect(screen.getByText('Select an entry to view its details')).toBeInTheDocument();
+  });
+
   it("preserves the selected view and search while the active-tab projection changes", async () => {
     const client = makeClient();
     const { rerender } = render(
