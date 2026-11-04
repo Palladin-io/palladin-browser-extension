@@ -156,6 +156,7 @@ const SHADOW_PROBE_BATCH = 256;
 
 class InlineAutofillController {
   private manualLoginPending = false;
+  private manualLoginGeneration = 0;
   private automaticTotpUrl: string | null = null;
   private totpScanUrl: string | null = null;
   private attemptedTotp = new WeakSet<HTMLInputElement>();
@@ -360,6 +361,7 @@ class InlineAutofillController {
     const target = request.loginTargetId === null ? null : this.resolveLoginTarget(request.loginTargetId);
     const outcome = performBoundFill(this.doc, request, this.doc.location.href, this.documentId, target, () => {
       this.continuation = null;
+      this.manualLoginGeneration++; this.manualLoginPending = false;
       this.totpGeneration++; this.totpPending = null;
       this.attemptedTotp = new WeakSet(); this.automaticTotpUrl = null;
       for (const widget of this.widgets.values()) widget.cancelAutomaticFill();
@@ -382,7 +384,7 @@ class InlineAutofillController {
   }
 
   clearSessionState(): void {
-    this.manualLoginPending = false;
+    this.manualLoginPending = false; this.manualLoginGeneration++;
     this.totpGeneration++; this.totpPending = null;
     this.attemptedTotp = new WeakSet();
     this.automaticTotpUrl = null;
@@ -503,8 +505,10 @@ class InlineAutofillController {
         onManualFill: () => {
           this.continuation = null; this.totpGeneration++; this.totpPending = null;
           this.attemptedTotp = new WeakSet(); this.automaticTotpUrl = null; this.manualLoginPending = true;
+          return ++this.manualLoginGeneration;
         },
-        onManualSettled: success => {
+        onManualSettled: (generation, success) => {
+          if (this.stopped || generation !== this.manualLoginGeneration) return;
           this.manualLoginPending = false;
           if (!success) this.automaticTotpUrl = this.doc.location.href;
           this.scheduleScan();
@@ -692,8 +696,8 @@ interface InlineWidgetOptions {
   readonly theme: () => "light" | "dark";
   readonly closeOthers: () => void;
   readonly onAutomaticFill: (entry: InlineAutofillSuggestion) => void;
-  readonly onManualFill: () => void;
-  readonly onManualSettled: (success: boolean) => void;
+  readonly onManualFill: () => number;
+  readonly onManualSettled: (generation: number, success: boolean) => void;
   readonly onAutomaticSettled: () => void;
 }
 
@@ -1180,15 +1184,17 @@ class InlineWidget {
     submitAfterFill = false,
     silent = false,
   ): Promise<boolean> {
+    let manualGeneration: number | null = null;
     if (!silent) {
       this.manualFillCompleted = false;
       this.sessionGeneration += 1;
-      this.options.onManualFill();
+      manualGeneration = this.options.onManualFill();
       discardAutomaticFillProvenance(this.options.loginTarget);
       // An explicit choice cancels continuation even if its chooser became stale.
       this.invalidatePendingFill();
     }
     if (!isCurrentLoginTarget(this.options.loginTarget)) {
+      if (manualGeneration !== null) this.options.onManualSettled(manualGeneration, false);
       if (!silent) this.renderStatus("inline.noForm");
       return false;
     }
@@ -1208,6 +1214,7 @@ class InlineWidget {
     };
     this.pendingFill = operation;
     let succeeded = false;
+    let workerFilled = false;
     try {
       if (!silent) this.renderStatus("inline.filling");
       let raw: unknown;
@@ -1225,6 +1232,7 @@ class InlineWidget {
       } catch {
         raw = null;
       }
+      workerFilled = isInlineAutofillResult(raw) && raw.ok && raw.kind === "fill" && raw.status === "filled";
       if (this.pendingFill !== operation || this.destroyed) return false;
       if (!isInlineAutofillResult(raw) || !raw.ok || raw.kind !== "fill") {
         if (!silent) this.renderStatus("inline.unavailable");
@@ -1257,10 +1265,8 @@ class InlineWidget {
       if (!silent && succeeded) this.manualFillCompleted = true;
       return succeeded;
     } finally {
-      if (this.pendingFill === operation) {
-        if (!silent) this.options.onManualSettled(succeeded);
-        this.invalidatePendingFill();
-      }
+      if (manualGeneration !== null) this.options.onManualSettled(manualGeneration, succeeded || (this.destroyed && workerFilled));
+      if (this.pendingFill === operation) this.invalidatePendingFill();
     }
   }
 

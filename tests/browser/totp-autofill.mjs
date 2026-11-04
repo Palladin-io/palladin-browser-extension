@@ -43,6 +43,7 @@ try {
     const content = pagePath === '/split-sms' ? `${'<input maxlength="1" autocomplete="one-time-code">'.repeat(5)}<input maxlength="1" autocomplete="one-time-code" aria-label="SMS code">`
       : pagePath === '/mutate' || pagePath === '/push' ? `<fieldset><legend>Authenticator code</legend>${'<input maxlength="1">'.repeat(6)}</fieldset><script>document.querySelector('input').addEventListener('input', () => { if (location.pathname === '/push') history.pushState({}, '', '/changed'); else document.querySelector('form').after(document.querySelector('fieldset')); }, { once: true });</script>`
       : pagePath === '/native' ? '<input autocomplete="username"><input type="password"><button>Sign in</button>'
+      : pagePath === '/manual-spa' ? `<input autocomplete="username" value="old-user"><input type="password"><script>document.querySelector('input[type=password]').addEventListener('change', () => setTimeout(() => { document.querySelector('form').outerHTML = '<form><input autocomplete="one-time-code"></form>'; }, 0), { once: true });</script>`
       : pagePath === '/native-prefilled' ? '<input autocomplete="username" value="old-user"><input type="password" value="old-password"><input autocomplete="one-time-code"><button>Sign in</button>'
       : pagePath === '/prefilled' ? '<input autocomplete="username" value="old-user"><input type="password"><input autocomplete="one-time-code">'
       : pagePath === '/spa' ? '<input autocomplete="one-time-code">'
@@ -135,6 +136,20 @@ try {
   await prefilled.waitForFunction(() => /^\d{6}$/.test(document.querySelector('input[autocomplete="one-time-code"]').value), null, { timeout: 10000 });
   assert.equal(await prefilled.locator('input[autocomplete="username"]').inputValue(), 'first@example.test');
   await prefilled.close();
+  // The page replaces the login stage after a real closed-surface credential choice.
+  const manualSpa = await context.newPage(); await manualSpa.goto('https://totp.example.test/manual-spa');
+  const manualRect = await manualSpa.locator('input[autocomplete="username"]').boundingBox();
+  await manualSpa.mouse.click(manualRect.x + manualRect.width - 21, manualRect.y + 13);
+  const manualCdp = await context.newCDPSession(manualSpa); let manualChoice;
+  for (let attempt = 0; attempt < 100 && !manualChoice; attempt++) {
+    manualChoice = (await manualCdp.send('Accessibility.getFullAXTree')).nodes.find(item => !item.ignored && item.role?.value === 'button' && item.name?.value?.startsWith('A synthetic login'));
+    if (!manualChoice) await new Promise(resolve => setTimeout(resolve, 75));
+  }
+  assert(manualChoice, 'manual SPA credential chooser appears');
+  const { model: manualModel } = await manualCdp.send('DOM.getBoxModel', { backendNodeId: manualChoice.backendDOMNodeId });
+  await manualSpa.mouse.click((manualModel.content[0] + manualModel.content[4]) / 2, (manualModel.content[1] + manualModel.content[5]) / 2);
+  await manualSpa.waitForFunction(() => /^\d{6}$/.test(document.querySelector('input[autocomplete="one-time-code"]')?.value ?? ''), null, { timeout: 10000 });
+  await manualSpa.close();
   // The same input is emptied by a synthetic SPA transition and re-used at a new URL.
   const spa = await context.newPage(); await spa.goto('https://totp.example.test/spa');
   await spa.waitForFunction(() => /^\d{6}$/.test(document.querySelector('input').value), null, { timeout: 10000 });
