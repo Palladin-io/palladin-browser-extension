@@ -59,7 +59,7 @@ function setup() {
     memberKeyGeneration: 1,
     currentKeyEpoch: { vaultKeyVersion: 1, agentMessageKeyVersion: 1 },
     vaultPrivateKeys: [],
-    vaultAgentMessagePublicKey: { keySuiteId: KEY_WRAPPER_SUITE.active },
+    vaultAgentMessageKeySuiteId: KEY_WRAPPER_SUITE.active,
   };
   const detail = {
     id: entryId,

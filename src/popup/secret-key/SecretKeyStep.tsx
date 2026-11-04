@@ -6,7 +6,7 @@ import { FormInput } from "../components/FormInput";
 import { Spinner } from "../components/Spinner";
 import { useI18n } from "../i18n";
 import type { SessionClient } from "../session/client";
-import { messageForError } from "../session/errors";
+import { messageForError, PopupSessionError } from "../session/errors";
 import { QrCode } from "./QrCode";
 
 const POLL_INTERVAL_MS = 2_000;
@@ -76,7 +76,8 @@ function TransferMode({ actions, onReady, onBack, onManual }: Omit<SecretKeyStep
           return;
         }
       } catch (err) {
-        if (!(err instanceof Error) || !("code" in err) || err.code !== "network") return fail(err);
+        // Transient transport failures keep the worker's transfer; poll again.
+        if (!(err instanceof PopupSessionError) || (err.code !== "network" && err.code !== "rate-limited")) return fail(err);
       }
       timer = setTimeout(() => void poll(expiresAt), POLL_INTERVAL_MS);
     };

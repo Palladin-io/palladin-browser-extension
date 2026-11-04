@@ -1,3 +1,4 @@
+import { KEY_WRAPPER_SUITE } from '@palladin/crypto'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -5,6 +6,7 @@ import {
   Protocol2ResetRequiredError,
   Protocol2VaultClient,
 } from './client'
+import { vaultAgentMessageKeySuiteId } from './contracts'
 import validSnapshotFixture from './fixtures/current-member-entry-sync-v2/vectors/valid-snapshot.json'
 
 const API = 'https://api.test'
@@ -94,8 +96,8 @@ function vaultDetail(metadataRevision: unknown = '1') {
     ],
     vaultAgentMessagePublicKey: {
       protocolVersion: 2,
-      schemeId: 'palladin-x25519-v1',
-      keyKind: 'agentMessageX25519',
+      schemeId: 'palladin-x25519-sealed-box-v1',
+      keyKind: 'agentMessage',
       keyVersion: 1,
       encodedPublicKey: 'agent-message-public-key',
       fingerprint: 'agent-message-fingerprint',
@@ -279,6 +281,23 @@ describe('Protocol2VaultClient transport boundary', () => {
       organizationId: ORGANIZATION_ID,
       metadataRevision: '1',
     })
+  })
+
+  it('reads the Vault message key suite from the signed manifest field, legacy when absent', async () => {
+    const migrated = await new Protocol2VaultClient(async () => json({ ...vaultDetail(),
+      vaultAgentMessageKeySuiteId: KEY_WRAPPER_SUITE.active }), API).getVault(TOKEN, VAULT_ID)
+    const legacy = await new Protocol2VaultClient(async () => json(vaultDetail()), API).getVault(TOKEN, VAULT_ID)
+
+    expect(vaultAgentMessageKeySuiteId(migrated)).toBe(KEY_WRAPPER_SUITE.active)
+    expect(vaultAgentMessageKeySuiteId(legacy)).toBe(KEY_WRAPPER_SUITE.legacy)
+  })
+
+  it('rejects an algorithm-named Vault message key kind', async () => {
+    const body = vaultDetail()
+    body.vaultAgentMessagePublicKey = { ...body.vaultAgentMessagePublicKey, keyKind: 'agentMessageX25519' }
+    const client = new Protocol2VaultClient(async () => json(body), API)
+
+    await expect(client.getVault(TOKEN, VAULT_ID)).rejects.toMatchObject({ code: 'network' })
   })
 
   it.each([
