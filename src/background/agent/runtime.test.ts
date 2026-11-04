@@ -869,7 +869,7 @@ it.each(['operations', 'legacy'] as const)('seals capture values only into authe
     expect(JSON.stringify(native.postMessage.mock.calls)).not.toContain('synthetic-capture-secret');
   } finally { mocked.mockRestore(); }
 });
-it('drops a captured response when operation closes while sealing', async () => {
+it.each([false, true])('drops a captured response when operation closes while sealing, reused ID=%s', async reuse => {
   const { native } = stubChrome();
   const url = 'https://login.example.test/', documentId = 'd'.repeat(32), operationId = 'f'.repeat(32);
   const values = [{ entryFieldId: 'password', value: 'synthetic-cancelled-secret' }];
@@ -878,6 +878,7 @@ it('drops a captured response when operation closes while sealing', async () => 
   const requests = [wrap({ protocol: INJECT_PROVIDER_PROTOCOL, type: 'prepare', nonce: 'a'.repeat(64), targetTabId: 7, targetUrl: url, liveDetection: false }),
     wrap({ protocol: INJECT_PROVIDER_PROTOCOL, type: 'capture', transactionId: 'cancel-seal', targetUrl: url, fields: [{ entryFieldId: 'password', selector: '#p', read: 'value' }] }),
     { protocol: INJECT_PROVIDER_PROTOCOL, type: 'operation.close', operationId }];
+  if (reuse) requests.push(wrap({ protocol: INJECT_PROVIDER_PROTOCOL, type: 'prepare', nonce: 'b'.repeat(64), targetTabId: 7, targetUrl: url, liveDetection: false }));
   let release!: () => void, seals = 0;
   const channel = { open: async () => new TextEncoder().encode(JSON.stringify(requests.shift())), seal: async () => { if (++seals === 2) await new Promise<void>(r => { release = r; }); return secureSessionContract.firstExtensionFrame; }, dispose: vi.fn() } as unknown as InjectSecureChannel;
   const mocked = vi.spyOn(palladinCrypto, 'createInjectClientSession').mockResolvedValue({ openFrame: secureSessionContract.open, acceptReady: async () => channel, dispose: vi.fn() } as unknown as InjectClientSession);
@@ -887,6 +888,7 @@ it('drops a captured response when operation closes while sealing', async () => 
     native.emitMessage(secureSessionContract.ready); native.emitMessage(secureSessionContract.firstHostFrame);
     await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledTimes(2)); native.emitMessage(secureSessionContract.firstHostFrame);
     await vi.waitFor(() => expect(release).toBeTypeOf('function')); native.emitMessage(secureSessionContract.firstHostFrame);
+    if (reuse) { await vi.waitFor(() => expect(requests).toHaveLength(1)); native.emitMessage(secureSessionContract.firstHostFrame); }
     await vi.waitFor(() => expect(requests).toHaveLength(0));
     await new Promise(resolve => setTimeout(resolve, 10)); release();
     await vi.waitFor(() => expect(native.disconnect).toHaveBeenCalledOnce());

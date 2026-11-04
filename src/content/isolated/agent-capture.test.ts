@@ -37,3 +37,26 @@ it('rejects a single missing, ambiguous, hidden or unsupported field and aliases
   (document.querySelector('input') as HTMLInputElement).value = 'é'.repeat(32769);
   expect(run(m)).toEqual({ outcome: 'rejected' });
 });
+it('rejects oversized text without materializing element textContent or reading later fields', () => {
+  document.body.innerHTML = '<div id=t></div><input id=u value=alice>';
+  const el = document.getElementById('t')!;
+  el.append(document.createTextNode('x'.repeat(65537)));
+  let materialized = false, laterRead = false;
+  Object.defineProperty(el, 'textContent', { get: () => { materialized = true; throw new Error('must not concatenate'); } });
+  Object.defineProperty(document.getElementById('u'), 'value', { get: () => { laterRead = true; return 'alice'; } });
+  expect(run({ ...message, fields: [message.fields[3], message.fields[0]] })).toEqual({ outcome: 'rejected' });
+  expect(materialized).toBe(false);
+  expect(laterRead).toBe(false);
+});
+it('enforces aggregate UTF8 budget before reading subsequent fields', () => {
+  document.body.innerHTML = Array.from({ length: 6 }, (_, i) => `<input id=f${i}>`).join('');
+  let readAfterLimit = false;
+  for (let i = 0; i < 5; i++) (document.getElementById(`f${i}`) as HTMLInputElement).value = 'é'.repeat(32768);
+  Object.defineProperty(document.getElementById('f5'), 'value', { get: () => { readAfterLimit = true; return 'tail'; } });
+  expect(run({ ...message, fields: Array.from({ length: 6 }, (_, i) => ({ entryFieldId: `f${i}`, selector: `#f${i}`, read: 'value' as const })) })).toEqual({ outcome: 'rejected' });
+  expect(readAfterLimit).toBe(false);
+});
+it('collects bounded descendant text in document order without comments', () => {
+  document.body.innerHTML = '<div id=t>one<span>two</span><!--ignored-->three</div>';
+  expect(run({ ...message, fields: [message.fields[3]] })).toEqual({ outcome: 'captured', values: [{ entryFieldId: 'token', value: 'onetwothree' }] });
+});

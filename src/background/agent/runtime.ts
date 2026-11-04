@@ -196,7 +196,7 @@ async function openNativeAgentProvider(expectedLifecycle: number): Promise<void>
     };
     let outbound = Promise.resolve();
     const deliver = (response: OperationReply | OperationReady, terminalDelivered: () => void): Promise<void> => {
-      const mayDeliver = () => isActive() && (response.type !== 'operation.result' || response.response.type !== 'capture.result' || response.response.outcome !== 'captured' || operations.isActive(response.operationId));
+      const mayDeliver = () => isActive() && (response.type !== 'operation.result' || response.response.type !== 'capture.result' || response.response.outcome !== 'captured' || operations.canDeliverCapture(response));
       const next = outbound.then(async () => {
         if (!mayDeliver() || secureChannel === null) { wipeNativeResponse(response); return; }
         const bytes = new TextEncoder().encode(JSON.stringify(response));

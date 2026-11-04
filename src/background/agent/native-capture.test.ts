@@ -54,3 +54,14 @@ it('does not route unprepared capture as inject.result', async () => {
   expect(await router.dispatch({ protocol, type: 'operation.request', operationId: 'b'.repeat(32), request })).toMatchObject({ response: { type: 'capture.result', outcome: 'rejected' } });
   await router.dispose();
 });
+it('keeps capture delivery bound to its original operation even when an ID is reused', async () => {
+  const f = fixture(), router = new NativeOperationRouter(f.deps, f.replay), operationId = 'c'.repeat(32);
+  const wrap = (request: unknown) => ({ protocol, type: 'operation.request', operationId, request });
+  await router.dispatch(wrap(prepare));
+  const captured = await router.dispatch(wrap(request));
+  expect(router.canDeliverCapture(captured)).toBe(true);
+  await router.close(operationId);
+  await router.dispatch(wrap(prepare));
+  expect(router.canDeliverCapture(captured)).toBe(false);
+  await router.dispose();
+});

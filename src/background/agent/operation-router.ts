@@ -34,6 +34,7 @@ const MAX_OPERATIONS = 32;
 /** One authenticated native connection; ownership is reserved before DOM lookup. */
 export class NativeOperationRouter {
   private readonly operations = new Map<string, Operation>();
+  private readonly captureOwners = new WeakMap<OperationReply, Operation>();
   private readonly tabs = new Map<number, string>();
   private disposed = false;
 
@@ -89,7 +90,9 @@ export class NativeOperationRouter {
     const pending = this.execute(current, operationId, request, prepare);
     current.pending = pending;
     try {
-      return reply(await pending);
+      const response = reply(await pending);
+      if (response.type === 'operation.result' && response.response.type === 'capture.result' && response.response.outcome === 'captured') this.captureOwners.set(response, current);
+      return response;
     } finally {
       wipeAgentMessageValues(request);
       current.pending = null;
@@ -126,8 +129,9 @@ export class NativeOperationRouter {
     return handleNativeAgentMessage(operation.deps, this.replay, operation.session, request);
   }
 
-  isActive(operationId: string): boolean {
-    return !this.disposed && this.operations.get(operationId)?.active === true;
+  canDeliverCapture(response: OperationReply): boolean {
+    // The original instance stays revoked even if its public ID is reused.
+    return !this.disposed && this.captureOwners.get(response)?.active === true;
   }
 
   close(operationId: string): Promise<void> {

@@ -1,5 +1,7 @@
 /** Native-only capture contract; never part of the page-world bridge vocabulary. */
 import { AGENT_INJECT_PROTOCOL, isRecord, onlyKeys, validIdentifier, validTargetUrl } from './agent-inject';
+export const CAPTURE_FIELD_BYTES = 65536;
+export const CAPTURE_TOTAL_BYTES = 262144;
 export const AGENT_CAPTURE_CHANNEL = 'palladin.agent-capture/read' as const;
 export interface AgentCaptureField { readonly entryFieldId: string; readonly selector: string; readonly read: 'value' | 'textContent' }
 export interface AgentCaptureValue { readonly entryFieldId: string; value: string }
@@ -36,13 +38,13 @@ export function isAgentCaptureOutcome(value: unknown): value is AgentCaptureOutc
   let total = 0;
   const ids = new Set<string>();
   for (const field of value.values) {
-    if (!isRecord(field) || !onlyKeys(field, ['entryFieldId', 'value']) || !fieldId(field.entryFieldId) || ids.has(field.entryFieldId) || typeof field.value !== 'string' || field.value.length > 65536) return false;
+    if (!isRecord(field) || !onlyKeys(field, ['entryFieldId', 'value']) || !fieldId(field.entryFieldId) || ids.has(field.entryFieldId) || typeof field.value !== 'string' || field.value.length > CAPTURE_FIELD_BYTES) return false;
     ids.add(field.entryFieldId);
     const encoded = new TextEncoder().encode(field.value);
     const length = encoded.byteLength;
     encoded.fill(0);
     total += length;
-    if (length > 65536 || total > 262144) return false;
+    if (length > CAPTURE_FIELD_BYTES || total > CAPTURE_TOTAL_BYTES) return false;
   }
   return true;
 }
