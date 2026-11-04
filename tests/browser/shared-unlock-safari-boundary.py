@@ -20,6 +20,7 @@ from safari_webdriver import SafariPopup, SafariDriverError
 parser = argparse.ArgumentParser()
 parser.add_argument('--driver-url', default='http://127.0.0.1:55187')
 parser.add_argument('--prepare-only', action='store_true')
+parser.add_argument('--output-dir', type=Path)
 parser.add_argument('--product-extension', type=Path)
 parser.add_argument('--ci-screenshot-on-failure', action='store_true')
 parser.add_argument('--ci-grant-fixture-access', action='store_true')
@@ -28,7 +29,7 @@ args = parser.parse_args()
 if args.ci_screenshot_on_failure or args.ci_grant_fixture_access:
     assert os.environ.get('GITHUB_ACTIONS') == 'true' and os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted', 'Native CI diagnostics only on disposable GitHub-hosted runners'
 assert args.driver_url == 'http://127.0.0.1:55187', 'Task-owned local SafariDriver only'
-out = Path('test-results/shared-unlock-safari-product-channel' if args.product_extension else 'test-results/shared-unlock-safari-boundary').resolve()
+out = (args.output_dir or Path('test-results/shared-unlock-safari-product-channel' if args.product_extension else 'test-results/shared-unlock-safari-boundary')).resolve()
 fixture = out / 'fixture'
 if args.product_extension:
     assert args.background_kind == 'module-worker', 'Product uses its built module worker'
@@ -240,6 +241,7 @@ def request(method, path, body=None):
         raise SafariDriverError(kind if kind in allowed else 'webdriver-error') from None
 
 session = None
+installed_extension = None
 server = None
 other_port_server = None
 checks = []
@@ -533,6 +535,7 @@ try:
     assert isinstance(installation, dict)
     extension_id = installation.get('extension')
     assert isinstance(extension_id, str) and extension_id
+    installed_extension = extension_id
     observations['browserInstalledExtensionId'] = extension_id
     checks.append('browser-installed-synthetic-extension')
     stage = 'internal-fixture-diagnostics'
@@ -678,8 +681,20 @@ except Exception as error:
     print('FAIL at ' + stage + '; value-free evidence recorded.')
     raise SystemExit(1) from None
 finally:
+    cleanup = {'extensionUninstalled': installed_extension is None, 'sessionDeleted': session is None}
     if session:
-        try: request('DELETE', '/session/' + session)
+        if installed_extension:
+            try:
+                command('DELETE', '/webextension/' + urllib.parse.quote(urllib.parse.unquote(installed_extension), safe=''))
+                cleanup['extensionUninstalled'] = True
+            except Exception: pass
+        try:
+            request('DELETE', '/session/' + session)
+            cleanup['sessionDeleted'] = True
         except Exception: pass
     if server: server.shutdown(); server.server_close()
     if other_port_server: other_port_server.shutdown(); other_port_server.server_close()
+    (out / 'cleanup.json').write_text(json.dumps(cleanup, indent=2))
+    if not all(cleanup.values()):
+        print('FAIL: Safari fixture cleanup did not complete')
+        raise SystemExit(1)
