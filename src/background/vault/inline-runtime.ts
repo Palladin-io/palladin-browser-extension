@@ -174,7 +174,7 @@ export async function handleInlineAutofillContentMessage(
     if (fill.status === "filled" && raw.scope === "exact" && (stillCurrent?.() ?? true)) {
       deps.recency?.remember(source.url, raw.vaultId, raw.entryId);
       deps.recency?.rememberForTab?.(source.id, source.url, raw.vaultId, raw.entryId);
-      if (deps.signIn) {
+      if (deps.signIn && (raw.purpose !== "totp" || raw.intent === "manual")) {
         const filled = (await deps.getMetadata()).find((entry) => entry.vaultId === raw.vaultId && entry.id === raw.entryId);
         deps.signIn.filled(source.id, source.url, filled, raw.intent);
       }

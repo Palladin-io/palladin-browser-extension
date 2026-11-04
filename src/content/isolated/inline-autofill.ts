@@ -157,6 +157,7 @@ const SHADOW_PROBE_BATCH = 256;
 class InlineAutofillController {
   private manualLoginPending = false;
   private automaticTotpUrl: string | null = null;
+  private totpScanUrl: string | null = null;
   private attemptedTotp = new WeakSet<HTMLInputElement>();
   private totpGeneration = 0;
   private readonly totpSurfaces = new Map<HTMLInputElement, { host: HTMLElement; panel: HTMLElement; button: HTMLButtonElement; target: HTMLInputElement[] }>();
@@ -441,6 +442,12 @@ class InlineAutofillController {
   }
 
   private scan(): void {
+    const liveUrl = this.doc.location.href;
+    if (this.totpScanUrl !== null && this.totpScanUrl !== liveUrl) {
+      this.totpGeneration++; this.totpPending = null;
+      this.attemptedTotp = new WeakSet(); this.automaticTotpUrl = null;
+    }
+    this.totpScanUrl = liveUrl;
     const continuation = this.continuation;
     if (continuation && (this.doc.location.href !== continuation.url
       || continuation.target.sourceDocument !== this.doc || !continuation.target.form.isConnected
@@ -540,7 +547,7 @@ class InlineAutofillController {
     if (otpTargets.length === 1 && otpTargets[0]!.every(isFillable)) {
       const target = otpTargets[0]!;
       const scope = composedForm(target[0]!);
-      const loginPending = [...this.widgets.values()].some(widget => widget.ownsForm(scope) && !widget.didCompleteAutomaticFill());
+      const loginPending = [...this.widgets.values()].some(widget => widget.ownsForm(scope) && !widget.didCompleteCredentialFill());
       if (!loginPending && !this.manualLoginPending && this.automaticTotpUrl !== this.doc.location.href && !this.attemptedTotp.has(target[0]!)) {
         this.attemptedTotp.add(target[0]!);
         void this.autoFillTotp(target);
@@ -700,6 +707,7 @@ class InlineWidget {
   private automaticFillInFlight = false;
   private automaticFillRetryRequested = false;
   private automaticFillCompleted = false;
+  private manualFillCompleted = false;
   private sessionGeneration = 0;
   private suggestionGeneration = 0;
   private suggestionsInFlight: Promise<unknown> | null = null;
@@ -767,6 +775,10 @@ class InlineWidget {
     return form !== null && this.options.loginTarget.form === form;
   }
 
+  didCompleteCredentialFill(): boolean {
+    return (this.automaticFillCompleted && !this.automaticFillInFlight) || this.manualFillCompleted;
+  }
+
   didCompleteAutomaticFill(): boolean {
     return this.automaticFillCompleted;
   }
@@ -830,6 +842,7 @@ class InlineWidget {
     this.sessionGeneration += 1;
     this.invalidatePendingFill();
     this.lastFilled = null;
+    this.manualFillCompleted = false;
     this.automaticFillRetryRequested = false;
   }
 
@@ -1148,6 +1161,7 @@ class InlineWidget {
     silent = false,
   ): Promise<boolean> {
     if (!silent) {
+      this.manualFillCompleted = false;
       this.sessionGeneration += 1;
       this.options.onManualFill();
       discardAutomaticFillProvenance(this.options.loginTarget);
@@ -1220,6 +1234,7 @@ class InlineWidget {
         if (raw.status === "filled") setTimeout(() => this.close(), 700);
       }
       succeeded = raw.status === "filled";
+      if (!silent && succeeded) this.manualFillCompleted = true;
       return succeeded;
     } finally {
       if (!silent) this.options.onManualSettled(succeeded);

@@ -1,3 +1,4 @@
+import type { InlineAutofillRecency } from './inline-runtime';
 import { validEntryPresentation } from "@shared/entry-icons";
 /**
  * Typed command channel between the popup and the service worker for vault data
@@ -137,6 +138,8 @@ export type ActiveTab = {
   | { readonly documentTransport: "legacy-firefox-port"; readonly legacyFirefoxRouteId: string; readonly browserDocumentId?: never });
 
 export interface VaultCommandDeps {
+  readonly inlineRecency?: InlineAutofillRecency;
+  resolveTabDocument?(tabId: number): Promise<ActiveTab | null>;
   captureFillSession?(): () => void;
   data: VaultDataSource;
   entryDeleter?: { deleteEntry(vaultId: string, entryId: string): Promise<void> };
@@ -291,7 +294,7 @@ async function fillActiveTab(
     (entry) => entry.id === entryId && entry.vaultId === vaultId,
   );
   if (!meta) return { status: "blocked", reason: "not-found" };
-  return fillPreparedEntry(deps, meta, tab);
+  return fillNativePreparedEntry(deps, meta, tab);
 }
 
 /**
@@ -350,7 +353,7 @@ async function openAndFillLogin(
     }
   }
 
-  const current = await fillPreparedEntry(deps, meta, tab, false, true);
+  const current = await fillNativePreparedEntry(deps, meta, tab, true);
   if (current.status !== "no-form") return current;
 
   let nextUrl: string | null;
@@ -375,7 +378,26 @@ async function openAndFillLogin(
     return { status: "blocked", reason: "domain-mismatch" };
   }
   // Do not carry plaintext across navigation; reveal again under the current session.
-  return fillPreparedEntry(deps, meta, next, false, true);
+  return fillNativePreparedEntry(deps, meta, next, true);
+}
+
+async function fillNativePreparedEntry(
+  deps: VaultCommandDeps, meta: EntryMetadata, tab: ActiveTab, submit = false,
+): Promise<FillResult> {
+  const current = deps.inlineRecency?.capture?.(tab.id, tab.url);
+  const result = await fillPreparedEntry(deps, meta, tab, false, submit);
+  if (result.status === "filled" && meta.type === ENTRY_TYPE_CREDENTIAL && deps.inlineRecency && (current?.() ?? true)) {
+    const live = deps.resolveTabDocument ? await deps.resolveTabDocument(tab.id) : await deps.getActiveTab();
+    const sameDocument = live !== null && live.documentId === tab.documentId && live.url === tab.url
+      && live.browserDocumentId === tab.browserDocumentId && live.legacyFirefoxRouteId === tab.legacyFirefoxRouteId;
+    // An authenticated successful login may itself navigate to the next same-host
+    // stage before its reply arrives; ordinary fill grants no such continuation.
+    if (!live || live.id !== tab.id || (!sameDocument && !(submit && matchesTab(live.url, meta.urlDomain)))
+      || !(current?.() ?? true)) return result;
+    deps.inlineRecency.remember(tab.url, meta.vaultId, meta.id);
+    deps.inlineRecency.rememberForTab?.(tab.id, tab.url, meta.vaultId, meta.id);
+  }
+  return result;
 }
 
 function savedLoginUrl(value: string, boundUrl: string): string | null {

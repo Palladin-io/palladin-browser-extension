@@ -333,3 +333,83 @@ it('stops a split OTP write if session lock occurs in an input handler', async (
   try { await vi.waitFor(() => expect(document.querySelectorAll<HTMLInputElement>('input')[0]!.value).toBe('1')); expect(document.querySelectorAll<HTMLInputElement>('input')[1]!.value).toBe(''); }
   finally { subject.stop(); }
 });
+
+it('waits for successful manual credential selection before filling OTP in the same form', async () => {
+  vi.stubGlobal('chrome', { storage: { local: { get: async () => ({}) } }, i18n: { getUILanguage: () => 'en' } });
+  const native = Element.prototype.attachShadow;
+  const shadow = vi.spyOn(Element.prototype, 'attachShadow').mockImplementation(function (this: Element, init) { return native.call(this, { ...init, mode: 'open' }); });
+  document.body.innerHTML = '<form><input autocomplete="username" value="old"><input type="password"><input autocomplete="one-time-code"></form>';
+  const entries = [{ vaultId: 'v1', entryId: 'e1', name: 'Example', username: 'ada', vaultName: 'Personal', urlDomain: 'example.com', updatedAt: '2026-01-01T00:00:00Z', match: 'exact' }];
+  let release!: () => void; const wait = new Promise<void>(resolve => { release = resolve; });
+  let subject: ReturnType<typeof startInlineAutofill>; let otpCalls = 0;
+  const send = async (command: InlineAutofillCommand) => {
+    if (command.type === 'inline/list') return { ok: true, kind: 'suggestions', status: 'ready', entries };
+    if (command.type === 'inline/fill') {
+      if (command.purpose === 'totp') otpCalls++;
+      const fields = command.purpose === 'totp' ? [{ kind: 'totp' as const, value: '123456', expiresAt: Date.now() + 10000, username: 'ada' }]
+        : [{ kind: 'username' as const, value: 'ada' }, { kind: 'password' as const, value: 'password' }];
+      const outcome = subject.performFillRequest({ channel: 'palladin.fill/request', documentId: 'a'.repeat(32), expectedOrigin: 'https://example.com', expectedDomain: 'example.com', submit: false, intent: command.intent, loginTargetId: command.loginTargetId, fields });
+      if (command.intent === 'manual') await wait;
+      return { ok: true, kind: 'fill', status: outcome.ok ? 'filled' : 'no-form' };
+    }
+    return { ok: false, code: 'unavailable' };
+  };
+  subject = startInlineAutofill(document, 'a'.repeat(32), send);
+  try {
+    const root = document.querySelector('palladin-autofill')!.shadowRoot!;
+    root.querySelector<HTMLButtonElement>('.launcher')!.click();
+    await vi.waitFor(() => expect(root.querySelector('.option')).not.toBeNull());
+    root.querySelector<HTMLButtonElement>('.option')!.click();
+    await vi.waitFor(() => expect(document.querySelector<HTMLInputElement>('[type=password]')!.value).toBe('password'));
+    await new Promise(resolve => setTimeout(resolve, 150)); expect(otpCalls).toBe(0);
+    release(); await vi.waitFor(() => expect(document.querySelector<HTMLInputElement>('[autocomplete=one-time-code]')!.value).toBe('123456'));
+  } finally { release(); subject.stop(); shadow.mockRestore(); }
+});
+
+it.each(['completed', 'pending'])('retries the same OTP control after a same-host SPA URL change (%s)', async phase => {
+  vi.stubGlobal('chrome', { storage: { local: { get: async () => ({}) } }, i18n: { getUILanguage: () => 'en' } });
+  document.body.innerHTML = '<form><input autocomplete="one-time-code"></form>';
+  const entries = [{ vaultId: 'v1', entryId: 'e1', name: 'Example', username: 'ada', vaultName: 'Personal', urlDomain: 'example.com', updatedAt: '2026-01-01T00:00:00Z', match: 'exact' }];
+  let release!: () => void; const wait = new Promise<void>(resolve => { release = resolve; });
+  let lists = 0, fills = 0;
+  const send = async (command: InlineAutofillCommand) => {
+    if (command.type === 'inline/list') { lists++; if (lists === 1 && phase === 'pending') await wait; return { ok: true, kind: 'suggestions', status: 'ready', entries }; }
+    if (command.type === 'inline/fill') fills++;
+    return { ok: true, kind: 'fill', status: 'filled' };
+  };
+  const initial = location.href;
+  const subject = startInlineAutofill(document, 'a'.repeat(32), send);
+  try {
+    await vi.waitFor(() => expect(phase === 'pending' ? lists : fills).toBe(1));
+    history.pushState({}, '', '/mfa-step'); document.querySelector('form')!.append(document.createElement('span'));
+    await vi.waitFor(() => expect(lists).toBe(2));
+    release(); await new Promise(resolve => setTimeout(resolve, 150));
+    expect(fills).toBe(phase === 'pending' ? 1 : 2);
+    document.querySelector('form')!.append(document.createElement('span'));
+    await new Promise(resolve => setTimeout(resolve, 150)); expect(lists).toBe(2);
+  } finally { release(); history.replaceState({}, '', initial); subject.stop(); }
+});
+
+it('waits for the automatic credential worker reply before starting combined-form OTP', async () => {
+  vi.stubGlobal('chrome', { storage: { local: { get: async () => ({}) } }, i18n: { getUILanguage: () => 'en' } });
+  document.body.innerHTML = '<form><input autocomplete="username"><input type="password"><input autocomplete="one-time-code"></form>';
+  const entries = [{ vaultId: 'v1', entryId: 'e1', name: 'Example', username: 'ada', vaultName: 'Personal', urlDomain: 'example.com', updatedAt: '2026-01-01T00:00:00Z', match: 'exact' }];
+  let release!: () => void; const wait = new Promise<void>(resolve => { release = resolve; });
+  let subject: ReturnType<typeof startInlineAutofill>; let otpCalls = 0;
+  const send = async (command: InlineAutofillCommand) => {
+    if (command.type === 'inline/list') return { ok: true, kind: 'suggestions', status: 'ready', entries };
+    if (command.type === 'inline/fill') {
+      if (command.purpose === 'totp') { otpCalls++; return { ok: true, kind: 'fill', status: 'filled' }; }
+      subject.performFillRequest({ channel: 'palladin.fill/request', documentId: 'a'.repeat(32), expectedOrigin: 'https://example.com', expectedDomain: 'example.com', submit: false, intent: command.intent, loginTargetId: command.loginTargetId, fields: [{ kind: 'username', value: 'ada' }, { kind: 'password', value: 'password' }] });
+      await wait;
+    }
+    return { ok: true, kind: 'fill', status: 'filled' };
+  };
+  subject = startInlineAutofill(document, 'a'.repeat(32), send);
+  try {
+    await vi.waitFor(() => expect(document.querySelector<HTMLInputElement>('[type=password]')!.value).toBe('password'));
+    document.querySelector('form')!.append(document.createElement('span'));
+    await new Promise(resolve => setTimeout(resolve, 200)); expect(otpCalls).toBe(0);
+    release(); await vi.waitFor(() => expect(otpCalls).toBe(1));
+  } finally { release(); subject.stop(); }
+});

@@ -42,13 +42,16 @@ try {
     const pagePath = new URL(route.request().url()).pathname;
     const content = pagePath === '/split-sms' ? `${'<input maxlength="1" autocomplete="one-time-code">'.repeat(5)}<input maxlength="1" autocomplete="one-time-code" aria-label="SMS code">`
       : pagePath === '/mutate' || pagePath === '/push' ? `<fieldset><legend>Authenticator code</legend>${'<input maxlength="1">'.repeat(6)}</fieldset><script>document.querySelector('input').addEventListener('input', () => { if (location.pathname === '/push') history.pushState({}, '', '/changed'); else document.querySelector('form').after(document.querySelector('fieldset')); }, { once: true });</script>`
+      : pagePath === '/native' ? '<input autocomplete="username"><input type="password"><button>Sign in</button>'
+      : pagePath === '/prefilled' ? '<input autocomplete="username" value="old-user"><input type="password"><input autocomplete="one-time-code">'
+      : pagePath === '/spa' ? '<input autocomplete="one-time-code">'
       : pagePath === '/identifier' ? '<input autocomplete="username"><button>Next</button>'
       : pagePath === '/password' ? '<input type="password"><button>Sign in</button>'
       : pagePath === '/split' ? `<fieldset><legend>Authenticator code</legend>${'<input maxlength="1">'.repeat(6)}</fieldset>`
       : pagePath === '/sms' ? 'Code sent by SMS<input autocomplete="one-time-code">'
       : pagePath === '/filled' ? '<input autocomplete="one-time-code" value="111111">'
       : `${pagePath === '/mfa' ? '' : '<input autocomplete="username"><input type="password">'}<input autocomplete="one-time-code">`;
-    return route.fulfill({ contentType: 'text/html', body: `<style>input{display:block;width:400px;height:40px;margin:12px}</style><form>${content}</form>` });
+    return route.fulfill({ contentType: 'text/html', body: `<style>input{display:block;width:400px;height:40px;margin:12px}</style><form onsubmit="event.preventDefault();if(location.pathname==='/native')location.assign('/mfa')">${content}</form>` });
   });
   const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
   const extensionId = new URL(worker.url()).host;
@@ -61,6 +64,17 @@ try {
   const page = await context.newPage(); await page.goto('https://totp.example.test/login');
   await page.waitForFunction(() => /^\d{6}$/.test(document.querySelector('input[autocomplete="one-time-code"]').value), null, { timeout: 10000 });
   assert.equal(await page.locator('input[autocomplete="username"]').inputValue(), 'first@example.test');
+  // Native popup selection replaces the earlier automatic account in this tab.
+  const nativePage = await context.newPage(); await nativePage.goto('https://totp.example.test/native');
+  await nativePage.waitForFunction(() => document.querySelector('input[type=password]').value !== '', null, { timeout: 10000 });
+  assert.equal(await nativePage.locator('input[autocomplete="username"]').inputValue(), 'first@example.test');
+  await nativePage.bringToFront(); popup.close(); popup = await openNativePopup(worker, profile, extensionId);
+  await popup.click(/B synthetic login/); await popup.click('Log in');
+  await nativePage.waitForURL('https://totp.example.test/mfa', { timeout: 10000 });
+  await popup.dismiss(); popup = null;
+  const nativeCodes = await Promise.all([-30000, 0, 30000].map(offset => crypto.generateTotp({ secret: 'JBSWY3DPEHPK3PXP', algorithm: 'SHA1', digits: 6, period: 30 }, Date.now() + offset)));
+  await nativePage.waitForFunction(codes => codes.includes(document.querySelector('input').value), nativeCodes.map(item => item.code), { timeout: 10000 });
+  await nativePage.close();
   const second = await context.newPage(); await second.goto('https://totp.example.test/login');
   await second.waitForFunction(() => /^\d{6}$/.test(document.querySelector('input[autocomplete="one-time-code"]').value));
   await second.locator('input[autocomplete="username"]').fill('second@example.test');
@@ -91,6 +105,31 @@ try {
   const firstNow = Date.now();
   const firstCodes = await Promise.all([-30000, 0].map(offset => crypto.generateTotp({ secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', algorithm: 'SHA1', digits: 6, period: 30 }, firstNow + offset)));
   assert.equal(await page.locator('input').evaluate((input, codes) => codes.includes(input.value), firstCodes.map(item => item.code)), true, 'first tab kept its account');
+  // Existing username prevents passive credential fill; a closed-surface choice
+  // must complete before the same-form OTP is selected.
+  const prefilled = await context.newPage(); await prefilled.goto('https://totp.example.test/prefilled');
+  await prefilled.waitForTimeout(500);
+  assert.equal(await prefilled.locator('input[autocomplete="one-time-code"]').inputValue(), '');
+  const preRect = await prefilled.locator('input[autocomplete="username"]').boundingBox();
+  await prefilled.mouse.click(preRect.x + preRect.width - 21, preRect.y + 13);
+  const preCdp = await context.newCDPSession(prefilled);
+  let preChoice;
+  for (let attempt = 0; attempt < 100 && !preChoice; attempt++) {
+    preChoice = (await preCdp.send('Accessibility.getFullAXTree')).nodes.find(item => !item.ignored && item.role?.value === 'button' && item.name?.value?.startsWith('A synthetic login'));
+    if (!preChoice) await new Promise(resolve => setTimeout(resolve, 75));
+  }
+  assert(preChoice, 'manual credential chooser appears');
+  const { model: preModel } = await preCdp.send('DOM.getBoxModel', { backendNodeId: preChoice.backendDOMNodeId });
+  await prefilled.mouse.click((preModel.content[0] + preModel.content[4]) / 2, (preModel.content[1] + preModel.content[5]) / 2);
+  await prefilled.waitForFunction(() => /^\d{6}$/.test(document.querySelector('input[autocomplete="one-time-code"]').value), null, { timeout: 10000 });
+  assert.equal(await prefilled.locator('input[autocomplete="username"]').inputValue(), 'first@example.test');
+  await prefilled.close();
+  // The same input is emptied by a synthetic SPA transition and re-used at a new URL.
+  const spa = await context.newPage(); await spa.goto('https://totp.example.test/spa');
+  await spa.waitForFunction(() => /^\d{6}$/.test(document.querySelector('input').value), null, { timeout: 10000 });
+  await spa.evaluate(() => { const input = document.querySelector('input'); input.value = ''; history.pushState({}, '', '/spa-next'); document.querySelector('form').append(document.createElement('span')); });
+  await spa.waitForFunction(() => /^\d{6}$/.test(document.querySelector('input').value), null, { timeout: 10000 });
+  await spa.close();
   const staged = await context.newPage(); await staged.goto('https://totp.example.test/identifier');
   await staged.waitForFunction(() => document.querySelector('input').value !== '', null, { timeout: 10000 });
   await staged.goto('https://totp.example.test/password');

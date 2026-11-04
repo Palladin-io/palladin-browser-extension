@@ -216,6 +216,7 @@ export const vaultCommandDeps: VaultCommandDeps = {
   entryWriter: vaultData,
   entryDeleter: vaultData,
   getActiveTab,
+  resolveTabDocument,
   openLoginTab,
   sendFill,
   clipboard: { available: clipboardCopyAvailable, arm: () => clipboardGuard.arm() },

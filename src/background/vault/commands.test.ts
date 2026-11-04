@@ -924,3 +924,62 @@ it('blocks OTP autofill when multiple custom TOTP sources have no canonical choi
   expect((await fillInlineSelectedEntry(deps, tab, 'vault-1', 'entry-cred', 'exact', 'otp-1', 'automatic', 'totp')).status).toBe('blocked');
   expect(sendFill).not.toHaveBeenCalled();
 });
+
+it.each(['vault/fill', 'vault/login'] as const)('records successful native %s selection for the same tab, but not after invalidation', async type => {
+  const { InMemoryInlineAutofillRecency } = await import('./inline-runtime');
+  const recency = new InMemoryInlineAutofillRecency();
+  recency.rememberForTab(7, HTTPS_MATCH, 'vault-1', 'old-entry');
+  const h = await makeHarness(buildVaultWorld(), { id: 7, url: HTTPS_MATCH });
+  Object.assign(h.deps, { inlineRecency: recency });
+  const result = await dispatchVaultCommand(h.deps, { type, vaultId: 'vault-1', entryId: 'entry-cred' });
+  expect(result).toEqual({ ok: true, fill: { status: 'filled' } });
+  expect(recency.preferredForTab(7, HTTPS_MATCH)).toMatchObject({ vaultId: 'vault-1', entryId: 'entry-cred' });
+  recency.rememberForTab(7, HTTPS_MATCH, 'vault-1', 'old-entry');
+  h.sendFill.mockImplementationOnce(async () => { recency.clear(); return { ok: true }; });
+  await dispatchVaultCommand(h.deps, { type, vaultId: 'vault-1', entryId: 'entry-cred' });
+  expect(recency.preferredForTab(7, HTTPS_MATCH)).toBeNull();
+});
+
+it('does not restore a native selection after the bound tab navigates to a different same-host document', async () => {
+  const { InMemoryInlineAutofillRecency } = await import('./inline-runtime');
+  const recency = new InMemoryInlineAutofillRecency();
+  const h = await makeHarness(buildVaultWorld(), { id: 7, url: HTTPS_MATCH });
+  Object.assign(h.deps, { inlineRecency: recency });
+  h.sendFill.mockImplementationOnce(async () => {
+    h.deps.getActiveTab = async () => ({ id: 7, url: 'https://example.com/other', documentId: 'new-document', browserDocumentId: 'new-browser-document' });
+    return { ok: true };
+  });
+  await dispatchVaultCommand(h.deps, { type: 'vault/fill', vaultId: 'vault-1', entryId: 'entry-cred' });
+  expect(recency.preferredForTab(7, HTTPS_MATCH)).toBeNull();
+});
+
+it('keeps a successful native login selection after its same-host submit navigates to MFA', async () => {
+  const { InMemoryInlineAutofillRecency } = await import('./inline-runtime');
+  const recency = new InMemoryInlineAutofillRecency();
+  const h = await makeHarness(buildVaultWorld(), { id: 7, url: HTTPS_MATCH });
+  Object.assign(h.deps, { inlineRecency: recency });
+  h.sendFill.mockImplementationOnce(async () => {
+    h.deps.getActiveTab = async () => ({ id: 7, url: 'https://example.com/mfa', documentId: 'new-document', browserDocumentId: 'new-browser-document' });
+    return { ok: true };
+  });
+  expect(await dispatchVaultCommand(h.deps, { type: 'vault/login', vaultId: 'vault-1', entryId: 'entry-cred' }))
+    .toEqual({ ok: true, fill: { status: 'filled' } });
+  expect(recency.preferredForTab(7, 'https://example.com/mfa')).toMatchObject({ entryId: 'entry-cred' });
+});
+
+it.each(['failed', 'foreign-navigation'] as const)('does not remember a native login after %s', async scenario => {
+  const { InMemoryInlineAutofillRecency } = await import('./inline-runtime');
+  const recency = new InMemoryInlineAutofillRecency();
+  const h = await makeHarness(buildVaultWorld(), { id: 7, url: HTTPS_MATCH });
+  Object.assign(h.deps, { inlineRecency: recency });
+  h.sendFill.mockImplementationOnce(async () => {
+    if (scenario === 'foreign-navigation') {
+      recency.navigation(7, 'https://other.test/');
+      h.deps.getActiveTab = async () => ({ id: 7, url: 'https://other.test/', documentId: 'new', browserDocumentId: 'new-browser' });
+      return { ok: true };
+    }
+    return { ok: false, reason: 'no-form' };
+  });
+  await dispatchVaultCommand(h.deps, { type: 'vault/fill', vaultId: 'vault-1', entryId: 'entry-cred' });
+  expect(recency.preferredForTab(7, HTTPS_MATCH)).toBeNull();
+});
