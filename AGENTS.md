@@ -17,6 +17,9 @@ treat any violation below as a Critical (blocking) finding.
   `localStorage`, `sessionStorage`, `IndexedDB`, `chrome.storage.local`, or
   `chrome.storage.sync`. A service-worker restart fails closed to locked and
   requires a fresh client-side unlock. Auto-lock and wipe keys on lock/logout.
+  The only exception is the Identity v2 Secret Key in the `identity-kdf/v3`
+  browser device wrapper (non-extractable WebCrypto key, IndexedDB), deleted on
+  sign-out; it must never be extended to MK or any other key.
 - **No inline crypto.** All encryption/decryption comes from the shared crypto
   package (bundled locally - MV3 forbids remote code). Never hand-roll crypto in
   a background handler, content script, or popup component.

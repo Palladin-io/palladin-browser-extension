@@ -8,12 +8,12 @@ import {
   listCanonicalGrantableFieldIds,
   openCurrentMemberSecret,
   openVaultDerivedEnvelope,
-  openVaultProjection,
   projectCanonicalCredentialDiscovery,
   sealCanonicalCredentialEntry,
   wipe,
 } from '@palladin/crypto'
 type MemberSecretV1 = currentVaultPlaintext.MemberSecretV1
+import { openMemberVaultProjection } from '@shared/crypto/member-key'
 import { matchesTab } from '@shared/security/domain'
 import { readSignInBinding, sameSignInAccount, withSignInBinding, type SignInBinding, type SignInBindingState } from '@shared/signin/binding'
 import type { SubmittedCredential } from '@shared/messaging/credential-capture'
@@ -61,7 +61,7 @@ export class Protocol2CredentialWriter {
   async choices(credential: SubmittedCredential, url: string): Promise<CredentialCaptureChoices> {
     this.secureUrl(url)
     if (!(await this.deps.canWrite())) return { identical: false, targets: [], defaultIndex: null }
-    const { privateKey, userId } = await this.context()
+    const { memberKey, userId } = await this.context()
     const metadata = await this.deps.data.refresh()
     const vaults = await this.withAuth((token) => this.deps.client.listVaults(token))
     const targets: CredentialWriteTarget[] = []
@@ -73,7 +73,7 @@ export class Protocol2CredentialWriter {
     for (const listed of vaults) {
       const vault = await this.withAuth((token) => this.deps.client.getVault(token, listed.id))
       const opened = await this.deps.keyEpochFloor.observe(userId, vault,
-        () => openVaultProjection(vault, privateKey, userId))
+        () => openMemberVaultProjection(vault, memberKey, userId))
       try {
         if (vault.isDefault) personalIndex = targets.length
         targets.push({ action: 'create', vaultId: vault.id, label: opened.metadata.name, vaultLabel: opened.metadata.name })
@@ -109,14 +109,14 @@ export class Protocol2CredentialWriter {
     stillAuthorized: () => Promise<boolean>,
   ): Promise<{ action: 'created' | 'updated'; revision: string }> {
     const site = this.secureUrl(url)
-    const { privateKey, userId } = await this.context()
+    const { memberKey, userId } = await this.context()
     if (!(await this.deps.canWrite()) || !(await stillAuthorized())) throw new VaultDataError('locked', 'Capture authorization changed')
     const vault = await this.withAuth((token) => this.deps.client.getVault(token, target.vaultId))
     const opened = await this.deps.keyEpochFloor.openForWrite(userId, vault,
-      () => openVaultProjection(vault, privateKey, userId))
+      () => openMemberVaultProjection(vault, memberKey, userId))
     let discoveryKey: Uint8Array | undefined
     const assertEpoch = () => this.deps.keyEpochFloor.assertCurrent(userId, vault)
-    const authorized = async () => this.deps.session.getPrivateKey() === privateKey
+    const authorized = async () => this.deps.session.getMemberKey() === memberKey
       && await this.deps.session.getUserId() === userId && await stillAuthorized()
     try {
       discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, opened.vaultKey)
@@ -156,14 +156,14 @@ export class Protocol2CredentialWriter {
   async signInTargets(url: string): Promise<SignInTargets> {
     this.secureUrl(url)
     const writable = await this.deps.canWrite()
-    const { privateKey, userId } = await this.context()
+    const { memberKey, userId } = await this.context()
     const metadata = await this.deps.data.getMetadata()
     const vaults = await this.withAuth((token) => this.deps.client.listVaults(token))
     const result: SignInTargets = { writable, vaults: [], credentials: [] }
     for (const listed of vaults) {
       const vault = await this.withAuth((token) => this.deps.client.getVault(token, listed.id))
       const opened = await this.deps.keyEpochFloor.observe(userId, vault,
-        () => openVaultProjection(vault, privateKey, userId))
+        () => openMemberVaultProjection(vault, memberKey, userId))
       try {
         if (writable) result.vaults.push({ vaultId: vault.id, label: opened.metadata.name, isDefault: vault.isDefault === true })
         for (const entry of metadata.filter((candidate) => candidate.vaultId === vault.id
@@ -202,11 +202,11 @@ export class Protocol2CredentialWriter {
         (secret) => withSignInBinding(secret, binding, label), stillAuthorized)
       return { action: 'updated', revision }
     }
-    const { privateKey, userId } = await this.context()
+    const { memberKey, userId } = await this.context()
     if (!(await this.deps.canWrite()) || !(await stillAuthorized())) throw new VaultDataError('locked', 'Sign-in authorization changed')
     const vault = await this.withAuth((token) => this.deps.client.getVault(token, target.vaultId))
     const opened = await this.deps.keyEpochFloor.openForWrite(userId, vault,
-      () => openVaultProjection(vault, privateKey, userId))
+      () => openMemberVaultProjection(vault, memberKey, userId))
     let discoveryKey: Uint8Array | undefined
     const assertEpoch = () => this.deps.keyEpochFloor.assertCurrent(userId, vault)
     try {
@@ -222,7 +222,7 @@ export class Protocol2CredentialWriter {
         vdkVersion: vault.currentKeyEpoch.vdkVersion, memberKeyGeneration: vault.memberKeyGeneration,
       }, secret, opened.vaultKey, discoveryKey, 1)
       const created = await this.withAuth(async (token) => {
-        if (this.deps.session.getPrivateKey() !== privateKey || await this.deps.session.getUserId() !== userId
+        if (this.deps.session.getMemberKey() !== memberKey || await this.deps.session.getUserId() !== userId
           || !(await stillAuthorized())) throw new VaultDataError('locked', 'Sign-in authorization changed')
         assertEpoch()
         return this.deps.client.createEntry(token, { vaultId: vault.id, entryId, ...material, deliveryPolicy: 'standard' })
@@ -257,14 +257,14 @@ export class Protocol2CredentialWriter {
     vaultId: string, entryId: string, expectedRevision: string | null, url: string | null,
     mutate: (secret: MemberSecretV1) => MemberSecretV1, stillAuthorized: () => Promise<boolean>,
   ): Promise<string> {
-    const { privateKey, userId } = await this.context()
+    const { memberKey, userId } = await this.context()
     if (!(await this.deps.canWrite()) || !(await stillAuthorized())) throw new VaultDataError('locked', 'Sign-in authorization changed')
     const vault = await this.withAuth((token) => this.deps.client.getVault(token, vaultId))
     const opened = await this.deps.keyEpochFloor.openForWrite(userId, vault,
-      () => openVaultProjection(vault, privateKey, userId))
+      () => openMemberVaultProjection(vault, memberKey, userId))
     let discoveryKey: Uint8Array | undefined
     const assertEpoch = () => this.deps.keyEpochFloor.assertCurrent(userId, vault)
-    const authorized = async () => this.deps.session.getPrivateKey() === privateKey
+    const authorized = async () => this.deps.session.getMemberKey() === memberKey
       && await this.deps.session.getUserId() === userId && await stillAuthorized()
     try {
       discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, opened.vaultKey)
@@ -326,7 +326,7 @@ export class Protocol2CredentialWriter {
       if (grant.type === 'granular' && grant.entryId === detail.id) {
         const scope = grant.entryScopes.find((scope) => scope.entryId === detail.id)
         if (!scope?.grantEnvelopeRevision || !scope.grantKeyVersion || !scope.fieldIds.length
-          || !grant.agentId || !grant.agentPublicKey || !grant.recipientAgentKeyVersion) throw new Error('Incomplete grant context')
+          || !grant.agentId || !grant.agentPublicKey || !grant.agentKeySuiteId || !grant.recipientAgentKeyVersion) throw new Error('Incomplete grant context')
         const approvedFieldIds = (scope.fieldSelectionMode === 'all'
           ? [...grantable] : scope.fieldSelectionMode === 'selected'
             ? scope.selectedFieldIds ?? scope.fieldIds : scope.fieldIds)
@@ -334,7 +334,7 @@ export class Protocol2CredentialWriter {
         if (approvedFieldIds.length === 0) throw new Error('Grant field policy changed')
         grantEnvelopes.push(await buildCanonicalGrantEnvelope({
           secret, organizationId: vault.organizationId, vaultId: vault.id, entryId: detail.id,
-          grantId: grant.id, agentId: grant.agentId, agentPublicKey: grant.agentPublicKey,
+          grantId: grant.id, agentId: grant.agentId, agentPublicKey: grant.agentPublicKey, agentKeySuiteId: grant.agentKeySuiteId,
           entryRevision: revision, grantEnvelopeRevision: (BigInt(scope.grantEnvelopeRevision) + 1n).toString(),
           grantKeyVersion: scope.grantKeyVersion + 1, recipientKeyVersion: grant.recipientAgentKeyVersion,
           memberKeyGeneration: vault.memberKeyGeneration, approvedFieldIds,
@@ -355,7 +355,7 @@ export class Protocol2CredentialWriter {
     updated: EntryDetail, next: MemberSecretV1, revision: string, vaultKey: Uint8Array,
   ) {
     const parent = grant.scriptScopes.find((scope) => scope.isScript)
-    if (!parent || !grant.agentId || !grant.agentAccessEpoch || !grant.agentPublicKey || !grant.recipientAgentKeyVersion
+    if (!parent || !grant.agentId || !grant.agentAccessEpoch || !grant.agentPublicKey || !grant.agentKeySuiteId || !grant.recipientAgentKeyVersion
       || !grant.scriptPackageRevision) throw new Error('Incomplete Script grant context')
     const open = async (entryId: string) => {
       if (entryId === updated.id) return { secret: next, revision }
@@ -368,7 +368,7 @@ export class Protocol2CredentialWriter {
     const script = await open(parent.entryId)
     return buildVaultScriptPackage({ vault, vaultKey, scriptEntryId: parent.entryId, scriptRevision: script.revision,
       secret: script.secret, agentId: grant.agentId, agentAccessEpoch: grant.agentAccessEpoch,
-      agentPublicKey: grant.agentPublicKey, recipientKeyVersion: grant.recipientAgentKeyVersion,
+      agentPublicKey: grant.agentPublicKey, agentKeySuiteId: grant.agentKeySuiteId, recipientKeyVersion: grant.recipientAgentKeyVersion,
       grantId: grant.id, packageRevision: (BigInt(grant.scriptPackageRevision) + 1n).toString(), open })
   }
 
@@ -389,10 +389,10 @@ export class Protocol2CredentialWriter {
   }
 
   private async context() {
-    const privateKey = this.deps.session.getPrivateKey()
+    const memberKey = this.deps.session.getMemberKey()
     const userId = await this.deps.session.getUserId()
-    if (!privateKey || !userId) throw new VaultDataError('locked', 'Capture requires an unlocked session')
-    return { privateKey, userId }
+    if (!memberKey || !userId) throw new VaultDataError('locked', 'Capture requires an unlocked session')
+    return { memberKey, userId }
   }
 
   private async withAuth<T>(operation: (token: string) => Promise<T>): Promise<T> {

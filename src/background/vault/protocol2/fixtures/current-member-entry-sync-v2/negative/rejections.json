@@ -43,7 +43,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -145,7 +145,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -269,7 +269,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -393,7 +393,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -517,7 +517,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -641,7 +641,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 5,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -765,7 +765,7 @@
               "resourceRevision": "4",
               "wrappedKeyVersion": 4,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -889,7 +889,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 3,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -1013,7 +1013,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "nJsB5mW-O3dRj7lYs_4K1RBgzdBAREgUjMah-rsUpV4",
               "parentDescriptorHash": null
@@ -1137,7 +1137,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 3,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -1261,7 +1261,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "nJsB5mW-O3dRj7lYs_4K1RBgzdBAREgUjMah-rsUpV4",
               "parentDescriptorHash": null
@@ -1385,7 +1385,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -1509,7 +1509,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -1633,7 +1633,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -1757,7 +1757,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -1881,7 +1881,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -2006,7 +2006,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -2130,7 +2130,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -2258,7 +2258,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -2382,7 +2382,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -2506,7 +2506,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -2630,7 +2630,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -2804,7 +2804,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null
@@ -3038,7 +3038,7 @@
               "resourceRevision": "3",
               "wrappedKeyVersion": 3,
               "memberKeyGeneration": 4,
-              "recipientKeyKind": "memberX25519",
+              "recipientKeyKind": "memberEncryption",
               "recipientKeyVersion": 2,
               "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
               "parentDescriptorHash": null

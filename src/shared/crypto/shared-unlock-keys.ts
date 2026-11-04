@@ -1,8 +1,10 @@
 import {
-  assertIdentityKdfProfile, decryptWithKey, fromBase64Url, getCryptoProvider,
-  hashSharedUnlockKeyContext, IDENTITY_KDF_PROFILE, toBase64Url, wipe,
+  decryptWithKey, deriveRecipientPublicKey, fromBase64Url, hashSharedUnlockKeyContext, toBase64Url, wipe,
   type SharedUnlockKeyContext,
 } from "@palladin/crypto";
+import {
+  identityProfileVersion, memberKeySuiteForProfile,
+} from "../../background/session/identity-profile";
 import type { SessionKeys } from "../../background/session/types";
 
 /**
@@ -25,26 +27,25 @@ export async function recoverSharedUnlockKeys(
   try {
     assertCurrent();
     if (context.accountId !== expectedAccountId || masterKey.length !== 32) throw new Error("Shared unlock key binding failed");
-    assertIdentityKdfProfile({
+    // identity-kdf v3 accountKeys: the committed security version fixes the member key suite.
+    const memberKeySuiteId = memberKeySuiteForProfile(identityProfileVersion({
       profileId: context.kdfProfileId, securityVersion: context.securityVersion, kdfSalt: context.kdfSalt,
-      memoryKiB: IDENTITY_KDF_PROFILE.memoryKiB, iterations: IDENTITY_KDF_PROFILE.iterations,
-      parallelism: IDENTITY_KDF_PROFILE.parallelism,
-    });
-    if (context.minimumSecurityVersion > IDENTITY_KDF_PROFILE.securityVersion) throw new Error("Unsupported shared unlock key context");
+    }));
+    if (context.minimumSecurityVersion > context.securityVersion
+      || !Number.isInteger(context.memberKeyVersion) || context.memberKeyVersion < 1) {
+      throw new Error("Unsupported shared unlock key context");
+    }
     const digest = await hashSharedUnlockKeyContext(context);
     assertCurrent();
     if (digest !== expectedDigest) throw new Error("Shared unlock key commitment failed");
     ciphertext = fromBase64Url(context.encryptedPrivateKey, 4096);
     privateKey = await decryptWithKey(ciphertext, masterKey);
     assertCurrent();
-    const provider = getCryptoProvider();
-    await provider.ready();
-    assertCurrent();
-    publicKey = provider.scalarMultBase(privateKey);
+    publicKey = await deriveRecipientPublicKey(memberKeySuiteId, privateKey);
     if (toBase64Url(publicKey) !== context.publicKey) throw new Error("Shared unlock member key binding failed");
     assertCurrent();
     recovered = true;
-    return { masterKey, privateKey };
+    return { masterKey, privateKey, memberKeySuiteId, memberKeyVersion: context.memberKeyVersion };
   } finally {
     if (ciphertext) wipe(ciphertext);
     if (publicKey) wipe(publicKey);

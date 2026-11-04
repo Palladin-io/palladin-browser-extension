@@ -22,6 +22,10 @@ function makeClient(overrides: Partial<SessionClient> = {}): Fake {
     unlock: vi.fn(async () => "unlocked" as const),
     lock: vi.fn(async () => {}),
     logout: vi.fn(async () => {}),
+    startSecretKeyTransfer: vi.fn(async () => ({ qrPayload: "", sas: "", expiresAt: 0 })),
+    pollSecretKeyTransfer: vi.fn(async () => "pending" as const),
+    submitSecretKey: vi.fn(async () => {}),
+    cancelSecretKey: vi.fn(async () => {}),
     ...overrides,
   };
   return base as Fake;
@@ -181,6 +185,56 @@ describe("popup state machine", () => {
     await waitFor(() =>
       expect(client.login).toHaveBeenCalledWith("spaced@palladin.io", "  pad  "),
     );
+  });
+
+  it("asks for the Secret Key, shows the pairing QR and SAS, then finishes the same sign-in", async () => {
+    const login = vi.fn()
+      .mockResolvedValueOnce({ status: "secret-key-required" as const })
+      .mockResolvedValueOnce({ status: "unlocked" as const });
+    const client = makeClient({
+      login,
+      startSecretKeyTransfer: vi.fn(async () => ({
+        qrPayload: "palladin-pair:v2:r:AAAAAAAAAAAAAAAAAAAAAA.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        sas: "942en-qbszg",
+        expiresAt: Date.now() + 300_000,
+      })),
+      pollSecretKeyTransfer: vi.fn(async () => "ready" as const),
+    });
+    render(<App client={client} />);
+    const user = userEvent.setup();
+
+    await user.type(await screen.findByLabelText("Email"), "user@palladin.io");
+    await user.type(screen.getByLabelText("Master password"), "correct horse");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByRole("heading", { name: "Approve this browser" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "One-time code to approve this browser" })).toBeInTheDocument();
+    expect(screen.getByTestId("secret-key-sas")).toHaveTextContent("942en-qbszg");
+    expect(await screen.findByRole("heading", { name: "Your vault" }, { timeout: 4_000 })).toBeInTheDocument();
+    expect(login).toHaveBeenNthCalledWith(2, "user@palladin.io", "correct horse");
+  });
+
+  it("rejects a mistyped Secret Key inline and drops the password when leaving the step", async () => {
+    const client = makeClient({
+      login: vi.fn(async () => ({ status: "secret-key-required" as const })),
+      startSecretKeyTransfer: vi.fn(async () => { throw new PopupSessionError("network"); }),
+      submitSecretKey: vi.fn(async () => { throw new PopupSessionError("secret-key-invalid"); }),
+    });
+    render(<App client={client} />);
+    const user = userEvent.setup();
+
+    await user.type(await screen.findByLabelText("Email"), "user@palladin.io");
+    await user.type(screen.getByLabelText("Master password"), "correct horse");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await user.click(await screen.findByRole("button", { name: "Enter Secret Key from Emergency Kit" }));
+    await user.type(screen.getByLabelText("Secret Key"), "PSK2-WRONG");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/doesn't match your account/);
+    expect(client.login).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(client.cancelSecretKey).toHaveBeenCalled();
+    expect(screen.getByLabelText("Master password")).toHaveValue("");
   });
 
   it("shows an inline error and stays on Sign in for a wrong password", async () => {

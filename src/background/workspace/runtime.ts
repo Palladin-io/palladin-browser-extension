@@ -19,7 +19,7 @@ export const workspaceService = new WorkspaceService({
       () => serverConfig.networkApiUrl,
     ),
     session: {
-      getPrivateKey: () => sessionManager.getKeys()?.privateKey ?? null,
+      getMemberKey: () => sessionManager.getKeys(),
       getUserId: () => sessionManager.getUserId(),
       getAccessToken: () => sessionManager.getAccessToken(),
       refreshAccessToken: () => sessionManager.refreshAccessToken(),

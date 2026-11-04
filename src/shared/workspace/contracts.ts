@@ -31,6 +31,7 @@ export interface OrgGrant {
   agentName?: string | null;
   agentIconKey?: string | null;
   agentPublicKey?: string | null;
+  agentKeySuiteId?: string | null;
   recipientAgentKeyVersion?: number | null;
   agentSigningPublicKey?: string | null;
   agentSigningKeyVersion?: number | null;

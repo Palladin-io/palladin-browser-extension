@@ -25,6 +25,8 @@ export type SessionPhase =
   | "unlocked"
   | "unavailable";
 
+export type SignInOutcome = "done" | "secret-key-required";
+
 interface PendingTotp {
   readonly challengeToken: string;
 }
@@ -32,8 +34,11 @@ interface PendingTotp {
 export interface UseSession {
   phase: SessionPhase;
   capabilities: SessionCapabilities | null;
-  /** Begin login. Resolves once the worker has either unlocked or asked for TOTP. */
-  signIn(email: string, password: string): Promise<void>;
+  /**
+   * Begin login. Resolves once the worker has unlocked, asked for TOTP, or
+   * needs this browser's Secret Key first (the phase does not change then).
+   */
+  signIn(email: string, password: string): Promise<SignInOutcome>;
   /** Finish the second factor for the pending challenge. */
   submitTotp(code: string): Promise<void>;
   /** Abandon the pending TOTP challenge and drop the retained password. */
@@ -87,13 +92,15 @@ export function useSession(client: SessionClient): UseSession {
     async (email: string, password: string) => {
       const ownRevision = ++revision.current;
       const result = await client.login(email, password);
-      if (revision.current !== ownRevision) return;
+      if (revision.current !== ownRevision) return "done";
+      if (result.status === "secret-key-required") return "secret-key-required";
       if (result.status === "totp-required") {
         pendingTotp.current = { challengeToken: result.challengeToken };
         setPhase("totp");
-        return;
+        return "done";
       }
       setPhase("unlocked");
+      return "done";
     },
     [client],
   );

@@ -1,3 +1,4 @@
+import { KEY_WRAPPER_SUITE } from '@palladin/crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ActiveCachedEntry, ActiveCacheState, MemberSyncCache } from './cache'
@@ -35,6 +36,9 @@ const cryptoMocks = vi.hoisted(() => ({
 vi.mock('@palladin/crypto', async (importOriginal) => ({
   ...await importOriginal<typeof import('@palladin/crypto')>(),
   ...cryptoMocks,
+}))
+vi.mock('@shared/crypto/member-key', () => ({
+  openMemberVaultProjection: (...args: unknown[]) => (cryptoMocks.openVaultProjection as (...a: unknown[]) => unknown)(...args),
 }))
 
 const USER_ID = '11111111-1111-4111-8111-111111111111'
@@ -207,12 +211,12 @@ function harness(
     removeProfile: vi.fn(async () => undefined),
     clearAll: vi.fn(async () => undefined),
   }
-  const privateKey = new Uint8Array(32).fill(3)
+  const memberKey = { memberKeySuiteId: KEY_WRAPPER_SUITE.active, memberKeyVersion: 1, privateKey: new Uint8Array(32).fill(3) }
   const session: Protocol2SessionAccessor = {
     getAccessToken: async () => 'token',
     refreshAccessToken: async () => null,
     getUserId: async () => USER_ID,
-    getPrivateKey: () => privateKey,
+    getMemberKey: () => memberKey,
   }
   const service = new Protocol2VaultDataService({
     client: client as unknown as Protocol2VaultClient,
@@ -449,7 +453,7 @@ describe('Protocol2VaultDataService canonical password capture', () => {
         organizationId: USER_ID,
         metadataRevision: '1',
       }),
-      expect.any(Uint8Array),
+      expect.objectContaining({ memberKeySuiteId: KEY_WRAPPER_SUITE.active, privateKey: expect.any(Uint8Array) }),
       USER_ID,
     )
   })
@@ -866,7 +870,7 @@ describe('Protocol2VaultDataService canonical password capture', () => {
   it('does not save a generated credential after locking during icon preparation', async () => {
     const { service, client, session } = harness()
     await service.refresh()
-    client.resolveWebsiteIcon.mockImplementation(async () => { session.getPrivateKey = () => null; return null })
+    client.resolveWebsiteIcon.mockImplementation(async () => { session.getMemberKey = () => null; return null })
     await expect(service.saveGeneratedPassword({ kind: 'registration', site: 'example.com',
       url: 'https://accounts.example.com/register', password: 'generated-password' }))
       .rejects.toMatchObject({ code: 'locked' })
@@ -1007,7 +1011,7 @@ describe('Protocol2VaultDataService canonical password capture', () => {
       icon: 'public-asset:11111111-1111-4111-8111-111111111111' })
     const rejected = expect(saving).rejects.toThrow('Session changed')
     await vi.waitFor(() => expect(client.getCatalogIcon).toHaveBeenCalled())
-    session.getPrivateKey = () => new Uint8Array(32).fill(9)
+    session.getMemberKey = () => ({ memberKeySuiteId: KEY_WRAPPER_SUITE.active, memberKeyVersion: 1, privateKey: new Uint8Array(32).fill(9) })
     resolve({ kind: 'publicAsset', assetId: USER_ID, revision: 1, url: 'https://example.test/icon.png' })
     await rejected
     expect(client.issueEntryCreationChallenge).not.toHaveBeenCalled()
@@ -1247,7 +1251,7 @@ describe('Entry deletion', () => {
 
   it('does not send a mutation while locked', async () => {
     const { service, client, session } = harness()
-    session.getPrivateKey = () => null
+    session.getMemberKey = () => null
     await expect(service.deleteEntry(VAULT_ID, ENTRY_ID)).rejects.toMatchObject({ code: 'locked' })
     expect(client.deleteEntry).not.toHaveBeenCalled()
   })
@@ -1355,7 +1359,7 @@ describe('captured mutation async session races', () => {
     const { service, client, session } = harness(); await service.refresh();
     let final = false;
     const user = session.getUserId;
-    session.getUserId = async () => { const result = await user(); if (final) session.getPrivateKey = () => null; return result; };
+    session.getUserId = async () => { const result = await user(); if (final) session.getMemberKey = () => null; return result; };
     await expect(service.saveEntry({ entryType: 'key', label: 'Capture', value: 'synthetic-value' }, VAULT_ID, async () => { final = true; })).rejects.toThrow();
     expect(client.createEntry).not.toHaveBeenCalled();
   });

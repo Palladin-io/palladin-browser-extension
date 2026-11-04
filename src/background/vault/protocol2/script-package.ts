@@ -18,6 +18,7 @@ export async function buildVaultScriptPackage(input: {
   agentId: string;
   agentAccessEpoch: number;
   agentPublicKey: string;
+  agentKeySuiteId: string;
   recipientKeyVersion: number;
   grantId: string;
   packageRevision: string;
@@ -42,7 +43,7 @@ export async function buildVaultScriptPackage(input: {
   )
     throw new Error('Unavailable script signing material');
   const entries: ScriptExecutionPackageReferenceInput[] = [];
-  const recipient = fromBase64(input.agentPublicKey);
+  const recipient = { keySuiteId: input.agentKeySuiteId, publicKey: fromBase64(input.agentPublicKey) };
   let signingKey: Uint8Array | undefined;
   try {
     signingKey = await openVaultDerivedEnvelope(signing, input.vaultKey);
@@ -75,13 +76,13 @@ export async function buildVaultScriptPackage(input: {
       grantId: input.grantId,
       packageRevision: input.packageRevision,
       recipientAgentKeyVersion: input.recipientKeyVersion,
-      recipientAgentPublicKey: recipient,
+      recipientAgentKey: recipient,
       vaultSigningKeyVersion: vault.currentKeyEpoch.manifestSigningKeyVersion,
       vaultSigningPrivateKey: signingKey,
       entries,
     });
   } finally {
-    wipe(recipient);
+    wipe(recipient.publicKey);
     if (signingKey) wipe(signingKey);
     for (const entry of entries) wipe(entry.encodedMemberSecret);
   }

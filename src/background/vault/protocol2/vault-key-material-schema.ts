@@ -1,3 +1,4 @@
+import { fromWireKeyWrapperDescriptor, type WireKeyWrapperDescriptor } from '@palladin/crypto'
 import { z } from 'zod'
 
 export const canonicalUuidSchema = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
@@ -55,37 +56,32 @@ export function vaultEnvelopeSchema<T extends z.ZodType>(binding: T) {
 const vaultKeyBindingSchema = z.object({ wrappingVaultKeyVersion: u32Schema }).strict()
 const emptyBindingSchema = z.object({}).strict()
 
-const wrapperPurposeValues = {
-  memberVaultKey: 1,
-  agentDiscoveryVdk: 2,
-  reasonDek: 3,
-  grantDek: 4,
-} as const
-const recipientKeyKindValues = {
-  agentX25519: 1,
-  vaultMessageX25519: 4,
-  memberX25519: 5,
-} as const
+// The algorithm travels only in wrapperSuiteId; registry names map to the
+// numeric descriptor through @palladin/crypto, which fails closed on unknown names.
+const wrapperDescriptorSchema = z.object({
+  protocolVersion: z.literal(2),
+  wrapperSuiteId: z.string().min(1),
+  purpose: z.string().min(1),
+  scope: envelopeScopeSchema,
+  resourceRevision: canonicalU64Schema,
+  wrappedKeyVersion: u32Schema,
+  memberKeyGeneration: u32Schema.nullable(),
+  recipientKeyKind: z.string().min(1),
+  recipientKeyVersion: u32Schema,
+  recipientFingerprint: z.string().min(1),
+  parentDescriptorHash: z.string().min(1).nullable(),
+}).strict().transform((wire, context) => {
+  try {
+    const { purpose, recipientKeyKind } = fromWireKeyWrapperDescriptor(wire as WireKeyWrapperDescriptor)
+    return { ...wire, purpose, recipientKeyKind }
+  } catch {
+    context.addIssue({ code: 'custom', message: 'Unregistered key-wrapper purpose or recipient key kind' })
+    return z.NEVER
+  }
+})
 
-const wrapperPurposeSchema = z.enum(Object.keys(wrapperPurposeValues) as [keyof typeof wrapperPurposeValues, ...(keyof typeof wrapperPurposeValues)[]])
-  .transform((purpose) => wrapperPurposeValues[purpose])
-const recipientKeyKindSchema = z.enum(Object.keys(recipientKeyKindValues) as [keyof typeof recipientKeyKindValues, ...(keyof typeof recipientKeyKindValues)[]])
-  .transform((kind) => recipientKeyKindValues[kind])
-
-export const x25519WrappedKeySchema = z.object({
-  descriptor: z.object({
-    protocolVersion: z.literal(2),
-    wrapperSuiteId: z.literal('palladin-x25519-sealed-box-v1'),
-    purpose: wrapperPurposeSchema,
-    scope: envelopeScopeSchema,
-    resourceRevision: canonicalU64Schema,
-    wrappedKeyVersion: u32Schema,
-    memberKeyGeneration: u32Schema.nullable(),
-    recipientKeyKind: recipientKeyKindSchema,
-    recipientKeyVersion: u32Schema,
-    recipientFingerprint: z.string().min(1),
-    parentDescriptorHash: z.string().min(1).nullable(),
-  }).strict(),
+export const wrappedKeySchema = z.object({
+  descriptor: wrapperDescriptorSchema,
   encodedSealedKeyPackage: z.string().min(1),
 }).strict()
 
@@ -96,7 +92,7 @@ export const vaultDiscoveryKeyEnvelopeSchema = vaultEnvelopeSchema(vaultKeyBindi
 export const vaultPrivateKeyEnvelopeSchema = vaultEnvelopeSchema(vaultKeyBindingSchema)
   .refine((envelope) => envelope.descriptor.purpose === 3 || envelope.descriptor.purpose === 4,
     'Vault private key purpose mismatch')
-export const memberVaultKeyEnvelopeSchema = z.object({ wrappedVaultKey: x25519WrappedKeySchema }).strict()
+export const memberVaultKeyEnvelopeSchema = z.object({ wrappedVaultKey: wrappedKeySchema }).strict()
   .refine((envelope) => envelope.wrappedVaultKey.descriptor.purpose === 1,
     'Member Vault Key wrapper purpose mismatch')
 

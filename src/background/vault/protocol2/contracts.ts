@@ -1,3 +1,4 @@
+import { KEY_WRAPPER_SUITE } from '@palladin/crypto'
 import { z } from 'zod'
 import {
   canonicalU64Schema as canonicalU64,
@@ -69,21 +70,39 @@ function validateEncryptedVaultSummary(
 export const encryptedVaultListSummarySchema = encryptedVaultListSummaryObjectSchema
   .superRefine(validateEncryptedVaultSummary)
 
-const vaultPublicKeySchema = z.object({
+const vaultPublicKeyShape = {
   protocolVersion: z.literal(2),
-  schemeId: z.enum(['palladin-x25519-v1', 'palladin-ed25519-v1']),
-  keyKind: z.enum(['agentMessageX25519', 'manifestSigningEd25519']),
   keyVersion: u32,
   encodedPublicKey: z.string().min(1),
   fingerprint: z.string().min(1),
+} as const
+// The message key's algorithm is a key-wrapper suite chosen by the registry, never named here.
+const vaultAgentMessagePublicKeySchema = z.object({
+  ...vaultPublicKeyShape,
+  schemeId: z.string().min(1),
+  keyKind: z.literal('agentMessage'),
 }).strict()
+const vaultManifestSigningPublicKeySchema = z.object({
+  ...vaultPublicKeyShape,
+  schemeId: z.literal('palladin-ed25519-v1'),
+  keyKind: z.literal('manifestSigningEd25519'),
+}).strict()
+
+/**
+ * Suite of the Vault Agent message key from the signed VaultManifest field.
+ * recipient-key-publication v1: a manifest without it carries a read-only-suite key.
+ */
+export function vaultAgentMessageKeySuiteId(vault: Pick<EncryptedVaultSummary, 'vaultAgentMessageKeySuiteId'>): string {
+  return vault.vaultAgentMessageKeySuiteId ?? KEY_WRAPPER_SUITE.legacy
+}
 
 export const encryptedVaultSummarySchema = z.object({
   ...encryptedVaultSummaryShape,
   organizationId: canonicalUuid,
   metadataRevision: canonicalU64,
-  vaultAgentMessagePublicKey: vaultPublicKeySchema,
-  vaultManifestSigningPublicKey: vaultPublicKeySchema,
+  vaultAgentMessageKeySuiteId: z.string().min(1).optional(),
+  vaultAgentMessagePublicKey: vaultAgentMessagePublicKeySchema,
+  vaultManifestSigningPublicKey: vaultManifestSigningPublicKeySchema,
 }).strict().superRefine((vault, context) => {
   validateEncryptedVaultSummary(vault, context)
   const metadataOrganizationId = vault.memberVaultMetadata.descriptor.scope.organizationId
@@ -92,11 +111,7 @@ export const encryptedVaultSummarySchema = z.object({
     || vault.organizationId !== memberKeyOrganizationId) {
     context.addIssue({ code: 'custom', message: 'Vault outer organization scope mismatch' })
   }
-  if (vault.vaultAgentMessagePublicKey.keyKind !== 'agentMessageX25519'
-    || vault.vaultAgentMessagePublicKey.schemeId !== 'palladin-x25519-v1'
-    || vault.vaultAgentMessagePublicKey.keyVersion !== vault.currentKeyEpoch.agentMessageKeyVersion
-    || vault.vaultManifestSigningPublicKey.keyKind !== 'manifestSigningEd25519'
-    || vault.vaultManifestSigningPublicKey.schemeId !== 'palladin-ed25519-v1'
+  if (vault.vaultAgentMessagePublicKey.keyVersion !== vault.currentKeyEpoch.agentMessageKeyVersion
     || vault.vaultManifestSigningPublicKey.keyVersion !== vault.currentKeyEpoch.manifestSigningKeyVersion) {
     context.addIssue({ code: 'custom', message: 'Vault public key epoch mismatch' })
   }
