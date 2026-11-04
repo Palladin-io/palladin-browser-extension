@@ -951,7 +951,7 @@ class InlineWidget {
         return;
       }
       if (raw.status !== "ready") return;
-      const preferredExact = raw.entries.find((entry) => entry.match === "exact"
+      const preferredExact = raw.entries.find((entry) => entry.match === "exact" && entry.username.length > 0
         && (raw.continuation === undefined || (entry.vaultId === raw.continuation.vaultId && entry.entryId === raw.continuation.entryId))
         && (continuation === undefined || (entry.entryId === continuation.entryId
           && entry.vaultId === continuation.vaultId && entry.username === continuation.username)));

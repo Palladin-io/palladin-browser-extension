@@ -304,6 +304,86 @@ describe('captured Credential canonical writer', () => {
     }
   })
 
+  describe('federated sign-in method', () => {
+    const sealed = () => cryptoMocks.sealCanonicalCredentialEntry.mock.calls.at(-1)![1] as MemberSecretV1 & { entryType: 'credential' }
+    beforeEach(() => {
+      data.getMetadata.mockResolvedValue([{ vaultId: VAULT, id: ENTRY, type: 1, urlDomain: 'accounts.example.com', username: 'alice' }])
+    })
+
+    it('lists exact-host Credentials with their decrypted state even for read-only members', async () => {
+      canWrite.mockResolvedValue(false)
+      const targets = await writer.signInTargets(url)
+      expect(targets).toMatchObject({ writable: false, vaults: [], credentials: [{ entryId: ENTRY, revision: '4',
+        username: 'alice', signIn: { status: 'absent' } }] })
+    })
+
+    it('updates only the sign-in field, discoverable but never grantable, and keeps password, grants and policy', async () => {
+      client.getActiveGrants.mockResolvedValue([grant])
+      await writer.saveSignIn(url, { action: 'update', vaultId: VAULT, entryId: ENTRY, revision: '4' },
+        { provider: 'google', account: 'work@corp.com', entry: null }, 'Sign-in method', authorized)
+      const next = sealed()
+      expect(next.content.password).toBe('old-pass')
+      expect(next.content.username).toBe('alice')
+      const field = next.content.customFields.find((candidate) => candidate.type === 'palladin.signin.v1')!
+      expect(field.value).toEqual({ provider: 'google', account: 'work@corp.com', entry: null })
+      expect(next.agentFieldAccess[field.id]).toBe('discovery')
+      expect(next.agentFieldAccess['credential.password']).toBe(secret.agentFieldAccess['credential.password'])
+      const grantFields = cryptoMocks.buildCanonicalGrantEnvelope.mock.calls[0]![0].approvedFieldIds
+      expect(grantFields).not.toContain(field.id)
+      expect(client.updateEntry).toHaveBeenCalledWith('token', expect.objectContaining({ baseRevision: '4', deliveryPolicy: 'injectOnly' }))
+    })
+
+    it('creates a password-less record that automatic fill cannot select', async () => {
+      const result = await writer.saveSignIn(url, { action: 'create', vaultId: VAULT },
+        { provider: 'apple', account: null, entry: null }, 'Metoda logowania', authorized)
+      expect(result.action).toBe('created')
+      const next = sealed()
+      expect(next.content).toMatchObject({ username: '', password: '', urlDomain: 'accounts.example.com', url: 'https://accounts.example.com' })
+      expect(next.content.customFields).toEqual([expect.objectContaining({ label: 'Metoda logowania',
+        type: 'palladin.signin.v1', value: { provider: 'apple', account: null, entry: null } })])
+    })
+
+    it('rejects a stale revision, another host and a revoked authorization before writing', async () => {
+      await expect(writer.saveSignIn(url, { action: 'update', vaultId: VAULT, entryId: ENTRY, revision: '3' },
+        { provider: 'google', account: null, entry: null }, 'Sign-in method', authorized)).rejects.toThrow()
+      await expect(writer.saveSignIn('https://evil.example.net/', { action: 'update', vaultId: VAULT, entryId: ENTRY, revision: '4' },
+        { provider: 'google', account: null, entry: null }, 'Sign-in method', authorized)).rejects.toThrow()
+      authorized.mockResolvedValue(false)
+      await expect(writer.saveSignIn(url, { action: 'create', vaultId: VAULT },
+        { provider: 'google', account: null, entry: null }, 'Sign-in method', authorized)).rejects.toThrow()
+      await expect(writer.saveSignIn('http://accounts.example.com/', { action: 'create', vaultId: VAULT },
+        { provider: 'google', account: null, entry: null }, 'Sign-in method', async () => true)).rejects.toThrow()
+      expect(client.updateEntry).not.toHaveBeenCalled()
+      expect(client.createEntry).not.toHaveBeenCalled()
+    })
+
+    it('popup edits keep the provider Entry reference only for an unchanged provider and account', async () => {
+      const providerEntry = { vaultId: '77777777-7777-4777-8777-777777777777', entryId: '88888888-8888-4888-8888-888888888888' }
+      const bound = { ...secret, agentFieldAccess: { ...secret.agentFieldAccess, 'custom:99999999-9999-4999-8999-999999999999': 'discovery' as const },
+        content: { ...secret.content, customFields: [{ id: 'custom:99999999-9999-4999-8999-999999999999', label: 'Sign-in method',
+          type: 'palladin.signin.v1', value: { provider: 'google', account: 'Work@Corp.com', entry: providerEntry } }] } }
+      cryptoMocks.openCurrentMemberSecret.mockResolvedValue(bound)
+      await writer.setEntrySignIn(VAULT, ENTRY, { provider: 'google', account: 'work@corp.com' }, 'Sign-in method', authorized)
+      let field = sealed().content.customFields.find((candidate) => candidate.type === 'palladin.signin.v1')!
+      expect(field.value).toMatchObject({ entry: providerEntry })
+      expect(sealed().agentFieldAccess[field.id]).toBe('discovery')
+      await writer.setEntrySignIn(VAULT, ENTRY, { provider: 'google', account: 'other@corp.com' }, 'Sign-in method', authorized)
+      field = sealed().content.customFields.find((candidate) => candidate.type === 'palladin.signin.v1')!
+      expect(field.value).toMatchObject({ account: 'other@corp.com', entry: null })
+    })
+
+    it('removes the binding from the popup without touching other fields', async () => {
+      const bound = { ...secret, agentFieldAccess: { ...secret.agentFieldAccess, 'custom:99999999-9999-4999-8999-999999999999': 'never' as const },
+        content: { ...secret.content, customFields: [{ id: 'custom:99999999-9999-4999-8999-999999999999', label: 'Sign-in method',
+          type: 'palladin.signin.v1', value: { provider: 'google', account: 'a@b.c', entry: null } }] } }
+      cryptoMocks.openCurrentMemberSecret.mockResolvedValue(bound)
+      await writer.setEntrySignIn(VAULT, ENTRY, null, '', authorized)
+      expect(sealed().content.customFields).toEqual([])
+      expect(Object.keys(sealed().agentFieldAccess)).not.toContain('custom:99999999-9999-4999-8999-999999999999')
+      expect(sealed().content.password).toBe('old-pass')
+    })
+  })
+
   describe('Vault key epoch floor', () => {
     const create: CredentialWriteTarget = { action: 'create', vaultId: VAULT, label: 'Personal', vaultLabel: 'Personal' }
     const registration = { kind: 'registration' as const, username: 'alice', password: 'captured', previousPassword: null }
@@ -350,6 +430,39 @@ describe('captured Credential canonical writer', () => {
 
       await writer.save(registration, url, create, authorized)
       expect(sealedEpochs()).toEqual([2, 3])
+    })
+    it('rejects a replayed older epoch on a popup sign-in method edit', async () => {
+      client.getVault.mockResolvedValueOnce(projection(2))
+      await writer.save(credential, url, target, authorized)
+      client.getVault.mockResolvedValueOnce(projection(1))
+
+      await expect(writer.setEntrySignIn(VAULT, ENTRY, { provider: 'google', account: null }, 'Sign-in method', authorized))
+        .rejects.toMatchObject({ code: 'decrypt-failed' })
+      expect(sealedEpochs()).toEqual([2])
+      expect(client.updateEntry).toHaveBeenCalledTimes(1)
+    })
+    it('raises the floor from Vaults opened while preparing sign-in targets', async () => {
+      data.getMetadata.mockResolvedValue([])
+      client.getVault.mockResolvedValueOnce(projection(2))
+      await writer.signInTargets(url)
+      client.getVault.mockResolvedValueOnce(projection(1))
+
+      await expect(writer.saveSignIn(url, { action: 'create', vaultId: VAULT },
+        { provider: 'google', account: null, entry: null }, 'Sign-in method', authorized))
+        .rejects.toMatchObject({ code: 'decrypt-failed' })
+      expect(client.createEntry).not.toHaveBeenCalled()
+    })
+    it('rejects a replayed older epoch before sealing a new sign-in record', async () => {
+      client.getVault.mockResolvedValueOnce(projection(2))
+      await writer.save(registration, url, create, authorized)
+      client.getVault.mockResolvedValueOnce(projection(1))
+
+      await expect(writer.saveSignIn(url, { action: 'create', vaultId: VAULT },
+        { provider: 'google', account: null, entry: null }, 'Sign-in method', authorized))
+        .rejects.toMatchObject({ code: 'decrypt-failed' })
+      expect(cryptoMocks.openVaultProjection).toHaveBeenCalledTimes(1)
+      expect(sealedEpochs()).toEqual([2])
+      expect(client.createEntry).toHaveBeenCalledTimes(1)
     })
     it('resets the floor on lock', async () => {
       client.getVault.mockResolvedValueOnce(projection(2))

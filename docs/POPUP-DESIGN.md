@@ -179,6 +179,10 @@ All links action and its old list have been removed; unavailable actions do not
 leave an empty action card. Entry Sharing navigation still opens the current
 scoped Sharing overview.
 
+A Credential's federated sign-in method is a separate shadow-free data card below
+the Entry fields, 16px apart; Change uses the ghost action and Forget the neutral
+danger action.
+
 Entry details reuse the recent-activity preview, scoped by Vault and Entry.
 Show more is a quiet text action below the list (with keyboard focus styling),
 not a bordered button; it opens the dedicated Logs view for the same scope.

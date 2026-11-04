@@ -29,6 +29,11 @@ export interface InlineAutofillDeps {
     purpose?: "totp",
   ): Promise<FillResult>;
   readonly recency?: InlineAutofillRecency;
+  /** Federated sign-in: explicit provider-account choice for this tab, and Palladin-filled accounts. */
+  readonly signIn?: {
+    preferred(tabId: number, url: string, candidates: readonly EntryMetadata[]): EntryMetadata | null;
+    filled(tabId: number, url: string, entry: EntryMetadata | undefined, intent: "automatic" | "manual"): void;
+  };
 }
 
 export interface InlineAutofillRecency {
@@ -116,7 +121,9 @@ export async function handleInlineAutofillContentMessage(
       const exact = searchEntries(entriesForTab(metadata, source.url), "")
         .filter((entry) => entry.type === ENTRY_TYPE_CREDENTIAL && entry.urlDomain)
         .map((entry) => ({ entry, match: "exact" as const }));
-      const continuation = deps.recency?.preferredForTab?.(source.id, source.url) ?? null;
+      const chosen = deps.signIn?.preferred(source.id, source.url, exact.map(({ entry }) => entry)) ?? null;
+      const continuation = chosen !== null ? { vaultId: chosen.vaultId, entryId: chosen.id }
+        : deps.recency?.preferredForTab?.(source.id, source.url) ?? null;
       const preferred = continuation ?? deps.recency?.preferred(source.url) ?? null;
       if (preferred !== null) {
         exact.sort((left, right) => Number(
@@ -167,6 +174,10 @@ export async function handleInlineAutofillContentMessage(
     if (fill.status === "filled" && raw.scope === "exact" && (stillCurrent?.() ?? true)) {
       deps.recency?.remember(source.url, raw.vaultId, raw.entryId);
       deps.recency?.rememberForTab?.(source.id, source.url, raw.vaultId, raw.entryId);
+      if (deps.signIn) {
+        const filled = (await deps.getMetadata()).find((entry) => entry.vaultId === raw.vaultId && entry.id === raw.entryId);
+        deps.signIn.filled(source.id, source.url, filled, raw.intent);
+      }
     }
     return {
       ok: true,

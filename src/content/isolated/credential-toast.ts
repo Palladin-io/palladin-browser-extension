@@ -40,7 +40,7 @@ export class CredentialCaptureToast {
       this.surface.host.style.setProperty(key, value, "important");
     }
     const style = doc.createElement("style");
-    style.textContent = STYLES;
+    style.textContent = CLOSED_TOAST_STYLES;
     this.panel = doc.createElement("div");
     this.panel.className = "panel";
     this.panel.setAttribute("role", "region");
@@ -262,7 +262,7 @@ export class CredentialCaptureToast {
   }
 }
 
-const STYLES = `
+export const CLOSED_TOAST_STYLES = `
   :host { color-scheme:light; --cv-primary:#E54645; --cv-primary-hover:#d43e3e;
     --cv-bg:#f3f5f8; --cv-surface:#fff; --cv-t1:#0c0e12; --cv-t2:#3d4e66;
     --cv-border:rgba(12,14,18,.1); --cv-subtle:rgba(12,14,18,.05); }

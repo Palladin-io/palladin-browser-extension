@@ -199,6 +199,16 @@ export async function createCaptureApi({ workspaceHandler } = {}) {
       accept(vault, { ...material, entryId, deliveryPolicy: 'standard' })
       return vault.grantFixture.addScript(entryId, write.entryId)
     },
+    /** Seeds one synthetic Credential directly as encrypted canonical material. */
+    async addCredential({ label, username, password, urlDomain }) {
+      const vault = vaults[0]
+      const entryId = randomUUID()
+      const secret = crypto.createCapturedCredentialSecret({ label, username, password, url: `https://${urlDomain}`, urlDomain })
+      const material = await crypto.sealCanonicalCredentialEntry({ organizationId, vaultId: vault.detail.id, entryId, revision: '1',
+        vaultKeyVersion: 1, vdkVersion: 1, memberKeyGeneration: 1 }, secret, vault.vaultKey, vault.discoveryKey, 1)
+      accept(vault, { ...material, entryId, deliveryPolicy: 'standard' })
+      return { vaultId: vault.detail.id, entryId }
+    },
     async decrypt(write) {
       const vault = vaults.find(({ detail }) => detail.id === write.vaultId)
       const entry = vault.entries.get(write.entryId)

@@ -40,7 +40,10 @@ treat any violation below as a Critical (blocking) finding.
   fill-only operation (`submit: false`) without focus or a click. The canonical
   order is the last successfully filled exact-host Credential for that host in
   the current in-memory session, then the deterministic name-sorted first exact
-  match. The page never chooses the Entry or widens the host. Related/sibling
+  match. During a federated sign-in flow, a provider account the user explicitly
+  chose from a remembered sign-in method ranks first on that provider's own page
+  (`docs/FEDERATED-SIGNIN.md`). The page never chooses the Entry or widens the
+  host. Related/sibling
   hosts, form submission, cards, and neutral custom fields always require an
   explicit extension-owned action. Do not add a blanket user-intent requirement
   to automatic exact-host fill without an explicit product decision. Full
