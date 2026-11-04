@@ -1,3 +1,4 @@
+import { AGENT_CAPTURE_CHANNEL, parseAgentCaptureRequest, isAgentCaptureOutcome, wipeCaptureOutcome, type AgentCaptureMessage, type AgentCaptureOutcome, type AgentCaptureResult } from '@shared/messaging/agent-capture';
 import type { TargetProbeOutcome } from './target-probe';
 import { beginDeferredSubmit, commitDeferredSubmit, cancelPendingDeferred, type PendingDeferredSubmit } from './native-deferred';
 import { parseDeferredSubmit, parseDeferredCancel, type DeferredFillMessage, type DeferredCommitMessage, type DeferredFillOutcome, type SubmitReady } from '@shared/messaging/agent-deferred';
@@ -42,6 +43,7 @@ export interface PreparedFrame {
 }
 
 export interface AgentFillDeps {
+  captureFields?(tabId: number, message: AgentCaptureMessage): Promise<AgentCaptureOutcome | null>;
   probeTarget?(tabId: number, targetUrl: string): Promise<TargetProbeOutcome>;
   prepareFrame?(top: AgentTabState, isActive: () => boolean): Promise<PreparedFrame | null>;
   currentAutomaticFillSession?(): string | null;
@@ -69,6 +71,7 @@ export interface AgentFillDeps {
 }
 
 export interface PreparedAgentPage {
+  readonly captureTargetUrl?: string;
   readonly requireExistingUsername?: boolean;
   readonly liveOrigin?: string;
   readonly liveExpiresAt?: number;
@@ -127,7 +130,7 @@ export async function handleNativeAgentMessage(
   replay: TransactionReplayGuard,
   session: AgentProviderSession,
   raw: unknown,
-): Promise<AgentInjectionResult | AgentPrepareResult> {
+): Promise<AgentInjectionResult | AgentPrepareResult | AgentCaptureResult> {
   const rootDeps = deps;
   const prepare = parseAgentPrepareRequest(raw);
   deps = session.boundDeps ?? deps;
@@ -174,7 +177,7 @@ export async function handleNativeAgentMessage(
       // The native runtime verifies it against the authenticated Entry host.
       return { ...prepareResult(prepare.nonce, target.page.url, 'ready'), liveForm: form };
     }
-    session.prepared = { tabId: tab.id, documentId: tab.page.documentId };
+    session.prepared = { tabId: tab.id, documentId: tab.page.documentId, ...(prepare.targetTabId !== undefined && prepare.liveDetection === false ? { captureTargetUrl: prepare.targetUrl } : {}) };
     return prepareResult(prepare.nonce, tab.page.url, "ready");
   }
 
@@ -182,6 +185,26 @@ export async function handleNativeAgentMessage(
   const priorChain = session.liveChain;
   session.liveChain = null;
   session.prepared = null;
+  if (typeof raw === 'object' && raw !== null && 'type' in raw && raw.type === 'capture') {
+    const request = parseAgentCaptureRequest(raw);
+    const base = { protocol: AGENT_INJECT_PROTOCOL, type: 'capture.result' as const, transactionId: safeTransactionId(raw) };
+    if (!request) return { ...base, outcome: 'rejected' };
+    if (!prepared) return { ...base, outcome: 'provider-unavailable' };
+    if (prepared.captureTargetUrl !== request.targetUrl || session.boundDeps || !(await replay.consume(request.transactionId))) return { ...base, outcome: 'rejected' };
+    let captured: AgentCaptureOutcome | null = null;
+    let success = false;
+    try {
+      const matches = (tab: AgentTabState | null) => tab?.id === prepared.tabId && tab.page?.url === request.targetUrl && tab.page.documentId === prepared.documentId;
+      if (!matches(await deps.getPageById(prepared.tabId))) return { ...base, outcome: 'rejected' };
+      captured = await deps.captureFields?.(prepared.tabId, { channel: AGENT_CAPTURE_CHANNEL, documentId: prepared.documentId, targetUrl: request.targetUrl, fields: request.fields }) ?? null;
+      if (!captured) return { ...base, outcome: 'provider-unavailable' };
+      if (!isAgentCaptureOutcome(captured) || !matches(await deps.getPageById(prepared.tabId))) return { ...base, outcome: 'rejected' };
+      if (captured.outcome === 'captured' && (captured.values.length !== request.fields.length || captured.values.some((field, index) => field.entryFieldId !== request.fields[index].entryFieldId))) return { ...base, outcome: 'rejected' };
+      success = true;
+      return { ...base, ...captured };
+    } catch { return { ...base, outcome: 'provider-unavailable' }; }
+    finally { if (!success) wipeCaptureOutcome(captured); }
+  }
   const request = parseAgentInjectionRequest(raw);
   if (request === null) {
     wipeAgentMessageValues(raw);

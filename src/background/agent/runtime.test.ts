@@ -839,3 +839,82 @@ it.each(['operations', 'legacy'] as const)('drains disconnected %s work before r
     mocked.mockRestore();
   }
 });
+
+it.each(['operations', 'legacy'] as const)('seals capture values only into authenticated %s responses and wipes holders', async mode => {
+  const { native } = stubChrome();
+  const url = 'https://login.example.test/', documentId = 'd'.repeat(32);
+  const values = [{ entryFieldId: 'password', value: 'synthetic-capture-secret' }];
+  const sendMessage = vi.fn(async (_id: number, message: Record<string, unknown>) => message.channel === 'palladin.agent-capture/read'
+    ? { outcome: 'captured', values } : { url, documentId });
+  chrome.tabs = { sendMessage } as unknown as typeof chrome.tabs;
+  const fields = [{ entryFieldId: 'password', selector: '#p', read: 'value' }];
+  const requests = [
+    { protocol: INJECT_PROVIDER_PROTOCOL, type: 'prepare', nonce: 'a'.repeat(64), targetTabId: 7, targetUrl: url, liveDetection: false },
+    { protocol: INJECT_PROVIDER_PROTOCOL, type: 'capture', transactionId: `capture-${mode}`, targetUrl: url, fields },
+  ].map(request => mode === 'operations' ? { protocol: INJECT_PROVIDER_PROTOCOL, type: 'operation.request', operationId: 'e'.repeat(32), request } : request);
+  const responses: Record<string, unknown>[] = [], buffers: Uint8Array[] = [];
+  const channel = { open: async () => new TextEncoder().encode(JSON.stringify(requests.shift())),
+    seal: async (bytes: Uint8Array) => { buffers.push(bytes); responses.push(JSON.parse(new TextDecoder().decode(bytes))); return secureSessionContract.firstExtensionFrame; }, dispose: vi.fn() } as unknown as InjectSecureChannel;
+  const mocked = vi.spyOn(palladinCrypto, 'createInjectClientSession').mockResolvedValue({ openFrame: secureSessionContract.open, acceptReady: async () => channel, dispose: vi.fn() } as unknown as InjectClientSession);
+  try {
+    await connectNativeAgentProviderNow(); native.emitMessage(secureSessionContract.offer);
+    await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledOnce());
+    native.emitMessage(secureSessionContract.ready); native.emitMessage(secureSessionContract.firstHostFrame);
+    await vi.waitFor(() => expect(responses).toHaveLength(1)); native.emitMessage(secureSessionContract.firstHostFrame);
+    await vi.waitFor(() => expect(responses).toHaveLength(2));
+    expect(mode === 'operations' ? responses[1].response : responses[1]).toEqual({ protocol: INJECT_PROVIDER_PROTOCOL, type: 'capture.result', transactionId: `capture-${mode}`, outcome: 'captured', values: [{ entryFieldId: 'password', value: 'synthetic-capture-secret' }] });
+    expect(sendMessage).toHaveBeenCalledWith(7, { channel: 'palladin.agent-capture/read', documentId, targetUrl: url, fields }, { frameId: 0 });
+    expect(values[0].value).toBe('');
+    expect(buffers.every(bytes => bytes.every(byte => byte === 0))).toBe(true);
+    expect(JSON.stringify(native.postMessage.mock.calls)).not.toContain('synthetic-capture-secret');
+  } finally { mocked.mockRestore(); }
+});
+it('drops a captured response when operation closes while sealing', async () => {
+  const { native } = stubChrome();
+  const url = 'https://login.example.test/', documentId = 'd'.repeat(32), operationId = 'f'.repeat(32);
+  const values = [{ entryFieldId: 'password', value: 'synthetic-cancelled-secret' }];
+  chrome.tabs = { sendMessage: vi.fn(async (_id, msg) => msg.channel === 'palladin.agent-capture/read' ? { outcome: 'captured', values } : { url, documentId }) } as unknown as typeof chrome.tabs;
+  const wrap = (request: unknown) => ({ protocol: INJECT_PROVIDER_PROTOCOL, type: 'operation.request', operationId, request });
+  const requests = [wrap({ protocol: INJECT_PROVIDER_PROTOCOL, type: 'prepare', nonce: 'a'.repeat(64), targetTabId: 7, targetUrl: url, liveDetection: false }),
+    wrap({ protocol: INJECT_PROVIDER_PROTOCOL, type: 'capture', transactionId: 'cancel-seal', targetUrl: url, fields: [{ entryFieldId: 'password', selector: '#p', read: 'value' }] }),
+    { protocol: INJECT_PROVIDER_PROTOCOL, type: 'operation.close', operationId }];
+  let release!: () => void, seals = 0;
+  const channel = { open: async () => new TextEncoder().encode(JSON.stringify(requests.shift())), seal: async () => { if (++seals === 2) await new Promise<void>(r => { release = r; }); return secureSessionContract.firstExtensionFrame; }, dispose: vi.fn() } as unknown as InjectSecureChannel;
+  const mocked = vi.spyOn(palladinCrypto, 'createInjectClientSession').mockResolvedValue({ openFrame: secureSessionContract.open, acceptReady: async () => channel, dispose: vi.fn() } as unknown as InjectClientSession);
+  try {
+    await connectNativeAgentProviderNow(); native.emitMessage(secureSessionContract.offer);
+    await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledOnce());
+    native.emitMessage(secureSessionContract.ready); native.emitMessage(secureSessionContract.firstHostFrame);
+    await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledTimes(2)); native.emitMessage(secureSessionContract.firstHostFrame);
+    await vi.waitFor(() => expect(release).toBeTypeOf('function')); native.emitMessage(secureSessionContract.firstHostFrame);
+    await vi.waitFor(() => expect(requests).toHaveLength(0));
+    await new Promise(resolve => setTimeout(resolve, 10)); release();
+    await vi.waitFor(() => expect(native.disconnect).toHaveBeenCalledOnce());
+    expect(seals).toBe(2);
+    expect(native.postMessage).toHaveBeenCalledTimes(2); // handshake and prepare; never captured
+    expect(values[0].value).toBe('');
+  } finally { release?.(); mocked.mockRestore(); }
+});
+it('drops and wipes direct capture if its native lifecycle ends during sealing', async () => {
+  const { native } = stubChrome();
+  const url = 'https://login.example.test/', documentId = 'd'.repeat(32);
+  const values = [{ entryFieldId: 'password', value: 'synthetic-direct-cancel' }];
+  chrome.tabs = { sendMessage: vi.fn(async (_id, msg) => msg.channel === 'palladin.agent-capture/read' ? { outcome: 'captured', values } : { url, documentId }) } as unknown as typeof chrome.tabs;
+  const requests = [{ protocol: INJECT_PROVIDER_PROTOCOL, type: 'prepare', nonce: 'a'.repeat(64), targetTabId: 7, targetUrl: url, liveDetection: false },
+    { protocol: INJECT_PROVIDER_PROTOCOL, type: 'capture', transactionId: 'direct-cancel-seal', targetUrl: url, fields: [{ entryFieldId: 'password', selector: '#p', read: 'value' }] }];
+  let release!: () => void, seals = 0;
+  const buffers: Uint8Array[] = [];
+  const channel = { open: async () => new TextEncoder().encode(JSON.stringify(requests.shift())), seal: async (bytes: Uint8Array) => { buffers.push(bytes); if (++seals === 2) await new Promise<void>(r => { release = r; }); return secureSessionContract.firstExtensionFrame; }, dispose: vi.fn() } as unknown as InjectSecureChannel;
+  const mocked = vi.spyOn(palladinCrypto, 'createInjectClientSession').mockResolvedValue({ openFrame: secureSessionContract.open, acceptReady: async () => channel, dispose: vi.fn() } as unknown as InjectClientSession);
+  try {
+    await connectNativeAgentProviderNow(); native.emitMessage(secureSessionContract.offer);
+    await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledOnce());
+    native.emitMessage(secureSessionContract.ready); native.emitMessage(secureSessionContract.firstHostFrame);
+    await vi.waitFor(() => expect(native.postMessage).toHaveBeenCalledTimes(2)); native.emitMessage(secureSessionContract.firstHostFrame);
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+    disconnectNativeAgentProvider(); release();
+    await vi.waitFor(() => expect(values[0].value).toBe(''));
+    expect(native.postMessage).toHaveBeenCalledTimes(2);
+    expect(buffers.every(bytes => bytes.every(byte => byte === 0))).toBe(true);
+  } finally { release?.(); mocked.mockRestore(); }
+});

@@ -1,3 +1,4 @@
+import { isRecord, validIdentifier } from '@shared/messaging/agent-inject';
 import { probeTarget, type TargetProbeResult } from './target-probe';
 import { AGENT_INJECT_PROTOCOL, parseAgentPrepareRequest } from '@shared/messaging';
 import { gateAgentFillDeps } from './gated-deps';
@@ -71,7 +72,7 @@ export class NativeOperationRouter {
     if (!operation) {
       if (!prepare) {
         wipeAgentMessageValues(request);
-        return reply({ protocol: AGENT_INJECT_PROTOCOL, type: 'inject.result', transactionId: null, outcome: 'rejected' });
+        return reply({ protocol: AGENT_INJECT_PROTOCOL, type: isRecord(request) && request.type === 'capture' ? 'capture.result' : 'inject.result', transactionId: isRecord(request) && validIdentifier(request.transactionId) ? request.transactionId : null, outcome: 'rejected' });
       }
       const occupied = prepare.targetTabId !== undefined && this.tabs.has(prepare.targetTabId);
       if (occupied || this.operations.size >= MAX_OPERATIONS) {
@@ -123,6 +124,10 @@ export class NativeOperationRouter {
       request = { ...prepare, targetTabId: tab.id, targetUrl: tab.page.url };
     }
     return handleNativeAgentMessage(operation.deps, this.replay, operation.session, request);
+  }
+
+  isActive(operationId: string): boolean {
+    return !this.disposed && this.operations.get(operationId)?.active === true;
   }
 
   close(operationId: string): Promise<void> {

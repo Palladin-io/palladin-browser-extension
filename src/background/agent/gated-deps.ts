@@ -1,3 +1,4 @@
+import { wipeCaptureOutcome } from '@shared/messaging/agent-capture';
 import type { AgentFillDeps } from "./native-provider";
 
 /** Gate every awaited lookup and page operation against connection lifecycle. */
@@ -6,6 +7,12 @@ export function gateAgentFillDeps(
   isActive: () => boolean,
 ): AgentFillDeps {
   return {
+    async captureFields(tabId, message) {
+      if (!isActive() || !deps.captureFields) return null;
+      const response = await deps.captureFields(tabId, message);
+      if (!isActive()) { wipeCaptureOutcome(response); return null; }
+      return response;
+    },
     async probeTarget(tabId, targetUrl) {
       if (!isActive() || !deps.probeTarget) return 'unavailable';
       const outcome = await deps.probeTarget(tabId, targetUrl);
