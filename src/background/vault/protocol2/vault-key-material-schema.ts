@@ -1,4 +1,4 @@
-import { KEY_WRAPPER_PURPOSE, RECIPIENT_KEY_KIND } from '@palladin/crypto'
+import { fromWireKeyWrapperDescriptor, type WireKeyWrapperDescriptor } from '@palladin/crypto'
 import { z } from 'zod'
 
 export const canonicalUuidSchema = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
@@ -56,27 +56,32 @@ export function vaultEnvelopeSchema<T extends z.ZodType>(binding: T) {
 const vaultKeyBindingSchema = z.object({ wrappingVaultKeyVersion: u32Schema }).strict()
 const emptyBindingSchema = z.object({}).strict()
 
-// Registry names map to the numeric descriptor; the algorithm travels only in
-// wrapperSuiteId and the key-wrapper registry decides what may be opened.
-const wrapperPurposeSchema = z.enum(Object.keys(KEY_WRAPPER_PURPOSE) as [keyof typeof KEY_WRAPPER_PURPOSE, ...(keyof typeof KEY_WRAPPER_PURPOSE)[]])
-  .transform((purpose) => KEY_WRAPPER_PURPOSE[purpose])
-const recipientKeyKindSchema = z.enum(Object.keys(RECIPIENT_KEY_KIND) as [keyof typeof RECIPIENT_KEY_KIND, ...(keyof typeof RECIPIENT_KEY_KIND)[]])
-  .transform((kind) => RECIPIENT_KEY_KIND[kind])
+// The algorithm travels only in wrapperSuiteId; registry names map to the
+// numeric descriptor through @palladin/crypto, which fails closed on unknown names.
+const wrapperDescriptorSchema = z.object({
+  protocolVersion: z.literal(2),
+  wrapperSuiteId: z.string().min(1),
+  purpose: z.string().min(1),
+  scope: envelopeScopeSchema,
+  resourceRevision: canonicalU64Schema,
+  wrappedKeyVersion: u32Schema,
+  memberKeyGeneration: u32Schema.nullable(),
+  recipientKeyKind: z.string().min(1),
+  recipientKeyVersion: u32Schema,
+  recipientFingerprint: z.string().min(1),
+  parentDescriptorHash: z.string().min(1).nullable(),
+}).strict().transform((wire, context) => {
+  try {
+    const { purpose, recipientKeyKind } = fromWireKeyWrapperDescriptor(wire as WireKeyWrapperDescriptor)
+    return { ...wire, purpose, recipientKeyKind }
+  } catch {
+    context.addIssue({ code: 'custom', message: 'Unregistered key-wrapper purpose or recipient key kind' })
+    return z.NEVER
+  }
+})
 
 export const wrappedKeySchema = z.object({
-  descriptor: z.object({
-    protocolVersion: z.literal(2),
-    wrapperSuiteId: z.string().min(1),
-    purpose: wrapperPurposeSchema,
-    scope: envelopeScopeSchema,
-    resourceRevision: canonicalU64Schema,
-    wrappedKeyVersion: u32Schema,
-    memberKeyGeneration: u32Schema.nullable(),
-    recipientKeyKind: recipientKeyKindSchema,
-    recipientKeyVersion: u32Schema,
-    recipientFingerprint: z.string().min(1),
-    parentDescriptorHash: z.string().min(1).nullable(),
-  }).strict(),
+  descriptor: wrapperDescriptorSchema,
   encodedSealedKeyPackage: z.string().min(1),
 }).strict()
 
