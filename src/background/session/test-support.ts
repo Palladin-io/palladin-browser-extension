@@ -184,6 +184,7 @@ export interface MockBackendOptions {
   totpRateLimited?: boolean;
   unknownEmail?: string;
   logoutResponse?: Promise<Response>;
+  memberKeyVersion?: number | null;
 }
 
 const PSEUDO_ACCOUNT_ID = "ffeeddcc-bbaa-4a99-8877-665544332211";
@@ -281,6 +282,7 @@ export function mockBackend(
             deviceWrapperMetadata: null,
           },
           encryptedPrivateKey: account.encryptedPrivateKey,
+          memberKeyVersion: options.memberKeyVersion === undefined ? 1 : options.memberKeyVersion,
         }),
       );
     }

@@ -121,6 +121,7 @@ function deferredUnlock(): {
     masterKey: new Uint8Array(32).fill(0x41),
     privateKey: new Uint8Array(32).fill(0x42),
     memberKeySuiteId: "test-member-key-suite",
+    memberKeyVersion: 1,
   };
   let markStarted!: () => void;
   const started = new Promise<void>((resolve) => { markStarted = resolve; });
@@ -250,6 +251,7 @@ describe("SessionManager — full lifecycle", () => {
       masterKey: new Uint8Array(32).fill(0x51),
       privateKey: new Uint8Array(32).fill(0x52),
       memberKeySuiteId: "test-member-key-suite",
+      memberKeyVersion: 1,
     };
     const deriveKeys = vi.fn(async () => candidate);
     const source: UnlockSource = { id: "lock-race", deriveKeys };
@@ -270,7 +272,8 @@ describe("SessionManager — full lifecycle", () => {
     await mgr.unlock(source);
 
     expect(deriveKeys).toHaveBeenCalledTimes(1);
-    expect(mgr.getKeys()).toBe(candidate);
+    expect(mgr.getKeys()).toStrictEqual(candidate);
+    expect(mgr.getKeys()!.privateKey).toBe(candidate.privateKey);
     expect(alarms.created.has(AUTO_LOCK_ALARM)).toBe(true);
     expect(unlocked).toHaveBeenCalledTimes(1);
   });
@@ -386,6 +389,7 @@ describe("SessionManager — full lifecycle", () => {
       masterKey: new Uint8Array(32).fill(0x61),
       privateKey: new Uint8Array(32).fill(0x62),
       memberKeySuiteId: "test-member-key-suite",
+      memberKeyVersion: 1,
     }));
     const unlocked = vi.fn();
     hooks.onUnlocked(unlocked);
@@ -435,6 +439,7 @@ describe("SessionManager — full lifecycle", () => {
       masterKey: new Uint8Array(32).fill(0x71),
       privateKey: new Uint8Array(32).fill(0x72),
       memberKeySuiteId: "test-member-key-suite",
+      memberKeyVersion: 1,
     };
     const deriveKeys = vi.fn(async () => candidate);
     const source: UnlockSource = { id: "logout-error", deriveKeys };
@@ -456,7 +461,8 @@ describe("SessionManager — full lifecycle", () => {
     await mgr.unlock(source);
 
     expect(deriveKeys).toHaveBeenCalledTimes(1);
-    expect(mgr.getKeys()).toBe(candidate);
+    expect(mgr.getKeys()).toStrictEqual(candidate);
+    expect(mgr.getKeys()!.privateKey).toBe(candidate.privateKey);
     expect(alarms.created.has(AUTO_LOCK_ALARM)).toBe(true);
     expect(unlocked).toHaveBeenCalledTimes(1);
   });

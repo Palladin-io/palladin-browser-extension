@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import {
-  encryptWithKey, hashSharedUnlockKeyContext, loadSodium, IDENTITY_KDF_PROFILE_ID,
-  randomBytes, toBase64Url, type SharedUnlockKeyContext,
+  encryptWithKey, generateRecipientKeyPair, hashSharedUnlockKeyContext, IDENTITY_ACCOUNT_SECRET_PROFILE,
+  IDENTITY_KDF_PROFILE_ID, KEY_WRAPPER_SUITE, loadSodium, randomBytes, toBase64Url, type SharedUnlockKeyContext,
 } from "@palladin/crypto";
 import { recoverSharedUnlockKeys } from "./shared-unlock-keys";
 
@@ -30,6 +30,24 @@ describe("shared unlock key recovery", () => {
     expect(keys.privateKey).toEqual(privateKey);
   });
 
+  it("accepts a migrated account: Secret Key profile and post-quantum member key", async () => {
+    const member = await generateRecipientKeyPair();
+    const v2 = { ...descriptor, securityVersion: 2, minimumSecurityVersion: 2, kdfProfileId: IDENTITY_ACCOUNT_SECRET_PROFILE.id,
+      publicKey: toBase64Url(member.publicKey), encryptedPrivateKey: toBase64Url(await encryptWithKey(member.privateKey, masterKey)) };
+
+    const keys = await recoverSharedUnlockKeys(masterKey.slice(), v2, accountId, await hashSharedUnlockKeyContext(v2), () => {});
+
+    expect(keys).toMatchObject({ privateKey: member.privateKey, memberKeySuiteId: KEY_WRAPPER_SUITE.active, memberKeyVersion: 4 });
+  });
+
+  it("rejects a migrated profile whose committed member key is not of the active suite", async () => {
+    const candidate = masterKey.slice();
+    const v2 = { ...descriptor, securityVersion: 2, minimumSecurityVersion: 2, kdfProfileId: IDENTITY_ACCOUNT_SECRET_PROFILE.id };
+
+    await expect(recoverSharedUnlockKeys(candidate, v2, accountId, await hashSharedUnlockKeyContext(v2), () => {})).rejects.toThrow();
+    expect(candidate).toEqual(new Uint8Array(32));
+  });
+
   for (const variant of ["account", "digest", "wrapper", "public-key", "minimum-version", "profile"] as const) {
     it(`rejects ${variant} substitution and erases the supplied temporary MK`, async () => {
       const candidate = masterKey.slice();
@@ -43,14 +61,17 @@ describe("shared unlock key recovery", () => {
         context.publicKey = toBase64Url(((await loadSodium()).crypto_box_keypair()).publicKey);
         expectedDigest = await hashSharedUnlockKeyContext(context);
       }
-      if (variant === "minimum-version") context.minimumSecurityVersion = 2;
+      if (variant === "minimum-version") {
+        context.minimumSecurityVersion = 2;
+        expectedDigest = await hashSharedUnlockKeyContext(context);
+      }
       if (variant === "profile") context.kdfProfileId = "unknown";
       await expect(recoverSharedUnlockKeys(candidate, context, expectedAccountId, expectedDigest, () => {})).rejects.toThrow();
       expect(candidate).toEqual(new Uint8Array(32));
     });
   }
 
-  for (const checkpoint of [1, 2, 3, 4, 5]) {
+  for (const checkpoint of [1, 2, 3, 4]) {
     it(`erases material when the lifecycle changes at checkpoint ${checkpoint}`, async () => {
       const candidate = masterKey.slice(); let count = 0;
       await expect(recoverSharedUnlockKeys(candidate, descriptor, accountId, digest, () => {

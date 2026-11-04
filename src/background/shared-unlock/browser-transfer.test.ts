@@ -63,8 +63,16 @@ describe("browser transfer orchestration (transport/transaction seams)", () => {
     { kind: "handoff", ...packet, operation: { ...operation, keyContext: { ...operation.keyContext, privateKey: "synthetic" } } },
     { kind: "handoff", ...packet, envelope: { ...packet.envelope, ciphertext: "A".repeat(65) } },
     { kind: "handoff", ...packet, operation: { ...operation, keyContext: { ...operation.keyContext, encryptedPrivateKey: "A".repeat(5463) } } },
+    { kind: "handoff", ...packet, operation: { ...operation, keyContext: { ...operation.keyContext, publicKey: "A".repeat(1621) + "B" } } },
+    { kind: "handoff", ...packet, operation: { ...operation, keyContext: { ...operation.keyContext, publicKey: "A".repeat(1000) } } },
   ])("rejects malformed or expanded independent browser payload %#", payload => {
     expect(sharedUnlockOperationSchema.safeParse({ attemptId, payload }).success).toBe(false);
+  });
+
+  it("carries a migrated account's 1216-byte member public key in the handoff key context", () => {
+    const keyContext = { ...operation.keyContext, publicKey: "A".repeat(1621) + "Q" };
+    const payload = { kind: "handoff", ...packet, operation: { ...operation, keyContext } };
+    expect(sharedUnlockOperationSchema.safeParse({ attemptId, payload }).success).toBe(true);
   });
 
   it("exchanges bounded offers, handoff and exact ACK through both coordinators", async () => {

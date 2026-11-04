@@ -48,7 +48,12 @@ export interface SessionKeys {
   readonly privateKey: Uint8Array;
   /** Key-wrapper suite of {@link privateKey}, fixed by the Identity security version. */
   readonly memberKeySuiteId: string;
+  /** Directory version of {@link privateKey} from authenticated account state. */
+  readonly memberKeyVersion: number;
 }
+
+/** What an unlock source can recover from cached material alone. */
+export type DerivedSessionKeys = Omit<SessionKeys, "memberKeyVersion">;
 
 /** Result of starting a login: either fully done, or a pending TOTP second factor. */
 export type LoginResult =

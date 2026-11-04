@@ -65,6 +65,7 @@ import { SecretKeyEnrollment } from "./secret-key-enrollment";
 import {
   SessionError,
   type AccountMaterial,
+  type DerivedSessionKeys,
   type LoginResult,
   type SessionKeys,
   type SessionStatus,
@@ -101,11 +102,17 @@ export interface SessionManagerDeps {
   accountSecrets?: AccountSecretDevice;
 }
 
+function isMemberKeyVersion(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 && value <= 0xffffffff;
+}
+
 export const PENDING_TOTP_TTL_MS = 5 * 60 * 1_000;
 export const DURABLE_SESSION_TTL_MS = 365 * 24 * 60 * 60 * 1_000;
 
 interface ActiveDurableSessionPayload extends SessionTokens {
   readonly state: "active";
+  /** From the authenticated account state at sign-in; never from a Vault envelope. */
+  readonly memberKeyVersion: number;
 }
 
 interface RefreshPendingDurableSessionPayload {
@@ -167,6 +174,8 @@ export class SessionManager {
   private lastActivityAt = -Infinity;
   private keyScope: Pick<SessionTokens, "userId" | "apiUrl"> | null = null;
   private tokens: SessionTokens | null = null;
+  /** Member key version bound to {@link tokens}; survives lock like the tokens do. */
+  private boundMemberKeyVersion: number | null = null;
   private pendingTotp: PendingTotpContext | null = null;
   private pendingTotpTimer: unknown | null = null;
   private lifecycleGeneration = 0;
@@ -404,7 +413,7 @@ export class SessionManager {
             };
             assertInstallCurrent();
             const issuedAt = this.now();
-            envelope = await this.sealDurablePayload({ state: "active", ...tokens }, keys.masterKey, {
+            envelope = await this.sealDurablePayload({ state: "active", ...tokens, memberKeyVersion: keys.memberKeyVersion }, keys.masterKey, {
               apiUrl, accountId, clientId: this.clientId,
               identitySecurityVersion: material.kdf.securityVersion,
               minimumIdentitySecurityVersion: material.kdf.minimumSecurityVersion,
@@ -541,7 +550,7 @@ export class SessionManager {
         apiUrl: tokens.apiUrl,
       };
       const replacement = await this.sealDurablePayload(
-        { state: "active", ...replacementTokens },
+        { state: "active", ...replacementTokens, memberKeyVersion: keys.memberKeyVersion },
         keys.masterKey,
         envelope.context,
       );
@@ -810,7 +819,8 @@ export class SessionManager {
       const account = await this.authClient.getAccount(auth.accessToken, apiUrl);
       this.assertLifecycleGeneration(generation);
       this.assertApiUrl(apiUrl);
-      if (!account.kdf || !account.encryptedPrivateKey) {
+      const memberKeyVersion = account.memberKeyVersion;
+      if (!account.kdf || !account.encryptedPrivateKey || !isMemberKeyVersion(memberKeyVersion)) {
         // A password account always has this material; its absence means the
         // account isn't set up to unlock. Do not persist the new session.
         throw new SessionError(
@@ -866,7 +876,7 @@ export class SessionManager {
         expiresAt: issuedAt + this.durableSessionTtlMs,
       };
       const envelope = await this.sealDurablePayload(
-        { state: "active", ...tokens },
+        { state: "active", ...tokens, memberKeyVersion },
         masterKey,
         context,
       );
@@ -878,7 +888,12 @@ export class SessionManager {
       this.assertLifecycleGeneration(generation);
       this.assertApiUrl(apiUrl);
 
-      const keys = { masterKey, privateKey, memberKeySuiteId: memberKeySuiteForProfile(identityProfileVersion(bootstrap)) };
+      const keys = {
+        masterKey,
+        privateKey,
+        memberKeySuiteId: memberKeySuiteForProfile(identityProfileVersion(bootstrap)),
+        memberKeyVersion,
+      };
       privateKey = null;
       handedToSession = true;
       this.tokens = tokens;
@@ -940,7 +955,7 @@ export class SessionManager {
     }
     const material = this.materialFromEnvelope(envelope);
     let manualProof: Uint8Array | null = null;
-    const keys = await source.deriveKeys(material, proof => {
+    const derived = await source.deriveKeys(material, proof => {
       this.assertLifecycleGeneration(generation);
       if (manualProof) throw new SessionLifecycleChangedError();
       manualProof = proof.slice();
@@ -949,18 +964,19 @@ export class SessionManager {
       if (manualProof) { wipe(manualProof); this.untrackInFlightKeyMaterial(manualProof); }
       throw error;
     });
-    this.trackSessionKeys(keys);
+    this.trackSessionKeys(derived);
     try {
       try {
         this.assertLifecycleGeneration(generation);
       } catch (error) {
-        this.wipeSessionKeys(keys);
+        this.wipeSessionKeys(derived);
         throw error;
       }
       let tokens = await this.getBoundMemoryTokens();
-      if (!tokens) {
+      let memberKeyVersion = tokens ? this.boundMemberKeyVersion : null;
+      if (!tokens || memberKeyVersion === null) {
         try {
-          const payload = await this.openDurablePayload(envelope, keys.masterKey);
+          const payload = await this.openDurablePayload(envelope, derived.masterKey);
           this.assertLifecycleGeneration(generation);
           if (payload.state !== "active") {
             throw new SessionError(
@@ -968,9 +984,11 @@ export class SessionManager {
               "Stored session refresh did not complete",
             );
           }
-          tokens = payload;
+          const { state: _state, memberKeyVersion: sealedMemberKeyVersion, ...sealedTokens } = payload;
+          tokens ??= sealedTokens;
+          memberKeyVersion = sealedMemberKeyVersion;
         } catch (error) {
-          this.wipeSessionKeys(keys);
+          this.wipeSessionKeys(derived);
           // Derivation succeeded, so the password is correct. Any failure after
           // that point is authenticated-envelope tamper, an interrupted refresh,
           // or an obsolete protocol. Delete only the envelope observed by this
@@ -981,6 +999,8 @@ export class SessionManager {
           throw new SessionError("not-authenticated", "Stored session is invalid");
         }
       }
+      // The member key version comes from the authenticated account state sealed at sign-in.
+      const keys: SessionKeys = { ...derived, memberKeyVersion };
       try {
         this.assertLifecycleGeneration(generation);
         if (tokens.userId !== envelope.context.accountId || tokens.apiUrl !== envelope.context.apiUrl) {
@@ -1022,7 +1042,7 @@ export class SessionManager {
         throw error;
       }
     } finally {
-      this.untrackSessionKeys(keys);
+      this.untrackSessionKeys(derived);
       if (manualProof) { wipe(manualProof); this.untrackInFlightKeyMaterial(manualProof); }
     }
   }
@@ -1109,6 +1129,7 @@ export class SessionManager {
       this.keyInstalledAt = this.now();
       this.lastActivityAt = this.keyInstalledAt;
       this.keys = keys;
+      this.boundMemberKeyVersion = keys.memberKeyVersion;
       published = true;
       this.autoLock.arm(policy, unlockedAt, inherited ? Math.min(unlockDeadline(inherited), localDeadline) : undefined);
       this.hooks.emitUnlocked({ userId });
@@ -1177,6 +1198,7 @@ export class SessionManager {
         }
         await this.runDurableMutation(() => this.store.clearAll());
         this.tokens = null;
+        this.boundMemberKeyVersion = null;
         this.secretKey.cancel();
         // identity-kdf v3 device assistance: sign-out forgets this browser's Secret Key.
         if (durableUserId) await this.accountSecrets.delete(durableUserId).catch(() => undefined);
@@ -1207,7 +1229,7 @@ export class SessionManager {
     this.keys = null;
   }
 
-  private wipeSessionKeys(keys: SessionKeys): void {
+  private wipeSessionKeys(keys: DerivedSessionKeys): void {
     wipe(keys.masterKey);
     wipe(keys.privateKey);
   }
@@ -1248,6 +1270,7 @@ export class SessionManager {
       this.wipeKeys();
       this.autoLock.disarm();
       this.tokens = null;
+      this.boundMemberKeyVersion = null;
       try {
         await this.runDurableMutation(() => this.store.clearAll());
       } finally {
@@ -1313,7 +1336,7 @@ export class SessionManager {
       }
       return { state: "refresh-pending" };
     }
-    const expected = ["accessToken", "apiUrl", "refreshToken", "state", "userId"].sort();
+    const expected = ["accessToken", "apiUrl", "memberKeyVersion", "refreshToken", "state", "userId"].sort();
     const actual = Object.keys(input).sort();
     if (
       input["state"] !== "active"
@@ -1326,6 +1349,7 @@ export class SessionManager {
     const refreshToken = input["refreshToken"];
     const userId = input["userId"];
     const apiUrl = input["apiUrl"];
+    const memberKeyVersion = input["memberKeyVersion"];
     if (
       typeof accessToken !== "string"
       || accessToken.length === 0
@@ -1335,10 +1359,11 @@ export class SessionManager {
       || refreshToken.length > MAX_REFRESH_TOKEN_CHARS
       || userId !== context.accountId
       || apiUrl !== context.apiUrl
+      || !isMemberKeyVersion(memberKeyVersion)
     ) {
       throw new TypeError("Durable session token binding is invalid");
     }
-    return { state: "active", accessToken, refreshToken, userId, apiUrl };
+    return { state: "active", accessToken, refreshToken, userId, apiUrl, memberKeyVersion };
   }
 
   private beginLifecycleTermination(): void {
@@ -1399,12 +1424,12 @@ export class SessionManager {
     this.inFlightKeyMaterial.delete(value);
   }
 
-  private trackSessionKeys(keys: SessionKeys): void {
+  private trackSessionKeys(keys: DerivedSessionKeys): void {
     this.trackInFlightKeyMaterial(keys.masterKey);
     this.trackInFlightKeyMaterial(keys.privateKey);
   }
 
-  private untrackSessionKeys(keys: SessionKeys): void {
+  private untrackSessionKeys(keys: DerivedSessionKeys): void {
     this.untrackInFlightKeyMaterial(keys.masterKey);
     this.untrackInFlightKeyMaterial(keys.privateKey);
   }

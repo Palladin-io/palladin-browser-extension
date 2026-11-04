@@ -75,7 +75,7 @@ function setup() {
     getEntry: vi.fn(async () => detail),
   };
   const key = new Uint8Array(32).fill(4);
-  const memberKey = { memberKeySuiteId: KEY_WRAPPER_SUITE.active, privateKey: key };
+  const memberKey = { memberKeySuiteId: KEY_WRAPPER_SUITE.active, memberKeyVersion: 1, privateKey: key };
   cryptoMocks.openVaultProjection.mockImplementation(async () => ({
     vaultKey: key.slice(),
   }));

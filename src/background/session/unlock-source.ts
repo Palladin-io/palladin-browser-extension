@@ -30,7 +30,7 @@ import {
   memberKeySuiteForProfile,
   type AccountSecretDevice,
 } from "./identity-profile";
-import type { AccountMaterial, SessionKeys } from "./types";
+import type { AccountMaterial, DerivedSessionKeys } from "./types";
 import { SessionError } from "./types";
 
 export interface UnlockSource {
@@ -41,7 +41,7 @@ export interface UnlockSource {
    * {@link SessionError} the caller can localise. Returned buffers are owned by
    * the caller.
    */
-  deriveKeys(material: AccountMaterial, onManualProof?: (authCredential: Uint8Array) => void): Promise<SessionKeys>;
+  deriveKeys(material: AccountMaterial, onManualProof?: (authCredential: Uint8Array) => void): Promise<DerivedSessionKeys>;
 }
 
 /**
@@ -58,7 +58,7 @@ export class MasterPasswordUnlock implements UnlockSource {
     private readonly accountSecrets: AccountSecretDevice = browserAccountSecretDevice,
   ) {}
 
-  async deriveKeys(material: AccountMaterial, onManualProof?: (authCredential: Uint8Array) => void): Promise<SessionKeys> {
+  async deriveKeys(material: AccountMaterial, onManualProof?: (authCredential: Uint8Array) => void): Promise<DerivedSessionKeys> {
     const version = identityProfileVersion(material.kdf);
     if (material.kdf.minimumSecurityVersion > MAXIMUM_SECURITY_VERSION) {
       throw new SessionError("unsupported-security", "A newer security version is required");
@@ -117,7 +117,7 @@ export class MasterPasswordUnlock implements UnlockSource {
 export class RuntimeUnlock implements UnlockSource {
   readonly id = "runtime";
 
-  deriveKeys(_material: AccountMaterial): Promise<SessionKeys> {
+  deriveKeys(_material: AccountMaterial): Promise<DerivedSessionKeys> {
     return Promise.reject(new NotImplementedError("RuntimeUnlock", "deriveKeys"));
   }
 }

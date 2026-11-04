@@ -75,7 +75,7 @@ async function setup(options: { pause?: boolean; verifyRecipient?: () => Promise
   // Establish a real own session independently of the source operation. The
   // authority snapshot stands in for already-tested Identity manual preparation.
   await (await manager.beginSharedUnlockInstall(original.accountId, apiUrl, () => {})).install({
-    keys: { masterKey, privateKey: member.privateKey, memberKeySuiteId: "test-member-key-suite" },
+    keys: { masterKey, privateKey: member.privateKey, memberKeySuiteId: "test-member-key-suite", memberKeyVersion: 1 },
     tokens: { apiUrl, userId: original.accountId, accessToken: "own-source-access", refreshToken: "own-source-refresh" },
     material: { accountId: keyContext.accountId, encryptedPrivateKey: keyContext.encryptedPrivateKey,
       kdf: { securityVersion: keyContext.securityVersion, minimumSecurityVersion: keyContext.minimumSecurityVersion,

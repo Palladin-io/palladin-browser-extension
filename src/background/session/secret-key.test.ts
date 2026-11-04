@@ -4,6 +4,7 @@ import {
   fromBase64Url,
   generateAccountSecret,
   generatePairingKeyPair,
+  KEY_WRAPPER_SUITE,
   parsePairingQr,
   sealAccountSecretForPairing,
   toBase64Url,
@@ -22,6 +23,7 @@ import {
   FakeStorageArea,
   mockBackend,
   toBase64,
+  type MockBackendOptions,
   type TestAccount,
 } from "./test-support";
 import { MasterPasswordUnlock } from "./unlock-source";
@@ -41,8 +43,8 @@ interface TransferBackend {
 
 function harness(account: TestAccount, device = new FakeAccountSecretDevice(), transfer: TransferBackend = {
   recipientPublicKey: null, envelope: null, claimStatus: null, cancelled: [],
-}) {
-  const backend = mockBackend(account);
+}, options: MockBackendOptions = {}, storage = new FakeStorageArea()) {
+  const backend = mockBackend(account, options);
   const loginBodies: Record<string, unknown>[] = [];
   const doFetch: FetchLike = async (input, init) => {
     const url = String(input);
@@ -69,7 +71,7 @@ function harness(account: TestAccount, device = new FakeAccountSecretDevice(), t
   let mgr: SessionManager;
   const autoLock = new AutoLock(new FakeAlarms(), () => void mgr.lock());
   mgr = new SessionManager({
-    store: new SessionStore(new FakeStorageArea()),
+    store: new SessionStore(storage),
     authClient: new AuthClient(doFetch, API),
     autoLock,
     now: () => now.value,
@@ -166,6 +168,29 @@ describe("Identity v2 sign-in with the Secret Key", () => {
     await expect(mgr.unlock(new MasterPasswordUnlock(account.password, device)))
       .rejects.toMatchObject({ code: "secret-key-required" });
     expect(await mgr.getStatus()).toBe("locked");
+  });
+
+  it("binds the member key to the authenticated account key version across a worker restart", async () => {
+    const device = new FakeAccountSecretDevice();
+    await device.store(account.accountId, secret);
+    const storage = new FakeStorageArea();
+    const first = harness(account, device, undefined, { memberKeyVersion: 7 }, storage);
+    await first.mgr.login(account.email, account.password);
+    expect(first.mgr.getKeys()).toMatchObject({ memberKeySuiteId: KEY_WRAPPER_SUITE.active, memberKeyVersion: 7 });
+
+    const restarted = harness(account, device, undefined, { memberKeyVersion: 99 }, storage);
+    await restarted.mgr.unlock(new MasterPasswordUnlock(account.password, device));
+
+    expect(restarted.mgr.getKeys()).toMatchObject({ memberKeySuiteId: KEY_WRAPPER_SUITE.active, memberKeyVersion: 7 });
+  });
+
+  it("refuses to sign in when the account names no member key version", async () => {
+    const device = new FakeAccountSecretDevice();
+    await device.store(account.accountId, secret);
+    const { mgr } = harness(account, device, undefined, { memberKeyVersion: null });
+
+    await expect(mgr.login(account.email, account.password)).rejects.toMatchObject({ code: "no-account-material" });
+    expect(mgr.getKeys()).toBeNull();
   });
 
   it("forgets the Secret Key on sign-out", async () => {

@@ -211,7 +211,7 @@ function harness(
     removeProfile: vi.fn(async () => undefined),
     clearAll: vi.fn(async () => undefined),
   }
-  const memberKey = { memberKeySuiteId: KEY_WRAPPER_SUITE.active, privateKey: new Uint8Array(32).fill(3) }
+  const memberKey = { memberKeySuiteId: KEY_WRAPPER_SUITE.active, memberKeyVersion: 1, privateKey: new Uint8Array(32).fill(3) }
   const session: Protocol2SessionAccessor = {
     getAccessToken: async () => 'token',
     refreshAccessToken: async () => null,
@@ -1011,7 +1011,7 @@ describe('Protocol2VaultDataService canonical password capture', () => {
       icon: 'public-asset:11111111-1111-4111-8111-111111111111' })
     const rejected = expect(saving).rejects.toThrow('Session changed')
     await vi.waitFor(() => expect(client.getCatalogIcon).toHaveBeenCalled())
-    session.getMemberKey = () => ({ memberKeySuiteId: KEY_WRAPPER_SUITE.active, privateKey: new Uint8Array(32).fill(9) })
+    session.getMemberKey = () => ({ memberKeySuiteId: KEY_WRAPPER_SUITE.active, memberKeyVersion: 1, privateKey: new Uint8Array(32).fill(9) })
     resolve({ kind: 'publicAsset', assetId: USER_ID, revision: 1, url: 'https://example.test/icon.png' })
     await rejected
     expect(client.issueEntryCreationChallenge).not.toHaveBeenCalled()

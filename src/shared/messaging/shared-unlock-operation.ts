@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 const key = z.string().regex(/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/);
+// Canonical unpadded base64url of a 32-byte (security version 1) or 1216-byte (version 2) member key.
+const memberPublicKey = z.string().regex(/^(?:[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]|[A-Za-z0-9_-]{1621}[AQgw])$/);
 const uuid = z.string().uuid();
 const uint = z.number().int().min(0).max(0xffff_ffff);
 const time = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
@@ -12,7 +14,7 @@ const context = z.object({ protocol: z.literal("palladin.shared-unlock.v1"), dir
   issuedAtMs: time, expiresAtMs: time, unlockedAtMs: time, idleDeadlineMs: time, absoluteDeadlineMs: time, offlineDeadlineMs: time }).strict();
 const keyContext = z.object({ accountId: uuid, securityVersion: uint, minimumSecurityVersion: uint,
   kdfProfileId: z.string().min(1).max(128), kdfSalt: z.string().min(1).max(128), credentialRevision: uint,
-  privateKeyWrapRevision: uint, memberKeyVersion: uint, publicKey: key,
+  privateKeyWrapRevision: uint, memberKeyVersion: uint, publicKey: memberPublicKey,
   encryptedPrivateKey: z.string().min(1).max(5462).regex(/^[A-Za-z0-9_-]+$/) }).strict();
 const operation = z.object({ context, sourcePublicKey: key, recipientPublicKey: key, recipientProofPublicKey: key,
   challenge: key, transcriptHash: key, keyContext }).strict();

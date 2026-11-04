@@ -195,7 +195,7 @@ describe("Extension own receiver transaction with real crypto and session instal
     expect(await f.manager.getStatus()).toBe("unlocked");
     expect(await f.manager.getAccessToken()).toBe(newSession.accessToken);
     expect(f.manager.getKeys()).toEqual({ masterKey: f.masterKey, privateKey: f.member.privateKey,
-      memberKeySuiteId: KEY_WRAPPER_SUITE.legacy });
+      memberKeySuiteId: KEY_WRAPPER_SUITE.legacy, memberKeyVersion: f.operation.keyContext.memberKeyVersion });
     expect(f.manager.getSharedUnlockLimits()).toEqual({ unlockedAtMs: f.operation.context.unlockedAtMs,
       idleDeadlineMs: f.operation.context.idleDeadlineMs, absoluteDeadlineMs: f.operation.context.absoluteDeadlineMs,
       offlineDeadlineMs: f.operation.context.offlineDeadlineMs });

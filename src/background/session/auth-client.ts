@@ -77,6 +77,8 @@ export interface AccountResponse {
   } | null;
   /** Canonical base64url private key wrapped by the master key. */
   readonly encryptedPrivateKey?: string;
+  /** Authenticated member key directory version of that private key. */
+  readonly memberKeyVersion?: number | null;
 }
 
 export type FetchLike = typeof fetch;

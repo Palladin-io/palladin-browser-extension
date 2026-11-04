@@ -25,7 +25,7 @@ let installation: SharedUnlockInstallation;
 beforeAll(async () => {
   account = await buildTestAccount();
   const material = accountMaterial(account);
-  const keys = await new MasterPasswordUnlock(account.password).deriveKeys(material);
+  const keys = { ...await new MasterPasswordUnlock(account.password).deriveKeys(material), memberKeyVersion: 1 };
   installation = {
     tokens: { apiUrl, userId: account.accountId, accessToken: "receiver-own-access", refreshToken: "receiver-own-refresh" },
     material, keys,
@@ -34,7 +34,7 @@ beforeAll(async () => {
 });
 const fresh = (): SharedUnlockInstallation => ({
   ...installation, keys: { masterKey: installation.keys.masterKey.slice(), privateKey: installation.keys.privateKey.slice(),
-    memberKeySuiteId: installation.keys.memberKeySuiteId },
+    memberKeySuiteId: installation.keys.memberKeySuiteId, memberKeyVersion: installation.keys.memberKeyVersion },
 });
 function harness(storage = new FakeStorageArea(), retireSharedUnlock?: (scope: { userId: string; apiUrl: string }) => void, onOwnActivity?: () => void, onOwnPolicyChanged?: () => Promise<void>) {
   const now = { value: 1_000_000 };
@@ -133,7 +133,7 @@ describe("shared unlock receiver installation", () => {
     expect(h.alarms.whenFor(AUTO_LOCK_ALARM)).toBe(value.limits.idleDeadlineMs);
     const envelope = (await h.store.getSealedSession())!;
     const bytes = await openBrowserSessionEnvelope(envelope, value.keys.masterKey, { now: () => h.now.value });
-    try { expect(JSON.parse(new TextDecoder().decode(bytes))).toEqual({ state: "active", ...value.tokens }); }
+    try { expect(JSON.parse(new TextDecoder().decode(bytes))).toEqual({ state: "active", ...value.tokens, memberKeyVersion: 1 }); }
     finally { wipe(bytes); }
     const durable = JSON.stringify(h.storage.values());
     expect(durable).not.toContain(value.tokens.accessToken);

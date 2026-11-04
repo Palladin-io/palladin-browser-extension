@@ -57,7 +57,7 @@ describe('captured Credential canonical writer', () => {
 
   beforeEach(() => {
     vi.resetAllMocks()
-    memberKey = { memberKeySuiteId: KEY_WRAPPER_SUITE.active, privateKey: new Uint8Array(32).fill(3) }
+    memberKey = { memberKeySuiteId: KEY_WRAPPER_SUITE.active, memberKeyVersion: 1, privateKey: new Uint8Array(32).fill(3) }
     client.resolveWebsiteIcon.mockResolvedValue(null)
     client.listVaults.mockResolvedValue([{ id: VAULT }])
     client.getVault.mockResolvedValue({ id: VAULT, organizationId: ORG, isDefault: true,

@@ -56,20 +56,26 @@ describe('member Vault key through the neutral key wrapper', () => {
   })
 
   it('opens a post-quantum member envelope with the Identity v2 member key', async () => {
-    const recipient = await memberRecipient({ memberKeySuiteId: KEY_WRAPPER_SUITE.active, privateKey: member.privateKey }, 4)
+    const recipient = await memberRecipient({ memberKeySuiteId: KEY_WRAPPER_SUITE.active, memberKeyVersion: 4, privateKey: member.privateKey })
 
     await expect(openMemberVaultKey(parse(envelope), recipient)).resolves.toEqual(VAULT_KEY)
   })
 
   it('fails closed for an envelope addressed to another member key', async () => {
     const other = await generateRecipientKeyPair()
-    const recipient = await memberRecipient({ memberKeySuiteId: KEY_WRAPPER_SUITE.active, privateKey: other.privateKey }, 4)
+    const recipient = await memberRecipient({ memberKeySuiteId: KEY_WRAPPER_SUITE.active, memberKeyVersion: 4, privateKey: other.privateKey })
+
+    await expect(openMemberVaultKey(parse(envelope), recipient)).rejects.toMatchObject({ code: 'recipient-mismatch' })
+  })
+
+  it('fails closed when the envelope names another member key version', async () => {
+    const recipient = await memberRecipient({ memberKeySuiteId: KEY_WRAPPER_SUITE.active, memberKeyVersion: 5, privateKey: member.privateKey })
 
     await expect(openMemberVaultKey(parse(envelope), recipient)).rejects.toMatchObject({ code: 'recipient-mismatch' })
   })
 
   it('never reinterprets the session key under the suite named by the envelope', async () => {
-    const recipient = await memberRecipient({ memberKeySuiteId: KEY_WRAPPER_SUITE.legacy, privateKey: member.privateKey }, 4)
+    const recipient = await memberRecipient({ memberKeySuiteId: KEY_WRAPPER_SUITE.legacy, memberKeyVersion: 4, privateKey: member.privateKey })
 
     await expect(openMemberVaultKey(parse(envelope), recipient)).rejects.toMatchObject({ code: 'recipient-mismatch' })
   })
@@ -82,7 +88,7 @@ describe('member Vault key through the neutral key wrapper', () => {
   ])('fails closed for %s', async (_name, change, code) => {
     const descriptor = envelope.wrappedVaultKey.descriptor
     const wire = { wrappedVaultKey: { ...envelope.wrappedVaultKey, descriptor: { ...descriptor, ...change(descriptor) } } }
-    const recipient = await memberRecipient({ memberKeySuiteId: KEY_WRAPPER_SUITE.active, privateKey: member.privateKey }, 4)
+    const recipient = await memberRecipient({ memberKeySuiteId: KEY_WRAPPER_SUITE.active, memberKeyVersion: 4, privateKey: member.privateKey })
 
     await expect(openMemberVaultKey(parse(wire), recipient)).rejects.toMatchObject({ code })
   })
