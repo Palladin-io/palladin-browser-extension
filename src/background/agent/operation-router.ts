@@ -130,7 +130,8 @@ export class NativeOperationRouter {
     // Resolving the legacy active-tab fallback is not explicit caller consent
     // for capture. Keep its fill preparation but revoke capture authorization.
     if (prepare && prepare.targetTabId === undefined && operation.session.prepared) {
-      delete operation.session.prepared.captureTargetUrl;
+      const { captureTargetUrl: _captureTargetUrl, ...fillPreparation } = operation.session.prepared;
+      operation.session.prepared = fillPreparation;
     }
     return response;
   }
