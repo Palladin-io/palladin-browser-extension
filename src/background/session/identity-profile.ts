@@ -3,6 +3,7 @@ import {
   IDENTITY_ACCOUNT_SECRET_PROFILE,
   IDENTITY_KDF_PROFILE,
   identityKdfProfileVersion,
+  KEY_WRAPPER_SUITE,
   loadAccountSecretFromDevice,
   storeAccountSecretOnDevice,
   wipe,
@@ -42,6 +43,14 @@ export function identityProfileVersion(metadata: {
   } catch {
     throw new SessionError("unsupported-security", "Unsupported Identity KDF profile");
   }
+}
+
+/**
+ * identity-kdf v3 `accountKeys`: a security version 2 account holds a member key
+ * of the active suite; a version 1 account still holds a read-only-suite key.
+ */
+export function memberKeySuiteForProfile(version: IdentityProfileVersion): string {
+  return version === 2 ? KEY_WRAPPER_SUITE.active : KEY_WRAPPER_SUITE.legacy;
 }
 
 export function isRegisteredProfile(securityVersion: number, profileId: string): boolean {

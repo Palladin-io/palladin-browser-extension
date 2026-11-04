@@ -49,7 +49,7 @@ const session: Protocol2SessionAccessor = {
   getAccessToken: () => sessionManager.getAccessToken(),
   refreshAccessToken: () => sessionManager.refreshAccessToken(),
   getUserId: () => sessionManager.getUserId(),
-  getPrivateKey: () => sessionManager.getKeys()?.privateKey ?? null,
+  getMemberKey: () => sessionManager.getKeys(),
 };
 
 export const keyEpochFloor = new VaultKeyEpochFloor();

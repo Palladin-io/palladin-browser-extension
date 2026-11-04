@@ -3,7 +3,6 @@ import {
   openCurrentMemberSecret,
   openMemberIndex,
   openMemberSecret,
-  openVaultProjection,
   openVaultDerivedEnvelope,
   presentationIconReference,
   projectAgentDiscovery,
@@ -15,6 +14,7 @@ import {
   type ScriptInterpreter,
 } from '@palladin/crypto'
 
+import { openMemberVaultProjection, type MemberKey } from '@shared/crypto/member-key'
 import { matchesTab, registrableDomain } from '@shared/security/domain'
 
 import type { VaultDataSource } from '../data-source'
@@ -65,7 +65,7 @@ export interface Protocol2SessionAccessor {
   getAccessToken(): Promise<string | null>
   refreshAccessToken(): Promise<string | null>
   getUserId(): Promise<string | null>
-  getPrivateKey(): Uint8Array | null
+  getMemberKey(): MemberKey | null
 }
 
 export type GeneratedPasswordSaveResult =
@@ -311,8 +311,8 @@ export class Protocol2VaultDataService implements VaultDataSource {
 
   private async getMetadataNow(): Promise<EntryMetadata[]> {
     const userId = await this.deps.session.getUserId()
-    const privateKey = this.deps.session.getPrivateKey()
-    if (userId === null || privateKey === null) return []
+    const memberKey = this.deps.session.getMemberKey()
+    if (userId === null || memberKey === null) return []
 
     const metadata: EntryMetadata[] = []
     const activeStates = await this.deps.cache.listActiveStates(userId)
@@ -331,7 +331,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
           const opened = await this.deps.keyEpochFloor.observe(userId, initialActive.vault, () => openProjectionVault({
             ...initialActive.vault,
             memberVaultKey: initialActive.memberVaultKey,
-          }, privateKey, userId))
+          }, memberKey, userId))
           vaultKey = opened.vaultKey
           vaultName = opened.metadata.name
         } catch {
@@ -401,8 +401,8 @@ export class Protocol2VaultDataService implements VaultDataSource {
   }
 
   private async revealEntryNow<T>(vaultId: string, entryId: string, open: (...args: Parameters<typeof openMemberSecret>) => Promise<T>): Promise<T> {
-    const privateKey = this.deps.session.getPrivateKey()
-    if (privateKey === null) throw new VaultDataError('locked', 'Session is locked')
+    const memberKey = this.deps.session.getMemberKey()
+    if (memberKey === null) throw new VaultDataError('locked', 'Session is locked')
     const userId = await this.deps.session.getUserId()
     if (userId === null) throw new VaultDataError('not-authenticated', 'No session')
     if (this.pendingPurges.has(`${userId}:${vaultId}`)) {
@@ -423,7 +423,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
       vaultKey = await this.deps.keyEpochFloor.observe(userId, cached.active.vault, () => openProjectionVaultKey({
         ...cached.active.vault,
         memberVaultKey: cached.active.memberVaultKey,
-      }, privateKey, userId))
+      }, memberKey, userId))
       return await open(cached.item.entryKey, cached.item.memberSecret, vaultKey, {
         organizationId: cached.active.accessContext.organizationId,
         vaultId,
@@ -495,8 +495,8 @@ export class Protocol2VaultDataService implements VaultDataSource {
     let dispatched = false
     try {
       await this.enqueueSync(async () => {
-        const privateKey = this.deps.session.getPrivateKey()
-        if (privateKey === null) throw new VaultDataError('locked', 'Session is locked')
+        const memberKey = this.deps.session.getMemberKey()
+        if (memberKey === null) throw new VaultDataError('locked', 'Session is locked')
         const userId = await this.deps.session.getUserId()
         if (userId === null) throw new VaultDataError('not-authenticated', 'No session')
         const [vault, detail] = await Promise.all([
@@ -507,7 +507,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
         let discoveryKey: Uint8Array | null = null
         try {
           vaultKey = await this.deps.keyEpochFloor.openForWrite(userId, vault,
-            () => openProjectionVaultKey(vault, privateKey, userId))
+            () => openProjectionVaultKey(vault, memberKey, userId))
           const secret = await openCurrentMemberSecret(detail.entryKey, detail.memberSecret, vaultKey, {
             organizationId: vault.organizationId,
             vaultId,
@@ -531,7 +531,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
           }, secret, vaultKey, discoveryKey, 5)
           await this.withAuth(async (token) => {
             const currentUserId = await this.deps.session.getUserId()
-            if (this.deps.session.getPrivateKey() !== privateKey || currentUserId !== userId) {
+            if (this.deps.session.getMemberKey() !== memberKey || currentUserId !== userId) {
               throw new VaultDataError('locked', 'Session changed during deletion')
             }
             this.deps.keyEpochFloor.assertCurrent(userId, vault)
@@ -599,13 +599,13 @@ export class Protocol2VaultDataService implements VaultDataSource {
   /** Extension-owned confirmation options. Names are decrypted only in worker memory. */
   async sharedCopyVaults(): Promise<readonly { id: string; name: string; isDefault: boolean }[]> {
     if (this.currentVaults.size === 0) await this.refresh()
-    const privateKey = this.deps.session.getPrivateKey()
+    const memberKey = this.deps.session.getMemberKey()
     const userId = await this.deps.session.getUserId()
-    if (!privateKey || !userId) throw new VaultDataError('locked', 'Session is locked')
+    if (!memberKey || !userId) throw new VaultDataError('locked', 'Session is locked')
     const options: { id: string; name: string; isDefault: boolean }[] = []
     for (const vault of this.currentVaults.values()) {
       const opened = await this.deps.keyEpochFloor.observe(userId, vault,
-        () => openProjectionVault({ ...vault, memberVaultKey: vault.memberVaultKey }, privateKey, userId))
+        () => openProjectionVault({ ...vault, memberVaultKey: vault.memberVaultKey }, memberKey, userId))
       try { options.push({ id: vault.id, name: opened.metadata.name, isDefault: vault.isDefault }) }
       finally { wipe(opened.vaultKey) }
     }
@@ -637,8 +637,8 @@ export class Protocol2VaultDataService implements VaultDataSource {
     isCurrent?: () => boolean,
     catalogAssetId?: string,
   ): Promise<Extract<GeneratedPasswordSaveResult, { status: 'created' | 'blocked' }>> {
-    const privateKey = this.deps.session.getPrivateKey()
-    if (privateKey === null) throw new VaultDataError('locked', 'Session is locked')
+    const memberKey = this.deps.session.getMemberKey()
+    if (memberKey === null) throw new VaultDataError('locked', 'Session is locked')
     const userId = await this.deps.session.getUserId()
     if (userId === null) throw new VaultDataError('not-authenticated', 'No session')
     const vault = selectedVaultId ? this.currentVaults.get(selectedVaultId)
@@ -654,7 +654,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
       const icon = await this.withAuth(token => this.deps.client.resolveWebsiteIcon(token, hostname))
       entry = { ...entry, secret: { ...entry.secret, icon: icon ?? null } }
     }
-    if (this.deps.session.getPrivateKey() !== privateKey || await this.deps.session.getUserId() !== userId) {
+    if (this.deps.session.getMemberKey() !== memberKey || await this.deps.session.getUserId() !== userId) {
       throw new VaultDataError('locked', 'Session changed while preparing Entry')
     }
     const entryId = await this.withAuth((token) =>
@@ -663,7 +663,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
     let discoveryKey: Uint8Array | null = null
     try {
       vaultKey = await this.deps.keyEpochFloor.openForWrite(userId, vault,
-        () => openProjectionVaultKey(vault, privateKey, userId))
+        () => openProjectionVaultKey(vault, memberKey, userId))
       discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, vaultKey)
       const coordinates = {
         organizationId: vault.memberVaultKey.wrappedVaultKey.descriptor.scope.organizationId,
@@ -682,7 +682,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
         await this.withAuth(async (token) => {
           await assertCurrent?.()
           const currentUserId = await this.deps.session.getUserId()
-          if (this.deps.session.getPrivateKey() !== privateKey || currentUserId !== userId || isCurrent?.() === false) throw new VaultDataError('locked', 'Session changed while preparing Entry')
+          if (this.deps.session.getMemberKey() !== memberKey || currentUserId !== userId || isCurrent?.() === false) throw new VaultDataError('locked', 'Session changed while preparing Entry')
           this.deps.keyEpochFloor.assertCurrent(userId, vault)
           return this.deps.client.createEntry(token, {
             vaultId: vault.id,
@@ -710,8 +710,8 @@ export class Protocol2VaultDataService implements VaultDataSource {
     password: string,
     captureUrl: string,
   ): Promise<GeneratedPasswordSaveResult> {
-    const privateKey = this.deps.session.getPrivateKey()
-    if (privateKey === null) throw new VaultDataError('locked', 'Session is locked')
+    const memberKey = this.deps.session.getMemberKey()
+    if (memberKey === null) throw new VaultDataError('locked', 'Session is locked')
     const userId = await this.deps.session.getUserId()
     if (userId === null) throw new VaultDataError('not-authenticated', 'No session')
     const [vault, detail] = await Promise.all([
@@ -722,7 +722,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
     let discoveryKey: Uint8Array | null = null
     try {
       vaultKey = await this.deps.keyEpochFloor.openForWrite(userId, vault,
-        () => openProjectionVaultKey(vault, privateKey, userId))
+        () => openProjectionVaultKey(vault, memberKey, userId))
       discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, vaultKey)
       const previous = await openMemberSecret(detail.entryKey, detail.memberSecret, vaultKey, {
         organizationId: detail.organizationId,
@@ -1456,18 +1456,18 @@ function accessLeaseBounds(access: OfflineAccessContext): {
 
 async function openProjectionVaultKey(
   vault: EncryptedVaultSummary,
-  privateKey: Uint8Array,
+  memberKey: MemberKey,
   memberId: string,
 ): Promise<Uint8Array> {
-  return (await openProjectionVault(vault, privateKey, memberId)).vaultKey
+  return (await openProjectionVault(vault, memberKey, memberId)).vaultKey
 }
 
 async function openProjectionVault(
   vault: EncryptedVaultSummary,
-  privateKey: Uint8Array,
+  memberKey: MemberKey,
   memberId: string,
 ) {
-  return openVaultProjection({
+  return openMemberVaultProjection({
     id: vault.id,
     organizationId: vault.organizationId,
     metadataRevision: vault.metadataRevision,
@@ -1475,7 +1475,7 @@ async function openProjectionVault(
     currentKeyEpoch: vault.currentKeyEpoch,
     memberVaultMetadata: vault.memberVaultMetadata,
     memberVaultKey: vault.memberVaultKey,
-  }, privateKey, memberId)
+  }, memberKey, memberId)
 }
 
 function credentialSecret(site: string, origin: string, host: string, password: string): MemberSecretV1 {

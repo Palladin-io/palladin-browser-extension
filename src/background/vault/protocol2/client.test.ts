@@ -79,7 +79,7 @@ function vaultDetail(metadataRevision: unknown = '1') {
           resourceRevision: '1',
           wrappedKeyVersion: 1,
           memberKeyGeneration: 1,
-          recipientKeyKind: 'memberX25519',
+          recipientKeyKind: 'memberEncryption',
           recipientKeyVersion: 1,
           recipientFingerprint: 'recipient-fingerprint',
           parentDescriptorHash: null,

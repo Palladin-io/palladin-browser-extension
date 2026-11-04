@@ -27,6 +27,7 @@ import {
   identityProfileVersion,
   loadDeviceAccountSecret,
   MAXIMUM_SECURITY_VERSION,
+  memberKeySuiteForProfile,
   type AccountSecretDevice,
 } from "./identity-profile";
 import type { AccountMaterial, SessionKeys } from "./types";
@@ -96,7 +97,7 @@ export class MasterPasswordUnlock implements UnlockSource {
         wipe(privateKey);
         throw error;
       }
-      return { masterKey: identity.masterKey, privateKey };
+      return { masterKey: identity.masterKey, privateKey, memberKeySuiteId: memberKeySuiteForProfile(version) };
     } catch (error) {
       wipe(identity.masterKey);
       throw error;

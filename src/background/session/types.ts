@@ -46,6 +46,8 @@ export interface SessionKeys {
   readonly masterKey: Uint8Array;
   /** 32-byte member private key recovered by unwrapping {@link AccountMaterial.encryptedPrivateKey}. */
   readonly privateKey: Uint8Array;
+  /** Key-wrapper suite of {@link privateKey}, fixed by the Identity security version. */
+  readonly memberKeySuiteId: string;
 }
 
 /** Result of starting a login: either fully done, or a pending TOTP second factor. */

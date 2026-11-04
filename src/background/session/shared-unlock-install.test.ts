@@ -33,7 +33,8 @@ beforeAll(async () => {
   };
 });
 const fresh = (): SharedUnlockInstallation => ({
-  ...installation, keys: { masterKey: installation.keys.masterKey.slice(), privateKey: installation.keys.privateKey.slice() },
+  ...installation, keys: { masterKey: installation.keys.masterKey.slice(), privateKey: installation.keys.privateKey.slice(),
+    memberKeySuiteId: installation.keys.memberKeySuiteId },
 });
 function harness(storage = new FakeStorageArea(), retireSharedUnlock?: (scope: { userId: string; apiUrl: string }) => void, onOwnActivity?: () => void, onOwnPolicyChanged?: () => Promise<void>) {
   const now = { value: 1_000_000 };

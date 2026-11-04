@@ -120,6 +120,7 @@ function deferredUnlock(): {
   const keys: SessionKeys = {
     masterKey: new Uint8Array(32).fill(0x41),
     privateKey: new Uint8Array(32).fill(0x42),
+    memberKeySuiteId: "test-member-key-suite",
   };
   let markStarted!: () => void;
   const started = new Promise<void>((resolve) => { markStarted = resolve; });
@@ -248,6 +249,7 @@ describe("SessionManager — full lifecycle", () => {
     const candidate: SessionKeys = {
       masterKey: new Uint8Array(32).fill(0x51),
       privateKey: new Uint8Array(32).fill(0x52),
+      memberKeySuiteId: "test-member-key-suite",
     };
     const deriveKeys = vi.fn(async () => candidate);
     const source: UnlockSource = { id: "lock-race", deriveKeys };
@@ -383,6 +385,7 @@ describe("SessionManager — full lifecycle", () => {
     const deriveKeys = vi.fn(async (): Promise<SessionKeys> => ({
       masterKey: new Uint8Array(32).fill(0x61),
       privateKey: new Uint8Array(32).fill(0x62),
+      memberKeySuiteId: "test-member-key-suite",
     }));
     const unlocked = vi.fn();
     hooks.onUnlocked(unlocked);
@@ -431,6 +434,7 @@ describe("SessionManager — full lifecycle", () => {
     const candidate: SessionKeys = {
       masterKey: new Uint8Array(32).fill(0x71),
       privateKey: new Uint8Array(32).fill(0x72),
+      memberKeySuiteId: "test-member-key-suite",
     };
     const deriveKeys = vi.fn(async () => candidate);
     const source: UnlockSource = { id: "logout-error", deriveKeys };

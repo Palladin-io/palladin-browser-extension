@@ -160,14 +160,22 @@ idle/absolute limits. Invalidated extension contexts do not reconnect.
    failure or HTTP 429 restores the prior sealed active envelope and keeps the
    unlocked session retryable; an explicit refresh rejection still clears the
    session fail-closed.
-   Password authentication uses the shared `identity-argon2id-password-v1`
-   profile and strict bootstrap/account-state binding. Unknown emails receive a
-   same-shaped deterministic pseudo AccountId and salt, so the worker runs the
-   identical KDF and backend login path without a local sentinel. A pending TOTP
+   Password authentication runs only the registered profile named by the login
+   bootstrap: `identity-argon2id-password-v1` or the Secret Key profile
+   `identity-argon2id-account-secret-v2`, with strict bootstrap/account-state
+   binding. A browser that already holds an account's Secret Key refuses a
+   password-only profile for that account. Unknown emails receive a
+   same-shaped deterministic pseudo AccountId and salt under the current profile.
+   A v2 account on a browser without its Secret Key derives and sends nothing:
+   the popup offers the `recipient-shows-qr` device pairing (one-time X-Wing key
+   in worker memory, SAS, five-minute session, ciphertext-only relay) or PSK2
+   entry from the Emergency Kit. The received Secret Key stays in worker memory
+   until the private-key unwrap proves it, then lives only in the device wrapper
+   (step 3). A pending TOTP
    challenge owns only its derived master key in worker memory, is bound to the exact API
    URL and lifecycle generation, and is wiped on cancel, logout, server change,
    failed completion, or a five-minute worker-owned expiry; the popup never
-   retains the master password.
+   retains the master password beyond the open sign-in form.
 2. Keep cryptographic keys only in service-worker JavaScript memory. A worker
    restart loses them and restores a compatible account only as locked; explicit
    lock and logout wipe them immediately. While the
@@ -182,7 +190,12 @@ idle/absolute limits. Invalidated extension contexts do not reconnect.
 3. Persist the sealed authentication envelope in `storage.local`, and canonical
    Vault ciphertext envelopes plus structural sync cursors in IndexedDB. Decrypt
    only at the latest point required for a user-approved operation. Obsolete
-   plaintext session records are deleted without migration.
+   plaintext session records are deleted without migration. The one explicit
+   exception is the Identity v2 Secret Key: AES-256-GCM ciphertext under a
+   non-extractable WebCrypto key in the extension-origin IndexedDB
+   (`identity-kdf/v3` browser device wrapper). It opens nothing without the
+   master password and is deleted on sign-out. Shared unlock from the web panel
+   transports the master key and does not use it.
 4. Bind preparation to the active tab and browser-issued top-frame document ID,
    then validate the isolated page-load ID, exact HTTPS origin, registered
    domain, and authorization again immediately before filling.

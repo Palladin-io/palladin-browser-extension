@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MemberSecretV1 } from '@palladin/crypto'
-import { createCapturedCredentialSecret } from '@palladin/crypto'
+import { createCapturedCredentialSecret, KEY_WRAPPER_SUITE } from '@palladin/crypto'
+import type { MemberKey } from '@shared/crypto/member-key'
 import { Protocol2CredentialWriter } from './credential-writer'
 import type { CredentialWriterDeps } from './credential-writer'
 import type { CredentialWriteTarget } from '../../capture/credential-coordinator'
@@ -14,6 +15,9 @@ const cryptoMocks = vi.hoisted(() => ({
   buildCanonicalScriptExecutionManifest: vi.fn(), sealCanonicalScriptExecutionPackage: vi.fn(), wipe: vi.fn(),
 }))
 vi.mock('@palladin/crypto', async (original) => ({ ...await original<typeof import('@palladin/crypto')>(), ...cryptoMocks }))
+vi.mock('@shared/crypto/member-key', () => ({
+  openMemberVaultProjection: (...args: unknown[]) => (cryptoMocks.openVaultProjection as (...a: unknown[]) => unknown)(...args),
+}))
 
 const VAULT = '11111111-1111-4111-8111-111111111111'
 const ENTRY = '22222222-2222-4222-8222-222222222222'
@@ -34,14 +38,14 @@ const detail = { organizationId: ORG, vaultId: VAULT, id: ENTRY, state: 'active'
 const grant: EntryGrantContext = {
   id: '66666666-6666-4666-8666-666666666666', vaultId: VAULT, type: 'granular',
   agentId: '77777777-7777-4777-8777-777777777777', agentAccessEpoch: 2,
-  agentPublicKey: 'AQ==', recipientAgentKeyVersion: 3, methods: 'exec, inject', entryId: ENTRY,
+  agentPublicKey: 'AQ==', agentKeySuiteId: KEY_WRAPPER_SUITE.active, recipientAgentKeyVersion: 3, methods: 'exec, inject', entryId: ENTRY,
   entryScopes: [{ entryId: ENTRY, fieldIds: ['credential.password', 'credential.notes'], grantEnvelopeRevision: '8', grantKeyVersion: 2 }],
   scriptScopes: [], scriptPackageRevision: null, expiresAt: '2030-01-01T00:00:00Z', queryLimit: 20, queryCount: 3,
 }
 
 describe('captured Credential canonical writer', () => {
   let writer: Protocol2CredentialWriter
-  let privateKey: Uint8Array | null
+  let memberKey: MemberKey | null
   let keyEpochFloor: VaultKeyEpochFloor
   const client = {
     listVaults: vi.fn(), getVault: vi.fn(), getEntry: vi.fn(), getActiveGrants: vi.fn(),
@@ -53,7 +57,7 @@ describe('captured Credential canonical writer', () => {
 
   beforeEach(() => {
     vi.resetAllMocks()
-    privateKey = new Uint8Array(32).fill(3)
+    memberKey = { memberKeySuiteId: KEY_WRAPPER_SUITE.active, privateKey: new Uint8Array(32).fill(3) }
     client.resolveWebsiteIcon.mockResolvedValue(null)
     client.listVaults.mockResolvedValue([{ id: VAULT }])
     client.getVault.mockResolvedValue({ id: VAULT, organizationId: ORG, isDefault: true,
@@ -76,7 +80,7 @@ describe('captured Credential canonical writer', () => {
     authorized.mockResolvedValue(true)
     keyEpochFloor = new VaultKeyEpochFloor()
     writer = new Protocol2CredentialWriter({
-      client, data, canWrite, keyEpochFloor, session: { getUserId: async () => USER, getPrivateKey: () => privateKey,
+      client, data, canWrite, keyEpochFloor, session: { getUserId: async () => USER, getMemberKey: () => memberKey,
         getAccessToken: async () => 'token', refreshAccessToken: async () => 'refreshed' },
     } as unknown as CredentialWriterDeps)
   })
@@ -167,7 +171,7 @@ describe('captured Credential canonical writer', () => {
     expect(client.resolveWebsiteIcon).toHaveBeenCalledWith('token', host)
   })
   it('does not commit if the session locks during icon preparation', async () => {
-    client.resolveWebsiteIcon.mockImplementation(async () => { privateKey = null; return null })
+    client.resolveWebsiteIcon.mockImplementation(async () => { memberKey = null; return null })
     await expect(writer.save(credential, url,
       { action: 'create', vaultId: VAULT, label: 'Personal', vaultLabel: 'Personal' }, authorized))
       .rejects.toThrow('Capture authorization changed')
@@ -226,10 +230,11 @@ describe('captured Credential canonical writer', () => {
     }))
     expect(client.updateEntry.mock.calls[0]![1].scriptGrantPackages).toEqual([{ ciphertext: 'script-package' }])
   })
-  it.each(['missing-recipient', 'field-scope', 'methods', 'vault-scope', 'builder-error'])(
+  it.each(['missing-recipient', 'missing-recipient-suite', 'field-scope', 'methods', 'vault-scope', 'builder-error'])(
     'fails before any mutation for invalid grant material: %s', async (scenario) => {
       let nextGrant = grant
       if (scenario === 'missing-recipient') nextGrant = { ...grant, agentPublicKey: null }
+      if (scenario === 'missing-recipient-suite') nextGrant = { ...grant, agentKeySuiteId: null }
       if (scenario === 'field-scope') nextGrant = { ...grant, entryScopes: [{ ...grant.entryScopes[0]!, fieldIds: ['credential.urlDomain'] }] }
       if (scenario === 'methods') nextGrant = { ...grant, methods: 'unregistered' }
       if (scenario === 'vault-scope') nextGrant = { ...grant, vaultId: 'other' }
@@ -490,7 +495,7 @@ describe('captured Credential canonical writer', () => {
       submit.mockRejectedValueOnce(new VaultClientError('unauthorized', 'expired'))
       client.getVault.mockResolvedValueOnce(projection(1))
       writer = new Protocol2CredentialWriter({ client, data, canWrite, keyEpochFloor,
-        session: { getUserId: async () => USER, getPrivateKey: () => privateKey, getAccessToken: async () => 'token',
+        session: { getUserId: async () => USER, getMemberKey: () => memberKey, getAccessToken: async () => 'token',
           refreshAccessToken: async () => { await keyEpochFloor.observe(USER, projection(2), async () => undefined); return 'refreshed' } },
       } as unknown as CredentialWriterDeps)
 
@@ -504,7 +509,7 @@ describe('captured Credential canonical writer', () => {
       client.getVault.mockResolvedValueOnce({ ...projection(1), id: other })
       await writer.save(registration, url, { ...create, vaultId: other }, authorized)
       writer = new Protocol2CredentialWriter({ client, data, canWrite, keyEpochFloor,
-        session: { getUserId: async () => '99999999-9999-4999-8999-999999999999', getPrivateKey: () => privateKey,
+        session: { getUserId: async () => '99999999-9999-4999-8999-999999999999', getMemberKey: () => memberKey,
           getAccessToken: async () => 'token', refreshAccessToken: async () => 'refreshed' },
       } as unknown as CredentialWriterDeps)
       client.getVault.mockResolvedValueOnce(projection(1))

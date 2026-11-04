@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import {
-  encryptWithKey, generateKeyPair, hashSharedUnlockKeyContext, IDENTITY_KDF_PROFILE_ID,
+  encryptWithKey, hashSharedUnlockKeyContext, loadSodium, IDENTITY_KDF_PROFILE_ID,
   randomBytes, toBase64Url, type SharedUnlockKeyContext,
 } from "@palladin/crypto";
 import { recoverSharedUnlockKeys } from "./shared-unlock-keys";
@@ -12,7 +12,7 @@ let descriptor: SharedUnlockKeyContext;
 let digest: string;
 beforeAll(async () => {
   masterKey = await randomBytes(32);
-  const pair = await generateKeyPair(); privateKey = pair.privateKey;
+  const pair = (await loadSodium()).crypto_box_keypair(); privateKey = pair.privateKey;
   descriptor = {
     accountId, securityVersion: 1, minimumSecurityVersion: 1, kdfProfileId: IDENTITY_KDF_PROFILE_ID,
     kdfSalt: toBase64Url(await randomBytes(16)), credentialRevision: 2, privateKeyWrapRevision: 3,
@@ -40,7 +40,7 @@ describe("shared unlock key recovery", () => {
       if (variant === "digest") expectedDigest = toBase64Url(new Uint8Array(32));
       if (variant === "wrapper") context.encryptedPrivateKey = toBase64Url(new Uint8Array(72));
       if (variant === "public-key") {
-        context.publicKey = toBase64Url((await generateKeyPair()).publicKey);
+        context.publicKey = toBase64Url(((await loadSodium()).crypto_box_keypair()).publicKey);
         expectedDigest = await hashSharedUnlockKeyContext(context);
       }
       if (variant === "minimum-version") context.minimumSecurityVersion = 2;

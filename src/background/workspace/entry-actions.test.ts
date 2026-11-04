@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createCapturedCredentialSecret,
+  KEY_WRAPPER_SUITE,
   openEntryShare,
   parseEntryShareFragment,
 } from '@palladin/crypto';
@@ -20,6 +21,9 @@ const cryptoMocks = vi.hoisted(() => ({
 vi.mock('@palladin/crypto', async (original) => ({
   ...(await original<typeof import('@palladin/crypto')>()),
   ...cryptoMocks,
+}));
+vi.mock('@shared/crypto/member-key', () => ({
+  openMemberVaultProjection: (...args: unknown[]) => (cryptoMocks.openVaultProjection as (...a: unknown[]) => unknown)(...args),
 }));
 const vaultId = '11111111-1111-4111-8111-111111111111';
 const entryId = '22222222-2222-4222-8222-222222222222';
@@ -55,6 +59,7 @@ function setup() {
     memberKeyGeneration: 1,
     currentKeyEpoch: { vaultKeyVersion: 1, agentMessageKeyVersion: 1 },
     vaultPrivateKeys: [],
+    vaultAgentMessagePublicKey: { keySuiteId: KEY_WRAPPER_SUITE.active },
   };
   const detail = {
     id: entryId,
@@ -70,6 +75,7 @@ function setup() {
     getEntry: vi.fn(async () => detail),
   };
   const key = new Uint8Array(32).fill(4);
+  const memberKey = { memberKeySuiteId: KEY_WRAPPER_SUITE.active, privateKey: key };
   cryptoMocks.openVaultProjection.mockImplementation(async () => ({
     vaultKey: key.slice(),
   }));
@@ -83,7 +89,7 @@ function setup() {
   const webUrl = vi.fn(() => 'https://web.example.test');
   const session = {
     getUserId: async () => userId,
-    getPrivateKey: () => key,
+    getMemberKey: () => memberKey,
     getAccessToken: vi.fn(async () => 'test-token'),
     refreshAccessToken: vi.fn<() => Promise<string | null>>(async () => null),
   };
@@ -146,7 +152,7 @@ function mockGrantRequests(request: ReturnType<typeof setup>['request']) {
         resourceRevision: '1',
         wrappedKeyVersion: 1,
         memberKeyGeneration: 1,
-        recipientKeyKind: 'vaultMessageX25519',
+        recipientKeyKind: 'vaultAgentMessage',
         recipientKeyVersion: 1,
         recipientFingerprint: 'AA',
         parentDescriptorHash: 'AA',
@@ -171,7 +177,7 @@ function mockGrantRequests(request: ReturnType<typeof setup>['request']) {
           agentSigningKeyFingerprint: 'AA',
         }
       : path.endsWith(`/agents/${agentId}`)
-        ? { agentId, publicKey: 'AA', recipientKeyVersion: 3, accessEpoch: 2 }
+        ? { agentId, publicKey: 'AA', keySuiteId: KEY_WRAPPER_SUITE.active, recipientKeyVersion: 3, accessEpoch: 2 }
         : path.endsWith(`/entries/${entryId}`)
           ? { currentRevision: '4' }
           : null;
@@ -326,7 +332,8 @@ describe('encrypted workspace operations', () => {
       ok: true, data: { reason: 'Synthetic approved purpose' },
     });
     expect(client.getEntry).not.toHaveBeenCalled();
-    expect(cryptoMocks.openEncryptedReason.mock.calls[0]?.[4]).toEqual({ organizationId, vaultId, entryId, grantId, agentId });
+    expect(cryptoMocks.openEncryptedReason.mock.calls[0]?.[4]).toEqual({ organizationId, vaultId, entryId, grantId, agentId,
+      vaultAgentMessageKeySuiteId: KEY_WRAPPER_SUITE.active });
     request.mockResolvedValueOnce({ id: 'different-grant', vaultId, encryptedReason: reason });
     await expect(actions.handle({ type: 'workspace/grant-reason', vaultId, grantId }, operation)).rejects.toThrow('invalid');
     cryptoMocks.openEncryptedReason.mockRejectedValueOnce(new Error('Invalid signature'));
@@ -354,6 +361,7 @@ describe('encrypted workspace operations', () => {
       entryId,
       grantId,
       agentId,
+      vaultAgentMessageKeySuiteId: KEY_WRAPPER_SUITE.active,
     });
     expect(cryptoMocks.buildCanonicalGrantEnvelope).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -365,6 +373,7 @@ describe('encrypted workspace operations', () => {
         entryRevision: '4',
         approvedMethods: 4,
         approvedFieldIds: ['credential.password'],
+        agentKeySuiteId: KEY_WRAPPER_SUITE.active,
         recipientKeyVersion: 3,
         remainingUses: 3,
       }),

@@ -5,6 +5,8 @@ export interface EntryGrantContext {
   readonly agentId: string | null;
   readonly agentAccessEpoch: number | null;
   readonly agentPublicKey: string | null;
+  /** Suite of {@link agentPublicKey} from the authenticated Agent key directory. */
+  readonly agentKeySuiteId: string | null;
   readonly recipientAgentKeyVersion: number | null;
   readonly methods: string | null;
   readonly entryId: string | null;

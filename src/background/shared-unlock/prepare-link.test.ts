@@ -57,7 +57,7 @@ async function setup(options: { pause?: string; fail?: string } = {}) {
   const material = { accountId: root.accountId, encryptedPrivateKey: toBase64Url(new Uint8Array(64)),
     kdf: { securityVersion: 1, minimumSecurityVersion: 1, profileId: IDENTITY_KDF_PROFILE_ID, kdfSalt: toBase64Url(new Uint8Array(16)) } };
   await (await manager.beginSharedUnlockInstall(root.accountId, apiUrl, () => {})).install({ tokens, material,
-    keys: { masterKey: new Uint8Array(32).fill(7), privateKey: new Uint8Array(32).fill(8) }, limits: root });
+    keys: { masterKey: new Uint8Array(32).fill(7), privateKey: new Uint8Array(32).fill(8), memberKeySuiteId: "test-member-key-suite" }, limits: root });
   const api = new SharedUnlockApi(fetcher, () => apiUrl);
   const authority = new SharedUnlockSourceAuthority(api, () => Date.now());
   await authority.prepare({ tokens, account: { userId: root.accountId, email: "synthetic@example.test", kdf: { ...material.kdf,

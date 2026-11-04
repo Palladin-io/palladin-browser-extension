@@ -16,7 +16,6 @@ import {
   prepareEntryShare,
   toBase64Url,
   wipe,
-  openVaultProjection,
   openCurrentMemberSecret,
 } from '@palladin/crypto';
 import type {
@@ -29,11 +28,13 @@ import type {
   ShareCreationChallenge,
 } from '../../shared/workspace/contracts';
 import type { Protocol2VaultClient } from '../vault/protocol2/client';
+import { vaultAgentMessageKeySuiteId } from '../vault/protocol2/contracts';
 import type { VaultKeyEpochFloor } from '../vault/protocol2/key-epoch-floor';
 import type { Protocol2VaultDataService, Protocol2SessionAccessor } from '../vault/protocol2/service';
 import { WorkspaceError, type WorkspaceOperation } from './service';
 import { normalizeSignInAccount, readSignInBinding, type SignInBinding } from '../../shared/signin/binding';
 import { SIGN_IN_FIELD_LABELS } from '../signin/coordinator';
+import { openMemberVaultProjection } from '../../shared/crypto/member-key';
 import type { EntrySignInView } from '../../shared/workspace/commands';
 
 function signInView(secret: currentVaultPlaintext.MemberSecretV1): EntrySignInView {
@@ -244,14 +245,14 @@ export class EntryActions {
     if (!grant.encryptedReason) return { ok: true, data: { reason: null } };
     const envelope = encryptedReasonEnvelopeSchema.safeParse(grant.encryptedReason);
     if (!envelope.success || !grant.agentId || !grant.agentSigningPublicKey || !grant.agentSigningKeyVersion || !grant.agentSigningKeyFingerprint) throw new WorkspaceError('reason-contract');
-    const privateKey = this.deps.session.getPrivateKey();
+    const memberKey = this.deps.session.getMemberKey();
     const userId = await this.deps.session.getUserId();
     operation.assertCurrent();
-    if (!privateKey || !userId) throw new WorkspaceError('locked');
+    if (!memberKey || !userId) throw new WorkspaceError('locked');
     const vault = await this.withAuth(operation, token => this.deps.client.getVault(token, command.vaultId, operation.signal));
     operation.assertCurrent();
     if (vault.id !== command.vaultId) throw new WorkspaceError('invalid');
-    const opened = await this.deps.keyEpochFloor.observe(userId, vault, () => openVaultProjection(vault, privateKey, userId))
+    const opened = await this.deps.keyEpochFloor.observe(userId, vault, () => openMemberVaultProjection(vault, memberKey, userId))
       .catch(() => { throw new WorkspaceError('reason-key'); });
     try {
       operation.assertCurrent();
@@ -265,6 +266,7 @@ export class EntryActions {
         vaultId: command.vaultId,
         grantId: command.grantId,
         agentId: grant.agentId,
+        vaultAgentMessageKeySuiteId: vaultAgentMessageKeySuiteId(vault),
         ...(grant.entryId ?? grant.scriptEntryId ? { entryId: (grant.entryId ?? grant.scriptEntryId)! } : {}),
       }).catch(() => { throw new WorkspaceError('reason-proof'); });
       operation.assertCurrent();
@@ -346,6 +348,7 @@ export class EntryActions {
             entryId,
             grantId: command.grantId,
             agentId: grant.agentId!,
+            vaultAgentMessageKeySuiteId: vaultAgentMessageKeySuiteId(vault),
           },
         );
         operation.assertCurrent();
@@ -383,10 +386,11 @@ export class EntryActions {
         )) as {
           agentId: string;
           publicKey: string | null;
+          keySuiteId: string | null;
           recipientKeyVersion: number;
           accessEpoch: number;
         };
-        if (agent.agentId !== grant.agentId || !agent.publicKey)
+        if (agent.agentId !== grant.agentId || !agent.publicKey || !agent.keySuiteId)
           throw new WorkspaceError('invalid');
         assertEpoch();
         let material: object;
@@ -401,6 +405,7 @@ export class EntryActions {
               secret,
               agentId: grant.agentId!,
               agentPublicKey: agent.publicKey,
+              agentKeySuiteId: agent.keySuiteId,
               recipientKeyVersion: agent.recipientKeyVersion,
               agentAccessEpoch: agent.accessEpoch,
               grantId: grant.id,
@@ -435,6 +440,7 @@ export class EntryActions {
               grantId: grant.id,
               agentId: grant.agentId!,
               agentPublicKey: agent.publicKey,
+              agentKeySuiteId: agent.keySuiteId,
               entryRevision: detail.currentRevision,
               grantEnvelopeRevision: '1',
               grantKeyVersion: 1,
@@ -523,10 +529,10 @@ export class EntryActions {
       assertEpoch: () => void;
     }) => Promise<T>,
   ) {
-    const privateKey = this.deps.session.getPrivateKey();
+    const memberKey = this.deps.session.getMemberKey();
     const userId = await this.deps.session.getUserId();
     operation.assertCurrent();
-    if (!privateKey || !userId) throw new WorkspaceError('locked');
+    if (!memberKey || !userId) throw new WorkspaceError('locked');
     const [vault, detail] = await this.withAuth(operation, token => Promise.all([
       this.deps.client.getVault(token, scope.vaultId, operation.signal),
       this.deps.client.getEntry(
@@ -545,7 +551,7 @@ export class EntryActions {
       detail.organizationId !== vault.organizationId
     )
       throw new WorkspaceError('invalid');
-    const open = () => openVaultProjection(vault, privateKey, userId);
+    const open = () => openMemberVaultProjection(vault, memberKey, userId);
     // Grant material is sealed under this key, so a write must not accept a rolled-back epoch.
     const opened = access === 'write'
       ? await this.deps.keyEpochFloor.openForWrite(userId, vault, open)

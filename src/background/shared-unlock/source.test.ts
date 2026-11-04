@@ -1,9 +1,9 @@
 import { sendSharedUnlockBrowserTransfer, type SharedUnlockOperationTransport } from "./browser-transfer";
 import { sharedUnlockOperationSchema, type SharedUnlockOperationMessage } from "../../shared/messaging/shared-unlock-operation";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { createSharedUnlockOffer, createSharedUnlockIdentityProofSigner, randomBytes, generateKeyPair, encryptWithKey,
-  hashSharedUnlockKeyContext, hashSharedUnlockTranscript, loadSodium, toBase64Url, sealVaultKey, unsealVaultKey,
-  type SharedUnlockEnvelope, encryptEntry, decryptEntry, ENTRY_TYPE_KEY } from "@palladin/crypto";
+import { createSharedUnlockOffer, createSharedUnlockIdentityProofSigner, randomBytes, encryptWithKey,
+  hashSharedUnlockKeyContext, hashSharedUnlockTranscript, loadSodium, toBase64Url,
+  type SharedUnlockEnvelope } from "@palladin/crypto";
 import { AuthClient } from "../session/auth-client";
 import { AutoLock } from "../session/auto-lock";
 import { SessionManager } from "../session/session-manager";
@@ -29,7 +29,7 @@ async function setup(options: { pause?: boolean; verifyRecipient?: () => Promise
   transform?: (operation: SharedUnlockOperation) => SharedUnlockOperation | Promise<SharedUnlockOperation> } = {}) {
   const original = baseline.context;
   const masterKey = await randomBytes(32);
-  const member = await generateKeyPair();
+  const member = (await loadSodium()).crypto_box_keypair();
   const holder: { state: SharedUnlockSourceState } = { state: {
     preference: { sharedUnlockEnabled: true, revision: original.preferenceRevision }, sourceGeneration: original.extensionGeneration, failure: null,
     authorization: { authorizationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", sequence: 5,
@@ -75,7 +75,7 @@ async function setup(options: { pause?: boolean; verifyRecipient?: () => Promise
   // Establish a real own session independently of the source operation. The
   // authority snapshot stands in for already-tested Identity manual preparation.
   await (await manager.beginSharedUnlockInstall(original.accountId, apiUrl, () => {})).install({
-    keys: { masterKey, privateKey: member.privateKey },
+    keys: { masterKey, privateKey: member.privateKey, memberKeySuiteId: "test-member-key-suite" },
     tokens: { apiUrl, userId: original.accountId, accessToken: "own-source-access", refreshToken: "own-source-refresh" },
     material: { accountId: keyContext.accountId, encryptedPrivateKey: keyContext.encryptedPrivateKey,
       kdf: { securityVersion: keyContext.securityVersion, minimumSecurityVersion: keyContext.minimumSecurityVersion,
@@ -147,11 +147,8 @@ describe("Extension source transaction with real SDK and own SessionManager", ()
     const mk = await receiver.open(result.envelope, f.source.publicKey);
     const keys = await recoverSharedUnlockKeys(mk, result.operation.keyContext, result.operation.context.accountId,
       result.operation.context.keyContextDigest, () => {});
-    const wrapped = await sealVaultKey(f.member.privateKey); const vk = await unsealVaultKey(wrapped, f.member.privateKey);
-    const entry = await encryptEntry({ type: ENTRY_TYPE_KEY, value: "synthetic-source-test" }, vk); vk.fill(0);
-    const receivedVk = await unsealVaultKey(wrapped, keys.privateKey);
-    expect(await decryptEntry(entry, receivedVk)).toEqual({ type: ENTRY_TYPE_KEY, value: "synthetic-source-test" });
-    receivedVk.fill(0); keys.masterKey.fill(0); keys.privateKey.fill(0); receiver.dispose();
+    expect(keys.privateKey).toEqual(f.member.privateKey);
+    keys.masterKey.fill(0); keys.privateKey.fill(0); receiver.dispose();
     expect(f.manager.getKeys()).toBe(before); expect(f.manager.getSharedUnlockLimits()).toEqual(limits);
     expect(f.storage.values()).toEqual(persisted);
     f.routeAbort.abort(); f.source.cancel();
@@ -176,7 +173,7 @@ describe("Extension source transaction with real SDK and own SessionManager", ()
     });
   }
   it("rejects a self-consistent substituted member descriptor against the own private key", async () => {
-    const other = await generateKeyPair();
+    const other = (await loadSodium()).crypto_box_keypair();
     const f = await setup({ transform: async op => {
       const keyContext = { ...op.keyContext, publicKey: toBase64Url(other.publicKey),
         encryptedPrivateKey: toBase64Url(await encryptWithKey(other.privateKey, f.masterKey)) };

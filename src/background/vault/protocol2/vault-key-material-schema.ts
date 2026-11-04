@@ -1,3 +1,4 @@
+import { KEY_WRAPPER_PURPOSE, RECIPIENT_KEY_KIND } from '@palladin/crypto'
 import { z } from 'zod'
 
 export const canonicalUuidSchema = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
@@ -55,27 +56,17 @@ export function vaultEnvelopeSchema<T extends z.ZodType>(binding: T) {
 const vaultKeyBindingSchema = z.object({ wrappingVaultKeyVersion: u32Schema }).strict()
 const emptyBindingSchema = z.object({}).strict()
 
-const wrapperPurposeValues = {
-  memberVaultKey: 1,
-  agentDiscoveryVdk: 2,
-  reasonDek: 3,
-  grantDek: 4,
-} as const
-const recipientKeyKindValues = {
-  agentX25519: 1,
-  vaultMessageX25519: 4,
-  memberX25519: 5,
-} as const
+// Registry names map to the numeric descriptor; the algorithm travels only in
+// wrapperSuiteId and the key-wrapper registry decides what may be opened.
+const wrapperPurposeSchema = z.enum(Object.keys(KEY_WRAPPER_PURPOSE) as [keyof typeof KEY_WRAPPER_PURPOSE, ...(keyof typeof KEY_WRAPPER_PURPOSE)[]])
+  .transform((purpose) => KEY_WRAPPER_PURPOSE[purpose])
+const recipientKeyKindSchema = z.enum(Object.keys(RECIPIENT_KEY_KIND) as [keyof typeof RECIPIENT_KEY_KIND, ...(keyof typeof RECIPIENT_KEY_KIND)[]])
+  .transform((kind) => RECIPIENT_KEY_KIND[kind])
 
-const wrapperPurposeSchema = z.enum(Object.keys(wrapperPurposeValues) as [keyof typeof wrapperPurposeValues, ...(keyof typeof wrapperPurposeValues)[]])
-  .transform((purpose) => wrapperPurposeValues[purpose])
-const recipientKeyKindSchema = z.enum(Object.keys(recipientKeyKindValues) as [keyof typeof recipientKeyKindValues, ...(keyof typeof recipientKeyKindValues)[]])
-  .transform((kind) => recipientKeyKindValues[kind])
-
-export const x25519WrappedKeySchema = z.object({
+export const wrappedKeySchema = z.object({
   descriptor: z.object({
     protocolVersion: z.literal(2),
-    wrapperSuiteId: z.literal('palladin-x25519-sealed-box-v1'),
+    wrapperSuiteId: z.string().min(1),
     purpose: wrapperPurposeSchema,
     scope: envelopeScopeSchema,
     resourceRevision: canonicalU64Schema,
@@ -96,7 +87,7 @@ export const vaultDiscoveryKeyEnvelopeSchema = vaultEnvelopeSchema(vaultKeyBindi
 export const vaultPrivateKeyEnvelopeSchema = vaultEnvelopeSchema(vaultKeyBindingSchema)
   .refine((envelope) => envelope.descriptor.purpose === 3 || envelope.descriptor.purpose === 4,
     'Vault private key purpose mismatch')
-export const memberVaultKeyEnvelopeSchema = z.object({ wrappedVaultKey: x25519WrappedKeySchema }).strict()
+export const memberVaultKeyEnvelopeSchema = z.object({ wrappedVaultKey: wrappedKeySchema }).strict()
   .refine((envelope) => envelope.wrappedVaultKey.descriptor.purpose === 1,
     'Member Vault Key wrapper purpose mismatch')
 

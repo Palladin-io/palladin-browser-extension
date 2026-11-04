@@ -58,6 +58,7 @@ import {
   isRegisteredProfile,
   loadDeviceAccountSecret,
   MAXIMUM_SECURITY_VERSION,
+  memberKeySuiteForProfile,
   type AccountSecretDevice,
 } from "./identity-profile";
 import { SecretKeyEnrollment } from "./secret-key-enrollment";
@@ -877,7 +878,7 @@ export class SessionManager {
       this.assertLifecycleGeneration(generation);
       this.assertApiUrl(apiUrl);
 
-      const keys = { masterKey, privateKey };
+      const keys = { masterKey, privateKey, memberKeySuiteId: memberKeySuiteForProfile(identityProfileVersion(bootstrap)) };
       privateKey = null;
       handedToSession = true;
       this.tokens = tokens;

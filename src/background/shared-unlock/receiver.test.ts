@@ -8,8 +8,8 @@ import { sharedUnlockOperationSchema, type SharedUnlockOperationMessage } from "
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createSharedUnlockOffer, encodeSharedUnlockIdentityProof, encryptWithKey, fromBase64Url,
-  generateKeyPair, hashSharedUnlockKeyContext, hashSharedUnlockTranscript, loadSodium, randomBytes,
-  toBase64Url, sealVaultKey, unsealVaultKey, encryptEntry, decryptEntry, ENTRY_TYPE_KEY,
+  hashSharedUnlockKeyContext, hashSharedUnlockTranscript, loadSodium, randomBytes,
+  toBase64Url, KEY_WRAPPER_SUITE,
 } from "@palladin/crypto";
 import * as keyRecovery from "../../shared/crypto/shared-unlock-keys";
 import type { SessionKeys } from "../session/types";
@@ -84,7 +84,7 @@ async function setup(options: { confirmLocalLink?: SharedUnlockReceiverRoute["co
   const receiver = await beginSharedUnlockReceiver(route, manager, api, options.onInstalled);
   cancels.push(receiver.cancel, () => { void manager.lock(); });
   const masterKey = await randomBytes(32);
-  const member = await generateKeyPair();
+  const member = (await loadSodium()).crypto_box_keypair();
   const source = await createSharedUnlockOffer({ role: "source", assertCurrent: () => {} });
   const keyContext = { ...baseline.keyContext, publicKey: toBase64Url(member.publicKey),
     encryptedPrivateKey: toBase64Url(await encryptWithKey(member.privateKey, masterKey)) };
@@ -187,10 +187,6 @@ describe("Extension own receiver transaction with real crypto and session instal
 
   it("verifies both proofs and recovers a Member key while installing only its own session before ACK", async () => {
     const f = await setup();
-    const wrapped = await sealVaultKey(f.member.privateKey);
-    const vaultKey = await unsealVaultKey(wrapped, f.member.privateKey);
-    const sample = await encryptEntry({ type: ENTRY_TYPE_KEY, value: "synthetic-test-only" }, vaultKey);
-    vaultKey.fill(0);
     const result = await f.receiver.receive(f.input);
     expect(f.events).toEqual(["consume", "envelope", "commit"]);
     expect(f.ack).toHaveBeenCalledExactlyOnceWith({ operationId: result.operationId,
@@ -198,13 +194,11 @@ describe("Extension own receiver transaction with real crypto and session instal
     expect(Object.keys(result).sort()).toEqual(["authorizationId", "authorizationSequence", "operationId"]);
     expect(await f.manager.getStatus()).toBe("unlocked");
     expect(await f.manager.getAccessToken()).toBe(newSession.accessToken);
-    expect(f.manager.getKeys()).toEqual({ masterKey: f.masterKey, privateKey: f.member.privateKey });
+    expect(f.manager.getKeys()).toEqual({ masterKey: f.masterKey, privateKey: f.member.privateKey,
+      memberKeySuiteId: KEY_WRAPPER_SUITE.legacy });
     expect(f.manager.getSharedUnlockLimits()).toEqual({ unlockedAtMs: f.operation.context.unlockedAtMs,
       idleDeadlineMs: f.operation.context.idleDeadlineMs, absoluteDeadlineMs: f.operation.context.absoluteDeadlineMs,
       offlineDeadlineMs: f.operation.context.offlineDeadlineMs });
-    const recovered = await unsealVaultKey(wrapped, f.manager.getKeys()!.privateKey);
-    expect(await decryptEntry(sample, recovered)).toEqual({ type: ENTRY_TYPE_KEY, value: "synthetic-test-only" });
-    recovered.fill(0);
     const persisted = JSON.stringify(f.storage.values());
     for (const secret of [newSession.accessToken, newSession.refreshToken, toBase64Url(f.masterKey), toBase64Url(f.member.privateKey)]) expect(persisted).not.toContain(secret);
     f.receiver.cancel(); f.routeAbort.abort();

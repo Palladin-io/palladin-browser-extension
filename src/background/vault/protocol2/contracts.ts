@@ -1,3 +1,4 @@
+import { KEY_WRAPPER_SUITE } from '@palladin/crypto'
 import { z } from 'zod'
 import {
   canonicalU64Schema as canonicalU64,
@@ -76,7 +77,13 @@ const vaultPublicKeySchema = z.object({
   keyVersion: u32,
   encodedPublicKey: z.string().min(1),
   fingerprint: z.string().min(1),
+  keySuiteId: z.string().min(1).optional(),
 }).strict()
+
+/** recipient-key-publication v1: a Vault message key published without a suite is a read-only-suite key. */
+export function vaultAgentMessageKeySuiteId(vault: Pick<EncryptedVaultSummary, 'vaultAgentMessagePublicKey'>): string {
+  return vault.vaultAgentMessagePublicKey.keySuiteId ?? KEY_WRAPPER_SUITE.legacy
+}
 
 export const encryptedVaultSummarySchema = z.object({
   ...encryptedVaultSummaryShape,

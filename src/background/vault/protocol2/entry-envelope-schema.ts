@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { envelopeDescriptorSchema, vaultEnvelopeSchema, x25519WrappedKeySchema } from './vault-key-material-schema'
+import { envelopeDescriptorSchema, vaultEnvelopeSchema, wrappedKeySchema } from './vault-key-material-schema'
 
 const emptyBindingSchema = z.object({}).strict()
 const vaultKeyBindingSchema = z.object({ wrappingVaultKeyVersion: z.number().int().min(0).max(0xffffffff) }).strict()
@@ -22,7 +22,7 @@ export const agentDiscoveryEnvelopeSchema = purposeBoundEnvelope(emptyBindingSch
 export const vaultEntryKeyEnvelopeSchema = purposeBoundEnvelope(vaultKeyBindingSchema, 8)
 
 const reasonEnvelopeBindingSchema = z.object({
-  wrapperSuiteId: z.literal('palladin-x25519-sealed-box-v1'),
+  wrapperSuiteId: z.string().min(1),
   recipientKeyVersion: z.number().int().positive().max(0xffffffff),
   recipientKeyFingerprint: z.string().min(1),
   requestedMethods: z.number().int().min(1).max(0xffff),
@@ -31,7 +31,7 @@ const reasonEnvelopeBindingSchema = z.object({
 export const encryptedReasonEnvelopeSchema = z.object({
   descriptor: envelopeDescriptorSchema(reasonEnvelopeBindingSchema),
   encodedSuitePayload: z.string().min(1),
-  wrappedReasonDek: x25519WrappedKeySchema,
+  wrappedReasonDek: wrappedKeySchema,
   agentSignature: z.string().min(1),
 }).strict().superRefine((envelope, context) => {
   if (envelope.descriptor.purpose !== 9 || envelope.wrappedReasonDek.descriptor.purpose !== 3) {
@@ -41,7 +41,7 @@ export const encryptedReasonEnvelopeSchema = z.object({
 
 export const grantEnvelopeBindingSchema = z.object({
   entryRevision: z.string().regex(/^(0|[1-9][0-9]{0,19})$/),
-  wrapperSuiteId: z.literal('palladin-x25519-sealed-box-v1'),
+  wrapperSuiteId: z.string().min(1),
   recipientKeyVersion: z.number().int().min(0).max(0xffffffff),
   recipientKeyFingerprint: z.string().min(1),
   approvedMethods: z.number().int().min(0).max(0xffff),
@@ -53,7 +53,7 @@ export const grantEnvelopeBindingSchema = z.object({
 export const grantEntryEnvelopeSchema = z.object({
   descriptor: envelopeDescriptorSchema(grantEnvelopeBindingSchema),
   encodedSuitePayload: z.string().min(1),
-  wrappedGrantDek: x25519WrappedKeySchema,
+  wrappedGrantDek: wrappedKeySchema,
   fieldIds: z.array(z.string().min(1)).min(1),
 }).strict().superRefine((envelope, context) => {
   if (envelope.descriptor.purpose !== 10 || envelope.wrappedGrantDek.descriptor.purpose !== 4) {

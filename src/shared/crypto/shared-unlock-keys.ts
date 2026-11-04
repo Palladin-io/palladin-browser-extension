@@ -1,6 +1,6 @@
 import {
   assertIdentityKdfProfile, decryptWithKey, fromBase64Url, getCryptoProvider,
-  hashSharedUnlockKeyContext, IDENTITY_KDF_PROFILE, toBase64Url, wipe,
+  hashSharedUnlockKeyContext, IDENTITY_KDF_PROFILE, KEY_WRAPPER_SUITE, toBase64Url, wipe,
   type SharedUnlockKeyContext,
 } from "@palladin/crypto";
 import type { SessionKeys } from "../../background/session/types";
@@ -44,7 +44,8 @@ export async function recoverSharedUnlockKeys(
     if (toBase64Url(publicKey) !== context.publicKey) throw new Error("Shared unlock member key binding failed");
     assertCurrent();
     recovered = true;
-    return { masterKey, privateKey };
+    // Shared unlock carries only security version 1 keys (a read-only-suite member key).
+    return { masterKey, privateKey, memberKeySuiteId: KEY_WRAPPER_SUITE.legacy };
   } finally {
     if (ciphertext) wipe(ciphertext);
     if (publicKey) wipe(publicKey);

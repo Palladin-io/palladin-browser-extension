@@ -75,7 +75,7 @@
             "resourceRevision": "3",
             "wrappedKeyVersion": 3,
             "memberKeyGeneration": 4,
-            "recipientKeyKind": "memberX25519",
+            "recipientKeyKind": "memberEncryption",
             "recipientKeyVersion": 2,
             "recipientFingerprint": "kMtix1fwHouJJYm3dfCyTe28XAG7lT3aYS18rqPZKBM",
             "parentDescriptorHash": null
