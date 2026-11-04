@@ -1204,6 +1204,10 @@ html[data-extension-surface='side-panel'] .popup-header {
   margin-top: 8px;
 }
 
+.detail-fields.sign-in-card { margin-top: 16px; }
+.detail-field.sign-in-method { flex-wrap: wrap; }
+.sign-in-method-form { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.sign-in-method .workspace-actions { flex-wrap: wrap; }
 /* Shared panel component treatment, adapted to the native popup density. */
 .popup-header::before, .vault-footer::before { content: none; }
 .popup-header { background: linear-gradient(110deg, color-mix(in srgb, var(--cv-t3) 4%, var(--cv-surface)), var(--cv-surface)); }

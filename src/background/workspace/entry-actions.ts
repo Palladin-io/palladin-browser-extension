@@ -32,6 +32,19 @@ import type { Protocol2VaultClient } from '../vault/protocol2/client';
 import type { VaultKeyEpochFloor } from '../vault/protocol2/key-epoch-floor';
 import type { Protocol2VaultDataService, Protocol2SessionAccessor } from '../vault/protocol2/service';
 import { WorkspaceError, type WorkspaceOperation } from './service';
+import { normalizeSignInAccount, readSignInBinding, type SignInBinding } from '../../shared/signin/binding';
+import { SIGN_IN_FIELD_LABELS } from '../signin/coordinator';
+import type { EntrySignInView } from '../../shared/workspace/commands';
+
+function signInView(secret: currentVaultPlaintext.MemberSecretV1): EntrySignInView {
+  if (secret.entryType !== 'credential') return { status: 'unsupported' };
+  const state = readSignInBinding(secret);
+  return state.status === 'recognized'
+    ? { status: 'recognized', provider: state.binding.provider, account: state.binding.account,
+      linked: state.binding.entry !== null,
+      agentVisible: secret.discoverable && secret.agentFieldAccess[state.fieldId] === 'discovery' }
+    : { status: state.status };
+}
 
 interface PendingShare {
   scope: string;
@@ -50,6 +63,8 @@ export class EntryActions {
       data: Pick<Protocol2VaultDataService, 'revealCurrentEntry'>;
       keyEpochFloor: VaultKeyEpochFloor;
       webUrl(): string;
+      setSignIn?(vaultId: string, entryId: string, binding: Omit<SignInBinding, 'entry'> | null, label: string,
+        stillAuthorized: () => Promise<boolean>): Promise<unknown>;
     },
   ) {}
   clear(): void {
@@ -111,6 +126,16 @@ export class EntryActions {
       this.pendingShares.delete(command.operationId);
       return { ok: true, data: null };
     }
+    if (command.type === 'workspace/sign-in') {
+      if (!this.deps.setSignIn) throw new WorkspaceError('invalid');
+      operation.assertCurrent();
+      const binding = command.binding === null ? null
+        : { provider: command.binding.provider, account: normalizeSignInAccount(command.binding.account) };
+      await this.deps.setSignIn(command.vaultId, command.entryId, binding, SIGN_IN_FIELD_LABELS[command.locale],
+        async () => { operation.assertCurrent(); return true; });
+      operation.assertCurrent();
+      return { ok: true, data: null };
+    }
     if (
       command.type !== 'workspace/detail' &&
       command.type !== 'workspace/field' &&
@@ -136,7 +161,10 @@ export class EntryActions {
       const fields = entryShareFields(secret).fields;
       if (command.type === 'workspace/detail') return {
         ok: true,
-        data: { fields: fields.map(field => ({ ...field, value: field.type === 'concealed' || field.type === 'totp' ? null : field.value })) },
+        data: {
+          fields: fields.map(field => ({ ...field, value: field.type === 'concealed' || field.type === 'totp' ? null : field.value })),
+          signIn: signInView(secret),
+        },
       };
       const field = fields.find(field => field.id === command.fieldId);
       if (!field) throw new WorkspaceError('invalid');

@@ -45,6 +45,8 @@ import { isGeneratePasswordCommand } from '@shared/messaging/capture';
 import { handleGeneratePassword } from './capture/runtime';
 import { handleCaptureSettings } from "./capture/settings-runtime";
 import { credentialCaptureCoordinator, credentialCaptureSource } from "./capture/credential-runtime";
+import { isFederatedSignInCommand } from "@shared/messaging/federated-signin";
+import { federatedSignIn, federatedSignInSource } from "./signin/runtime";
 
 import { startChromiumSharedUnlockBrowser } from "./shared-unlock/chromium-browser";
 import { startFirefoxSharedUnlockBrowser } from "./shared-unlock/firefox-browser";
@@ -305,6 +307,10 @@ chrome.runtime.onConnect.addListener((port) => {
     if (typeof port.sender?.url === "string") credentialCaptureCoordinator.documentConnected(
       port.sender.tab!.id!, port.sender.documentId!, port.sender.url,
     );
+    // Browser-authored top-frame URL and opener only; no page-provided value.
+    if (typeof port.sender?.url === "string" && port.sender.tab?.incognito !== true) federatedSignIn.documentConnected(
+      port.sender.tab!.id!, port.sender.url, port.sender.tab!.openerTabId,
+    );
   }
 
   port.onMessage.addListener((raw) => {
@@ -365,6 +371,33 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => credentialCaptureCoordinator.clearTab(tabId));
+chrome.tabs.onRemoved.addListener((tabId) => federatedSignIn.tabRemoved(tabId));
+
+chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
+  if (!isFederatedSignInCommand(raw)) return false;
+  const source = federatedSignInSource(raw, sender);
+  if (source === null || sender.tab?.incognito === true) { sendResponse({ status: "stale" }); return false; }
+  if (raw.type === "unlock") {
+    if (sender.tab?.windowId === undefined) { sendResponse({ status: "unavailable" }); return false; }
+    void openSidePanel(undefined, undefined, sender.tab.windowId)
+      .then((opened) => sendResponse({ status: opened ? "accepted" : "unavailable" }))
+      .catch(() => sendResponse({ status: "unavailable" }));
+    return true;
+  }
+  void (async () => {
+    await initializeServerConfig();
+    const lease = serverOperations.tryAcquire();
+    if (lease === null) { sendResponse({ status: "unavailable" }); return; }
+    try {
+      const result = await federatedSignIn.dispatch(raw, source);
+      sendResponse(result);
+      if (result.status === "saved") publishSurfaceState(vaultChanged());
+    } catch { sendResponse({ status: "unavailable" }); }
+    finally { lease.release(); }
+  })();
+  return true;
+});
+
 chrome.tabs.onRemoved.addListener((tabId) => { publishSecretCaptureInvalidation(secretCaptureCoordinator.removedTab(tabId)); secretCaptureFrames.clearTab(tabId); });
 chrome.tabs.onUpdated.addListener((tabId, change) => {
   // Loading also describes unrelated child-frame navigation; document Ports bind teardown.
@@ -449,6 +482,10 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
         getMetadata: () => vaultData.getMetadata(),
         loadIcon: (icon) => loadInlineIcon(serverConfig.apiUrl, icon),
         recency: inlineAutofillRecency,
+        signIn: {
+          preferred: (tabId, url, candidates) => federatedSignIn.preferredProviderEntry(tabId, url, candidates),
+          filled: (tabId, url, entry, intent) => federatedSignIn.providerFilled(tabId, url, entry, intent),
+        },
         fill: async (source, vaultId, entryId, scope, loginTargetId, intent) => {
           // This channel includes passive exact-host autofill. A fill request
           // is not trusted own activity and must never renew session deadlines.
