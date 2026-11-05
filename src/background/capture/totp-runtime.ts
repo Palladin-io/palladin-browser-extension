@@ -64,6 +64,8 @@ export async function handleTotpPopup(command: TotpPopupCommand) {
     const found: unknown = await chrome.tabs.sendMessage(tab.id, { channel: TOTP_CAPTURE_CHANNEL, type: 'scan-page' }, { frameId: 0 });
     if (found === 'ambiguous') return { status: 'ambiguous' as const };
     if (found !== 'found') return { status: 'empty' as const };
-    return totpCaptureCoordinator.review();
+    const review = await totpCaptureCoordinator.review(command.entry, tab.id);
+    void chrome.runtime.sendMessage({ type: 'totp-capture/available' }).catch(() => undefined);
+    return review;
   } catch { return { status: 'empty' as const }; }
 }

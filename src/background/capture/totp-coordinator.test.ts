@@ -168,3 +168,21 @@ it('retains cancellation when an in-flight source verification fails afterward',
   await c.dismiss(candidate.id); release(false); expect(await saving).toEqual({ status: 'stale' });
   expect(await c.observe(uri, source)).toEqual({ status: 'dismissed' }); c.clear();
 });
+
+it('retains manual Entry binding across repeated review and rejects previously offered targets', async () => {
+  const save = vi.fn(async () => ({}));
+  const c = new TotpCaptureCoordinator({ session: async () => ({ profileId: 'user', generation: 1, unlocked: true }), current: async () => true,
+    sourceMatches: async () => true, activeTabId: async () => 1, choices: async () => [target, { ...target, entryId: 'other' }], save });
+  await c.observe(uri, source);
+  const passive = await c.review(); if (passive.status !== 'ready') throw Error('missing');
+  const other = passive.targets.find(item => item.entryId === 'other')!;
+  await c.review({ vaultId: 'vault', id: 'entry' }, 1);
+  const reopened = await c.review();
+  expect(reopened).toMatchObject({ entryScope: { vaultId: 'vault', id: 'entry' }, targets: [{ entryId: 'entry' }] });
+  expect(await c.save(passive.id, other.id, true)).toEqual({ status: 'stale' });
+  expect(save).not.toHaveBeenCalled();
+  await c.review({ vaultId: 'wrong-vault', id: 'entry' }, 1);
+  expect(await c.review()).toMatchObject({ targets: [] });
+  expect(await c.save(passive.id, passive.targets[0]!.id, true)).toEqual({ status: 'stale' });
+  c.clear();
+});

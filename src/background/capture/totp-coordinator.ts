@@ -1,3 +1,4 @@
+import type { TotpEntryRef } from '@shared/messaging/totp-capture';
 import { capturedTotpIdentity, parseCapturedTotp } from '@shared/totp-capture';
 import type { CapturedTotp, TotpWriteTarget } from '../vault/protocol2/credential-writer';
 import type { SecretCaptureSource } from './secret-coordinator';
@@ -15,6 +16,7 @@ interface Deps {
   createId?: () => string;
 }
 interface Pending {
+  entryScope: TotpEntryRef | null;
   id: string; source: SecretCaptureSource; session: Session; totp: CapturedTotp; expires: number;
   targets: Map<string, TotpWriteTarget>; loaded: boolean; loading: Promise<boolean> | null; saving: boolean; dismissed: boolean;
 }
@@ -52,7 +54,7 @@ export class TotpCaptureCoordinator {
     }
     if (this.pending.size >= 8 && !existing) this.clearTab(this.pending.keys().next().value!);
     this.clearTab(source.tabId);
-    const pending: Pending = { id: this.createId(), source, session, totp, expires: this.now() + 180_000, targets: new Map(), loaded: false, loading: null, saving: false, dismissed: false };
+    const pending: Pending = { entryScope: null, id: this.createId(), source, session, totp, expires: this.now() + 180_000, targets: new Map(), loaded: false, loading: null, saving: false, dismissed: false };
     this.pending.set(source.tabId, pending);
     const tabId = source.tabId, id = pending.id;
     this.timers.set(tabId, setTimeout(() => { if (this.pending.get(tabId)?.id === id) { this.clearTab(tabId); this.deps.invalidated?.(); } }, 180_000));
@@ -64,9 +66,13 @@ export class TotpCaptureCoordinator {
       && session.profileId === p.session.profileId && session.generation === p.session.generation
       && await this.deps.current(p.source) && this.pending.get(p.source.tabId) === p && !p.dismissed;
   }
-  async review() {
+  async review(entryScope?: TotpEntryRef, expectedTabId?: number) {
     const tab = await this.deps.activeTabId(); const p = tab === null ? undefined : this.pending.get(tab);
-    if (!p || !(await this.valid(p))) return { status: 'empty' as const };
+    if (!p || expectedTabId !== undefined && tab !== expectedTabId || !(await this.valid(p))) return { status: 'empty' as const };
+    if (entryScope) {
+      if (p.saving) return { status: 'empty' as const };
+      p.entryScope = { ...entryScope };
+    }
     if (!p.loaded) {
       if (!p.loading) p.loading = (async () => {
         const targets = await this.deps.choices(p.source.url);
@@ -77,17 +83,20 @@ export class TotpCaptureCoordinator {
       try { if (!(await p.loading)) return { status: 'empty' as const }; }
       finally { p.loading = null; }
     }
-    const targets = [...p.targets].map(([id, target]) => ({ id, action: target.action, label: target.label,
+    const targets = [...p.targets].filter(([, target]) => this.matchesEntry(p, target)).map(([id, target]) => ({ id, action: target.action, label: target.label,
       vaultLabel: target.vaultLabel, vaultId: target.vaultId, entryId: target.action === 'update' ? target.entryId : null, hasTotp: target.action === 'update' && target.hasTotp }));
     const updates = targets.filter(target => target.action === 'update');
-    return { status: 'ready' as const, id: p.id, origin: new URL(p.source.url).origin,
+    return { status: 'ready' as const, entryScope: p.entryScope, id: p.id, origin: new URL(p.source.url).origin,
       issuer: safeHint(p.totp.issuer, p.totp.secret), account: safeHint(p.totp.account, p.totp.secret), targets, defaultTargetId: updates.length === 1 ? updates[0]!.id : null };
+  }
+  private matchesEntry(p: Pending, target: TotpWriteTarget): boolean {
+    return !p.entryScope || target.action === 'update' && target.vaultId === p.entryScope.vaultId && target.entryId === p.entryScope.id;
   }
   async save(id: string, targetId: string, replace: boolean, create?: { label: string; username: string }) {
     const tab = await this.deps.activeTabId(); const p = tab === null ? undefined : this.pending.get(tab);
     if (!p || p.id !== id || !(await this.valid(p))) return { status: 'stale' as const };
     const target = p.targets.get(targetId);
-    if (!target || !p.loaded || p.saving) return { status: 'stale' as const };
+    if (!target || !this.matchesEntry(p, target) || !p.loaded || p.saving) return { status: 'stale' as const };
     if (target.action === 'update' && target.hasTotp && !replace) return { status: 'confirmation-required' as const };
     if (target.action === 'create' && (!create || !create.label.trim() || create.label.length > 512 || create.username.length > 512)) return { status: 'invalid' as const };
     p.saving = true;

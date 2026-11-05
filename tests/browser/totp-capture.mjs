@@ -88,14 +88,16 @@ try {
   await popup.click('Cancel'); await new Promise(resolve => setTimeout(resolve, 5_500))
   assert((await worker.evaluate(() => globalThis.syntheticTotpObservations)) > observationsBeforeCancel, 'canvas poll actually ran after Cancel')
   assert.equal(await popup.hasText('Save authenticator'), false, 'Cancel suppresses unchanged canvas proposal')
-  await popup.click('Scan QR on page'); await popup.waitText('Save authenticator')
+  await popup.click('Scan QR on page');
+  await wait(async () => Boolean(await popup.inputValue('.entry-detail section[aria-label="Save authenticator"] select')), 'Entry-scoped scan review ready')
   await popup.click('Replace existing authenticator', 'checkbox')
 
   await page.evaluate(() => { document.querySelector('canvas').getContext('2d').drawImage(globalThis.syntheticQrImages[1], 0, 0) })
   await popup.click('Save authenticator')
   await new Promise(resolve => setTimeout(resolve, 7_000)) // Outlast the icon resolver and its timeout before asserting no mutation.
   assert.equal(api.writes.length, 2, 'pixel-only canvas change blocks stale save')
-  await popup.click('Scan QR on page'); await popup.waitText('Save authenticator')
+  await popup.click('Scan QR on page');
+  await wait(async () => Boolean(await popup.inputValue('.entry-detail section[aria-label="Save authenticator"] select')), 'Entry-scoped scan review ready')
   await popup.click('Replace existing authenticator', 'checkbox')
   await popup.click('Save authenticator'); await wait(() => api.writes.length === 3, 'unchanged current canvas can save')
   const canvasSaved = await api.decrypt(api.writes[2]); assert.equal(canvasSaved.content.totp.secret, seed)

@@ -62,18 +62,21 @@ export function TotpCaptureSurface({ revision, entry }: { revision: number; entr
     return () => { active = false; mounted.current = false; sequence.current++; runtime.onMessage.removeListener(listener); };
   }, [revision]);
   async function scan() {
+    if (!entry) return;
     const request = ++sequence.current; setScanning(true); setEmpty(false); setAmbiguous(false);
-    try { const result = await sendDefault({ channel: TOTP_CAPTURE_CHANNEL, type: 'scan' });
+    try { const result = await sendDefault({ channel: TOTP_CAPTURE_CHANNEL, type: 'scan', entry: { id: entry.id, vaultId: entry.vaultId } });
       if (!mounted.current) return;
       if (request === sequence.current) setReview(result.status === 'ready' ? result : null);
       setAmbiguous(result.status === 'ambiguous'); setEmpty(result.status !== 'ready' && result.status !== 'ambiguous');
     } catch { if (mounted.current) setEmpty(true); } finally { if (mounted.current) setScanning(false); }
   }
-  const targets = review?.targets.filter(target => !entry || target.action === 'update' && target.entryId === entry.id && target.vaultId === entry.vaultId);
-  const scopedReview = review && targets?.length ? { ...review, targets, defaultTargetId: entry ? targets[0]!.id : review.defaultTargetId } : null;
+  const visibleReview = review && (entry
+    ? review.entryScope?.id === entry.id && review.entryScope.vaultId === entry.vaultId
+    : !review.entryScope) ? review : null;
+  const scopedReview = visibleReview?.targets.length ? visibleReview : null;
   return <>{scopedReview ? <TotpCapturePrompt key={scopedReview.id} review={scopedReview} onDone={() => setReview(null)} /> : null}
     {entry ? <button className="detail-link" disabled={scanning} onClick={() => void scan()}><PopupIcon name="qr" />{t('totpCapture.scan')}<PopupIcon name="chevron" /></button> : null}
-    {entry && review && !scopedReview ? <p role="status">{t('totpCapture.entryUnavailable')}</p> : null}
+    {entry && visibleReview && !scopedReview ? <p role="status">{t('totpCapture.entryUnavailable')}</p> : null}
     {empty ? <p role="status">{t('totpCapture.noResult')}</p> : null}
     {ambiguous ? <p role="status">{t('totpCapture.ambiguous')}</p> : null}</>;
 }

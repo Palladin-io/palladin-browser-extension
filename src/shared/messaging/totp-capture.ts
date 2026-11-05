@@ -1,10 +1,11 @@
 import type { CapturedTotpIdentityFields } from '@shared/totp-capture';
 export const TOTP_CAPTURE_CHANNEL = 'palladin.totp-capture' as const;
+export interface TotpEntryRef { id: string; vaultId: string }
 type Base = { channel: typeof TOTP_CAPTURE_CHANNEL };
 export type TotpContentCommand = Base & { documentId: string } & (
   | { type: 'observe'; uri: string; sequence: number; manual: boolean } | { type: 'open'; id: string } | { type: 'invalidate'; sequence: number } | { type: 'advance'; sequence: number });
 export type TotpPopupCommand = Base & (
-  | { type: 'get' | 'scan' } | { type: 'dismiss'; id: string }
+  | { type: 'get' } | { type: 'scan'; entry: TotpEntryRef } | { type: 'dismiss'; id: string }
   | { type: 'save'; id: string; targetId: string; replace: boolean; create?: { label: string; username: string } });
 function record(x: unknown): x is Record<string, unknown> { return !!x && typeof x === 'object' && !Array.isArray(x); }
 function only(x: Record<string, unknown>, keys: string[]): boolean { return Object.keys(x).every(key => keys.includes(key)); }
@@ -19,7 +20,8 @@ export function isTotpContentCommand(x: unknown): x is TotpContentCommand {
 export function isTotpPopupCommand(x: unknown): x is TotpPopupCommand {
   if (!record(x) || x.channel !== TOTP_CAPTURE_CHANNEL) return false;
   const keys = ['channel', 'type'];
-  if (x.type === 'get' || x.type === 'scan') return only(x, keys);
+  if (x.type === 'get') return only(x, keys);
+  if (x.type === 'scan') return only(x, [...keys, 'entry']) && record(x.entry) && only(x.entry, ['id', 'vaultId']) && bounded(x.entry.id, 128) && bounded(x.entry.vaultId, 128);
   if (x.type === 'dismiss') return only(x, [...keys, 'id']) && bounded(x.id, 128);
   if (x.type !== 'save' || !only(x, [...keys, 'id', 'targetId', 'replace', 'create']) || !bounded(x.id, 128)
     || !bounded(x.targetId, 128) || typeof x.replace !== 'boolean') return false;

@@ -156,7 +156,7 @@ function UnlockedContent({
           <PopupIcon name="plus" />
         </button>
       </Header>
-      {view !== 'vault' || current?.type !== 1 ? <TotpCaptureSurface revision={viewRevision} /> : null}
+      <TotpCaptureSurface revision={viewRevision} />
       {secretCapture ? <SecretCapturePrompt key={secretCapture.id} review={secretCapture} client={client} onDone={clearSecretCapture} /> : null}
       <h2 className="sr-only">{t('vault.title')}</h2>
       {capture.prompt !== null && view === 'vault' ? (
