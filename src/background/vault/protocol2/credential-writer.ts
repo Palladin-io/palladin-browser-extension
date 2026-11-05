@@ -16,7 +16,7 @@ import {
 } from '@palladin/crypto'
 type MemberSecretV1 = currentVaultPlaintext.MemberSecretV1
 import { matchesTab } from '@shared/security/domain'
-import { readSignInBinding, sameSignInAccount, withSignInBinding, type SignInBinding, type SignInBindingState } from '@shared/signin/binding'
+import { readSignInMethods, mutateSignInMethod, sameSignInAccount, withSignInBinding, type SignInBinding, type SignInBindingState } from '@shared/signin/binding'
 import type { SubmittedCredential } from '@shared/messaging/credential-capture'
 import type { CredentialCaptureChoices, CredentialWriteTarget } from '../../capture/credential-coordinator'
 import { ENTRY_TYPE_CREDENTIAL } from '../entry-metadata'
@@ -236,9 +236,9 @@ export class Protocol2CredentialWriter {
             secret = await this.openCredential(detail, vault, entry.id, opened.vaultKey, url)
           } catch { continue /* One inconsistent Entry must not hide the others. */ }
           if (secret.entryType !== 'credential') continue
-          result.credentials.push({ vaultId: vault.id, entryId: entry.id, revision: detail.currentRevision,
+          for (const signIn of methodStates(secret)) result.credentials.push({ vaultId: vault.id, entryId: entry.id, revision: detail.currentRevision,
             label: secret.memberLabel, username: secret.content.username, vaultLabel: opened.metadata.name,
-            signIn: readSignInBinding(secret) })
+            signIn })
         }
       } finally { wipe(opened.vaultKey) }
     }
@@ -303,14 +303,14 @@ export class Protocol2CredentialWriter {
    */
   async setEntrySignIn(
     vaultId: string, entryId: string, edit: Omit<SignInBinding, 'entry'> | null, label: string,
-    stillAuthorized: () => Promise<boolean>,
+    stillAuthorized: () => Promise<boolean>, fieldId: string | null = null, agentVisible?: boolean,
   ): Promise<{ revision: string }> {
     return { revision: await this.mutateCredential(vaultId, entryId, null, null, (secret) => {
-      if (edit === null) return withSignInBinding(secret, null, label)
-      const previous = readSignInBinding(secret)
-      const entry = previous.status === 'recognized' && previous.binding.provider === edit.provider
+      if (edit === null) return mutateSignInMethod(secret, fieldId, null, label)
+      const previous = readSignInMethods(secret).find(method => method.id === fieldId)
+      const entry = previous && previous.binding.provider === edit.provider
         && sameSignInAccount(previous.binding.account, edit.account) ? previous.binding.entry : null
-      return withSignInBinding(secret, { ...edit, entry }, label)
+      return mutateSignInMethod(secret, fieldId, { ...edit, entry }, label, agentVisible)
     }, stillAuthorized) }
   }
 
@@ -485,4 +485,9 @@ function methodsMask(methods: string | null): number {
   const names = methods?.toLowerCase().split(',').map((name) => name.trim()) ?? []
   if (!names.length || names.some((name) => bits[name] === undefined)) throw new Error('Unsupported grant methods')
   return names.reduce((mask, name) => mask | bits[name]!, 0)
+}
+
+function methodStates(secret: MemberSecretV1): SignInBindingState[] {
+ const methods = readSignInMethods(secret);
+ return methods.length ? methods.map(method => ({ status: 'recognized' as const, fieldId: method.id, binding: method.binding })) : [{ status: 'absent' }];
 }

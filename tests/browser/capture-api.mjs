@@ -209,6 +209,22 @@ export async function createCaptureApi({ workspaceHandler } = {}) {
       accept(vault, { ...material, entryId, deliveryPolicy: 'standard' })
       return { vaultId: vault.detail.id, entryId }
     },
+    async decryptDiscovery(write) {
+      const vault = vaults.find(({ detail }) => detail.id === write.vaultId)
+      const entry = vault.entries.get(write.entryId)
+      assert(entry.agentDiscovery, 'Expected encrypted AgentDiscovery')
+      const { resourceRevision, ...descriptor } = crypto.toEnvelopeDescriptor(entry.agentDiscovery.descriptor)
+      void resourceRevision
+      const key = await crypto.deriveVaultSubkey(vault.discoveryKey, descriptor)
+      let plaintext
+      try {
+        plaintext = await crypto.openVaultEnvelope(entry.agentDiscovery, key)
+        return crypto.parseAgentDiscovery(plaintext)
+      } finally {
+        crypto.wipe(key)
+        if (plaintext) crypto.wipe(plaintext)
+      }
+    },
     async decrypt(write) {
       const vault = vaults.find(({ detail }) => detail.id === write.vaultId)
       const entry = vault.entries.get(write.entryId)

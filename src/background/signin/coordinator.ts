@@ -433,14 +433,14 @@ export class FederatedSignInCoordinator {
     // Create targets come first in the budget so a new record is always possible; updates fill the rest.
     const createVaults = targets.vaults.slice(0, MAX_CREATE_TARGETS);
     const updateBudget = MAX_SIGN_IN_PROMPT_TARGETS - createVaults.length;
-    for (const credential of (targets.writable ? targets.credentials : []).slice(0, updateBudget)) {
+    const uniqueTargets = targets.credentials.filter((candidate, index, all) => all.findIndex(other => other.vaultId === candidate.vaultId && other.entryId === candidate.entryId) === index);
+    for (const credential of (targets.writable ? uniqueTargets : []).slice(0, updateBudget)) {
       if (credential.signIn.status === 'unrecognized' || credential.signIn.status === 'ambiguous') continue;
       const id = this.createId();
       targetMap.set(id, { action: 'update', vaultId: credential.vaultId, entryId: credential.entryId, revision: credential.revision });
       targetViews.push({ id, action: 'update', vaultLabel: credential.vaultLabel,
         label: credential.username ? `${credential.label} (${credential.username})` : credential.label,
-        current: credential.signIn.status === 'recognized'
-          ? { provider: credential.signIn.binding.provider, account: credential.signIn.binding.account } : null });
+        current: null });
     }
     let defaultTargetId: string | null = null;
     for (const vault of createVaults) {
@@ -449,10 +449,6 @@ export class FederatedSignInCoordinator {
       targetViews.push({ id, action: 'create', label: site, vaultLabel: vault.label, current: null });
       // Preselect only when it is the single possible destination; otherwise the user picks the Vault.
       if (createVaults.length === 1 && targets.credentials.length === 0) defaultTargetId = id;
-    }
-    const sameProvider = targetViews.filter((target) => target.current?.provider === provider);
-    if (sameProvider.length === 1 && preferred !== null && sameSignInAccount(sameProvider[0]!.current!.account, null)) {
-      defaultTargetId = sameProvider[0]!.id;
     }
     const view: SignInPrompt = { id: this.createId(), site, provider, state: 'ready', accounts: accountViews,
       targets: targetViews, defaultAccountId, defaultTargetId };

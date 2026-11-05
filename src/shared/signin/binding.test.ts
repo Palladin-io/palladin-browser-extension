@@ -1,6 +1,6 @@
 import { currentVaultPlaintext } from '@palladin/crypto';
 import { describe, expect, it } from 'vitest';
-import { readSignInBinding, sameSignInAccount, SIGN_IN_FIELD_TYPE, withSignInBinding } from './binding';
+import { readSignInBinding, sameSignInAccount, SIGN_IN_FIELD_TYPE, withSignInBinding, mutateSignInMethod } from './binding';
 import {
   classifyProviderUrl,
   isAuthorizationErrorReturn,
@@ -36,13 +36,13 @@ describe('palladin.signin.v1 binding', () => {
       'Sign-in method', nextId());
     const parsed = currentVaultPlaintext.parseMemberSecret(currentVaultPlaintext.encodeMemberSecret(next));
     expect(parsed.content.customFields).toEqual([{ id: `custom:${ids[0]}`, label: 'Sign-in method',
-      type: SIGN_IN_FIELD_TYPE, value: { provider: 'google', account: 'alice@example.com', entry: providerEntry } }]);
+      type: 'palladin.signin.v2', value: { provider: 'google', account: 'alice@example.com', entry: providerEntry } }]);
     expect(parsed.agentFieldAccess[`custom:${ids[0]}`]).toBe('discovery');
     expect(readSignInBinding(parsed)).toEqual({ status: 'recognized', fieldId: `custom:${ids[0]}`,
       binding: { provider: 'google', account: 'alice@example.com', entry: providerEntry } });
     const discovery = currentVaultPlaintext.projectAgentDiscovery(parsed)!;
-    expect(JSON.parse(discovery.fields.find((field) => field.id === 'signIn')!.value))
-      .toEqual({ schema: SIGN_IN_FIELD_TYPE, provider: 'google', entry: providerEntry });
+    expect(JSON.parse(discovery.fields.find((field) => field.id === 'signInMethods')!.value))
+      .toEqual({ schema: 'palladin.signin.v2', methods: [{ id: `custom:${ids[0]}`, provider: 'google', entry: providerEntry }] });
     expect(JSON.stringify(discovery)).not.toContain('alice@example.com');
     expect(JSON.stringify(currentVaultPlaintext.projectMemberIndex(parsed))).not.toContain('alice@example.com');
     expect(currentVaultPlaintext.listGrantableFieldIds(parsed)).not.toContain(`custom:${ids[0]}`);
@@ -57,8 +57,8 @@ describe('palladin.signin.v1 binding', () => {
 
     const visible = withSignInBinding(credential(), { provider: 'apple', account: null, entry: null }, 'Sign-in method', () => ids[0]!);
     const restricted = { ...visible, agentFieldAccess: { ...visible.agentFieldAccess, [`custom:${ids[0]}`]: 'never' as const } };
-    const replaced = withSignInBinding(restricted, { provider: 'github', account: 'octo', entry: null }, 'Sign-in method', () => ids[1]!);
-    expect(replaced.agentFieldAccess[`custom:${ids[1]}`]).toBe('never');
+    const replaced = mutateSignInMethod(restricted, `custom:${ids[0]}`, { provider: 'github', account: 'octo', entry: null }, 'Sign-in method');
+    expect(replaced.agentFieldAccess[`custom:${ids[0]}`]).toBe('never');
   });
 
   it('the shared policy rejects granting a sign-in field to Agents', () => {
@@ -71,11 +71,11 @@ describe('palladin.signin.v1 binding', () => {
     const other = { id: otherFieldId, label: 'Note', type: 'text', value: 'keep' };
     const first = withSignInBinding(credential([other], { [otherFieldId]: 'never' }),
       { provider: 'google', account: 'a@example.com', entry: null }, 'Sign-in method', nextId());
-    const replaced = withSignInBinding(first, { provider: 'github', account: 'octo', entry: null }, 'Metoda logowania', () => ids[1]!);
-    expect(replaced.content.customFields.map((field) => field.id)).toEqual([otherFieldId, `custom:${ids[1]}`]);
-    expect(Object.keys(replaced.agentFieldAccess)).not.toContain(`custom:${ids[0]}`);
+    const replaced = mutateSignInMethod(first, `custom:${ids[0]}`, { provider: 'github', account: 'octo', entry: null }, 'Metoda logowania');
+    expect(replaced.content.customFields.map((field) => field.id)).toEqual([otherFieldId, `custom:${ids[0]}`]);
+    expect(replaced.agentFieldAccess[`custom:${ids[0]}`]).toBe('discovery');
     expect(replaced.agentFieldAccess[otherFieldId]).toBe('never');
-    const removed = withSignInBinding(replaced, null, '');
+    const removed = mutateSignInMethod(replaced, `custom:${ids[0]}`, null, '');
     expect(removed.content.customFields).toEqual([other]);
     expect(readSignInBinding(removed)).toEqual({ status: 'absent' });
     expect(() => currentVaultPlaintext.encodeMemberSecret(removed)).not.toThrow();

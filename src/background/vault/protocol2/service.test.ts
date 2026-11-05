@@ -1014,6 +1014,21 @@ describe('Protocol2VaultDataService canonical password capture', () => {
     expect(client.createEntry).not.toHaveBeenCalled()
   })
 
+  it('seals multiple OAuth-only methods with exact IDs and individual policies without populating password fields', async () => {
+    const { service } = harness()
+    await service.refresh()
+    const methods = [
+      { id: 'custom:AAAAAA11-1111-4111-8111-111111111111', provider: 'google' as const, account: 'first@test', entry: null, agentVisible: false },
+      { id: 'custom:bbbbbb22-2222-4222-8222-222222222222', provider: 'google' as const, account: 'second@test', entry: null, agentVisible: true },
+    ]
+    await service.saveEntry({ entryType: 'credential', label: 'OAuth only', username: '', password: '', signInMethods: methods })
+    const sealed = cryptoMocks.sealCanonicalEntry.mock.calls[0]![1]
+    expect(sealed.content).toMatchObject({ username: '', password: '' })
+    expect(sealed.content.customFields.map((field: { id: string; type: string }) => [field.id, field.type])).toEqual(methods.map(method => [method.id, 'palladin.signin.v2']))
+    expect(sealed.agentFieldAccess[methods[0]!.id]).toBe('never')
+    expect(sealed.agentFieldAccess[methods[1]!.id]).toBe('discovery')
+  })
+
   it('seals the selected glyph and color without exposing them to Agents', async () => {
     const { service } = harness()
     await service.refresh()

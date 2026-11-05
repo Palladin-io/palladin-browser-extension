@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { VaultClient } from "../vault/client";
 import { AddEntryForm } from "./AddEntryForm";
 
-function client(saveEntry = vi.fn(async () => ({ status: "saved" }) as const)): VaultClient {
+function client(saveEntry: VaultClient['saveEntry'] = vi.fn(async () => ({ status: "saved" }) as const)): VaultClient {
   return { saveEntry } as unknown as VaultClient;
 }
 
@@ -27,6 +27,32 @@ describe("AddEntryForm", () => {
     await user.click(screen.getByRole('button', { name: 'Choose icon' }));
     expect(screen.getByRole('button', { name: 'Cloud' })).toHaveAttribute('aria-pressed', 'false');
   });
+  it('saves multiple same-provider methods in an OAuth-only Login and excludes them after a type switch', async () => {
+    const saveEntry = vi.fn(async (_input: import('../../background/vault/protocol2/service').ManualEntrySaveInput) => ({ status: 'saved' }) as const);
+    const { unmount } = render(<AddEntryForm client={client(saveEntry)} />);
+    const user = userEvent.setup();
+    for (const account of ['first@test', 'second@test']) {
+      await user.click(screen.getByRole('button', { name: 'Remember a sign-in method' }));
+      await user.type(screen.getByLabelText('Provider account'), account);
+      await user.click(screen.getByRole('button', { name: /^Save$/ }));
+    }
+    await user.type(screen.getByLabelText('Name'), 'OAuth only');
+    await user.click(screen.getByRole('button', { name: 'Save entry' }));
+    await waitFor(() => expect(saveEntry).toHaveBeenCalledWith(expect.objectContaining({ entryType: 'credential', username: '', password: '', signInMethods: [expect.objectContaining({ account: 'first@test' }), expect.objectContaining({ account: 'second@test' })] })));
+    unmount();
+    saveEntry.mockClear();
+    render(<AddEntryForm client={client(saveEntry)} />);
+    await user.click(screen.getByRole('button', { name: 'Remember a sign-in method' }));
+    await user.click(screen.getByRole('button', { name: /^Save$/ }));
+    await user.click(screen.getByRole('combobox', { name: 'Entry type' }));
+    await user.click(screen.getByRole('option', { name: 'API key' }));
+    await user.type(screen.getByLabelText('Name'), 'API');
+    await user.type(screen.getByLabelText('Secret value'), 'synthetic');
+    await user.click(screen.getByRole('button', { name: 'Save entry' }));
+    await waitFor(() => expect(saveEntry).toHaveBeenCalled());
+    expect(saveEntry.mock.calls[0]![0]).not.toHaveProperty('signInMethods');
+  });
+
   it("offers every canonical entry type", async () => {
     render(<AddEntryForm client={client()} />);
     await userEvent.setup().click(screen.getByRole("combobox", { name: "Entry type" }));

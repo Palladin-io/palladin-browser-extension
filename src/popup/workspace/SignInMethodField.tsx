@@ -1,98 +1,78 @@
+import googleLogo from '../assets/sign-in-providers/google.svg';
+import appleLogo from '../assets/sign-in-providers/apple.svg';
+import microsoftLogo from '../assets/sign-in-providers/microsoft.svg';
+import githubLogo from '../assets/sign-in-providers/github.svg';
+import facebookLogo from '../assets/sign-in-providers/facebook.svg';
 import { useState } from 'react';
 import { SIGN_IN_PROVIDERS, SIGN_IN_PROVIDER_NAMES, type SignInProvider } from '../../shared/signin/providers';
 import type { EntrySignInView } from '../../shared/workspace/commands';
 import { Button } from '../components/Button';
 import { FilterSelect } from '../components/FilterSelect';
 import { FormInput } from '../components/FormInput';
+import { PopupIcon } from '../components/PopupIcon';
 import { useI18n } from '../i18n';
 import type { WorkspaceClient } from './client';
 
-/**
- * Shows and edits the encrypted federated sign-in method of one Credential.
- * The popup is extension-owned UI, so the account may be typed here; it is
- * written only into the encrypted MemberSecret with Agent access `never`.
- */
-export function SignInMethodField({
-  client, vaultId, entryId, view, onChanged,
-}: {
-  client: WorkspaceClient;
-  vaultId: string;
-  entryId: string;
-  view: EntrySignInView;
-  onChanged(next: EntrySignInView): void;
+const providerLogos = { google: googleLogo, apple: appleLogo, microsoft: microsoftLogo, github: githubLogo, facebook: facebookLogo };
+
+export interface MethodDraft { id: string; provider: SignInProvider; account: string | null; agentVisible: boolean }
+
+/** Shared extension-owned editor; draft values stay in popup memory until encrypted save. */
+export function SignInMethodsEditor({ methods, onSave, disabled = false }: {
+ methods: readonly MethodDraft[];
+ onSave(id: string | null, value: Omit<MethodDraft, 'id'> | null): Promise<void>;
+ disabled?: boolean;
+}): React.JSX.Element {
+ const { t } = useI18n();
+ const [editing, setEditing] = useState<string | null | undefined>(undefined);
+ const [provider, setProvider] = useState<SignInProvider>('google');
+ const [account, setAccount] = useState('');
+ const [visible, setVisible] = useState(false);
+ const [busy, setBusy] = useState(false);
+ const [error, setError] = useState(false);
+ function edit(method?: MethodDraft) {
+  setEditing(method?.id ?? null); setProvider(method?.provider ?? 'google');
+  setAccount(method?.account ?? ''); setVisible(method?.agentVisible ?? false); setError(false);
+ }
+ async function save(remove = false) {
+  setBusy(true); setError(false);
+  try { await onSave(editing ?? null, remove ? null : { provider, account: account.trim() || null, agentVisible: visible }); setEditing(undefined); }
+  catch { setError(true); } finally { setBusy(false); }
+ }
+ return <section className="sign-in-methods" aria-label={t('signIn.section')}>
+  <div className="entry-custom-fields-header"><h3>{t('signIn.section')}</h3>
+   <button type="button" className="toolbar-icon" aria-label={t('signIn.add')} disabled={disabled || busy || methods.length >= 20} onClick={() => edit()}><PopupIcon name="plus" /></button>
+  </div>
+  {methods.map(method => <div key={method.id} className="detail-field sign-in-method-row">
+   <img className="sign-in-provider-logo" src={providerLogos[method.provider]} alt="" />
+   <span><span>{SIGN_IN_PROVIDER_NAMES[method.provider]}</span><small>{method.account ?? t('signIn.accountUnknown')}</small></span>
+   <button type="button" className="toolbar-icon" aria-label={t('signIn.edit')} disabled={disabled || busy} onClick={() => edit(method)}><PopupIcon name="edit" /></button>
+  </div>)}
+  {editing !== undefined ? <div className="sign-in-method-form">
+   <FilterSelect aria-label={t('signIn.provider')} value={provider} disabled={busy || disabled} onValueChange={value => setProvider(value as SignInProvider)}>
+    {SIGN_IN_PROVIDERS.map(value => <option key={value} value={value}>{SIGN_IN_PROVIDER_NAMES[value]}</option>)}
+   </FilterSelect>
+   <FormInput type="text" label={t('signIn.account')} value={account} disabled={busy || disabled} maxLength={256} autoComplete="off" spellCheck={false} onChange={event => setAccount(event.target.value)} />
+   <label><input type="checkbox" checked={visible} disabled={busy || disabled} onChange={event => setVisible(event.target.checked)} />{t('signIn.agentVisible')}</label>
+   <div className="workspace-actions">
+    {editing !== null ? <Button variant="danger" disabled={busy || disabled} onClick={() => void save(true)}>{t('signIn.remove')}</Button> : null}
+    <Button variant="subtle" disabled={busy} onClick={() => setEditing(undefined)}>{t('signIn.cancel')}</Button>
+    <Button loading={busy} disabled={disabled || account.trim().length > 256} onClick={() => void save()}>{t('signIn.save')}</Button>
+   </div>
+  </div> : null}
+  {error ? <p role="alert">{t('signIn.error')}</p> : null}
+ </section>;
+}
+
+export function SignInMethodField({ client, vaultId, entryId, view, onChanged }: {
+ client: WorkspaceClient; vaultId: string; entryId: string; view: EntrySignInView; onChanged(next: EntrySignInView): void;
 }): React.JSX.Element | null {
-  const { t, locale } = useI18n();
-  const [editing, setEditing] = useState(false);
-  const [provider, setProvider] = useState<SignInProvider>(view.status === 'recognized' ? view.provider : 'google');
-  const [account, setAccount] = useState(view.status === 'recognized' ? view.account ?? '' : '');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
-  if (view.status === 'unsupported') return null;
-
-  async function save(binding: { provider: SignInProvider; account: string | null } | null) {
-    setBusy(true);
-    setError(false);
-    try {
-      await client.send({ type: 'workspace/sign-in', vaultId, entryId, binding, locale: locale === 'pl' ? 'pl' : 'en' });
-      setEditing(false);
-      onChanged(binding === null ? { status: 'absent' } : { status: 'recognized', ...binding,
-        linked: view.status === 'recognized' && view.linked && view.provider === binding.provider
-          && (view.account ?? '').toLocaleLowerCase('en') === (binding.account ?? '').toLocaleLowerCase('en'),
-        agentVisible: view.status === 'recognized' ? view.agentVisible : false });
-    } catch {
-      setError(true);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const trimmed = account.trim();
-  const tooLong = trimmed.length > 256;
-  const summary = view.status === 'recognized'
-    ? `${SIGN_IN_PROVIDER_NAMES[view.provider]} · ${view.account ?? t('signIn.accountUnknown')}`
-    : view.status === 'absent' ? t('signIn.none') : t('signIn.unrecognized');
-
-  return (
-    <div className="detail-field sign-in-method" aria-label={t('signIn.section')}>
-      <span>
-        <small>{t('signIn.section')}</small>
-        {!editing ? <span className="detail-field-value">{summary}</span> : null}
-        {!editing && view.status === 'recognized' && view.agentVisible ? (
-          <span className="entry-status">{t(view.linked ? 'signIn.agentVisibleLinked' : 'signIn.agentVisible')}</span>
-        ) : null}
-        {!editing ? null : (
-          <span className="sign-in-method-form">
-            <FilterSelect aria-label={t('signIn.provider')} value={provider} disabled={busy}
-              onValueChange={(value) => setProvider(value as SignInProvider)}>
-              {SIGN_IN_PROVIDERS.map((value) => <option key={value} value={value}>{SIGN_IN_PROVIDER_NAMES[value]}</option>)}
-            </FilterSelect>
-            <FormInput label={t('signIn.account')} placeholder={t('signIn.accountHint')} value={account} disabled={busy}
-              autoComplete="off" spellCheck={false} maxLength={300}
-              {...(tooLong ? { error: t('signIn.tooLong') } : {})}
-              onChange={(event) => setAccount(event.target.value)} />
-            <span className="workspace-actions">
-              <Button variant="subtle" disabled={busy} onClick={() => { setEditing(false); setError(false); }}>{t('signIn.cancel')}</Button>
-              <Button loading={busy} disabled={tooLong}
-                onClick={() => void save({ provider, account: trimmed.length === 0 ? null : trimmed })}>
-                {t(busy ? 'signIn.saving' : 'signIn.save')}
-              </Button>
-            </span>
-          </span>
-        )}
-        {error ? <span className="entry-status vault-error" role="alert">{t('signIn.error')}</span> : null}
-      </span>
-      {!editing ? (
-        <span className="workspace-actions">
-          {view.status !== 'unrecognized' && view.status !== 'ambiguous' ? (
-            <Button variant="ghost" disabled={busy} onClick={() => setEditing(true)}>
-              {t(view.status === 'recognized' ? 'signIn.edit' : 'signIn.add')}
-            </Button>
-          ) : null}
-          {view.status !== 'absent' ? (
-            <Button variant="danger" loading={busy} onClick={() => void save(null)}>{t('signIn.remove')}</Button>
-          ) : null}
-        </span>
-      ) : null}
-    </div>
-  );
+ const { locale } = useI18n();
+ if (view.status === 'unsupported') return null;
+ return <SignInMethodsEditor methods={view.methods} onSave={async (fieldId, binding) => {
+  await client.send({ type: 'workspace/sign-in', vaultId, entryId, fieldId, binding: binding ? { provider: binding.provider, account: binding.account } : null,
+   agentVisible: binding?.agentVisible ?? false, locale: locale === 'pl' ? 'pl' : 'en' });
+  const result = await client.send({ type: 'workspace/detail', vaultId, entryId });
+  if (result.signIn) onChanged(result.signIn);
+ }} />;
 }

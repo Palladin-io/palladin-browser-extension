@@ -14,12 +14,12 @@ Palladin itself.
 
 ## Data model
 
-The binding is one canonical custom field inside the encrypted Credential
+Each method is a stable-ID canonical custom field inside the encrypted Credential
 MemberSecret, so it syncs with the Entry through the existing zero-knowledge
 path:
 
 ```json
-{ "id": "custom:<uuid v4>", "label": "Sign-in method", "type": "palladin.signin.v1",
+{ "id": "custom:<uuid v4>", "label": "Sign-in method", "type": "palladin.signin.v2",
   "value": { "provider": "google", "account": "alice@example.com",
              "entry": { "vaultId": "<uuid>", "entryId": "<uuid>" } } }
 ```
@@ -30,15 +30,22 @@ path:
   entry) and is set only when the user picks a **discoverable** Palladin
   Credential of that provider; a typed or unknown account has `entry: null`.
   A popup edit keeps the reference only for an unchanged provider and account.
-- Agent access is `never` or `discovery` (`@palladin/crypto` >= 0.15.0). A new
-  field is discoverable exactly when its Credential is discoverable; replacing a
-  recognized field keeps its access. `onGrant*` is always rejected, so the field
-  is never delivered in a grant and never part of the MemberIndex.
-- With `discovery`, the shared SDK projects only
-  `{"id":"signIn","value":"{\"entry\":…,\"provider\":…,\"schema\":\"palladin.signin.v1\"}"}`
-  into Agent Discovery — **never the account**. An Agent can then request the
-  normal, user-approved grant for the referenced provider Credential and sign in
-  through the provider page with Inject. Two discoverable methods expose nothing.
+- Agent access is `never` or `discovery` (SDK target `@palladin/crypto` 0.17.0).
+  Each method has its own policy. Capture defaults a new method to the Entry's
+  discoverability; the popup editor lets the member choose visibility. Editing
+  retains the method ID and policy unless visibility is explicitly changed.
+  `onGrant*` is rejected; methods never enter grants or the MemberIndex.
+- When any v2 field exists, the shared SDK emits only `signInMethods`, containing
+  `schema: palladin.signin.v2` and a sorted collection of method ID, provider and
+  optional provider Entry reference. Visible recognized v1 methods participate;
+  the legacy singleton projection is suppressed even by a hidden v2 field.
+  Account identifiers and labels never enter Discovery. The Agent must ask when
+  ambiguous; references do not replace existing approval/grant/origin gates.
+- New methods use v2. An intentional edit upgrades only that recognized v1 field
+  to v2, retaining its exact ID (including hexadecimal case). Untouched legacy
+  fields, other policies and opaque/future fields remain byte-for-byte unchanged.
+  Removal targets one exact recognized ID. Provider/account is never identity:
+  multiple accounts at one provider and repeated provider values remain separate.
 - One Credential represents one account at one service host. Several service
   accounts are several Credentials; several provider accounts are different
   `account` values. Nothing is merged by provider or domain.
@@ -46,9 +53,8 @@ path:
   password. Automatic exact-host autofill skips candidates with an empty
   username (`inline-autofill.ts`), so it never selects such a record; it stays
   available as an explicit manual choice.
-- Unknown, malformed or duplicated `palladin.signin.v1` values are shown as
-  unrecognized, never used for suggestions, and preserved unless the user
-  explicitly replaces or removes them.
+- Unknown versions and malformed values remain opaque, are never offered for
+  suggestions or editing, and survive ordinary edits and capture writes.
 - Canonical Entry sharing reports this type as unsupported, so a full share is
   blocked and partial shares exclude it: the provider account is personal.
 
@@ -142,9 +148,21 @@ never submits and never bypasses MFA.
 
 ## Editing
 
-The popup Entry detail shows "Sign-in method" for Credentials with explicit
-Change, Remember and Forget actions (`workspace/sign-in`). The web panel and the
-mobile app edit the same field.
+The popup Entry detail and Login creation form show a final "Sign-in methods"
+section after notes, before the footer. The empty section has its heading and plus;
+compact rows show provider logo/name, account and a pencil. Visibility is in the
+editor. Add, edit and remove are explicit actions; edits/removals name the exact
+stable field ID in the independently validated `workspace/sign-in` command.
+
+Login creation supports multiple methods and empty username/password when at least
+one valid method exists. Changing the create type clears the method draft; non-Login
+save commands reject method input. New typed methods have no provider Entry
+reference. Editing an existing method retains its approved reference only while
+provider/account remain unchanged. Capture still offers the explicit saved provider
+Credential choice and appends to the selected service Entry without replacing its
+other methods. No account is linked automatically. Lists have no OAuth marks.
+
+The web panel and mobile app edit the same encrypted fields.
 
 ## Security properties
 
@@ -173,3 +191,12 @@ Automated:
 Manual (not yet performed): real Google, Apple, Microsoft and GitHub accounts
 on Chrome, Firefox and Safari, including popup-blocker behavior, FedCM/One Tap
 fallback, SPA return without navigation, and Safari `openerTabId` availability.
+
+## Local implementation verification gate
+
+The multiple-method implementation is locally tested against an ignored unpacked
+SDK 0.17.0 tarball while trusted registry publication is pending. The checked-in
+consumer pin remains unchanged until the coordinated publication step. These local
+results do not replace `npm ci` plus native CI against the final exact registry pin.
+Provider logo SVGs are bundled copies of the first-party web panel assets; no remote
+assets or new runtime permissions are used.
