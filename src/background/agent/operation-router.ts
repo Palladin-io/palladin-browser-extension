@@ -1,3 +1,4 @@
+import { isRecord, validIdentifier } from '@shared/messaging/agent-inject';
 import { probeTarget, type TargetProbeResult } from './target-probe';
 import { AGENT_INJECT_PROTOCOL, parseAgentPrepareRequest } from '@shared/messaging';
 import { gateAgentFillDeps } from './gated-deps';
@@ -33,6 +34,7 @@ const MAX_OPERATIONS = 32;
 /** One authenticated native connection; ownership is reserved before DOM lookup. */
 export class NativeOperationRouter {
   private readonly operations = new Map<string, Operation>();
+  private readonly captureOwners = new WeakMap<OperationReply, Operation>();
   private readonly tabs = new Map<number, string>();
   private disposed = false;
 
@@ -71,7 +73,7 @@ export class NativeOperationRouter {
     if (!operation) {
       if (!prepare) {
         wipeAgentMessageValues(request);
-        return reply({ protocol: AGENT_INJECT_PROTOCOL, type: 'inject.result', transactionId: null, outcome: 'rejected' });
+        return reply({ protocol: AGENT_INJECT_PROTOCOL, type: isRecord(request) && request.type === 'capture' ? 'capture.result' : 'inject.result', transactionId: isRecord(request) && validIdentifier(request.transactionId) ? request.transactionId : null, outcome: 'rejected' });
       }
       const occupied = prepare.targetTabId !== undefined && this.tabs.has(prepare.targetTabId);
       if (occupied || this.operations.size >= MAX_OPERATIONS) {
@@ -88,7 +90,9 @@ export class NativeOperationRouter {
     const pending = this.execute(current, operationId, request, prepare);
     current.pending = pending;
     try {
-      return reply(await pending);
+      const response = reply(await pending);
+      if (response.type === 'operation.result' && response.response.type === 'capture.result' && response.response.outcome === 'captured') this.captureOwners.set(response, current);
+      return response;
     } finally {
       wipeAgentMessageValues(request);
       current.pending = null;
@@ -122,7 +126,19 @@ export class NativeOperationRouter {
       this.tabs.set(tab.id, operationId);
       request = { ...prepare, targetTabId: tab.id, targetUrl: tab.page.url };
     }
-    return handleNativeAgentMessage(operation.deps, this.replay, operation.session, request);
+    const response = await handleNativeAgentMessage(operation.deps, this.replay, operation.session, request);
+    // Resolving the legacy active-tab fallback is not explicit caller consent
+    // for capture. Keep its fill preparation but revoke capture authorization.
+    if (prepare && prepare.targetTabId === undefined && operation.session.prepared) {
+      const { captureTargetUrl: _captureTargetUrl, ...fillPreparation } = operation.session.prepared;
+      operation.session.prepared = fillPreparation;
+    }
+    return response;
+  }
+
+  canDeliverCapture(response: OperationReply): boolean {
+    // The original instance stays revoked even if its public ID is reused.
+    return !this.disposed && this.captureOwners.get(response)?.active === true;
   }
 
   close(operationId: string): Promise<void> {
