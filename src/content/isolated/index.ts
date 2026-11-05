@@ -1,3 +1,5 @@
+import { isAgentCaptureMessage, wipeCaptureOutcome } from '@shared/messaging/agent-capture';
+import { captureAgentFields } from './agent-capture';
 import { startTotpCapture } from './totp-capture';
 import { TOTP_CAPTURE_CHANNEL, isTotpVerificationRequest } from '@shared/messaging/totp-capture';
 import { startSecretCapture } from './secret-capture';
@@ -243,6 +245,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       () => window.location.href,
       agentInjectDom,
     ));
+    return undefined;
+  }
+  if (isAgentCaptureMessage(message)) {
+    if (_sender.id !== chrome.runtime.id || _sender.tab !== undefined || window.top !== window) { sendResponse(null); return undefined; }
+    const result = captureAgentFields(document, message, documentId, () => window.location.href);
+    try { sendResponse(result); } finally { wipeCaptureOutcome(result); }
     return undefined;
   }
   if (isAgentInjectStepMessage(message)) {

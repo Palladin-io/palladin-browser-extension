@@ -1,3 +1,4 @@
+import { isAgentCaptureOutcome, type AgentCaptureMessage, type AgentCaptureOutcome } from '@shared/messaging/agent-capture';
 import { gateAgentFillDeps } from "./gated-deps";
 export { gateAgentFillDeps } from "./gated-deps";
 import { NativeOperationRouter, type OperationReply } from "./operation-router";
@@ -110,6 +111,7 @@ const agentFillDeps: AgentFillDeps = {
   getActivePage,
   getPageById,
   sendStep,
+  captureFields,
   probeTransition,
 };
 
@@ -194,15 +196,18 @@ async function openNativeAgentProvider(expectedLifecycle: number): Promise<void>
     };
     let outbound = Promise.resolve();
     const deliver = (response: OperationReply | OperationReady, terminalDelivered: () => void): Promise<void> => {
+      const mayDeliver = () => isActive() && (response.type !== 'operation.result' || response.response.type !== 'capture.result' || response.response.outcome !== 'captured' || operations.canDeliverCapture(response));
       const next = outbound.then(async () => {
-        if (!isActive() || secureChannel === null) return;
+        if (!mayDeliver() || secureChannel === null) { wipeNativeResponse(response); return; }
         const bytes = new TextEncoder().encode(JSON.stringify(response));
         try {
           const frame = await secureChannel.seal(bytes);
-          if (!isActive()) return;
+          // Sealing consumes a transport sequence. Never skip a sealed frame and
+          // continue that channel after cancellation: close it instead.
+          if (!mayDeliver()) { disconnectSecurePort(port); return; }
           const posted = postIfConnected(port, frame);
           if (posted && response.type === 'operation.result' && isTerminalCompletion(response.response)) terminalDelivered();
-        } finally { bytes.fill(0); }
+        } finally { bytes.fill(0); wipeNativeResponse(response); }
       });
       outbound = next.catch(() => disconnectSecurePort(port));
       return next;
@@ -367,14 +372,22 @@ async function handleSecureNativeMessage(
   }
   const response = await handleNativeAgentMessage(deps, replay, providerSession, request)
     .catch(() => unavailableResponse(request));
-  if (!isActive()) return;
+  if (!isActive()) { wipeNativeResponse(response); return; }
   const responseBytes = new TextEncoder().encode(JSON.stringify(response));
   try {
-    const posted = postIfConnected(port, await channel.seal(responseBytes));
+    const frame = await channel.seal(responseBytes);
+    if (!isActive()) { disconnectSecurePort(port); return; }
+    const posted = postIfConnected(port, frame);
     if (posted && isTerminalCompletion(response)) terminalDelivered();
   } finally {
     responseBytes.fill(0);
+    wipeNativeResponse(response);
   }
+}
+
+function wipeNativeResponse(response: unknown): void {
+  wipeAgentMessageValues(response);
+  if (typeof response === 'object' && response !== null && 'response' in response) wipeAgentMessageValues(response.response);
 }
 
 function isTerminalCompletion(response: { readonly type?: unknown; readonly outcome?: unknown; readonly continuation?: unknown }): boolean {
@@ -529,6 +542,15 @@ function settleWithin<T>(operation: Promise<T>, timeoutMs: number): Promise<T> {
   });
 }
 
+async function captureFields(tabId: number, message: AgentCaptureMessage): Promise<AgentCaptureOutcome | null> {
+  try {
+    const response: unknown = await chrome.tabs.sendMessage(tabId, message, { frameId: 0 });
+    if (isAgentCaptureOutcome(response)) return response;
+    wipeAgentMessageValues(response);
+    return null;
+  } catch { return null; }
+}
+
 async function sendStep(
   tabId: number,
   expectedDomain: string,
@@ -591,7 +613,7 @@ function unavailableResponse(raw: unknown): Record<string, unknown> {
     }
     return {
       protocol: AGENT_INJECT_PROTOCOL,
-      type: "inject.result",
+      type: message.type === "capture" ? "capture.result" : "inject.result",
       transactionId: typeof message.transactionId === "string" ? message.transactionId : null,
       outcome: "provider-unavailable",
     };
