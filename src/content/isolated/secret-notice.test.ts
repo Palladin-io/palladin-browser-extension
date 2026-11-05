@@ -20,3 +20,14 @@ it('keeps notice closed, value-free, input-free and rejects a synthetic consent 
   notice.show(true); expect(root.textContent).toContain('Nothing was retained');
   notice.stop(); expect(document.querySelector('palladin-capture')).toBeNull(); spy.mockRestore();
 });
+
+it.each(['en', 'pl'])('gives the TOTP notice %s toolbar guidance without discarding the proposal', locale => {
+  vi.stubGlobal('chrome', { i18n: { getUILanguage: () => locale } });
+  let root!: ShadowRoot; const attach = Element.prototype.attachShadow;
+  const spy = vi.spyOn(Element.prototype, 'attachShadow').mockImplementation(function (this: Element, init) { root = attach.call(this, init); return root; });
+  const notice = new SecretCaptureNotice(document, async () => {}, 'totp');
+  notice.show(false);
+  expect(root.textContent).toContain(locale === 'pl' ? 'Otwórz menu rozszerzeń przeglądarki' : 'Open your browser’s Extensions menu and click Palladin to continue.');
+  expect(document.querySelector('palladin-capture')).toBeInTheDocument();
+  notice.stop(); spy.mockRestore(); vi.unstubAllGlobals();
+});

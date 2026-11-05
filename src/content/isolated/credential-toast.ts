@@ -11,7 +11,7 @@ import {
 } from "@shared/messaging/credential-capture";
 import { createClosedSurface } from "./closed-surface";
 
-type CopyKey = Extract<keyof typeof en, `captureToast.${string}` | `captureReview.${string}`>;
+type CopyKey = Extract<keyof typeof en, `captureToast.${string}` | `captureReview.${string}` | "inline.openFromToolbar">;
 type WithoutDocument<T> = T extends CredentialCaptureCommand ? Omit<T, "channel" | "documentId"> : never;
 type ToastAction = WithoutDocument<Extract<CredentialCaptureCommand, { type: "save" | "dismiss" | "mute" | "unlock" | 'choose-username' }>>;
 
@@ -22,6 +22,7 @@ export class CredentialCaptureToast {
   private targetId: string | null = null;
   private busy = false;
   private error = false;
+  private manualOpen = false;
   private locale: UiLocale = "en";
   private theme: ThemePreference = "system";
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -69,6 +70,7 @@ export class CredentialCaptureToast {
         this.closeTimer = setTimeout(() => this.hide(), 3 * 60_000);
         this.targetId = result.prompt.defaultTargetId;
         this.error = false;
+        this.manualOpen = false;
       } else if (!result.prompt.targets.some((target) => target.id === this.targetId)) {
         this.targetId = result.prompt.defaultTargetId;
       }
@@ -113,6 +115,7 @@ export class CredentialCaptureToast {
     site.className = "site";
     site.textContent = prompt.site;
     this.panel.replaceChildren(header, site);
+    if (this.manualOpen) this.panel.append(this.note("inline.openFromToolbar", true));
     if (this.error) this.panel.append(this.note("captureToast.error", true));
 
     if (prompt.state === "locked") this.panel.append(this.note('captureToast.locked'));
@@ -167,6 +170,7 @@ export class CredentialCaptureToast {
     const pendingId = this.prompt?.id;
     this.busy = true;
     this.error = false;
+    this.manualOpen = false;
     this.render();
     let result: unknown;
     try { result = await this.send({ ...action, channel: CREDENTIAL_CAPTURE_CHANNEL, documentId: this.documentId }); }
@@ -174,7 +178,8 @@ export class CredentialCaptureToast {
     this.busy = false;
     if (this.disposed || this.prompt?.id !== pendingId) return;
     if (!isCredentialCaptureResult(result) || result.status === "unavailable") {
-      this.error = true;
+      this.manualOpen = action.type === "unlock";
+      this.error = !this.manualOpen;
       this.render();
     } else if (result.status === "accepted") this.render();
     else this.show(result);

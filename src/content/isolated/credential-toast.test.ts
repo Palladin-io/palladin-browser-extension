@@ -62,11 +62,13 @@ describe("credential capture toast", () => {
     expect(ui().queryByRole('radio')).toBeNull();
     expect(ui().getByRole('button', { name: 'Review' })).toBeVisible();
   });
-  it('keeps an unavailable popup notice visible for manual toolbar opening', async () => {
+  it.each(['en', 'pl'] as const)('keeps an unavailable popup notice visible with %s toolbar guidance', async locale => {
+    toast.setAppearance(locale, 'light');
     send.mockResolvedValue({ status: 'unavailable' });
-    await click('Review');
-    expect(ui().getByRole('button', { name: 'Review' })).toBeVisible();
-    expect(ui().getByRole('alert')).toBeVisible();
+    const label = locale === 'pl' ? 'Sprawdź' : 'Review';
+    await click(label);
+    expect(ui().getByRole('button', { name: label })).toBeVisible();
+    expect(ui().getByRole('alert')).toHaveTextContent(locale === 'pl' ? 'Otwórz menu rozszerzeń przeglądarki' : 'Open your browser’s Extensions menu and click Palladin to continue.');
   });
   it('dismisses using the worker-owned prompt ID', async () => {
     send.mockResolvedValue({ status: 'dismissed' });

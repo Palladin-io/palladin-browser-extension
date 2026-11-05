@@ -61,7 +61,7 @@ Files: `src/content/isolated/credential-toast.ts`, secret/TOTP notices, generato
 ## Task 5: Integration, browser matrix and handoff
 - [x] Focused tests during work; once integrated run `npm test`, `npm run build`, dependency audit and applicable capture/signin/generator/TOTP browser fixtures.
 - [x] Review light/dark at popup/sidebar widths, independent design and whole-branch review; fix important findings.
-- [ ] Update source docs and root Brain session/release checklist with actual implementation and platform evidence; prepare extension and root documentation PRs. No merge.
+- [x] Update source docs and root Brain session/release checklist with actual implementation and platform evidence; prepare extension and root documentation PRs. No merge.
 
 ## Checkpoint
 - Worktree: `.worktrees/capture-flow-redesign`, branch `feat/capture-flow-redesign`, rebased onto extension main `1b9946b` (includes declared-field capture and reinstall fixes).
@@ -70,4 +70,4 @@ Files: `src/content/isolated/credential-toast.ts`, secret/TOTP notices, generato
 - Final `npm test`: 255 files / 4149 tests passed. `npm run build` and Chromium debug build passed. High audit gate passed; two existing moderate Vitest dev-tool advisories remain.
 - Synthetic Chromium card/key (18 cases, 10 encrypted writes), credential (26 encrypted writes), federated, TOTP and generator acceptance passed. Native popup and narrow sidepanel passed field/footer/menu geometry in both themes. Agent live/frames, inline, credential-submission and shared-unlock CI browser gates passed; shared-unlock platform probe remains explicitly unproven rather than a platform certification.
 - No real Booking transaction or Firefox/Safari runtime certification. Their packaging passed; real-browser release acceptance remains required.
-- Next: publish PRs, native CI and bounded cloud review. No merge authorization. Unrelated dirty checkout preserved.
+- Delivery: extension PR #118 and root documentation PR #245. Initial native CI passed; root cloud review clean. Cloud round 1 identified draft-refresh and toolbar-fallback defects plus stored-PAN compatibility handling. All addressed with regressions (4158 full-suite tests, then two additional focused race cases; 33 focused tests passed). Next: validate updated head in CI and cloud round 2. No merge authorization. Unrelated dirty checkout preserved.

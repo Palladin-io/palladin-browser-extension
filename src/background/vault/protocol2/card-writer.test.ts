@@ -59,3 +59,14 @@ it('includes canonical custom TOTP fields in review and preserves them on update
  await writer.updateCard(choices[0]!, choices[0]!.entry, pan, authorized);
  expect(mocks.sealCurrentCanonicalEntry.mock.calls[0]?.[1]).toMatchObject({content:{customFields:[field]}});
 });
+// Stub the opened-member boundary to isolate matching; current crypto rejects these short PANs.
+it.each(['41111111', '41111111111'])('skips an incomplete stored PAN %s without hiding another matching card', async cardNumber => {
+ data.refresh.mockResolvedValue([{id:'incomplete',vaultId:'v',type:3},{id:'e',vaultId:'v',type:3}]);
+ client.getEntry.mockResolvedValueOnce({...detail,id:'incomplete'}).mockResolvedValueOnce(detail);
+ mocks.openCurrentMemberSecret.mockResolvedValueOnce({...secret,content:{...secret.content,cardNumber}}).mockResolvedValueOnce(secret);
+ expect(await writer.cardChoices(pan)).toMatchObject([{id:'e',entry:{cardNumber:pan}}]);
+});
+it('still rejects an incomplete captured PAN before looking up stored cards', async () => {
+ await expect(writer.cardChoices('41111111')).rejects.toThrow('Invalid card number');
+ expect(client.getEntry).not.toHaveBeenCalled();
+});

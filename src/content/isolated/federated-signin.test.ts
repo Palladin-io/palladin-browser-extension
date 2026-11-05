@@ -135,6 +135,17 @@ describe('federated sign-in surface', () => {
     expect(send).toHaveBeenCalledExactlyOnceWith({ channel: 'palladin.federated-signin', documentId: DOCUMENT, type: 'unlock' });
   });
 
+  it.each(['en', 'pl'] as const)('keeps the proposal and gives %s manual toolbar guidance when popup opening fails', async locale => {
+    send.mockResolvedValue({ status: 'unavailable' });
+    surface.setAppearance(locale, 'light');
+    surface.showResult({ status: 'prompt', prompt });
+    await vi.advanceTimersByTimeAsync(600);
+    ui().getByRole('button', { name: locale === 'pl' ? 'Sprawdź' : 'Review' }).click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ui().getByRole('alert')).toHaveTextContent(locale === 'pl' ? 'Otwórz menu rozszerzeń przeglądarki' : 'Open your browser’s Extensions menu');
+    expect(ui().getByRole('button', { name: locale === 'pl' ? 'Sprawdź' : 'Review' })).toBeVisible();
+  });
+
   it('ignores untrusted or overlaid clicks', async () => {
     surface.showResult({ status: 'prompt', prompt: { ...prompt, defaultAccountId: 'account-work-123456', defaultTargetId: 'target-create-12345' } });
     ui().getByRole('button', { name: 'Review' }).click();

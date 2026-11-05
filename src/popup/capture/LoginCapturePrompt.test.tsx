@@ -109,3 +109,51 @@ it('ignores a stale availability reply while an explicit save is in flight', asy
     expect(await screen.findByText('Login saved')).toBeVisible();
   } finally { unmount(); timer.mockRestore(); vi.unstubAllGlobals(); }
 });
+it('retains the active editor through unrelated Vault revisions and clears it on actual invalidation', async () => {
+  const { act } = await import('@testing-library/react');
+  const { LoginCaptureSurface } = await import('./LoginCapturePrompt');
+  let refresh!: (value: unknown) => void;
+  let listener!: (message: unknown) => void;
+  let gets = 0;
+  vi.stubGlobal('chrome', { runtime: { sendMessage: () => ++gets === 1 ? Promise.resolve({ status: 'review', sourceTabId: 1, review })
+    : new Promise(resolve => { refresh = resolve; }), onMessage: { addListener: (next: typeof listener) => { listener = next; }, removeListener: () => {} } } });
+  const { rerender, unmount } = render(<LoginCaptureSurface revision={0} />);
+  try {
+    fireEvent.click(await screen.findByRole('button', { name: 'Review' }));
+    const name = screen.getByLabelText('Name');
+    fireEvent.change(name, { target: { value: 'Unsaved label' } });
+    rerender(<LoginCaptureSurface revision={1} />);
+    expect(screen.getByLabelText('Name')).toBe(name);
+    expect(name).toHaveValue('Unsaved label');
+    await act(async () => { refresh({ status: 'review', sourceTabId: 1, review }); });
+    expect(screen.getByLabelText('Name')).toBe(name);
+    expect(name).toHaveValue('Unsaved label');
+    await act(async () => { listener({ type: 'login-capture/invalidated', tabId: 1 }); });
+    expect(screen.queryByLabelText('Name')).toBeNull();
+  } finally { unmount(); vi.unstubAllGlobals(); }
+});
+it.each(['saving', 'saved'] as const)('ignores an outstanding refresh rejection while %s', async phase => {
+  const { act } = await import('@testing-library/react');
+  const { LoginCaptureSurface } = await import('./LoginCapturePrompt');
+  let rejectRefresh!: (reason: Error) => void;
+  let save!: (value: unknown) => void;
+  let gets = 0;
+  vi.stubGlobal('chrome', { runtime: {
+    sendMessage: (command: { type: string }) => command.type === 'get'
+      ? ++gets === 1 ? Promise.resolve({ status: 'review', sourceTabId: 1, review: { ...review, prompt: { ...review.prompt, defaultTargetId: 'one' } } })
+        : new Promise((_resolve, reject) => { rejectRefresh = reject; })
+      : new Promise(resolve => { if (command.type === 'save') save = resolve; }),
+    onMessage: { addListener: () => {}, removeListener: () => {} },
+  } });
+  const { rerender, unmount } = render(<LoginCaptureSurface revision={0} />);
+  try {
+    fireEvent.click(await screen.findByRole('button', { name: 'Review' }));
+    rerender(<LoginCaptureSurface revision={1} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Save entry' }));
+    if (phase === 'saved') await act(async () => { save({ status: 'saved', action: 'updated' }); });
+    await act(async () => { rejectRefresh(new Error('Worker request interrupted')); });
+    expect(screen.getByRole('region', { name: 'Save your login?' })).toBeInTheDocument();
+    if (phase === 'saving') await act(async () => { save({ status: 'saved', action: 'updated' }); });
+    expect(await screen.findByText('Login saved')).toBeVisible();
+  } finally { unmount(); vi.unstubAllGlobals(); }
+});

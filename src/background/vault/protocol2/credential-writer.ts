@@ -395,7 +395,7 @@ export class Protocol2CredentialWriter {
           assertCoordinates(detail, vault, entry.id)
           const previous = await openCurrentMemberSecret(detail.entryKey, detail.memberSecret, opened.vaultKey,
             { organizationId: vault.organizationId, vaultId: vault.id, entryId: entry.id, revision: detail.currentRevision })
-          if (previous.entryType !== 'creditCard' || normalizedPan(previous.content.cardNumber) !== pan) continue
+          if (previous.entryType !== 'creditCard' || previous.content.cardNumber.replace(/[ -]/g, '') !== pan) continue
           const content = previous.content
           targets.push({ id: entry.id, vaultId: vault.id, revision: detail.currentRevision, name: previous.memberLabel,
             vaultName: opened.metadata.name, entry: { entryType: 'creditCard', label: previous.memberLabel,

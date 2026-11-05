@@ -19,7 +19,7 @@ import { createClosedSurface } from './closed-surface';
 import { CLOSED_TOAST_STYLES } from './credential-toast';
 import { detectProviderControls, providerForControl, uniqueProviderControl } from './federated-signin-detect';
 
-type CopyKey = Extract<keyof typeof en, `signInToast.${string}` | `captureReview.${string}`>;
+type CopyKey = Extract<keyof typeof en, `signInToast.${string}` | `captureReview.${string}` | "inline.openFromToolbar">;
 type Body<T> = T extends FederatedSignInCommand ? Omit<T, 'channel' | 'documentId'> : never;
 type Send = (command: FederatedSignInCommand) => Promise<unknown>;
 
@@ -41,6 +41,7 @@ export class FederatedSignInSurface {
   private suggestions: readonly SignInSuggestion[] = [];
   private prompt: SignInPrompt | null = null;
   private busy = false;
+  private manualOpen = false;
   private locale: UiLocale = 'en';
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
@@ -96,9 +97,7 @@ export class FederatedSignInSurface {
       this.note('signInToast.saved', 3_000);
     } else if (result.status === 'prompt' && result.prompt !== null) {
       if (this.prompt?.id !== result.prompt.id) {
-
-
-
+        this.manualOpen = false;
         if (this.closeTimer !== null) clearTimeout(this.closeTimer);
         this.closeTimer = setTimeout(() => this.hide(), 3 * 60_000);
       }
@@ -186,6 +185,7 @@ export class FederatedSignInSurface {
     site.className = 'site';
     site.textContent = `${prompt.site} · ${providerName}`;
     this.panel.replaceChildren(header, site);
+    if (this.manualOpen) this.panel.append(this.paragraph('inline.openFromToolbar', true));
     if (prompt.error === 'save-failed') this.panel.append(this.paragraph('signInToast.error', true));
     if (prompt.state === 'locked') this.panel.append(this.paragraph('signInToast.locked'));
     const footer = this.footer(prompt.id);
@@ -205,6 +205,7 @@ export class FederatedSignInSurface {
     if (this.busy) return;
     const pendingId = this.prompt?.id;
     this.busy = true;
+    this.manualOpen = false;
     this.render();
     let result: unknown;
     try { result = await this.send({ ...action, channel: FEDERATED_SIGNIN_CHANNEL, documentId: this.documentId } as FederatedSignInCommand); }
@@ -212,7 +213,8 @@ export class FederatedSignInSurface {
     this.busy = false;
     if (this.disposed || this.prompt?.id !== pendingId) return;
     if (!isFederatedSignInResult(result) || result.status === 'unavailable') {
-      if (this.prompt) this.prompt = { ...this.prompt, error: 'save-failed' };
+      this.manualOpen = action.type === 'unlock';
+      if (this.prompt && !this.manualOpen) this.prompt = { ...this.prompt, error: 'save-failed' };
       this.render();
     } else if (result.status === 'accepted') this.render();
     else this.showResult(result);

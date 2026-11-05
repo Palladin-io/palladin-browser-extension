@@ -44,13 +44,13 @@ export function LoginCaptureSurface({ revision }: { revision: number }): React.J
   useEffect(() => {
     if (saved.current || saving.current) return;
     const request = ++generation.current;
-    setReview(null);
     void sendNative({ channel: NATIVE_LOGIN_CAPTURE_CHANNEL, type: 'get' }).then(result => {
-      if (request !== generation.current || result.status !== 'review') return;
+      if (request !== generation.current || saved.current || saving.current) return;
+      if (result.status !== 'review') { promptId.current = null; setReview(null); return; }
       promptId.current = result.review?.prompt.id ?? null;
       sourceTabId.current = result.sourceTabId ?? null;
       setReview(result.review);
-    }).catch(() => { if (request === generation.current) setReview(null); });
+    }).catch(() => { if (request === generation.current && !saved.current && !saving.current) setReview(null); });
   }, [revision]);
   const send: Send = async command => {
     const mutation = command.type === 'save' || command.type === 'confirm';

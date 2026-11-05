@@ -51,7 +51,9 @@ export class SecretCaptureNotice {
     const brand = this.doc.createElement('div'); brand.className = 'notice-brand'; brand.append('Palladin');
     const domain = this.doc.createElement('span'); domain.textContent = '.io'; brand.append(domain); panel.append(brand);
     const footer = this.doc.createElement('div'); footer.className = 'notice-footer';
-    const text = this.doc.createElement('p'); text.textContent = copy[this.locked ? 'secretCapture.locked' : this.kind === 'totp' ? 'totpCapture.notice' : 'secretCapture.notice']; panel.append(text);
+    const text = this.doc.createElement('p'); text.textContent = copy[this.locked ? 'secretCapture.locked' : this.kind === 'totp' ? 'totpCapture.notice' : 'secretCapture.notice'];
+    if (this.kind === 'totp') text.textContent += ` ${copy['inline.openFromToolbar']}`;
+    panel.append(text);
     for (const type of ['dismiss','open'] as const) {
       const button = this.doc.createElement('button'); button.type = 'button'; button.dataset.action = type; button.textContent = copy[type === 'open' ? 'secretCapture.review' : 'secretCapture.dismiss'];
       button.addEventListener('click', event => { if (this.surface.acceptsAction(event, button)) void this.act(type).catch(() => undefined); }); footer.append(button);
