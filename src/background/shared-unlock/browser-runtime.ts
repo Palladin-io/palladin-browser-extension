@@ -68,7 +68,16 @@ export function coordinateSharedUnlockBrowser(route: SharedUnlockBrowserRoute) {
       return { accountId, status, source };
     },
     subscribe,
-    selectLink: async (accountId, proposed, direction) => (await admissible(accountId, proposed, direction === "receiver")).linkId,
+    selectLink: async (accountId, proposed, direction, assertSelection = () => route.assertCurrent()) => {
+      const marker = await admissible(accountId, undefined, direction === "receiver");
+      assertSelection();
+      if (proposed && marker.linkId !== proposed) {
+        await route.verifyCurrent(); assertSelection();
+        return (await sharedUnlockLinks.replaceUnused(marker, proposed,
+          sequence => sharedUnlockExpiry.advance(scope(accountId), sequence), assertSelection)).linkId;
+      }
+      return marker.linkId;
+    },
     prepareSource: async (accountId, organizationId, linkId, signal, assertAttempt) => {
       const assertCurrent = () => { assertAttempt(); sharedUnlockPreferenceGate.assertAllowed(scope(accountId)); sharedUnlockPreferences.assertNotDisabled(scope(accountId)); };
       await admissible(accountId, linkId); assertCurrent();
@@ -86,6 +95,7 @@ export function coordinateSharedUnlockBrowser(route: SharedUnlockBrowserRoute) {
     receiver: async (binding, signal, assertCurrent) => {
       const marker = await admissible(binding.accountId, binding.linkId, true, binding.linkEpoch); assertCurrent();
       const localLink = staging.capture(marker, binding, sharedUnlockLinks, api);
+      await sharedUnlockLinks.markAdmission(scope(binding.accountId), binding.linkId); assertCurrent();
       return beginSharedUnlockReceiver({ apiUrl: route.apiUrl, binding, signal,
         confirmLocalLink: localLink.confirm,
         assertCurrent: () => { assertCurrent(); localLink.assertCurrent(); sharedUnlockPreferenceGate.assertAllowed(scope(binding.accountId)); sharedUnlockPreferences.assertNotDisabled(scope(binding.accountId)); },

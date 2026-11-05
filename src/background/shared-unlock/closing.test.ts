@@ -32,6 +32,67 @@ async function setup(action: "lock" | "logout" = "lock") {
 afterEach(() => vi.useRealTimers());
 
 describe("own Identity closing delivery", () => {
+  it.each(["lock", "logout"] as const)("finishes an interrupted first link creation before delivering %s", async action => {
+    const f = await setup(action);
+    const original = f.fetcher.getMockImplementation()!;
+    let exists = false;
+    f.fetcher.mockImplementation(async (url, init) => {
+      if (String(url).endsWith("/links") && init?.method === "POST") {
+        expect(JSON.parse(String(init.body))).toEqual({ linkId, expectedPreferenceRevision: 5 });
+        expect((await f.store.read(scope))!.pending).toMatchObject([{ action }]);
+        exists = true;
+        f.current.link = { ...initial, revision: 1, epoch: 0, state: "locked", lastInvalidationSequence: 0 };
+        return response(f.current.link);
+      }
+      if (String(url).endsWith(`/links/${linkId}`) && !exists) return response({}, 404);
+      return original(url, init);
+    });
+    await f.run();
+    expect((await f.store.read(scope))).toMatchObject({ linkId, pending: [], observed: { state: "locked", lastInvalidationSequence: 8 } });
+    expect(f.fetcher.mock.calls.filter(([, init]) => init?.method === "POST").map(([url]) => String(url).split("/").at(-1))).toEqual(["links", action]);
+  });
+
+  it("does not recreate a previously observed link after Identity returns not-found", async () => {
+    const f = await setup();
+    await f.store.observe(scope, initial);
+    const original = f.fetcher.getMockImplementation()!;
+    f.fetcher.mockImplementation((url, init) => String(url).endsWith(`/links/${linkId}`) ? Promise.resolve(response({}, 404)) : original(url, init));
+    await expect(f.run()).rejects.toThrow();
+    expect(f.fetcher.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
+    expect((await f.store.read(scope))!.pending).toMatchObject([{ action: "lock" }]);
+  });
+
+  it("retains both closing and explicit disconnect when creation races with another client", async () => {
+    const f = await setup();
+    const marker = await f.store.beginClosing(scope, linkId, "disconnect", 0, null);
+    const original = f.fetcher.getMockImplementation()!;
+    f.fetcher.mockImplementation((url, init) => {
+      if (String(url).endsWith(`/links/${linkId}`)) return Promise.resolve(response({}, 404));
+      if (String(url).endsWith("/links")) return Promise.resolve(response({}, 409));
+      return original(url, init);
+    });
+    await expect(f.run()).rejects.toThrow();
+    expect(await f.store.read(scope)).toMatchObject({ linkId, observed: null, disconnectId: marker.disconnectId,
+      pending: [{ action: "lock" }, { action: "disconnect" }] });
+    expect(f.fetcher.mock.calls.filter(([, init]) => init?.method === "POST").map(([url]) => String(url).split("/").at(-1))).toEqual(["links"]);
+  });
+
+  it("does not create after an in-flight read observes an existing revoked authority", async () => {
+    const f = await setup();
+    const original = f.fetcher.getMockImplementation()!;
+    f.fetcher.mockImplementation(async (url, init) => {
+      if (String(url).endsWith(`/links/${linkId}`)) {
+        await f.store.observe(scope, { ...initial, state: "revoked" });
+        return response({}, 404);
+      }
+      return original(url, init);
+    });
+    await expect(f.run()).rejects.toThrow();
+    expect(f.fetcher.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
+    expect(await f.store.read(scope)).toMatchObject({ observed: { state: "revoked" }, pending: [{ action: "lock" }] });
+    expect((await f.store.read(scope))!.disconnectId).not.toBeNull();
+  });
+
   it.each(["lock", "logout"] as const)("delivers %s with fresh own CAS and settles only after its receipt", async action => {
     const f = await setup(action), hint = vi.fn(); const unsubscribe = subscribeSharedUnlockLinkChanges(hint);
     try {

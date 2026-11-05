@@ -46,6 +46,26 @@ force. A rejected refresh requires sign-in; a transient network failure may stil
 allow ordinary local unlock without sharing authority. Unlock does not recreate
 authority later from a peer request or a background retry.
 
+If a manual closing interrupts first link creation, repair creates that same
+never-observed link in its locked state and delivers the retained closing before
+preparing fresh sharing authority. A previously observed missing link is not
+recreated; conflicts retain the pending intent.
+
+After reinstall, Web can counter-propose its established profile link before any
+crypto offer. Extension replaces only its own unused allocation, acknowledges the
+retained ID, and runs the ordinary Identity/crypto checks. The established Web
+link and all its future lock/logout/disconnect actions remain authoritative; no
+existing root is rebound to another server link. Both updated clients are required.
+
+A nonsensitive `admissionAttempted` marker is persisted before source activation
+or receiver admission. Legacy markers default to unknown/used; only successful
+first-create repair can establish that a previously missing allocation was unused.
+Pending closing and explicit disconnect prevent replacement, and the unused
+allocation's closing floor is preserved in the account expiry store. A cancelled
+or failed storage write retains the old marker. Two previously used, different
+groups are not silently merged. No keys, tokens, new permissions or backend
+migration are involved.
+
 HTTP requires explicit consent for both entered addresses, including localhost.
 Editing either address clears the draft consent. Legacy/build HTTP configuration
 does not bypass that consent at network-client creation. Consent is durable for

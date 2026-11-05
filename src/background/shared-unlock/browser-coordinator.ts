@@ -28,8 +28,8 @@ export interface SharedUnlockCoordinatorClient {
   readState(): Promise<{ accountId: string | null; status: State["status"];
     source: { organizationId: string; generation: string } | null }>;
   subscribe(changed: () => void): () => void;
-  /** Extension owns allocation; Web only adopts the exact browser-selected ID. */
-  selectLink(accountId: string, proposedId?: string, direction?: "source" | "receiver"): Promise<string>;
+  /** Extension allocates initially; Web may retain its established profile link. */
+  selectLink(accountId: string, proposedId?: string, direction?: "source" | "receiver", assertSelection?: () => void): Promise<string>;
   prepareSource(accountId: string, organizationId: string, linkId: string, signal: AbortSignal,
     assertCurrent: () => void): Promise<{ linkEpoch: number; preferenceRevision: number }>;
   checkReceiver(binding: SharedUnlockSelectedBinding, signal: AbortSignal): Promise<void>;
@@ -188,9 +188,15 @@ export function startSharedUnlockBrowserCoordinator(route: SharedUnlockCoordinat
       selectionRunning = true;
       const revision = version;
       try {
-        try { await client.selectLink(payload.accountId, payload.linkId, matches(payload)!.ownSource ? "source" : "receiver"); }
+        let linkId: string;
+        try { linkId = await client.selectLink(payload.accountId, payload.linkId, matches(payload)!.ownSource ? "source" : "receiver"); }
         catch { return; } // Local OFF/disconnect is a recoverable admission denial.
         assertCurrent(); if (revision !== version) return;
+        if (linkId !== payload.linkId) {
+          await route.verifyCurrent(); assertCurrent(); if (revision !== version) return;
+          send(payload.extensionStateId, { ...payload, kind: "link-selected", linkId });
+          return;
+        }
         selected = payload;
         await route.verifyCurrent(); assertCurrent(); if (revision !== version) return;
         send(payload.extensionStateId, { ...payload, kind: "link-selected" });
@@ -198,9 +204,26 @@ export function startSharedUnlockBrowserCoordinator(route: SharedUnlockCoordinat
       await startSource(); return;
     }
     if (payload.kind === "link-selected") {
-      if (client.role !== "extension" || !selected || !matches(selected) || payload.linkId !== selected.linkId
+      if (client.role !== "extension" || !selected || !matches(selected)
         || payload.accountId !== selected.accountId || payload.webStateId !== selected.webStateId
         || payload.extensionStateId !== selected.extensionStateId || message.attemptId !== selected.extensionStateId) throw new Error("Invalid link acknowledgement");
+      if (payload.linkId !== selected.linkId) {
+        if (selectionRunning || active) throw new Error("Shared unlock selection already pending");
+        const candidate = selected, revision = version, ownVersion = ownRevision;
+        selectionRunning = true;
+        try {
+          const checkSelection = () => {
+            assertCurrent();
+            if (version !== revision || ownRevision !== ownVersion || selected !== candidate) throw new Error("Shared unlock selection changed");
+          };
+          const linkId = await client.selectLink(payload.accountId, payload.linkId, matches(candidate)!.ownSource ? "source" : "receiver", checkSelection);
+          assertCurrent(); if (version !== revision || selected !== candidate || linkId !== payload.linkId) return;
+          selected = { ...candidate, linkId };
+          await route.verifyCurrent(); assertCurrent(); if (version !== revision) return;
+          send(payload.extensionStateId, selected);
+        } finally { selectionRunning = false; }
+        return;
+      }
       await startSource(); return;
     }
     if (payload.kind === "prepared") {
