@@ -126,7 +126,10 @@ again explicitly or navigate to a new document to resume detection.
 
 Manual QR scanning is an action in a Credential's Entry detail, not in the global
 search toolbar. The scan review is scoped to that Entry's worker-approved target
-using both Vault and Entry IDs. If the selected Entry is not eligible for the
-active HTTPS origin, the popup offers no save action. Existing TOTP replacement
+using both Vault and Entry IDs. A manually selected writable Credential may receive
+TOTP from a different HTTPS host or without a saved domain after an explicit native
+warning confirmation. The worker enforces that confirmation and the Entry revision;
+the writer changes only TOTP, never the saved domain. Passive suggestions remain
+exact-host, and autofill origin rules are unchanged. Existing TOTP replacement
 still requires confirmation. Passive detection continues to offer native review
 without a permanently visible global scan button.

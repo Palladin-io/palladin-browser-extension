@@ -102,6 +102,26 @@ try {
   await popup.click('Save authenticator'); await wait(() => api.writes.length === 3, 'unchanged current canvas can save')
   const canvasSaved = await api.decrypt(api.writes[2]); assert.equal(canvasSaved.content.totp.secret, seed)
 
+  await popup.dismiss(); popup = null
+  await page.goto('https://different-setup.example.test/setup')
+  await page.evaluate(value => { document.querySelector('a').href = value }, uri.replace(seed, nextSeed))
+  await wait(() => page.locator('palladin-capture').count(), 'cross-domain setup detected')
+  popup = await openNativePopup(worker, profile, extensionId)
+  await popup.click('Scan authenticator QR code')
+  await wait(async () => Boolean(await popup.inputValue('.entry-detail section[aria-label="Save authenticator"] select')), 'cross-domain Entry review ready')
+  await popup.waitText('This website differs from the website saved in this Entry.')
+  assert.equal(api.writes.length, 3, 'cross-domain review does not save automatically')
+  await popup.click('Save to this Entry despite the different website', 'checkbox')
+  await popup.click('Replace existing authenticator', 'checkbox')
+  await popup.screenshot('/tmp/cvt-737-cross-domain-confirm.png')
+  await popup.click('Save authenticator')
+  await wait(() => api.writes.length === 4, 'confirmed cross-domain update')
+  const crossDomainSaved = await api.decrypt(api.writes[3])
+  assert.equal(crossDomainSaved.content.totp.secret, nextSeed)
+  assert.equal(crossDomainSaved.content.urlDomain, first.content.urlDomain)
+  assert.equal(crossDomainSaved.content.username, first.content.username)
+  assert.equal(crossDomainSaved.content.password, first.content.password)
+
   const storage = JSON.stringify(await worker.evaluate(async () => {
     const stores = []
     for (const info of await indexedDB.databases()) {

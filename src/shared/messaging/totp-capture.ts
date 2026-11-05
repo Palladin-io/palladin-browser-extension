@@ -6,7 +6,7 @@ export type TotpContentCommand = Base & { documentId: string } & (
   | { type: 'observe'; uri: string; sequence: number; manual: boolean } | { type: 'open'; id: string } | { type: 'invalidate'; sequence: number } | { type: 'advance'; sequence: number });
 export type TotpPopupCommand = Base & (
   | { type: 'get' } | { type: 'scan'; entry: TotpEntryRef } | { type: 'dismiss'; id: string }
-  | { type: 'save'; id: string; targetId: string; replace: boolean; create?: { label: string; username: string } });
+  | { type: 'save'; id: string; targetId: string; replace: boolean; confirmDomainMismatch?: boolean; create?: { label: string; username: string } });
 function record(x: unknown): x is Record<string, unknown> { return !!x && typeof x === 'object' && !Array.isArray(x); }
 function only(x: Record<string, unknown>, keys: string[]): boolean { return Object.keys(x).every(key => keys.includes(key)); }
 function bounded(x: unknown, max: number): x is string { return typeof x === 'string' && x.length > 0 && x.length <= max; }
@@ -23,8 +23,8 @@ export function isTotpPopupCommand(x: unknown): x is TotpPopupCommand {
   if (x.type === 'get') return only(x, keys);
   if (x.type === 'scan') return only(x, [...keys, 'entry']) && record(x.entry) && only(x.entry, ['id', 'vaultId']) && bounded(x.entry.id, 128) && bounded(x.entry.vaultId, 128);
   if (x.type === 'dismiss') return only(x, [...keys, 'id']) && bounded(x.id, 128);
-  if (x.type !== 'save' || !only(x, [...keys, 'id', 'targetId', 'replace', 'create']) || !bounded(x.id, 128)
-    || !bounded(x.targetId, 128) || typeof x.replace !== 'boolean') return false;
+  if (x.type !== 'save' || !only(x, [...keys, 'id', 'targetId', 'replace', 'create', 'confirmDomainMismatch']) || !bounded(x.id, 128)
+    || !bounded(x.targetId, 128) || typeof x.replace !== 'boolean' || x.confirmDomainMismatch !== undefined && typeof x.confirmDomainMismatch !== 'boolean') return false;
   return x.create === undefined || (record(x.create) && only(x.create, ['label', 'username'])
     && bounded(x.create.label, 512) && typeof x.create.username === 'string' && x.create.username.length <= 512);
 }

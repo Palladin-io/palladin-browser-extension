@@ -9,8 +9,8 @@ interface Deps {
   current(source: SecretCaptureSource): Promise<boolean>;
   sourceMatches(source: SecretCaptureSource, expected: CapturedTotp): Promise<boolean>;
   activeTabId(): Promise<number | null>;
-  choices(url: string): Promise<TotpWriteTarget[]>;
-  save(totp: CapturedTotp, url: string, target: TotpWriteTarget, authorized: () => Promise<boolean>, create?: { label: string; username: string }): Promise<unknown>;
+  choices(url: string, entry?: TotpEntryRef): Promise<TotpWriteTarget[]>;
+  save(totp: CapturedTotp, url: string, target: TotpWriteTarget, authorized: () => Promise<boolean>, create?: { label: string; username: string }, confirmDomainMismatch?: boolean): Promise<unknown>;
   invalidated?(): void;
   now?: () => number;
   createId?: () => string;
@@ -71,20 +71,25 @@ export class TotpCaptureCoordinator {
     if (!p || expectedTabId !== undefined && tab !== expectedTabId || !(await this.valid(p))) return { status: 'empty' as const };
     if (entryScope) {
       if (p.saving) return { status: 'empty' as const };
-      p.entryScope = { ...entryScope };
+      if (p.entryScope?.id !== entryScope.id || p.entryScope.vaultId !== entryScope.vaultId) {
+        p.entryScope = { ...entryScope };
+        p.loaded = false; p.targets.clear(); p.loading = null;
+      }
     }
     if (!p.loaded) {
       if (!p.loading) p.loading = (async () => {
-        const targets = await this.deps.choices(p.source.url);
-        if (!(await this.valid(p))) return false;
+        const entryScope = p.entryScope;
+        const targets = await this.deps.choices(p.source.url, entryScope ?? undefined);
+        if (!(await this.valid(p)) || p.entryScope !== entryScope) return false;
         p.targets = new Map(targets.map(target => [this.createId(), target])); p.loaded = true;
         return true;
       })();
-      try { if (!(await p.loading)) return { status: 'empty' as const }; }
-      finally { p.loading = null; }
+      const loading = p.loading;
+      try { if (!(await loading)) return { status: 'empty' as const }; }
+      finally { if (p.loading === loading) p.loading = null; }
     }
     const targets = [...p.targets].filter(([, target]) => this.matchesEntry(p, target)).map(([id, target]) => ({ id, action: target.action, label: target.label,
-      vaultLabel: target.vaultLabel, vaultId: target.vaultId, entryId: target.action === 'update' ? target.entryId : null, hasTotp: target.action === 'update' && target.hasTotp }));
+      vaultLabel: target.vaultLabel, vaultId: target.vaultId, entryId: target.action === 'update' ? target.entryId : null, domainMismatch: target.action === 'update' && target.domainMismatch === true, hasTotp: target.action === 'update' && target.hasTotp }));
     const updates = targets.filter(target => target.action === 'update');
     return { status: 'ready' as const, entryScope: p.entryScope, id: p.id, origin: new URL(p.source.url).origin,
       issuer: safeHint(p.totp.issuer, p.totp.secret), account: safeHint(p.totp.account, p.totp.secret), targets, defaultTargetId: updates.length === 1 ? updates[0]!.id : null };
@@ -92,11 +97,12 @@ export class TotpCaptureCoordinator {
   private matchesEntry(p: Pending, target: TotpWriteTarget): boolean {
     return !p.entryScope || target.action === 'update' && target.vaultId === p.entryScope.vaultId && target.entryId === p.entryScope.id;
   }
-  async save(id: string, targetId: string, replace: boolean, create?: { label: string; username: string }) {
+  async save(id: string, targetId: string, replace: boolean, create?: { label: string; username: string }, confirmDomainMismatch = false) {
     const tab = await this.deps.activeTabId(); const p = tab === null ? undefined : this.pending.get(tab);
     if (!p || p.id !== id || !(await this.valid(p))) return { status: 'stale' as const };
     const target = p.targets.get(targetId);
     if (!target || !this.matchesEntry(p, target) || !p.loaded || p.saving) return { status: 'stale' as const };
+    if (target.action === 'update' && target.domainMismatch && (!p.entryScope || !confirmDomainMismatch)) return { status: 'confirmation-required' as const };
     if (target.action === 'update' && target.hasTotp && !replace) return { status: 'confirmation-required' as const };
     if (target.action === 'create' && (!create || !create.label.trim() || create.label.length > 512 || create.username.length > 512)) return { status: 'invalid' as const };
     p.saving = true;
@@ -110,7 +116,7 @@ export class TotpCaptureCoordinator {
     };
     try {
       if (!(await authorized())) return { status: 'stale' as const };
-      await this.deps.save(p.totp, p.source.url, target, authorized, create);
+      await this.deps.save(p.totp, p.source.url, target, authorized, create, target.action === 'update' && target.domainMismatch === true && confirmDomainMismatch);
       if (this.pending.get(p.source.tabId) === p) this.clearTab(p.source.tabId);
       return { status: 'saved' as const };
     } catch { return await this.valid(p) ? { status: 'error' as const } : { status: 'stale' as const }; }

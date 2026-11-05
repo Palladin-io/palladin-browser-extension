@@ -86,6 +86,26 @@ describe('captured Credential canonical writer', () => {
     expect(result.filter(x => x.action === 'update')).toMatchObject([{ entryId: ENTRY, revision: '4', hasTotp: false }])
     expect((await writer.totpChoices('https://regional.example.com')).filter(x => x.action === 'update')).toEqual([])
   })
+  it.each(['https://unrelated.test/setup', 'https://regional.example.com/setup'])('offers a manually chosen Credential across domains with confirmation: %s', async source => {
+    const totp = { secret: 'JBSWY3DPEHPK3PXP', algorithm: 'SHA1' as const, digits: 6 as const, period: 30, issuer: null, account: null }
+    const choices = await writer.totpChoices(source, { id: ENTRY, vaultId: VAULT })
+    const chosen = choices.find(item => item.action === 'update')!
+    expect(chosen).toMatchObject({ entryId: ENTRY, domainMismatch: true })
+    await expect(writer.saveTotp(totp, source, chosen, authorized)).rejects.toThrow()
+    expect(client.updateEntry).not.toHaveBeenCalled()
+    await writer.saveTotp(totp, source, chosen, authorized, undefined, true)
+    expect(cryptoMocks.sealCanonicalCredentialEntry.mock.calls[0]![1]).toEqual({ ...secret, content: { ...secret.content, totp } })
+  })
+  it('offers a selected Credential without a saved domain and preserves that empty domain', async () => {
+    const withoutDomain = { ...secret, content: { ...secret.content, url: '', urlDomain: '' } }
+    cryptoMocks.openCurrentMemberSecret.mockResolvedValue(withoutDomain)
+    data.refresh.mockResolvedValue([{ vaultId: VAULT, id: ENTRY, type: 1, urlDomain: '' }])
+    const choices = await writer.totpChoices(url, { id: ENTRY, vaultId: VAULT })
+    expect(choices).toMatchObject([{ entryId: ENTRY, domainMismatch: true }])
+    const totp = { secret: 'JBSWY3DPEHPK3PXP', algorithm: 'SHA1' as const, digits: 6 as const, period: 30, issuer: null, account: null }
+    await writer.saveTotp(totp, url, choices[0]!, authorized, undefined, true)
+    expect(cryptoMocks.sealCanonicalCredentialEntry.mock.calls[0]![1]).toEqual({ ...withoutDomain, content: { ...withoutDomain.content, totp } })
+  })
   it('updates only TOTP and preserves delivery policy and active grants', async () => {
     client.getActiveGrants.mockResolvedValue([grant])
     const totp = { secret: 'JBSWY3DPEHPK3PXP', algorithm: 'SHA1' as const, digits: 6 as const, period: 30, issuer: null, account: null }

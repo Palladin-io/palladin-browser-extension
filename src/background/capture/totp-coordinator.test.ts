@@ -186,3 +186,19 @@ it('retains manual Entry binding across repeated review and rejects previously o
   expect(await c.save(passive.id, passive.targets[0]!.id, true)).toEqual({ status: 'stale' });
   c.clear();
 });
+
+it('requires explicit mismatch confirmation for a manual Entry target', async () => {
+  const save = vi.fn(async () => ({})); const choices = vi.fn(async () => [{ ...target, domainMismatch: true }]);
+  const c = new TotpCaptureCoordinator({ session: async () => ({ profileId: 'user', generation: 1, unlocked: true }), current: async () => true,
+    sourceMatches: async () => true, activeTabId: async () => 1, choices, save });
+  await c.observe(uri, source);
+  await c.review();
+  const r = await c.review({ id: 'entry', vaultId: 'vault' }, 1); if (r.status !== 'ready') throw Error('missing');
+  expect(choices).toHaveBeenLastCalledWith(source.url, { id: 'entry', vaultId: 'vault' });
+  expect(r.targets[0]).toMatchObject({ domainMismatch: true });
+  expect(await c.save(r.id, r.targets[0]!.id, true)).toEqual({ status: 'confirmation-required' });
+  expect(save).not.toHaveBeenCalled();
+  expect(await c.save(r.id, r.targets[0]!.id, true, undefined, true)).toEqual({ status: 'saved' });
+  expect(save).toHaveBeenCalledWith(expect.anything(), source.url, expect.objectContaining({ entryId: 'entry' }), expect.any(Function), undefined, true);
+  c.clear();
+});

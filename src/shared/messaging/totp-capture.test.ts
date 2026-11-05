@@ -20,3 +20,9 @@ it('requires a bounded Entry reference for native manual scans', () => {
   expect(isTotpPopupCommand({ channel, type: 'scan', entry: { id: '', vaultId: 'vault' } })).toBe(false);
   expect(isTotpPopupCommand({ channel, type: 'scan', entry: { id: 'entry', vaultId: 'vault', extra: true } })).toBe(false);
 });
+
+it('accepts only boolean cross-domain confirmation on native save', () => {
+  const save = { channel, type: 'save', id: 'candidate', targetId: 'target', replace: false };
+  expect(isTotpPopupCommand({ ...save, confirmDomainMismatch: true })).toBe(true);
+  expect(isTotpPopupCommand({ ...save, confirmDomainMismatch: 'true' })).toBe(false);
+});

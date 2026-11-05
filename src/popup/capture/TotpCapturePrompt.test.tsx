@@ -4,9 +4,9 @@ import { expect, it, vi } from 'vitest';
 import { TotpCapturePrompt } from './TotpCapturePrompt';
 const review = { status: 'ready' as const, entryScope: null, id: 'candidate', origin: 'https://example.com', issuer: null, account: null,
   defaultTargetId: null, targets: [
-    { id: 'one', vaultId: 'vault', entryId: 'alice', action: 'update' as const, label: 'Alice', vaultLabel: 'Personal', hasTotp: true },
-    { id: 'two', vaultId: 'vault', entryId: 'bob', action: 'update' as const, label: 'Bob', vaultLabel: 'Personal', hasTotp: false },
-    { id: 'new', vaultId: 'vault', entryId: null, action: 'create' as const, label: 'Personal', vaultLabel: 'Personal', hasTotp: false },
+    { id: 'one', vaultId: 'vault', entryId: 'alice', action: 'update' as const, label: 'Alice', vaultLabel: 'Personal', hasTotp: true, domainMismatch: false },
+    { id: 'two', vaultId: 'vault', entryId: 'bob', action: 'update' as const, label: 'Bob', vaultLabel: 'Personal', hasTotp: false, domainMismatch: false },
+    { id: 'new', vaultId: 'vault', entryId: null, action: 'create' as const, label: 'Personal', vaultLabel: 'Personal', hasTotp: false, domainMismatch: false },
   ] };
 it('requires account selection and explicit replacement confirmation', async () => {
   const send = vi.fn(async () => ({ status: 'saved' as const }));
@@ -74,7 +74,7 @@ it.each(['bob', 'missing'])('limits an Entry scan to its worker-approved target:
       await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'save', targetId: 'two' })));
       expect(send).toHaveBeenCalledWith({ channel: 'palladin.totp-capture', type: 'scan', entry: { id: 'bob', vaultId: 'vault' } });
     } else {
-      expect(await screen.findByRole('status')).toHaveTextContent('This Entry is not eligible');
+      expect(await screen.findByRole('status')).toHaveTextContent('This Entry cannot be updated');
       expect(screen.queryByRole('button', { name: 'Save authenticator' })).not.toBeInTheDocument();
     }
     view.unmount();
@@ -90,4 +90,13 @@ it('keeps passive review available independently of the selected Entry', async (
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     view.unmount();
   } finally { vi.unstubAllGlobals(); }
+});
+
+it('warns about a different domain and allows saving after explicit confirmation', async () => {
+  const send = vi.fn(async () => ({ status: 'saved' as const }));
+  render(<TotpCapturePrompt review={{ ...review, defaultTargetId: 'two', targets: [{ ...review.targets[1]!, domainMismatch: true }] }} send={send} onDone={() => {}} />);
+  expect(screen.getByRole('button', { name: 'Save authenticator' })).toBeDisabled();
+  fireEvent.click(screen.getByLabelText('Save to this Entry despite the different website'));
+  fireEvent.click(screen.getByRole('button', { name: 'Save authenticator' }));
+  await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ targetId: 'two', confirmDomainMismatch: true })));
 });
