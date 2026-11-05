@@ -185,3 +185,21 @@ it('retains only the safe saved summary across refresh and opens the committed i
     expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument();
   } finally { vi.unstubAllGlobals(); }
 });
+
+it('requires another review after card conflict and shows the refreshed existing fields', async () => {
+ const target = {id:'existing',vaultId:'v',revision:'1',name:'Travel Visa',vaultName:'Personal',entry:{entryType:'creditCard' as const,label:'Travel Visa',cardNumber:'4111111111111111',cardholderName:'Holder',expiryMonth:'12',expiryYear:'2031',notes:'Original'}};
+ let conflicts = 0;
+ const send = vi.fn(async (command: SecretCapturePopupCommand): Promise<SecretCaptureResult> => {
+  if(command.type === 'update') {conflicts++; return {status:'review-required'};}
+  return {...card,cardTargets:[{...target,revision:conflicts?'2':'1',entry:{...target.entry,notes:conflicts?'Changed elsewhere':'Original'}}]};
+ });
+ render(<SecretCapturePrompt review={card} client={{} as VaultClient} send={send} onDone={()=>{}}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Review'})); await screen.findByLabelText('Name');
+ fireEvent.click(screen.getByRole('button',{name:'Update card'}));
+ await screen.findByRole('button',{name:'Review'});
+ expect(send.mock.calls.filter(([command])=>command.type==='update')).toHaveLength(1);
+ expect(screen.queryByLabelText('Name')).not.toBeInTheDocument();
+ fireEvent.click(screen.getByRole('button',{name:'Review'}));
+ await waitFor(()=>expect(screen.getByLabelText('Notes')).toHaveValue('Changed elsewhere'));
+ expect(send.mock.calls.filter(([command])=>command.type==='update')).toHaveLength(1);
+});

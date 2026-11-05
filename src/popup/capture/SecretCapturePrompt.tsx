@@ -152,6 +152,7 @@ export function SecretCapturePrompt({ review, client, send = sendSecretCapture, 
           });
           return { status: 'saved' };
         }
+        if (result.status === 'review-required') { setSelected(null); setTargetId(''); setActionError(true); }
         if (result.status === 'duplicate' || result.status === 'stale' || result.status === 'locked') setTerminal(result.status === 'duplicate' ? 'duplicate' : 'stale');
         throw Error('Capture save failed');
       }} /> : <p role="status">{t('secretCapture.unavailable')}</p>}

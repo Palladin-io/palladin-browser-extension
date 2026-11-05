@@ -1,3 +1,4 @@
+import { Protocol2MutationConflictError } from '../vault/protocol2/client';
 import { registrableDomain } from '@shared/security/domain';
 import type { SecretCandidate } from '@shared/messaging/secret-capture';
 import type { ManualEntrySaveInput, ManualEntrySaveResult } from '../vault/protocol2/service';
@@ -32,7 +33,7 @@ export type SecretCaptureResult =
   | { status: 'accepted'; id: string }
   | { status: 'review'; id: string; icon?: string; candidate: SecretCandidate; origin: string; vaults: readonly SecretCaptureVault[]; cardTargets?: readonly SecretCardTarget[] }
   | { status: 'saved'; entryId?: string; vaultId?: string }
-  | { status: 'empty' | 'stale' | 'locked' | 'muted' | 'full' | 'busy' | 'error' | 'duplicate' | 'dismissed' };
+  | { status: 'empty' | 'stale' | 'locked' | 'muted' | 'full' | 'busy' | 'error' | 'review-required' | 'duplicate' | 'dismissed' };
 
 export class SecretCaptureCoordinator {
   private readonly pending = new Map<string, Pending>();
@@ -159,9 +160,18 @@ export class SecretCaptureCoordinator {
     try {
       if (!await authorized() || !(await this.deps.vaults()).some(vault => vault.id === target.vaultId)) return { status: 'stale' };
       const result = await this.deps.update(target, entry, item.candidate.cardNumber, authorized);
-      if (result.status !== 'saved') return { status: 'error' };
+      if (result.status !== 'saved') {
+        if (!await authorized()) return { status: 'stale' };
+        delete item.cardTargets; item.reviewed = false; return { status: 'review-required' };
+      }
       item.dismissed = true; return { status: 'saved', entryId: target.id, vaultId: target.vaultId };
-    } catch { return { status: await authorized() ? 'error' : 'stale' }; }
+    } catch (error) {
+      if (!await authorized()) return { status: 'stale' };
+      if (error instanceof Protocol2MutationConflictError) {
+        delete item.cardTargets; item.reviewed = false; return { status: 'review-required' };
+      }
+      return { status: 'error' };
+    }
     finally { item.busy = false; }
   }
   async save(id: string, vaultId: string, entry: ManualEntrySaveInput): Promise<SecretCaptureResult> {

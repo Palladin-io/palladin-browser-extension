@@ -1,3 +1,4 @@
+import { Protocol2MutationConflictError } from '../vault/protocol2/client';
 import { expect, it, vi } from 'vitest';
 import { SecretCaptureCoordinator } from './secret-coordinator';
 const card = { kind: 'card', cardNumber: '4111111111111111', cardholderName: 'Test', expiryMonth: '12', expiryYear: '2031' } as const;
@@ -11,7 +12,7 @@ function fixture(createdIdentity = false, resolveIcon?: () => Promise<string | u
  current: async () => live, activeTabId: async () => 1, muted: async () => false, mute: async () => {},
  vaults: async () => [{ id: 'v', name: 'Personal', isDefault: true }], duplicate: async () => false,
  ...(resolveIcon ? {resolveIcon} : {}),
- save: async () => createdIdentity ? { status: 'saved', entryId: 'new-card', vaultId: 'v' } : { status: 'saved' }, cardTargets: async () => [target], update });
+ save: async () => createdIdentity ? { status: 'saved', entryId: 'new-card', vaultId: 'v' } : { status: 'saved' }, cardTargets: async () => [{...target,entry:{...target.entry}}], update });
  return { coordinator, update, target, navigate: () => { live = false; } };
 }
 it('offers exact-card targets in native review and saves the worker-owned revision', async () => {
@@ -63,4 +64,26 @@ it('does not return review after document change during catalog lookup', async (
  const f = fixture(false, async () => { f.navigate(); return 'public-asset:catalog-icon'; });
  await f.coordinator.observe(card, source);
  expect(await f.coordinator.review()).toEqual({status:'stale'}); f.coordinator.clear();
+});
+
+it('refreshes a conflicting card revision only after another explicit review', async () => {
+ const f = fixture(); const observed = await f.coordinator.observe(card, source); const id = 'id' in observed ? observed.id : '';
+ await f.coordinator.beginReview(id);
+ f.target.revision = '2'; f.target.entry.notes = 'Changed elsewhere';
+ f.update.mockRejectedValueOnce(new Protocol2MutationConflictError());
+ expect(await f.coordinator.update(id,'card',entry)).toEqual({status:'review-required'});
+ expect(f.update).toHaveBeenCalledTimes(1);
+ expect(await f.coordinator.review()).toMatchObject({cardTargets:[{revision:'2',entry:{notes:'Changed elsewhere'}}]});
+ expect(await f.coordinator.update(id,'card',entry)).toEqual({status:'stale'});
+ expect(f.update).toHaveBeenCalledTimes(1);
+ await f.coordinator.beginReview(id);
+ expect(await f.coordinator.update(id,'card',entry)).toMatchObject({status:'saved'});
+ expect(f.update).toHaveBeenLastCalledWith(expect.objectContaining({revision:'2'}),entry,card.cardNumber,expect.any(Function)); f.coordinator.clear();
+});
+it('keeps the reviewed target after an ordinary update transport failure', async () => {
+ const f = fixture(); const observed = await f.coordinator.observe(card, source); const id = 'id' in observed ? observed.id : '';
+ await f.coordinator.beginReview(id); f.update.mockRejectedValueOnce(new Error('network'));
+ expect(await f.coordinator.update(id,'card',entry)).toEqual({status:'error'});
+ expect(await f.coordinator.update(id,'card',entry)).toMatchObject({status:'saved'});
+ expect(f.update).toHaveBeenCalledTimes(2); f.coordinator.clear();
 });
