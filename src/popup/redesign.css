@@ -854,7 +854,13 @@ html[data-extension-surface='side-panel'] .popup-header {
   box-shadow: var(--cv-card-shadow);
   overflow: hidden;
 }
-.detail-navigation .detail-link + .detail-link { border-top: 1px solid var(--cv-divider); }
+.detail-navigation .detail-link + .detail-link,
+.detail-navigation .totp-capture-feedback + .detail-link { border-top: 1px solid var(--cv-divider); }
+.totp-capture-feedback {
+  padding: 0 16px 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
 .detail-link > .popup-icon:first-child { color: var(--cv-t3); }
 .detail-link:hover { background: color-mix(in srgb, var(--cv-selection) 40%, transparent); }
 .toolbar-icon { border-radius: 8px; }

@@ -53,9 +53,9 @@ it('does not restore a stale review when a scan finishes after invalidation', as
     onMessage: { addListener: (value: typeof listener) => { listener = value; }, removeListener: () => {} } } });
   try {
     const { unmount } = render(<TotpCaptureSurface revision={0} entry={{ id: 'bob', vaultId: 'vault' }} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Scan QR on page' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Scan authenticator QR code' }));
     await act(async () => { listener({ type: 'totp-capture/invalidated' }); finish(manualReview); });
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Scan QR on page' })).not.toBeDisabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Scan authenticator QR code' })).not.toBeDisabled());
     expect(screen.queryByRole('region', { name: 'Save authenticator' })).not.toBeInTheDocument(); unmount();
   } finally { vi.unstubAllGlobals(); }
 });
@@ -66,7 +66,7 @@ it.each(['bob', 'missing'])('limits an Entry scan to its worker-approved target:
   vi.stubGlobal('chrome', { runtime: { sendMessage: send, onMessage: { addListener() {}, removeListener() {} } } });
   try {
     const view = render(<TotpCaptureSurface revision={0} entry={{ id: entryId, vaultId: 'vault' }} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Scan QR on page' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Scan authenticator QR code' }));
     if (entryId === 'bob') {
       expect(await screen.findByLabelText('Credential')).toHaveValue('two');
       expect(screen.queryByRole('option', { name: /Alice/ })).not.toBeInTheDocument();

@@ -72,5 +72,5 @@ it('loads recent activity for the selected Entry and opens its Logs', async () =
 
 it('offers QR scanning inside the selected Credential', () => {
   renderDetail({ credentialUsername: vi.fn(async () => ''), totp: vi.fn(async () => null) } as unknown as VaultClient);
-  expect(screen.getByRole('button', { name: 'Scan QR on page' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Scan authenticator QR code' })).toBeInTheDocument();
 });

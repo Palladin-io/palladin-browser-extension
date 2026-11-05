@@ -681,7 +681,7 @@
   "totpCapture.replace": "Replace existing authenticator",
   "totpCapture.save": "Save authenticator",
   "totpCapture.cancel": "Cancel",
-  "totpCapture.scan": "Scan QR on page",
+  "totpCapture.scan": "Scan authenticator QR code",
   "totpCapture.noResult": "No readable authenticator setup found on this page. Some images or frames cannot be read.",
   "totpCapture.error": "Could not save authenticator. Try again.",
   "totpCapture.source": "Detected on {origin}",

@@ -76,7 +76,7 @@ export function TotpCaptureSurface({ revision, entry }: { revision: number; entr
   const scopedReview = visibleReview?.targets.length ? visibleReview : null;
   return <>{scopedReview ? <TotpCapturePrompt key={scopedReview.id} review={scopedReview} onDone={() => setReview(null)} /> : null}
     {entry ? <button className="detail-link" disabled={scanning} onClick={() => void scan()}><PopupIcon name="qr" />{t('totpCapture.scan')}<PopupIcon name="chevron" /></button> : null}
-    {entry && visibleReview && !scopedReview ? <p role="status">{t('totpCapture.entryUnavailable')}</p> : null}
-    {empty ? <p role="status">{t('totpCapture.noResult')}</p> : null}
-    {ambiguous ? <p role="status">{t('totpCapture.ambiguous')}</p> : null}</>;
+    {entry && visibleReview && !scopedReview ? <p className="entry-status totp-capture-feedback" role="status">{t('totpCapture.entryUnavailable')}</p> : null}
+    {empty ? <p className="entry-status totp-capture-feedback" role="status">{t('totpCapture.noResult')}</p> : null}
+    {ambiguous ? <p className="entry-status totp-capture-feedback" role="status">{t('totpCapture.ambiguous')}</p> : null}</>;
 }

@@ -681,7 +681,7 @@
   "totpCapture.replace": "Zastąp istniejący uwierzytelniacz",
   "totpCapture.save": "Zapisz uwierzytelniacz",
   "totpCapture.cancel": "Anuluj",
-  "totpCapture.scan": "Skanuj kod QR na stronie",
+  "totpCapture.scan": "Skanuj kod QR uwierzytelniacza",
   "totpCapture.noResult": "Nie znaleziono czytelnej konfiguracji uwierzytelniacza. Niektóre obrazy lub ramki są niedostępne.",
   "totpCapture.error": "Nie udało się zapisać uwierzytelniacza. Spróbuj ponownie.",
   "totpCapture.source": "Wykryto na {origin}",

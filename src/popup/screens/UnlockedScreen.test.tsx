@@ -594,5 +594,5 @@ describe('popup resume on the current workspace UI', () => {
 it('keeps manual QR scanning out of the global Vault toolbar', async () => {
   render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={makeClient()} captureClient={makeCaptureClient()} />);
   await screen.findByText('Example login');
-  expect(screen.queryByRole('button', { name: 'Scan QR on page' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Scan authenticator QR code' })).not.toBeInTheDocument();
 });
