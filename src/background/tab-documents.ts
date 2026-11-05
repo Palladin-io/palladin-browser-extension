@@ -6,6 +6,7 @@ const topFrameDocuments = new Map<number, string>();
 export function registerTopFrameDocument(
   port: chrome.runtime.Port,
   extensionId: string,
+  onDocumentInvalidated?: () => void,
 ): (() => void) | null {
   const sender = port.sender;
   if (sender?.id !== extensionId
@@ -15,9 +16,14 @@ export function registerTopFrameDocument(
     || sender.documentId.length === 0) return null;
   const tabId = sender.tab.id;
   const documentId = sender.documentId;
+  const previousDocumentId = topFrameDocuments.get(tabId);
   topFrameDocuments.set(tabId, documentId);
+  if (previousDocumentId !== undefined && previousDocumentId !== documentId) onDocumentInvalidated?.();
   return () => {
-    if (topFrameDocuments.get(tabId) === documentId) topFrameDocuments.delete(tabId);
+    if (topFrameDocuments.get(tabId) === documentId) {
+      topFrameDocuments.delete(tabId);
+      onDocumentInvalidated?.();
+    }
   };
 }
 

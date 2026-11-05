@@ -21,6 +21,7 @@ function safeSummary(review: NativeLoginCaptureReview): NativeLoginCaptureReview
 }
 export function LoginCaptureSurface({ revision }: { revision: number }): React.JSX.Element | null {
   const [review, setReview] = useState<NativeLoginCaptureReview | null>(null);
+  const [availabilityRevision, setAvailabilityRevision] = useState(0);
   const saved = useRef(false), saving = useRef(false), generation = useRef(0);
   const sourceTabId = useRef<number | null>(null), promptId = useRef<string | null>(null);
   useEffect(() => {
@@ -28,8 +29,10 @@ export function LoginCaptureSurface({ revision }: { revision: number }): React.J
     let current = true;
     const invalidate = () => { generation.current++; if (!saved.current) { promptId.current = null; setReview(null); } };
     const listener = (message: unknown) => {
-      if (typeof message === 'object' && message !== null && 'type' in message && message.type === 'login-capture/invalidated'
-        && (!('tabId' in message) || sourceTabId.current === null || message.tabId === sourceTabId.current)) invalidate();
+      if (typeof message !== 'object' || message === null || !('type' in message)
+        || 'tabId' in message && sourceTabId.current !== null && message.tabId !== sourceTabId.current) return;
+      if (message.type === 'login-capture/invalidated') invalidate();
+      else if (message.type === 'login-capture/available' && !saved.current && !saving.current) setAvailabilityRevision(value => value + 1);
     };
     runtime?.onMessage?.addListener(listener);
     const timer = setInterval(() => {
@@ -51,7 +54,7 @@ export function LoginCaptureSurface({ revision }: { revision: number }): React.J
       sourceTabId.current = result.sourceTabId ?? null;
       setReview(result.review);
     }).catch(() => { if (request === generation.current && !saved.current && !saving.current) setReview(null); });
-  }, [revision]);
+  }, [revision, availabilityRevision]);
   const send: Send = async command => {
     const mutation = command.type === 'save' || command.type === 'confirm';
     if (mutation) saving.current = true;

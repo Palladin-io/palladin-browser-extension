@@ -212,7 +212,7 @@ function publishLoginCaptureInvalidation(tabId?: number): void {
 sessionManager.hooks.onTerminating(() => publishLoginCaptureInvalidation());
 sessionManager.hooks.onLocked(() => publishLoginCaptureInvalidation());
 chrome.tabs.onRemoved.addListener(tabId => publishLoginCaptureInvalidation(tabId));
-chrome.tabs.onUpdated.addListener((tabId, change) => { if (change.url || change.status === 'loading') publishLoginCaptureInvalidation(tabId); });
+chrome.tabs.onUpdated.addListener((tabId, change) => { if (change.url) publishLoginCaptureInvalidation(tabId); });
 sessionManager.hooks.onUnlocked(() => popupView.unlock());
 sessionManager.hooks.onLocked(() => popupView.lock());
 sessionManager.hooks.onUnlocked(() => automaticFillSession.unlocked());
@@ -302,7 +302,8 @@ chrome.runtime.onConnect.addListener((port) => {
     });
     return;
   }
-  const unregisterDocument = registerTopFrameDocument(port, chrome.runtime.id);
+  const unregisterDocument = registerTopFrameDocument(port, chrome.runtime.id,
+    () => publishLoginCaptureInvalidation(port.sender!.tab!.id!));
   const unregisterCapture = secretCaptureFrames.register(port.sender, chrome.runtime.id);
   if (unregisterCapture) port.onDisconnect.addListener(() => {
     const candidateIds = secretCaptureCoordinator.disconnected(port.sender!.tab!.id!, port.sender!.documentId!);
@@ -404,6 +405,9 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
     try {
       const result = await federatedSignIn.dispatch(raw, source);
       sendResponse(result);
+      if (result.status === 'prompt' && result.prompt?.state === 'ready') {
+        void chrome.runtime.sendMessage({ type: 'login-capture/available', tabId: source.tabId }).catch(() => undefined);
+      }
       if (result.status === "saved") publishSurfaceState(vaultChanged());
     } catch { sendResponse({ status: "unavailable" }); }
     finally { lease.release(); }
@@ -480,6 +484,9 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
     try {
       const result = await credentialCaptureCoordinator.dispatch(raw, source);
       sendResponse(result);
+      if (result.status === 'prompt' && result.prompt?.state === 'ready') {
+        void chrome.runtime.sendMessage({ type: 'login-capture/available', tabId: source.tabId }).catch(() => undefined);
+      }
       if (result.status === "saved") publishSurfaceState(vaultChanged());
     } catch { sendResponse({ status: "unavailable" }); }
     finally { lease.release(); }

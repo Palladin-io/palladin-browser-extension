@@ -157,3 +157,18 @@ it.each(['saving', 'saved'] as const)('ignores an outstanding refresh rejection 
     expect(await screen.findByText('Login saved')).toBeVisible();
   } finally { unmount(); vi.unstubAllGlobals(); }
 });
+it('discovers a same-document SPA capture after the surface initially has no prompt', async () => {
+  const { act } = await import('@testing-library/react');
+  const { LoginCaptureSurface } = await import('./LoginCapturePrompt');
+  let listener!: (message: unknown) => void;
+  let gets = 0;
+  vi.stubGlobal('chrome', { runtime: { sendMessage: () => Promise.resolve({ status: 'review', sourceTabId: 1, review: ++gets === 1 ? null : review }),
+    onMessage: { addListener: (next: typeof listener) => { listener = next; }, removeListener: () => {} } } });
+  const { unmount } = render(<LoginCaptureSurface revision={0} />);
+  try {
+    await act(async () => {});
+    expect(screen.queryByRole('button', { name: 'Review' })).toBeNull();
+    await act(async () => { listener({ type: 'login-capture/available', tabId: 1 }); });
+    expect(await screen.findByRole('button', { name: 'Review' })).toBeVisible();
+  } finally { unmount(); vi.unstubAllGlobals(); }
+});
