@@ -38,12 +38,14 @@ export function TotpCapturePrompt({ review, send = sendDefault, onDone }: { revi
       <label>{t('totpCapture.username')}<input className="field-input" value={username} maxLength={512} onChange={event => setUsername(event.target.value)} /></label></> : null}
     {target?.domainMismatch ? <div>
       <p className="capture-warning">{t('totpCapture.domainWarning')}</p>
-      <label><input type="checkbox" checked={confirmDomainMismatch} onChange={event => setConfirmDomainMismatch(event.target.checked)} />{t('totpCapture.confirmDomain')}</label>
+      <label className="capture-confirmation"><input type="checkbox" checked={confirmDomainMismatch} onChange={event => setConfirmDomainMismatch(event.target.checked)} />{t('totpCapture.confirmDomain')}</label>
     </div> : null}
-    {target?.hasTotp ? <label><input type="checkbox" checked={replace} onChange={event => setReplace(event.target.checked)} />{t('totpCapture.replace')}</label> : null}
+    {target?.hasTotp ? <label className="capture-confirmation"><input type="checkbox" checked={replace} onChange={event => setReplace(event.target.checked)} />{t('totpCapture.replace')}</label> : null}
     {error ? <p role="alert">{t('totpCapture.error')}</p> : null}
+    <div className="workspace-actions">
     <Button disabled={!target || busy || target.domainMismatch && !confirmDomainMismatch || target.action === 'create' && !label.trim()} loading={busy} onClick={() => void save()}>{t('totpCapture.save')}</Button>
     <Button variant="subtle" disabled={busy} onClick={() => { void send({ channel: TOTP_CAPTURE_CHANNEL, type: 'dismiss', id: review.id }).finally(onDone); }}>{t('totpCapture.cancel')}</Button>
+    </div>
   </section>;
 }
 export function TotpCaptureSurface({ revision, entry }: { revision: number; entry?: { id: string; vaultId: string } }) {
