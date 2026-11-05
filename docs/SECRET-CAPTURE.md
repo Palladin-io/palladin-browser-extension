@@ -123,3 +123,10 @@ multiple distinct setups are visible, isolate the intended one and scan again.
 After the content script receives a dismissal response, passive TOTP detection is
 paused for that document, including changed configurations. The user can scan
 again explicitly or navigate to a new document to resume detection.
+
+Manual QR scanning is an action in a Credential's Entry detail, not in the global
+search toolbar. The scan review is scoped to that Entry's worker-approved target
+using both Vault and Entry IDs. If the selected Entry is not eligible for the
+active HTTPS origin, the popup offers no save action. Existing TOTP replacement
+still requires confirmation. Passive detection continues to offer native review
+without a permanently visible global scan button.

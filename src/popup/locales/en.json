@@ -476,6 +476,8 @@
   "share.confirmSecret": "Confirm password or PIN",
   "share.emailsHint": "Up to 20 email addresses, separated by commas",
   "share.inputError": "Check the email addresses and confirm the protection secret. Use at least 8 password characters or 6 non-repeating, non-sequential PIN digits.",
+  "share.history": "Share history",
+  "totpCapture.entryUnavailable": "This Entry is not eligible for this authenticator. Open its matching HTTPS site and try again.",
   "share.action": "Share",
   "share.locked": "Locked",
   "share.suspended": "Suspended",

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { TOTP_CAPTURE_CHANNEL, type TotpPopupCommand } from '@shared/messaging/totp-capture';
 import type { TotpCaptureCoordinator } from '../../background/capture/totp-coordinator';
+import { PopupIcon } from '../components/PopupIcon';
 import { Button } from '../components/Button';
 import { useI18n } from '../i18n';
 
@@ -40,7 +41,7 @@ export function TotpCapturePrompt({ review, send = sendDefault, onDone }: { revi
     <Button variant="subtle" disabled={busy} onClick={() => { void send({ channel: TOTP_CAPTURE_CHANNEL, type: 'dismiss', id: review.id }).finally(onDone); }}>{t('totpCapture.cancel')}</Button>
   </section>;
 }
-export function TotpCaptureSurface({ revision }: { revision: number }) {
+export function TotpCaptureSurface({ revision, entry }: { revision: number; entry?: { id: string; vaultId: string } }) {
   const { t } = useI18n(); const [review, setReview] = useState<Review | null>(null); const [empty, setEmpty] = useState(false);
   const [scanning, setScanning] = useState(false); const [ambiguous, setAmbiguous] = useState(false);
   const sequence = useRef(0); const mounted = useRef(true);
@@ -68,8 +69,11 @@ export function TotpCaptureSurface({ revision }: { revision: number }) {
       setAmbiguous(result.status === 'ambiguous'); setEmpty(result.status !== 'ready' && result.status !== 'ambiguous');
     } catch { if (mounted.current) setEmpty(true); } finally { if (mounted.current) setScanning(false); }
   }
-  return <>{review ? <TotpCapturePrompt key={review.id} review={review} onDone={() => setReview(null)} /> : null}
-    <Button variant="subtle" loading={scanning} disabled={scanning} onClick={() => void scan()}>{t('totpCapture.scan')}</Button>
+  const targets = review?.targets.filter(target => !entry || target.action === 'update' && target.entryId === entry.id && target.vaultId === entry.vaultId);
+  const scopedReview = review && targets?.length ? { ...review, targets, defaultTargetId: entry ? targets[0]!.id : review.defaultTargetId } : null;
+  return <>{scopedReview ? <TotpCapturePrompt key={scopedReview.id} review={scopedReview} onDone={() => setReview(null)} /> : null}
+    {entry ? <button className="detail-link" disabled={scanning} onClick={() => void scan()}><PopupIcon name="qr" />{t('totpCapture.scan')}<PopupIcon name="chevron" /></button> : null}
+    {entry && review && !scopedReview ? <p role="status">{t('totpCapture.entryUnavailable')}</p> : null}
     {empty ? <p role="status">{t('totpCapture.noResult')}</p> : null}
     {ambiguous ? <p role="status">{t('totpCapture.ambiguous')}</p> : null}</>;
 }

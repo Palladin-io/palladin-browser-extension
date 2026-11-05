@@ -82,7 +82,7 @@ describe("UnlockedScreen", () => {
   it.each([
     ['Agent access', 'Inbox', 'workspace/grants'],
     ['Logs', 'Logs', 'workspace/audit'],
-    ['Sharing', 'Sharing', 'workspace/shares'],
+    ['Share history', 'Sharing', 'workspace/shares'],
   ])('opens %s scoped to the selected Entry and clears scope from the main tab', async (action, tab, commandType) => {
     const transport = vi.mocked(chrome.runtime.sendMessage).getMockImplementation()!;
     vi.mocked(chrome.runtime.sendMessage).mockImplementation(async (...args) => {
@@ -589,4 +589,10 @@ describe('popup resume on the current workspace UI', () => {
     expect(restoredScroll.scrollTop).toBe(240);
     store.lock();
   });
+});
+
+it('keeps manual QR scanning out of the global Vault toolbar', async () => {
+  render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={makeClient()} captureClient={makeCaptureClient()} />);
+  await screen.findByText('Example login');
+  expect(screen.queryByRole('button', { name: 'Scan QR on page' })).not.toBeInTheDocument();
 });

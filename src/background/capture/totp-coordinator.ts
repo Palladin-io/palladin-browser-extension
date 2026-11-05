@@ -78,7 +78,7 @@ export class TotpCaptureCoordinator {
       finally { p.loading = null; }
     }
     const targets = [...p.targets].map(([id, target]) => ({ id, action: target.action, label: target.label,
-      vaultLabel: target.vaultLabel, hasTotp: target.action === 'update' && target.hasTotp }));
+      vaultLabel: target.vaultLabel, vaultId: target.vaultId, entryId: target.action === 'update' ? target.entryId : null, hasTotp: target.action === 'update' && target.hasTotp }));
     const updates = targets.filter(target => target.action === 'update');
     return { status: 'ready' as const, id: p.id, origin: new URL(p.source.url).origin,
       issuer: safeHint(p.totp.issuer, p.totp.secret), account: safeHint(p.totp.account, p.totp.secret), targets, defaultTargetId: updates.length === 1 ? updates[0]!.id : null };

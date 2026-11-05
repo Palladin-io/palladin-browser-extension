@@ -18,6 +18,7 @@ describe('TOTP candidate authority', () => {
     expect(JSON.stringify(review)).not.toContain('JBSWY3DPEHPK3PXP');
     if (review.status !== 'ready') throw Error('missing review');
     expect(review.defaultTargetId).toBe(review.targets[0]!.id);
+    expect(review.targets[0]).toMatchObject({ vaultId: 'vault', entryId: 'entry' });
     expect(await f.coordinator.save(review.id, review.targets[0]!.id, false)).toEqual({ status: 'confirmation-required' });
     expect(f.save).not.toHaveBeenCalled();
     expect(await f.coordinator.save(review.id, review.targets[0]!.id, true)).toEqual({ status: 'saved' });

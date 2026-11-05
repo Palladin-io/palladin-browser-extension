@@ -156,7 +156,7 @@ function UnlockedContent({
           <PopupIcon name="plus" />
         </button>
       </Header>
-      <TotpCaptureSurface revision={viewRevision} />
+      {view !== 'vault' || current?.type !== 1 ? <TotpCaptureSurface revision={viewRevision} /> : null}
       {secretCapture ? <SecretCapturePrompt key={secretCapture.id} review={secretCapture} client={client} onDone={clearSecretCapture} /> : null}
       <h2 className="sr-only">{t('vault.title')}</h2>
       {capture.prompt !== null && view === 'vault' ? (
@@ -312,6 +312,7 @@ function UnlockedContent({
                   <EntryDetail
                     key={`${current.vaultId}:${current.id}:${current.updatedAt}`}
                     entry={current}
+                    revision={viewRevision}
                     client={client}
                     workspaceClient={workspaceClient}
                     onGrants={() => {

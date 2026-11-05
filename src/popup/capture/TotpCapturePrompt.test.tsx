@@ -4,9 +4,9 @@ import { expect, it, vi } from 'vitest';
 import { TotpCapturePrompt } from './TotpCapturePrompt';
 const review = { status: 'ready' as const, id: 'candidate', origin: 'https://example.com', issuer: null, account: null,
   defaultTargetId: null, targets: [
-    { id: 'one', action: 'update' as const, label: 'Alice', vaultLabel: 'Personal', hasTotp: true },
-    { id: 'two', action: 'update' as const, label: 'Bob', vaultLabel: 'Personal', hasTotp: false },
-    { id: 'new', action: 'create' as const, label: 'Personal', vaultLabel: 'Personal', hasTotp: false },
+    { id: 'one', vaultId: 'vault', entryId: 'alice', action: 'update' as const, label: 'Alice', vaultLabel: 'Personal', hasTotp: true },
+    { id: 'two', vaultId: 'vault', entryId: 'bob', action: 'update' as const, label: 'Bob', vaultLabel: 'Personal', hasTotp: false },
+    { id: 'new', vaultId: 'vault', entryId: null, action: 'create' as const, label: 'Personal', vaultLabel: 'Personal', hasTotp: false },
   ] };
 it('requires account selection and explicit replacement confirmation', async () => {
   const send = vi.fn(async () => ({ status: 'saved' as const }));
@@ -51,10 +51,30 @@ it('does not restore a stale review when a scan finishes after invalidation', as
     ? new Promise(resolve => { finish = resolve; }) : Promise.resolve({ status: 'empty' }),
     onMessage: { addListener: (value: typeof listener) => { listener = value; }, removeListener: () => {} } } });
   try {
-    const { unmount } = render(<TotpCaptureSurface revision={0} />);
+    const { unmount } = render(<TotpCaptureSurface revision={0} entry={{ id: 'bob', vaultId: 'vault' }} />);
     fireEvent.click(screen.getByRole('button', { name: 'Scan QR on page' }));
     await act(async () => { listener({ type: 'totp-capture/invalidated' }); finish(review); });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Scan QR on page' })).not.toBeDisabled());
     expect(screen.queryByRole('region', { name: 'Save authenticator' })).not.toBeInTheDocument(); unmount();
+  } finally { vi.unstubAllGlobals(); }
+});
+
+it.each(['bob', 'missing'])('limits an Entry scan to its worker-approved target: %s', async entryId => {
+  const { TotpCaptureSurface } = await import('./TotpCapturePrompt');
+  const send = vi.fn(async (command: { type: string }) => command.type === 'scan' ? review : { status: 'empty' });
+  vi.stubGlobal('chrome', { runtime: { sendMessage: send, onMessage: { addListener() {}, removeListener() {} } } });
+  try {
+    const view = render(<TotpCaptureSurface revision={0} entry={{ id: entryId, vaultId: 'vault' }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Scan QR on page' }));
+    if (entryId === 'bob') {
+      expect(await screen.findByLabelText('Credential')).toHaveValue('two');
+      expect(screen.queryByRole('option', { name: /Alice/ })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Save authenticator' }));
+      await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'save', targetId: 'two' })));
+    } else {
+      expect(await screen.findByRole('status')).toHaveTextContent('This Entry is not eligible');
+      expect(screen.queryByRole('button', { name: 'Save authenticator' })).not.toBeInTheDocument();
+    }
+    view.unmount();
   } finally { vi.unstubAllGlobals(); }
 });
