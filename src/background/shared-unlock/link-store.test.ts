@@ -186,3 +186,55 @@ describe("durable nonsensitive shared-unlock local link", () => {
     expect((await f.store.read(scope))!.pending[0]!.action).toBe("logout");
   });
 });
+
+it('replaces only an unused allocation with the established Web link and fences the abandoned attempt', async () => {
+  const f = setup(), before = await f.store.ensure(scope), retained = '44444444-4444-4444-8444-444444444444';
+  await f.store.replaceUnused(before, retained, async () => {}, () => {});
+  expect((await f.store.read(scope))?.linkId).toBe(retained);
+  await expect(f.store.markAdmission(scope, linkId)).rejects.toThrow();
+  await expect(f.store.replaceUnused((await f.store.read(scope))!, linkId, async () => {}, () => {})).rejects.toThrow();
+});
+
+it.each(['lock', 'logout', 'disconnect'] as const)('never replaces an unused allocation with a concurrent %s', async action => {
+  const f = setup(), before = await f.store.ensure(scope);
+  await f.store.beginClosing(scope, linkId, action, 0, null);
+  await expect(f.store.replaceUnused(before, '44444444-4444-4444-8444-444444444444', async () => {}, () => {})).rejects.toThrow();
+  expect((await f.store.read(scope))?.pending).toMatchObject([{ action }]);
+});
+
+it('persists admission before any network activation, including a worker restart', async () => {
+  const f = setup(), before = await f.store.ensure(scope);
+  await f.store.markAdmission(scope, linkId);
+  const restarted = new SharedUnlockLinkStore(f.storage);
+  await expect(restarted.replaceUnused(before, '44444444-4444-4444-8444-444444444444', async () => {}, () => {})).rejects.toThrow();
+  expect((await restarted.read(scope))?.linkId).toBe(linkId);
+});
+
+it('keeps an unused allocation when preserving its closing floor fails', async () => {
+  const f = setup(), before = await f.store.ensure(scope);
+  await expect(f.store.replaceUnused(before, '44444444-4444-4444-8444-444444444444', async () => { throw new Error('disk'); }, () => {})).rejects.toThrow('disk');
+  expect((await f.store.read(scope))?.linkId).toBe(linkId);
+});
+
+
+it('treats legacy usage as unknown until a successful first-create proves an unused allocation', async () => {
+  const f = setup(); await f.store.ensure(scope);
+  const key = f.storage.keys()[0], raw = (await f.storage.get([key]))[key] as Record<string, unknown>;
+  delete raw.admissionAttempted; await f.storage.set({ [key]: raw });
+  const unknown = (await f.store.read(scope))!;
+  await expect(f.store.replaceUnused(unknown, '44444444-4444-4444-8444-444444444444', async () => {}, () => {})).rejects.toThrow();
+  await f.store.recordManualClosing(scope, 'lock');
+  await f.store.observeCreated(scope, { ...link, state: 'locked', revision: 1, epoch: 1 });
+  expect((await f.store.read(scope))?.admissionAttempted).toBe(false);
+  expect((await f.store.read(scope))?.pending).toMatchObject([{ action: 'lock' }]);
+});
+
+it('restores the previous allocation when selection is cancelled during persistence', async () => {
+  const f = setup(), before = await f.store.ensure(scope), original = f.storage.set.bind(f.storage);
+  let cancelled = false;
+  vi.spyOn(f.storage, 'set').mockImplementation(async values => { await original(values); cancelled = true; });
+  await expect(f.store.replaceUnused(before, '44444444-4444-4444-8444-444444444444', async () => {}, () => {
+    if (cancelled) throw new Error('cancelled');
+  })).rejects.toThrow('cancelled');
+  expect((await f.store.read(scope))?.linkId).toBe(linkId);
+});

@@ -43,7 +43,21 @@ export async function flushSharedUnlockClosings(scope: SharedUnlockLinkScope, se
     if (intent.action !== "disconnect" && !preference.sharedUnlockEnabled) {
       await wait(store.acknowledgeDisabledClosing(selected, marker.linkId, intent.id)); check(); continue;
     }
-    const link = await wait(api.readLink(session, marker.linkId, signal)); check();
+    let link;
+    try { link = await wait(api.readLink(session, marker.linkId, signal)); }
+    catch (error) {
+      check();
+      if (!(error instanceof SharedUnlockApiError) || error.code !== "not-found" || marker.observed
+        || !preference.sharedUnlockEnabled) throw error;
+      const current = await wait(store.read(selected)); check();
+      if (!current || current.linkId !== marker.linkId || current.observed) throw error;
+      if (!current.pending.some(value => value.id === intent.id)) continue;
+      // Finish the original allocation as locked, then deliver its retained closing.
+      // Never replace the ID or recreate a previously observed/revoked authority.
+      link = await wait(api.createLink(session, marker.linkId, preference.revision, signal));
+      check(); await wait(store.observeCreated(selected, link));
+    }
+    check();
     await wait(store.observe(selected, link)); check();
     const current = await wait(store.read(selected)); check();
     if (!current?.pending.some(value => value.id === intent.id)) continue;
