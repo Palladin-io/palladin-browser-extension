@@ -312,6 +312,7 @@ function UnlockedContent({
                   <EntryDetail
                     key={`${current.vaultId}:${current.id}:${current.updatedAt}`}
                     entry={current}
+                    revision={viewRevision}
                     client={client}
                     workspaceClient={workspaceClient}
                     onGrants={() => {

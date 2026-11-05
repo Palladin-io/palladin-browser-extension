@@ -1,3 +1,4 @@
+import { TotpCaptureSurface } from '../capture/TotpCapturePrompt';
 import { AuditPanel } from '../workspace/AuditPanel';
 import { SharingPanel } from '../workspace/SharingPanel';
 import { EntryFields } from '../workspace/EntryFields';
@@ -20,8 +21,10 @@ export function EntryDetail({
   onGrants,
   onLogs,
   onShares,
+  revision = 0,
 }: {
   entry: EntryMetadata;
+  revision?: number;
   workspaceClient: WorkspaceClient;
   onGrants(): void;
   onLogs(): void;
@@ -108,6 +111,7 @@ export function EntryDetail({
         entryId={entry.id}
       />
       <div className="detail-navigation">
+      {entry.type === 1 ? <TotpCaptureSurface revision={revision} entry={entry} /> : null}
       <button className="detail-link" onClick={onGrants}>
         <PopupIcon name="agent" />
         {t('workspace.grants')}
@@ -119,8 +123,8 @@ export function EntryDetail({
         <PopupIcon name="chevron" />
       </button>
       {onShares ? <button className="detail-link" onClick={onShares}>
-        <PopupIcon name="share" />
-        {t('workspace.shares')}
+        <PopupIcon name="share-history" />
+        {t('share.history')}
         <PopupIcon name="chevron" />
       </button> : null}
       <button className="detail-link" onClick={onLogs}>

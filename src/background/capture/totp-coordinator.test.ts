@@ -18,6 +18,7 @@ describe('TOTP candidate authority', () => {
     expect(JSON.stringify(review)).not.toContain('JBSWY3DPEHPK3PXP');
     if (review.status !== 'ready') throw Error('missing review');
     expect(review.defaultTargetId).toBe(review.targets[0]!.id);
+    expect(review.targets[0]).toMatchObject({ vaultId: 'vault', entryId: 'entry' });
     expect(await f.coordinator.save(review.id, review.targets[0]!.id, false)).toEqual({ status: 'confirmation-required' });
     expect(f.save).not.toHaveBeenCalled();
     expect(await f.coordinator.save(review.id, review.targets[0]!.id, true)).toEqual({ status: 'saved' });
@@ -166,4 +167,38 @@ it('retains cancellation when an in-flight source verification fails afterward',
   const saving = c.save(review.id, review.targets[0]!.id, true); await vi.waitFor(() => expect(release).toBeDefined());
   await c.dismiss(candidate.id); release(false); expect(await saving).toEqual({ status: 'stale' });
   expect(await c.observe(uri, source)).toEqual({ status: 'dismissed' }); c.clear();
+});
+
+it('retains manual Entry binding across repeated review and rejects previously offered targets', async () => {
+  const save = vi.fn(async () => ({}));
+  const c = new TotpCaptureCoordinator({ session: async () => ({ profileId: 'user', generation: 1, unlocked: true }), current: async () => true,
+    sourceMatches: async () => true, activeTabId: async () => 1, choices: async () => [target, { ...target, entryId: 'other' }], save });
+  await c.observe(uri, source);
+  const passive = await c.review(); if (passive.status !== 'ready') throw Error('missing');
+  const other = passive.targets.find(item => item.entryId === 'other')!;
+  await c.review({ vaultId: 'vault', id: 'entry' }, 1);
+  const reopened = await c.review();
+  expect(reopened).toMatchObject({ entryScope: { vaultId: 'vault', id: 'entry' }, targets: [{ entryId: 'entry' }] });
+  expect(await c.save(passive.id, other.id, true)).toEqual({ status: 'stale' });
+  expect(save).not.toHaveBeenCalled();
+  await c.review({ vaultId: 'wrong-vault', id: 'entry' }, 1);
+  expect(await c.review()).toMatchObject({ targets: [] });
+  expect(await c.save(passive.id, passive.targets[0]!.id, true)).toEqual({ status: 'stale' });
+  c.clear();
+});
+
+it('requires explicit mismatch confirmation for a manual Entry target', async () => {
+  const save = vi.fn(async () => ({})); const choices = vi.fn(async () => [{ ...target, domainMismatch: true }]);
+  const c = new TotpCaptureCoordinator({ session: async () => ({ profileId: 'user', generation: 1, unlocked: true }), current: async () => true,
+    sourceMatches: async () => true, activeTabId: async () => 1, choices, save });
+  await c.observe(uri, source);
+  await c.review();
+  const r = await c.review({ id: 'entry', vaultId: 'vault' }, 1); if (r.status !== 'ready') throw Error('missing');
+  expect(choices).toHaveBeenLastCalledWith(source.url, { id: 'entry', vaultId: 'vault' });
+  expect(r.targets[0]).toMatchObject({ domainMismatch: true });
+  expect(await c.save(r.id, r.targets[0]!.id, true)).toEqual({ status: 'confirmation-required' });
+  expect(save).not.toHaveBeenCalled();
+  expect(await c.save(r.id, r.targets[0]!.id, true, undefined, true)).toEqual({ status: 'saved' });
+  expect(save).toHaveBeenCalledWith(expect.anything(), source.url, expect.objectContaining({ entryId: 'entry' }), expect.any(Function), undefined, true);
+  c.clear();
 });
