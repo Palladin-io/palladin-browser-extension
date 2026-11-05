@@ -1,10 +1,12 @@
+import { activePageTab } from '../active-page-tab';
+import { cardNetworkDomain } from '@shared/card-network';
 import { isExactCapturedSecret } from './secret-duplicate';
 import { TAB_URL_REQUEST_CHANNEL, isTabUrlResponse } from '@shared/messaging';
 import type { SecretCaptureContentCommand, SecretCapturePopupCommand, SecretCaptureInvalidation } from '@shared/messaging/secret-capture';
 import { initializeServerConfig, serverConfig } from '../config/server-runtime';
 import { sessionManager } from '../session/runtime';
 import { browserDocumentIdForTab } from '../tab-documents';
-import { vaultData } from '../vault/runtime';
+import { vaultData, credentialWriter } from '../vault/runtime';
 import { SecretCaptureCoordinator, type SecretCaptureSource } from './secret-coordinator';
 import { SecretCaptureFrames } from './secret-source';
 import { capturePreferences } from './preferences-runtime';
@@ -32,10 +34,16 @@ export const secretCaptureCoordinator = new SecretCaptureCoordinator({
     return userId ? { profileId: `${serverConfig.apiUrl}:${userId}`, generation, unlocked: sessionManager.getKeys() !== null } : null;
   },
   current: currentSecretCaptureDocument,
-  activeTabId: async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id ?? null,
+  activeTabId: async () => (await activePageTab())?.id ?? null,
   muted: (profile, host) => capturePreferences.isMuted(profile, host),
   mute: (profile, host) => capturePreferences.mute(profile, host),
   vaults: async () => hasVaultManagePermission(await sessionManager.getAccessToken()) ? vaultData.sharedCopyVaults() : [],
+  resolveIcon: async (candidate, origin) => {
+    const domain = candidate.kind === 'card' ? cardNetworkDomain(candidate.cardNumber) : new URL(origin).hostname;
+    return domain ? credentialWriter.captureIcon(`https://${domain}`) : undefined;
+  },
+  cardTargets: pan => credentialWriter.cardChoices(pan),
+  update: (target, entry, pan, authorized) => credentialWriter.updateCard(target, entry, pan, authorized),
   duplicate: async (entry, vaultId) => {
     const metadata = await vaultData.getMetadata();
     for (const item of metadata.filter(item => item.vaultId === vaultId && item.type === (entry.entryType === 'key' ? 0 : 3))) {
@@ -58,6 +66,7 @@ export async function handleSecretCapturePopup(command: SecretCapturePopupComman
   if (command.type === 'get') return secretCaptureCoordinator.review();
   if (command.type === 'begin-review') return secretCaptureCoordinator.beginReview(command.id);
   if (command.type === 'dismiss' || command.type === 'mute') return secretCaptureCoordinator.dismiss(command.id, command.type === 'mute');
+  if (command.type === 'update') return secretCaptureCoordinator.update(command.id, command.targetId, command.entry);
   if (command.type !== 'save') return { status: 'error' as const };
   return secretCaptureCoordinator.save(command.id, command.vaultId, command.entry);
 }

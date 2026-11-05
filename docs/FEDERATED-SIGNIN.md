@@ -96,11 +96,13 @@ Palladin never reads provider page text to identify an account.
 3. Return: a later document in S on the same registrable domain, a popup
    redirected back to it, or the popup closing. An OAuth `error` parameter on the
    return (query or fragment) cancels silently.
-4. The worker sends a value-free refresh to S; the closed-shadow prompt asks
+4. The worker sends a value-free refresh to S; a closed-shadow notice opens the native popup to ask
    "Signed in with Google?". The user must explicitly choose the provider
    account (Palladin-filled, already remembered, saved provider Credentials or
    "Account not specified") and where to remember it (an existing exact-host
-   Credential or a new record). Nothing is preselected unless it comes from the
+   Credential, or a new record only when there is no eligible existing match). A single
+   exact-host target is preselected; ambiguous targets require a choice. Provider
+   accounts are not preselected unless they come from the
    user's own earlier choice or an explicit (manual) Palladin fill of a
    Credential on that provider's account domain in this flow. An automatic fill
    is offered but never preselected, because the user may switch accounts in the
@@ -151,8 +153,12 @@ mobile app edit the same field.
 - Page messages cannot name an account, Entry, Vault or provider for a write; the
   prompt and suggestions carry only worker-issued opaque IDs bound to the tab,
   browser document and isolated-world document.
-- The prompt is a closed shadow surface without text inputs; actions require a
-  trusted, unobstructed click (`createClosedSurface().acceptsAction`).
+- The page notice is a closed shadow surface without inputs or account labels;
+  opening review requires a trusted, unobstructed click
+  (`createClosedSurface().acceptsAction`). Account and target autocomplete controls
+  live in the extension popup. Replacing another remembered provider/account
+  requires an explicit replacement checkbox and is rechecked by the native worker
+  boundary. Site/provider images use the trusted public-asset pipeline.
 - Confirmation rechecks sender frame, HTTPS origin equal to the flow's service
   origin, document identity and session generation before and during the write.
 - No new manifest permission is used.
@@ -166,7 +172,7 @@ Automated:
   `src/popup/workspace/SignInMethodField.test.tsx`, writer and inline-runtime tests.
 - Chromium: `npm run test:browser:signin` drives real clicks with routed synthetic
   provider documents: denied return, same-tab Google with explicit multi-account
-  choice and encrypted create, suggestion choice with chosen-account ranking and no
+  choice and encrypted create through native review (Review itself never saves), suggestion choice with chosen-account ranking and no
   re-prompt, GitHub popup updating an existing account, and a storage scan for
   OAuth values and plaintext provider accounts.
 

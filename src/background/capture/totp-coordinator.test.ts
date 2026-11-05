@@ -33,7 +33,7 @@ describe('TOTP candidate authority', () => {
     const create = { action: 'create' as const, vaultId: 'vault', label: 'Personal', vaultLabel: 'Personal' };
     for (const targets of [[create, target, { ...target, entryId: 'other' }], [create]]) {
       const c = new TotpCaptureCoordinator({ session, current: async () => true, sourceMatches: async () => true, activeTabId: async () => 1,
-        choices: async () => targets, save: async () => ({}) });
+        choices: async () => targets, save: async () => ({action:'updated' as const,revision:'5'}) });
       await c.observe(uri, source); const review = await c.review();
       expect(review.status).toBe('ready'); if (review.status !== 'ready') throw Error('missing review');
       expect(review.defaultTargetId).toBeNull();
@@ -56,7 +56,7 @@ describe('TOTP candidate authority', () => {
     let release!: (live: boolean) => void; let generation = 1;
     const coordinator = new TotpCaptureCoordinator({ session: async () => ({ profileId: 'user', generation, unlocked: true }),
       current: () => new Promise(resolve => { release = resolve; }), sourceMatches: async () => true, activeTabId: async () => 1,
-      choices: async () => [target], save: async () => ({}) });
+      choices: async () => [target], save: async () => ({action:'updated' as const,revision:'5'}) });
     const pending = coordinator.observe(uri, source, () => generation === 1);
     await vi.waitFor(() => expect(release).toBeDefined()); generation = 3; release(true);
     expect(await pending).toEqual({ status: 'stale' });
@@ -65,7 +65,7 @@ describe('TOTP candidate authority', () => {
     let release!: (session: { profileId: string; generation: number; unlocked: boolean }) => void; let generation = 1;
     let calls = 0;
     const coordinator = new TotpCaptureCoordinator({ session: () => ++calls === 1 ? new Promise(resolve => { release = resolve; }) : Promise.resolve({ profileId: 'user', generation, unlocked: true }),
-      current: async () => true, sourceMatches: async () => true, activeTabId: async () => 1, choices: async () => [target], save: async () => ({}) });
+      current: async () => true, sourceMatches: async () => true, activeTabId: async () => 1, choices: async () => [target], save: async () => ({action:'updated' as const,revision:'5'}) });
     const pending = coordinator.observe(uri, source, () => generation === 1);
     generation = 3; release({ profileId: 'user', generation, unlocked: true });
     expect(await pending).toEqual({ status: 'stale' });
@@ -89,13 +89,13 @@ it('invalidates an open native view when the fixed candidate lifetime expires', 
   vi.useFakeTimers(); const invalidated = vi.fn();
   try {
     const c = new TotpCaptureCoordinator({ session: async () => ({ profileId: 'user', generation: 1, unlocked: true }),
-      current: async () => true, sourceMatches: async () => true, activeTabId: async () => 1, choices: async () => [target], save: async () => ({}), invalidated });
+      current: async () => true, sourceMatches: async () => true, activeTabId: async () => 1, choices: async () => [target], save: async () => ({action:'updated' as const,revision:'5'}), invalidated });
     await c.observe(uri, source); await vi.advanceTimersByTimeAsync(180_000);
     expect(invalidated).toHaveBeenCalledOnce(); expect(await c.review()).toEqual({ status: 'empty' });
   } finally { vi.useRealTimers(); }
 });
 it('refuses to save when current source pixels no longer match the reviewed setup', async () => {
-  let matches = true; const save = vi.fn(async () => ({}));
+  let matches = true; const save = vi.fn(async () => ({action:'updated' as const,revision:'5'}));
   const c = new TotpCaptureCoordinator({ session: async () => ({ profileId: 'user', generation: 1, unlocked: true }),
     current: async () => true, sourceMatches: async () => matches, activeTabId: async () => 1, choices: async () => [target], save });
   await c.observe(uri, source); const review = await c.review(); if (review.status !== 'ready') throw Error('missing');
@@ -114,7 +114,7 @@ it('rechecks the source when the writer reaches its commit authorization gate', 
   let matches = true, committed = false;
   const c = new TotpCaptureCoordinator({ session: async () => ({ profileId: 'user', generation: 1, unlocked: true }),
     current: async () => true, sourceMatches: async () => matches, activeTabId: async () => 1, choices: async () => [target],
-    save: async (_totp, _url, _target, authorized) => { matches = false; if (await authorized()) committed = true; else throw Error('stale'); } });
+    save: async (_totp, _url, _target, authorized) => { matches = false; if (await authorized()) committed = true; else throw Error('stale'); return {action:'updated',revision:'5'}; } });
   await c.observe(uri, source); const review = await c.review(); if (review.status !== 'ready') throw Error('missing');
   expect(await c.save(review.id, review.targets[0]!.id, true)).toEqual({ status: 'stale' });
   expect(committed).toBe(false); c.clear();
@@ -123,7 +123,7 @@ it('keeps target identifiers stable when two native reviews load concurrently', 
   let release!: (targets: typeof target[]) => void; let calls = 0;
   const c = new TotpCaptureCoordinator({ session: async () => ({ profileId: 'user', generation: 1, unlocked: true }),
     current: async () => true, sourceMatches: async () => true, activeTabId: async () => 1,
-    choices: () => { calls++; return new Promise(resolve => { release = resolve; }); }, save: async () => ({}) });
+    choices: () => { calls++; return new Promise(resolve => { release = resolve; }); }, save: async () => ({action:'updated' as const,revision:'5'}) });
   await c.observe(uri, source); const first = c.review(), second = c.review();
   await vi.waitFor(() => expect(release).toBeDefined());
   expect(calls).toBe(1); release([target]);
@@ -134,7 +134,7 @@ it('keeps a canceled setup suppressed only for the original fixed lifetime', asy
   vi.useFakeTimers();
   try {
     const c = new TotpCaptureCoordinator({ session: async () => ({ profileId: 'user', generation: 1, unlocked: true }),
-      current: async () => true, sourceMatches: async () => true, activeTabId: async () => 1, choices: async () => [target], save: async () => ({}) });
+      current: async () => true, sourceMatches: async () => true, activeTabId: async () => 1, choices: async () => [target], save: async () => ({action:'updated' as const,revision:'5'}) });
     const first = await c.observe(uri, source); if (first.status !== 'accepted') throw Error('missing');
     await vi.advanceTimersByTimeAsync(170_000); await c.dismiss(first.id);
     expect(c.invalidateDocument(source.tabId, source.browserDocumentId)).toBe(false);
@@ -150,7 +150,7 @@ it('does not resurrect a canceled candidate when an in-flight review finishes', 
   let release!: (targets: typeof target[]) => void;
   const c = new TotpCaptureCoordinator({ session: async () => ({ profileId: 'user', generation: 1, unlocked: true }),
     current: async () => true, sourceMatches: async () => true, activeTabId: async () => 1,
-    choices: () => new Promise(resolve => { release = resolve; }), save: async () => ({}) });
+    choices: () => new Promise(resolve => { release = resolve; }), save: async () => ({action:'updated' as const,revision:'5'}) });
   const candidate = await c.observe(uri, source); if (candidate.status !== 'accepted') throw Error('missing');
   const pending = c.review(); await vi.waitFor(() => expect(release).toBeDefined());
   await c.dismiss(candidate.id); release([target]);
@@ -160,10 +160,17 @@ it('retains cancellation when an in-flight source verification fails afterward',
   let release!: (matches: boolean) => void;
   const c = new TotpCaptureCoordinator({ session: async () => ({ profileId: 'user', generation: 1, unlocked: true }),
     current: async () => true, sourceMatches: () => new Promise(resolve => { release = resolve; }),
-    activeTabId: async () => 1, choices: async () => [target], save: async () => ({}) });
+    activeTabId: async () => 1, choices: async () => [target], save: async () => ({action:'updated' as const,revision:'5'}) });
   const candidate = await c.observe(uri, source); const review = await c.review();
   if (candidate.status !== 'accepted' || review.status !== 'ready') throw Error('missing');
   const saving = c.save(review.id, review.targets[0]!.id, true); await vi.waitFor(() => expect(release).toBeDefined());
   await c.dismiss(candidate.id); release(false); expect(await saving).toEqual({ status: 'stale' });
   expect(await c.observe(uri, source)).toEqual({ status: 'dismissed' }); c.clear();
+});
+it('returns the exact committed Entry identity without the authenticator secret', async () => {
+ const c = new TotpCaptureCoordinator({ session: async () => ({profileId:'user',generation:1,unlocked:true}),
+ current: async () => true, sourceMatches: async () => true, activeTabId: async () => 1, choices: async () => [target],
+ save: async () => ({action:'updated' as const,revision:'5',entryId:'entry',vaultId:'vault'}) });
+ await c.observe(uri,source); const review = await c.review(); if(review.status !== 'ready') throw Error('missing');
+ expect(await c.save(review.id,review.targets[0]!.id,true)).toEqual({status:'saved',entryId:'entry',vaultId:'vault'}); c.clear();
 });

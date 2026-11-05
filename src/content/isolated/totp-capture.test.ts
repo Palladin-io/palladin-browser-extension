@@ -58,7 +58,7 @@ it('native cancel suppresses canvas polls past worker expiry until an explicit s
   const { TotpCaptureCoordinator } = await import('../../background/capture/totp-coordinator');
   const source = { tabId: 1, frameId: 0, browserDocumentId: 'browser', topDocumentId: 'browser', documentId: 'document', url: 'https://example.com/setup' };
   const coordinator = new TotpCaptureCoordinator({ session: async () => ({ profileId: 'user', generation: 1, unlocked: true }),
-    current: async () => true, sourceMatches: async () => true, activeTabId: async () => 1, choices: async () => [], save: async () => ({}) });
+    current: async () => true, sourceMatches: async () => true, activeTabId: async () => 1, choices: async () => [], save: async () => ({action:'updated' as const,revision:'5'}) });
   let observed = uri;
   const send = vi.fn((command: import('@shared/messaging/totp-capture').TotpContentCommand) => command.type === 'observe'
     ? coordinator.observe(command.uri, source, () => true, command.manual) : Promise.resolve({ status: 'dismissed' }));

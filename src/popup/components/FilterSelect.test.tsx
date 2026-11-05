@@ -58,3 +58,14 @@ it('keeps multiple choices open and supports deselection and clearing', async ()
   expect(changed).toHaveBeenLastCalledWith([]);
   expect(screen.getByRole('listbox')).toBeInTheDocument();
 });
+
+it('anchors a floating menu above a low control so scroll containers cannot clip its last option', () => {
+  const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ left: 20, right: 240, top: window.innerHeight - 80, bottom: window.innerHeight - 44, width: 220, height: 36, x: 20, y: 0, toJSON() {} });
+  try {
+    render(<FilterSelect floating aria-label="Field type" value="text" onValueChange={() => {}}><option value="text">Text</option><option value="totp">One-time code</option></FilterSelect>);
+    fireEvent.click(screen.getByRole('combobox'));
+    expect(screen.getByRole('listbox')).toHaveStyle({ position: 'fixed', bottom: '84px', top: 'auto', width: '220px' });
+    fireEvent.keyDown(screen.getByRole('option', { name: 'Text' }), { key: 'End' });
+    expect(screen.getByRole('option', { name: 'One-time code' })).toHaveFocus();
+  } finally { rect.mockRestore(); }
+});

@@ -40,6 +40,7 @@ export interface ProviderAccount {
   readonly entry: SignInEntryReference | null;
   /** Entry name and Vault label shown so the user can tell same-account Credentials apart. */
   readonly context: string;
+  readonly icon?: string;
 }
 
 export interface SignInSession {
@@ -55,7 +56,7 @@ export interface FederatedSignInDeps {
   /** Exact-host Credentials read from the local encrypted cache only. */
   localBindings(url: string): Promise<SignInTargets['credentials']>;
   save(url: string, target: SignInWriteTarget, binding: SignInBinding, label: string,
-    stillAuthorized: () => Promise<boolean>): Promise<{ action: 'created' | 'updated' }>;
+    stillAuthorized: () => Promise<boolean>): Promise<{ action: 'created' | 'updated'; vaultId?: string; entryId?: string }>;
   isCurrentDocument(source: SignInSource): Promise<boolean>;
   notify(tabId: number): void;
   now?: () => number;
@@ -408,7 +409,8 @@ export class FederatedSignInCoordinator {
       const id = this.createId();
       accounts.set(id, { account: value, entry });
       const context = contextOf(entry);
-      accountViews.push({ id, label: value ?? '', source: sourceKind, ...(context ? { context } : {}) });
+      const icon = providerAccounts.find(candidate => sameSignInEntry(candidate.entry, entry) && entry !== null)?.icon;
+      accountViews.push({ ...(icon ? { icon } : {}), id, label: value ?? '', source: sourceKind, ...(context ? { context } : {}) });
     };
     if (flow.chosen?.provider === provider && flow.chosen.account !== null) {
       addAccount(flow.chosen.account, discoverable(flow.chosen.entry), 'chosen');
@@ -438,22 +440,20 @@ export class FederatedSignInCoordinator {
       const id = this.createId();
       targetMap.set(id, { action: 'update', vaultId: credential.vaultId, entryId: credential.entryId, revision: credential.revision });
       targetViews.push({ id, action: 'update', vaultLabel: credential.vaultLabel,
+        ...(credential.icon ? { icon: credential.icon } : {}), ...(credential.color ? { color: credential.color } : {}),
         label: credential.username ? `${credential.label} (${credential.username})` : credential.label,
         current: credential.signIn.status === 'recognized'
           ? { provider: credential.signIn.binding.provider, account: credential.signIn.binding.account } : null });
     }
     let defaultTargetId: string | null = null;
-    for (const vault of createVaults) {
+    for (const vault of (targetViews.length === 0 ? createVaults : [])) {
       const id = this.createId();
       targetMap.set(id, { action: 'create', vaultId: vault.vaultId });
       targetViews.push({ id, action: 'create', label: site, vaultLabel: vault.label, current: null });
       // Preselect only when it is the single possible destination; otherwise the user picks the Vault.
       if (createVaults.length === 1 && targets.credentials.length === 0) defaultTargetId = id;
     }
-    const sameProvider = targetViews.filter((target) => target.current?.provider === provider);
-    if (sameProvider.length === 1 && preferred !== null && sameSignInAccount(sameProvider[0]!.current!.account, null)) {
-      defaultTargetId = sameProvider[0]!.id;
-    }
+    if (targetViews.length === 1) defaultTargetId = targetViews[0]!.id;
     const view: SignInPrompt = { id: this.createId(), site, provider, state: 'ready', accounts: accountViews,
       targets: targetViews, defaultAccountId, defaultTargetId };
     flow.prompt = { view, accounts, targets: targetMap, documentId: source.documentId,
@@ -480,12 +480,21 @@ export class FederatedSignInCoordinator {
       const saved = await this.deps.save(flow.serviceOrigin, stored.targets.get(command.targetId)!, binding,
         SIGN_IN_FIELD_LABELS[command.locale], stillAuthorized);
       if (this.flows.get(source.tabId) === flow) this.flows.delete(source.tabId);
-      return { status: 'saved', action: saved.action };
+      return { status: 'saved', action: saved.action, ...(saved.vaultId && saved.entryId ? { vaultId: saved.vaultId, entryId: saved.entryId } : {}) };
     } catch {
       if (this.flows.get(source.tabId) !== flow) return { status: 'stale' };
       // A conflict or failure invalidates opaque targets; the next view is rebuilt from fresh state.
       flow.prompt = null;
-      const view = await this.prompt(source);
+      let view = await this.prompt(source);
+      const rebuilt = flow.prompt as StoredPrompt | null;
+      const previousTarget = stored.targets.get(command.targetId)!;
+      if (view && rebuilt) {
+        const defaultTargetId = [...rebuilt.targets].find(([, target]) => target.action === previousTarget.action && target.vaultId === previousTarget.vaultId
+          && (target.action === 'create' || previousTarget.action === 'update' && target.entryId === previousTarget.entryId))?.[0] ?? null;
+        const defaultAccountId = [...rebuilt.accounts].find(([, account]) => sameSignInAccount(account.account, chosenAccount.account)
+          && sameSignInEntry(account.entry, chosenAccount.entry))?.[0] ?? null;
+        view = { ...view, defaultTargetId, defaultAccountId };
+      }
       flow.error = view !== null;
       return { status: 'prompt', prompt: view === null ? null : { ...view, error: 'save-failed' } };
     }

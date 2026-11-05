@@ -30,7 +30,7 @@ export const federatedSignIn = new FederatedSignInCoordinator({
         const current = normalizeSignInAccount(secret.content.username)
         if (current === null) continue
         // Only a discoverable provider Credential may become an Agent-visible reference.
-        accounts.push({ account: current, context: `${secret.memberLabel} \u00b7 ${entry.vaultName}`,
+        accounts.push({ ...(secret.icon ? { icon: secret.icon.kind === 'glyph' ? secret.icon.value : `public-asset:${secret.icon.assetId}` } : {}), account: current, context: `${secret.memberLabel} \u00b7 ${entry.vaultName}`,
           entry: secret.discoverable ? { vaultId: entry.vaultId, entryId: entry.id } : null })
       } catch { /* An unreadable cached Entry is not offered. */ }
     }

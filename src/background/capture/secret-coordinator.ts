@@ -7,10 +7,12 @@ export interface SecretCaptureSource {
   documentId: string; url: string;
 }
 export interface SecretCaptureVault { id: string; name: string; isDefault: boolean }
+export type CardReviewEntry = Extract<ManualEntrySaveInput, { entryType: 'creditCard' }>;
+export interface SecretCardTarget { id: string; vaultId: string; revision: string; name: string; vaultName: string; entry: CardReviewEntry }
 interface CaptureSession { profileId: string; generation: number; unlocked: boolean }
 interface Pending {
   id: string; candidate: SecretCandidate; source: SecretCaptureSource; session: CaptureSession;
-  expires: number; busy: boolean; dismissed?: boolean; reviewed?: boolean;
+  expires: number; busy: boolean; dismissed?: boolean; reviewed?: boolean; icon?: string; iconResolved?: boolean; cardTargets?: readonly SecretCardTarget[];
 }
 interface Deps {
   now?(): number;
@@ -20,13 +22,17 @@ interface Deps {
   muted(profileId: string, site: string): Promise<boolean>;
   mute(profileId: string, site: string): Promise<void>;
   vaults(): Promise<readonly SecretCaptureVault[]>;
+  resolveIcon?(candidate: SecretCandidate, origin: string): Promise<string | undefined>;
+  cardTargets?(cardNumber: string): Promise<readonly SecretCardTarget[]>;
+  update?(target: SecretCardTarget, entry: CardReviewEntry, capturedPan: string, authorized: () => Promise<boolean>): Promise<ManualEntrySaveResult>;
   duplicate(entry: ManualEntrySaveInput, vaultId: string): Promise<boolean>;
   save(entry: ManualEntrySaveInput, vaultId: string, authorized: () => Promise<boolean>, current: () => boolean): Promise<ManualEntrySaveResult>;
 }
 export type SecretCaptureResult =
   | { status: 'accepted'; id: string }
-  | { status: 'review'; id: string; candidate: SecretCandidate; origin: string; vaults: readonly SecretCaptureVault[] }
-  | { status: 'empty' | 'stale' | 'locked' | 'muted' | 'full' | 'busy' | 'error' | 'saved' | 'duplicate' | 'dismissed' };
+  | { status: 'review'; id: string; icon?: string; candidate: SecretCandidate; origin: string; vaults: readonly SecretCaptureVault[]; cardTargets?: readonly SecretCardTarget[] }
+  | { status: 'saved'; entryId?: string; vaultId?: string }
+  | { status: 'empty' | 'stale' | 'locked' | 'muted' | 'full' | 'busy' | 'error' | 'duplicate' | 'dismissed' };
 
 export class SecretCaptureCoordinator {
   private readonly pending = new Map<string, Pending>();
@@ -99,7 +105,9 @@ export class SecretCaptureCoordinator {
     if (!(await this.deps.session())?.unlocked) return { status: 'locked' };
     for (const item of this.pending.values()) {
       if (item.dismissed || dismissId !== undefined && item.id !== dismissId) continue;
-      if (item.source.tabId !== source.tabId || item.source.browserDocumentId !== source.browserDocumentId || item.source.documentId !== source.documentId) continue;
+      const originalFrame = item.source.browserDocumentId === source.browserDocumentId && item.source.documentId === source.documentId;
+      const topFrame = source.frameId === 0 && source.browserDocumentId === source.topDocumentId && source.topDocumentId === item.source.topDocumentId;
+      if (item.source.tabId !== source.tabId || !originalFrame && !topFrame) continue;
       if (!await this.authorized(item, this.generation)) return { status: 'stale' };
       if (dismissId === item.id) { item.dismissed = true; return { status: 'dismissed' }; }
       return { status: 'accepted', id: item.id };
@@ -116,8 +124,18 @@ export class SecretCaptureCoordinator {
       try {
         const vaults = await this.deps.vaults();
         if (!await this.authorized(item, generation, true)) return { status: 'stale' };
+        const cardTargets = item.candidate.kind === 'card' && this.deps.cardTargets
+          ? item.cardTargets ?? await this.deps.cardTargets(item.candidate.cardNumber) : undefined;
+        if (!await this.authorized(item, generation, true)) return { status: 'stale' };
+        if (!item.iconResolved) {
+          const icon = await this.deps.resolveIcon?.(item.candidate, new URL(item.source.url).origin).catch(() => undefined);
+          if (!await this.authorized(item, generation, true)) return { status: 'stale' };
+          if (icon) item.icon = icon;
+          item.iconResolved = true;
+        }
+        if (cardTargets) item.cardTargets = cardTargets;
         if (selectedId !== undefined) item.reviewed = true;
-        return { status: 'review', id: item.id, candidate: { ...item.candidate }, origin: new URL(item.source.url).origin, vaults };
+        return { status: 'review', id: item.id, candidate: { ...item.candidate }, origin: new URL(item.source.url).origin, vaults, ...(item.icon ? { icon: item.icon } : {}), ...(cardTargets ? { cardTargets } : {}) };
       } catch { return { status: 'error' }; }
     }
     return { status: 'empty' };
@@ -130,6 +148,21 @@ export class SecretCaptureCoordinator {
   private async sameSession(item: Pending): Promise<boolean> {
     const session = await this.deps.session();
     return !!session?.unlocked && session.profileId === item.session.profileId && session.generation === item.session.generation;
+  }
+  async update(id: string, targetId: string, entry: CardReviewEntry): Promise<SecretCaptureResult> {
+    this.prune(); const item = this.pending.get(id); const generation = this.generation;
+    if (!item || item.dismissed || !item.reviewed || item.candidate.kind !== 'card' || !this.deps.update) return { status: 'stale' };
+    if (item.busy) return { status: 'busy' };
+    const target = item.cardTargets?.find(target => target.id === targetId);
+    if (!target || entry.cardNumber.replace(/[ -]/g, '') !== item.candidate.cardNumber) return { status: 'stale' };
+    item.busy = true; const authorized = () => this.authorized(item, generation, true);
+    try {
+      if (!await authorized() || !(await this.deps.vaults()).some(vault => vault.id === target.vaultId)) return { status: 'stale' };
+      const result = await this.deps.update(target, entry, item.candidate.cardNumber, authorized);
+      if (result.status !== 'saved') return { status: 'error' };
+      item.dismissed = true; return { status: 'saved', entryId: target.id, vaultId: target.vaultId };
+    } catch { return { status: await authorized() ? 'error' : 'stale' }; }
+    finally { item.busy = false; }
   }
   async save(id: string, vaultId: string, entry: ManualEntrySaveInput): Promise<SecretCaptureResult> {
     this.prune(); const item = this.pending.get(id); const generation = this.generation;
@@ -148,7 +181,7 @@ export class SecretCaptureCoordinator {
       if (!await authorized()) return { status: 'stale' };
       const result = await this.deps.save(entry, vaultId, authorized, () => this.generation === generation && this.pending.get(id) === item && !item.dismissed && item.expires > this.now());
       if (result.status !== 'saved') return { status: 'error' };
-      item.dismissed = true; return { status: 'saved' };
+      item.dismissed = true; return result;
     } catch { return { status: await authorized() ? 'error' : 'stale' }; }
     finally { item.busy = false; }
   }

@@ -56,10 +56,12 @@ it('reads standards independently of arbitrary-language labels', () => {
  document.body.innerHTML='<form><label>番号<input autocomplete="cc-number" value="4111111111111111"></label><label>姓名<input autocomplete="cc-name" value="客人"></label><input autocomplete="cc-exp-month" value="12"><input autocomplete="cc-exp-year" value="2030"></form>';
  expect(detectSecretCandidates(document)[0]).toMatchObject({cardholderName:'客人',expiryMonth:'12',expiryYear:'2030'});
 });
-it('does not guess between two PANs in one grouping and never captures CVV by default', () => {
+it('does not guess between two PANs and captures one standard CVV only for its card group', () => {
  document.body.innerHTML='<form><input autocomplete="cc-number" value="4111111111111111"><input autocomplete="cc-number" value="5555555555554444"><input autocomplete="cc-csc" value="123"></form>';
  expect(detectSecretCandidates(document)).toEqual([]);
  document.querySelectorAll('input')[1]!.remove();
+ expect(detectSecretCandidates(document)[0]).toHaveProperty('cvv', '123');
+ document.querySelector('form')!.insertAdjacentHTML('beforeend', '<input autocomplete="cc-csc" value="456">');
  expect(detectSecretCandidates(document)[0]).not.toHaveProperty('cvv');
 });
 it('rejects zero-layout fields and restricts scoped scans', () => {
@@ -187,4 +189,12 @@ it('checks visibility through non-HTML ancestors of a scoped HTML result', () =>
 it('scans externally associated controls under their explicit form without unrelated siblings', () => {
  document.body.innerHTML='<form id="payment"></form><section><input form="payment" autocomplete="cc-number" value="4111111111111111"><input autocomplete="cc-name" value="Unrelated sibling"><input autocomplete="cc-exp" value="09/2099"></section><aside><input form="payment" autocomplete="cc-name" value="Synthetic Associated"><input form="payment" autocomplete="cc-exp-month" value="12"><input form="payment" autocomplete="cc-exp-year" value="2031"></aside>';
  expect(detectSecretCandidates(document,{scope:document.querySelector('form')!})).toEqual([{kind:'card',cardNumber:'4111111111111111',cardholderName:'Synthetic Associated',expiryMonth:'12',expiryYear:'2031'}]);
+});
+
+it('never collects an unrelated, malformed or hidden card security code', () => {
+ document.body.innerHTML='<form><input autocomplete="cc-number" value="4111111111111111"><input autocomplete="cc-csc" value="12345"></form><input autocomplete="cc-csc" value="739">';
+ expect(detectSecretCandidates(document)[0]).not.toHaveProperty('cvv');
+ const csc = document.querySelector('form input[autocomplete="cc-csc"]') as HTMLInputElement;
+ csc.value='739'; csc.hidden=true;
+ expect(detectSecretCandidates(document)[0]).not.toHaveProperty('cvv');
 });

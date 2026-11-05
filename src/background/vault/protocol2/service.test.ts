@@ -1038,7 +1038,7 @@ describe('Protocol2VaultDataService canonical password capture', () => {
       expiryYear: '2030',
       billingAddress: '12 Computing Lane',
       notes: 'Primary',
-    })).resolves.toEqual({ status: 'saved' })
+    })).resolves.toEqual({ status: 'saved', entryId: ENTRY_ID, vaultId: VAULT_ID })
 
     const secret = cryptoMocks.sealCanonicalEntry.mock.calls[0]?.[1]
     expect(secret).toMatchObject({

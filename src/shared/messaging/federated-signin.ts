@@ -56,6 +56,7 @@ export interface SignInAccountOption {
   readonly label: string;
   readonly source: SignInAccountSource;
   readonly context?: string;
+  readonly icon?: string;
 }
 
 export interface SignInTargetOption {
@@ -63,6 +64,8 @@ export interface SignInTargetOption {
   readonly action: 'update' | 'create';
   readonly label: string;
   readonly vaultLabel: string;
+  readonly icon?: string;
+  readonly color?: string;
   readonly current: { readonly provider: SignInProvider; readonly account: string | null } | null;
 }
 
@@ -83,7 +86,7 @@ export type FederatedSignInResult =
   | { readonly status: 'suggestions'; readonly suggestions: readonly SignInSuggestion[] }
   | { readonly status: 'chosen'; readonly provider: SignInProvider }
   | { readonly status: 'prompt'; readonly prompt: SignInPrompt | null }
-  | { readonly status: 'saved'; readonly action: 'created' | 'updated' };
+  | { readonly status: 'saved'; readonly action: 'created' | 'updated'; readonly vaultId?: string; readonly entryId?: string };
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -140,15 +143,16 @@ function suggestion(value: unknown): value is SignInSuggestion {
 }
 
 function account(value: unknown): value is SignInAccountOption {
-  return record(value) && only(value, ['id', 'label', 'source', 'context']) && id(value.id) && text(value.label, 0, 512)
+  return record(value) && only(value, ['id', 'label', 'source', 'context', 'icon']) && id(value.id) && text(value.label, 0, 512)
     && ['chosen', 'used', 'saved', 'vault', 'none'].includes(value.source as string)
-    && (value.context === undefined || text(value.context, 1, 1024));
+    && (value.context === undefined || text(value.context, 1, 1024)) && (value.icon === undefined || text(value.icon, 1, 256));
 }
 
 function target(value: unknown): value is SignInTargetOption {
-  return record(value) && only(value, ['id', 'action', 'label', 'vaultLabel', 'current']) && id(value.id)
+  return record(value) && only(value, ['id', 'action', 'label', 'vaultLabel', 'current', 'icon', 'color']) && id(value.id)
     && (value.action === 'update' || value.action === 'create') && text(value.label, 0, 1024)
-    && text(value.vaultLabel, 0, 512) && binding(value.current);
+    && text(value.vaultLabel, 0, 512) && binding(value.current)
+    && (value.icon === undefined || text(value.icon, 1, 256)) && (value.color === undefined || text(value.color, 1, 32));
 }
 
 function prompt(value: unknown): value is SignInPrompt {
@@ -182,7 +186,8 @@ export function isFederatedSignInResult(value: unknown): value is FederatedSignI
     case 'prompt':
       return only(value, ['status', 'prompt']) && (value.prompt === null || prompt(value.prompt));
     case 'saved':
-      return only(value, ['status', 'action']) && (value.action === 'created' || value.action === 'updated');
+      return only(value, ['status', 'action', 'vaultId', 'entryId']) && (value.action === 'created' || value.action === 'updated')
+        && (value.vaultId === undefined || text(value.vaultId, 1, 1024)) && (value.entryId === undefined || text(value.entryId, 1, 1024));
     default:
       return false;
   }

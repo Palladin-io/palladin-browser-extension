@@ -51,6 +51,25 @@ describe('captured Credential canonical writer', () => {
   const canWrite = vi.fn()
   const authorized = vi.fn()
 
+  it('requires a target choice for ambiguous exact-host accounts instead of defaulting to creation', async () => {
+    data.refresh.mockResolvedValue([{ id: ENTRY, vaultId: VAULT, type: 1, urlDomain: 'accounts.example.com' },
+      { id: ENTRY, vaultId: VAULT, type: 1, urlDomain: 'accounts.example.com' }]);
+    const choices = await writer.choices({ ...credential, kind: 'registration', username: 'new-account' }, url);
+    expect(choices.defaultIndex).toBeNull();
+    expect(choices.targets.every(item => item.action === 'update')).toBe(true);
+  });
+
+  it('encrypts complete native review edits while retaining the existing TOTP', async () => {
+    const totp = { secret: 'JBSWY3DPEHPK3PXP', algorithm: 'SHA1', digits: 6, period: 30, issuer: null, account: null };
+    cryptoMocks.openCurrentMemberSecret.mockResolvedValue({ ...secret, content: { ...secret.content, totp } });
+    await writer.save(credential, url, target, authorized, { entryType: 'credential', label: 'Edited', username: 'alice',
+      password: 'edited-password', url: 'https://accounts.example.com/settings', notes: 'Private note',
+      customFields: [{ id: 'custom:test', label: 'Extra', type: 'concealed', value: 'private-value' }] });
+    expect(cryptoMocks.sealCanonicalCredentialEntry.mock.calls[0]?.[1]).toMatchObject({ memberLabel: 'Edited', content: {
+      password: 'edited-password', url: 'https://accounts.example.com/settings', notes: 'Private note', totp,
+      customFields: [{ id: 'custom:test', value: 'private-value' }] } });
+  });
+
   beforeEach(() => {
     vi.resetAllMocks()
     privateKey = new Uint8Array(32).fill(3)
@@ -104,15 +123,15 @@ describe('captured Credential canonical writer', () => {
     await expect(writer.saveTotp(totp, url, { action: 'update', vaultId: VAULT, entryId: ENTRY, revision: '3', label: 'Alice', vaultLabel: 'Personal', hasTotp: false }, authorized)).rejects.toThrow()
     expect(client.updateEntry).not.toHaveBeenCalled()
   })
-  it('suggests exactly matched account updates, but registration defaults to Personal', async () => {
-    expect((await writer.choices(credential, url)).defaultIndex).toBe(1)
+  it('preselects a single exact-host target for login and registration', async () => {
+    expect((await writer.choices(credential, url)).defaultIndex).toBe(0)
     expect((await writer.choices({ ...credential, kind: 'registration', previousPassword: null }, url)).defaultIndex).toBe(0)
   })
-  it('defaults ambiguous or absent matches to Personal and suppresses identical credentials', async () => {
+  it('requires a choice for ambiguous host matches and suppresses identical credentials', async () => {
     const entries = await data.refresh()
     data.refresh.mockResolvedValue([...entries, { ...entries[0], id: ENTRY }])
-    expect((await writer.choices(credential, url)).defaultIndex).toBe(0)
-    expect((await writer.choices({ ...credential, username: 'bob' }, url)).defaultIndex).toBe(0)
+    expect((await writer.choices(credential, url)).defaultIndex).toBeNull()
+    expect((await writer.choices({ ...credential, username: 'bob' }, url)).defaultIndex).toBeNull()
     expect((await writer.choices({ ...credential, password: 'old-pass' }, url)).identical).toBe(true)
   })
   it('does not offer writable vaults to read-only accounts', async () => {
@@ -174,7 +193,7 @@ describe('captured Credential canonical writer', () => {
   it('creates with canonical defaults in the selected vault without FULL per-entry fan-out', async () => {
     const result = await writer.save(credential, url,
       { action: 'create', vaultId: VAULT, label: 'Personal', vaultLabel: 'Personal' }, authorized)
-    expect(result).toEqual({ action: 'created', revision: '1' })
+    expect(result).toEqual({ action: 'created', revision: '1', vaultId: VAULT, entryId: ENTRY })
     const next = cryptoMocks.sealCanonicalCredentialEntry.mock.calls[0]![1] as MemberSecretV1
     expect(next).toMatchObject({ discoverable: true, agentFieldAccess: { 'credential.password': 'onGrantValue' },
       content: { password: 'new-pass', username: 'alice' } })
@@ -275,7 +294,7 @@ describe('captured Credential canonical writer', () => {
   )
   it('does not turn a refresh failure after commit into a retryable write', async () => {
     data.refresh.mockRejectedValue(new Error('offline'))
-    expect(await writer.save(credential, url, target, authorized)).toEqual({ action: 'updated', revision: '5' })
+    expect(await writer.save(credential, url, target, authorized)).toEqual({ action: 'updated', revision: '5', vaultId: VAULT, entryId: ENTRY })
     expect(client.updateEntry).toHaveBeenCalledTimes(1)
   })
   it.each(['create', 'update'] as const)('acknowledges committed %s and wipes keys without waiting for refresh', async (action) => {
@@ -294,8 +313,8 @@ describe('captured Credential canonical writer', () => {
       await started
       // Flush the write's continuations while the independently controlled refresh remains pending.
       await new Promise<void>((resolve) => { setImmediate(resolve) })
-      expect(result).toEqual(action === 'create' ? { action: 'created', revision: '1' }
-        : { action: 'updated', revision: '5' })
+      expect(result).toEqual(action === 'create' ? { action: 'created', revision: '1', vaultId: VAULT, entryId: ENTRY }
+        : { action: 'updated', revision: '5', vaultId: VAULT, entryId: ENTRY })
       expect(cryptoMocks.wipe).toHaveBeenCalledTimes(2)
       expect(action === 'create' ? client.createEntry : client.updateEntry).toHaveBeenCalledTimes(1)
     } finally {

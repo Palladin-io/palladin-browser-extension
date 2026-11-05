@@ -43,122 +43,54 @@ describe("credential capture toast", () => {
     await vi.advanceTimersByTimeAsync(0);
   }
 
-  it('asks for email or nickname without a default or a save button until selection', async () => {
-    const initial = { ...view, targets: [], defaultTargetId: null, usernameSelection: { selected: null } };
-    send.mockResolvedValue({ status: 'prompt', prompt: { ...view, usernameSelection: { selected: 'email' } } });
-    toast.show({ status: 'prompt', prompt: initial });
-    expect(ui().queryByRole('button', { name: /^Save|^Update/ })).toBeNull();
-    const email = ui().queryByRole('radio', { name: 'Email' });
-    expect(email, 'Ambiguous registration must offer the email choice').not.toBeNull();
-    expect(email).toHaveAttribute('aria-checked', 'false');
-    expect(ui().getByRole('radio', { name: 'Nickname' })).toHaveAttribute('aria-checked', 'false');
-    email!.click(); await vi.advanceTimersByTimeAsync(0);
-    expect(send).toHaveBeenCalledExactlyOnceWith({ channel: 'palladin.credential-capture', documentId: 'document-123456789',
-      type: 'choose-username', promptId: view.id, choice: 'email' });
-    expect(ui().getByRole('radio', { name: 'Email' })).toHaveAttribute('aria-checked', 'true');
-    expect(shadow.querySelector('input')).toBeNull();
+  it('opens native review without exposing account choices or saving from the page', async () => {
+    send.mockResolvedValue({ status: 'accepted' });
+    expect(shadow.textContent).not.toContain('Alice');
+    expect(shadow.textContent).not.toContain('Personal');
+    expect(shadow.querySelector('input,textarea,select')).toBeNull();
+    expect(document.querySelector('palladin-capture')!.shadowRoot).toBeNull();
+    await click('Review');
+    expect(send).toHaveBeenCalledExactlyOnceWith({ channel: 'palladin.credential-capture', documentId: 'document-123456789', type: 'unlock' });
   });
-
-  it('localizes both identity choices and uses the protected action boundary', async () => {
+  it('keeps review opening behind protected interaction checks', async () => {
+    acceptsAction.mockReturnValue(false);
+    await click('Review');
+    expect(send).not.toHaveBeenCalled();
+  });
+  it('shows ambiguous username selection only in native review', () => {
+    toast.show({ status: 'prompt', prompt: { ...view, targets: [], defaultTargetId: null, usernameSelection: { selected: null } } });
+    expect(ui().queryByRole('radio')).toBeNull();
+    expect(ui().getByRole('button', { name: 'Review' })).toBeVisible();
+  });
+  it('keeps an unavailable popup notice visible for manual toolbar opening', async () => {
+    send.mockResolvedValue({ status: 'unavailable' });
+    await click('Review');
+    expect(ui().getByRole('button', { name: 'Review' })).toBeVisible();
+    expect(ui().getByRole('alert')).toBeVisible();
+  });
+  it('dismisses using the worker-owned prompt ID', async () => {
+    send.mockResolvedValue({ status: 'dismissed' });
+    await click('Not now');
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'dismiss', promptId: view.id }));
+    expect(document.querySelector('palladin-capture')).toBeNull();
+  });
+  it('uses the same popup opening path while locked and exposes no account labels', async () => {
+    toast.show({ status: 'prompt', prompt: { ...view, state: 'locked', targets: [], defaultTargetId: null } });
+    send.mockResolvedValue({ status: 'accepted' });
+    await click('Unlock Palladin');
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'unlock' }));
+    expect(shadow.textContent).not.toContain('Alice');
+  });
+  it('localizes the neutral notice and retains dark appearance', () => {
     toast.setAppearance('pl', 'dark');
-    toast.show({ status: 'prompt', prompt: { ...view, targets: [], defaultTargetId: null,
-      usernameSelection: { selected: null } } });
-    expect(ui().getByRole('radiogroup', { name: 'Którego pola używasz jako loginu?' })).toBeVisible();
-    expect(ui().getByRole('radio', { name: 'E-mail' })).toHaveAttribute('aria-checked', 'false');
-    acceptsAction.mockReturnValue(false);
-    ui().getByRole('radio', { name: 'Pseudonim' }).click();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(send).not.toHaveBeenCalled();
-    expect(shadow.querySelector('input, textarea')).toBeNull();
+    expect(ui().getByRole('button', { name: 'Sprawdź' })).toBeVisible();
+    expect(document.querySelector('palladin-capture')).toHaveAttribute('data-theme', 'dark');
   });
-
-  it("uses a closed root, no text inputs and a default-off account checkbox", () => {
-    expect(document.querySelector("palladin-capture")!.shadowRoot).toBeNull();
-    expect(shadow.querySelector("input, textarea")).toBeNull();
-    expect(ui().getByRole("checkbox")).toHaveAttribute("aria-checked", "false");
-    expect(ui().getByRole("button", { name: "Update Alice" })).toBeVisible();
-    expect(ui().queryByRole("button", { name: "Save in Team" })).toBeNull();
-  });
-  it("updates with one click without opening a popup", async () => {
-    await click("Update Alice");
-    expect(send).toHaveBeenCalledExactlyOnceWith({ channel: "palladin.credential-capture",
-      documentId: "document-123456789", type: "save", promptId: view.id,
-      targetId: view.defaultTargetId, autoUpdate: false });
-    expect(ui().getByRole("status")).toHaveTextContent("Password updated");
-    await vi.advanceTimersByTimeAsync(3000);
-    expect(document.querySelector("palladin-capture")).toBeNull();
-  });
-  it("records opt-in with Update, not when toggling the checkbox", async () => {
-    ui().getByRole("checkbox").click();
-    expect(send).not.toHaveBeenCalled();
-    expect(ui().getByRole("checkbox")).toHaveAttribute("aria-checked", "true");
-    expect(ui().getByRole("checkbox")).toHaveAttribute("aria-label", "Automatically update passwords for this account");
-    await click("Update Alice");
-    expect(send).toHaveBeenCalledWith(expect.objectContaining({ autoUpdate: true }));
-  });
-  it("allows choosing another writable vault and drops the account checkbox", async () => {
-    await click("Change...");
-    await click("Save in Team");
-    expect(ui().queryByRole("checkbox")).toBeNull();
-    await click("Save in Team");
-    expect(send).toHaveBeenCalledWith(expect.objectContaining({ targetId: "target-other-123456", autoUpdate: false }));
-  });
-  it("shows the vault beside an existing Entry before choosing it", async () => {
-    await click("Change...");
-    expect(ui().getByRole("button", { name: "Update Alice Personal" })).toHaveTextContent("Personal");
-    await click("Update Alice Personal");
-    expect(send).not.toHaveBeenCalled();
-    await click("Update Alice");
-    expect(send).toHaveBeenCalledWith(expect.objectContaining({ targetId: "target-update-12345" }));
-  });
-  it("does not send commands when the protected surface rejects an interaction", async () => {
-    acceptsAction.mockReturnValue(false);
-    await click("Update Alice");
-    expect(send).not.toHaveBeenCalled();
-  });
-  it("shows a retryable error without resetting the chosen target", async () => {
-    send.mockResolvedValue({ status: "unavailable" });
-    await click("Update Alice");
-    expect(ui().getByRole("alert")).toHaveTextContent("Could not save. Try again.");
-    expect(ui().getByRole("button", { name: "Update Alice" })).toBeEnabled();
-  });
-  it.each(["Not now", "Dismiss save suggestion", "Don't ask for this site"])("dismisses with one click: %s", async (name) => {
-    send.mockResolvedValue({ status: "dismissed" });
-    await click(name);
-    expect(send.mock.calls[0]![0].type).toBe(name === "Don't ask for this site" ? "mute" : "dismiss");
-    expect(document.querySelector("palladin-capture")).toBeNull();
-  });
-  it("unlocks from the locked prompt without exposing account labels", async () => {
-    toast.show({ status: "prompt", prompt: { ...view, state: "locked", targets: [], defaultTargetId: null } });
-    expect(ui().queryByText("Alice")).toBeNull();
-    await click("Unlock Palladin");
-    expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: "unlock" }));
-  });
-  it("renders Polish copy and explicit dark mode", () => {
-    toast.setAppearance("pl", "dark");
-    expect(document.querySelector("palladin-capture")).toHaveAttribute("data-theme", "dark");
-    expect(ui().getByRole("button", { name: "Aktualizuj Alice" })).toBeVisible();
-    expect(ui().getByRole("checkbox")).toHaveTextContent("Automatycznie aktualizuj hasło dla tego konta");
-  });
-  it("shows a failed automatic update as a manual confirmation with the checkbox reset", () => {
-    ui().getByRole("checkbox").click();
-    toast.show({ status: "prompt", prompt: { ...view, error: "save-failed", defaultTargetId: "refreshed-target-123",
-      targets: [{ ...view.targets[1]!, id: "refreshed-target-123" }] } });
-    expect(ui().getByRole("alert")).toBeVisible();
-    expect(ui().getByRole("checkbox")).toHaveAttribute("aria-checked", "false");
-    expect(ui().getByRole("button", { name: "Update Alice" })).toBeEnabled();
-  });
-  it("shows an unlock failure in the locked prompt", async () => {
-    send.mockResolvedValue({ status: "unavailable" });
-    toast.show({ status: "prompt", prompt: { ...view, state: "locked", targets: [], defaultTargetId: null } });
-    await click("Unlock Palladin");
-    expect(ui().getByRole("alert")).toBeVisible();
-  });
-  it("never interprets entry labels as HTML", () => {
-    toast.show({ status: "prompt", prompt: { ...view, targets: [
-      { ...view.targets[1]!, label: '<img src=x onerror="alert(1)">' },
-    ] } });
-    expect(shadow.querySelector("img[onerror]")).toBeNull();
-    expect(ui().getByRole("button", { name: 'Update <img src=x onerror="alert(1)">' })).toBeVisible();
+  it('removes expired and stale notices', async () => {
+    toast.show({ status: 'stale' });
+    expect(document.querySelector('palladin-capture')).toBeNull();
+    toast.show({ status: 'prompt', prompt: view });
+    await vi.advanceTimersByTimeAsync(180000);
+    expect(document.querySelector('palladin-capture')).toBeNull();
   });
 });

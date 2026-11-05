@@ -46,6 +46,8 @@ export interface CredentialCaptureTarget {
   readonly action: "create" | "update";
   readonly label: string;
   readonly vaultLabel: string;
+  readonly icon?: string;
+  readonly color?: string;
 }
 
 export interface CredentialCapturePrompt {
@@ -61,7 +63,7 @@ export interface CredentialCapturePrompt {
 export type CredentialCaptureResult =
   | { readonly status: "accepted" | "dismissed" | "unavailable" | "stale" }
   | { readonly status: "prompt"; readonly prompt: CredentialCapturePrompt | null }
-  | { readonly status: "saved"; readonly action: "created" | "updated" };
+  | { readonly status: "saved"; readonly action: "created" | "updated"; readonly vaultId?: string; readonly entryId?: string };
 
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -134,9 +136,11 @@ export function isCredentialCaptureCommand(value: unknown): value is CredentialC
 }
 
 function isTarget(value: unknown): value is CredentialCaptureTarget {
-  return record(value) && only(value, ["id", "action", "label", "vaultLabel"])
+  return record(value) && only(value, ["id", "action", "label", "vaultLabel", "icon", "color"])
     && id(value.id) && (value.action === "create" || value.action === "update")
-    && boundedString(value.label, 0, 4096) && boundedString(value.vaultLabel, 0, 4096);
+    && boundedString(value.label, 0, 4096) && boundedString(value.vaultLabel, 0, 4096)
+    && (value.icon === undefined || boundedString(value.icon, 1, 256))
+    && (value.color === undefined || typeof value.color === "string" && /^#[0-9a-f]{6}$/i.test(value.color));
 }
 
 export function isCredentialCaptureResult(value: unknown): value is CredentialCaptureResult {
@@ -148,7 +152,8 @@ export function isCredentialCaptureResult(value: unknown): value is CredentialCa
     case "stale":
       return only(value, ["status"]);
     case "saved":
-      return only(value, ["status", "action"]) && (value.action === "created" || value.action === "updated");
+      return only(value, ["status", "action", "vaultId", "entryId"]) && (value.action === "created" || value.action === "updated")
+        && (value.vaultId === undefined || boundedString(value.vaultId, 1, 1024)) && (value.entryId === undefined || boundedString(value.entryId, 1, 1024));
     case "prompt": {
       if (!only(value, ["status", "prompt"])) return false;
       const prompt = value.prompt;

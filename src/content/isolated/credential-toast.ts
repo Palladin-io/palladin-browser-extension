@@ -11,7 +11,7 @@ import {
 } from "@shared/messaging/credential-capture";
 import { createClosedSurface } from "./closed-surface";
 
-type CopyKey = Extract<keyof typeof en, `captureToast.${string}`>;
+type CopyKey = Extract<keyof typeof en, `captureToast.${string}` | `captureReview.${string}`>;
 type WithoutDocument<T> = T extends CredentialCaptureCommand ? Omit<T, "channel" | "documentId"> : never;
 type ToastAction = WithoutDocument<Extract<CredentialCaptureCommand, { type: "save" | "dismiss" | "mute" | "unlock" | 'choose-username' }>>;
 
@@ -20,8 +20,6 @@ export class CredentialCaptureToast {
   private readonly panel: HTMLDivElement;
   private prompt: CredentialCapturePrompt | null = null;
   private targetId: string | null = null;
-  private autoUpdate = false;
-  private choosing = false;
   private busy = false;
   private error = false;
   private locale: UiLocale = "en";
@@ -70,12 +68,9 @@ export class CredentialCaptureToast {
         if (this.closeTimer !== null) clearTimeout(this.closeTimer);
         this.closeTimer = setTimeout(() => this.hide(), 3 * 60_000);
         this.targetId = result.prompt.defaultTargetId;
-        this.autoUpdate = false;
-        this.choosing = false;
         this.error = false;
       } else if (!result.prompt.targets.some((target) => target.id === this.targetId)) {
         this.targetId = result.prompt.defaultTargetId;
-        this.autoUpdate = false;
       }
       this.error = result.prompt.error === "save-failed";
       this.prompt = result.prompt;
@@ -99,7 +94,6 @@ export class CredentialCaptureToast {
     if (this.closeTimer !== null) clearTimeout(this.closeTimer);
     this.closeTimer = null;
     this.prompt = null;
-    this.autoUpdate = false;
     this.surface.host.remove();
     this.panel.replaceChildren();
   }
@@ -121,88 +115,13 @@ export class CredentialCaptureToast {
     this.panel.replaceChildren(header, site);
     if (this.error) this.panel.append(this.note("captureToast.error", true));
 
-    if (prompt.state === "locked") {
-      this.panel.append(this.note("captureToast.locked"),
-        this.button(this.text("captureToast.unlock"), "primary", () => this.perform({ type: "unlock" })));
-    } else {
-      if (prompt.usernameSelection) {
-        const identities = this.doc.createElement('div');
-        identities.className = 'choices';
-        identities.setAttribute('role', 'radiogroup');
-        identities.setAttribute('aria-label', this.text('captureToast.chooseUsername'));
-        this.panel.append(this.note('captureToast.chooseUsername'));
-        for (const choice of ['email', 'nickname'] as const) {
-          const option = this.button(this.text(choice === 'email' ? 'captureToast.email' : 'captureToast.nickname'), 'choice', () => {
-            this.choosing = false;
-            this.autoUpdate = false;
-            return this.perform({ type: 'choose-username', promptId: prompt.id, choice });
-          });
-          option.setAttribute('role', 'radio');
-          option.setAttribute('aria-checked', String(prompt.usernameSelection.selected === choice));
-          identities.append(option);
-        }
-        this.panel.append(identities);
-      }
-      if (this.choosing) {
-        const choices = this.doc.createElement("div");
-        choices.className = "choices";
-        choices.setAttribute("role", "group");
-        choices.setAttribute("aria-label", this.text("captureToast.targets"));
-        for (const candidate of prompt.targets) {
-          const label = this.text(candidate.action === "update" ? "captureToast.update" : "captureToast.save", candidate.label);
-          const option = this.button(label, "choice", () => {
-            this.targetId = candidate.id;
-            this.autoUpdate = false;
-            this.choosing = false;
-            this.render();
-            this.panel.querySelector<HTMLButtonElement>(".primary")?.focus();
-          });
-          option.title = candidate.action === "update" ? `${candidate.label} (${candidate.vaultLabel})` : candidate.label;
-          if (candidate.action === "update") {
-            const vault = this.doc.createElement("span");
-            vault.className = "choice-vault";
-            vault.textContent = candidate.vaultLabel;
-            option.append(vault);
-          }
-          option.setAttribute("aria-pressed", String(candidate.id === this.targetId));
-          choices.append(option);
-        }
-        this.panel.append(choices);
-      }
-      if (target?.action === "update") {
-        const checkbox = this.button(this.text("captureToast.autoUpdate"), "checkbox", () => {
-          this.autoUpdate = !this.autoUpdate;
-          checkbox.setAttribute("aria-checked", String(this.autoUpdate));
-        });
-        checkbox.setAttribute("role", "checkbox");
-        checkbox.setAttribute("aria-label", this.text("captureToast.autoUpdate"));
-        checkbox.setAttribute("aria-checked", String(this.autoUpdate));
-        this.panel.append(checkbox);
-      }
-      const actions = this.doc.createElement("div");
-      actions.className = "actions";
-      if (target) {
-        actions.append(this.button(this.text(this.busy ? "captureToast.saving"
-          : target.action === "update" ? "captureToast.update" : "captureToast.save", target.label), "primary", () =>
-          this.perform({ type: "save", promptId: prompt.id, targetId: target.id,
-            autoUpdate: target.action === "update" && this.autoUpdate })));
-      } else if (!prompt.usernameSelection || prompt.usernameSelection.selected !== null) this.panel.append(this.note("captureToast.noVault"));
-      if (prompt.targets.length > 1) {
-        const change = this.button(this.text("captureToast.change"), "secondary", () => {
-          this.choosing = !this.choosing;
-          this.render();
-          if (this.choosing) this.panel.querySelector<HTMLButtonElement>(".choice")?.focus();
-        });
-        change.setAttribute("aria-expanded", String(this.choosing));
-        actions.append(change);
-      }
-      this.panel.append(actions);
-    }
+    if (prompt.state === "locked") this.panel.append(this.note('captureToast.locked'));
     const footer = this.doc.createElement("div");
     footer.className = "footer";
     footer.append(
       this.button(this.text("captureToast.notNow"), "secondary", () => this.perform({ type: "dismiss", promptId: prompt.id })),
-      this.button(this.text("captureToast.mute"), "secondary", () => this.perform({ type: "mute", promptId: prompt.id })),
+      this.button(this.text('captureToast.mute'), 'secondary', () => this.perform({ type: 'mute', promptId: prompt.id })),
+      this.button(this.text(prompt.state === 'locked' ? 'captureToast.unlock' : 'captureReview.review'), 'primary', () => this.perform({ type: 'unlock' })),
     );
     this.panel.append(footer);
   }

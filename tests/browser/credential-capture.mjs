@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createCaptureApi, allowCaptureApi } from './capture-api.mjs'
-import { openNativePopup } from './native-popup.mjs'
+import { openNativePopup, attachNativePopup } from './native-popup.mjs'
 import { multistepPage } from './capture-multistep.mjs'
 import { cacheBustContentLoaders } from '../../scripts/cache-bust-content-loaders.mjs'
 import { validateBuiltManifest } from '../../scripts/validate-built-manifest.mjs'
@@ -41,7 +41,7 @@ try {
     chrome.runtime.onMessage.addListener((message, sender) => {
       if (message.channel === 'palladin.credential-capture') {
         const observation = {
-        type: message.type, idLength: message.documentId?.length, frameId: sender.frameId,
+        type: message.type, tabId: sender.tab?.id, idLength: message.documentId?.length, frameId: sender.frameId,
         lifecycle: sender.documentLifecycle, hasBrowserDocument: Boolean(sender.documentId),
         hasTabUrl: typeof sender.tab?.url === 'string', hasSenderUrl: typeof sender.url === 'string',
         outcome: message.outcome,
@@ -110,6 +110,25 @@ try {
     }
     await page.getByRole(failure ? 'alert' : 'status').waitFor()
   }
+  const openReview = async () => {
+    await popup?.dismiss().catch(() => undefined)
+    popup = null
+    await click('button', 'Review')
+    popup?.close()
+    popup = await attachNativePopup(profile, extensionId)
+    await popup.waitButton('Review')
+    const writesBeforeReview = api.writes.length
+    await popup.click('Review')
+    await new Promise(resolve => setTimeout(resolve, 400))
+    assert.equal(api.writes.length, writesBeforeReview, 'Opening native review must never save')
+    await popup.waitButton('Save entry')
+  }
+  const saveCapture = async ({ vault } = {}) => {
+    await openReview()
+    if (vault) { await popup.click('Where to save', 'combobox'); await popup.click(new RegExp(vault), 'option') }
+    await popup.click('Save entry', 'button', { completedText: 'Login saved' })
+    await popup.waitText('Login saved')
+  }
   const absent = async () => {
     await page.waitForTimeout(1600)
     assert.equal(await page.locator('palladin-capture').count(), 0, 'No capture prompt after a suppressed submission')
@@ -120,9 +139,9 @@ try {
       const password = `Synthetic-${mode}-${kind}-first!`
       const writeCount = api.writes.length
       await submit({ host, kind, mode, username: 'alice', password })
-      await click('button', 'Save in Personal')
+      await saveCapture()
       await wait(() => api.writes.length === writeCount + 1, 'encrypted create')
-      await wait(() => ax().then((nodes) => nodes.some((node) => node.name?.value === 'Login saved')), 'save toast')
+      await popup.waitText('Login saved')
       const write = api.writes.at(-1)
       assert.equal(write.vaultId, api.vaults[0].detail.id)
       const secret = await api.decrypt(write)
@@ -134,25 +153,21 @@ try {
         url: 'https://assets.example.test/fixture.png' })
       assert(!JSON.stringify(write.request).includes(password))
       assert.equal(await page.locator('palladin-capture').evaluate((host) => host.shadowRoot), null)
-      console.log(`PASS: ${mode} ${kind}, one-click save to Personal, actual encrypted mutation`)
+      console.log(`PASS: ${mode} ${kind}, native review and save to Personal, actual encrypted mutation`)
 
       const updatePassword = `Synthetic-${mode}-${kind}-second!`
       const before = api.writes.length
       await submit({ host, kind: 'password-change', mode, username: 'alice', password: updatePassword, previousPassword: password })
-      const label = `Update ${host}.example.test (alice)`
-      await wait(() => find('button', label), 'update suggestion')
-      const checkbox = await find('checkbox', 'Automatically update passwords for this account')
-      assert(checkbox, 'Account-specific checkbox is visible')
-      assert.equal(checkbox.properties.find((property) => property.name === 'checked').value.value, 'false')
-      await page.screenshot({ path: path.join(artifactDir, `${mode}-${kind}-prompt.png`) })
-      await click('checkbox', 'Automatically update passwords for this account')
-      await wait(async () => (await find('checkbox', 'Automatically update passwords for this account'))
-        ?.properties.find((property) => property.name === 'checked')?.value.value === 'true', 'account checkbox checked before Update')
-      await click('button', label)
+      await openReview()
+      assert.equal(await popup.checkboxChecked('Automatically update passwords for this account'), false, 'Account-specific opt-in is default-off')
+      await popup.screenshot(path.join(artifactDir, `${mode}-${kind}-prompt.png`))
+      await popup.click('Automatically update passwords for this account', 'checkbox')
+      assert.equal(await popup.checkboxChecked('Automatically update passwords for this account'), true)
+      await popup.click('Save entry', 'button', { completedText: 'Login saved' })
       await wait(() => api.writes.length === before + 1, 'manual update with opt-in')
       assert.equal(api.writes.at(-1).entryId, write.entryId)
       assert.equal((await api.decrypt(write)).content.password, updatePassword)
-      await wait(() => ax().then((nodes) => nodes.some((node) => node.name?.value === 'Password updated')), 'update success toast')
+      await popup.waitText('Login saved')
       const consent = await worker.evaluate(async (entryId) => {
         const values = await chrome.storage.local.get('palladin.capture-preferences.v1')
         return (values['palladin.capture-preferences.v1'] ?? []).flatMap((profile) => profile.automaticUpdates)
@@ -160,7 +175,7 @@ try {
       }, write.entryId)
       assert.deepEqual(consent, { vaultId: write.vaultId, entryId: write.entryId,
         revision: '2', origin: `https://${host}.example.test` }, 'Success must follow durable consent for exactly this Entry revision and origin')
-      await page.screenshot({ path: path.join(artifactDir, `${mode}-${kind}-updated.png`) })
+      await popup.screenshot(path.join(artifactDir, `${mode}-${kind}-updated.png`))
 
       const finalPassword = `Synthetic-${mode}-${kind}-third!`
       await submit({ host, kind: 'password-change', mode, username: 'alice', password: finalPassword, previousPassword: updatePassword })
@@ -179,9 +194,9 @@ try {
   await absent()
   assert.equal(api.writes.length, beforeRegional, 'Identical related-host login must not offer a duplicate save')
   await submit({ host: 'regional.spa-login', kind: 'login', mode: 'spa', username: 'alice', password: 'Synthetic-regional-old!42' })
-  await click('button', 'Save in Personal')
+  await saveCapture()
   await wait(() => api.writes.length === beforeRegional + 1, 'stale regional fixture credential saved')
-  await wait(() => ax().then(nodes => nodes.some(node => node.name?.value === 'Login saved')), 'regional save acknowledgement')
+  await popup.waitText('Login saved')
   const regionalWrite = api.writes.at(-1)
   assert.equal((await api.decrypt(regionalWrite)).content.password, 'Synthetic-regional-old!42')
   await submit({ host: 'regional.spa-login', kind: 'login', mode: 'classic', username: 'alice', password: 'Synthetic-spa-login-third!' })
@@ -192,14 +207,10 @@ try {
 
   let before = api.writes.length
   await submit({ host: 'team-registration', kind: 'registration', mode: 'spa', username: 'team-user', password: 'Synthetic-team-account!' })
-  await click('button', 'Change...')
-  await click('button', 'Save in Team')
-  assert.equal(api.writes.length, before, 'Choosing a vault does not save')
-  await click('button', 'Save in Team')
+  await saveCapture({ vault: 'Team' })
   await wait(() => api.writes.length === before + 1, 'save to selected Team vault')
   assert.equal(api.writes.at(-1).vaultId, api.vaults[1].detail.id)
-  await wait(() => ax().then((nodes) => nodes.some((node) => node.name?.value === 'Login saved')), 'Team save toast')
-  console.log('PASS: registration defaults to Personal and Change allows an explicit Team save')
+  console.log('PASS: no-match registration defaults to Personal; native autocomplete explicitly selects Team')
 
   // Synthetic native signup with two plausible login identities. Real browser
   // clicks exercise capture -> closed chooser -> fresh targets -> encrypted save.
@@ -219,23 +230,18 @@ try {
     await page.getByRole('heading', { name: 'Credential capture test' }).click()
     await page.getByRole('button', { name: 'Submit', exact: true }).click()
     await page.getByRole('status').waitFor()
-    await wait(() => find('radio', initialChoice), 'unselected signup identity choices')
-    for (const label of ['Email', 'Nickname']) {
-      const radio = await find('radio', label)
-      assert.equal(radio.properties.find(property => property.name === 'checked')?.value.value, 'false')
-    }
-    assert(!(await ax()).some(node => !node.ignored && node.role?.value === 'button'
-      && /^(?:Save in|Update) /.test(node.name?.value ?? '')), 'No write target is offered before an identity choice')
+    await openReview()
+    assert.equal(await popup.hasButton('Email'), true)
+    assert.equal(await popup.hasButton('Nickname'), true)
     assert.equal(api.writes.length, count)
-    await click('radio', initialChoice)
-    await click('button', 'Change...')
-    await click('button', 'Save in Team')
+    await popup.click(initialChoice)
+    await popup.click('Where to save', 'combobox')
+    await popup.click(/Team/, 'option')
     assert.equal(api.writes.length, count, 'Identity and Vault selection are not saves')
-    await click('radio', finalChoice)
-    await wait(() => find('button', 'Save in Personal'), 'fresh default write target after changing identity')
-    assert.equal(await find('button', 'Save in Team'), undefined, 'Changing identity invalidates the previously chosen Team target')
+    await popup.click(finalChoice)
+    await popup.waitButton('Save entry')
     assert.equal(api.writes.length, count)
-    await click('button', 'Save in Personal')
+    await popup.click('Save entry', 'button', { completedText: 'Login saved' })
     await wait(() => api.writes.length === count + 1, 'encrypted signup saved with explicitly chosen identity')
     const write = api.writes.at(-1)
     const saved = await api.decrypt(write)
@@ -243,7 +249,7 @@ try {
     assert.equal(saved.content.username, selected === 'email' ? email : nickname)
     assert.equal(saved.content.password, password)
     assert.equal(saved.content.urlDomain, `identity-${selected}.example.test`)
-    await wait(() => ax().then(nodes => nodes.some(node => node.name?.value === 'Login saved')), 'identity save toast')
+    await popup.waitText('Login saved')
   }
   console.log('PASS: email/nickname chooser has no default, resets prior write targets, and saves only the explicitly chosen identity')
 
@@ -257,7 +263,8 @@ try {
   }
   console.log('PASS: rejected and identical logins produce neither prompts nor writes in SPA/classic pages')
 
-  popup.close()
+  await popup?.dismiss().catch(() => undefined)
+  popup = null
   popup = await openNativePopup(worker, profile, extensionId)
   if (await popup.hasButton('Back')) await popup.click('Back')
   await popup.click('Vault', 'tab')
@@ -268,7 +275,7 @@ try {
   await wait(async () => !await popup.hasButton(disable), 'account opt-in disabled in settings')
   await submit({ host: 'spa-login', kind: 'password-change', mode: 'spa', username: 'alice',
     password: 'Synthetic-after-opt-out!', previousPassword: 'Synthetic-spa-login-third!' })
-  await wait(() => find('button', 'Update spa-login.example.test (alice)'), 'manual update after opt-out')
+  await wait(() => find('button', 'Review'), 'manual review after opt-out')
   assert.equal(api.writes.length, before)
   await click('button', 'Not now')
   assert.equal(api.writes.length, before)
@@ -281,7 +288,8 @@ try {
   await submit({ host: 'muted-login', kind: 'login', mode: 'classic', username: 'alice', password: 'Synthetic-muted-again!' })
   await absent()
   assert.equal(api.writes.length, before)
-  popup.close()
+  await popup?.dismiss().catch(() => undefined)
+  popup = null
   popup = await openNativePopup(worker, profile, extensionId)
   if (await popup.hasButton('Back')) await popup.click('Back')
   await popup.click('Vault', 'tab')
@@ -299,7 +307,8 @@ try {
   await page.getByLabel('Username', { exact: true }).fill('generator-user')
   await page.getByRole('heading', { name: 'Credential capture test' }).click()
   await page.getByLabel('Password', { exact: true }).click()
-  popup.close()
+  await popup?.dismiss().catch(() => undefined)
+  popup = null
   popup = await openNativePopup(worker, profile, extensionId)
   if (await popup.hasButton('Back')) await popup.click('Back')
   await popup.click('Vault', 'tab')
@@ -321,34 +330,37 @@ try {
   await page.getByLabel('Confirm password', { exact: true }).press('Enter')
   await page.getByRole('status').waitFor()
   // The submitted username differs from CVT-374's password-only Entry; a full account still needs consent.
-  await wait(() => find('button', 'Save in Personal'), 'explicit capture of the submitted account')
+  await wait(() => find('button', 'Review'), 'explicit capture of the submitted account')
   assert.equal(api.writes.length, before + 1, 'The new capture does not silently add another Entry')
   await click('button', 'Not now')
   console.log('PASS: existing generator fills both fields and saves explicitly; account capture never adds an Entry without consent')
 
   before = api.writes.length
-  popup.close()
+  await popup?.dismiss().catch(() => undefined)
+  popup = null
   popup = await openNativePopup(worker, profile, extensionId)
   if (await popup.hasButton('Back')) await popup.click('Back')
   await popup.click('Lock')
   await popup.waitButton('Unlock')
   await submit({ host: 'locked-login', kind: 'login', mode: 'classic', username: 'locked-user', password: 'Synthetic-locked-capture!' })
   await click('button', 'Unlock Palladin')
-  popup.close()
+  await popup?.dismiss().catch(() => undefined)
+  popup = null
   popup = await openNativePopup(worker, profile, extensionId)
   await popup.fill('input[type="password"]', api.password)
   await popup.click('Unlock')
   // Focusing the page closes the real popup; keep it alive until unlock completes.
   await popup.waitButton('Lock')
-  await page.bringToFront()
-  await click('button', 'Save in Personal')
+  await popup.waitButton('Review')
+  await popup.click('Review')
+  await popup.click('Save entry', 'button', { completedText: 'Login saved' })
   await wait(() => api.writes.length === before + 1, 'locked capture continues after real popup unlock')
   assert.equal((await api.decrypt(api.writes.at(-1))).content.password, 'Synthetic-locked-capture!')
-  console.log('PASS: classic submission while locked resumes after explicit popup unlock and one-click Save')
+  console.log('PASS: classic submission while locked resumes after explicit popup unlock and native review and explicit Save')
 
   before = api.writes.length
   await submit({ host: 'granted-login', kind: 'login', mode: 'spa', username: 'grant-user', password: 'Synthetic-granted-initial!' })
-  await click('button', 'Save in Personal')
+  await saveCapture()
   await wait(() => api.writes.length === before + 1, 'create with active FULL grant')
   const grantedWrite = api.writes.at(-1)
   assert.equal(grantedWrite.request.grantEnvelopes, undefined, 'FULL creation has no per-Entry grant fan-out')
@@ -358,11 +370,12 @@ try {
   await submit({ host: 'granted-login', kind: 'password-change', mode: 'classic', username: 'grant-user',
     password: 'Synthetic-granted-replacement!', previousPassword: 'Synthetic-granted-initial!' })
   api.rejectNextUpdate()
-  await click('button', 'Update granted-login.example.test (grant-user)')
-  await wait(() => ax().then((nodes) => nodes.some((node) => node.name?.value === 'Could not save. Try again.')), 'visible mutation failure')
+  await openReview()
+  await popup.click('Save entry', 'button', { completedText: 'Could not save. Try again.' })
+  await popup.waitText('Could not save. Try again.')
   assert.equal(api.writes.length, before + 1, 'Rejected atomic mutation has not replaced the Entry')
   assert.equal((await api.decrypt(grantedWrite)).content.password, 'Synthetic-granted-initial!')
-  await click('button', 'Update granted-login.example.test (grant-user)')
+  await popup.click('Save entry', 'button', { completedText: 'Login saved' })
   await wait(() => api.writes.length === before + 2, 'explicit retry of Entry and grant mutation')
   const replacement = api.writes.at(-1)
   assert.equal(replacement.request.grantEnvelopes.length, 1, 'Only GRANULAR needs a replacement')
@@ -375,29 +388,25 @@ try {
 
   before = api.writes.length
   await submit({ host: 'ambiguous-login', kind: 'registration', mode: 'spa', username: 'shared-user', password: 'Synthetic-ambiguous-personal!' })
-  await click('button', 'Save in Personal')
+  await saveCapture()
   await wait(() => api.writes.length === before + 1, 'first account candidate')
   const personalCandidate = api.writes.at(-1)
-  await submit({ host: 'ambiguous-login', kind: 'registration', mode: 'classic', username: 'shared-user', password: 'Synthetic-ambiguous-team!' })
-  await click('button', 'Change...')
-  await click('button', 'Save in Team')
-  await click('button', 'Save in Team')
-  await wait(() => api.writes.length === before + 2, 'second account candidate')
-  const teamCandidate = api.writes.at(-1)
+  const teamCandidate = await api.addCredential({ label: 'Second exact-host account', username: 'shared-user',
+    password: 'Synthetic-ambiguous-team!', urlDomain: 'ambiguous-login.example.test', vaultIndex: 1 })
   await submit({ host: 'ambiguous-login', kind: 'password-change', mode: 'spa', username: 'shared-user',
     password: 'Synthetic-ambiguous-updated!', previousPassword: 'Synthetic-ambiguous-team!' })
-  await wait(() => find('button', 'Save in Personal'), 'ambiguous account defaults to creation')
-  assert.equal(api.writes.length, before + 2, 'Ambiguous accounts are never automatically updated')
-  await click('button', 'Change...')
-  await click('button', 'Update ambiguous-login.example.test (shared-user) Team')
-  assert.equal(api.writes.length, before + 2, 'Choosing a concrete Entry is not a mutation')
-  await click('button', 'Update ambiguous-login.example.test (shared-user)')
-  await wait(() => api.writes.length === before + 3, 'explicitly selected account update')
+  await openReview()
+  assert.equal(api.writes.length, before + 1, 'Ambiguous accounts are never automatically updated')
+  await popup.click('Where to save', 'combobox')
+  await popup.click(/Second exact-host account.*Team/, 'option')
+  assert.equal(api.writes.length, before + 1, 'Choosing a concrete Entry is not a mutation')
+  await popup.click('Save entry', 'button', { completedText: 'Login saved' })
+  await wait(() => api.writes.length === before + 2, 'explicitly selected account update')
   assert.equal(api.writes.at(-1).entryId, teamCandidate.entryId)
   assert.equal(api.writes.at(-1).vaultId, teamCandidate.vaultId)
   assert.equal((await api.decrypt(personalCandidate)).content.password, 'Synthetic-ambiguous-personal!')
   assert.equal((await api.decrypt(teamCandidate)).content.password, 'Synthetic-ambiguous-updated!')
-  console.log('PASS: ambiguous accounts default to Personal creation; visible account/Vault choice updates only the explicitly selected Entry')
+  console.log('PASS: ambiguous exact-host accounts require selection and update only the selected Entry')
 
   before = api.writes.length
   const boundaryPassword = 'Synthetic-boundary-only!'
@@ -428,14 +437,14 @@ try {
   console.log('PASS: HTTP, cross-origin iframe and script-dispatched submit cannot capture or mutate credentials')
 
   await submit({ host: 'covered-toast', kind: 'login', mode: 'spa', username: 'boundary-user', password: boundaryPassword })
-  await wait(() => find('button', 'Save in Personal'), 'toast before hostile overlay')
+  await wait(() => find('button', 'Review'), 'toast before hostile overlay')
   await page.evaluate(() => {
     const overlay = document.createElement('div')
     overlay.id = 'test-overlay'
     overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:white'
     document.documentElement.append(overlay)
   })
-  await click('button', 'Save in Personal')
+  await click('button', 'Review')
   await page.waitForTimeout(500)
   assert.equal(api.writes.length, before, 'Clicking through a page overlay cannot save')
   await page.evaluate(() => document.getElementById('test-overlay').remove())
@@ -443,7 +452,7 @@ try {
   await absent()
 
   await submit({ host: 'leaving-origin', kind: 'login', mode: 'spa', username: 'boundary-user', password: boundaryPassword })
-  await wait(() => find('button', 'Save in Personal'), 'pending prompt before origin change')
+  await wait(() => find('button', 'Review'), 'pending prompt before origin change')
   await page.goto('https://elsewhere.example.test/login?mode=spa')
   await page.goto('https://leaving-origin.example.test/login/complete?mode=spa')
   await absent()
@@ -469,14 +478,14 @@ try {
       assert.equal(api.writes.length, count)
       await page.getByRole('button', { name: 'Continue', exact: true }).click()
       if (mode === 'spa') {
-        await wait(() => find('button', 'Save in Personal'), 'ready toast before same-document URL change')
+        await wait(() => find('button', 'Review'), 'ready toast before same-document URL change')
         await page.evaluate((flow) => {
           const method = flow === 'registration' ? 'pushState' : 'replaceState'
           history[method]({}, '', '/personal-details')
         }, kind)
         await page.waitForTimeout(1000)
       }
-      await click('button', 'Save in Personal')
+      await saveCapture()
       await wait(() => api.writes.length === count + 1, 'multi-step encrypted create')
       const secret = await api.decrypt(api.writes.at(-1))
       assert.equal(secret.content.username, username)

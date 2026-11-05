@@ -38,6 +38,7 @@ import {
 } from "./entry-metadata";
 import type {
   CreditCardSaveInput,
+  ManualCustomFieldInput,
   ManualEntrySaveInput,
   ManualEntrySaveResult,
 } from "./protocol2/service";
@@ -730,7 +731,7 @@ export function isManualEntrySaveInput(value: unknown): value is ManualEntrySave
   }
 }
 
-function isManualCustomFields(value: unknown): boolean {
+export function isManualCustomFields(value: unknown): value is readonly ManualCustomFieldInput[] {
   if (!Array.isArray(value) || value.length > 20) return false;
   const ids = new Set<string>();
   for (const item of value) {
@@ -739,8 +740,17 @@ function isManualCustomFields(value: unknown): boolean {
     if (!hasOnlyKeys(field, ["id", "label", "type", "value"])) return false;
     if (typeof field.id !== "string" || !/^custom:[a-zA-Z0-9_-]{8,128}$/.test(field.id) || ids.has(field.id)) return false;
     if (typeof field.label !== "string" || field.label.trim().length === 0 || field.label.length > 80) return false;
-    if (field.type !== "text" && field.type !== "multiline" && field.type !== "concealed") return false;
-    if (typeof field.value !== "string" || field.value.length > 16_384) return false;
+    if (field.type === 'totp') {
+      if (!isTotpParams(field.value)) return false;
+      const params = field.value;
+      if (params.secret.length > 256 || !/^[A-Z2-7]{2,256}={0,6}$/i.test(params.secret) || ![6, 8].includes(params.digits)
+        || !Number.isInteger(params.period) || params.period < 1 || params.period > 3600) return false;
+      if (params.issuer !== undefined && (typeof params.issuer !== 'string' || params.issuer.length > 512)) return false;
+      if (params.account !== undefined && (typeof params.account !== 'string' || params.account.length > 512)) return false;
+    } else {
+      if (field.type !== "text" && field.type !== "multiline" && field.type !== "concealed") return false;
+      if (typeof field.value !== "string" || field.value.length > 16_384) return false;
+    }
     ids.add(field.id);
   }
   return true;

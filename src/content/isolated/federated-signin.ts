@@ -10,7 +10,6 @@ import {
   isFederatedSignInResult,
   type FederatedSignInCommand,
   type FederatedSignInResult,
-  type SignInAccountOption,
   type SignInPrompt,
   type SignInSuggestion,
 } from '@shared/messaging/federated-signin';
@@ -20,7 +19,7 @@ import { createClosedSurface } from './closed-surface';
 import { CLOSED_TOAST_STYLES } from './credential-toast';
 import { detectProviderControls, providerForControl, uniqueProviderControl } from './federated-signin-detect';
 
-type CopyKey = Extract<keyof typeof en, `signInToast.${string}`>;
+type CopyKey = Extract<keyof typeof en, `signInToast.${string}` | `captureReview.${string}`>;
 type Body<T> = T extends FederatedSignInCommand ? Omit<T, 'channel' | 'documentId'> : never;
 type Send = (command: FederatedSignInCommand) => Promise<unknown>;
 
@@ -41,9 +40,6 @@ export class FederatedSignInSurface {
   private mode: 'none' | 'suggestions' | 'prompt' | 'note' = 'none';
   private suggestions: readonly SignInSuggestion[] = [];
   private prompt: SignInPrompt | null = null;
-  private accountId: string | null = null;
-  private targetId: string | null = null;
-  private choosingTarget = false;
   private busy = false;
   private locale: UiLocale = 'en';
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -100,9 +96,9 @@ export class FederatedSignInSurface {
       this.note('signInToast.saved', 3_000);
     } else if (result.status === 'prompt' && result.prompt !== null) {
       if (this.prompt?.id !== result.prompt.id) {
-        this.accountId = result.prompt.defaultAccountId;
-        this.targetId = result.prompt.defaultTargetId;
-        this.choosingTarget = result.prompt.defaultTargetId === null;
+
+
+
         if (this.closeTimer !== null) clearTimeout(this.closeTimer);
         this.closeTimer = setTimeout(() => this.hide(), 3 * 60_000);
       }
@@ -191,78 +187,10 @@ export class FederatedSignInSurface {
     site.textContent = `${prompt.site} · ${providerName}`;
     this.panel.replaceChildren(header, site);
     if (prompt.error === 'save-failed') this.panel.append(this.paragraph('signInToast.error', true));
-    if (prompt.state === 'locked') {
-      this.panel.append(this.paragraph('signInToast.locked'),
-        this.button(this.text('signInToast.unlock'), 'primary', () => this.perform({ type: 'unlock' })));
-      this.panel.append(this.footer(prompt.id));
-      return;
-    }
-    this.panel.append(this.paragraph('signInToast.whichAccount', false, providerName));
-    const accounts = this.doc.createElement('div');
-    accounts.className = 'choices';
-    accounts.setAttribute('role', 'radiogroup');
-    accounts.setAttribute('aria-label', this.text('signInToast.whichAccount', providerName));
-    for (const account of prompt.accounts) {
-      const option = this.button(account.source === 'none' ? this.text('signInToast.accountUnknown') : account.label, 'choice', () => {
-        this.accountId = account.id;
-        this.render();
-      });
-      option.setAttribute('role', 'radio');
-      option.setAttribute('aria-checked', String(account.id === this.accountId));
-      const hint = [account.context, this.sourceHint(account)].filter((part): part is string => !!part).join(' \u00b7 ') || null;
-      if (hint !== null) {
-        const small = this.doc.createElement('span');
-        small.className = 'choice-vault';
-        small.textContent = hint;
-        option.append(small);
-      }
-      accounts.append(option);
-    }
-    this.panel.append(accounts);
-
-    const target = prompt.targets.find((candidate) => candidate.id === this.targetId);
-    if (this.choosingTarget || !target) {
-      this.panel.append(this.paragraph('signInToast.whereToSave'));
-      const targets = this.doc.createElement('div');
-      targets.className = 'choices';
-      targets.setAttribute('role', 'radiogroup');
-      targets.setAttribute('aria-label', this.text('signInToast.whereToSave'));
-      for (const candidate of prompt.targets) {
-        const label = candidate.action === 'create' ? this.text('signInToast.newRecord', candidate.label) : candidate.label;
-        const option = this.button(label, 'choice', () => {
-          this.targetId = candidate.id;
-          this.choosingTarget = false;
-          this.render();
-        });
-        option.setAttribute('role', 'radio');
-        option.setAttribute('aria-checked', String(candidate.id === this.targetId));
-        const context = this.doc.createElement('span');
-        context.className = 'choice-vault';
-        context.textContent = candidate.current
-          ? `${candidate.vaultLabel} · ${this.providerName(candidate.current.provider)} · ${candidate.current.account ?? this.text('signInToast.accountUnknown')}`
-          : candidate.vaultLabel;
-        option.append(context);
-        targets.append(option);
-      }
-      if (prompt.targets.length === 0) this.panel.append(this.paragraph('signInToast.noVault'));
-      this.panel.append(targets);
-    }
-    const actions = this.doc.createElement('div');
-    actions.className = 'actions';
-    if (target && this.accountId !== null && prompt.accounts.some((account) => account.id === this.accountId)) {
-      actions.append(this.button(this.text(this.busy ? 'signInToast.saving' : 'signInToast.remember',
-        target.action === 'create' ? this.text('signInToast.newRecord', target.label) : target.label), 'primary',
-      () => this.perform({ type: 'confirm', promptId: prompt.id, accountId: this.accountId!, targetId: target.id,
-        locale: this.locale === 'pl' ? 'pl' : 'en' })));
-    } else {
-      actions.append(this.paragraph('signInToast.chooseFirst'));
-    }
-    if (target && prompt.targets.length > 1 && !this.choosingTarget) {
-      const change = this.button(this.text('signInToast.change'), 'secondary', () => { this.choosingTarget = true; this.render(); });
-      change.setAttribute('aria-expanded', 'false');
-      actions.append(change);
-    }
-    this.panel.append(actions, this.footer(prompt.id));
+    if (prompt.state === 'locked') this.panel.append(this.paragraph('signInToast.locked'));
+    const footer = this.footer(prompt.id);
+    footer.append(this.button(this.text(prompt.state === 'locked' ? 'signInToast.unlock' : 'captureReview.review'), 'primary', () => this.perform({ type: 'unlock' })));
+    this.panel.append(footer);
   }
 
   private footer(promptId: string): HTMLDivElement {
@@ -272,15 +200,6 @@ export class FederatedSignInSurface {
     return footer;
   }
 
-  private sourceHint(account: SignInAccountOption): string | null {
-    switch (account.source) {
-      case 'chosen': return this.text('signInToast.sourceChosen');
-      case 'used': return this.text('signInToast.sourceUsed');
-      case 'saved': return this.text('signInToast.sourceSaved');
-      case 'vault': return this.text('signInToast.sourceVault');
-      case 'none': return null;
-    }
-  }
 
   private async perform(action: Body<FederatedSignInCommand>): Promise<void> {
     if (this.busy) return;

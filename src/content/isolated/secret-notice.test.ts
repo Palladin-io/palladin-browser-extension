@@ -10,6 +10,10 @@ it('keeps notice closed, value-free, input-free and rejects a synthetic consent 
   const notice = new SecretCaptureNotice(document, async () => { actions++; });
   notice.show(false);
   const host = document.querySelector('palladin-capture')!;
+  expect((host as HTMLElement).style.top).toBe('16px');
+  expect((host as HTMLElement).style.right).toBe('16px');
+  expect(root.querySelector('.notice-brand')?.textContent).toBe('Palladin.io');
+  expect(root.querySelector('.notice-footer')?.querySelectorAll('button')).toHaveLength(2);
   expect(host.shadowRoot).toBeNull(); expect(root.querySelector('input,textarea,select')).toBeNull();
   expect(root.textContent).toContain('A key or payment card is ready to review');
   root.querySelector('button')!.click(); expect(actions).toBe(0);

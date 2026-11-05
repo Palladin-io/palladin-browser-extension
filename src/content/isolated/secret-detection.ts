@@ -251,11 +251,13 @@ export function detectSecretCandidates(doc: Document, options: SecretDetectionOp
     if (numbers.length !== 1 || !luhn(numbers[0]!)) continue;
     const month = single('cc-exp-month') || exp?.[1] || monthInput?.value.slice(5) || '';
     const year = single('cc-exp-year') || exp?.[2] || monthInput?.value.slice(0, 4) || '';
+    const cvv = single('cc-csc');
     add({
       kind: 'card',
       ...(options.cardScopeId ? { scopeId: options.cardScopeId(groupElement) } : {}),
       cardNumber: numbers[0]!,
       cardholderName: single('cc-name'),
+      ...(/^\d{3,4}$/.test(cvv) ? { cvv } : {}),
       expiryMonth: /^(0?[1-9]|1[0-2])$/.test(month) ? month : '',
       expiryYear: /^(\d{2}|\d{4})$/.test(year) ? year : '',
     });
