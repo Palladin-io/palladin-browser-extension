@@ -82,6 +82,21 @@ beforeEach(() => { vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Da
 afterEach(() => { expect(vi.getTimerCount()).toBe(0); vi.useRealTimers(); });
 
 describe("automatic browser account/link selection", () => {
+  it.each(["web", "extension"] as const)("recovers a fresh extension allocation using the established Web link with %s source", async role => {
+    const f = pair(role), allocated = "99999999-9999-4999-8999-999999999999";
+    vi.mocked(f.web.client.selectLink).mockResolvedValue(linkId);
+    vi.mocked(f.extension.client.selectLink).mockImplementation(async (_account, proposed) => proposed ?? allocated);
+    const close = f.start();
+    try {
+      await settle();
+      expect(f[role === "web" ? "extension" : "web"].installed()).toBe(true);
+      expect(f.extension.client.selectLink).toHaveBeenCalledWith(accountId, linkId, role === "extension" ? "source" : "receiver", expect.any(Function));
+      expect(f[role].client.prepareSource).toHaveBeenCalledWith(accountId, organizationId, linkId, expect.any(AbortSignal), expect.any(Function));
+      expect(f.web.route.signal.aborted).toBe(false);
+      expect(f.extension.route.signal.aborted).toBe(false);
+    } finally { close(); }
+  });
+
   it.each(["web", "extension"] as const)("bounds %s retirement retries across initial authenticated preference observation", async role => {
     const f = pair(role === "web" ? "extension" : "web"), recipient = f[role];
     const source = f[role === "web" ? "extension" : "web"];

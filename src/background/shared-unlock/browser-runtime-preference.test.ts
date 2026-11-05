@@ -10,6 +10,7 @@ vi.mock('../config/server-runtime', () => ({ serverConfig: { apiUrl: 'https://ap
 const values = vi.hoisted(() => ({} as Record<string, unknown>))
 vi.mock('../session/runtime', async () => {
   const { SharedUnlockLinkStore } = await import('./link-store')
+  const { SharedUnlockExpiryStore } = await import('./expiry-store')
   return ({
   sessionManager: {
     hooks: { onLocked: vi.fn(() => () => {}), onUnlocked: vi.fn(() => () => {}) },
@@ -18,7 +19,7 @@ vi.mock('../session/runtime', async () => {
   },
   sharedUnlockSource: { snapshot: () => ({ authorization: null, preference: null, sourceGeneration: null }),
     closingWitness: () => null, manualLockCheckpoints: () => null, subscribe: () => () => {} },
-  sharedUnlockLinks: new SharedUnlockLinkStore({ get: async () => structuredClone(values), set: async items => { Object.assign(values, structuredClone(items)) }, remove: async () => {} }), sharedUnlockExpiry: {}, sharedUnlockPreferenceGate: { subscribe: () => () => {}, isAllowed: async () => true, assertAllowed: () => {} },
+  sharedUnlockLinks: new SharedUnlockLinkStore({ get: async () => structuredClone(values), set: async items => { Object.assign(values, structuredClone(items)) }, remove: async () => {} }), sharedUnlockExpiry: new SharedUnlockExpiryStore({ get: async () => structuredClone(values), set: async items => { Object.assign(values, structuredClone(items)) } }), sharedUnlockPreferenceGate: { subscribe: () => () => {}, isAllowed: async () => true, assertAllowed: () => {} },
 }) })
 const scope = { apiUrl: 'https://api.test', accountId: '11111111-1111-4111-8111-111111111111' }
 const cleanup: (() => void)[] = []
@@ -148,4 +149,26 @@ it('discards a closing response when the worker own token lease has changed', as
   current = false; finish(new Response(JSON.stringify({ action: 'logout', link: null })))
   await new Promise(resolve => setTimeout(resolve, 0))
   expect(sessionManager.logout).not.toHaveBeenCalled(); expect(sessionManager.lock).not.toHaveBeenCalled()
+})
+
+
+it('joins the existing Web link after a fresh extension allocation without borrowing Identity credentials', async () => {
+  vi.mocked(sessionManager.captureSharedUnlockSettingsSession).mockImplementation(() => { throw new Error('not signed in') })
+  const linkScope = { ...scope, webOrigin: 'https://web.test', extensionId: 'a'.repeat(32) }
+  const first = await sharedUnlockLinks.ensure(linkScope), retained = '22222222-2222-4222-8222-222222222222'
+  const fetcher = vi.fn<typeof fetch>(); vi.stubGlobal('fetch', fetcher)
+  const f = start()
+  await vi.waitFor(() => expect(f.sent.some(message => message.payload.kind === 'state')).toBe(true))
+  const peerId = 'C'.repeat(42) + 'A'
+  f.emit({ attemptId: peerId, payload: { kind: 'state', stateId: peerId, accountId: scope.accountId, status: 'unlocked',
+    generation: 'D'.repeat(42) + 'A', source: { organizationId: '33333333-3333-4333-8333-333333333333' } } })
+  await vi.waitFor(() => expect(f.sent.some(message => message.payload.kind === 'link')).toBe(true))
+  const proposal = f.sent.find(message => message.payload.kind === 'link')!.payload
+  if (proposal.kind !== 'link') throw new Error('missing proposal')
+  expect(proposal.linkId).toBe(first.linkId)
+  f.emit({ attemptId: proposal.extensionStateId, payload: { ...proposal, kind: 'link-selected', linkId: retained } })
+  await vi.waitFor(() => expect(f.sent.some(message => message.payload.kind === 'link' && message.payload.linkId === retained)).toBe(true))
+  expect((await sharedUnlockLinks.read(linkScope))?.linkId).toBe(retained)
+  expect(fetcher).not.toHaveBeenCalled()
+  expect(sessionManager.captureSharedUnlockSource).not.toHaveBeenCalled()
 })

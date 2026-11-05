@@ -87,6 +87,7 @@ export async function prepareSharedUnlockLink(input: {
     check();
     await wait(store.observe(scope, link));
     await admissible(marker.linkId);
+    await wait(store.markAdmission(scope, marker.linkId)); check();
     const active = await wait(api.activate(check(), marker.linkId, {
       authorizationId: root!.authorizationId, sourceGeneration: generation!, expectedRevision: link.revision,
       expectedPreferenceRevision: preference.revision,

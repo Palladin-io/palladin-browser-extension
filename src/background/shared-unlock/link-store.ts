@@ -25,6 +25,7 @@ export interface SharedUnlockLinkMarker extends SharedUnlockLinkScope {
   readonly disconnectId: string | null;
   /** Durable own explicit-reconnect delivery hint; never Identity authority. */
   readonly reconnectRevision?: number | null;
+  readonly admissionAttempted?: boolean;
 }
 
 const uint = z.number().int().min(0).max(0xffff_ffff);
@@ -33,7 +34,7 @@ const linkSchema = z.object({ linkId: uuid, revision: uint, epoch: uint,
   state: z.enum(["active", "locked", "revoked"]), lastInvalidationSequence: uint, lastLogoutSequence: uint }).strict();
 const markerSchema = z.object({ version: z.literal(1), apiUrl: z.string().min(1).max(2048),
   webOrigin: z.string().min(1).max(2048), extensionId: z.string().min(1).max(256), accountId: uuid, linkId: uuid,
-  observed: linkSchema.nullable(), reconnectRevision: uint.nullable().default(null), disconnectId: uuid.nullable(), pending: z.array(z.object({ id: uuid, action: z.enum(["lock", "logout", "disconnect"]),
+  admissionAttempted: z.boolean().default(true), observed: linkSchema.nullable(), reconnectRevision: uint.nullable().default(null), disconnectId: uuid.nullable(), pending: z.array(z.object({ id: uuid, action: z.enum(["lock", "logout", "disconnect"]),
     expectedRevision: uint, preferenceRevision: uint.nullable() }).strict()).max(2) }).strict();
 
 export class SharedUnlockLinkStorageError extends Error {
@@ -102,7 +103,7 @@ export class SharedUnlockLinkStore {
     return this.serial(async () => {
       const existing = await this.load(selected);
       if (existing) return existing;
-      const marker: SharedUnlockLinkMarker = { ...selected, version: 1, linkId: this.newId(), observed: null, pending: [], disconnectId: null, reconnectRevision: null };
+      const marker: SharedUnlockLinkMarker = { ...selected, version: 1, linkId: this.newId(), observed: null, pending: [], disconnectId: null, reconnectRevision: null, admissionAttempted: false };
       await this.save(selected, marker);
       return marker;
     });
@@ -118,9 +119,56 @@ export class SharedUnlockLinkStore {
         if (existing.linkId !== linkId) throw new SharedUnlockLinkStorageError();
         return existing;
       }
-      const marker: SharedUnlockLinkMarker = { ...selected, version: 1, linkId, observed: null, pending: [], disconnectId: null, reconnectRevision: null };
+      const marker: SharedUnlockLinkMarker = { ...selected, version: 1, linkId, observed: null, pending: [], disconnectId: null, reconnectRevision: null, admissionAttempted: false };
       await this.save(selected, marker);
       return marker;
+    });
+  }
+
+  /** Persist before activation or receiver admission, not after a network ACK. */
+  markAdmission(scope: SharedUnlockLinkScope, linkId: string): Promise<void> {
+    const selected = { ...scope };
+    return this.serial(async () => {
+      const marker = await this.require(selected, linkId);
+      if (!marker.admissionAttempted) await this.save(selected, { ...marker, admissionAttempted: true });
+    });
+  }
+
+  /** Successful first-create proves this legacy allocation never held authority. */
+  observeCreated(scope: SharedUnlockLinkScope, response: SharedUnlockLink): Promise<void> {
+    const selected = { ...scope }, observed = projectLink(response);
+    return this.serial(async () => {
+      const marker = await this.require(selected, observed.linkId);
+      if (marker.observed || !marker.pending.length || observed.state !== "locked") throw new SharedUnlockLinkStorageError();
+      await this.save(selected, { ...marker, observed, admissionAttempted: false });
+    });
+  }
+
+  /** Only abandon an allocation that could never have held a shared session.
+   * Existing Web authority and its future closing actions keep the same ID. */
+  replaceUnused(previous: SharedUnlockLinkMarker, linkId: string, preserveFloor: (sequence: number) => Promise<void>,
+    assertCurrent: () => void): Promise<SharedUnlockLinkMarker> {
+    const selected = { apiUrl: previous.apiUrl, webOrigin: previous.webOrigin,
+      extensionId: previous.extensionId, accountId: previous.accountId };
+    return this.serial(async () => {
+      assertCurrent();
+      const marker = await this.require(selected, previous.linkId);
+      assertCurrent();
+      if (marker.admissionAttempted !== false || marker.pending.length || marker.disconnectId
+        || marker.observed?.state === "revoked" || marker.observed?.state === "active"
+        || marker.observed?.revision !== previous.observed?.revision) throw new SharedUnlockLinkStorageError();
+      await preserveFloor(marker.observed?.lastInvalidationSequence ?? 0);
+      assertCurrent();
+      const updated: SharedUnlockLinkMarker = { ...selected, version: 1, linkId, observed: null,
+        pending: [], disconnectId: null, reconnectRevision: null, admissionAttempted: true };
+      try {
+        await this.save(selected, updated);
+        assertCurrent();
+      } catch (error) {
+        try { await this.save(selected, marker); } catch { /* Repair retains the old marker. */ }
+        throw error;
+      }
+      return updated;
     });
   }
 
@@ -129,7 +177,7 @@ export class SharedUnlockLinkStore {
     return this.serial(async () => {
       const marker = await this.require(selected, received.linkId);
       const observed = this.latest(marker.observed, received);
-      const updated = { ...marker, observed,
+      const updated = { ...marker, observed, admissionAttempted: marker.admissionAttempted || observed.state === "active",
         reconnectRevision: observed.state === "revoked" ? null : (marker.reconnectRevision ?? null),
         disconnectId: marker.disconnectId ?? (observed.state === "revoked" ? this.newId() : null) };
       await this.save(selected, updated);
@@ -170,7 +218,7 @@ export class SharedUnlockLinkStore {
       const marker = await this.require(selected, linkId);
       if (received.linkId !== linkId) throw new SharedUnlockLinkStorageError();
       const observed = this.latest(marker.observed, received);
-      const updated = { ...marker, observed,
+      const updated = { ...marker, observed, admissionAttempted: marker.admissionAttempted || observed.state === "active",
         reconnectRevision: observed.state === "revoked" ? null : (marker.reconnectRevision ?? null),
         disconnectId: marker.disconnectId ?? (observed.state === "revoked" ? this.newId() : null),
         pending: marker.pending.filter(intent => intent.id !== intentId) };
@@ -268,7 +316,7 @@ export class SharedUnlockLinkStore {
     this.pendingWrites.set(key, marker);
     await this.storage.set({ [key]: { version: 1, apiUrl: scope.apiUrl, webOrigin: scope.webOrigin,
       extensionId: scope.extensionId, accountId: scope.accountId, linkId: marker.linkId,
-      reconnectRevision: marker.reconnectRevision ?? null,
+      reconnectRevision: marker.reconnectRevision ?? null, admissionAttempted: marker.admissionAttempted ?? true,
       observed: marker.observed ? projectLink(marker.observed) : null, disconnectId: marker.disconnectId,
       pending: marker.pending.map(intent => ({ id: intent.id, action: intent.action, expectedRevision: intent.expectedRevision,
         preferenceRevision: intent.preferenceRevision })) } });

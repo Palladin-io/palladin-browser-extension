@@ -43,6 +43,7 @@ async function setup(options: { pause?: string; fail?: string } = {}) {
       state.serverLink = locked; return response(locked);
     }
     if (action === "activate") {
+      expect((await store.read(scope))?.admissionAttempted).toBe(true);
       expect(JSON.parse(String(init?.body))).toEqual({ authorizationId: root.authorizationId, refreshToken: tokens.refreshToken,
         sourceGeneration: authority.snapshot().sourceGeneration, expectedRevision: state.serverLink!.revision, expectedPreferenceRevision: 3 });
       state.serverLink = active; return response(active);
