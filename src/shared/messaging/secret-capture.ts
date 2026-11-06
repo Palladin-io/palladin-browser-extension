@@ -24,6 +24,7 @@ export type SecretCaptureContentCommand =
 export type SecretCapturePopupCommand =
   | { channel: typeof SECRET_CAPTURE_CHANNEL; type: 'get' }
   | { channel: typeof SECRET_CAPTURE_CHANNEL; type: 'dismiss' | 'mute' | 'begin-review'; id: string }
+  | { channel: typeof SECRET_CAPTURE_CHANNEL; type: 'update'; id: string; targetId: string; entry: Extract<ManualEntrySaveInput, { entryType: 'creditCard' }> }
   | { channel: typeof SECRET_CAPTURE_CHANNEL; type: 'save'; id: string; vaultId: string; entry: ManualEntrySaveInput };
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const id = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 256;
@@ -43,6 +44,7 @@ export function isSecretCapturePopupCommand(value: unknown, validEntry: (entry: 
   if (!record(value) || value.channel !== SECRET_CAPTURE_CHANNEL) return false;
   if (value.type === 'get') return keys(value, ['channel','type']);
   if (value.type === 'dismiss' || value.type === 'mute' || value.type === 'begin-review') return id(value.id) && keys(value, ['channel','type','id']);
+  if (value.type === 'update') return keys(value, ['channel','type','id','targetId','entry']) && id(value.id) && id(value.targetId) && validEntry(value.entry) && value.entry.entryType === 'creditCard';
   return value.type === 'save' && keys(value, ['channel','type','id','vaultId','entry']) && id(value.id) && id(value.vaultId)
     && validEntry(value.entry) && (value.entry.entryType === 'key' || value.entry.entryType === 'creditCard');
 }

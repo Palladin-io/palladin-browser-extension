@@ -21,8 +21,9 @@ export const credentialCaptureCoordinator = new CredentialCaptureCoordinator({
   isSubmissionDocument: (source) => browserDocumentIdForTab(source.tabId) === source.browserDocumentId,
   isCurrentDocument: (source) => isLiveCredentialDocument(source, browserDocumentIdForTab,
     (tabId, message, options) => chrome.tabs.sendMessage(tabId, message, options)),
+  icon: url => credentialWriter.captureIcon(url),
   choices: (credential, url) => credentialWriter.choices(credential, url),
-  save: (credential, url, target, stillAuthorized) => credentialWriter.save(credential, url, target, stillAuthorized),
+  save: (credential, url, target, stillAuthorized, review) => credentialWriter.save(credential, url, target, stillAuthorized, review),
   preferences: capturePreferences,
 })
 

@@ -1,10 +1,12 @@
+import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, PASSPHRASE_MIN_WORDS, PASSPHRASE_MAX_WORDS, type PasswordOptions, type PassphraseOptions } from '@palladin/crypto';
+
 /**
  * Typed capture vocabulary for new-password forms.
  *
  * The page-facing detector reports shape only: candidate id + form kind. It
  * never reads or sends a username, password, label, or other page-controlled
  * value. A generated value can travel in the opposite direction only after an
- * explicit action in the extension popup, through the worker's active-tab and
+ * explicit action in an extension-owned surface, through the worker's active-tab and
  * exact-origin gate, directly to the isolated content script.
  *
  * Saving is a second, explicit popup action after a successful fill. The worker
@@ -22,15 +24,31 @@ export const CAPTURE_FILL_CHANNEL = "palladin.capture/fill" as const;
 export const GENERATE_PASSWORD_CHANNEL = 'palladin.capture/generate' as const;
 export const GENERATOR_SUGGESTIONS_KEY = 'palladin.generator.suggestions-enabled';
 export const GENERATED_PASSWORD_LENGTH = 20;
+export type InlineGeneratorOptions =
+  | ({ readonly mode: 'password' } & PasswordOptions)
+  | ({ readonly mode: 'passphrase' } & PassphraseOptions);
+
+export function isInlineGeneratorOptions(value: unknown): value is InlineGeneratorOptions {
+  if (!isRecord(value)) return false;
+  if (value.mode === 'password') return hasOnlyKeys(value, ['mode', 'length', 'digits', 'symbols'])
+    && Number.isInteger(value.length) && Number(value.length) >= PASSWORD_MIN_LENGTH && Number(value.length) <= PASSWORD_MAX_LENGTH
+    && typeof value.digits === 'boolean' && typeof value.symbols === 'boolean';
+  return value.mode === 'passphrase' && hasOnlyKeys(value, ['mode', 'words', 'separator', 'capitalize', 'includeNumber'])
+    && Number.isInteger(value.words) && Number(value.words) >= PASSPHRASE_MIN_WORDS && Number(value.words) <= PASSPHRASE_MAX_WORDS
+    && typeof value.separator === 'string' && ['-', '.', '_', ' '].includes(value.separator)
+    && typeof value.capitalize === 'boolean' && typeof value.includeNumber === 'boolean';
+}
+
 export interface GeneratePasswordCommand {
   readonly channel: typeof GENERATE_PASSWORD_CHANNEL;
   readonly documentId: string;
   readonly candidateId: string;
   readonly operationId: string;
+  readonly options?: InlineGeneratorOptions;
 }
 export function isGeneratePasswordCommand(value: unknown): value is GeneratePasswordCommand {
-  return isRecord(value) && hasOnlyKeys(value, ['channel', 'documentId', 'candidateId', 'operationId'])
-    && value.channel === GENERATE_PASSWORD_CHANNEL && isOpaqueId(value.documentId) && isOpaqueId(value.candidateId) && isOpaqueId(value.operationId);
+  return isRecord(value) && hasOnlyKeys(value, ['channel', 'documentId', 'candidateId', 'operationId', 'options'])
+    && value.channel === GENERATE_PASSWORD_CHANNEL && isOpaqueId(value.documentId) && isOpaqueId(value.candidateId) && isOpaqueId(value.operationId) && (value.options === undefined || isInlineGeneratorOptions(value.options));
 }
 
 /** Shape-only observation sent isolated content script -> worker. */

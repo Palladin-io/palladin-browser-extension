@@ -6,13 +6,17 @@ local context and recognizable provider formats second. A match is a heuristic;
 it does not prove that a key is new or usable, or that a card is valid.
 
 The optional closed-shadow notice contains no inputs or secret values. Its Review
-action opens the browser-owned side panel where supported. The browser action
-popup is also a supported review surface and the fallback when the panel cannot
-open. An ordinary extension tab cannot authorize the save. The trusted editor
+action opens the browser-owned action popup. When a browser cannot open it
+programmatically, the notice retains manual-toolbar guidance. An already-open
+side panel remains supported; capture never forces that panel open. An ordinary extension tab cannot authorize the save. The trusted editor
 shows the browser-derived source origin, an explicit destination Vault, concealed
 key/PAN fields and the existing Entry form. Review and Vault selection never
-write; only **Save entry** creates an encrypted canonical Entry. Capture never
-updates or overwrites an existing Entry.
+write; only **Save entry** creates an encrypted canonical Entry. A captured card
+matching a full normalized PAN offers an explicit update of the matching Entry.
+One eligible card is preselected; multiple matches require an autocomplete choice.
+The worker rechecks the complete PAN, frozen revision, scope, permissions and
+document/session before updating. Merchant, network and last four digits never
+authorize a match. Existing unrelated fields and delivery policy are preserved.
 
 ## What is observed
 
@@ -24,8 +28,10 @@ updates or overwrites an existing Entry.
 - Cards after trusted input/change, or blur after a trusted local edit. PAN
   normalization and Luhn are detection signals. HTML `cc-*` attributes are
   preferred; a local expiry/month structure can support missing autocomplete.
-  Synthetic autofill events cannot authorize card capture. CVV is not collected
-  automatically; users may explicitly add it in the trusted editor.
+  Synthetic autofill events cannot authorize card capture. A single visible
+  standard `cc-csc` field in the same local card group supplies a 3–4 digit CVV.
+  Ambiguous, hidden, unrelated and malformed security-code fields are excluded.
+  CVV is initially populated and concealed in the native review editor.
 - Accessible frame documents and discovered open Shadow DOM. Frames remain
   independent. A standalone `cc-number` field can offer a partial PAN for trusted
   completion without collecting unrelated document-level fields. Explicit HTML
@@ -39,6 +45,19 @@ to receive updates without selecting it. The explicit action obtains the latest
 authorized candidate and freezes that draft, so further page changes cannot replace
 the user's choice. Different forms or PANs remain separate candidates. Nothing is
 assembled across unrelated forms or frames.
+
+## Review presentation
+
+The native review uses the extension Entry identity, buttons and custom controls.
+Review expands editable fields; Additional details and Additional fields start
+collapsed. Text, multiline, concealed and authenticator custom fields are supported
+for all captured editable Entry types. Card names default to a recognized card
+network or the generic payment-card label, never the merchant hostname. A successful
+save removes the editor and retains a compact, safe summary until Done.
+
+Child-frame capture notices are relayed value-free to the bound top document for
+top-right placement. The original payment-frame source remains authoritative for
+review/save; cross-frame card-field assembly is not supported.
 
 ## Lifecycle and boundaries
 
@@ -81,7 +100,7 @@ uses the real shared crypto package. The fixture-only loopback host grant does
 not change the shipped manifest. Trusted mouse/keyboard events drive observation,
 the actual closed notice, native side panel/action popup and explicit save.
 Provider-side decryption verifies exact Key/Card content, destination Vault,
-omitted automatic CVV and card `injectOnly` policy. The harness waits for the
+captured and concealed CVV and card `injectOnly` policy. The harness waits for the
 real content controller's startup status request before interacting; it never
 inserts a privileged candidate or save message.
 
@@ -115,8 +134,8 @@ npm run test:browser:totp-capture
 It exercises a synthetic setup link, local QR pixel decoding, encrypted Credential
 creation and confirmed replacement, manual no-result and ambiguous-result copy,
 and extension storage exclusion. The fixture does not establish real-site
-compatibility. It uses a synthetic change event for the destination select; the
-save and replacement confirmation use native browser input. Cross-origin tainted
+compatibility. Destination selection uses the extension autocomplete/custom select; save and
+replacement confirmation require native browser input. Cross-origin tainted
 images, inaccessible frames, camera and clipboard are outside this flow. When
 multiple distinct setups are visible, isolate the intended one and scan again.
 

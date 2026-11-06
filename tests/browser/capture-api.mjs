@@ -125,10 +125,16 @@ export async function createCaptureApi({ workspaceHandler } = {}) {
         kdfSalt: bootstrap.kdfSalt, credentialRevision: 1, privateKeyWrapRevision: 1, deviceWrapperMetadata: null } })
       if (url.pathname.startsWith('/hubs/')) return send(null, 404)
       if (req.headers.authorization !== `Bearer ${accessToken}`) return send(null, 401)
+      if (url.pathname === '/api/public-assets/by-ids') {
+        assert.deepEqual(Object.keys(request), ['assetIds'])
+        assert.deepEqual(request.assetIds, ['88888888-8888-4888-8888-888888888888'])
+        return send({ items: [{ id: '88888888-8888-4888-8888-888888888888', revision: 1,
+          url: 'https://assets.example.test/fixture.png' }] })
+      }
       if (url.pathname === '/api/public-assets/website-icons/ensure') {
         assert.deepEqual(Object.keys(request), ['hostnames'])
         return send({ items: request.hostnames.map(hostname => {
-          assert.match(hostname, /^(?:[a-z0-9-]+\.)+example\.test$/)
+          assert(/^(?:[a-z0-9-]+\.)+example\.test$/.test(hostname) || ['visa.com', 'mastercard.com', 'americanexpress.com', 'google.com', 'github.com'].includes(hostname))
           const ready = iconHosts.has(hostname)
           iconHosts.add(hostname)
           return { hostname, status: ready ? 'ready' : 'pending', asset: ready ? {
@@ -200,8 +206,8 @@ export async function createCaptureApi({ workspaceHandler } = {}) {
       return vault.grantFixture.addScript(entryId, write.entryId)
     },
     /** Seeds one synthetic Credential directly as encrypted canonical material. */
-    async addCredential({ label, username, password, urlDomain }) {
-      const vault = vaults[0]
+    async addCredential({ label, username, password, urlDomain, vaultIndex = 0 }) {
+      const vault = vaults[vaultIndex]
       const entryId = randomUUID()
       const secret = crypto.createCapturedCredentialSecret({ label, username, password, url: `https://${urlDomain}`, urlDomain })
       const material = await crypto.sealCanonicalCredentialEntry({ organizationId, vaultId: vault.detail.id, entryId, revision: '1',

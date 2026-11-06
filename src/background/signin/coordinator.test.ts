@@ -67,6 +67,17 @@ function provider(entry: Partial<EntryMetadata> & { id: string; username: string
 }
 
 describe('FederatedSignInCoordinator', () => {
+  it.each([1, 2])('offers only %s eligible host targets and defaults only the single target', async count => {
+    const h = harness({ credentials: Array.from({ length: count }, (_, index) => credential(`entry-${index}`, { status: 'absent' })) });
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    h.coordinator.documentConnected(1, 'https://app.example.com/callback', undefined);
+    const view = (await h.prompt())!;
+    expect(view.targets).toHaveLength(count);
+    expect(view.targets.every(target => target.action === 'update')).toBe(true);
+    expect(view.defaultTargetId).toBe(count === 1 ? view.targets[0]!.id : null);
+  });
+
   it('lets the user pick the Vault for a new record when several are writable', async () => {
     const h = harness({ vaults: [{ vaultId: 'vault-1', label: 'Personal', isDefault: true },
       { vaultId: 'vault-2', label: 'Team', isDefault: false }] });
@@ -441,7 +452,7 @@ describe('FederatedSignInCoordinator', () => {
     expect(await h.prompt()).toBeNull();
   });
 
-  it('keeps large prompts within the content guard limits and still offers a new record', async () => {
+  it('keeps large prompts within the content guard limits and offers existing matches', async () => {
     const many = Array.from({ length: 70 }, (_, index) => credential(`e${index}`, { status: 'absent' }, `user${index}`));
     const accounts = Array.from({ length: 40 }, (_, index) => provider({ id: `g${index}`, username: `user${index}@gmail.com` }));
     const h = harness({ credentials: many, metadata: accounts });
@@ -453,7 +464,7 @@ describe('FederatedSignInCoordinator', () => {
     expect(isFederatedSignInResult(result)).toBe(true);
     const view = result.status === 'prompt' ? result.prompt! : null;
     expect(view!.targets.length).toBeLessThanOrEqual(64);
-    expect(view!.targets.some((target) => target.action === 'create')).toBe(true);
+    expect(view!.targets.every((target) => target.action === 'update')).toBe(true);
     expect(view!.accounts.length).toBeLessThanOrEqual(32);
     expect(view!.accounts.at(-1)!.source).toBe('none');
     expect(view!.accounts.find((account) => account.id === view!.defaultAccountId)?.label).toBe('user39@gmail.com');

@@ -1,3 +1,5 @@
+import type { CardReviewEntry, SecretCardTarget } from '../../capture/secret-coordinator'
+import type { ManualEntrySaveInput } from './service'
 import { buildVaultScriptPackage } from './script-package'
 import {
   buildCanonicalGrantEnvelope,
@@ -11,10 +13,12 @@ import {
   openVaultProjection,
   projectCanonicalCredentialDiscovery,
   sealCanonicalCredentialEntry,
+  sealCurrentCanonicalEntry,
   wipe,
   type CredentialMemberSecret,
 } from '@palladin/crypto'
 type MemberSecretV1 = currentVaultPlaintext.MemberSecretV1
+import { isManualCustomFields } from '../commands'
 import type { TotpEntryRef } from '@shared/messaging/totp-capture'
 import { matchesTab } from '@shared/security/domain'
 import { readSignInBinding, sameSignInAccount, withSignInBinding, type SignInBinding, type SignInBindingState } from '@shared/signin/binding'
@@ -45,6 +49,8 @@ export interface SignInTargets {
     readonly revision: string
     readonly label: string
     readonly username: string
+    readonly icon?: string
+    readonly color?: string
     readonly vaultLabel: string
     readonly signIn: SignInBindingState
   }[]
@@ -64,6 +70,12 @@ export interface CredentialWriterDeps {
 
 export class Protocol2CredentialWriter {
   constructor(private readonly deps: CredentialWriterDeps) {}
+
+  async captureIcon(url: string): Promise<string | undefined> {
+    const site = this.secureUrl(url);
+    const icon = await this.withAuth(token => this.deps.client.resolveWebsiteIcon(token, site.hostname));
+    return icon ? `public-asset:${icon.assetId}` : undefined;
+  }
 
   async choices(credential: SubmittedCredential, url: string): Promise<CredentialCaptureChoices> {
     this.secureUrl(url)
@@ -98,15 +110,18 @@ export class Protocol2CredentialWriter {
             revision: detail.currentRevision, label: secret.content.username
               ? `${secret.memberLabel} (${secret.content.username})` : secret.memberLabel,
             vaultLabel: opened.metadata.name,
+            review: { entryType: 'credential', label: secret.memberLabel, username: secret.content.username,
+              password: credential.password, url: secret.content.url ?? new URL(url).origin,
+              notes: secret.content.notes ?? '', customFields: secret.content.customFields.flatMap(field => { const fields = [field]; return isManualCustomFields(fields) ? fields : [] }),
+              ...(secret.icon ? { icon: secret.icon.kind === 'glyph' ? secret.icon.value : `public-asset:${secret.icon.assetId}` } : {}), ...(secret.color ? { color: secret.color } : {}) },
             exactAccount, previousPasswordMatches: credential.previousPassword !== null
               && secret.content.password === credential.previousPassword })
         }
       } finally { wipe(opened.vaultKey) }
     }
-    const exact = targets.map((target, index) => ({ target, index }))
-      .filter(({ target }) => target.action === 'update' && target.exactAccount)
-    return { identical: false, targets,
-      defaultIndex: credential.kind !== 'registration' && exact.length === 1 ? exact[0]!.index : personalIndex }
+    const updates = targets.filter(target => target.action === 'update')
+    if (updates.length > 0) return { identical: false, targets: updates, defaultIndex: updates.length === 1 ? 0 : null }
+    return { identical: false, targets, defaultIndex: personalIndex }
   }
 
   async totpChoices(url: string, selected?: TotpEntryRef): Promise<TotpWriteTarget[]> {
@@ -139,18 +154,33 @@ export class Protocol2CredentialWriter {
     url: string,
     target: CredentialWriteTarget,
     stillAuthorized: () => Promise<boolean>,
-  ): Promise<{ action: 'created' | 'updated'; revision: string }> {
+    review?: Extract<ManualEntrySaveInput, { entryType: 'credential' }>,
+  ): Promise<{ action: 'created' | 'updated'; revision: string; vaultId?: string; entryId?: string }> {
+    if (review && (!review.url || new URL(review.url).origin !== new URL(url).origin)) throw new Error('Capture URL scope changed')
+    const selectedIcon = review?.icon?.startsWith('public-asset:')
+      ? await this.withAuth(token => this.deps.client.getCatalogIcon(token, review.icon!.slice(13)))
+      : review?.icon ? { kind: 'glyph' as const, value: review.icon } : undefined
+    const edit = (previous: CredentialMemberSecret): CredentialMemberSecret => {
+      if (!review) return { ...previous, content: { ...previous.content, password: credential.password } }
+      const customFields = [...previous.content.customFields.filter(field => !isManualCustomFields([field])), ...(review.customFields ?? [])]
+      return { ...previous, memberLabel: review.label,
+        ...(selectedIcon !== undefined ? { icon: selectedIcon } : {}), ...(review.color !== undefined ? { color: review.color } : {}),
+        agentFieldAccess: { ...Object.fromEntries(Object.entries(previous.agentFieldAccess).filter(([key]) => !key.startsWith('custom:'))),
+          ...Object.fromEntries(customFields.map(field => [field.id, previous.agentFieldAccess[field.id] ?? 'never'])) },
+        content: { ...previous.content, username: review.username, password: review.password, url: review.url!,
+          urlDomain: new URL(review.url!).hostname, notes: review.notes || null, customFields } }
+    }
     return this.write(url, target, stillAuthorized,
-      site => createCapturedCredentialSecret({ label: site.hostname, username: credential.username,
-        password: credential.password, url: site.origin, urlDomain: site.hostname }),
+      site => edit(createCapturedCredentialSecret({ label: site.hostname, username: credential.username,
+        password: credential.password, url: site.origin, urlDomain: site.hostname })),
       previous => {
-        if (target.action === 'update' && target.exactAccount && previous.content.username !== credential.username) throw new Protocol2MutationConflictError()
-        return { ...previous, content: { ...previous.content, password: credential.password } }
+        if (target.action === 'update' && target.exactAccount && previous.content.username !== (target.review?.username ?? credential.username)) throw new Protocol2MutationConflictError()
+        return edit(previous)
       })
   }
 
   async saveTotp(totp: CapturedTotp, url: string, target: TotpWriteTarget,
-    stillAuthorized: () => Promise<boolean>, create?: { label: string; username: string }, confirmDomainMismatch = false): Promise<{ action: 'created' | 'updated'; revision: string }> {
+    stillAuthorized: () => Promise<boolean>, create?: { label: string; username: string }, confirmDomainMismatch = false): Promise<{ action: 'created' | 'updated'; revision: string; vaultId?: string; entryId?: string }> {
     return this.write(url, target, stillAuthorized,
       site => {
         const secret = createCapturedCredentialSecret({ label: create?.label ?? site.hostname, username: create?.username ?? '',
@@ -167,7 +197,7 @@ export class Protocol2CredentialWriter {
 
   private async write(url: string, target: CredentialWriteTarget | TotpWriteTarget,
     stillAuthorized: () => Promise<boolean>, create: (site: URL) => CredentialMemberSecret,
-    update: (previous: CredentialMemberSecret) => CredentialMemberSecret, scope: 'exact-host' | 'manual-totp' = 'exact-host'): Promise<{ action: 'created' | 'updated'; revision: string }> {
+    update: (previous: CredentialMemberSecret) => CredentialMemberSecret, scope: 'exact-host' | 'manual-totp' = 'exact-host'): Promise<{ action: 'created' | 'updated'; revision: string; vaultId?: string; entryId?: string }> {
     const site = this.secureUrl(url)
     const { privateKey, userId } = await this.context()
     if (!(await this.deps.canWrite()) || !(await stillAuthorized())) throw new VaultDataError('locked', 'Capture authorization changed')
@@ -183,7 +213,8 @@ export class Protocol2CredentialWriter {
       if (target.action === 'create') {
         const entryId = await this.withAuth((token) => this.deps.client.issueEntryCreationChallenge(token, vault.id))
         const icon = await this.withAuth(token => this.deps.client.resolveWebsiteIcon(token, site.hostname))
-        const secret = { ...create(site), icon: icon ?? null }
+        const draft = create(site)
+        const secret = { ...draft, icon: draft.icon ?? icon ?? null }
         assertEpoch()
         const material = await sealCanonicalCredentialEntry({ organizationId: vault.organizationId, vaultId: vault.id,
           entryId, revision: '1', vaultKeyVersion: vault.currentKeyEpoch.vaultKeyVersion,
@@ -195,7 +226,7 @@ export class Protocol2CredentialWriter {
           return this.deps.client.createEntry(token, { vaultId: vault.id, entryId, ...material, deliveryPolicy: 'standard' })
         })
         void this.refreshAfterWrite()
-        return { action: 'created', revision: created.currentRevision }
+        return { action: 'created', revision: created.currentRevision, vaultId: vault.id, entryId }
       }
       const detail = await this.withAuth((token) => this.deps.client.getEntry(token, vault.id, target.entryId))
       if (detail.currentRevision !== target.revision) throw new Protocol2MutationConflictError()
@@ -203,11 +234,11 @@ export class Protocol2CredentialWriter {
       const next = update(previous)
       if (next === previous) {
         if (!(await authorized())) throw new VaultDataError('locked', 'Capture authorization changed')
-        return { action: 'updated', revision: detail.currentRevision }
+        return { action: 'updated', revision: detail.currentRevision, vaultId: vault.id, entryId: target.entryId }
       }
       const saved = await this.commitUpdate(vault, detail, previous, next, opened.vaultKey, discoveryKey, authorized, assertEpoch)
       void this.refreshAfterWrite()
-      return { action: 'updated', revision: saved.currentRevision }
+      return { action: 'updated', revision: saved.currentRevision, vaultId: vault.id, entryId: target.entryId }
     } finally {
       wipe(opened.vaultKey)
       if (discoveryKey) wipe(discoveryKey)
@@ -239,7 +270,9 @@ export class Protocol2CredentialWriter {
           if (secret.entryType !== 'credential') continue
           result.credentials.push({ vaultId: vault.id, entryId: entry.id, revision: detail.currentRevision,
             label: secret.memberLabel, username: secret.content.username, vaultLabel: opened.metadata.name,
-            signIn: readSignInBinding(secret) })
+            signIn: readSignInBinding(secret),
+            ...(secret.icon ? { icon: secret.icon.kind === 'glyph' ? secret.icon.value : `public-asset:${secret.icon.assetId}` } : {}),
+            ...(secret.color ? { color: secret.color } : {}) })
         }
       } finally { wipe(opened.vaultKey) }
     }
@@ -257,12 +290,12 @@ export class Protocol2CredentialWriter {
     binding: SignInBinding,
     label: string,
     stillAuthorized: () => Promise<boolean>,
-  ): Promise<{ action: 'created' | 'updated'; revision: string }> {
+  ): Promise<{ action: 'created' | 'updated'; revision: string; vaultId?: string; entryId?: string }> {
     const site = this.secureUrl(url)
     if (target.action === 'update') {
       const revision = await this.mutateCredential(target.vaultId, target.entryId, target.revision, url,
         (secret) => withSignInBinding(secret, binding, label), stillAuthorized)
-      return { action: 'updated', revision }
+      return { action: 'updated', revision, vaultId: target.vaultId, entryId: target.entryId }
     }
     const { privateKey, userId } = await this.context()
     if (!(await this.deps.canWrite()) || !(await stillAuthorized())) throw new VaultDataError('locked', 'Sign-in authorization changed')
@@ -290,7 +323,7 @@ export class Protocol2CredentialWriter {
         return this.deps.client.createEntry(token, { vaultId: vault.id, entryId, ...material, deliveryPolicy: 'standard' })
       })
       void this.refreshAfterWrite()
-      return { action: 'created', revision: created.currentRevision }
+      return { action: 'created', revision: created.currentRevision, vaultId: vault.id, entryId }
     } finally {
       wipe(opened.vaultKey)
       if (discoveryKey) wipe(discoveryKey)
@@ -347,24 +380,95 @@ export class Protocol2CredentialWriter {
     }
   }
 
+  async cardChoices(cardNumber: string): Promise<SecretCardTarget[]> {
+    const pan = normalizedPan(cardNumber)
+    if (!(await this.deps.canWrite())) return []
+    const { privateKey, userId } = await this.context()
+    const metadata = await this.deps.data.refresh()
+    const vaults = await this.withAuth(token => this.deps.client.listVaults(token))
+    const targets: SecretCardTarget[] = []
+    for (const listed of vaults) {
+      const vault = await this.withAuth(token => this.deps.client.getVault(token, listed.id))
+      const opened = await this.deps.keyEpochFloor.observe(userId, vault, () => openVaultProjection(vault, privateKey, userId))
+      try {
+        for (const entry of metadata.filter(item => item.vaultId === vault.id && item.type === 3)) {
+          const detail = await this.withAuth(token => this.deps.client.getEntry(token, vault.id, entry.id))
+          assertCoordinates(detail, vault, entry.id)
+          const previous = await openCurrentMemberSecret(detail.entryKey, detail.memberSecret, opened.vaultKey,
+            { organizationId: vault.organizationId, vaultId: vault.id, entryId: entry.id, revision: detail.currentRevision })
+          if (previous.entryType !== 'creditCard' || previous.content.cardNumber.replace(/[ -]/g, '') !== pan) continue
+          const content = previous.content
+          targets.push({ id: entry.id, vaultId: vault.id, revision: detail.currentRevision, name: previous.memberLabel,
+            vaultName: opened.metadata.name, entry: { entryType: 'creditCard', label: previous.memberLabel,
+              cardNumber: content.cardNumber, cardholderName: content.cardholderName, expiryMonth: content.expiryMonth,
+              expiryYear: content.expiryYear, ...(content.cvv !== undefined ? { cvv: content.cvv } : {}),
+              billingAddress: content.billingAddress ?? '', notes: content.notes ?? '',
+              customFields: content.customFields.filter(editableCardField),
+              ...(previous.icon?.kind === 'glyph' ? { icon: previous.icon.value } : {}),
+              ...(previous.color ? { color: previous.color } : {}) } })
+        }
+      } finally { wipe(opened.vaultKey) }
+    }
+    return targets
+  }
+
+  async updateCard(target: SecretCardTarget, input: CardReviewEntry, capturedPan: string,
+    stillAuthorized: () => Promise<boolean>): Promise<{ status: 'saved' }> {
+    const pan = normalizedPan(capturedPan)
+    if (normalizedPan(input.cardNumber) !== pan) throw new Error('Captured card changed')
+    const { privateKey, userId } = await this.context()
+    const authorized = async () => this.deps.session.getPrivateKey() === privateKey
+      && await this.deps.session.getUserId() === userId && await this.deps.canWrite() && await stillAuthorized()
+    if (!(await authorized())) throw new VaultDataError('locked', 'Capture authorization changed')
+    const vault = await this.withAuth(token => this.deps.client.getVault(token, target.vaultId))
+    const opened = await this.deps.keyEpochFloor.openForWrite(userId, vault, () => openVaultProjection(vault, privateKey, userId))
+    let discoveryKey: Uint8Array | undefined
+    try {
+      const detail = await this.withAuth(token => this.deps.client.getEntry(token, vault.id, target.id))
+      assertCoordinates(detail, vault, target.id)
+      if (detail.currentRevision !== target.revision) throw new Protocol2MutationConflictError()
+      const previous = await openCurrentMemberSecret(detail.entryKey, detail.memberSecret, opened.vaultKey,
+        { organizationId: vault.organizationId, vaultId: vault.id, entryId: target.id, revision: detail.currentRevision })
+      if (previous.entryType !== 'creditCard' || normalizedPan(previous.content.cardNumber) !== pan) throw new Error('Captured card target changed')
+      const fields = [...(input.customFields ?? []), ...previous.content.customFields.filter(field => !editableCardField(field))]
+      const { cvv: _previousCvv, ...content } = previous.content
+      const access = Object.fromEntries(Object.entries(previous.agentFieldAccess).filter(([id]) => id !== 'creditCard.cvv' && (!id.startsWith('custom:') || fields.some(field => field.id === id))))
+      const next: MemberSecretV1 = { ...previous, memberLabel: input.label.trim(),
+        ...(input.icon !== undefined && !input.icon.startsWith('public-asset:') ? { icon: { kind: 'glyph', value: input.icon } as const } : {}),
+        ...(input.color !== undefined ? { color: input.color } : {}),
+        agentFieldAccess: { ...access, ...(input.cvv ? { 'creditCard.cvv': 'never' as const } : {}), ...Object.fromEntries(fields.map(field => [field.id, previous.agentFieldAccess[field.id] ?? 'never'])) },
+        content: { ...content, cardNumber: pan, cardholderName: input.cardholderName.trim(),
+          expiryMonth: input.expiryMonth, expiryYear: input.expiryYear, ...(input.cvv ? { cvv: input.cvv } : {}),
+          billingAddress: input.billingAddress || null, notes: input.notes || null, customFields: fields } }
+      discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, opened.vaultKey)
+      await this.commitUpdate(vault, detail, previous, next, opened.vaultKey, discoveryKey, authorized,
+        () => this.deps.keyEpochFloor.assertCurrent(userId, vault))
+      void this.refreshAfterWrite()
+      return { status: 'saved' }
+    } finally { wipe(opened.vaultKey); if (discoveryKey) wipe(discoveryKey) }
+  }
+
   private async commitUpdate(
     vault: EncryptedVaultSummary, detail: EntryDetail, previous: MemberSecretV1, next: MemberSecretV1,
     vaultKey: Uint8Array, discoveryKey: Uint8Array, authorized: () => Promise<boolean>, assertEpoch: () => void,
   ) {
-    if (next.entryType !== 'credential') throw new Error('Credential update changed the Entry type')
+    if (next.entryType !== previous.entryType || (next.entryType !== 'credential' && next.entryType !== 'creditCard')) throw new Error('Capture update changed the Entry type')
     const revision = (BigInt(detail.currentRevision) + 1n).toString()
     assertEpoch()
-    const material = await sealCanonicalCredentialEntry({ organizationId: vault.organizationId, vaultId: vault.id,
+    const coordinates = { organizationId: vault.organizationId, vaultId: vault.id,
       entryId: detail.id, revision, entryKeyRevision: '1', entryKeyVersion: detail.currentKeyVersion + 1,
       memberIndexRevision: (BigInt(detail.memberIndexRevision) + 1n).toString(),
       agentDiscoveryRevision: (BigInt(detail.agentDiscoveryRevisionHighWatermark) + 1n).toString(),
       vaultKeyVersion: vault.currentKeyEpoch.vaultKeyVersion, vdkVersion: vault.currentKeyEpoch.vdkVersion,
       memberKeyGeneration: vault.memberKeyGeneration,
-    }, next, vaultKey, discoveryKey, 2)
+    }
+    const material = next.entryType === 'credential'
+      ? await sealCanonicalCredentialEntry(coordinates, next, vaultKey, discoveryKey, 2)
+      : await sealCurrentCanonicalEntry(coordinates, next, vaultKey, discoveryKey, 2)
     const grants = await this.withAuth((token) => this.deps.client.getActiveGrants(token, vault.id))
     const grantMaterial = await this.grants(grants, vault, detail, next, revision, vaultKey)
-    const discoveryChanged = previous.entryType !== 'credential'
-      || JSON.stringify(projectCanonicalCredentialDiscovery(previous)) !== JSON.stringify(projectCanonicalCredentialDiscovery(next))
+    const project = (secret: MemberSecretV1) => secret.entryType === 'credential' ? projectCanonicalCredentialDiscovery(secret) : currentVaultPlaintext.projectAgentDiscovery(secret)
+    const discoveryChanged = JSON.stringify(project(previous)) !== JSON.stringify(project(next))
     return this.withAuth(async (token) => {
       if (!(await authorized())) throw new VaultDataError('locked', 'Credential authorization changed')
       assertEpoch()
@@ -486,4 +590,13 @@ function methodsMask(methods: string | null): number {
   const names = methods?.toLowerCase().split(',').map((name) => name.trim()) ?? []
   if (!names.length || names.some((name) => bits[name] === undefined)) throw new Error('Unsupported grant methods')
   return names.reduce((mask, name) => mask | bits[name]!, 0)
+}
+
+function normalizedPan(value: string): string {
+  const pan = value.replace(/[ -]/g, '')
+  if (!/^\d{12,19}$/.test(pan)) throw new Error('Invalid card number')
+  return pan
+}
+function editableCardField(field: { id: string; label: string; type: string; value: unknown }): field is import('./service').ManualCustomFieldInput {
+  return isManualCustomFields([field])
 }

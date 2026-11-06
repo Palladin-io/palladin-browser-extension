@@ -1,6 +1,7 @@
+import { LoginCaptureSurface } from '../capture/LoginCapturePrompt';
 import { TotpCaptureSurface } from '../capture/TotpCapturePrompt';
 import { ScrollableTabs } from '../components/ScrollableTabs';
-import { SecretCapturePrompt, useSecretCapture } from '../capture/SecretCapturePrompt';
+import { SecretCaptureSurface } from '../capture/SecretCapturePrompt';
 import { PopupViewProvider, usePopupView } from "../view/PopupView";
 import type { PopupViewState, PopupEntryRef } from "../../shared/messaging/popup-view";
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
@@ -80,7 +81,6 @@ function UnlockedContent({
   const pendingGrants = usePendingGrants(workspaceClient);
   const capture = useCapturePrompt(promptClient);
   const list = useVaultList(client, viewRevision);
-  const [secretCapture, clearSecretCapture] = useSecretCapture(viewRevision);
   const navigation = usePopupView()!;
   const { query, vaultFilter, view, selected, scope } = navigation.state;
   const setQuery = (query: string) => navigation.update({ query, scrollTop: 0, visibleCount: 100 });
@@ -156,8 +156,11 @@ function UnlockedContent({
           <PopupIcon name="plus" />
         </button>
       </Header>
+      <div className="capture-surfaces">
+      <LoginCaptureSurface revision={viewRevision} />
       <TotpCaptureSurface revision={viewRevision} />
-      {secretCapture ? <SecretCapturePrompt key={secretCapture.id} review={secretCapture} client={client} onDone={clearSecretCapture} /> : null}
+      <SecretCaptureSurface revision={viewRevision} client={client} onOpenEntry={(id, vaultId) => navigation.update({ selected: { id, vaultId }, view: 'vault' })} />
+      </div>
       <h2 className="sr-only">{t('vault.title')}</h2>
       {capture.prompt !== null && view === 'vault' ? (
         <CapturePrompt

@@ -1,6 +1,6 @@
 import type { TotpEntryRef } from '@shared/messaging/totp-capture';
 import { capturedTotpIdentity, parseCapturedTotp } from '@shared/totp-capture';
-import type { CapturedTotp, TotpWriteTarget } from '../vault/protocol2/credential-writer';
+import type { CapturedTotp, TotpWriteTarget, Protocol2CredentialWriter } from '../vault/protocol2/credential-writer';
 import type { SecretCaptureSource } from './secret-coordinator';
 
 interface Session { profileId: string; generation: number; unlocked: boolean }
@@ -10,7 +10,7 @@ interface Deps {
   sourceMatches(source: SecretCaptureSource, expected: CapturedTotp): Promise<boolean>;
   activeTabId(): Promise<number | null>;
   choices(url: string, entry?: TotpEntryRef): Promise<TotpWriteTarget[]>;
-  save(totp: CapturedTotp, url: string, target: TotpWriteTarget, authorized: () => Promise<boolean>, create?: { label: string; username: string }, confirmDomainMismatch?: boolean): Promise<unknown>;
+  save(totp: CapturedTotp, url: string, target: TotpWriteTarget, authorized: () => Promise<boolean>, create?: { label: string; username: string }, confirmDomainMismatch?: boolean): ReturnType<Protocol2CredentialWriter['saveTotp']>;
   invalidated?(): void;
   now?: () => number;
   createId?: () => string;
@@ -116,9 +116,9 @@ export class TotpCaptureCoordinator {
     };
     try {
       if (!(await authorized())) return { status: 'stale' as const };
-      await this.deps.save(p.totp, p.source.url, target, authorized, create, target.action === 'update' && target.domainMismatch === true && confirmDomainMismatch);
+      const result = await this.deps.save(p.totp, p.source.url, target, authorized, create, target.action === 'update' && target.domainMismatch === true && confirmDomainMismatch);
       if (this.pending.get(p.source.tabId) === p) this.clearTab(p.source.tabId);
-      return { status: 'saved' as const };
+      return { status: 'saved' as const, ...(result.entryId && result.vaultId ? { entryId: result.entryId, vaultId: result.vaultId } : {}) };
     } catch { return await this.valid(p) ? { status: 'error' as const } : { status: 'stale' as const }; }
     finally { p.saving = false; }
   }

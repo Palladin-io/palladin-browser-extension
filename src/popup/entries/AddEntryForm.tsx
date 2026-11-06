@@ -1,3 +1,5 @@
+import { formatOtpauthUri } from '@palladin/crypto';
+import { parseCapturedTotp } from '@shared/totp-capture';
 import { ENTRY_CREDENTIAL, ENTRY_KEY, ENTRY_SCRIPT, ENTRY_CREDIT_CARD } from '../vault/entry-type';
 import { EntryIconPicker } from '../components/EntryIconPicker';
 import { FilterSelect } from '../components/FilterSelect';
@@ -16,6 +18,7 @@ import type { VaultClient } from "../vault/client";
 
 type EntryType = ManualEntrySaveInput["entryType"];
 type Interpreter = Extract<ManualEntrySaveInput, { entryType: "script" }>["interpreter"];
+interface CustomFieldDraft { id: string; label: string; type: ManualCustomFieldType; value: string }
 type SaveStatus = "idle" | "saving" | "saved" | "blocked" | "error";
 
 const INITIAL = {
@@ -35,8 +38,11 @@ const INITIAL = {
   notes: "",
 };
 
-export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack }: {
+export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, captureFormId, onBusyChange, afterCredentialUrl }: {
   readonly client: VaultClient;
+  readonly captureFormId?: string;
+  readonly afterCredentialUrl?: React.ReactNode;
+  readonly onBusyChange?: (busy: boolean) => void;
   readonly onBack?: (() => void) | undefined;
   readonly initialEntry?: ManualEntrySaveInput;
   readonly onSave?: (entry: ManualEntrySaveInput) => Promise<ManualEntrySaveResult>;
@@ -45,8 +51,8 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack }: 
   const { t } = useI18n();
   const [entryType, setEntryType] = useState<EntryType>(initialEntry?.entryType ?? "credential");
   const [draft, setDraft] = useState(() => ({ ...INITIAL, ...initialEntry }));
-  const [customFields, setCustomFields] = useState<ManualCustomFieldInput[]>([...(initialEntry?.customFields ?? [])]);
-  const [presentation, setPresentation] = useState<{ icon?: string; color?: string }>({});
+  const [customFields, setCustomFields] = useState<CustomFieldDraft[]>(() => (initialEntry?.customFields ?? []).map(field => ({ ...field, value: field.type === 'totp' ? formatOtpauthUri(field.value) : field.value })));
+  const [presentation, setPresentation] = useState<{ icon?: string; color?: string }>(() => ({ ...(initialEntry?.icon ? { icon: initialEntry.icon } : {}), ...(initialEntry?.color ? { color: initialEntry.color } : {}) }));
   const [status, setStatus] = useState<SaveStatus>("idle");
 
   function update<K extends keyof typeof INITIAL>(field: K, value: (typeof INITIAL)[K]): void {
@@ -64,9 +70,16 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack }: 
 
   async function submit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    setStatus("saving");
+    if (status === "saving") return;
+    setStatus("saving"); onBusyChange?.(true);
     try {
-      const result = await (onSave ?? client.saveEntry)({ ...toSaveInput(entryType, draft, customFields), ...presentation });
+      const fields: ManualCustomFieldInput[] = customFields.map(field => {
+        if (field.type !== 'totp') return { ...field, type: field.type };
+        const value = parseCapturedTotp(field.value);
+        if (!value) throw new Error('Invalid authenticator configuration');
+        return { ...field, type: 'totp', value };
+      });
+      const result = await (onSave ?? client.saveEntry)({ ...toSaveInput(entryType, draft, fields), ...presentation });
       if (result.status === "blocked") {
         setStatus("blocked");
         return;
@@ -78,12 +91,12 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack }: 
       onSaved?.();
     } catch {
       setStatus("error");
-    }
+    } finally { onBusyChange?.(false); }
   }
 
   return (
-    <form className="entry-form" onSubmit={(event) => void submit(event)}>
-      <div className="entry-create-header">
+    <form id={captureFormId} className={`entry-form${captureFormId ? " entry-form--capture" : ""}`} onSubmit={(event) => void submit(event)}>
+      {!captureFormId ? <div className="entry-create-header">
         {onBack ? <button type="button" className="link-btn" disabled={status === 'saving'} onClick={onBack}><PopupIcon name="back" />{t('common.back')}</button> : null}
         <FilterSelect aria-label={t('entry.type')} value={entryType} disabled={status === 'saving' || initialEntry !== undefined} onValueChange={value => changeType(value as EntryType)}>
           <option value="credential">{t('entry.typeCredential')}</option>
@@ -91,7 +104,7 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack }: 
           <option value="script">{t('entry.typeScript')}</option>
           <option value="creditCard">{t('entry.typeCard')}</option>
         </FilterSelect>
-      </div>
+      </div> : null}
       <div className="entry-create-scroll"><div className="entry-create-fields">
       <div className="entry-create-name">
       <EntryIconPicker value={presentation} onChange={setPresentation} disabled={status === "saving"} type={entryType === 'credential' ? ENTRY_CREDENTIAL : entryType === 'key' ? ENTRY_KEY : entryType === 'script' ? ENTRY_SCRIPT : ENTRY_CREDIT_CARD} />
@@ -110,6 +123,7 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack }: 
         <EntryField label={t("entry.password")} value={draft.password} onChange={(value) => update("password", value)} required autoComplete="new-password" type="password" maxLength={4096} />
         </div>
         <EntryField label={t("entry.url")} value={draft.url} onChange={(value) => update("url", value)} autoComplete="url" type="url" maxLength={2048} placeholder="https://example.com" />
+        {afterCredentialUrl}
       </> : null}
 
       {entryType === "key" ? (
@@ -137,18 +151,23 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack }: 
           <EntryField label={t("card.expiryMonth")} value={draft.expiryMonth} onChange={(value) => update("expiryMonth", value)} required autoComplete="cc-exp-month" inputMode="numeric" pattern="(0[1-9]|1[0-2])" placeholder={t("card.expiryMonthPlaceholder")} />
           <EntryField label={t("card.expiryYear")} value={draft.expiryYear} onChange={(value) => update("expiryYear", value)} required autoComplete="cc-exp-year" inputMode="numeric" pattern="[0-9]{4}" placeholder={t("card.expiryYearPlaceholder")} />
         </div>
-        <EntryTextArea label={t("card.billingAddress")} value={draft.billingAddress} onChange={(value) => update("billingAddress", value)} maxLength={2048} autoComplete="billing street-address" />
+        {!captureFormId ? <EntryTextArea label={t("card.billingAddress")} value={draft.billingAddress} onChange={(value) => update("billingAddress", value)} maxLength={2048} autoComplete="billing street-address" /> : null}
       </> : null}
 
-      <EntryTextArea label={t("entry.notes")} value={draft.notes} onChange={(value) => update("notes", value)} maxLength={4096} />
-      <CustomFieldsEditor fields={customFields} onChange={setCustomFields} />
+      {captureFormId ? <><details><summary>{t('captureReview.details')}</summary>
+        {entryType === 'creditCard' ? <EntryTextArea label={t('card.billingAddress')} value={draft.billingAddress} onChange={value => update('billingAddress', value)} maxLength={2048} autoComplete="billing street-address" /> : null}
+        <EntryTextArea label={t('entry.notes')} value={draft.notes} onChange={value => update('notes', value)} maxLength={4096} />
+      </details><details className="capture-custom-fields"><summary>{t('entry.customFields')}</summary><CustomFieldsEditor floating fields={customFields} onChange={setCustomFields} /></details></> : <>
+        <EntryTextArea label={t('entry.notes')} value={draft.notes} onChange={value => update('notes', value)} maxLength={4096} />
+        <CustomFieldsEditor fields={customFields} onChange={setCustomFields} />
+      </>}
       </div></div>
-      <div className="entry-create-footer">
+      {!captureFormId ? <div className="entry-create-footer">
       {onBack ? <Button variant="subtle" disabled={status === 'saving'} onClick={onBack}>{t('common.cancel')}</Button> : null}
       <Button type="submit" loading={status === "saving"} disabled={status === "saving"}>
         {t("entry.save")}
       </Button>
-      </div>
+      </div> : null}
       <p className="entry-form-status" role="status">{statusMessage(status, t)}</p>
     </form>
   );
@@ -188,13 +207,15 @@ function toSaveInput(
 function CustomFieldsEditor({
   fields,
   onChange,
+  floating,
 }: {
-  readonly fields: readonly ManualCustomFieldInput[];
-  onChange(next: ManualCustomFieldInput[]): void;
+  readonly fields: readonly CustomFieldDraft[];
+  readonly floating?: boolean;
+  onChange(next: CustomFieldDraft[]): void;
 }): React.JSX.Element {
   const { t } = useI18n();
 
-  function update(id: string, patch: Partial<ManualCustomFieldInput>): void {
+  function update(id: string, patch: Partial<CustomFieldDraft>): void {
     onChange(fields.map((field) => field.id === id ? { ...field, ...patch } : field));
   }
 
@@ -228,16 +249,16 @@ function CustomFieldsEditor({
       {fields.map((field, index) => (
         <div className="entry-custom-field" key={field.id}>
           <div className="entry-custom-field-head">
-            <select
-              className="field-input entry-form-select entry-custom-type"
+            <FilterSelect floating={!!floating}
               value={field.type}
               aria-label={t("entry.customTypeNumber", { number: index + 1 })}
-              onChange={(event) => update(field.id, { type: event.target.value as ManualCustomFieldType })}
+              onValueChange={(value) => update(field.id, { type: value as ManualCustomFieldType })}
             >
               <option value="text">{t("entry.customText")}</option>
               <option value="multiline">{t("entry.customMultiline")}</option>
               <option value="concealed">{t("entry.customConcealed")}</option>
-            </select>
+              <option value="totp">{t("field.totp")}</option>
+            </FilterSelect>
             <div className="entry-custom-order">
               <button
                 type="button"
@@ -288,7 +309,7 @@ function CustomFieldsEditor({
           ) : (
             <input
               className="field-input"
-              type={field.type === "concealed" ? "password" : "text"}
+              type={field.type === "concealed" || field.type === "totp" ? "password" : "text"}
               value={field.value}
               onChange={(event) => update(field.id, { value: event.target.value })}
               aria-label={t("entry.customValueNumber", { number: index + 1 })}

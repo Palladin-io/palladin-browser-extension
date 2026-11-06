@@ -9,10 +9,15 @@ The isolated content script captures submitted login, registration and password
 change forms on HTTPS in the top frame. No main-world bridge message carries
 captured credentials. The generated-password flow remains separate.
 
-A right-side closed-shadow toast suggests a one-click Update for one exact
-host/account match, otherwise Save in Personal. Registration defaults to Personal.
-Change opens the optional target chooser; there are no editable text fields.
-The popup settings reuse the existing SettingsSection and Button controls.
+A top-right closed-shadow notice contains the site and Review/Dismiss controls;
+account labels and editable fields appear only in the native extension popup.
+Review opens the default popup, with manual toolbar opening when the browser
+cannot open it programmatically. The native review reuses the Entry editor and
+an autocomplete backed by worker-authoritative exact-host targets: one match is
+preselected, multiple matches require a choice, and creation is offered only
+when there is no eligible existing match. All writable Vaults remain choices
+for creation. The popup settings reuse the existing SettingsSection and Button
+controls.
 
 An identical nonempty username and password suppress a login proposal, including
 when the saved Credential belongs to another host of the same registrable domain
@@ -25,7 +30,7 @@ The capture currently has no binding to the Entry selected during autofill, so
 the equality check considers eligible saved Credentials within that domain.
 
 An ambiguous registration may supply two identity alternatives: email and
-nickname. The closed save surface asks which field is the login, with neither
+nickname. The native review asks which field is the login, with neither
 preselected and no Save/Update target before the choice. The alternatives stay
 in the existing bounded worker-memory capture; the surface receives only the
 selected field name, never the alternative values. Choosing a field resolves
@@ -42,18 +47,16 @@ controls are deliberately excluded from user credential capture. Do not inspect
 field values, storage or request bodies for this check. The three-second
 "Login saved" acknowledgement after an intentional save is not an update prompt.
 
-Design direction follows the existing extension: system font, 14px primary
-copy/12px secondary copy, left-aligned content, brand red primary action, existing
-light/dark palette (#E54645, #F3F5F8, #FFFFFF, #0C0E12, #16161A, #E8EAED).
-The only prominent action is the named write target; selectors are deferred.
-
-```text
-Palladin  Update your password?       ×
-          example.com
-[ ] Automatically update passwords for this account
-[ Update Alice ]          Change...
-Not now                   Don't ask for this site
-```
+The native review shows editable name, username, masked password and URL.
+The automatic-update checkbox sits immediately below URL for an existing Entry.
+Notes and custom fields are collapsed initially. Edits are encrypted through the
+canonical Credential writer, retaining the existing built-in TOTP and fields not
+editable by this client. Entry and site icons use the trusted public-asset
+pipeline. A failed save keeps edits and rebinds refreshed opaque target handles;
+a successful save clears the plaintext draft and retains a safe acknowledgement.
+The native transport accepts neither tab/document bindings nor Vault/Entry
+coordinates from the popup: it resolves the active browser-registered document
+and reuses the existing source, session, origin and expiry checks.
 
 The checkbox is off by default. An Update click can authorize later automatic
 password changes for the same Entry. Automation requires one exact account,
@@ -146,9 +149,10 @@ Passed: SPA/classic login, registration and password change; Personal default,
 explicit Team selection; failed/identical-login suppression; default-off account
 opt-in, later automatic update, disable in Settings; site mute/unmute and dismiss;
 locked classic submission followed by native popup unlock and Save; existing
-generator fill and explicit save. Ambiguous accounts default to Personal creation;
-the chooser identifies an account and Vault, and updates only the selected Entry.
-The last full run made 20 encrypted writes. HTTP, cross-origin iframe and
+generator fill and explicit save. Review expansion makes no mutation. Ambiguous
+exact-host accounts require an explicit Entry/Vault choice and cannot default to
+creation; the selected Entry alone is updated. The 2026-11-05 native-review run
+made 26 encrypted writes. HTTP, cross-origin iframe and
 script-dispatched submits produce no capture; a page overlay cannot click through
 the toast, and leaving/returning to an origin cannot resurrect pending values.
 The storage check reads Chrome local/session storage and every IndexedDB store,
