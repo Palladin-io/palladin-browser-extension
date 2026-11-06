@@ -1,3 +1,4 @@
+import { normalizeSignInAccount } from '../../shared/signin/binding';
 import googleLogo from '../assets/sign-in-providers/google.svg';
 import appleLogo from '../assets/sign-in-providers/apple.svg';
 import microsoftLogo from '../assets/sign-in-providers/microsoft.svg';
@@ -36,7 +37,7 @@ export function SignInMethodsEditor({ methods, onSave, disabled = false }: {
  }
  async function save(remove = false) {
   setBusy(true); setError(false);
-  try { await onSave(editing ?? null, remove ? null : { provider, account: account.trim() || null, agentVisible: visible }); setEditing(undefined); }
+  try { await onSave(editing ?? null, remove ? null : { provider, account: normalizeSignInAccount(account), agentVisible: visible }); setEditing(undefined); }
   catch { setError(true); } finally { setBusy(false); }
  }
  return <section className="sign-in-methods" aria-label={t('signIn.section')}>

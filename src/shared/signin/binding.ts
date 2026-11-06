@@ -79,7 +79,9 @@ export function mutateSignInMethod(
     delete agentFieldAccess[id];
   } else {
     const value = signInMethodValueSchema.parse({ ...binding, account: normalizeSignInAccount(binding.account) });
-    const field: CustomField = { id, label: label.normalize('NFC').trim().slice(0, 128) || 'Sign-in method', type: SIGN_IN_FIELD_TYPE_V2, value };
+    const field: CustomField = { id, label: previous
+      ? secret.content.customFields.find(field => field.id === id)!.label
+      : label.normalize('NFC').trim().slice(0, 128) || 'Sign-in method', type: SIGN_IN_FIELD_TYPE_V2, value };
     customFields = previous ? customFields.map(current => current.id === id ? field : current) : [...customFields, field];
     agentFieldAccess[id] = visible === undefined
       ? previous ? secret.agentFieldAccess[id]! : secret.discoverable ? 'discovery' : 'never'

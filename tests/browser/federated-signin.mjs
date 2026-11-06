@@ -258,12 +258,12 @@ try {
   popup = await openNativePopup(worker, profile, extensionId)
   await popup.click('Add entry')
   await popup.fill('.entry-form input[autocomplete=off]', 'Synthetic OAuth only')
-  for (const account of ['first@synthetic.test', 'second@synthetic.test']) {
+  for (const account of ['first@synthetic.test', 'Zoe\u0308@synthetic.test']) {
     await popup.click('Remember a sign-in method')
     if (account === 'first@synthetic.test') await popup.screenshot(path.resolve('test-results/federated-signin/methods-editor.png'))
     await popup.fill('.sign-in-method-form input[type=text]', account)
     await popup.click('Save')
-    await popup.waitText(account)
+    await popup.waitText(account.normalize('NFC'))
   }
   await popup.screenshot(path.resolve('test-results/federated-signin/methods-create.png'))
   const writesBeforeManual = api.writes.length
@@ -274,7 +274,7 @@ try {
   assert.equal(manual.content.username, '')
   assert.equal(manual.content.password, '')
   assert.deepEqual(manual.content.customFields.filter(field => field.type === 'palladin.signin.v2').map(field => field.value.account),
-    ['first@synthetic.test', 'second@synthetic.test'])
+    ['first@synthetic.test', 'Zoë@synthetic.test'])
   console.log('PASS: native popup created an OAuth-only Login with two same-provider methods')
 
   const storage = await worker.evaluate(async () => ({ local: await chrome.storage.local.get(null), session: await chrome.storage.session.get(null) }))

@@ -1,3 +1,4 @@
+import { isManualEntrySaveInput } from '../../background/vault/commands';
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -51,6 +52,22 @@ describe("AddEntryForm", () => {
     await user.click(screen.getByRole('button', { name: 'Save entry' }));
     await waitFor(() => expect(saveEntry).toHaveBeenCalled());
     expect(saveEntry.mock.calls[0]![0]).not.toHaveProperty('signInMethods');
+  });
+
+  it('normalizes decomposed provider accounts before the actual create input reaches the strict worker guard', async () => {
+    const saveEntry = vi.fn(async (input: import('../../background/vault/protocol2/service').ManualEntrySaveInput) => {
+      if (!isManualEntrySaveInput(input)) throw new Error('Invalid worker input');
+      return { status: 'saved' } as const;
+    });
+    render(<AddEntryForm client={client(saveEntry)} />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Name'), 'Unicode OAuth');
+    await user.click(screen.getByRole('button', { name: 'Remember a sign-in method' }));
+    await user.type(screen.getByLabelText('Provider account'), '  Zoe\u0308@example.test  ');
+    await user.click(screen.getByRole('button', { name: /^Save$/ }));
+    await user.click(screen.getByRole('button', { name: 'Save entry' }));
+    await waitFor(() => expect(saveEntry).toHaveBeenCalledWith(expect.objectContaining({ signInMethods: [expect.objectContaining({ account: 'Zoë@example.test' })] })));
+    expect(await screen.findByRole('status')).toHaveTextContent('Entry saved securely');
   });
 
   it("offers every canonical entry type", async () => {

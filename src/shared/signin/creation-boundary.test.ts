@@ -12,6 +12,7 @@ describe('independent popup-worker sign-in input boundary', () => {
  it.each([
   [{ ...method, id: 'custom:invalid' }],
   [{ ...method, provider: 'unknown' }],
+  [{ ...method, account: 'Zoe\u0308@example.test' }],
   [{ ...method, entry: { vaultId: '11111111-1111-4111-8111-111111111111', entryId: '22222222-2222-4222-8222-222222222222' } }],
   [{ ...method, token: 'synthetic' }],
   [method, method],

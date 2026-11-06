@@ -198,11 +198,12 @@ Manual (not yet performed): real Google, Apple, Microsoft and GitHub accounts
 on Chrome, Firefox and Safari, including popup-blocker behavior, FedCM/One Tap
 fallback, SPA return without navigation, and Safari `openerTabId` availability.
 
-## Local implementation verification gate
+## SDK and verification
 
-The multiple-method implementation is locally tested against an ignored unpacked
-SDK 0.17.0 tarball while trusted registry publication is pending. The checked-in
-consumer pin remains unchanged until the coordinated publication step. These local
-results do not replace `npm ci` plus native CI against the final exact registry pin.
+The extension pins published registry `@palladin/crypto` 0.17.0 with its registry
+integrity in the lockfile. Clean `npm ci`, native build/tests and the disposable
+Chromium sign-in flow validate the published package, including opening saved
+MemberSecret and redacted AgentDiscovery after appending same-provider accounts.
+Synthetic verification does not establish real-provider or store acceptance.
 Provider logo SVGs are bundled copies of the first-party web panel assets; no remote
 assets or new runtime permissions are used.

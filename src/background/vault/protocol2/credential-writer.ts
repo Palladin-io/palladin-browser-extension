@@ -340,7 +340,13 @@ export class Protocol2CredentialWriter {
     stillAuthorized: () => Promise<boolean>, fieldId: string | null = null, agentVisible?: boolean,
   ): Promise<{ revision: string }> {
     return { revision: await this.mutateCredential(vaultId, entryId, null, null, (secret) => {
-      if (edit === null) return mutateSignInMethod(secret, fieldId, null, label)
+      if (edit === null) {
+        const next = mutateSignInMethod(secret, fieldId, null, label)
+        if (next.entryType === 'credential' && next.content.password.length === 0 && readSignInMethods(next).length === 0) {
+          throw new Error('A Credential requires a password or sign-in method')
+        }
+        return next
+      }
       const previous = readSignInMethods(secret).find(method => method.id === fieldId)
       const entry = previous && previous.binding.provider === edit.provider
         && sameSignInAccount(previous.binding.account, edit.account) ? previous.binding.entry : null

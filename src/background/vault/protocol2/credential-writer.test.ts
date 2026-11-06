@@ -388,7 +388,32 @@ describe('captured Credential canonical writer', () => {
       await writer.setEntrySignIn(VAULT, ENTRY, { provider: 'github', account: 'changed' }, 'Method', authorized, modern.id)
       expect(sealed().content.customFields.filter(field => field.id !== modern.id)).toEqual(next.content.customFields.filter(field => field.id !== modern.id))
       expect(sealed().agentFieldAccess[modern.id]).toBe('never')
+      expect(sealed().content.customFields[1]).toMatchObject({ id: modern.id, label: 'Private' })
       await expect(writer.setEntrySignIn(VAULT, ENTRY, null, '', authorized, opaque.id)).rejects.toThrow()
+    })
+
+    it.each([
+      { password: '', another: false, allowed: false },
+      { password: '', another: true, allowed: true },
+      { password: 'ordinary-password', another: false, allowed: true },
+    ])('checks usable sign-in state before removing a method: %j', async ({ password, another, allowed }) => {
+      const id = 'custom:AAAAAA11-1111-4111-8111-111111111111'
+      const first = { id, label: 'My personal sign-in', type: 'palladin.signin.v2', value: { provider: 'google', account: 'first@test', entry: null } }
+      const second = { id: 'custom:bbbbbb22-2222-4222-8222-222222222222', label: 'Other', type: 'palladin.signin.v1', value: { provider: 'google', account: 'second@test', entry: null } }
+      const fields = another ? [first, second] : [first]
+      const original = { ...secret, agentFieldAccess: { ...secret.agentFieldAccess, ...Object.fromEntries(fields.map(field => [field.id, 'never' as const])) }, content: { ...secret.content, password, customFields: fields } }
+      cryptoMocks.openCurrentMemberSecret.mockResolvedValue(original)
+      const removing = writer.setEntrySignIn(VAULT, ENTRY, null, '', authorized, id)
+      if (!allowed) {
+        await expect(removing).rejects.toThrow()
+        expect(client.updateEntry).not.toHaveBeenCalled()
+        expect(cryptoMocks.sealCanonicalCredentialEntry).not.toHaveBeenCalled()
+        expect(original.content.customFields).toEqual([first])
+      } else {
+        await expect(removing).resolves.toMatchObject({ revision: '5' })
+        expect(sealed().content.customFields).toEqual(another ? [second] : [])
+        expect(sealed().content.password).toBe(password)
+      }
     })
 
     it('creates a password-less record that automatic fill cannot select', async () => {
