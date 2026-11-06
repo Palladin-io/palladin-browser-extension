@@ -19,7 +19,7 @@ const selected = name => !process.env.PALLADIN_VISUAL_SCOPE || process.env.PALLA
 const api = await createCaptureApi()
 const profile = await mkdtemp(path.join(tmpdir(), 'palladin-inline-matrix-'))
 const artifacts = path.resolve('test-results/inline-capture-matrix'); await mkdir(artifacts,{recursive:true});
-const pan='4111111111111111', key='sk_test_SyntheticCapture001abcdefghijklmnopqrstuv';
+const pan='4111111111111111', key='sk_test_SyntheticCapture001abcdefghijklmnopqrstuv'; // gitleaks:allow - synthetic capture fixture, never a provider credential
 let context, popup
 const wait = async (check, label) => { const end = Date.now() + 12000; while (Date.now() < end) { if (await check()) return; await new Promise(r => setTimeout(r, 100)) } throw Error(`Timeout: ${label}`) }
 try {
