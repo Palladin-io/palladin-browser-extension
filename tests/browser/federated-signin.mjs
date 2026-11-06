@@ -259,7 +259,10 @@ try {
   await popup.click('Add entry')
   await popup.fill('.entry-form input[autocomplete=off]', 'Synthetic OAuth only')
   for (const account of ['first@synthetic.test', 'Zoe\u0308@synthetic.test']) {
-    await popup.click('Remember a sign-in method')
+    await popup.click('Add a sign-in method')
+    assert(await popup.hasButton('Google'))
+    assert(await popup.hasButton('GitHub'))
+    await popup.click('Google')
     if (account === 'first@synthetic.test') await popup.screenshot(path.resolve('test-results/federated-signin/methods-editor.png'))
     await popup.fill('.sign-in-method-form input[type=text]', account)
     await popup.click('Save')
