@@ -24,3 +24,10 @@ it('never submits when Review changes the shared footer into a save action', asy
   await userEvent.setup().click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
 });
+it('makes only the identity thumbnail interactive and keeps the summary outside the link', () => {
+  render(<CaptureReview title="Capture" savedTitle="Saved" origin="example.test" name="Example" detail="alice" identity={{name:'Example',type:1}}
+    stage="saved" saveLabel="Save" onIdentity={() => {}} onReview={() => {}} onSave={() => {}} onDone={() => {}} onDismiss={() => {}}>{null}</CaptureReview>);
+  const thumbnail = screen.getByRole('button', {name:'Example'});
+  expect(thumbnail).not.toContainElement(screen.getByText('alice'));
+  expect(screen.queryByText('Captured on example.test')).toBeNull();
+});

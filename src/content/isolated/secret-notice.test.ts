@@ -33,3 +33,18 @@ it.each(['en', 'pl'])('does not tell the %s user to leave TOTP review before an 
   expect(document.querySelector('palladin-capture')).toBeInTheDocument();
   notice.stop(); spy.mockRestore(); vi.unstubAllGlobals();
 });
+
+it('renders the captured card identity and network image without card secrets',()=>{
+  let root!:ShadowRoot;const attach=Element.prototype.attachShadow;
+  vi.spyOn(Element.prototype,'attachShadow').mockImplementation(function(this:Element,init){root=attach.call(this,init);return root;});
+  const notice=new SecretCaptureNotice(document,async()=>{});
+  notice.show(false,{kind:'card',site:'pay.example.test',name:'Visa',detail:'•••• 4242',cardBrand:'Visa'});
+  expect(root.querySelector('.notice-title')).toHaveTextContent('Save payment card');
+  expect(root.querySelector('.site')).toHaveTextContent('Captured on pay.example.test');
+  expect(root.querySelector('.notice-summary strong')).toHaveTextContent('Visa');
+  expect(root.querySelector('.notice-summary img')).not.toBeNull();
+  expect(root.querySelector('.notice-summary small')).toHaveTextContent('•••• 4242');
+  expect(root.querySelector('input')).toBeNull();
+  expect(root.querySelector('.header button')).toHaveAttribute('aria-label','Dismiss save suggestion');
+  notice.show(true);expect(root.querySelector('.notice-summary')).toBeNull();notice.stop();
+});

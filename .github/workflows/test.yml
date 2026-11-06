@@ -39,6 +39,12 @@ jobs:
         run: npm run test:browser:inline
       - name: Verify encrypted credential capture
         run: npm run test:browser:capture
+      - name: Verify inline capture review and encrypted saves
+        run: node tests/browser/inline-capture-matrix.mjs
+      - name: Verify inline authenticator save
+        run: node tests/browser/inline-capture-review.mjs
+      - name: Verify capture overlay guards and animated resize
+        run: node tests/browser/capture-review-host.mjs
       - name: Verify generated password fill without local history
         run: npm run test:browser:generator
       - name: Verify trusted multi-step and formless capture

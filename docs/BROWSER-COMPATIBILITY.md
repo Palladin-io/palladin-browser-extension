@@ -10,8 +10,8 @@ credentials.
 | Target | Development floor | Artifact | Current status |
 |--------|-------------------|----------|----------------|
 | Chromium | Chrome 120-compatible MV3 | `dist/chromium/` | Development baseline for Chrome, Chromium, Brave, Edge, and Opera |
-| Firefox | Firefox desktop 140 | `dist/firefox/` | Shared-unlock Identity/Entry/lifecycle tests pass on140/155 on macOS arm64; full platform/distribution acceptance is pending |
-| Safari | Safari 16.4 | `dist/safari/` | Web-extension resources only; Xcode conversion, containing app, and installed-browser validation are pending |
+| Firefox | Firefox desktop 140 | `dist/firefox/` | Shared-unlock tests and synthetic installed login capture/review/save pass on 140/155 on macOS arm64; full platform/distribution acceptance is pending |
+| Safari | Safari 16.4 | `dist/safari/` | Development resources; modal fallback tested in Chromium simulation; native 16.4 unverified and further Safari acceptance cancelled for this task |
 
 Chrome, Chromium, Brave, Edge, and Opera intentionally share one artifact. Do
 not add an Opera fork or a second Chromium overlay. A store may wrap or sign the
@@ -21,6 +21,38 @@ Inline Unlock/Sign in requests the native toolbar popup. Chrome 120–126 restri
 `action.openPopup()` to policy-installed extensions; when the API is absent or
 refuses the request, the inline surface directs the user to open Palladin from
 the browser’s Extensions menu. It does not open a side panel.
+
+## Capture review surfaces and current evidence
+
+Unlocked capture Review expands the same notification into a capture-only
+extension-origin iframe for explicit edit/save. A private capability handoff,
+browser-authenticated Ports and repeated source/candidate/session checks authorize
+only that capture. The Entry thumbnail explicitly opens its pending draft in the
+native popup before save or the saved Entry detail afterward. Unlock and manual
+Entry-detail TOTP scanning retain their native surfaces.
+
+Chromium and browsers with Popover support use a nonmodal top-layer surface.
+The Safari 16.4 fallback uses a modal dialog at the same position with a transparent
+backdrop: the browser blocks interaction elsewhere while review is open.
+Escape clears the frame and its worker ownership. An actual Chromium test with
+Popover support removed verifies real modal behavior, trusted controls, resize,
+reduced motion, background inertness and foreign-dialog interference. Native
+Safari 16.4 rendering is unverified. The user cancelled further Safari work and
+acceptance; that unverified platform is not a blocker for this task.
+
+Top-layer containment, strict ancestry/style checks and interference rejection
+mitigate hostile overlays. They do not guarantee browser-authenticated visibility
+at the exact click. The explicit capture-only residual-risk exception in
+`AGENTS.md` does not permit general Vault, unlock, approval or reveal APIs inside
+the embedded surface.
+
+The Chromium inline matrix covers login, card, key and federated review/save and
+explicit draft/saved thumbnail destinations; separate TOTP and generator runs
+cover their inline flows. Native-editor suites remain distinct coverage and open
+the toolbar popup explicitly. Actual Firefox 140 and 155 passed synthetic
+installed login capture, inline review and encrypted save. These results do not
+establish every capture type, real-provider behavior, store review or release
+acceptance on those browsers.
 
 Build all artifacts with:
 
@@ -102,6 +134,12 @@ and the current runtime acceptance evidence.
 - Firefox does not request `management` or inspect installed add-ons. Its
   first-run guidance links to Firefox-owned password and add-on settings.
 - The target does not request `offscreen`, which Firefox does not implement.
+- Firefox 140–152 lacks capture's browser-issued `sender.documentId`. Its explicit
+  compatibility path binds commands to a live browser-authenticated content Port,
+  browser tab/frame/origin and a worker-issued route identity; disconnect and
+  navigation revoke that route. The embedded frame has its own authenticated Port
+  and private ownership challenge. Page-supplied IDs cannot authorize a route.
+  Newer Firefox uses its browser-document identity rather than this legacy path.
 
 ### Safari
 
@@ -136,8 +174,9 @@ and the current runtime acceptance evidence.
   validation are pending; Firefox Agent Inject therefore fails closed today.
 - Safari Agent Inject requires a containing-app/native-extension adapter. It is
   not enabled by producing `dist/safari/` alone.
-- Automated checks currently cover generated manifests, TypeScript, and bundle
-  creation. They do not replace installed-browser or store-review testing.
+- Automated checks cover generated manifests, TypeScript, bundles and the scoped
+  installed/synthetic browser flows described above. They do not replace full
+  platform or store-review testing.
 - Chromium Native Messaging supplies the extension ID but not reliable store
   provenance. The owner-approved Chrome/macOS boundary is Google-signed Chrome
   plus the exact compiled extension origin. A locally installed or replaced

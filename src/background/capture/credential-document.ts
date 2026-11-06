@@ -6,8 +6,10 @@ export async function isLiveCredentialDocument(
   browserDocumentId: (tabId: number) => string | null,
   send: (tabId: number, message: { channel: typeof TAB_URL_REQUEST_CHANNEL },
     options: { documentId: string }) => Promise<unknown>,
+  legacyCurrent?: (source: CredentialCaptureSource) => Promise<boolean>,
 ): Promise<boolean> {
-  if (browserDocumentId(source.tabId) !== source.browserDocumentId) return false
+  if (source.legacyRouteId) return legacyCurrent?.(source) ?? false;
+  if (!source.browserDocumentId || browserDocumentId(source.tabId) !== source.browserDocumentId) return false
   try {
     // tabs.get redacts page URLs without extra permissions; address the isolated document instead.
     const response = await send(source.tabId, { channel: TAB_URL_REQUEST_CHANNEL }, { documentId: source.browserDocumentId })

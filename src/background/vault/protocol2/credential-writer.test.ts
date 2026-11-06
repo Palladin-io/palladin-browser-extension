@@ -416,11 +416,12 @@ describe('captured Credential canonical writer', () => {
       }
     })
 
-    it('creates a password-less record that automatic fill cannot select', async () => {
+    it.each([undefined, 'Work GitHub'])('creates a password-less record with the chosen name: %s', async entryName => {
       const result = await writer.saveSignIn(url, { action: 'create', vaultId: VAULT },
-        { provider: 'apple', account: null, entry: null }, 'Metoda logowania', authorized)
+        { provider: 'apple', account: null, entry: null }, 'Metoda logowania', authorized, entryName)
       expect(result.action).toBe('created')
       const next = sealed()
+      expect(next.memberLabel).toBe(entryName ?? 'accounts.example.com')
       expect(next.content).toMatchObject({ username: '', password: '', urlDomain: 'accounts.example.com', url: 'https://accounts.example.com' })
       expect(next.content.customFields).toEqual([expect.objectContaining({ label: 'Metoda logowania',
         type: 'palladin.signin.v2', value: { provider: 'apple', account: null, entry: null } })])

@@ -1,6 +1,7 @@
+import { openInlineCaptureReview } from './capture-review-host';
 import en from '../../popup/locales/en.json';
 import pl from '../../popup/locales/pl.json';
-import { captureNoticeHeader, CAPTURE_NOTICE_STYLES } from './capture-notice-chrome';
+import { captureNoticeIdentity, captureNoticeHeader, CAPTURE_NOTICE_STYLES } from './capture-notice-chrome';
 import {
   DEFAULT_UI_PREFERENCES, UI_PREFERENCES_STORAGE_KEY, parseUiPreferences, resolveUiLocale,
   type ThemePreference, type UiLocale,
@@ -41,6 +42,8 @@ export class FederatedSignInSurface {
   private prompt: SignInPrompt | null = null;
   private busy = false;
   private manualOpen = false;
+  private inlineError = false;
+  private reviewingId: string | null = null;
   private locale: UiLocale = 'en';
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
@@ -91,6 +94,7 @@ export class FederatedSignInSurface {
   }
 
   showResult(result: FederatedSignInResult): void {
+    if (result.status === 'prompt' && result.prompt?.id === this.reviewingId) return;
     if (this.disposed) return;
     if (result.status === 'saved') {
       this.note('signInToast.saved', 3_000);
@@ -177,21 +181,25 @@ export class FederatedSignInSurface {
   private renderPrompt(): void {
     const prompt = this.prompt;
     if (!prompt) return;
-    const providerName = this.providerName(prompt.provider);
     this.panel.setAttribute('role', 'region');
-    this.panel.setAttribute('aria-label', this.text('signInToast.title', providerName));
+    this.panel.setAttribute('aria-label', this.text('captureReview.rememberMethod'));
     const header = captureNoticeHeader(this.doc);
-    const body = this.bodyTitle('signInToast.title', providerName);
+    const body = this.bodyTitle('captureReview.rememberMethod');
     header.append(this.close(() => this.perform({ type: 'dismiss', promptId: prompt.id })));
     const site = this.doc.createElement('div');
     site.className = 'site';
-    site.textContent = `${prompt.site} · ${providerName}`;
+    site.textContent = this.text('captureReview.source').replace('{origin}', prompt.site);
     body.append(site);
     this.panel.replaceChildren(header, body);
+    if (this.inlineError) body.append(this.paragraph('captureReview.openError', true));
     if (this.manualOpen) body.append(this.paragraph('inline.openFromToolbar', true));
     if (prompt.error === 'save-failed') body.append(this.paragraph('signInToast.error', true));
     if (prompt.state === 'locked') body.append(this.paragraph('signInToast.locked'));
     const footer = this.footer(prompt.id);
+    if (prompt.state === 'ready') {
+      const identity = prompt.notice ?? {kind:'credential' as const,site:prompt.site,name:prompt.site,detail:''};
+      body.append(captureNoticeIdentity(this.doc,identity,`${this.providerName(prompt.provider)}${identity.detail ? ` · ${identity.detail}` : ''}`,prompt.provider));
+    }
     footer.append(this.button(this.text(prompt.state === 'locked' ? 'signInToast.unlock' : 'captureReview.review'), 'primary', () => this.perform({ type: 'unlock' })));
     this.panel.append(footer);
   }
@@ -206,6 +214,21 @@ export class FederatedSignInSurface {
 
   private async perform(action: Body<FederatedSignInCommand>): Promise<void> {
     if (this.busy) return;
+    if (action.type === 'unlock' && this.prompt?.state === 'ready') {
+      const pendingId = this.prompt.id;
+      const rect = this.surface.host.getBoundingClientRect();
+      this.busy = true;
+      const opened = await openInlineCaptureReview(this.doc, this.documentId, 'login', pendingId, {
+        left: rect.left, top: rect.top, width: rect.width, height: rect.height,
+        onReady: () => { this.reviewingId = pendingId; this.hide(); },
+      }).catch(() => false);
+      this.busy = false;
+      if (!opened && this.prompt?.id === pendingId) {
+        this.inlineError = true;
+        this.render();
+      }
+      return;
+    }
     const pendingId = this.prompt?.id;
     this.busy = true;
     this.manualOpen = false;

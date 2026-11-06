@@ -1,3 +1,5 @@
+import { startCaptureDocument } from './capture-document';
+import { CAPTURE_DOCUMENT_PORT } from '@shared/messaging/capture-document';
 import { isAgentCaptureMessage, wipeCaptureOutcome } from '@shared/messaging/agent-capture';
 import { captureAgentFields } from './agent-capture';
 import { startTotpCapture } from './totp-capture';
@@ -144,6 +146,11 @@ const startTopFrameSignIn = () => window.top === window && window.location.proto
 let federatedSignIn = startTopFrameSignIn();
 secretCapture = window.location.protocol === 'https:' ? startSecretCapture(document, documentId) : null;
 totpCapture = window.top === window && window.location.protocol === 'https:' ? startTotpCapture(document, documentId) : null;
+if (extensionBuildTarget === 'firefox' && window.location.protocol === 'https:') {
+  startCaptureDocument(window, documentId, () => chrome.runtime.connect({ name: CAPTURE_DOCUMENT_PORT }),
+    request => isTotpVerificationRequest(request) ? !!totpCapture && totpCapture.matches(request.expected) : passwordCapture.controller.fill(request),
+    () => { void credentialCapture?.refresh(); void secretCapture?.refresh(); void totpCapture?.refresh(); federatedSignIn?.refreshPrompt(); });
+}
 const agentInjectDom = createAgentInjectDomAccess(
   document,
   (element) => (inlineAutofill?.isOwnedSurface(element) ?? false)

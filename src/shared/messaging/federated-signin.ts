@@ -1,3 +1,4 @@
+import { isCaptureNoticeIdentity, type CaptureNoticeIdentity } from './capture-notice';
 import { isSignInProvider, type SignInProvider } from '@shared/signin/providers';
 
 /**
@@ -70,6 +71,7 @@ export interface SignInTargetOption {
 }
 
 export interface SignInPrompt {
+  readonly notice?: CaptureNoticeIdentity;
   readonly id: string;
   readonly site: string;
   readonly provider: SignInProvider;
@@ -157,10 +159,11 @@ function target(value: unknown): value is SignInTargetOption {
 
 function prompt(value: unknown): value is SignInPrompt {
   if (!record(value) || !only(value, ['id', 'site', 'provider', 'state', 'accounts', 'targets',
-    'defaultAccountId', 'defaultTargetId', 'error'])) return false;
+    'defaultAccountId', 'defaultTargetId', 'error', 'notice'])) return false;
   const accounts = value.accounts;
   const targets = value.targets;
-  return id(value.id) && text(value.site, 1, 253) && isSignInProvider(value.provider)
+  return (value.notice === undefined || value.state === 'ready' && isCaptureNoticeIdentity(value.notice))
+    && id(value.id) && text(value.site, 1, 253) && isSignInProvider(value.provider)
     && (value.state === 'locked' || value.state === 'ready')
     && Array.isArray(accounts) && accounts.length <= MAX_SIGN_IN_PROMPT_ACCOUNTS && accounts.every(account)
     && Array.isArray(targets) && targets.length <= MAX_SIGN_IN_PROMPT_TARGETS && targets.every(target)

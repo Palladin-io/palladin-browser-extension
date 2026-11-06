@@ -1,10 +1,13 @@
+import { captureDocumentKey, captureTopDocumentKey } from './document-identity';
+import { cardNetwork } from '@shared/card-network';
+import type { CaptureNoticeIdentity } from '@shared/messaging/capture-notice';
 import { Protocol2MutationConflictError } from '../vault/protocol2/client';
 import { registrableDomain } from '@shared/security/domain';
 import type { SecretCandidate } from '@shared/messaging/secret-capture';
 import type { ManualEntrySaveInput, ManualEntrySaveResult } from '../vault/protocol2/service';
 
 export interface SecretCaptureSource {
-  tabId: number; frameId: number; browserDocumentId: string; topDocumentId: string;
+  tabId: number; frameId: number; browserDocumentId?: string; topDocumentId?: string; legacyRouteId?: string; legacyTopRouteId?: string;
   documentId: string; url: string;
 }
 export interface SecretCaptureVault { id: string; name: string; isDefault: boolean }
@@ -30,7 +33,7 @@ interface Deps {
   save(entry: ManualEntrySaveInput, vaultId: string, authorized: () => Promise<boolean>, current: () => boolean): Promise<ManualEntrySaveResult>;
 }
 export type SecretCaptureResult =
-  | { status: 'accepted'; id: string }
+  | { status: 'accepted'; id: string; notice: CaptureNoticeIdentity }
   | { status: 'review'; id: string; icon?: string; candidate: SecretCandidate; origin: string; vaults: readonly SecretCaptureVault[]; cardTargets?: readonly SecretCardTarget[] }
   | { status: 'saved'; entryId?: string; vaultId?: string }
   | { status: 'empty' | 'stale' | 'locked' | 'muted' | 'full' | 'busy' | 'error' | 'review-required' | 'duplicate' | 'dismissed' };
@@ -59,7 +62,7 @@ export class SecretCaptureCoordinator {
   disconnected(tabId: number, documentId: string): string[] {
     this.tabEpochs.set(tabId, Symbol());
     const ids = [...this.pending.values()].filter(item => item.source.tabId === tabId
-      && (item.source.browserDocumentId === documentId || item.source.topDocumentId === documentId)).map(item => item.id);
+      && (captureDocumentKey(item.source) === documentId || captureTopDocumentKey(item.source) === documentId)).map(item => item.id);
     for (const id of ids) this.remove(id);
     return ids;
   }
@@ -88,32 +91,46 @@ export class SecretCaptureCoordinator {
     const after = await this.deps.session();
     if (generation !== this.generation || this.tabEpochs.get(source.tabId) !== tabEpoch || !after?.unlocked || session.generation !== after.generation || session.profileId !== after.profileId) return { status: 'stale' };
     const existing = [...this.pending.values()].find(item => item.source.tabId === source.tabId
-      && item.source.browserDocumentId === source.browserDocumentId && item.source.documentId === source.documentId
+      && captureDocumentKey(item.source) === captureDocumentKey(source) && item.source.documentId === source.documentId
       && (candidate.kind === 'card' && item.candidate.kind === 'card' && candidate.scopeId !== undefined
         ? item.candidate.scopeId === candidate.scopeId && item.candidate.cardNumber === candidate.cardNumber
         : JSON.stringify(item.candidate) === JSON.stringify(candidate)));
     if (existing && !existing.reviewed && !existing.dismissed) existing.candidate = { ...candidate };
-    if (existing) return existing.dismissed ? { status: 'muted' } : { status: 'accepted', id: existing.id };
+    if (existing) return existing.dismissed ? { status: 'muted' } : { status: 'accepted', id: existing.id, notice: this.notice(existing) };
     if (this.pending.size >= 8) return { status: 'full' };
     const item: Pending = { id: crypto.randomUUID(), candidate: { ...candidate }, source: { ...source }, session,
       expires: this.now() + 180_000, busy: false };
     this.pending.set(item.id, item);
     this.timers.set(item.id, setTimeout(() => this.remove(item.id), 180_000));
-    return { status: 'accepted', id: item.id };
+    return { status: 'accepted', id: item.id, notice: this.notice(item) };
   }
   async contentStatus(source: SecretCaptureSource, dismissId?: string): Promise<SecretCaptureResult> {
     this.prune();
     if (!(await this.deps.session())?.unlocked) return { status: 'locked' };
     for (const item of this.pending.values()) {
       if (item.dismissed || dismissId !== undefined && item.id !== dismissId) continue;
-      const originalFrame = item.source.browserDocumentId === source.browserDocumentId && item.source.documentId === source.documentId;
-      const topFrame = source.frameId === 0 && source.browserDocumentId === source.topDocumentId && source.topDocumentId === item.source.topDocumentId;
+      const originalFrame = captureDocumentKey(item.source) === captureDocumentKey(source) && item.source.documentId === source.documentId;
+      const topFrame = source.frameId === 0 && captureDocumentKey(source) === captureTopDocumentKey(source) && captureTopDocumentKey(source) === captureTopDocumentKey(item.source);
       if (item.source.tabId !== source.tabId || !originalFrame && !topFrame) continue;
       if (!await this.authorized(item, this.generation)) return { status: 'stale' };
       if (dismissId === item.id) { item.dismissed = true; return { status: 'dismissed' }; }
-      return { status: 'accepted', id: item.id };
+      return { status: 'accepted', id: item.id, notice: this.notice(item) };
     }
     return { status: 'empty' };
+  }
+  private notice(item: Pending): CaptureNoticeIdentity {
+    const site = new URL(item.source.url).hostname;
+    if (item.candidate.kind === 'key') return { kind: 'key', site, name: site, detail: '' };
+    const brand = cardNetwork(item.candidate.cardNumber);
+    return { kind: 'card', site, name: brand ?? '', detail: `•••• ${item.candidate.cardNumber.slice(-4)}`, ...(brand ? { cardBrand: brand } : {}) };
+  }
+  async matchesSource(id: string, source: SecretCaptureSource): Promise<boolean> {
+    const item = this.pending.get(id);
+    // The review belongs to the top document; a captured child retains its own independently revalidated source.
+    return !!item && source.frameId === 0 && captureDocumentKey(source) === captureTopDocumentKey(source)
+      && item.source.tabId === source.tabId && captureTopDocumentKey(item.source) === captureTopDocumentKey(source)
+      && (item.source.frameId !== 0 || item.source.documentId === source.documentId && item.source.url === source.url)
+      && await this.authorized(item, this.generation, true);
   }
   review(): Promise<SecretCaptureResult> { return this.readReview(); }
   beginReview(id: string): Promise<SecretCaptureResult> { return this.readReview(id); }
@@ -150,13 +167,13 @@ export class SecretCaptureCoordinator {
     const session = await this.deps.session();
     return !!session?.unlocked && session.profileId === item.session.profileId && session.generation === item.session.generation;
   }
-  async update(id: string, targetId: string, entry: CardReviewEntry): Promise<SecretCaptureResult> {
+  async update(id: string, targetId: string, entry: CardReviewEntry, operationAuthorized: () => Promise<boolean> = async () => true): Promise<SecretCaptureResult> {
     this.prune(); const item = this.pending.get(id); const generation = this.generation;
     if (!item || item.dismissed || !item.reviewed || item.candidate.kind !== 'card' || !this.deps.update) return { status: 'stale' };
     if (item.busy) return { status: 'busy' };
     const target = item.cardTargets?.find(target => target.id === targetId);
     if (!target || entry.cardNumber.replace(/[ -]/g, '') !== item.candidate.cardNumber) return { status: 'stale' };
-    item.busy = true; const authorized = () => this.authorized(item, generation, true);
+    item.busy = true; const authorized = async () => await operationAuthorized() && await this.authorized(item, generation, true);
     try {
       if (!await authorized() || !(await this.deps.vaults()).some(vault => vault.id === target.vaultId)) return { status: 'stale' };
       const result = await this.deps.update(target, entry, item.candidate.cardNumber, authorized);
@@ -174,12 +191,12 @@ export class SecretCaptureCoordinator {
     }
     finally { item.busy = false; }
   }
-  async save(id: string, vaultId: string, entry: ManualEntrySaveInput): Promise<SecretCaptureResult> {
+  async save(id: string, vaultId: string, entry: ManualEntrySaveInput, operationAuthorized: () => Promise<boolean> = async () => true): Promise<SecretCaptureResult> {
     this.prune(); const item = this.pending.get(id); const generation = this.generation;
     if (!item || item.dismissed) return { status: 'stale' };
     if (item.busy) return { status: 'busy' };
     item.busy = true;
-    const authorized = () => this.authorized(item, generation, true);
+    const authorized = async () => await operationAuthorized() && await this.authorized(item, generation, true);
     try {
       if (!await authorized()) return { status: 'stale' };
       if (entry.entryType !== (item.candidate.kind === 'key' ? 'key' : 'creditCard')) return { status: 'stale' };

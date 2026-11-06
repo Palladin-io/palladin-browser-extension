@@ -10,6 +10,8 @@ import {
 import { detectProviderControls, providerForControl, uniqueProviderControl } from './federated-signin-detect';
 import { FederatedSignInSurface, startFederatedSignIn } from './federated-signin';
 
+const openReview = vi.hoisted(() => vi.fn());
+vi.mock('./capture-review-host', () => ({ openInlineCaptureReview: openReview }));
 const acceptsAction = vi.hoisted(() => vi.fn());
 vi.mock('./closed-surface', async (importOriginal) => {
   const original = await importOriginal<typeof import('./closed-surface')>();
@@ -112,6 +114,7 @@ describe('federated sign-in surface', () => {
     send.mockReset().mockResolvedValue({ status: 'saved', action: 'updated' });
     onChoose.mockReset().mockReturnValue('opened');
     acceptsAction.mockReset().mockReturnValue(true);
+    openReview.mockReset().mockResolvedValue(true);
     const attach = Element.prototype.attachShadow;
     vi.spyOn(Element.prototype, 'attachShadow').mockImplementation(function (this: Element, options) {
       shadow = attach.call(this, options);
@@ -122,7 +125,7 @@ describe('federated sign-in surface', () => {
   afterEach(() => { surface.stop(); vi.restoreAllMocks(); vi.useRealTimers(); });
   const ui = () => within(shadow as unknown as HTMLElement);
 
-  it('opens native review while keeping provider accounts and targets off the page notice', async () => {
+  it('opens scoped inline review for the remembered provider', async () => {
     send.mockResolvedValue({ status: 'accepted' });
     surface.showResult({ status: 'prompt', prompt });
     await vi.advanceTimersByTimeAsync(600);
@@ -132,17 +135,18 @@ describe('federated sign-in surface', () => {
     expect(ui().queryByRole('radio')).toBeNull();
     ui().getByRole('button', { name: 'Review' }).click();
     await vi.advanceTimersByTimeAsync(0);
-    expect(send).toHaveBeenCalledExactlyOnceWith({ channel: 'palladin.federated-signin', documentId: DOCUMENT, type: 'unlock' });
+    expect(send).not.toHaveBeenCalled();
+    expect(openReview).toHaveBeenCalledWith(document, DOCUMENT, 'login', prompt.id, expect.objectContaining({onReady:expect.any(Function)}));
   });
 
-  it.each(['en', 'pl'] as const)('keeps the proposal and gives %s manual toolbar guidance when popup opening fails', async locale => {
-    send.mockResolvedValue({ status: 'unavailable' });
+  it.each(['en', 'pl'] as const)('keeps the proposal for retry when inline review fails in %s', async locale => {
+    openReview.mockResolvedValue(false);
     surface.setAppearance(locale, 'light');
     surface.showResult({ status: 'prompt', prompt });
     await vi.advanceTimersByTimeAsync(600);
     ui().getByRole('button', { name: locale === 'pl' ? 'Sprawdź' : 'Review' }).click();
     await vi.advanceTimersByTimeAsync(0);
-    expect(ui().getByRole('alert')).toHaveTextContent(locale === 'pl' ? 'Otwórz menu rozszerzeń przeglądarki' : 'Open your browser’s Extensions menu');
+    expect(ui().getByRole('alert')).toHaveTextContent(locale === 'pl' ? 'Nie udało' : 'Could not');
     expect(ui().getByRole('button', { name: locale === 'pl' ? 'Sprawdź' : 'Review' })).toBeVisible();
   });
 

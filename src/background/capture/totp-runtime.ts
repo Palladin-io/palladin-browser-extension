@@ -1,9 +1,11 @@
+import { captureDocumentKey } from './document-identity';
+import { resolveCaptureSource, captureDocumentRoutes } from './document-route-runtime';
 import { activePageTab } from '../active-page-tab';
 import { TOTP_CAPTURE_CHANNEL, type TotpContentCommand, type TotpPopupCommand } from '@shared/messaging/totp-capture';
 import { initializeServerConfig, serverConfig } from '../config/server-runtime';
 import { sessionManager } from '../session/runtime';
 import { credentialWriter } from '../vault/runtime';
-import { currentSecretCaptureDocument, secretCaptureFrames } from './secret-runtime';
+import { currentSecretCaptureDocument } from './secret-runtime';
 import type { CapturedTotp } from '../vault/protocol2/credential-writer';
 import type { SecretCaptureSource } from './secret-coordinator';
 import { TotpCaptureCoordinator } from './totp-coordinator';
@@ -20,8 +22,11 @@ export const totpCaptureCoordinator = new TotpCaptureCoordinator({
     try {
       for (let attempt = 0; attempt < 2; attempt++) {
         const sequence = observationSequences.get(source.tabId);
-        const matches = await chrome.tabs.sendMessage(source.tabId,
-          { channel: TOTP_CAPTURE_CHANNEL, type: 'verify-page', expected }, { documentId: source.browserDocumentId });
+        const keys = sessionManager.getKeys();
+        const matches = source.legacyRouteId ? await captureDocumentRoutes?.request(source,
+          { channel: TOTP_CAPTURE_CHANNEL, type: 'verify-page', expected }, () => keys !== null && sessionManager.getKeys() === keys)
+          : source.browserDocumentId ? await chrome.tabs.sendMessage(source.tabId,
+          { channel: TOTP_CAPTURE_CHANNEL, type: 'verify-page', expected }, { documentId: source.browserDocumentId }) : false;
         if (sequence === observationSequences.get(source.tabId)) return matches === true;
       }
       return false;
@@ -29,6 +34,7 @@ export const totpCaptureCoordinator = new TotpCaptureCoordinator({
   },
   invalidated: publishTotpInvalidation,
   activeTabId: async () => (await activePageTab())?.id ?? null,
+  resolveIcon: url => credentialWriter.captureIcon(url),
   choices: (url, entry) => credentialWriter.totpChoices(url, entry),
   save: (totp, url, target, authorized, create, confirmDomainMismatch) => credentialWriter.saveTotp(totp, url, target, authorized, create, confirmDomainMismatch),
 });
@@ -39,9 +45,9 @@ sessionManager.hooks.onLocked(clearSession);
 sessionManager.hooks.onUnlocked(clearSession);
 export const totpSessionGeneration = () => generation;
 export async function handleTotpContent(command: TotpContentCommand, sender: chrome.runtime.MessageSender, expectedGeneration: number) {
-  const source = secretCaptureFrames.source(sender, chrome.runtime.id, command.documentId);
+  const source = await resolveCaptureSource(sender, command.documentId);
   if (generation !== expectedGeneration || !source || source.frameId !== 0) return { status: 'stale' as const };
-  const document = `${source.browserDocumentId}:${source.documentId}`;
+  const document = `${captureDocumentKey(source)}:${source.documentId}`;
   if (command.type === 'observe' || command.type === 'invalidate' || command.type === 'advance') {
     const previous = observationSequences.get(source.tabId);
     if (previous?.document === document && command.sequence < previous.sequence) return { status: 'stale' as const };
@@ -50,7 +56,7 @@ export async function handleTotpContent(command: TotpContentCommand, sender: chr
       && observationSequences.get(source.tabId)?.sequence === command.sequence;
     if (!(await currentSecretCaptureDocument(source)) || !current()) return { status: 'stale' as const };
     if (command.type === 'advance') return { status: 'advanced' as const };
-    if (command.type === 'invalidate') { if (totpCaptureCoordinator.invalidateDocument(source.tabId, source.browserDocumentId)) publishTotpInvalidation(); return { status: 'dismissed' as const }; }
+    if (command.type === 'invalidate') { if (totpCaptureCoordinator.invalidateDocument(source.tabId, captureDocumentKey(source))) publishTotpInvalidation(); return { status: 'dismissed' as const }; }
     return totpCaptureCoordinator.observe(command.uri, source, current, command.manual);
   }
   return { status: 'stale' as const };

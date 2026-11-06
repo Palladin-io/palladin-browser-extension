@@ -37,9 +37,9 @@ type EntryDetail = Awaited<ReturnType<Protocol2VaultClient['getEntry']>>
 
 export type CapturedTotp = NonNullable<CredentialMemberSecret['content']['totp']>
 export type TotpWriteTarget =
-  | { readonly action: 'create'; readonly vaultId: string; readonly label: string; readonly vaultLabel: string }
+  | { readonly action: 'create'; readonly vaultId: string; readonly label: string; readonly vaultLabel: string; readonly isDefault?: boolean }
   | { readonly action: 'update'; readonly vaultId: string; readonly entryId: string; readonly revision: string;
-      readonly label: string; readonly vaultLabel: string; readonly hasTotp: boolean; readonly domainMismatch?: boolean }
+      readonly label: string; readonly vaultLabel: string; readonly name?: string; readonly username?: string; readonly icon?: string; readonly hasTotp: boolean; readonly domainMismatch?: boolean }
 export interface SignInTargets {
   readonly writable: boolean
   readonly vaults: { readonly vaultId: string; readonly label: string; readonly isDefault: boolean }[]
@@ -135,14 +135,14 @@ export class Protocol2CredentialWriter {
       const vault = await this.withAuth(token => this.deps.client.getVault(token, listed.id))
       const opened = await this.deps.keyEpochFloor.observe(userId, vault, () => openVaultProjection(vault, privateKey, userId))
       try {
-        if (!selected) targets.push({ action: 'create', vaultId: vault.id, label: opened.metadata.name, vaultLabel: opened.metadata.name })
+        if (!selected) targets.push({ action: 'create', vaultId: vault.id, label: opened.metadata.name, vaultLabel: opened.metadata.name, isDefault: vault.isDefault })
         for (const entry of metadata.filter(item => item.vaultId === vault.id && item.type === ENTRY_TYPE_CREDENTIAL
           && (selected ? item.id === selected.id : matchesTab(url, item.urlDomain, { exactSubdomain: true })))) {
           const detail = await this.withAuth(token => this.deps.client.getEntry(token, vault.id, entry.id))
           const secret = await this.openCredential(detail, vault, entry.id, opened.vaultKey, url, selected ? 'manual-totp' : 'exact-host')
           targets.push({ action: 'update', vaultId: vault.id, entryId: entry.id, revision: detail.currentRevision,
             label: secret.content.username ? `${secret.memberLabel} (${secret.content.username})` : secret.memberLabel,
-            vaultLabel: opened.metadata.name, hasTotp: secret.content.totp !== null, domainMismatch: !matchesTab(url, secret.content.urlDomain, { exactSubdomain: true }) })
+            vaultLabel: opened.metadata.name, name:secret.memberLabel, username:secret.content.username, ...(secret.icon ? {icon:secret.icon.kind === 'glyph' ? secret.icon.value : `public-asset:${secret.icon.assetId}`} : {}), hasTotp: secret.content.totp !== null, domainMismatch: !matchesTab(url, secret.content.urlDomain, { exactSubdomain: true }) })
         }
       } finally { wipe(opened.vaultKey) }
     }
@@ -290,6 +290,7 @@ export class Protocol2CredentialWriter {
     binding: SignInBinding,
     label: string,
     stillAuthorized: () => Promise<boolean>,
+    entryName?: string,
   ): Promise<{ action: 'created' | 'updated'; revision: string; vaultId?: string; entryId?: string }> {
     const site = this.secureUrl(url)
     if (target.action === 'update') {
@@ -308,7 +309,7 @@ export class Protocol2CredentialWriter {
       discoveryKey = await openVaultDerivedEnvelope(vault.discoveryKey, opened.vaultKey)
       const entryId = await this.withAuth((token) => this.deps.client.issueEntryCreationChallenge(token, vault.id))
       const icon = await this.withAuth(token => this.deps.client.resolveWebsiteIcon(token, site.hostname))
-      const secret = withSignInBinding({ ...createCapturedCredentialSecret({ label: site.hostname, username: '',
+      const secret = withSignInBinding({ ...createCapturedCredentialSecret({ label: entryName ?? site.hostname, username: '',
         password: '', url: site.origin, urlDomain: site.hostname }), icon: icon ?? null }, binding, label)
       if (secret.entryType !== 'credential') throw new Error('Sign-in methods require a Credential')
       assertEpoch()

@@ -39,6 +39,10 @@
       "all_frames": true
     }
   ],
+  "web_accessible_resources": [{
+    "resources": ["src/capture-review/index.html"],
+    "matches": ["https://*/*"]
+  }],
   "permissions": ["storage", "activeTab", "alarms", "scripting"],
   "host_permissions": [
     "http://localhost:5000/*",

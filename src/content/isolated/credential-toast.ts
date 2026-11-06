@@ -1,6 +1,7 @@
+import { openInlineCaptureReview } from './capture-review-host';
 import en from "../../popup/locales/en.json";
 import pl from "../../popup/locales/pl.json";
-import { captureNoticeHeader, CAPTURE_NOTICE_STYLES } from "./capture-notice-chrome";
+import { captureNoticeIdentity, captureNoticeHeader, CAPTURE_NOTICE_STYLES } from "./capture-notice-chrome";
 import type { ThemePreference, UiLocale } from "@shared/config/ui-preferences";
 import {
   CREDENTIAL_CAPTURE_CHANNEL,
@@ -23,6 +24,8 @@ export class CredentialCaptureToast {
   private busy = false;
   private error = false;
   private manualOpen = false;
+  private inlineError = false;
+  private reviewingId: string | null = null;
   private locale: UiLocale = "en";
   private theme: ThemePreference = "system";
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -57,6 +60,7 @@ export class CredentialCaptureToast {
   systemThemeChanged(): void { this.setAppearance(this.locale, this.theme); }
 
   show(result: CredentialCaptureResult): void {
+    if (result.status === 'prompt' && result.prompt?.id === this.reviewingId) return;
     if (this.disposed) return;
     if (result.status === "saved") {
       this.prompt = null;
@@ -105,7 +109,7 @@ export class CredentialCaptureToast {
     if (!prompt) return;
     this.panel.setAttribute("role", "region");
     const target = prompt.targets.find((candidate) => candidate.id === this.targetId);
-    const titleKey = target?.action === "update" ? "captureToast.updateTitle" : "captureToast.title";
+    const titleKey = target?.action === "update" ? "captureReview.updatePassword" : "captureReview.saveLogin";
     this.panel.setAttribute("aria-label", this.text(titleKey));
     const header = captureNoticeHeader(this.doc);
     const body = this.bodyTitle(titleKey);
@@ -114,9 +118,11 @@ export class CredentialCaptureToast {
     header.append(close);
     const site = this.doc.createElement("div");
     site.className = "site";
-    site.textContent = prompt.site;
+    site.textContent = this.text('captureReview.source').replace('{origin}',prompt.notice?.site ?? prompt.site);
     body.append(site);
+    if (prompt.state === 'ready') body.append(captureNoticeIdentity(this.doc, prompt.notice ?? {kind:'credential',site:prompt.site,name:prompt.site,detail:''}, prompt.notice?.detail ?? ''));
     this.panel.replaceChildren(header, body);
+    if (this.inlineError) body.append(this.note('captureReview.openError', true));
     if (this.manualOpen) body.append(this.note("inline.openFromToolbar", true));
     if (this.error) body.append(this.note("captureToast.error", true));
 
@@ -167,6 +173,21 @@ export class CredentialCaptureToast {
 
   private async perform(action: ToastAction): Promise<void> {
     if (this.busy) return;
+    if (action.type === 'unlock' && this.prompt?.state === 'ready') {
+      const pendingId = this.prompt.id;
+      const rect = this.surface.host.getBoundingClientRect();
+      this.busy = true;
+      const opened = await openInlineCaptureReview(this.doc, this.documentId, 'login', pendingId, {
+        left: rect.left, top: rect.top, width: rect.width, height: rect.height,
+        onReady: () => { this.reviewingId = pendingId; this.hide(); },
+      }).catch(() => false);
+      this.busy = false;
+      if (!opened && this.prompt?.id === pendingId) {
+        this.inlineError = true;
+        this.render();
+      }
+      return;
+    }
     const pendingId = this.prompt?.id;
     this.busy = true;
     this.error = false;

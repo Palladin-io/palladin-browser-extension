@@ -1,8 +1,10 @@
 /** Navigation only. Search text is potentially sensitive and must remain in RAM. */
 export interface PopupEntryRef { vaultId: string; id: string }
+export interface PendingCaptureRef { kind: 'login' | 'secret' | 'totp'; id: string }
 export interface PopupViewState {
+  pendingCapture?: PendingCaptureRef | undefined;
   query: string;
-  view: "vault" | "generator" | "add-entry" | "logs" | "shares" | "grants" | "settings";
+  view: "capture" | "vault" | "generator" | "add-entry" | "logs" | "shares" | "grants" | "settings";
   selected: PopupEntryRef | null;
   scope: PopupEntryRef | null;
   vaultFilter: string[] | null;
@@ -24,9 +26,10 @@ export function isPopupViewCommand(raw: unknown): raw is PopupViewCommand {
   if (!Object.keys(command).every((key) => ["type", "generation", "state"].includes(key))) return false;
   if (typeof command.state !== "object" || command.state === null) return false;
   const state = command.state as Record<string, unknown>;
-  return Object.keys(state).length === 7
+  return Object.keys(state).length === (state.pendingCapture === undefined ? 7 : 8)
+    && (state.pendingCapture === undefined || validPendingCapture(state.pendingCapture))
     && typeof state.query === "string" && state.query.length <= 4096
-    && ["vault", "generator", "add-entry", "logs", "shares", "grants", "settings"].includes(state.view as string)
+    && ["capture", "vault", "generator", "add-entry", "logs", "shares", "grants", "settings"].includes(state.view as string)
     && validEntry(state.selected) && validEntry(state.scope)
     && (state.vaultFilter === null || (Array.isArray(state.vaultFilter) && state.vaultFilter.length <= 1000 && state.vaultFilter.every(validId)))
     && typeof state.visibleCount === "number" && Number.isSafeInteger(state.visibleCount) && state.visibleCount >= 100 && state.visibleCount <= 1_000_000
@@ -40,4 +43,10 @@ function validEntry(value: unknown): boolean {
   if (typeof value !== "object") return false;
   const ref = value as Record<string, unknown>;
   return Object.keys(ref).length === 2 && validId(ref.id) && validId(ref.vaultId);
+}
+
+function validPendingCapture(value: unknown): value is PendingCaptureRef {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const item = value as Record<string,unknown>;
+  return Object.keys(item).length === 2 && ['login','secret','totp'].includes(String(item.kind)) && validId(item.id);
 }

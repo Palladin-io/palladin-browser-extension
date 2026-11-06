@@ -45,3 +45,9 @@ describe('native login capture authorization', () => {
     expect(mocks.federated).toHaveBeenCalledTimes(1);
   });
 });
+
+it('never applies a new-entry name to an existing OAuth target', async () => {
+ runtime();mocks.federated.mockResolvedValue({status:'prompt',prompt:{id:'p',provider:'google',targets:[{id:'t',action:'update',current:null}],accounts:[{id:'a',source:'none',label:''}]}});
+ expect(await dispatchNativeLoginCapture({channel,type:'confirm',promptId:'p',targetId:'t',accountId:'a',locale:'en',replace:false,entryName:'Rename attack'},sender,'extension',origin)).toEqual({status:'stale'});
+ expect(mocks.federated).toHaveBeenCalledTimes(1);
+});

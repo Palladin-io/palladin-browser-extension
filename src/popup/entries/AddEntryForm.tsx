@@ -5,7 +5,7 @@ import { ENTRY_CREDENTIAL, ENTRY_KEY, ENTRY_SCRIPT, ENTRY_CREDIT_CARD } from '..
 import { EntryIconPicker } from '../components/EntryIconPicker';
 import { FilterSelect } from '../components/FilterSelect';
 import { PopupIcon } from '../components/PopupIcon';
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import type {
   ManualCustomFieldInput,
@@ -39,9 +39,10 @@ const INITIAL = {
   notes: "",
 };
 
-export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, captureFormId, onBusyChange, afterCredentialUrl }: {
+export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, captureFormId, onBusyChange, afterCredentialUrl, capturePasswordUpdate }: {
   readonly client: VaultClient;
   readonly captureFormId?: string;
+  readonly capturePasswordUpdate?: boolean;
   readonly afterCredentialUrl?: React.ReactNode;
   readonly onBusyChange?: (busy: boolean) => void;
   readonly onBack?: (() => void) | undefined;
@@ -112,7 +113,7 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, ca
       </div> : null}
       <div className="entry-create-scroll"><div className="entry-create-fields">
       <div className="entry-create-name">
-      <EntryIconPicker value={presentation} onChange={setPresentation} disabled={status === "saving"} type={entryType === 'credential' ? ENTRY_CREDENTIAL : entryType === 'key' ? ENTRY_KEY : entryType === 'script' ? ENTRY_SCRIPT : ENTRY_CREDIT_CARD} />
+      {!captureFormId ? <EntryIconPicker value={presentation} onChange={setPresentation} disabled={status === "saving"} type={entryType === 'credential' ? ENTRY_CREDENTIAL : entryType === 'key' ? ENTRY_KEY : entryType === 'script' ? ENTRY_SCRIPT : ENTRY_CREDIT_CARD} /> : null}
       <EntryField
         label={t("entry.label")}
         value={draft.label}
@@ -124,10 +125,10 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, ca
 
       {entryType === "credential" ? <>
         <div className="entry-create-credentials">
-        <EntryField label={t("entry.username")} value={draft.username} onChange={(value) => update("username", value)} autoComplete="username" maxLength={512} />
-        <EntryField label={t("entry.password")} value={draft.password} onChange={(value) => update("password", value)} required={methods.length === 0} autoComplete="new-password" type="password" maxLength={4096} />
+        <EntryField label={t("entry.username")} value={draft.username} onChange={(value) => update("username", value)} autoComplete={captureFormId ? "off" : "username"} maxLength={512} />
+        <EntryField label={t(capturePasswordUpdate ? "captureReview.newPassword" : "entry.password")} value={draft.password} onChange={(value) => update("password", value)} required={methods.length === 0} autoComplete={captureFormId ? "off" : "new-password"} type="password" maxLength={4096} />
         </div>
-        <EntryField label={t("entry.url")} value={draft.url} onChange={(value) => update("url", value)} autoComplete="url" type="url" maxLength={2048} placeholder="https://example.com" />
+        <EntryField label={t("entry.url")} value={draft.url} onChange={(value) => update("url", value)} autoComplete={captureFormId ? "off" : "url"} type="url" maxLength={2048} placeholder="https://example.com" />
         {afterCredentialUrl}
       </> : null}
 
@@ -149,13 +150,17 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, ca
       </> : null}
 
       {entryType === "creditCard" ? <>
-        <EntryField label={t("card.cardholder")} value={draft.cardholderName} onChange={(value) => update("cardholderName", value)} required autoComplete="cc-name" />
-        <EntryField label={t("card.number")} value={draft.cardNumber} onChange={(value) => update("cardNumber", value)} required autoComplete={initialEntry ? "off" : "cc-number"} type={initialEntry ? "password" : "text"} inputMode="numeric" pattern="[0-9 -]{8,32}" maxLength={32} />
-        <EntryField label={t("card.cvv")} value={draft.cvv} onChange={(value) => update("cvv", value)} autoComplete="off" type="password" inputMode="numeric" pattern="[0-9]{3,4}" maxLength={4} />
+        <EntryField label={t("card.cardholder")} value={draft.cardholderName} onChange={(value) => update("cardholderName", value)} required autoComplete={captureFormId ? "off" : "cc-name"} />
+        <EntryField revealable={!!captureFormId} label={t("card.number")} value={draft.cardNumber} onChange={(value) => update("cardNumber", value)} required autoComplete={initialEntry ? "off" : "cc-number"} type={initialEntry ? "password" : "text"} inputMode="numeric" pattern="[0-9 -]{8,32}" maxLength={32} />
+        {!captureFormId ? <EntryField revealable={!!captureFormId} label={t("card.cvv")} value={draft.cvv} onChange={(value) => update("cvv", value)} autoComplete="off" type="password" inputMode="numeric" pattern="[0-9]{3,4}" maxLength={4} /> : null}
         <div className="entry-form-expiry">
-          <EntryField label={t("card.expiryMonth")} value={draft.expiryMonth} onChange={(value) => update("expiryMonth", value)} required autoComplete="cc-exp-month" inputMode="numeric" pattern="(0[1-9]|1[0-2])" placeholder={t("card.expiryMonthPlaceholder")} />
-          <EntryField label={t("card.expiryYear")} value={draft.expiryYear} onChange={(value) => update("expiryYear", value)} required autoComplete="cc-exp-year" inputMode="numeric" pattern="[0-9]{4}" placeholder={t("card.expiryYearPlaceholder")} />
+          <EntryField label={t("card.expiryMonth")} value={draft.expiryMonth} onChange={(value) => update("expiryMonth", value)} required autoComplete={captureFormId ? "off" : "cc-exp-month"} inputMode="numeric" pattern="(0[1-9]|1[0-2])" placeholder={t("card.expiryMonthPlaceholder")} />
+          <EntryField label={t("card.expiryYear")} value={draft.expiryYear} onChange={(value) => update("expiryYear", value)} required autoComplete={captureFormId ? "off" : "cc-exp-year"} inputMode="numeric" pattern="[0-9]{4}" placeholder={t("card.expiryYearPlaceholder")} />
         </div>
+        {captureFormId ? <>
+        <EntryField revealable={!!captureFormId} label={t("card.cvv")} value={draft.cvv} onChange={(value) => update("cvv", value)} autoComplete="off" type="password" inputMode="numeric" pattern="[0-9]{3,4}" maxLength={4} />
+          {initialEntry?.entryType === "creditCard" && initialEntry.cvv ? <p className="capture-field-hint">{t("captureReview.capturedCvv")}</p> : null}
+        </> : null}
         {!captureFormId ? <EntryTextArea label={t("card.billingAddress")} value={draft.billingAddress} onChange={(value) => update("billingAddress", value)} maxLength={2048} autoComplete="billing street-address" /> : null}
       </> : null}
 
@@ -224,6 +229,7 @@ function CustomFieldsEditor({
   onChange(next: CustomFieldDraft[]): void;
 }): React.JSX.Element {
   const { t } = useI18n();
+  const [focusId, setFocusId] = useState<string | null>(null);
 
   function update(id: string, patch: Partial<CustomFieldDraft>): void {
     onChange(fields.map((field) => field.id === id ? { ...field, ...patch } : field));
@@ -231,8 +237,10 @@ function CustomFieldsEditor({
 
   function add(): void {
     if (fields.length >= 20) return;
+    const id = `custom:${crypto.randomUUID()}`;
+    if (floating) setFocusId(id);
     onChange([...fields, {
-      id: `custom:${crypto.randomUUID()}`,
+      id,
       label: "",
       type: "text",
       value: "",
@@ -250,12 +258,12 @@ function CustomFieldsEditor({
 
   return (
     <section className="entry-custom-fields" aria-labelledby="entry-custom-fields-title">
-      <div className="entry-custom-fields-header">
+      {!floating ? <div className="entry-custom-fields-header">
         <h3 id="entry-custom-fields-title">{t("entry.customFields")}</h3>
         <button type="button" className="entry-custom-add" onClick={add} disabled={fields.length >= 20}>
           {t("entry.customAdd")}
         </button>
-      </div>
+      </div> : null}
       {fields.map((field, index) => (
         <div className="entry-custom-field" key={field.id}>
           <div className="entry-custom-field-head">
@@ -267,7 +275,7 @@ function CustomFieldsEditor({
               <option value="text">{t("entry.customText")}</option>
               <option value="multiline">{t("entry.customMultiline")}</option>
               <option value="concealed">{t("entry.customConcealed")}</option>
-              <option value="totp">{t("field.totp")}</option>
+              <option value="totp">{t(floating ? "captureReview.customTotp" : "field.totp")}</option>
             </FilterSelect>
             <div className="entry-custom-order">
               <button
@@ -298,6 +306,7 @@ function CustomFieldsEditor({
           </div>
           <input
             className="field-input"
+            ref={element => { if (element && field.id === focusId) { element.focus(); setFocusId(null); } }}
             value={field.label}
             onChange={(event) => update(field.id, { label: event.target.value })}
             aria-label={t("entry.customLabelNumber", { number: index + 1 })}
@@ -323,13 +332,15 @@ function CustomFieldsEditor({
               value={field.value}
               onChange={(event) => update(field.id, { value: event.target.value })}
               aria-label={t("entry.customValueNumber", { number: index + 1 })}
-              placeholder={t("entry.customValue")}
+              placeholder={t(floating && field.type === "totp" ? "captureReview.totpSetup" : "entry.customValue")}
               maxLength={16_384}
               autoComplete="off"
             />
           )}
+          {floating && field.type === "totp" ? <p className="capture-field-hint">{t("captureReview.totpHint")}</p> : null}
         </div>
       ))}
+      {floating ? <button type="button" className="entry-custom-add" onClick={add} disabled={fields.length >= 20}>{t("entry.customAdd")}</button> : null}
     </section>
   );
 }
@@ -350,6 +361,7 @@ function ReorderIcon({ direction }: { readonly direction: "up" | "down" }): Reac
 }
 
 interface EntryFieldProps {
+  readonly revealable?: boolean;
   readonly label: string;
   readonly value: string;
   readonly onChange: (value: string) => void;
@@ -363,23 +375,21 @@ interface EntryFieldProps {
 }
 
 function EntryField(props: EntryFieldProps): React.JSX.Element {
-  return (
-    <label>
-      <span className="field-label">{props.label}</span>
-      <input
-        className="field-input"
-        type={props.type ?? "text"}
-        maxLength={props.maxLength ?? 256}
-        value={props.value}
-        onChange={(event) => props.onChange(event.target.value)}
-        required={props.required}
-        autoComplete={props.autoComplete}
-        inputMode={props.inputMode}
-        pattern={props.pattern}
-        placeholder={props.placeholder}
-      />
-    </label>
-  );
+  const id = useId();
+  const { t } = useI18n();
+  const [revealed, setRevealed] = useState(false);
+  const input = <input
+    id={id} className="field-input" type={props.revealable && revealed ? 'text' : props.type ?? 'text'}
+    maxLength={props.maxLength ?? 256} value={props.value}
+    onChange={event => props.onChange(event.target.value)} required={props.required}
+    autoComplete={props.autoComplete} inputMode={props.inputMode} pattern={props.pattern} placeholder={props.placeholder}
+  />;
+  return <label htmlFor={id}>
+    <span className="field-label">{props.label}</span>
+    {props.revealable ? <span className="entry-reveal-field">{input}<button type="button" className="toolbar-icon"
+      aria-label={`${t(revealed ? 'field.hide' : 'field.show')} ${props.label}`} aria-pressed={revealed}
+      onClick={() => setRevealed(value => !value)}><PopupIcon name={revealed ? 'eye-off' : 'eye'} /></button></span> : input}
+  </label>;
 }
 
 function EntryTextArea(props: {

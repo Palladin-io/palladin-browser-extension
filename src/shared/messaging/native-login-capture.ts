@@ -10,7 +10,7 @@ export type NativeLoginCaptureCommand = Base & (
   | { type: 'check'; promptId: string }
   | { type: 'save'; promptId: string; targetId: string; autoUpdate: boolean; entry: CapturedLoginEntry }
   | { type: 'choose-username'; promptId: string; choice: UsernameChoice }
-  | { type: 'confirm'; promptId: string; accountId: string; targetId: string; locale: SignInLocale; replace: boolean }
+  | { type: 'confirm'; promptId: string; accountId: string; targetId: string; locale: SignInLocale; replace: boolean; entryName?: string }
   | { type: 'dismiss'; kind: 'credential' | 'federated'; promptId: string }
 );
 export type NativeLoginCaptureReview =
@@ -33,8 +33,9 @@ export function isNativeLoginCaptureCommand(value: unknown, validEntry: (entry: 
     case 'save': return keys('promptId', 'targetId', 'autoUpdate', 'entry') && id('promptId') && id('targetId')
       && typeof item.autoUpdate === 'boolean' && validEntry(item.entry) && item.entry.entryType === 'credential';
     case 'choose-username': return keys('promptId', 'choice') && id('promptId') && (item.choice === 'email' || item.choice === 'nickname');
-    case 'confirm': return keys('promptId', 'accountId', 'targetId', 'locale', 'replace') && id('promptId') && id('accountId') && id('targetId')
-      && (item.locale === 'en' || item.locale === 'pl') && typeof item.replace === 'boolean';
+    case 'confirm': return keys('promptId', 'accountId', 'targetId', 'locale', 'replace', 'entryName') && id('promptId') && id('accountId') && id('targetId')
+      && (item.locale === 'en' || item.locale === 'pl') && typeof item.replace === 'boolean'
+      && (item.entryName === undefined || typeof item.entryName === 'string' && item.entryName.trim().length > 0 && item.entryName.length <= 512 && !/[\u0000-\u001f\u007f]/.test(item.entryName));
     case 'dismiss': return keys('promptId', 'kind') && id('promptId') && (item.kind === 'credential' || item.kind === 'federated');
     default: return false;
   }

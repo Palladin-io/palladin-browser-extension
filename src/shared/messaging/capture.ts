@@ -215,3 +215,28 @@ export function isCapturePopupCommand(value: unknown): value is CapturePopupComm
       return false;
   }
 }
+
+export const GENERATOR_PREVIEW_CHANNEL = 'palladin.capture/generator-preview.v1' as const;
+type GeneratorPreviewBinding = { channel: typeof GENERATOR_PREVIEW_CHANNEL; documentId: string; candidateId: string };
+export type GeneratorPreviewCommand = GeneratorPreviewBinding & (
+  | { type: 'preview'; options: InlineGeneratorOptions }
+  | { type: 'use'; previewId: string; operationId: string }
+  | { type: 'dismiss'; previewId?: string }
+);
+export type GeneratorPreviewResult = CaptureGeneratedFillResult | { status: 'dismissed' }
+  | { status: 'preview'; previewId: string; value: string; expiresAt: number };
+export function isGeneratorPreviewCommand(value: unknown): value is GeneratorPreviewCommand {
+  if (!isRecord(value) || value.channel !== GENERATOR_PREVIEW_CHANNEL || !isOpaqueId(value.documentId) || !isOpaqueId(value.candidateId)) return false;
+  const base = ['channel', 'documentId', 'candidateId', 'type'];
+  if (value.type === 'use') return hasOnlyKeys(value, [...base, 'previewId', 'operationId']) && isOpaqueId(value.previewId) && isOpaqueId(value.operationId);
+  if (value.type === 'dismiss') return hasOnlyKeys(value, [...base, 'previewId']) && (value.previewId === undefined || isOpaqueId(value.previewId));
+  if (value.type !== 'preview' || !hasOnlyKeys(value, [...base, 'options']) || !isRecord(value.options)) return false;
+  // Only the approved inline preview accepts three words; generic generation keeps its existing minimum.
+  const validOptions = value.options.mode === 'passphrase' && value.options.words === 3
+    ? isInlineGeneratorOptions({ ...value.options, words: 4 })
+    : isInlineGeneratorOptions(value.options);
+  if (!validOptions) return false;
+  const options = value.options;
+  return options.mode === 'password' ? Number(options.length) >= 12 && Number(options.length) <= 40
+    : Number(options.words) >= 3 && Number(options.words) <= 6 && ['-', ' ', '.'].includes(String(options.separator)) && !options.capitalize && !options.includeNumber;
+}

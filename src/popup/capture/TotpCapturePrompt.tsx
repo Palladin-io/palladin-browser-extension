@@ -14,15 +14,16 @@ type Review = Extract<Awaited<ReturnType<TotpCaptureCoordinator['review']>>, { s
 type Result = Awaited<ReturnType<TotpCaptureCoordinator['review']>> | Awaited<ReturnType<TotpCaptureCoordinator['save']>> | { status: 'stale' | 'error' | 'invalid' | 'dismissed' | 'confirmation-required' | 'ambiguous' };
 type Send = (command: TotpPopupCommand) => Promise<Result>;
 const sendDefault: Send = command => chrome.runtime.sendMessage(command);
-export function TotpCapturePrompt({ review, send = sendDefault, onDone, onSaved }: { review: Review; send?: Send; onDone(): void; onSaved?(): void }) {
+export function TotpCapturePrompt({ review, send = sendDefault, onDone, onSaved, onOpenCapture, initialExpanded = false }: { onOpenCapture?(saved: boolean): void; initialExpanded?: boolean; review: Review; send?: Send; onDone(): void; onSaved?(): void }) {
   const { t } = useI18n();
   const navigation = usePopupView();
   const [savedTarget, setSavedTarget] = useState<{id:string;vaultId:string} | null>(null);
+  const [savedIdentity,setSavedIdentity]=useState<{name:string;account:string}|null>(null);
   const existing = review.targets.filter(target => target.action === 'update');
   const createTargets = review.targets.filter(target => target.action === 'create');
   const [targetId, setTargetId] = useState(existing.length === 1 ? existing[0]!.id : existing.some(target => target.id === review.defaultTargetId) ? review.defaultTargetId! : '');
-  const [stage, setStage] = useState<CaptureReviewStage>('notice');
-  const [replace, setReplace] = useState(false); const [label, setLabel] = useState(''); const [username, setUsername] = useState('');
+  const [stage, setStage] = useState<CaptureReviewStage>(initialExpanded ? 'review' : 'notice');
+  const [replace, setReplace] = useState(false); const [label, setLabel] = useState(new URL(review.origin).hostname); const [username, setUsername] = useState(review.account ?? '');
   const [confirmDomainMismatch, setConfirmDomainMismatch] = useState(false);
   const [busy, setBusy] = useState(false); const [error, setError] = useState(false);
   const manual = Boolean(review.entryScope);
@@ -35,7 +36,7 @@ export function TotpCapturePrompt({ review, send = sendDefault, onDone, onSaved 
     try {
       const result = await send({ channel: TOTP_CAPTURE_CHANNEL, type: 'save', id: review.id, targetId: target.id, replace: manual ? target.hasTotp : replace, confirmDomainMismatch: manual ? target.domainMismatch : confirmDomainMismatch,
         ...(target.action === 'create' ? { create: { label: label.trim(), username } } : {}) });
-      if (result.status === 'saved') { if (manual) { onDone(); return; } if (result.entryId && result.vaultId) setSavedTarget({id:result.entryId,vaultId:result.vaultId}); setLabel(''); setUsername(''); setReplace(false); setStage('saved'); onSaved?.(); } else if (result.status === 'stale') onDone(); else setError(true);
+      if (result.status === 'saved') { if (manual) { onDone(); return; } if (result.entryId && result.vaultId) setSavedTarget({id:result.entryId,vaultId:result.vaultId}); setSavedIdentity({name:target.action==='create'?label.trim():target.name??target.label,account:target.action==='create'?username:target.username??review.account??''}); setLabel(''); setUsername(''); setReplace(false); setStage('saved'); onSaved?.(); } else if (result.status === 'stale') onDone(); else setError(true);
     } catch { setError(true); } finally { setBusy(false); }
   }
   if (manual) return <section className="capture-prompt" aria-label={t('totpCapture.title')}>
@@ -51,28 +52,29 @@ export function TotpCapturePrompt({ review, send = sendDefault, onDone, onSaved 
     </div>
   </section>;
   return <CaptureReview title={t('totpCapture.title')} savedTitle={t('captureReview.authenticatorSaved')} origin={new URL(review.origin).hostname}
-    name={review.issuer || new URL(review.origin).hostname} {...(review.account ? { detail: review.account } : {})} identity={{ name: review.issuer || '', type: ENTRY_TYPE_CREDENTIAL }}
+    name={savedIdentity?.name ?? new URL(review.origin).hostname} {...((savedIdentity?.account ?? review.account) ? { detail: t('captureReview.totpIdentity',{account:savedIdentity?.account ?? review.account!}) } : {})} identity={{ name: new URL(review.origin).hostname, type: ENTRY_TYPE_CREDENTIAL, ...(review.icon ? {icon:review.icon} : {}) }}
     stage={stage} {...(target ? { vault: target.vaultLabel } : {})} saveLabel={t('totpCapture.save')} busy={busy}
     disabled={!target || !!target.domainMismatch && !confirmDomainMismatch || !!target.hasTotp && !replace || target.action === 'create' && !label.trim()}
     {...(error ? { error: t('totpCapture.error') } : {})}
-    {...(stage !== 'saved' ? { onIdentity: () => setStage('review') } : savedTarget && navigation ? { onIdentity: () => { navigation.update({view:'vault',selected:savedTarget}); onDone(); } } : {})} onReview={() => setStage('review')} onSave={() => void save()} onDone={onDone}
+    {...(onOpenCapture ? {onIdentity: () => onOpenCapture(stage === 'saved')} : stage === 'saved' && savedTarget && navigation ? { onIdentity: () => { navigation.update({view:'vault',selected:savedTarget}); onDone(); } } : {})} onReview={() => setStage('review')} onSave={() => void save()} onDone={onDone}
     onDismiss={() => { setBusy(true); void send({ channel: TOTP_CAPTURE_CHANNEL, type: 'dismiss', id: review.id }).then(onDone).catch(() => { setError(true); setBusy(false); }); }}>
     {existing.length ? <EntryAutocomplete label={t('totpCapture.credential')} value={targetId} disabled={busy}
-      options={existing.map(item => ({ id: item.id, name: item.label, detail: item.vaultLabel }))}
+      options={existing.map(item => ({ id: item.id, name: item.name ?? item.label, detail: item.vaultLabel, hasTotp:item.hasTotp, ...(item.username ? {account:item.username} : {}), ...(item.icon ? {icon:item.icon} : {}) }))}
       onValueChange={value => { setTargetId(value); setReplace(false); setConfirmDomainMismatch(false); }} /> : target?.action !== 'create' ?
-      <Button variant="subtle" disabled={busy || !createTargets.length} onClick={() => { setTargetId(createTargets[0]!.id); setReplace(false); setConfirmDomainMismatch(false); }}>{t('captureReview.createLogin')}</Button> : null}
+      <Button variant="subtle" disabled={busy || !createTargets.length} onClick={() => { setTargetId((createTargets.find(item => item.isDefault) ?? createTargets[0])!.id); setReplace(false); setConfirmDomainMismatch(false); }}>{t('captureReview.createLogin')}</Button> : null}
     {target?.action === 'create' ? <>
-      <label className="field-label">{t('secretCapture.vault')}</label><FilterSelect floating aria-label={t('secretCapture.vault')} value={targetId} disabled={busy} onValueChange={value => { setTargetId(value); setReplace(false); setConfirmDomainMismatch(false); }}>
+      <label className="field-label">{t('captureReview.vault')}</label><FilterSelect floating aria-label={t('captureReview.vault')} value={targetId} disabled={busy} onValueChange={value => { setTargetId(value); setReplace(false); setConfirmDomainMismatch(false); }}>
         {createTargets.map(item => <option value={item.id} key={item.id}>{item.vaultLabel}</option>)}
       </FilterSelect>
-      <label>{t('totpCapture.name')}<input className="field-input" value={label} disabled={busy} maxLength={512} onChange={event => setLabel(event.target.value)} /></label>
-      <label>{t('totpCapture.username')}<input className="field-input" value={username} disabled={busy} maxLength={512} onChange={event => setUsername(event.target.value)} /></label>
+      <label><span className="field-label">{t('totpCapture.name')}</span><input className="field-input" autoComplete="off" value={label} disabled={busy} maxLength={512} onChange={event => setLabel(event.target.value)} /></label>
+      <label><span className="field-label">{t('totpCapture.username')}</span><input className="field-input" autoComplete="off" value={username} disabled={busy} maxLength={512} onChange={event => setUsername(event.target.value)} /></label>
     </> : null}
     {target?.domainMismatch ? <div>
       <p className="capture-warning">{t('totpCapture.domainWarning')}</p>
       <label className="settings-checkbox"><input type="checkbox" disabled={busy} checked={confirmDomainMismatch} onChange={event => setConfirmDomainMismatch(event.target.checked)} />{t('totpCapture.confirmDomain')}</label>
     </div> : null}
-    {target?.hasTotp ? <label className="settings-checkbox"><input type="checkbox" disabled={busy} checked={replace} onChange={event => setReplace(event.target.checked)} />{t('totpCapture.replace')}</label> : null}
+    {target?.hasTotp ? <label className="settings-checkbox"><input type="checkbox" disabled={busy} checked={replace} onChange={event => setReplace(event.target.checked)} />{t('captureReview.totpReplaceFor',{name:target.label})}</label> : null}
+    <p className="capture-field-hint">{t(!target ? 'captureReview.totpChooseHint' : target.action === 'create' ? 'captureReview.totpNewHint' : target.hasTotp ? 'captureReview.totpReplaceHint' : 'captureReview.totpAddedHint')}</p>
   </CaptureReview>;
 
 }

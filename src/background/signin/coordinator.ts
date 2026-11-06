@@ -1,3 +1,4 @@
+import { captureDocumentKey } from '../capture/document-identity';
 import type {
   FederatedSignInCommand,
   FederatedSignInResult,
@@ -30,7 +31,9 @@ const MAX_CREATE_TARGETS = 8;
 
 export interface SignInSource {
   readonly tabId: number;
-  readonly browserDocumentId: string;
+  readonly browserDocumentId?: string;
+  readonly legacyRouteId?: string;
+  readonly legacyTopRouteId?: string;
   readonly documentId: string;
   readonly url: string;
 }
@@ -56,7 +59,7 @@ export interface FederatedSignInDeps {
   /** Exact-host Credentials read from the local encrypted cache only. */
   localBindings(url: string): Promise<SignInTargets['credentials']>;
   save(url: string, target: SignInWriteTarget, binding: SignInBinding, label: string,
-    stillAuthorized: () => Promise<boolean>): Promise<{ action: 'created' | 'updated'; vaultId?: string; entryId?: string }>;
+    stillAuthorized: () => Promise<boolean>, entryName?: string): Promise<{ action: 'created' | 'updated'; vaultId?: string; entryId?: string }>;
   isCurrentDocument(source: SignInSource): Promise<boolean>;
   notify(tabId: number): void;
   now?: () => number;
@@ -222,7 +225,8 @@ export class FederatedSignInCoordinator {
     return matches.length === 1 ? matches[0]! : null;
   }
 
-  async dispatch(command: FederatedSignInCommand, source: SignInSource): Promise<FederatedSignInResult> {
+  async dispatch(command: FederatedSignInCommand, source: SignInSource, entryName?: string, operationAuthorized?: () => Promise<boolean>): Promise<FederatedSignInResult> {
+    if (operationAuthorized && !await operationAuthorized()) return { status: 'stale' };
     this.expire();
     const origin = httpsOrigin(source.url);
     if (origin === null) return { status: 'stale' };
@@ -237,7 +241,7 @@ export class FederatedSignInCoordinator {
       case 'get':
         return { status: 'prompt', prompt: await this.prompt(source) };
       case 'confirm':
-        return this.confirm(command, source);
+        return this.confirm(command, source, entryName, operationAuthorized);
       case 'dismiss': {
         const flow = this.flows.get(source.tabId);
         if (flow?.prompt?.view.id === command.promptId) {
@@ -336,7 +340,7 @@ export class FederatedSignInCoordinator {
     const suggestions = local.flatMap((credential) => {
       if (credential.signIn.status !== 'recognized') return [];
       const id = this.createId();
-      this.suggestions.set(id, { tabId: source.tabId, browserDocumentId: source.browserDocumentId,
+      this.suggestions.set(id, { tabId: source.tabId, browserDocumentId: captureDocumentKey(source),
         binding: credential.signIn.binding });
       return [{ id, provider: credential.signIn.binding.provider, account: credential.signIn.binding.account,
         label: credential.label, vaultLabel: credential.vaultLabel }];
@@ -348,7 +352,7 @@ export class FederatedSignInCoordinator {
   private choose(suggestionId: string, source: SignInSource, origin: string): FederatedSignInResult {
     const suggestion = this.suggestions.get(suggestionId);
     if (suggestion === undefined || suggestion.tabId !== source.tabId
-      || suggestion.browserDocumentId !== source.browserDocumentId) return { status: 'stale' };
+      || suggestion.browserDocumentId !== captureDocumentKey(source)) return { status: 'stale' };
     const flow = this.start(source.tabId, origin);
     flow.chosen = suggestion.binding;
     return { status: 'chosen', provider: suggestion.binding.provider };
@@ -364,11 +368,11 @@ export class FederatedSignInCoordinator {
       return { id: flow.prompt?.view.id ?? this.createId(), site, provider: flow.provider, state: 'locked',
         accounts: [], targets: [], defaultAccountId: null, defaultTargetId: null };
     }
-    if (flow.prompt !== null && flow.prompt.browserDocumentId === source.browserDocumentId
+    if (flow.prompt !== null && flow.prompt.browserDocumentId === captureDocumentKey(source)
       && flow.prompt.documentId === source.documentId) {
       return flow.error ? { ...flow.prompt.view, error: 'save-failed' } : flow.prompt.view;
     }
-    const documentKey = `${source.browserDocumentId}:${source.documentId}`;
+    const documentKey = `${captureDocumentKey(source)}:${source.documentId}`;
     if (flow.building?.documentKey === documentKey) return flow.building.view;
     const view = this.buildPrompt(flow, source, session, site);
     flow.building = { documentKey, view };
@@ -445,40 +449,44 @@ export class FederatedSignInCoordinator {
         label: credential.username ? `${credential.label} (${credential.username})` : credential.label,
         current: null });
     }
-    let defaultTargetId: string | null = null;
-    for (const vault of (targetViews.length === 0 ? createVaults : [])) {
+    let defaultTargetId: string | null = targetViews.length === 1 ? targetViews[0]!.id : null;
+    const hasExistingTargets = targetViews.length > 0;
+    const defaultVault = createVaults.filter(vault => vault.isDefault);
+    for (const vault of createVaults) {
       const id = this.createId();
       targetMap.set(id, { action: 'create', vaultId: vault.vaultId });
       targetViews.push({ id, action: 'create', label: site, vaultLabel: vault.label, current: null });
-      // Preselect only when it is the single possible destination; otherwise the user picks the Vault.
-      if (createVaults.length === 1 && targets.credentials.length === 0) defaultTargetId = id;
+      // Existing matches take precedence over the default writable Vault.
+      if (!hasExistingTargets && (createVaults.length === 1 || defaultVault.length === 1 && vault === defaultVault[0])) defaultTargetId = id;
     }
     if (targetViews.length === 1) defaultTargetId = targetViews[0]!.id;
     const view: SignInPrompt = { id: this.createId(), site, provider, state: 'ready', accounts: accountViews,
+      notice: { kind: 'credential', site, name: site, detail: preferred ?? '' },
       targets: targetViews, defaultAccountId, defaultTargetId };
     flow.prompt = { view, accounts, targets: targetMap, documentId: source.documentId,
-      browserDocumentId: source.browserDocumentId };
+      browserDocumentId: captureDocumentKey(source) };
     flow.error = false;
     return view;
   }
 
-  private async confirm(command: Extract<FederatedSignInCommand, { type: 'confirm' }>, source: SignInSource):
+  private async confirm(command: Extract<FederatedSignInCommand, { type: 'confirm' }>, source: SignInSource, entryName?: string, operationAuthorized?: () => Promise<boolean>):
     Promise<FederatedSignInResult> {
     const flow = this.flows.get(source.tabId);
     const stored = flow?.prompt;
     if (flow === undefined || stored === undefined || stored === null || stored.view.id !== command.promptId
-      || stored.browserDocumentId !== source.browserDocumentId || stored.documentId !== source.documentId
+      || stored.browserDocumentId !== captureDocumentKey(source) || stored.documentId !== source.documentId
       || !this.sameService(source.url, flow) || flow.provider === null) return { status: 'stale' };
     if (!stored.accounts.has(command.accountId) || !stored.targets.has(command.targetId)) return { status: 'stale' };
     const session = await this.deps.getSession();
     if (!session?.unlocked) return { status: 'prompt', prompt: await this.prompt(source) };
     const chosenAccount = stored.accounts.get(command.accountId)!;
     const binding: SignInBinding = { provider: flow.provider, account: chosenAccount.account, entry: chosenAccount.entry };
-    const stillAuthorized = async () => (await this.deps.getSession())?.generation === session.generation
+    const stillAuthorized = async () => (!operationAuthorized || await operationAuthorized()) && (await this.deps.getSession())?.generation === session.generation
       && this.flows.get(source.tabId) === flow && await this.deps.isCurrentDocument(source);
     try {
+      if (!await stillAuthorized()) return { status: 'stale' };
       const saved = await this.deps.save(flow.serviceOrigin, stored.targets.get(command.targetId)!, binding,
-        SIGN_IN_FIELD_LABELS[command.locale], stillAuthorized);
+        SIGN_IN_FIELD_LABELS[command.locale], stillAuthorized, ...(entryName === undefined ? [] : [entryName]));
       if (this.flows.get(source.tabId) === flow) this.flows.delete(source.tabId);
       return { status: 'saved', action: saved.action, ...(saved.vaultId && saved.entryId ? { vaultId: saved.vaultId, entryId: saved.entryId } : {}) };
     } catch {
