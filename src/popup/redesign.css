@@ -1521,7 +1521,7 @@ html[data-extension-surface='side-panel'] .popup-header {
 .sign-in-method-row > span { flex: 1; min-width: 0; }
 .sign-in-method-row > span > span, .sign-in-method-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sign-in-provider-logo { width: 20px; height: 20px; flex-shrink: 0; }
-.sign-in-method-form { display: flex; flex-direction: column; gap: 12px; padding: 12px 0; }
+.sign-in-method-form { display: flex; flex-direction: column; gap: 16px; padding: 16px; overflow-y: auto; min-height: 0; }
 .sign-in-method-form > label { font-size: 12px; color: var(--cv-t2); }
 .entry-autocomplete-control { position: relative; }
 .entry-autocomplete-control > .field-input { padding-right: 40px; }
@@ -1602,3 +1602,27 @@ html[data-extension-surface='side-panel'] .popup-header {
 .totp-scan-actions > :first-child { flex: 1; }
 .totp-scan-actions > :last-child { flex: 2; }
 .capture-review .capture-warning { margin:0 0 8px; color:var(--cv-primary); font-size:12px; line-height:1.5; }
+
+.sign-in-methods-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; }
+.sign-in-methods-header .toolbar-icon { background:var(--cv-primary-hover); color:var(--cv-toggle-thumb); }
+.sign-in-method-dialog { width:min(480px, calc(100vw - 24px)); overflow:hidden; }
+.sign-in-method-dialog[open] { display:flex; flex-direction:column; }
+.sign-in-method-dialog-heading { padding:12px 16px; border-bottom:1px solid var(--cv-divider); flex-shrink:0; }
+.sign-in-method-dialog-footer { padding:12px 16px; border-top:1px solid var(--cv-divider); flex-shrink:0; }
+.sign-in-method-dialog-footer > .btn:first-child { flex:1; }
+.sign-in-method-dialog-footer > .btn:last-child { flex:2; }
+.sign-in-method-hint { margin:0; color:var(--cv-t3); font-size:12px; line-height:1.5; }
+.sign-in-provider-choices { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.sign-in-provider-choice { display:flex; flex-direction:column; align-items:center; gap:10px; padding:12px 4px; border:1px solid var(--cv-border); border-radius:8px; color:var(--cv-t1); background:transparent; font:inherit; cursor:pointer; }
+.sign-in-provider-choice:hover { background:var(--cv-selection); }
+.sign-in-provider-choice[aria-pressed=true] { border-color:var(--cv-t1); }
+.sign-in-provider-choice:focus-visible { outline:2px solid var(--cv-primary); outline-offset:2px; }
+.sign-in-provider-choice:disabled { opacity:.5; cursor:default; }
+.sign-in-visibility { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+
+.sign-in-account-heading { margin:0; font-size:13px; font-weight:600; }
+.sign-in-visibility > span { min-width:0; }
+.sign-in-visibility small { display:block; margin-top:4px; color:var(--cv-t3); font-weight:400; font-size:12px; line-height:1.5; }
+
+.sign-in-provider-logo:is([data-provider='apple'], [data-provider='github']) { filter:brightness(0); }
+:root[data-theme='dark'] .sign-in-provider-logo:is([data-provider='apple'], [data-provider='github']) { filter:brightness(0) invert(1); }

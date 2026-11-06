@@ -2,7 +2,7 @@ import { isManualEntrySaveInput } from '../../background/vault/commands';
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { VaultClient } from "../vault/client";
 import { AddEntryForm } from "./AddEntryForm";
@@ -11,9 +11,13 @@ function client(saveEntry: VaultClient['saveEntry'] = vi.fn(async () => ({ statu
   return { saveEntry } as unknown as VaultClient;
 }
 
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
+});
+
 describe("AddEntryForm", () => {
   it('saves a selected glyph and resets the choice with the form', async () => {
-    HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
     const saveEntry = vi.fn(async () => ({ status: 'saved' }) as const);
     render(<AddEntryForm client={client(saveEntry)} />);
     const user = userEvent.setup();
@@ -33,9 +37,10 @@ describe("AddEntryForm", () => {
     const { unmount } = render(<AddEntryForm client={client(saveEntry)} />);
     const user = userEvent.setup();
     for (const account of ['first@test', 'second@test']) {
-      await user.click(screen.getByRole('button', { name: 'Remember a sign-in method' }));
-      await user.type(screen.getByLabelText('Provider account'), account);
+      await user.click(screen.getByRole('button', { name: 'Add a sign-in method' }));
+      await user.type(screen.getByLabelText('Account (optional)'), account);
       await user.click(screen.getByRole('button', { name: /^Save$/ }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     }
     await user.type(screen.getByLabelText('Name'), 'OAuth only');
     await user.click(screen.getByRole('button', { name: 'Save entry' }));
@@ -43,7 +48,7 @@ describe("AddEntryForm", () => {
     unmount();
     saveEntry.mockClear();
     render(<AddEntryForm client={client(saveEntry)} />);
-    await user.click(screen.getByRole('button', { name: 'Remember a sign-in method' }));
+    await user.click(screen.getByRole('button', { name: 'Add a sign-in method' }));
     await user.click(screen.getByRole('button', { name: /^Save$/ }));
     await user.click(screen.getByRole('combobox', { name: 'Entry type' }));
     await user.click(screen.getByRole('option', { name: 'API key' }));
@@ -62,8 +67,8 @@ describe("AddEntryForm", () => {
     render(<AddEntryForm client={client(saveEntry)} />);
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Name'), 'Unicode OAuth');
-    await user.click(screen.getByRole('button', { name: 'Remember a sign-in method' }));
-    await user.type(screen.getByLabelText('Provider account'), '  Zoe\u0308@example.test  ');
+    await user.click(screen.getByRole('button', { name: 'Add a sign-in method' }));
+    await user.type(screen.getByLabelText('Account (optional)'), '  Zoe\u0308@example.test  ');
     await user.click(screen.getByRole('button', { name: /^Save$/ }));
     await user.click(screen.getByRole('button', { name: 'Save entry' }));
     await waitFor(() => expect(saveEntry).toHaveBeenCalledWith(expect.objectContaining({ signInMethods: [expect.objectContaining({ account: 'Zoë@example.test' })] })));

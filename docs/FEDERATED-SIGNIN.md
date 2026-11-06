@@ -153,7 +153,10 @@ never submits and never bypasses MFA.
 The popup Entry detail and Login creation form show a final "Sign-in methods"
 section after notes, before the footer. The empty section has its heading and plus;
 compact rows show provider logo/name, account and a pencil. Visibility is in the
-editor. Add, edit and remove are explicit actions; edits/removals name the exact
+native modal editor, with logo/name provider tiles, an optional manual account,
+a visibility switch and the standard Cancel/Save footer. The popup command does
+not offer new provider Entry linking; unchanged links are retained by the worker.
+Add, edit and remove are explicit actions; edits/removals name the exact
 stable field ID in the independently validated `workspace/sign-in` command.
 
 Login creation supports multiple methods and empty username/password when at least
