@@ -11,8 +11,8 @@ export const workspaceService = new WorkspaceService({
   session: sessionManager,
   actions: new EntryActions({
     data: vaultData,
-    setSignIn: (vaultId, entryId, binding, label, stillAuthorized) =>
-      credentialWriter.setEntrySignIn(vaultId, entryId, binding, label, stillAuthorized),
+    setSignIn: (vaultId, entryId, binding, label, stillAuthorized, fieldId, agentVisible) =>
+      credentialWriter.setEntrySignIn(vaultId, entryId, binding, label, stillAuthorized, fieldId, agentVisible),
     keyEpochFloor,
     client: new Protocol2VaultClient(
       (...args) => fetch(...args),

@@ -90,3 +90,14 @@ opens directly, revocation asks for confirmation, and the web action opens the
 selected Entry in the configured panel. Backend PR80 provides matching global
 keyset ordering. This is a live list: lifecycle changes can move links between
 pages, so the client deduplicates IDs and refreshes from the beginning to repair.
+
+## Multiple external sign-in methods
+
+Login details and creation share a compact sign-in method editor as the final
+section before the footer. Each encrypted method has a stable custom field ID;
+worker mutations preserve all neighboring legacy, v2 and opaque fields and policies.
+OAuth-only Login creation is supported. Other create types reject sign-in input.
+The independently validated popup command names one exact method ID for edits or
+removal; null explicitly adds. Capture confirmation appends a method and preserves
+its existing browser document/origin/session fences. See [federated sign-in methods](FEDERATED-SIGNIN.md)
+for compatibility, disclosure and pending SDK publication gates.

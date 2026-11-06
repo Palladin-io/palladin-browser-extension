@@ -1,3 +1,4 @@
+import { SignInMethodsEditor, type MethodDraft } from '../workspace/SignInMethodField';
 import { formatOtpauthUri } from '@palladin/crypto';
 import { parseCapturedTotp } from '@shared/totp-capture';
 import { ENTRY_CREDENTIAL, ENTRY_KEY, ENTRY_SCRIPT, ENTRY_CREDIT_CARD } from '../vault/entry-type';
@@ -51,6 +52,7 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, ca
   const { t } = useI18n();
   const [entryType, setEntryType] = useState<EntryType>(initialEntry?.entryType ?? "credential");
   const [draft, setDraft] = useState(() => ({ ...INITIAL, ...initialEntry }));
+  const [methods, setMethods] = useState<MethodDraft[]>(() => initialEntry?.entryType === 'credential' ? [...(initialEntry.signInMethods ?? [])] : []);
   const [customFields, setCustomFields] = useState<CustomFieldDraft[]>(() => (initialEntry?.customFields ?? []).map(field => ({ ...field, value: field.type === 'totp' ? formatOtpauthUri(field.value) : field.value })));
   const [presentation, setPresentation] = useState<{ icon?: string; color?: string }>(() => ({ ...(initialEntry?.icon ? { icon: initialEntry.icon } : {}), ...(initialEntry?.color ? { color: initialEntry.color } : {}) }));
   const [status, setStatus] = useState<SaveStatus>("idle");
@@ -65,6 +67,7 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, ca
     setDraft(INITIAL);
     setPresentation({});
     setCustomFields([]);
+    setMethods([]);
     setStatus("idle");
   }
 
@@ -79,14 +82,16 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, ca
         if (!value) throw new Error('Invalid authenticator configuration');
         return { ...field, type: 'totp', value };
       });
-      const result = await (onSave ?? client.saveEntry)({ ...toSaveInput(entryType, draft, fields), ...presentation });
+      const result = await (onSave ?? client.saveEntry)({ ...toSaveInput(entryType, draft, fields),
+        ...(entryType === 'credential' && methods.length ? { signInMethods: methods.map(method => ({ ...method, entry: null })) } : {}), ...presentation });
       if (result.status === "blocked") {
         setStatus("blocked");
         return;
       }
       setDraft(INITIAL);
-    setPresentation({});
+      setPresentation({});
       setCustomFields([]);
+      setMethods([]);
       setStatus("saved");
       onSaved?.();
     } catch {
@@ -120,7 +125,7 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, ca
       {entryType === "credential" ? <>
         <div className="entry-create-credentials">
         <EntryField label={t("entry.username")} value={draft.username} onChange={(value) => update("username", value)} autoComplete="username" maxLength={512} />
-        <EntryField label={t("entry.password")} value={draft.password} onChange={(value) => update("password", value)} required autoComplete="new-password" type="password" maxLength={4096} />
+        <EntryField label={t("entry.password")} value={draft.password} onChange={(value) => update("password", value)} required={methods.length === 0} autoComplete="new-password" type="password" maxLength={4096} />
         </div>
         <EntryField label={t("entry.url")} value={draft.url} onChange={(value) => update("url", value)} autoComplete="url" type="url" maxLength={2048} placeholder="https://example.com" />
         {afterCredentialUrl}
@@ -161,6 +166,11 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, ca
         <EntryTextArea label={t('entry.notes')} value={draft.notes} onChange={value => update('notes', value)} maxLength={4096} />
         <CustomFieldsEditor fields={customFields} onChange={setCustomFields} />
       </>}
+      {!captureFormId && entryType === 'credential' ? <SignInMethodsEditor methods={methods} disabled={status === 'saving'} onSave={async (id, value) => {
+        setMethods(current => value === null ? current.filter(method => method.id !== id)
+          : id === null ? [...current, { id: `custom:${crypto.randomUUID()}`, ...value }]
+          : current.map(method => method.id === id ? { id, ...value } : method));
+      }} /> : null}
       </div></div>
       {!captureFormId ? <div className="entry-create-footer">
       {onBack ? <Button variant="subtle" disabled={status === 'saving'} onClick={onBack}>{t('common.cancel')}</Button> : null}

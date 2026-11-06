@@ -1,3 +1,4 @@
+import { isSignInMethodInputs } from '@shared/signin/binding';
 import type { InlineAutofillRecency } from './inline-runtime';
 import { validEntryPresentation } from "@shared/entry-icons";
 /**
@@ -707,9 +708,12 @@ export function isManualEntrySaveInput(value: unknown): value is ManualEntrySave
   if (!optionalNotes || !optionalCustomFields || !validEntryPresentation(entry)) return false;
   switch (entry.entryType) {
     case "credential":
-      return hasOnlyKeys(entry, ["entryType", "label", "username", "password", "url", "notes", "customFields", "icon", "color"])
+      return hasOnlyKeys(entry, ["entryType", "label", "username", "password", "url", "notes", "customFields", "icon", "color", "signInMethods"])
         && typeof entry.username === "string" && entry.username.length <= 512
-        && typeof entry.password === "string" && entry.password.length > 0 && entry.password.length <= 4096
+        && typeof entry.password === "string" && entry.password.length <= 4096
+        && (entry.signInMethods === undefined || isSignInMethodInputs(entry.signInMethods))
+        && (entry.password.length > 0 || (isSignInMethodInputs(entry.signInMethods) && entry.signInMethods.length > 0))
+        && (!Array.isArray(entry.signInMethods) || entry.signInMethods.every(method => !Array.isArray(entry.customFields) || !entry.customFields.some(field => field.id === method.id)))
         && (entry.url === undefined || (typeof entry.url === "string" && entry.url.length <= 2048));
     case "key":
       return hasOnlyKeys(entry, ["entryType", "label", "value", "notes", "customFields", "icon", "color"])

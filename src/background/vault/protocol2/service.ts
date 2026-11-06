@@ -1,3 +1,4 @@
+import { mutateSignInMethod, isSignInMethodInputs, type SignInMethodInput } from '@shared/signin/binding'
 import {
   currentVaultPlaintext,
   openCurrentMemberSecret,
@@ -108,6 +109,7 @@ export type ManualEntrySaveResult =
 export type ManualEntrySaveInput = { readonly icon?: string; readonly color?: string } & (
   | {
       readonly entryType: 'credential'
+      readonly signInMethods?: readonly SignInMethodInput[]
       readonly label: string
       readonly username: string
       readonly password: string
@@ -1546,7 +1548,8 @@ function manualCredentialSecret(
     }
   }
   const customFields = manualCustomFields(input.customFields)
-  return {
+  if (input.signInMethods !== undefined && !isSignInMethodInputs(input.signInMethods)) throw new Error('Invalid sign-in methods')
+  let secret: MemberSecretV1 = {
     ...commonSecret(input.label),
     entryType: 'credential',
     agentFieldAccess: customFieldAccess({
@@ -1564,6 +1567,11 @@ function manualCredentialSecret(
       customFields,
     },
   }
+  for (const method of input.signInMethods ?? []) {
+    if (customFields.some(field => field.id === method.id)) throw new Error('Duplicate custom field ID')
+    secret = mutateSignInMethod(secret as currentVaultPlaintext.MemberSecretV1, null, { provider: method.provider, account: method.account, entry: null }, 'Sign-in method', method.agentVisible, () => method.id.slice(7))
+  }
+  return secret
 }
 
 function keySecret(input: Extract<ManualEntrySaveInput, { entryType: 'key' }>): MemberSecretV1 {

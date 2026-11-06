@@ -435,15 +435,15 @@ export class FederatedSignInCoordinator {
     // Create targets come first in the budget so a new record is always possible; updates fill the rest.
     const createVaults = targets.vaults.slice(0, MAX_CREATE_TARGETS);
     const updateBudget = MAX_SIGN_IN_PROMPT_TARGETS - createVaults.length;
-    for (const credential of (targets.writable ? targets.credentials : []).slice(0, updateBudget)) {
+    const uniqueTargets = targets.credentials.filter((candidate, index, all) => all.findIndex(other => other.vaultId === candidate.vaultId && other.entryId === candidate.entryId) === index);
+    for (const credential of (targets.writable ? uniqueTargets : []).slice(0, updateBudget)) {
       if (credential.signIn.status === 'unrecognized' || credential.signIn.status === 'ambiguous') continue;
       const id = this.createId();
       targetMap.set(id, { action: 'update', vaultId: credential.vaultId, entryId: credential.entryId, revision: credential.revision });
       targetViews.push({ id, action: 'update', vaultLabel: credential.vaultLabel,
         ...(credential.icon ? { icon: credential.icon } : {}), ...(credential.color ? { color: credential.color } : {}),
         label: credential.username ? `${credential.label} (${credential.username})` : credential.label,
-        current: credential.signIn.status === 'recognized'
-          ? { provider: credential.signIn.binding.provider, account: credential.signIn.binding.account } : null });
+        current: null });
     }
     let defaultTargetId: string | null = null;
     for (const vault of (targetViews.length === 0 ? createVaults : [])) {

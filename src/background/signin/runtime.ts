@@ -6,7 +6,7 @@ import { browserDocumentIdForTab } from '../tab-documents'
 import { credentialWriter, vaultData } from '../vault/runtime'
 import { FederatedSignInCoordinator, type SignInSource } from './coordinator'
 import { matchesTab, registrableDomain } from '@shared/security/domain'
-import { normalizeSignInAccount, readSignInBinding } from '@shared/signin/binding'
+import { normalizeSignInAccount, readSignInMethods } from '@shared/signin/binding'
 import { SIGN_IN_PROVIDER_ACCOUNT_DOMAINS } from '@shared/signin/providers'
 import { ENTRY_TYPE_CREDENTIAL } from '../vault/entry-metadata'
 
@@ -45,8 +45,8 @@ export const federatedSignIn = new FederatedSignInCoordinator({
       try {
         const secret = await vaultData.revealCurrentEntry(entry.vaultId, entry.id)
         if (secret.entryType !== 'credential' || !matchesTab(url, secret.content.urlDomain)) continue
-        credentials.push({ vaultId: entry.vaultId, entryId: entry.id, revision: '', label: secret.memberLabel,
-          username: secret.content.username, vaultLabel: entry.vaultName, signIn: readSignInBinding(secret) })
+        for (const method of readSignInMethods(secret)) credentials.push({ vaultId: entry.vaultId, entryId: entry.id, revision: '', label: secret.memberLabel,
+          username: secret.content.username, vaultLabel: entry.vaultName, signIn: { status: 'recognized' as const, fieldId: method.id, binding: method.binding } })
       } catch { /* A stale or inconsistent cached Entry is skipped, never fatal. */ }
     }
     return credentials

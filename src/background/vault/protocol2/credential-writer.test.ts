@@ -363,13 +363,57 @@ describe('captured Credential canonical writer', () => {
       const next = sealed()
       expect(next.content.password).toBe('old-pass')
       expect(next.content.username).toBe('alice')
-      const field = next.content.customFields.find((candidate) => candidate.type === 'palladin.signin.v1')!
+      const field = next.content.customFields.find((candidate) => candidate.type === 'palladin.signin.v2')!
       expect(field.value).toEqual({ provider: 'google', account: 'work@corp.com', entry: null })
       expect(next.agentFieldAccess[field.id]).toBe('discovery')
       expect(next.agentFieldAccess['credential.password']).toBe(secret.agentFieldAccess['credential.password'])
       const grantFields = cryptoMocks.buildCanonicalGrantEnvelope.mock.calls[0]![0].approvedFieldIds
       expect(grantFields).not.toContain(field.id)
       expect(client.updateEntry).toHaveBeenCalledWith('token', expect.objectContaining({ baseRevision: '4', deliveryPolicy: 'injectOnly' }))
+    })
+
+    it('capture appends a second same-provider account while preserving mixed methods and opaque fields through sealing', async () => {
+      const legacy = { id: 'custom:AAAAAA11-1111-4111-8111-111111111111', label: 'Legacy', type: 'palladin.signin.v1', value: { provider: 'google', account: 'first@test', entry: null } }
+      const modern = { id: 'custom:bbbbbb22-2222-4222-8222-222222222222', label: 'Private', type: 'palladin.signin.v2', value: { provider: 'google', account: 'second@test', entry: null } }
+      const opaque = { id: 'custom:cccccc33-3333-4333-8333-333333333333', label: 'Future', type: 'palladin.signin.v9', value: { future: true } }
+      const original = { ...secret, agentFieldAccess: { ...secret.agentFieldAccess, [legacy.id]: 'discovery' as const, [modern.id]: 'never' as const, [opaque.id]: 'never' as const }, content: { ...secret.content, customFields: [legacy, modern, opaque] } }
+      cryptoMocks.openCurrentMemberSecret.mockResolvedValue(original)
+      await writer.saveSignIn(url, { action: 'update', vaultId: VAULT, entryId: ENTRY, revision: '4' }, { provider: 'google', account: 'third@test', entry: null }, 'Method', authorized)
+      const next = sealed()
+      expect(next.content.customFields.slice(0, 3)).toEqual(original.content.customFields)
+      expect(next.content.customFields[3]).toMatchObject({ type: 'palladin.signin.v2', value: { account: 'third@test' } })
+      expect(next.agentFieldAccess[legacy.id]).toBe('discovery')
+      expect(next.agentFieldAccess[modern.id]).toBe('never')
+      cryptoMocks.openCurrentMemberSecret.mockResolvedValue(next)
+      await writer.setEntrySignIn(VAULT, ENTRY, { provider: 'github', account: 'changed' }, 'Method', authorized, modern.id)
+      expect(sealed().content.customFields.filter(field => field.id !== modern.id)).toEqual(next.content.customFields.filter(field => field.id !== modern.id))
+      expect(sealed().agentFieldAccess[modern.id]).toBe('never')
+      expect(sealed().content.customFields[1]).toMatchObject({ id: modern.id, label: 'Private' })
+      await expect(writer.setEntrySignIn(VAULT, ENTRY, null, '', authorized, opaque.id)).rejects.toThrow()
+    })
+
+    it.each([
+      { password: '', another: false, allowed: false },
+      { password: '', another: true, allowed: true },
+      { password: 'ordinary-password', another: false, allowed: true },
+    ])('checks usable sign-in state before removing a method: %j', async ({ password, another, allowed }) => {
+      const id = 'custom:AAAAAA11-1111-4111-8111-111111111111'
+      const first = { id, label: 'My personal sign-in', type: 'palladin.signin.v2', value: { provider: 'google', account: 'first@test', entry: null } }
+      const second = { id: 'custom:bbbbbb22-2222-4222-8222-222222222222', label: 'Other', type: 'palladin.signin.v1', value: { provider: 'google', account: 'second@test', entry: null } }
+      const fields = another ? [first, second] : [first]
+      const original = { ...secret, agentFieldAccess: { ...secret.agentFieldAccess, ...Object.fromEntries(fields.map(field => [field.id, 'never' as const])) }, content: { ...secret.content, password, customFields: fields } }
+      cryptoMocks.openCurrentMemberSecret.mockResolvedValue(original)
+      const removing = writer.setEntrySignIn(VAULT, ENTRY, null, '', authorized, id)
+      if (!allowed) {
+        await expect(removing).rejects.toThrow()
+        expect(client.updateEntry).not.toHaveBeenCalled()
+        expect(cryptoMocks.sealCanonicalCredentialEntry).not.toHaveBeenCalled()
+        expect(original.content.customFields).toEqual([first])
+      } else {
+        await expect(removing).resolves.toMatchObject({ revision: '5' })
+        expect(sealed().content.customFields).toEqual(another ? [second] : [])
+        expect(sealed().content.password).toBe(password)
+      }
     })
 
     it('creates a password-less record that automatic fill cannot select', async () => {
@@ -379,7 +423,7 @@ describe('captured Credential canonical writer', () => {
       const next = sealed()
       expect(next.content).toMatchObject({ username: '', password: '', urlDomain: 'accounts.example.com', url: 'https://accounts.example.com' })
       expect(next.content.customFields).toEqual([expect.objectContaining({ label: 'Metoda logowania',
-        type: 'palladin.signin.v1', value: { provider: 'apple', account: null, entry: null } })])
+        type: 'palladin.signin.v2', value: { provider: 'apple', account: null, entry: null } })])
     })
 
     it('rejects a stale revision, another host and a revoked authorization before writing', async () => {
@@ -402,12 +446,12 @@ describe('captured Credential canonical writer', () => {
         content: { ...secret.content, customFields: [{ id: 'custom:99999999-9999-4999-8999-999999999999', label: 'Sign-in method',
           type: 'palladin.signin.v1', value: { provider: 'google', account: 'Work@Corp.com', entry: providerEntry } }] } }
       cryptoMocks.openCurrentMemberSecret.mockResolvedValue(bound)
-      await writer.setEntrySignIn(VAULT, ENTRY, { provider: 'google', account: 'work@corp.com' }, 'Sign-in method', authorized)
-      let field = sealed().content.customFields.find((candidate) => candidate.type === 'palladin.signin.v1')!
+      await writer.setEntrySignIn(VAULT, ENTRY, { provider: 'google', account: 'work@corp.com' }, 'Sign-in method', authorized, 'custom:99999999-9999-4999-8999-999999999999')
+      let field = sealed().content.customFields.find((candidate) => candidate.type === 'palladin.signin.v2')!
       expect(field.value).toMatchObject({ entry: providerEntry })
       expect(sealed().agentFieldAccess[field.id]).toBe('discovery')
-      await writer.setEntrySignIn(VAULT, ENTRY, { provider: 'google', account: 'other@corp.com' }, 'Sign-in method', authorized)
-      field = sealed().content.customFields.find((candidate) => candidate.type === 'palladin.signin.v1')!
+      await writer.setEntrySignIn(VAULT, ENTRY, { provider: 'google', account: 'other@corp.com' }, 'Sign-in method', authorized, 'custom:99999999-9999-4999-8999-999999999999')
+      field = sealed().content.customFields.find((candidate) => candidate.type === 'palladin.signin.v2')!
       expect(field.value).toMatchObject({ account: 'other@corp.com', entry: null })
     })
 
@@ -416,7 +460,7 @@ describe('captured Credential canonical writer', () => {
         content: { ...secret.content, customFields: [{ id: 'custom:99999999-9999-4999-8999-999999999999', label: 'Sign-in method',
           type: 'palladin.signin.v1', value: { provider: 'google', account: 'a@b.c', entry: null } }] } }
       cryptoMocks.openCurrentMemberSecret.mockResolvedValue(bound)
-      await writer.setEntrySignIn(VAULT, ENTRY, null, '', authorized)
+      await writer.setEntrySignIn(VAULT, ENTRY, null, '', authorized, 'custom:99999999-9999-4999-8999-999999999999')
       expect(sealed().content.customFields).toEqual([])
       expect(Object.keys(sealed().agentFieldAccess)).not.toContain('custom:99999999-9999-4999-8999-999999999999')
       expect(sealed().content.password).toBe('old-pass')

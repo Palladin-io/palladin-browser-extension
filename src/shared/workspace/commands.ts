@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { signInMethodIdSchema } from '@palladin/crypto';
 import { SIGN_IN_PROVIDERS, type SignInProvider } from '../signin/providers';
 import type {
   AuditLogItem,
@@ -57,6 +58,8 @@ export const workspaceCommandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('workspace/sign-in'),
+      fieldId: signInMethodIdSchema.nullable(),
+      agentVisible: z.boolean(),
       ...scope,
       binding: z
         .object({
@@ -154,8 +157,8 @@ export interface EntryFieldView {
   value: string | null;
 }
 export type EntrySignInView =
-  | { status: 'absent' | 'unrecognized' | 'ambiguous' | 'unsupported' }
-  | { status: 'recognized'; provider: SignInProvider; account: string | null; linked: boolean; agentVisible: boolean };
+  | { status: 'unsupported' }
+  | { status: 'methods'; methods: { id: string; provider: SignInProvider; account: string | null; agentVisible: boolean }[] };
 export interface GrantReview {
   reason: string;
   grant: OrgGrant;
