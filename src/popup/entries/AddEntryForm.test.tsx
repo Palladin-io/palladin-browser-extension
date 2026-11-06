@@ -33,8 +33,8 @@ describe("AddEntryForm", () => {
     const { unmount } = render(<AddEntryForm client={client(saveEntry)} />);
     const user = userEvent.setup();
     for (const account of ['first@test', 'second@test']) {
-      await user.click(screen.getByRole('button', { name: 'Remember a sign-in method' }));
-      await user.type(screen.getByLabelText('Provider account'), account);
+      await user.click(screen.getByRole('button', { name: 'Add a sign-in method' }));
+      await user.type(screen.getByLabelText('Account (optional)'), account);
       await user.click(screen.getByRole('button', { name: /^Save$/ }));
     }
     await user.type(screen.getByLabelText('Name'), 'OAuth only');
@@ -43,7 +43,7 @@ describe("AddEntryForm", () => {
     unmount();
     saveEntry.mockClear();
     render(<AddEntryForm client={client(saveEntry)} />);
-    await user.click(screen.getByRole('button', { name: 'Remember a sign-in method' }));
+    await user.click(screen.getByRole('button', { name: 'Add a sign-in method' }));
     await user.click(screen.getByRole('button', { name: /^Save$/ }));
     await user.click(screen.getByRole('combobox', { name: 'Entry type' }));
     await user.click(screen.getByRole('option', { name: 'API key' }));
@@ -62,8 +62,8 @@ describe("AddEntryForm", () => {
     render(<AddEntryForm client={client(saveEntry)} />);
     const user = userEvent.setup();
     await user.type(screen.getByLabelText('Name'), 'Unicode OAuth');
-    await user.click(screen.getByRole('button', { name: 'Remember a sign-in method' }));
-    await user.type(screen.getByLabelText('Provider account'), '  Zoe\u0308@example.test  ');
+    await user.click(screen.getByRole('button', { name: 'Add a sign-in method' }));
+    await user.type(screen.getByLabelText('Account (optional)'), '  Zoe\u0308@example.test  ');
     await user.click(screen.getByRole('button', { name: /^Save$/ }));
     await user.click(screen.getByRole('button', { name: 'Save entry' }));
     await waitFor(() => expect(saveEntry).toHaveBeenCalledWith(expect.objectContaining({ signInMethods: [expect.objectContaining({ account: 'Zoë@example.test' })] })));
