@@ -2,7 +2,7 @@ import { isManualEntrySaveInput } from '../../background/vault/commands';
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { VaultClient } from "../vault/client";
 import { AddEntryForm } from "./AddEntryForm";
@@ -11,9 +11,13 @@ function client(saveEntry: VaultClient['saveEntry'] = vi.fn(async () => ({ statu
   return { saveEntry } as unknown as VaultClient;
 }
 
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
+});
+
 describe("AddEntryForm", () => {
   it('saves a selected glyph and resets the choice with the form', async () => {
-    HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
     const saveEntry = vi.fn(async () => ({ status: 'saved' }) as const);
     render(<AddEntryForm client={client(saveEntry)} />);
     const user = userEvent.setup();
@@ -36,6 +40,7 @@ describe("AddEntryForm", () => {
       await user.click(screen.getByRole('button', { name: 'Add a sign-in method' }));
       await user.type(screen.getByLabelText('Account (optional)'), account);
       await user.click(screen.getByRole('button', { name: /^Save$/ }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     }
     await user.type(screen.getByLabelText('Name'), 'OAuth only');
     await user.click(screen.getByRole('button', { name: 'Save entry' }));

@@ -7,7 +7,7 @@ import { I18nProvider } from '../i18n';
 import { createWorkspaceClient } from './client';
 import { EntryFields } from './EntryFields';
 import type { VaultClient } from '../vault/client';
-beforeAll(() => { HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); }; });
+beforeAll(() => { HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); }; HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); }; });
 const vaultId = '11111111-1111-4111-8111-111111111111';
 const entryId = '22222222-2222-4222-8222-222222222222';
 const methodId = 'custom:AAAAAA11-1111-4111-8111-111111111111';

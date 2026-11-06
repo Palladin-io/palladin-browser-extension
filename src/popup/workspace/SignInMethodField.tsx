@@ -29,14 +29,23 @@ export function SignInMethodsEditor({ methods, onSave, disabled = false }: {
  const { t } = useI18n();
  const dialog = useRef<HTMLDialogElement>(null);
  const trigger = useRef<HTMLButtonElement | null>(null);
+ const addTrigger = useRef<HTMLButtonElement>(null);
  const [editing, setEditing] = useState<string | null | undefined>(undefined);
  const [provider, setProvider] = useState<SignInProvider>('google');
  const [account, setAccount] = useState('');
  const [visible, setVisible] = useState(false);
  const [busy, setBusy] = useState(false);
  const [error, setError] = useState(false);
- useEffect(() => { if (editing !== undefined) dialog.current?.showModal(); }, [editing]);
- function close() { if (!busy) { setEditing(undefined); trigger.current?.focus(); } }
+ useEffect(() => {
+  if (editing !== undefined) dialog.current?.showModal();
+  else if (trigger.current) {
+   (trigger.current.isConnected ? trigger.current : addTrigger.current)?.focus();
+   trigger.current = null;
+  }
+ }, [editing]);
+ // Release native modal inertness before restoring focus after React commits.
+ function finish() { dialog.current?.close(); setEditing(undefined); }
+ function close() { if (!busy) finish(); }
  function edit(method?: MethodDraft) {
   trigger.current = document.activeElement instanceof HTMLButtonElement ? document.activeElement : null;
   setEditing(method?.id ?? null); setProvider(method?.provider ?? 'google');
@@ -44,12 +53,12 @@ export function SignInMethodsEditor({ methods, onSave, disabled = false }: {
  }
  async function save(remove = false) {
   setBusy(true); setError(false);
-  try { await onSave(editing ?? null, remove ? null : { provider, account: normalizeSignInAccount(account), agentVisible: visible }); setEditing(undefined); trigger.current?.focus(); }
+  try { await onSave(editing ?? null, remove ? null : { provider, account: normalizeSignInAccount(account), agentVisible: visible }); finish(); }
   catch { setError(true); } finally { setBusy(false); }
  }
  return <section className="sign-in-methods" aria-label={t('signIn.section')}>
   <div className="entry-custom-fields-header sign-in-methods-header"><h3>{t('signIn.section')}</h3>
-   <button type="button" className="toolbar-icon" aria-label={t('signIn.add')} disabled={disabled || busy || methods.length >= 20} onClick={() => edit()}><PopupIcon name="plus" /></button>
+   <button ref={addTrigger} type="button" className="toolbar-icon" aria-label={t('signIn.add')} disabled={disabled || busy || methods.length >= 20} onClick={() => edit()}><PopupIcon name="plus" /></button>
   </div>
   {methods.map(method => <div key={method.id} className="detail-field sign-in-method-row">
    <img className="sign-in-provider-logo" data-provider={method.provider} src={providerLogos[method.provider]} alt="" />
