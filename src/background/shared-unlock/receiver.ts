@@ -11,6 +11,7 @@ import { sharedUnlockCompletionNotice } from './completion-notice';
  * independently of the operation/envelope. OFF, revoke, navigation and peer
  * loss invalidate the signal and synchronous fence. */
 export interface SharedUnlockReceiverRoute {
+  readonly replacementSequence?: number;
   readonly apiUrl: string;
   readonly signal: AbortSignal;
   readonly binding: Pick<SharedUnlockContext, "accountId" | "organizationId" | "apiOrigin" | "webOrigin"
@@ -95,7 +96,7 @@ export async function beginSharedUnlockReceiver(route: SharedUnlockReceiverRoute
     assertRouteCurrent();
     // If cancellation wins while storage reads are pending, the late installer
     // has no keys and is explicitly retired before its handle can escape.
-    installer = await wait<SharedUnlockInstaller>(manager.beginSharedUnlockInstall(binding.accountId, apiUrl, assertRouteCurrent)
+    installer = await wait<SharedUnlockInstaller>(manager.beginSharedUnlockInstall(binding.accountId, apiUrl, assertRouteCurrent, route.replacementSequence !== undefined)
       .then(value => { if (closed) value.cancel(); return value; }));
     installer.signal.addEventListener("abort", cancel, { once: true });
     assertCurrent();
@@ -136,6 +137,7 @@ export async function beginSharedUnlockReceiver(route: SharedUnlockReceiverRoute
         assertCurrent();
         await cryptoReceiver.verifyCommit(commit.context);
         assertBinding(commit.context);
+        if (route.replacementSequence !== undefined && commit.authorizationSequence !== route.replacementSequence) reject();
         const ownedKeys = keys;
         keys = null; // The installer now owns and wipes on every failure.
         const descriptor = consumed.keyContext;
@@ -163,6 +165,7 @@ export async function beginSharedUnlockReceiver(route: SharedUnlockReceiverRoute
           authorizationId: commit.authorizationId, authorizationSequence: commit.authorizationSequence };
         // Verified own receiver root remains usable independently of the Port.
         const assertOwnCurrent = () => {
+          if (installer?.assertInstalled) { installer.assertInstalled(); return; }
           if (manager.getKeys() !== ownedKeys || !manager.getSharedUnlockLimits()) throw new SharedUnlockApiError("cancelled");
         };
         try {
@@ -173,7 +176,7 @@ export async function beginSharedUnlockReceiver(route: SharedUnlockReceiverRoute
             idleDeadlineMs: commit.context.idleDeadlineMs, absoluteDeadlineMs: commit.context.absoluteDeadlineMs,
             offlineDeadlineMs: commit.context.offlineDeadlineMs }, binding.extensionGeneration, assertOwnCurrent);
         } catch { /* Failed sharing adoption does not revoke a completed own session. */ }
-        try { assertOwnCurrent(); sharedUnlockCompletionNotice.completed(); }
+        try { assertOwnCurrent(); if (route.replacementSequence === undefined) sharedUnlockCompletionNotice.completed(); }
         catch { /* A newer own session or presentation error cannot undo completion. */ }
         // Installation already checked the final route and local generation.
         // Closing the peer afterwards cannot revoke this independent session.

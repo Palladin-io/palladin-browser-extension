@@ -13,6 +13,7 @@ export type SharedUnlockSelectedBinding = Pick<SharedUnlockContext, "accountId" 
 type SourceFactory = Parameters<typeof sendSharedUnlockBrowserTransfer>[2];
 type ReceiverFactory = Parameters<typeof receiveSharedUnlockBrowserTransfer>[2];
 export interface SharedUnlockCoordinatorRoute extends SharedUnlockOperationTransport {
+  readonly authoritySync?: boolean;
   readonly apiUrl: string;
   readonly webOrigin: string;
   readonly extensionId: string;
@@ -26,7 +27,7 @@ export interface SharedUnlockCoordinatorClient {
   readonly role: "web" | "extension";
   nonce(): Promise<string>;
   readState(): Promise<{ accountId: string | null; status: State["status"];
-    source: { organizationId: string; generation: string } | null }>;
+    source: { organizationId: string; generation: string; sequence?: number } | null }>;
   subscribe(changed: () => void): () => void;
   /** Extension allocates initially; Web may retain its established profile link. */
   selectLink(accountId: string, proposedId?: string, direction?: "source" | "receiver", assertSelection?: () => void): Promise<string>;
@@ -34,7 +35,7 @@ export interface SharedUnlockCoordinatorClient {
     assertCurrent: () => void): Promise<{ linkEpoch: number; preferenceRevision: number }>;
   checkReceiver(binding: SharedUnlockSelectedBinding, signal: AbortSignal): Promise<void>;
   source(binding: SharedUnlockSelectedBinding, signal: AbortSignal, assertCurrent: () => void): ReturnType<SourceFactory>;
-  receiver(binding: SharedUnlockSelectedBinding, signal: AbortSignal, assertCurrent: () => void): ReturnType<ReceiverFactory>;
+  receiver(binding: SharedUnlockSelectedBinding, signal: AbortSignal, assertCurrent: () => void, replacementSequence?: number): ReturnType<ReceiverFactory>;
   /** Successful receiver metadata is local; the transport never serializes it. */
   received?(result: unknown, binding: SharedUnlockSelectedBinding): void;
 }
@@ -68,9 +69,12 @@ export function startSharedUnlockBrowserCoordinator(route: SharedUnlockCoordinat
       : extension.status === "unlocked" && extension.source ? extension : null;
     if (!source?.accountId) return null;
     const receiver = source === web ? extension : web;
-    if (receiver.status === "unlocked" || (receiver.accountId !== null && receiver.accountId !== source.accountId)) return null;
+    const refreshAuthority = route.authoritySync && source === web && receiver.status === "unlocked"
+      && web.source?.sequence !== undefined && extension.source?.sequence !== undefined
+      && web.source.sequence > extension.source.sequence;
+    if ((receiver.status === "unlocked" && !refreshAuthority) || (receiver.accountId !== null && receiver.accountId !== source.accountId)) return null;
     return { web, extension, source, accountId: source.accountId, organizationId: source.source!.organizationId,
-      ownSource: source === own };
+      ownSource: source === own, replacementSequence: refreshAuthority ? web.source!.sequence : undefined };
   };
   const matches = (link: Link) => {
     const current = pair();
@@ -161,13 +165,15 @@ export function startSharedUnlockBrowserCoordinator(route: SharedUnlockCoordinat
       const state = await client.readState(); assertCurrent();
       if (revision !== ownRevision) { refreshAgain = true; return; }
       if (!sourceRefreshNeeded && own && own.accountId === state.accountId && own.status === state.status
-        && own.source?.organizationId === state.source?.organizationId && (!state.source || own.generation === state.source.generation)) return;
+        && own.source?.organizationId === state.source?.organizationId
+        && (!route.authoritySync || own.source?.sequence === state.source?.sequence) && (!state.source || own.generation === state.source.generation)) return;
       const stateId = await client.nonce(), generation = state.source?.generation ?? await client.nonce(); assertCurrent();
       if (revision !== ownRevision) { refreshAgain = true; return; }
       sourceRefreshNeeded = false;
       version++; cancel(); selected = null; attempted = null;
       own = { kind: "state", stateId, generation, accountId: state.accountId, status: state.status,
-        source: state.source ? { organizationId: state.source.organizationId } : null };
+        source: state.source ? { organizationId: state.source.organizationId,
+          ...(route.authoritySync && state.source.sequence !== undefined ? { sequence: state.source.sequence } : {}) } : null };
       await route.verifyCurrent(); assertCurrent(); send(stateId, own); void select();
     } catch { fail(); }
     finally { refreshRunning = false; if (refreshAgain && !stopped) void refresh(); }
@@ -240,7 +246,11 @@ export function startSharedUnlockBrowserCoordinator(route: SharedUnlockCoordinat
         await waitAttempt(attempt, client.checkReceiver(chosen, attempt.abort.signal)); check();
         // Subscribe before announcing readiness; the runner waits for source offer.
         const transfer = receiveSharedUnlockBrowserTransfer(transport(attempt, check), attempt.id,
-          signal => client.receiver(chosen, combineAbortSignals([signal, attempt.abort.signal]), check));
+          signal => {
+            const sequence = matches(selected!)?.replacementSequence;
+            return sequence === undefined ? client.receiver(chosen, combineAbortSignals([signal, attempt.abort.signal]), check)
+              : client.receiver(chosen, combineAbortSignals([signal, attempt.abort.signal]), check, sequence);
+          });
         void transfer.catch(() => {});
         try { await route.verifyCurrent(); check(); send(attempt.id, { kind: "prepared" }); }
         catch { attempt.abort.abort(); }

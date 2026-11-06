@@ -29,6 +29,8 @@ export interface SharedUnlockInstaller {
   /** Synchronous cancellation on lock/logout, manual work or a newer receiver. */
   readonly signal: AbortSignal;
   assertCurrent(): void;
+  /** Own installed lineage, independent of the completed browser route. */
+  assertInstalled?(): void;
   /** Takes ownership of keys even when cancelled, expired or already consumed. */
   install(installation: SharedUnlockInstallation): Promise<void>;
   cancel(): void;

@@ -22,8 +22,8 @@ function fixture(initialize?: () => Promise<unknown>, onReady?: Parameters<typeo
       onTabReplaced: event<[{ replacedTabId: number; tabId: number }]>() } };
   vi.stubGlobal("chrome", api);
   const controller = startChromiumSharedUnlockBrowser(configured, () => configured[0].apiUrl, initialize, onReady);
-  const port = (tabId = 7, origin = configured[0].webOrigin) => {
-    const connection = { name: SHARED_UNLOCK_BROWSER_PORT, sender: { tab: { id: tabId, incognito: false }, frameId: 0,
+  const port = (tabId = 7, origin = configured[0].webOrigin, protocol: string = SHARED_UNLOCK_BROWSER_PORT) => {
+    const connection = { name: protocol, sender: { tab: { id: tabId, incognito: false }, frameId: 0,
       documentId: "document-1", documentLifecycle: "active", origin, url: origin },
       onMessage: event<[unknown]>(), onDisconnect: event<[]>(), postMessage: vi.fn(), disconnect: vi.fn() };
     // Local disconnect intentionally does NOT emit onDisconnect, matching the browser API.
@@ -37,6 +37,16 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("Chromium shared unlock runtime channel", () => {
+  it("negotiates v2 and rejects a different protocol on its verified document", async () => {
+    const received = vi.fn(), f = fixture(undefined, route => { route.onOperation(received); });
+    const protocol = "palladin.shared-unlock.browser.v2", p = f.port(7, environments[0].webOrigin, protocol);
+    p.onMessage.emit({ ...hello, protocol }); await settle();
+    const route = f.controller.routes()[0]; expect(route.authoritySync).toBe(true);
+    expect(p.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: "ready", protocol }));
+    p.onMessage.emit({ ...hello, type: "operation", channelId: route.channelId, documentBinding: route.documentBinding,
+      attemptId: "A".repeat(43), payload: { kind: "cancel" } });
+    await settle(); expect(route.signal.aborted).toBe(true); expect(received).not.toHaveBeenCalled(); f.controller.close();
+  });
   it("preserves adjacent operation ordering while serializing browser verification", async () => {
     const received = vi.fn(), f = fixture(undefined, route => { route.onOperation(received); }), p = f.port();
     p.onMessage.emit(hello); await settle(); const route = f.controller.routes()[0];

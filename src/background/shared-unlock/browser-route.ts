@@ -1,9 +1,11 @@
-import { SHARED_UNLOCK_BROWSER_PORT, isSharedUnlockBrowserMessage, type SharedUnlockBrowserMessage } from "../../shared/messaging/shared-unlock-browser";
+import { SHARED_UNLOCK_BROWSER_PORT, SHARED_UNLOCK_BROWSER_PORT_V2, type SharedUnlockBrowserProtocol, isSharedUnlockBrowserMessage, type SharedUnlockBrowserMessage } from "../../shared/messaging/shared-unlock-browser";
 import type { SharedUnlockOperationFrame, SharedUnlockOperationMessage } from "../../shared/messaging/shared-unlock-operation";
 import type { SharedUnlockEnvironment } from "../../shared/config/shared-unlock-environments";
 
 /** Shared framing only. Each browser adapter owns its independent authority checks. */
 export abstract class SharedUnlockBrowserRoute {
+  readonly protocol: SharedUnlockBrowserProtocol;
+  get authoritySync(): boolean { return this.protocol === SHARED_UNLOCK_BROWSER_PORT_V2; }
   readonly apiUrl: string;
   readonly webOrigin: string;
   readonly extensionId: string;
@@ -16,6 +18,7 @@ export abstract class SharedUnlockBrowserRoute {
   get signal(): AbortSignal { return this.abort.signal; }
   protected constructor(private readonly port: chrome.runtime.Port, environment: SharedUnlockEnvironment,
     extensionId: string, channelId: string, documentBinding: string, private readonly onClosed: () => void) {
+    this.protocol = port.name === SHARED_UNLOCK_BROWSER_PORT_V2 ? SHARED_UNLOCK_BROWSER_PORT_V2 : SHARED_UNLOCK_BROWSER_PORT;
     this.apiUrl = environment.apiUrl; this.webOrigin = environment.webOrigin;
     this.extensionId = extensionId; this.channelId = channelId; this.documentBinding = documentBinding;
   }
@@ -39,12 +42,12 @@ export abstract class SharedUnlockBrowserRoute {
   }
   sendOperation(payload: SharedUnlockOperationMessage): void {
     if (!this.webNonce) throw new Error("Shared unlock channel not ready");
-    this.post({ type: "operation", protocol: SHARED_UNLOCK_BROWSER_PORT, apiUrl: this.apiUrl,
+    this.post({ type: "operation", protocol: this.protocol, apiUrl: this.apiUrl,
       webNonce: this.webNonce, channelId: this.channelId, documentBinding: this.documentBinding, ...payload });
   }
   receiveOperation(frame: SharedUnlockOperationFrame): void {
     this.assertCurrent();
-    if (frame.apiUrl !== this.apiUrl || frame.webNonce !== this.webNonce || frame.channelId !== this.channelId
+    if (frame.protocol !== this.protocol || frame.apiUrl !== this.apiUrl || frame.webNonce !== this.webNonce || frame.channelId !== this.channelId
       || frame.documentBinding !== this.documentBinding || !this.operationListeners.size) {
       this.close(); throw new Error("Shared unlock operation route mismatch");
     }
@@ -54,7 +57,7 @@ export abstract class SharedUnlockBrowserRoute {
   /** Transport callers must finish verifyCurrent immediately before a sensitive send. */
   post(message: SharedUnlockBrowserMessage): void {
     this.assertCurrent();
-    if (!isSharedUnlockBrowserMessage(message)) throw new Error("Invalid shared unlock browser message");
+    if (message.protocol !== this.protocol || !isSharedUnlockBrowserMessage(message)) throw new Error("Invalid shared unlock browser message");
     this.port.postMessage(message);
   }
   close(): void {
