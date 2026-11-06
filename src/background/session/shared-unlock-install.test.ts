@@ -73,6 +73,26 @@ describe("shared unlock receiver installation", () => {
     expect(await harness(h.storage).manager.initialize()).toBe("locked");
   });
 
+  it("preserves activity admitted while a replacement checkpoint is pending", async () => {
+    const h = harness();
+    await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install(fresh());
+    h.now.value = 1_099_000;
+    const replacement = await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {}, true);
+    let release!: (deadline: number) => void;
+    const checkpoint = vi.fn(() => new Promise<number>(resolve => { release = resolve; }));
+    const candidate = fresh(), installing = replacement.install({ ...candidate, checkpoint,
+      limits: { ...candidate.limits, idleDeadlineMs: 1_200_000 } }).catch(error => error);
+    await vi.waitFor(() => expect(checkpoint).toHaveBeenCalledOnce());
+    h.now.value += 1;
+    await h.manager.touchActivity();
+    expect(replacement.signal.aborted).toBe(true); erased(candidate);
+    const renewed = h.manager.getSharedUnlockLimits();
+    expect(h.alarms.whenFor(AUTO_LOCK_ALARM)).toBe(1_200_000);
+    release(1_100_000); expect(await installing).toBeInstanceOf(Error);
+    expect(h.manager.getSharedUnlockLimits()).toEqual(renewed);
+    expect(h.alarms.whenFor(AUTO_LOCK_ALARM)).toBe(1_200_000);
+    expect(await h.manager.getAccessToken()).toBe("receiver-own-access");
+  });
   it.each(["cancel", "lock", "logout"] as const)("erases candidate keys synchronously on %s while storage is pending", async action => {
     const h = harness();
     await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install(fresh());

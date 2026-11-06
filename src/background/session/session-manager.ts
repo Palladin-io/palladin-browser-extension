@@ -1543,6 +1543,8 @@ export class SessionManager {
     // new login/bootstrap. Queueing/retry also cannot manufacture a later time.
     if (!Number.isSafeInteger(at) || at > now || (observedAt !== undefined
       && (now - at > 5_000 || at <= this.keyInstalledAt)) || at <= this.lastActivityAt) return;
+    // A replacement captured older idle limits; accepted own activity wins.
+    this.sharedUnlockReceiverAbort?.abort();
     this.lastActivityAt = at;
     const revision = this.policyRevision;
     const current = () => this.isLifecycleCurrent(generation) && revision === this.policyRevision && at === this.lastActivityAt && this.getKeys();
