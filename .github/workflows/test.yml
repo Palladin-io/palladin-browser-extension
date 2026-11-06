@@ -35,6 +35,8 @@ jobs:
         run: npm run test:browser:agent-frames
       - name: Verify manual autofill and shield layout
         run: npm run test:browser:inline
+      - name: Verify reusable capture lab
+        run: npm run test:browser:capture-lab
       - name: Verify encrypted credential capture
         run: npm run test:browser:capture
       - name: Verify generated password fill without local history
