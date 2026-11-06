@@ -43,6 +43,12 @@ describe("credential capture toast", () => {
     await vi.advanceTimersByTimeAsync(0);
   }
 
+  it('keeps the branded header separate from the two review actions and site mute', () => {
+    expect(shadow.querySelector('.notice-brand')?.textContent).toBe('Palladin.io');
+    expect(shadow.querySelector('.notice-brand img')).not.toBeNull();
+    expect(shadow.querySelector('.footer')?.querySelectorAll('button')).toHaveLength(2);
+    expect(ui().getByRole('button', { name: "Don't ask for this site" })).toBeVisible();
+  });
   it('opens native review without exposing account choices or saving from the page', async () => {
     send.mockResolvedValue({ status: 'accepted' });
     expect(shadow.textContent).not.toContain('Alice');
@@ -70,9 +76,15 @@ describe("credential capture toast", () => {
     expect(ui().getByRole('button', { name: label })).toBeVisible();
     expect(ui().getByRole('alert')).toHaveTextContent(locale === 'pl' ? 'Otwórz menu rozszerzeń przeglądarki' : 'Open your browser’s Extensions menu and click Palladin to continue.');
   });
+  it('keeps site mute available outside the review footer', async () => {
+    send.mockResolvedValue({ status: 'dismissed' });
+    await click("Don't ask for this site");
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'mute', promptId: view.id }));
+    expect(document.querySelector('palladin-capture')).toBeNull();
+  });
   it('dismisses using the worker-owned prompt ID', async () => {
     send.mockResolvedValue({ status: 'dismissed' });
-    await click('Not now');
+    await click('Dismiss');
     expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'dismiss', promptId: view.id }));
     expect(document.querySelector('palladin-capture')).toBeNull();
   });

@@ -277,9 +277,9 @@ try {
     password: 'Synthetic-after-opt-out!', previousPassword: 'Synthetic-spa-login-third!' })
   await wait(() => find('button', 'Review'), 'manual review after opt-out')
   assert.equal(api.writes.length, before)
-  await click('button', 'Not now')
+  await click('button', 'Dismiss')
   assert.equal(api.writes.length, before)
-  console.log('PASS: disabling one account restores manual confirmation; Not now makes no mutation')
+  console.log('PASS: disabling one account restores manual confirmation; Dismiss makes no mutation')
 
   await submit({ host: 'muted-login', kind: 'login', mode: 'spa', username: 'alice', password: 'Synthetic-muted!' })
   await click('button', "Don't ask for this site")
@@ -332,7 +332,7 @@ try {
   // The submitted username differs from CVT-374's password-only Entry; a full account still needs consent.
   await wait(() => find('button', 'Review'), 'explicit capture of the submitted account')
   assert.equal(api.writes.length, before + 1, 'The new capture does not silently add another Entry')
-  await click('button', 'Not now')
+  await click('button', 'Dismiss')
   console.log('PASS: existing generator fills both fields and saves explicitly; account capture never adds an Entry without consent')
 
   before = api.writes.length
@@ -448,7 +448,7 @@ try {
   await page.waitForTimeout(500)
   assert.equal(api.writes.length, before, 'Clicking through a page overlay cannot save')
   await page.evaluate(() => document.getElementById('test-overlay').remove())
-  await click('button', 'Not now')
+  await click('button', 'Dismiss')
   await absent()
 
   await submit({ host: 'leaving-origin', kind: 'login', mode: 'spa', username: 'boundary-user', password: boundaryPassword })

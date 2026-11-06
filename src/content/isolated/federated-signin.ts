@@ -1,6 +1,6 @@
 import en from '../../popup/locales/en.json';
 import pl from '../../popup/locales/pl.json';
-import palladinIconUrl from '../../../icons/icon-32.png?inline';
+import { captureNoticeHeader, CAPTURE_NOTICE_STYLES } from './capture-notice-chrome';
 import {
   DEFAULT_UI_PREFERENCES, UI_PREFERENCES_STORAGE_KEY, parseUiPreferences, resolveUiLocale,
   type ThemePreference, type UiLocale,
@@ -16,10 +16,9 @@ import {
 import { SIGN_IN_PROVIDER_NAMES, type SignInProvider } from '@shared/signin/providers';
 import { createAgentInjectDomAccess } from './agent-inject';
 import { createClosedSurface } from './closed-surface';
-import { CLOSED_TOAST_STYLES } from './credential-toast';
 import { detectProviderControls, providerForControl, uniqueProviderControl } from './federated-signin-detect';
 
-type CopyKey = Extract<keyof typeof en, `signInToast.${string}` | `captureReview.${string}` | "inline.openFromToolbar">;
+type CopyKey = Extract<keyof typeof en, `signInToast.${string}` | `captureReview.${string}` | "inline.openFromToolbar" | "secretCapture.dismiss">;
 type Body<T> = T extends FederatedSignInCommand ? Omit<T, 'channel' | 'documentId'> : never;
 type Send = (command: FederatedSignInCommand) => Promise<unknown>;
 
@@ -55,11 +54,11 @@ export class FederatedSignInSurface {
   ) {
     this.surface = createClosedSurface(doc, 'palladin-capture');
     for (const [key, value] of Object.entries({ top: '16px', right: '16px',
-      width: 'min(360px, calc(100vw - 32px))', 'pointer-events': 'auto' })) {
+      width: 'min(420px, calc(100vw - 32px))', 'pointer-events': 'auto' })) {
       this.surface.host.style.setProperty(key, value, 'important');
     }
     const style = doc.createElement('style');
-    style.textContent = CLOSED_TOAST_STYLES + EXTRA_STYLES;
+    style.textContent = CAPTURE_NOTICE_STYLES + EXTRA_STYLES;
     this.panel = doc.createElement('div');
     this.panel.className = 'panel';
     this.surface.shadow.append(style, this.panel);
@@ -116,7 +115,7 @@ export class FederatedSignInSurface {
     this.mode = 'note';
     this.prompt = null;
     this.panel.setAttribute('role', 'status');
-    this.panel.replaceChildren(this.header(key, name));
+    this.panel.replaceChildren(captureNoticeHeader(this.doc), this.bodyTitle(key, name));
     this.mount();
     if (this.closeTimer !== null) clearTimeout(this.closeTimer);
     this.closeTimer = setTimeout(() => this.hide(), closeAfter);
@@ -146,7 +145,8 @@ export class FederatedSignInSurface {
   private renderSuggestions(): void {
     this.panel.setAttribute('role', 'region');
     this.panel.setAttribute('aria-label', this.text('signInToast.suggestTitle'));
-    const header = this.header('signInToast.suggestTitle');
+    const header = captureNoticeHeader(this.doc);
+    const body = this.bodyTitle('signInToast.suggestTitle');
     header.append(this.close(() => this.hide()));
     const list = this.doc.createElement('div');
     list.className = 'choices';
@@ -159,7 +159,8 @@ export class FederatedSignInSurface {
       option.append(context);
       list.append(option);
     }
-    this.panel.replaceChildren(header, this.paragraph('signInToast.suggestHint'), list);
+    body.append(this.paragraph('signInToast.suggestHint'), list);
+    this.panel.replaceChildren(header, body);
   }
 
   private async choose(suggestion: SignInSuggestion): Promise<void> {
@@ -179,15 +180,17 @@ export class FederatedSignInSurface {
     const providerName = this.providerName(prompt.provider);
     this.panel.setAttribute('role', 'region');
     this.panel.setAttribute('aria-label', this.text('signInToast.title', providerName));
-    const header = this.header('signInToast.title', providerName);
+    const header = captureNoticeHeader(this.doc);
+    const body = this.bodyTitle('signInToast.title', providerName);
     header.append(this.close(() => this.perform({ type: 'dismiss', promptId: prompt.id })));
     const site = this.doc.createElement('div');
     site.className = 'site';
     site.textContent = `${prompt.site} · ${providerName}`;
-    this.panel.replaceChildren(header, site);
-    if (this.manualOpen) this.panel.append(this.paragraph('inline.openFromToolbar', true));
-    if (prompt.error === 'save-failed') this.panel.append(this.paragraph('signInToast.error', true));
-    if (prompt.state === 'locked') this.panel.append(this.paragraph('signInToast.locked'));
+    body.append(site);
+    this.panel.replaceChildren(header, body);
+    if (this.manualOpen) body.append(this.paragraph('inline.openFromToolbar', true));
+    if (prompt.error === 'save-failed') body.append(this.paragraph('signInToast.error', true));
+    if (prompt.state === 'locked') body.append(this.paragraph('signInToast.locked'));
     const footer = this.footer(prompt.id);
     footer.append(this.button(this.text(prompt.state === 'locked' ? 'signInToast.unlock' : 'captureReview.review'), 'primary', () => this.perform({ type: 'unlock' })));
     this.panel.append(footer);
@@ -196,7 +199,7 @@ export class FederatedSignInSurface {
   private footer(promptId: string): HTMLDivElement {
     const footer = this.doc.createElement('div');
     footer.className = 'footer';
-    footer.append(this.button(this.text('signInToast.notNow'), 'secondary', () => this.perform({ type: 'dismiss', promptId })));
+    footer.append(this.button(this.text('secretCapture.dismiss'), 'secondary', () => this.perform({ type: 'dismiss', promptId })));
     return footer;
   }
 
@@ -240,16 +243,14 @@ export class FederatedSignInSurface {
     return button;
   }
 
-  private header(key: CopyKey, name = ''): HTMLDivElement {
-    const header = this.doc.createElement('div');
-    header.className = 'header';
-    const icon = this.doc.createElement('img');
-    icon.src = palladinIconUrl;
-    icon.alt = '';
-    const title = this.doc.createElement('strong');
+  private bodyTitle(key: CopyKey, name = ''): HTMLDivElement {
+    const body = this.doc.createElement('div');
+    body.className = 'notice-body';
+    const title = this.doc.createElement('h2');
+    title.className = 'notice-title';
     title.textContent = this.text(key, name);
-    header.append(icon, title);
-    return header;
+    body.append(title);
+    return body;
   }
 
   private paragraph(key: CopyKey, error = false, name = ''): HTMLDivElement {

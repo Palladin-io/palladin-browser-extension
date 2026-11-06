@@ -29,6 +29,8 @@ jobs:
       - run: npm test
       - name: Install Chromium for shared-unlock browser checks
         run: npx playwright install --with-deps chromium
+      - name: Verify capture notice visual parity
+        run: node tests/browser/capture-notice-chrome.mjs
       - name: Verify bound live login stages
         run: npm run test:browser:agent-live
       - name: Verify framed Agent login boundaries
