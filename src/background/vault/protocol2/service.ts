@@ -14,6 +14,7 @@ import {
   type AgentFieldAccess,
   type MemberSecretV1,
   type ScriptInterpreter,
+  type TotpParams,
 } from '@palladin/crypto'
 
 import { matchesTab, registrableDomain } from '@shared/security/domain'
@@ -93,17 +94,16 @@ export interface CreditCardSaveInput {
   readonly customFields?: readonly ManualCustomFieldInput[]
 }
 
-export type ManualCustomFieldType = 'text' | 'multiline' | 'concealed'
+export type ManualCustomFieldType = 'text' | 'multiline' | 'concealed' | 'totp'
 
-export interface ManualCustomFieldInput {
+export type ManualCustomFieldInput = {
   readonly id: string
   readonly label: string
-  readonly type: ManualCustomFieldType
-  readonly value: string
-}
+} & ({ readonly type: 'text' | 'multiline' | 'concealed'; readonly value: string }
+  | { readonly type: 'totp'; readonly value: TotpParams })
 
 export type ManualEntrySaveResult =
-  | { readonly status: 'saved' }
+  | { readonly status: 'saved'; readonly entryId?: string; readonly vaultId?: string }
   | { readonly status: 'blocked'; readonly reason: 'grant-refresh-required' }
 
 export type ManualEntrySaveInput = { readonly icon?: string; readonly color?: string } & (
@@ -594,7 +594,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
     const result = await this.createCanonicalEntry({ kind: 'legacy', secret }, vaultId, assertCurrent, isCurrent,
       input.icon?.startsWith('public-asset:') ? input.icon.slice(13) : undefined)
     return result.status === 'created'
-      ? { status: 'saved' }
+      ? { status: 'saved', entryId: result.entryId, vaultId: result.vaultId }
       : { status: 'blocked', reason: 'grant-refresh-required' }
   }
 
@@ -629,7 +629,8 @@ export class Protocol2VaultDataService implements VaultDataSource {
     host: string,
     password: string,
   ): Promise<GeneratedPasswordSaveResult> {
-    return this.createCanonicalEntry({ kind: 'legacy', secret: credentialSecret(site, origin, host, password) })
+    const result = await this.createCanonicalEntry({ kind: 'legacy', secret: credentialSecret(site, origin, host, password) })
+    return result.status === 'created' ? { status: 'created' } : result
   }
 
   private async createCanonicalEntry(
@@ -638,7 +639,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
     assertCurrent?: () => Promise<void>,
     isCurrent?: () => boolean,
     catalogAssetId?: string,
-  ): Promise<Extract<GeneratedPasswordSaveResult, { status: 'created' | 'blocked' }>> {
+  ): Promise<{ status: 'created'; entryId: string; vaultId: string } | Extract<GeneratedPasswordSaveResult, { status: 'blocked' }>> {
     const privateKey = this.deps.session.getPrivateKey()
     if (privateKey === null) throw new VaultDataError('locked', 'Session is locked')
     const userId = await this.deps.session.getUserId()
@@ -700,7 +701,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
         throw error
       }
       await this.refreshAfterCommittedMutation()
-      return { status: 'created' }
+      return { status: 'created', entryId, vaultId: vault.id }
     } finally {
       if (discoveryKey !== null) wipe(discoveryKey)
       if (vaultKey !== null) wipe(vaultKey)

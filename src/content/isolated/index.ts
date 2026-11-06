@@ -170,6 +170,10 @@ if (extensionBuildTarget === "firefox" && window === window.top && location.prot
 // written into the page's inputs but is NEVER forwarded to the main-world script
 // (see the Port relay below, which explicitly excludes fill traffic).
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === 'secret-capture/notice') {
+    if (_sender.id === chrome.runtime.id && _sender.tab === undefined && window.top === window) void secretCapture?.refresh();
+    return undefined;
+  }
   if (isTotpVerificationRequest(message)) {
     sendResponse(_sender.id === chrome.runtime.id && _sender.tab === undefined && !!totpCapture && totpCapture.matches(message.expected));
     return undefined;

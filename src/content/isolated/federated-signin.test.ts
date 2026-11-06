@@ -122,30 +122,38 @@ describe('federated sign-in surface', () => {
   afterEach(() => { surface.stop(); vi.restoreAllMocks(); vi.useRealTimers(); });
   const ui = () => within(shadow as unknown as HTMLElement);
 
-  it('requires an explicit account and target before remembering and has no text inputs', async () => {
+  it('opens native review while keeping provider accounts and targets off the page notice', async () => {
+    send.mockResolvedValue({ status: 'accepted' });
     surface.showResult({ status: 'prompt', prompt });
     await vi.advanceTimersByTimeAsync(600);
     expect(document.querySelector('palladin-capture')!.shadowRoot).toBeNull();
-    expect(shadow.querySelector('input, textarea, select')).toBeNull();
-    expect(ui().queryByRole('button', { name: /^Remember for/ })).toBeNull();
-    ui().getByRole('radio', { name: /work@corp\.com/ }).click();
-    expect(ui().queryByRole('button', { name: /^Remember for/ })).toBeNull();
-    ui().getByRole('radio', { name: /Example \(alice\)/ }).click();
-    ui().getByRole('button', { name: 'Remember for Example (alice)' }).click();
+    expect(shadow.querySelector('input,textarea,select')).toBeNull();
+    expect(shadow.textContent).not.toContain('work@corp.com');
+    expect(ui().queryByRole('radio')).toBeNull();
+    ui().getByRole('button', { name: 'Review' }).click();
     await vi.advanceTimersByTimeAsync(0);
-    expect(send).toHaveBeenCalledExactlyOnceWith({ channel: 'palladin.federated-signin', documentId: DOCUMENT,
-      type: 'confirm', promptId: prompt.id, accountId: 'account-work-123456', targetId: 'target-update-12345', locale: 'en' });
-    expect(ui().getByRole('status')).toHaveTextContent('Sign-in method remembered');
+    expect(send).toHaveBeenCalledExactlyOnceWith({ channel: 'palladin.federated-signin', documentId: DOCUMENT, type: 'unlock' });
+  });
+
+  it.each(['en', 'pl'] as const)('keeps the proposal and gives %s manual toolbar guidance when popup opening fails', async locale => {
+    send.mockResolvedValue({ status: 'unavailable' });
+    surface.setAppearance(locale, 'light');
+    surface.showResult({ status: 'prompt', prompt });
+    await vi.advanceTimersByTimeAsync(600);
+    ui().getByRole('button', { name: locale === 'pl' ? 'Sprawdź' : 'Review' }).click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ui().getByRole('alert')).toHaveTextContent(locale === 'pl' ? 'Otwórz menu rozszerzeń przeglądarki' : 'Open your browser’s Extensions menu');
+    expect(ui().getByRole('button', { name: locale === 'pl' ? 'Sprawdź' : 'Review' })).toBeVisible();
   });
 
   it('ignores untrusted or overlaid clicks', async () => {
     surface.showResult({ status: 'prompt', prompt: { ...prompt, defaultAccountId: 'account-work-123456', defaultTargetId: 'target-create-12345' } });
-    ui().getByRole('button', { name: 'Remember for New sign-in for app.example.com' }).click();
+    ui().getByRole('button', { name: 'Review' }).click();
     await vi.advanceTimersByTimeAsync(0);
     expect(send, 'A click right after the surface appears is ignored').not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(600);
     acceptsAction.mockReturnValue(false);
-    ui().getByRole('button', { name: 'Remember for New sign-in for app.example.com' }).click();
+    ui().getByRole('button', { name: 'Review' }).click();
     await vi.advanceTimersByTimeAsync(0);
     expect(send).not.toHaveBeenCalled();
   });
@@ -159,8 +167,8 @@ describe('federated sign-in surface', () => {
   it('localizes the prompt', () => {
     surface.setAppearance('pl', 'dark');
     surface.showResult({ status: 'prompt', prompt });
-    expect(ui().getByRole('radiogroup', { name: 'Którego konta Google użyto?' })).toBeVisible();
-    expect(ui().getByRole('radio', { name: 'Konto nieokreślone' })).toBeVisible();
+    expect(ui().getByRole('button', { name: 'Sprawdź' })).toBeVisible();
+    expect(ui().queryByRole('radio')).toBeNull();
   });
 
   it('opens only after an explicit suggestion choice and reports the manual fallback', async () => {
@@ -192,12 +200,13 @@ describe('federated sign-in surface', () => {
     expect(onChoose).not.toHaveBeenCalled();
   });
 
-  it('keeps a confirmation prompt when suggestions are cleared and shows Credential context', async () => {
+  it('keeps a neutral review notice when suggestions are cleared', async () => {
     surface.showResult({ status: 'prompt', prompt: { ...prompt, accounts: [
       { id: 'account-ctx-1234567', label: 'shared@corp.com', source: 'vault', context: 'Team Google \u00b7 Team' },
       ...prompt.accounts] } });
     surface.clearSuggestions();
-    expect(ui().getByRole('radio', { name: /shared@corp\.com.*Team Google · Team/ })).toBeVisible();
+    expect(ui().getByRole('button', { name: 'Review' })).toBeVisible();
+    expect(shadow.textContent).not.toContain('shared@corp.com');
   });
 });
 

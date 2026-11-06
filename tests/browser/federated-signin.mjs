@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createCaptureApi, allowCaptureApi } from './capture-api.mjs'
-import { openNativePopup } from './native-popup.mjs'
+import { openNativePopup, attachNativePopup } from './native-popup.mjs'
 import { cacheBustContentLoaders } from '../../scripts/cache-bust-content-loaders.mjs'
 import { validateBuiltManifest } from '../../scripts/validate-built-manifest.mjs'
 
@@ -45,7 +45,6 @@ function page(url) {
 try {
   await api.addCredential({ label: 'Alpha Google', username: 'alice@gmail.example', password: 'Synthetic-google-1!', urlDomain: 'accounts.google.com' })
   const workGoogle = await api.addCredential({ label: 'Beta Google', username: 'work@corp.example', password: 'Synthetic-google-2!', urlDomain: 'accounts.google.com' })
-  const existing = await api.addCredential({ label: 'Synthetic service', username: 'alice', password: 'Synthetic-service-password!', urlDomain: 'app.example.test' })
 
   const extension = path.join(profile, 'dist/chromium')
   await promisify(execFile)(process.execPath, ['node_modules/vite/bin/vite.js', 'build', '--outDir', extension], {
@@ -102,6 +101,19 @@ try {
     return { find, wait, click }
   }
   const ui = await surfaceTools(tab)
+  const openReview = async () => {
+    await popup?.dismiss().catch(() => undefined)
+    popup = null
+    await ui.click('button', 'Review')
+    popup?.close()
+    popup = await attachNativePopup(profile, extensionId)
+    await popup.waitButton('Review')
+    const writesBeforeReview = api.writes.length
+    await popup.click('Review')
+    await new Promise(resolve => setTimeout(resolve, 400))
+    assert.equal(api.writes.length, writesBeforeReview, 'Opening native review must never save')
+    await popup.waitButton('Save')
+  }
   const noSurface = async () => {
     await tab.waitForTimeout(1500)
     assert.equal(await tab.locator('palladin-capture').count(), 0, 'No sign-in surface expected')
@@ -128,10 +140,14 @@ try {
   await tab.getByRole('link', { name: 'Allow' }).click()
   await tab.waitForURL(/callback\?code=/)
   await ui.wait(() => ui.find('region', 'Signed in with Google?'), 'remember prompt')
-  assert.equal(await ui.find('button', /^Remember for/), undefined, 'No default account or target may be preselected')
-  await ui.click('radio', /work@corp\.example/)
-  await ui.click('radio', /New sign-in for app\.example\.test/)
-  await ui.click('button', 'Remember for New sign-in for app.example.test')
+  assert.equal(await ui.find('radio', /work@corp\.example/), undefined, 'Page notice must not expose account choices')
+  await openReview()
+  await popup.click('Which Google account did you use?', 'combobox')
+  await popup.click(/work@corp\.example/, 'option')
+  await popup.click('Remember it for', 'combobox')
+  await popup.click(/app\.example\.test.*Personal/, 'option')
+  assert.equal(api.writes.length, writesBefore, 'Choosing a provider account and destination is not a mutation')
+  await popup.click('Save')
   await ui.wait(() => api.writes.length === writesBefore + 1, 'encrypted create')
   const created = api.writes.at(-1)
   const createdSecret = await api.decrypt(created)
@@ -167,6 +183,17 @@ try {
   assert.equal(api.writes.length, writesBeforeReturn)
   console.log('PASS: explicit suggestion choice opened Google, ranked the chosen account and did not re-prompt')
 
+  const existing = await api.addCredential({ label: 'Synthetic service', username: 'alice', password: 'Synthetic-service-password!', urlDomain: 'app.example.test' })
+  popup?.close()
+  popup = await openNativePopup(worker, profile, extensionId)
+  await popup.click('Lock')
+  await popup.waitButton('Unlock')
+  await popup.fill('input[type="password"]', api.password)
+  await popup.click('Unlock')
+  await popup.waitText('Synthetic service')
+  await popup.dismiss()
+  popup = null
+
   // Popup flow from the opener tab, updating the existing service account.
   await tab.goto(`${SERVICE}/login`)
   await ui.wait(() => ui.find('region', 'Sign in with a remembered account'), 'suggestion before popup')
@@ -177,10 +204,13 @@ try {
   await oauthPopup.waitForURL(/callback\?code=/)
   await tab.bringToFront()
   await ui.wait(() => ui.find('region', 'Signed in with GitHub?'), 'popup prompt in opener tab')
-  await ui.click('radio', 'Account not specified')
-  await ui.click('radio', /Synthetic service \(alice\)/)
+  await openReview()
+  await popup.click('Which GitHub account did you use?', 'combobox')
+  await popup.click('Account not specified', 'option')
+  await popup.click('Remember it for', 'combobox')
+  await popup.click(/Synthetic service \(alice\)/, 'option')
   const writesBeforeUpdate = api.writes.length
-  await ui.click('button', 'Remember for Synthetic service (alice)')
+  await popup.click('Save')
   await ui.wait(() => api.writes.length === writesBeforeUpdate + 1, 'encrypted update')
   const updated = api.writes.at(-1)
   assert.equal(updated.entryId, existing.entryId)
@@ -200,10 +230,13 @@ try {
   await tab.getByRole('link', { name: 'Allow' }).click()
   await tab.waitForURL(/callback\?code=/)
   await ui.wait(() => ui.find('region', 'Signed in with Google?'), 'second Google account confirmation')
-  await ui.click('radio', /alice@gmail\.example/)
-  await ui.click('radio', /^app\.example\.test /)
+  await openReview()
+  await popup.click('Which Google account did you use?', 'combobox')
+  await popup.click(/alice@gmail\.example/, 'option')
+  await popup.click('Remember it for', 'combobox')
+  await popup.click(/^app\.example\.test /, 'option')
   const writesBeforeSecond = api.writes.length
-  await ui.click('button', 'Remember for app.example.test')
+  await popup.click('Save')
   await ui.wait(() => api.writes.length === writesBeforeSecond + 1, 'second Google method encrypted update')
   const secondWrite = api.writes.at(-1)
   assert.equal(secondWrite.entryId, created.entryId)
@@ -249,6 +282,10 @@ try {
   assert(!JSON.stringify(storage).includes('work@corp.example'), 'Provider account is not stored outside the encrypted Vault')
   assert.deepEqual(api.errors, [])
   console.log('PASS: extension storage contains no OAuth values or plaintext provider account')
+} catch (error) {
+  await popup?.screenshot(path.resolve('test-results/federated-signin/failure-popup.png')).catch(() => undefined)
+  console.error('Synthetic provider paths:', api.requests.slice(-12).join(', '))
+  throw error
 } finally {
   try { await popup?.close?.() } catch { /* The native popup may already be gone. */ }
   await context?.close().catch(() => undefined)

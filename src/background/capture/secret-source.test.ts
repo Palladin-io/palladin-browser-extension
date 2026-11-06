@@ -40,3 +40,13 @@ it('requires bounded isolated card-scope identity and does not accept it for key
   }
   expect(isSecretCaptureContentCommand({ ...observation, candidate: { kind: 'key', value: 'synthetic-api-value', scopeId: 'a'.repeat(32) } })).toBe(false);
 });
+
+it('accepts a card update only through the popup command with bounded target identity', () => {
+ const command = { channel: 'palladin.secret-capture.v1', type: 'update', id: 'candidate', targetId: 'entry', entry: {
+   entryType: 'creditCard', label: 'Visa', cardNumber: '4111111111111111', cardholderName: 'Test', expiryMonth: '12', expiryYear: '2031' } };
+ expect(isSecretCapturePopupCommand(command, isManualEntrySaveInput)).toBe(true);
+ expect(isSecretCaptureContentCommand({...command, documentId:'local'})).toBe(false);
+ for(const patch of [{targetId:''},{targetId:1},{vaultId:'spoof'},{entry:{entryType:'key',label:'API',value:'synthetic'}}]) {
+  expect(isSecretCapturePopupCommand({...command,...patch},isManualEntrySaveInput)).toBe(false);
+ }
+});

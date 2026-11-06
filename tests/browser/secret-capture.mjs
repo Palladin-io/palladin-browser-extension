@@ -5,12 +5,13 @@ import { mkdtemp, mkdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createCaptureApi, allowCaptureApi } from './capture-api.mjs'
-import { openNativePopup, attachNativeSidePanel } from './native-popup.mjs'
+import { openNativePopup, attachNativePopup, attachNativeSidePanel } from './native-popup.mjs'
 import { cacheBustContentLoaders } from '../../scripts/cache-bust-content-loaders.mjs'
 import { validateBuiltManifest } from '../../scripts/validate-built-manifest.mjs'
 
 // Entirely synthetic mechanism fixtures; no production website acceptance implied.
 const { chromium } = await import(process.env.PALLADIN_PLAYWRIGHT_MODULE ?? 'playwright')
+const visualOnly = process.env.PALLADIN_CAPTURE_VISUAL_ONLY === '1'
 const api = await createCaptureApi()
 const profile = await mkdtemp(path.join(tmpdir(), 'palladin-secret-capture-'))
 const artifacts = path.resolve('test-results/secret-capture')
@@ -18,9 +19,8 @@ await mkdir(artifacts, { recursive: true })
 const pan = '4111111111111111'
 const cvv = '739'
 const key = index => ['sk', 'test', `SyntheticCapture${String(index).padStart(3, '0')}abcdefghijklmnopqrstuv`].join('_')
-const testedSecrets = [pan, '5555555555554444', '378282246310005', '4000000000000002', '6011111111111117', api.password]
-const failures = []
-let context, worker, popup, extensionId, page, cdp, source, sourceFrameId
+const testedSecrets = [pan, '5555555555554444', '378282246310005', '4000000000000002', '6011111111111117', '4242424242424242', api.password]
+let context, worker, popup, extensionId, page, cdp, source
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms))
 const wait = async (check, label, timeout = 12000) => {
   const end = Date.now() + timeout
@@ -30,22 +30,33 @@ const wait = async (check, label, timeout = 12000) => {
 const run = async (name, test) => {
   try { await test(); console.log(`PASS: ${name}`) }
   catch (error) {
-    failures.push(name); console.error(`FAIL: ${name}: ${error.message}`)
-    if (popup) console.error('Value-free popup state', {
-      review: await popup.hasText('Save captured item'), duplicate: await popup.hasText('This exact item is already'),
-      expired: await popup.hasText('This capture expired'), error: await popup.hasText('Could not save'),
-      saveButton: await popup.hasButton('Save entry'), writes: api.writes.length,
-    })
+    console.error(`FAIL: ${name}: ${error.message}`)
+    if (popup) {
+      console.error('Value-free native targets', await popup.inspectTargets());
+      try { console.error('Value-free capture state', await popup.captureDiagnostic()); console.error('Value-free popup state', {
+        review: await popup.hasCaptureReview(), duplicate: await popup.hasText('This exact item is already'),
+        expired: await popup.hasText('This capture expired'), error: await popup.hasText("Couldn't save this entry"),
+        saveButton: await popup.hasButton('Save entry'), writes: api.writes.length,
+      }) } catch { console.error('Native capture surface no longer available') }
+    }
+    console.error('Synthetic API failures', api.errors);
+    throw error
+
   }
   finally { if (popup) { try { await popup.dismiss() } catch { popup.close() } popup = null } }
 }
-const nodes = async () => (await cdp.send('Accessibility.getFullAXTree', sourceFrameId ? { frameId: sourceFrameId } : {})).nodes
+const nodes = async () => (await cdp.send('Accessibility.getFullAXTree')).nodes
 const noticeButton = async () => (await nodes()).find(node => !node.ignored && node.role?.value === 'button'
   && ['Review in Palladin', 'Sprawdź w Palladin'].includes(node.name?.value))
 async function openReview() {
   await wait(noticeButton, 'closed notice')
-  assert.equal(await source.locator('palladin-capture').evaluate(host => host.shadowRoot), null, 'Notice uses closed shadow')
+  assert.equal(await page.locator('palladin-capture').evaluate(host => host.shadowRoot), null, 'Notice uses closed shadow')
   assert.equal(await page.locator('palladin-capture input').count(), 0)
+  const placement = await page.locator('palladin-capture').evaluate(host => {
+    const box = host.getBoundingClientRect(); return { top: box.top, right: innerWidth - box.right };
+  });
+  assert(Math.abs(placement.top - 16) < 1 && Math.abs(placement.right - 16) < 1, 'Notice is top-right in the top document');
+  if (source !== page) assert.equal(await source.locator('palladin-capture').count(), 0, 'Payment iframe does not own the notice');
   let model
   await wait(async () => {
     const node = await noticeButton()
@@ -54,15 +65,15 @@ async function openReview() {
     catch { return false } // Notice may re-render before any pointer event is dispatched.
   }, 'live notice layout')
   await page.mouse.click((model.content[0] + model.content[4]) / 2, (model.content[1] + model.content[5]) / 2)
-  popup = await attachNativeSidePanel(profile, extensionId)
-  await popup.waitText('Save captured item')
-  await popup.click('Review in Palladin')
-  await popup.waitButton('Save entry')
+  popup = await attachNativePopup(profile, extensionId)
+  await popup.waitButton('Review')
+  await popup.click('Review')
+  await popup.waitButton(/^(Save entry|Update card)$/)
 }
 async function visit(kind, index = 0, keepSurface = false) {
   if (popup && !keepSurface) { try { await popup.dismiss() } catch { popup.close() } popup = null }
   await page.bringToFront()
-  source = page; sourceFrameId = undefined
+  source = page
   await page.goto(`https://capture-${index}.example.test/${kind}?case=${index}`)
   // Observe the real content controller's startup request; never inject a candidate.
   await wait(() => worker.evaluate(url => globalThis.secretCaptureReady.includes(url), page.url()), 'content status handshake')
@@ -72,20 +83,61 @@ async function noCapture() {
   await pause(900)
   popup = await openNativePopup(worker, profile, extensionId)
   await popup.waitText('Personal')
-  assert.equal(await popup.hasText('Save captured item'), false, 'No pending capture')
+  assert.equal(await popup.hasCaptureReview(), false, 'No pending capture')
 }
 async function saveKey(index, destination = 0) {
   const count = api.writes.length
   await openReview()
+  await pause(300);
   assert.equal(api.writes.length, count, 'Review never writes')
   if (index === 1) {
     await popup.dismiss(); popup = await openNativePopup(worker, profile, extensionId)
-    await popup.waitText('Save captured item'); await popup.click('Review in Palladin'); await popup.waitButton('Save entry')
+    await popup.waitButton('Review'); await popup.click('Review'); await popup.waitButton('Save entry')
   }
   assert(await popup.secretCaptureFieldsMatch({ 'input[type="password"]': key(index) }))
-  if (destination) await popup.select('.capture-prompt > label select', api.vaults[destination].detail.id)
-  if (index === 1) await popup.screenshot(path.join(artifacts, 'native-key-editor-masked.png'))
-  await popup.click('Save entry')
+  if (destination) { await popup.click('Destination Vault', 'combobox'); await popup.click(api.vaults[destination].name, 'option') }
+  if (index === 1) {
+    const verifyLayout = async (name, theme) => {
+      for (const selector of ['.entry-create-name input','input[type="password"]']) {
+        const field=await popup.captureFieldReachable(selector);
+        assert(field.visible&&field.reachable, `Capture field is scroll-reachable: ${name} ${selector}`);
+      }
+      await popup.screenshot(path.join(artifacts, `native-key-editor-${name}-fields-masked.png`));
+      const layout=await popup.captureFooterLayout('Save entry');
+      assert.equal(layout.theme,theme);
+      assert(!layout.horizontalOverflow && layout.panelFits && layout.footerVisible && layout.footerReachable, `Capture layout is scroll-reachable: ${name}`);
+      console.log('PASS: capture geometry', name, {width:layout.width,height:layout.height});
+      await popup.screenshot(path.join(artifacts, `native-key-editor-${name}-masked.png`));
+    };
+    await verifyLayout('default-light', 'light');
+    await popup.dismiss();
+    await worker.evaluate(() => chrome.storage.local.set({'palladin.ui.preferences':{language:'en',theme:'dark'}}));
+    popup=await openNativePopup(worker,profile,extensionId); await popup.waitButton('Review'); await popup.click('Review'); await popup.waitButton('Save entry');
+    await verifyLayout('default-dark', 'dark');
+    await popup.openSidePanelForCompatibilityTest(); await popup.dismiss(); popup=await attachNativeSidePanel(profile,extensionId);
+    await popup.waitButton('Review'); await popup.click('Review'); await popup.waitButton('Save entry');
+    await verifyLayout('narrow-dark', 'dark');
+    await popup.click('Additional fields', 'DisclosureTriangle');
+    await popup.click('Add field');
+    await popup.click('Type of additional field 1', 'combobox');
+    await popup.screenshot(path.join(artifacts,'native-additional-fields-narrow-dark.png'));
+    const custom=await popup.captureCustomOptionNames();
+    if(!custom.allReachable) console.error('Value-free custom option geometry',custom.geometry);
+    assert.equal(custom.nativeSelect,false); assert.equal(custom.options.length,4); assert(custom.allReachable,'All custom field options are visible and hit-test reachable');
+    assert(custom.options.includes('Text')&&custom.options.includes('Multiline')&&custom.options.includes('Hidden')&&custom.options.includes('One-time code'));
+    await popup.click('One-time code','option');
+    await popup.click('Remove additional field 1');
+    await popup.click('Additional fields','DisclosureTriangle');
+    await popup.dismiss();
+    await worker.evaluate(() => chrome.storage.local.set({'palladin.ui.preferences':{language:'en',theme:'light'}}));
+    popup=await openNativePopup(worker,profile,extensionId);
+    await popup.openSidePanelForCompatibilityTest(); await popup.dismiss(); popup=await attachNativeSidePanel(profile,extensionId);
+    await popup.waitButton('Review'); await popup.click('Review'); await popup.waitButton('Save entry');
+    await verifyLayout('narrow-light', 'light');
+    await popup.dismiss(); popup=await openNativePopup(worker,profile,extensionId);
+    await popup.waitButton('Review'); await popup.click('Review'); await popup.waitButton('Save entry');
+  }
+  await popup.click('Save entry', 'button', {completedText:'API key saved'})
   await wait(() => api.writes.length === count + 1, 'explicit encrypted key write')
   const write = api.writes.at(-1)
   const secret = await api.decrypt(write)
@@ -94,27 +146,32 @@ async function saveKey(index, destination = 0) {
   assert.equal(write.vaultId, api.vaults[destination].detail.id)
   assert(!JSON.stringify(write.request).includes(key(index)), 'Mutation is ciphertext')
 }
-async function saveCard({ expectedName = '', month = '', year = '', number = pan, reviewOpen = false } = {}) {
+async function saveCard({ expectedName = '', month = '', year = '', number = pan, expectedCvv = '', reviewOpen = false } = {}) {
   const count = api.writes.length
   if (!reviewOpen) await openReview()
-  assert.equal(api.writes.length, count)
+  await pause(300);
+  assert.equal(api.writes.length, count, 'Card review never writes')
   assert(await popup.secretCaptureFieldsMatch({ 'input[autocomplete="cc-name"]': expectedName,
     'input[autocomplete="cc-exp-month"]': month, 'input[autocomplete="cc-exp-year"]': year,
     'input[type="password"][inputmode="numeric"][maxlength="32"]': number,
-    'input[type="password"][maxlength="4"]': '' }), 'Only source-local card fields; CVV omitted')
+    'input[type="password"][maxlength="4"]': expectedCvv }), 'Only source-local card fields; captured CVV initially populated')
   if (!expectedName) await popup.fill('input[autocomplete="cc-name"]', 'Synthetic Cardholder')
   if (!month) await popup.fill('input[autocomplete="cc-exp-month"]', '12')
   if (!year) await popup.fill('input[autocomplete="cc-exp-year"]', '2031')
-  await popup.click('Save entry')
+  assert(await popup.secretCaptureFieldsMatch({ 'input[autocomplete="cc-name"]': expectedName || 'Synthetic Cardholder',
+    'input[autocomplete="cc-exp-month"]': month || '12', 'input[autocomplete="cc-exp-year"]': year || '2031' }), 'Completed native card fields are exact before save');
+  await popup.click('Save entry', 'button', {completedText:'Card saved'})
   await wait(() => api.writes.length === count + 1, 'explicit encrypted card write')
   const write = api.writes.at(-1)
   const secret = await api.decrypt(write)
   assert.equal(secret.entryType, 'creditCard')
+  const expectedLabel = number.startsWith('4') ? 'Visa' : number.startsWith('5') ? 'Mastercard' : number.startsWith('37') ? 'American Express' : 'Payment card';
+  assert.equal(secret.memberLabel, expectedLabel, 'Default card name is the network, never the merchant hostname')
   assert(secret.content.cardNumber === number, 'Normalized PAN roundtrip')
   assert(secret.content.cardholderName === (expectedName || 'Synthetic Cardholder'), 'Cardholder encrypted roundtrip')
   assert(secret.content.expiryMonth === (month || '12'), 'Expiry month encrypted roundtrip')
   assert(secret.content.expiryYear === (year || '2031'), 'Expiry year encrypted roundtrip')
-  assert(secret.content.cvv == null, 'CVV is not automatically retained')
+  assert.equal(secret.content.cvv ?? '', expectedCvv, 'Captured CVV encrypted roundtrip')
   assert.equal(write.request.deliveryPolicy, 'injectOnly')
   assert(!JSON.stringify(write.request).includes(number), 'Card mutation is ciphertext')
 }
@@ -139,6 +196,7 @@ try {
       }
     })
   })
+  await worker.evaluate(() => chrome.storage.local.set({'palladin.ui.preferences':{language:'en',theme:'light'}}));
   await context.route('https://**/*', route => {
     const url = new URL(route.request().url())
     if (!url.hostname.endsWith('.example.test')) return route.abort()
@@ -155,7 +213,7 @@ try {
   await popup.click('Sign in'); await popup.waitText('No entries yet.')
   await popup.dismiss(); popup = null
   page = await context.newPage(); cdp = await context.newCDPSession(page)
-  for (const [index, kind] of [[1, 'generated'], [2, 'readonly'], [3, 'shadow'], [4, 'replacement']]) {
+  for (const [index, kind] of [[1, 'generated'], [2, 'readonly'], [3, 'shadow'], [4, 'replacement']].slice(0,visualOnly?1:undefined)) {
     testedSecrets.push(key(index))
     await run(`key ${kind}: trusted action, closed notice, native editor, encrypted roundtrip`, async () => {
       await visit(kind, index)
@@ -163,6 +221,7 @@ try {
       await saveKey(index, index === 2 ? 1 : 0)
     })
   }
+  if (!visualOnly) {
   await run('PAN-first card, field enrichment, one pending draft and injectOnly encrypted save', async () => {
     await visit('card', 5)
     await page.locator('[autocomplete="cc-number"]').fill(pan); await pause(600)
@@ -170,23 +229,46 @@ try {
     await page.locator('[autocomplete="cc-exp-month"]').fill('12'); await pause(600)
     await page.locator('[autocomplete="cc-exp-year"]').fill('2031')
     await page.locator('[autocomplete="cc-csc"]').fill(cvv); await page.getByRole('heading').click(); await pause(600)
-    await saveCard({ expectedName: 'Synthetic Cardholder', month: '12', year: '2031' })
+    await saveCard({ expectedName: 'Synthetic Cardholder', month: '12', year: '2031', expectedCvv: cvv })
     await popup.dismiss(); popup = await openNativePopup(worker, profile, extensionId)
     await pause(300)
-    assert.equal(await popup.hasText('Save captured item'), false, 'Same PAN form enrichment must not queue another prompt')
+    assert.equal(await popup.hasCaptureReview(), false, 'Same PAN form enrichment must not queue another prompt')
   })
+  await run('same exact PAN updates the existing card with captured CVV', async () => {
+    const previous = api.writes.at(-1);
+    assert(previous, 'Original card exists');
+    const count = api.writes.length;
+    await visit('card', 19);
+    await page.locator('[autocomplete="cc-number"]').fill(pan);
+    await page.locator('[autocomplete="cc-name"]').fill('Synthetic Updated Cardholder');
+    await page.locator('[autocomplete="cc-exp-month"]').fill('10');
+    await page.locator('[autocomplete="cc-exp-year"]').fill('2035');
+    await page.locator('[autocomplete="cc-csc"]').fill('913');
+    await page.getByRole('heading').click(); await pause(600);
+    await openReview();
+    assert(await popup.secretCaptureFieldsMatch({ 'input[type="password"][maxlength="4"]': '913' }));
+    assert(await popup.hasButton('Update card'));
+    await popup.click('Update card', 'button', {completedText:'Card saved'});
+    await wait(() => api.writes.length === count + 1, 'explicit encrypted card update');
+    const write = api.writes.at(-1), secret = await api.decrypt(write);
+    assert.equal(write.action, 'updated'); assert.equal(write.entryId, previous.entryId);
+    assert.equal(secret.content.cardNumber, pan); assert.equal(secret.content.cvv, '913');
+    assert.equal(secret.content.cardholderName, 'Synthetic Updated Cardholder');
+    assert.equal(secret.content.expiryMonth, '10'); assert.equal(secret.content.expiryYear, '2035');
+  });
   await run('already-open side panel previews and polls PAN-first card without freezing before explicit Review', async () => {
     // Open the actual panel through a prior notice, dismiss that choice, and keep the panel open.
     await visit('generated', 18); await page.getByRole('button', { name: '生成 🔑' }).click()
     await openReview(); await popup.click('Dismiss')
+    await popup.openSidePanelForCompatibilityTest(); await popup.dismiss(); popup = await attachNativeSidePanel(profile, extensionId)
     await visit('card', 16, true)
     await page.locator('[autocomplete="cc-number"]').fill('4000000000000002')
-    await popup.waitButton('Review in Palladin')
+    await popup.waitButton('Review')
     await pause(5_100) // Exercise the actual automatic get poll before the user chooses Review.
     await page.locator('[autocomplete="cc-name"]').fill('Synthetic Cardholder'); await pause(600)
     await page.locator('[autocomplete="cc-exp-month"]').fill('12'); await pause(600)
     await page.locator('[autocomplete="cc-exp-year"]').fill('2031'); await page.getByRole('heading').click(); await pause(600)
-    await popup.click('Review in Palladin'); await popup.waitButton('Save entry')
+    await popup.click('Review'); await popup.waitButton('Save entry')
     await saveCard({ expectedName: 'Synthetic Cardholder', month: '12', year: '2031', number: '4000000000000002', reviewOpen: true })
   })
   await run('external form-associated PAN and fields capture without unrelated sibling metadata', async () => {
@@ -206,20 +288,19 @@ try {
     await visit('iframe', 6)
     const frame = page.frameLocator('iframe')
     source = page.frames().find(frame => frame.url().startsWith('https://payment.example.test/'))
-    sourceFrameId = (await cdp.send('Page.getFrameTree')).frameTree.childFrames[0].frame.id
     await wait(() => worker.evaluate(url => globalThis.secretCaptureReady.includes(url), source.url()), 'iframe status handshake')
     await pause(450)
     await frame.locator('[autocomplete="cc-number"]').fill('5555555555554444')
     await frame.locator('h1').click()
     await pause(600)
-    // The notice belongs to the addressed frame; its AX backend node remains on this target.
+    // The value-free notice lives in the top frame; review remains bound to the payment frame.
     await saveCard({ number: '5555555555554444' })
     await popup.dismiss(); popup = null
     await frame.locator('[autocomplete="cc-number"]').fill(pan); await pause(600)
     await openReview()
     const count = api.writes.length
     await source.goto('https://payment.example.test/blank')
-    await wait(async () => !(await popup.hasText('Save captured item')), 'editor removed on own frame navigation', 1_500)
+    await wait(async () => !(await popup.hasCaptureReview()), 'editor removed on own frame navigation', 1_500)
     assert.equal(await popup.hasButton('Save entry'), false)
     assert.equal(api.writes.length, count)
   })
@@ -268,7 +349,7 @@ try {
     assert(await popup.secretCaptureFieldsMatch({ 'input[autocomplete="cc-name"]': 'Synthetic one' }))
     await popup.click('Dismiss'); await popup.dismiss()
     popup = await openNativePopup(worker, profile, extensionId)
-    await popup.waitButton('Review in Palladin'); await popup.click('Review in Palladin')
+    await popup.waitButton('Review'); await popup.click('Review')
     await wait(() => popup.secretCaptureFieldsMatch({ 'input[autocomplete="cc-name"]': 'Synthetic two' }), 'second form review fields')
     await popup.click('Dismiss'); assert.equal(api.writes.length, count)
   })
@@ -278,7 +359,7 @@ try {
     await openReview(); assert(await popup.secretCaptureFieldsMatch({ 'input[type="password"]': key(15) }))
     await popup.click('Dismiss'); await popup.dismiss()
     popup = await openNativePopup(worker, profile, extensionId)
-    await popup.waitButton('Review in Palladin'); await popup.click('Review in Palladin')
+    await popup.waitButton('Review'); await popup.click('Review')
     await wait(() => popup.secretCaptureFieldsMatch({ 'input[type="password"]': key(16) }), 'second key review fields')
     await popup.click('Dismiss'); assert.equal(api.writes.length, count)
   })
@@ -286,7 +367,7 @@ try {
     const unrelated = await context.newPage()
     await unrelated.goto('https://unrelated.example.test/blank')
     await visit('card-with-frame', 10)
-    await page.locator('[autocomplete="cc-number"]').fill(pan); await pause(600)
+    await page.locator('[autocomplete="cc-number"]').fill('4242424242424242'); await pause(600)
     await openReview()
     const count = api.writes.length
     await popup.fill('.entry-create-name input', 'Unsaved capture name', { replace: true })
@@ -294,22 +375,23 @@ try {
     await popup.fill('input[autocomplete="cc-exp-month"]', '11')
     await popup.fill('input[autocomplete="cc-exp-year"]', '2034')
     await popup.fill('input[type="password"][maxlength="4"]', cvv)
-    await popup.select('.capture-prompt > label select', api.vaults[1].detail.id)
+    await popup.click('Destination Vault', 'combobox'); await popup.click(api.vaults[1].name, 'option')
     const edits = { '.entry-create-name input': 'Unsaved capture name', 'input[autocomplete="cc-name"]': 'Unsaved Cardholder',
       'input[autocomplete="cc-exp-month"]': '11', 'input[autocomplete="cc-exp-year"]': '2034',
-      'input[type="password"][maxlength="4"]': cvv, '> label select': api.vaults[1].detail.id }
+      'input[type="password"][maxlength="4"]': cvv }
     for (const [selector, value] of Object.entries(edits)) assert(await popup.secretCaptureFieldsMatch({ [selector]: value }), `Native edit applied before navigation: ${selector}`)
-    assert(await worker.evaluate(url => chrome.tabs.query({ active: true, currentWindow: true }).then(tabs => tabs[0]?.id === globalThis.secretCaptureTabs[url]), page.url()), 'Source tab remains active')
+    assert(await worker.evaluate(async url => { const normal=await chrome.windows.getLastFocused({windowTypes:['normal']}); const tab=await chrome.tabs.get(globalThis.secretCaptureTabs[url]); return tab.active&&tab.windowId===normal.id; }, page.url()), 'Source tab remains active in the normal browser window')
     try {
       await unrelated.goto('https://unrelated.example.test/blank?next')
       await pause(600)
       assert(await popup.secretCaptureFieldsMatch(edits), 'Unrelated background-tab navigation preserves the entire native draft')
+      assert(await popup.captureVaultIs(api.vaults[1].name), 'Selected Vault remains unchanged')
       await page.frames().find(frame => frame.url().startsWith('https://unrelated-frame.example.test/')).goto('https://unrelated-frame.example.test/blank?next')
       await pause(600)
       assert(await popup.secretCaptureFieldsMatch(edits), 'Unrelated frame disconnect preserves the entire native draft')
     } finally { await unrelated.close() }
     await page.goto('https://navigation.example.test/blank')
-    await wait(async () => !(await popup.hasText('Save captured item')), 'editor removed on navigation', 1_500)
+    await wait(async () => !(await popup.hasCaptureReview()), 'editor removed on navigation', 1_500)
     assert.equal(await popup.hasButton('Save entry'), false)
     assert.equal(api.writes.length, count)
   })
@@ -323,7 +405,7 @@ try {
     await wait(noticeButton, 'value-free locked guidance')
     popup = await openNativePopup(worker, profile, extensionId)
     await popup.fill('input[type="password"]', api.password); await popup.click('Unlock'); await popup.waitText('Personal')
-    assert.equal(await popup.hasText('Save captured item'), false, 'Locked generation retained nothing')
+    assert.equal(await popup.hasCaptureReview(), false, 'Locked generation retained nothing')
     assert.equal(api.writes.length, count)
   })
   await run('Polish notice and popup translation use established UI preferences', async () => {
@@ -331,9 +413,10 @@ try {
     await visit('generated', 13); await page.getByRole('button', { name: '生成 🔑' }).click()
     await wait(noticeButton, 'Polish notice')
     popup = await openNativePopup(worker, profile, extensionId)
-    await popup.waitButton('Sprawdź w Palladin')
+    await popup.waitButton('Sprawdź')
     assert.equal(api.writes.some(write => JSON.stringify(write.request).includes(key(13))), false)
   })
+  } else console.log('PASS: focused capture visual acceptance; full security scenarios run separately')
   popup = await openNativePopup(worker, profile, extensionId)
   const allKeys = Array.from({ length: 18 }, (_, i) => key(i + 1))
   assert(await popup.webStorageExcludes([...testedSecrets, ...allKeys]), 'Native local/session web storage excludes synthetic plaintext')
@@ -352,7 +435,6 @@ try {
   assert([...testedSecrets, ...allKeys, ...vaultKeys].every(value => !persisted.includes(value)), 'Synthetic secrets absent from persisted extension stores')
   assert.deepEqual(api.errors, [])
   console.log(`PASS: persistence contains no tested synthetic secret material; ${api.writes.length} encrypted writes`)
-  assert.equal(failures.length, 0, `Failed cases: ${failures.join('; ')}`)
 } finally {
   popup?.close(); await context?.close(); await api.close(); await rm(profile, { recursive: true, force: true })
 }

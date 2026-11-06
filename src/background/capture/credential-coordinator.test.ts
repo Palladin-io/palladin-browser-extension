@@ -500,3 +500,47 @@ describe("credential capture worker", () => {
     expect(save.mock.calls[1]![2]).toMatchObject({ revision: "6" });
   });
 });
+
+describe('native credential review', () => {  it('serializes native saves so a double click cannot create two Entries', async () => {
+    let release!: () => void;
+    let writes = 0;
+    const barrier = new Promise<void>(resolve => { release = resolve; });
+    const coordinator = new CredentialCaptureCoordinator({
+      getSession: async () => ({ profileId: 'user', generation: 1, unlocked: true }),
+      isSubmissionDocument: () => true, isCurrentDocument: async () => true,
+      choices: async () => ({ identical: false, targets: [createTarget], defaultIndex: 0 }),
+      save: async () => { writes++; await barrier; return { action: 'created', revision: '1' }; },
+      preferences: { isMuted: async () => false, mute: async () => {}, isAutomatic: async () => false, setAutomatic: async () => {} },
+    });
+    await coordinator.dispatch(submitted, source);
+    const view = prompt(await coordinator.dispatch(confirmed, source));
+    const entry = { entryType: 'credential' as const, label: 'Example', username: 'alice', password: 'new', url: 'https://accounts.example.com' };
+    const first = coordinator.nativeSave(source, view.id, view.defaultTargetId!, false, entry);
+    const second = coordinator.nativeSave(source, view.id, view.defaultTargetId!, false, entry);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    release();
+    expect(await first).toMatchObject({ status: 'saved' });
+    expect(await second).toMatchObject({ status: 'stale' });
+    expect(writes).toBe(1);
+    coordinator.clear();
+  });
+
+  it('returns captured fields only to an authorized native review and fails closed after document loss', async () => {
+    let current = true;
+    const coordinator = new CredentialCaptureCoordinator({
+      getSession: async () => ({ profileId: 'user', generation: 1, unlocked: true }),
+      isSubmissionDocument: () => true, isCurrentDocument: async () => current,
+      choices: async () => ({ identical: false, targets: [createTarget], defaultIndex: 0 }),
+      save: async () => ({ action: 'created', revision: '1' }),
+      preferences: { isMuted: async () => false, mute: async () => {}, isAutomatic: async () => false, setAutomatic: async () => {} },
+    });
+    await coordinator.dispatch(submitted, source);
+    await coordinator.dispatch(confirmed, source);
+    const review = await coordinator.nativeReview(source);
+    expect(review?.entry).toMatchObject({ entryType: 'credential', username: 'alice', password: 'new', url: 'https://accounts.example.com' });
+    expect(JSON.stringify(await coordinator.dispatch(command({ type: 'get' }), source))).not.toContain('"password":"new"');
+    current = false;
+    expect(await coordinator.nativeReview(source)).toBeNull();
+    coordinator.clear();
+  });
+});

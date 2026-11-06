@@ -135,3 +135,20 @@ it('shows value-free locked re-capture guidance and never sends or reuses a lock
   expect(sent.some(command => command.type === 'observe')).toBe(false);
   capture.stop();
 });
+
+it('recovers a relayed frame notice from worker status without receiving card data', async () => {
+  vi.useFakeTimers();
+  const capture = startSecretCapture(document, 'top', { detect: () => [], send: async () => ({ status: 'accepted', id: 'pending-frame' }), url: () => 'https://shop.test/' });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(document.querySelector('palladin-capture')).not.toBeNull();
+  capture.stop();
+});
+
+it('never puts an accepted payment-frame notice inside that frame', async () => {
+  vi.useFakeTimers();
+  const frame = document.createElement('iframe'); document.body.append(frame);
+  const capture = startSecretCapture(frame.contentDocument!, 'child', { detect: () => [{ kind: 'key', value: 'synthetic-value' }], send: async () => ({ status: 'accepted', id: 'pending-frame' }), url: () => 'https://processor.test/' });
+  await vi.advanceTimersByTimeAsync(400);
+  expect(frame.contentDocument!.querySelector('palladin-capture')).toBeNull();
+  capture.stop();
+});

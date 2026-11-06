@@ -7,12 +7,16 @@ export function openNativePopup(worker, profile, extensionId) {
   return connectNativeSurface(worker, profile, extensionId, 'popup')
 }
 
+export function attachNativePopup(profile, extensionId) {
+  return connectNativeSurface(null, profile, extensionId, 'popup', true)
+}
+
 // Attach only after the actual popup button has opened the browser-owned panel.
 export function attachNativeSidePanel(profile, extensionId) {
   return connectNativeSurface(null, profile, extensionId, 'side-panel')
 }
 
-async function connectNativeSurface(worker, profile, extensionId, surface) {
+async function connectNativeSurface(worker, profile, extensionId, surface, attachOnly = false) {
   const [port, endpoint] = (await readFile(path.join(profile, 'DevToolsActivePort'), 'utf8')).trim().split('\n')
   const socket = new WebSocket(`ws://127.0.0.1:${port}${endpoint}`)
   await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject })
@@ -43,7 +47,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
   })
   const popupUrl = `chrome-extension://${extensionId}/src/${surface}/index.html`
   let target = (await send('Target.getTargets')).targetInfos.find((target) => target.url === popupUrl)
-  if (!target && surface === 'side-panel') {
+  if (!target && (surface === 'side-panel' || attachOnly)) {
     // The UI action is asynchronous; observe its target without replaying it.
     const deadline = Date.now() + 10_000
     while (!target && Date.now() < deadline) {
@@ -51,7 +55,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
       target = (await send('Target.getTargets')).targetInfos.find(info => info.url === popupUrl)
     }
   }
-  if (!target && surface === 'popup') {
+  if (!target && surface === 'popup' && !attachOnly) {
     try {
       if (worker) await worker.evaluate(() => chrome.action.openPopup())
       else {
@@ -132,6 +136,43 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
   }
   let movement = 0
   return {
+    async openSidePanelForCompatibilityTest() {
+      const result = await command('Runtime.evaluate', { expression: '(async () => { const [tab] = await chrome.tabs.query({active:true,currentWindow:true}); await chrome.sidePanel.open({windowId:tab.windowId}); })()', awaitPromise: true, userGesture: true });
+      assert(!result.exceptionDetails, 'Browser-owned side panel opens in isolated compatibility fixture');
+    },
+    async captureDiagnostic() {
+      const { result, exceptionDetails } = await command('Runtime.evaluate', {
+        expression: `(async () => { const r = await chrome.runtime.sendMessage({channel:'palladin.secret-capture.v1',type:'get'}); return {status:r?.status, phase:document.querySelector('main')?.dataset.phase, review:!!document.querySelector('.capture-review'), formStatus:document.querySelector('.entry-form-status')?.textContent, invalidFields:[...document.querySelectorAll('.capture-review input:invalid')].map(input=>({autocomplete:input.autocomplete,required:input.validity.valueMissing,pattern:input.validity.patternMismatch,type:input.validity.typeMismatch}))}; })()`,
+        awaitPromise: true, returnByValue: true,
+      });
+      return exceptionDetails ? {error:true} : result.value;
+    },
+    async hasCaptureReview() { return evaluate('Boolean(document.querySelector(".capture-review"))') },
+    async captureVaultIs(name) { return evaluate(`document.querySelector('.capture-review [role="combobox"][aria-label="Destination Vault"]')?.textContent === ${JSON.stringify(name)}`) },
+    async captureCustomOptionNames() {
+      return evaluate(`(() => {const options=[...document.querySelectorAll('.capture-custom-fields [role="option"]')];return {nativeSelect:!!document.querySelector('.capture-custom-fields select'),options:options.map(option=>option.textContent.trim()),geometry:options.map(option=>{const rect=option.getBoundingClientRect(),hit=document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);return {x:rect.x,y:rect.y,width:rect.width,height:rect.height,viewportWidth:innerWidth,viewportHeight:innerHeight,hitClass:hit?.className,hitTag:hit?.tagName};}),allReachable:options.every(option=>{const rect=option.getBoundingClientRect(),hit=document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);return rect.top>=0&&rect.bottom<=innerHeight&&!!hit&&(hit===option||option.contains(hit));})};})()`);
+    },
+    async captureFieldReachable(selector) {
+      await wait(() => evaluate('document.getAnimations().every(animation => animation.effect?.getComputedTiming().iterations === Infinity || animation.playState !== "running")'), 'capture transition settled');
+      const {root}=await command('DOM.getDocument');
+      const fullSelector='.capture-review '+selector;
+      const {nodeId}=await command('DOM.querySelector',{nodeId:root.nodeId,selector:fullSelector});
+      assert(nodeId, 'Expected capture field exists');
+      await command('DOM.scrollIntoViewIfNeeded',{nodeId});
+      return evaluate(`(() => {const field=document.querySelector(${JSON.stringify(fullSelector)}),rect=field.getBoundingClientRect();const hit=document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);return {visible:rect.width>0&&rect.height>0&&rect.top>=0&&rect.bottom<=innerHeight+1,reachable:hit===field};})()`);
+    },
+    async captureFooterLayout(name) {
+      const node = (await command('Accessibility.getFullAXTree')).nodes.find(node => !node.ignored && node.role?.value === 'button' && node.name?.value === name);
+      assert(node, 'Capture save action exists');
+      await command('DOM.scrollIntoViewIfNeeded', {backendNodeId:node.backendDOMNodeId});
+      await wait(() => evaluate('document.getAnimations().every(animation => animation.effect?.getComputedTiming().iterations === Infinity || animation.playState !== "running")'), 'capture transition settled');
+      return evaluate(`(() => {
+        const button=[...document.querySelectorAll('.capture-review button')].find(button=>button.textContent.trim()===${JSON.stringify(name)});
+        const rect=button.getBoundingClientRect(), panel=document.querySelector('.capture-review').getBoundingClientRect();
+        const hit=document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
+        return {theme:document.documentElement.dataset.theme,width:innerWidth,height:innerHeight,horizontalOverflow:document.documentElement.scrollWidth>innerWidth+1,panelFits:panel.left>=-1&&panel.right<=innerWidth+1,footerVisible:rect.top>=0&&rect.bottom<=innerHeight+1,footerReachable:hit===button||button.contains(hit)};
+      })()`);
+    },
     async grantScrollLayout() {
       return evaluate(`(() => {
         const list = document.querySelector('.grant-list');
@@ -167,14 +208,17 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
         ownWorkerPresent: targets.some(info => info.type === 'service_worker' && info.url.startsWith(`chrome-extension://${extensionId}/`)),
       }
     },
-    async click(name, role = 'button') {
+    async click(name, role = 'button', { completedText } = {}) {
       let attempts = 0
       await wait(async () => {
+        const completed = () => completedText ? evaluate(`document.body.innerText.includes(${JSON.stringify(completedText)})`) : false;
+        if (attempts > 0 && await completed()) return true;
         const node = (await command('Accessibility.getFullAXTree')).nodes.find((node) =>
           !node.ignored && node.role?.value === role && (name instanceof RegExp ? name.test(node.name?.value ?? '') : node.name?.value === name))
         if (!node) return false
         attempts += 1
-        return clickButton(node.backendDOMNodeId)
+        try { return await clickButton(node.backendDOMNodeId) || await completed(); }
+        catch (error) { if (await completed()) return true; throw error; }
       }, `trusted button click: ${name}`)
       return { attempts }
     },
@@ -189,7 +233,11 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
       const { root } = await command('DOM.getDocument')
       const { nodeId } = await command('DOM.querySelector', { nodeId: root.nodeId, selector })
       const { node } = await command('DOM.describeNode', { nodeId })
-      await clickNode(node.backendNodeId)
+      await wait(async () => {
+        if (await evaluate(`document.activeElement === document.querySelector(${JSON.stringify(selector)})`)) return true;
+        await clickNode(node.backendNodeId);
+        return evaluate(`document.activeElement === document.querySelector(${JSON.stringify(selector)})`);
+      }, 'input receives trusted focus');
       if (replace) {
         await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA',
           modifiers: process.platform === 'darwin' ? 4 : 2, commands: ['selectAll'] })
@@ -247,7 +295,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
     async viewportSize() { return evaluate('({ width: innerWidth, height: innerHeight })') },
     // Compare synthetic test material inside the native context; diagnostics stay value-free.
     async secretCaptureFieldsMatch(expected) {
-      return evaluate(`Object.entries(${JSON.stringify(expected)}).every(([selector, value]) => document.querySelector('.capture-prompt ' + selector)?.value === value)`)
+      return evaluate(`Object.entries(${JSON.stringify(expected)}).every(([selector, value]) => document.querySelector('.capture-review ' + selector)?.value === value)`)
     },
     async watchText(text) {
       await evaluate(`(() => {
@@ -295,7 +343,17 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
     async hasNativeSidePanelApi() { return evaluate('typeof chrome.sidePanel?.open === \'function\'') },
     async hasButton(name) { return (await command('Accessibility.getFullAXTree')).nodes.some((node) =>
       !node.ignored && node.role?.value === 'button' && (name instanceof RegExp ? name.test(node.name?.value ?? '') : node.name?.value === name)) },
+    async buttonDisabled(name) {
+      const node = (await command('Accessibility.getFullAXTree')).nodes.find(node =>
+        !node.ignored && node.role?.value === 'button' && node.name?.value === name);
+      assert(node, 'Expected button exists');
+      return node.properties?.some(property => property.name === 'disabled' && property.value.value === true) ?? false;
+    },
     async waitButton(name) { await wait(() => this.hasButton(name), name) },
+    async checkboxChecked(name) {
+      const node = (await command('Accessibility.getFullAXTree')).nodes.find(node => !node.ignored && node.role?.value === 'checkbox' && node.name?.value === name);
+      return node?.properties?.find(property => property.name === 'checked')?.value.value === 'true';
+    },
     async waitSwitch(name, checked) {
       await wait(async () => (await command('Accessibility.getFullAXTree')).nodes.some(node =>
         !node.ignored && node.role?.value === 'switch' && node.name?.value === name
@@ -306,6 +364,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface) {
     async screenshot(file) { await wait(() => evaluate('document.getAnimations().every(animation => animation.effect?.getComputedTiming().iterations === Infinity || animation.playState !== "running")'), 'finite UI transitions settled'); const { data } = await command('Page.captureScreenshot'); await writeFile(file, Buffer.from(data, 'base64')) },
     async dismiss() {
       await send('Target.closeTarget', { targetId: target.targetId });
+      await wait(async () => !(await send('Target.getTargets')).targetInfos.some(info => info.targetId === target.targetId), 'native surface closed');
       socket.close();
     },
     close() { socket.close() },

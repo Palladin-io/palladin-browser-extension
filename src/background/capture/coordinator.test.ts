@@ -68,6 +68,18 @@ describe("CaptureCoordinator", () => {
     expect(savePassword).not.toHaveBeenCalled();
   });
 
+  it('fills using the explicitly selected generator settings', async () => {
+    const { coordinator, sendFill } = harness();
+    observe(coordinator);
+    const source = { tabId: TAB.id, url: TAB.url, browserDocumentId: BROWSER_DOCUMENT_ID };
+    const command = { channel: GENERATE_PASSWORD_CHANNEL, documentId: DOCUMENT_ID,
+      candidateId: CANDIDATE_ID, operationId: 'operation_0123456789abcdef' };
+    await coordinator.generate({ ...command, options: { mode: 'password', length: 32, digits: false, symbols: false } }, source);
+    expect(sendFill).toHaveBeenLastCalledWith(TAB.id, BROWSER_DOCUMENT_ID, expect.objectContaining({ value: expect.stringMatching(/^[A-Za-z]{32}$/) }));
+    await coordinator.generate({ ...command, operationId: 'operation_other_0123456789', options: { mode: 'passphrase', words: 5, separator: '.', capitalize: false, includeNumber: false } }, source);
+    expect(sendFill).toHaveBeenLastCalledWith(TAB.id, BROWSER_DOCUMENT_ID, expect.objectContaining({ value: expect.stringMatching(/^[a-z]+(?:\.[a-z]+){4}$/) }));
+  });
+
   it('rejects generation for substituted candidate, document, tab, or origin', async () => {
     const { coordinator, sendFill } = harness();
     observe(coordinator);

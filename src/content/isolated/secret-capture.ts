@@ -29,6 +29,7 @@ export function startSecretCapture(doc: Document, documentId: string, options: O
     await send(command(type, noticeId));
     if (type === 'dismiss') { noticeId = undefined; notice.hide(); }
   });
+  const showNotice = (isLocked: boolean) => { if (doc.defaultView?.top === doc.defaultView) notice.show(isLocked); };
   const status = (raw: unknown) => raw && typeof raw === 'object' && 'status' in raw ? String(raw.status) : 'error';
   async function scan(scope?: Element, cards = false, generated = false): Promise<void> {
     if (stopped || !enabled && !locked || new URL(url()).protocol !== 'https:') return;
@@ -37,7 +38,7 @@ export function startSecretCapture(doc: Document, documentId: string, options: O
     if (locked) {
       // Detection is synchronous and discarded here; locked observations never cross messaging or unlock.
       if (detect(doc, { ...(scope ? { scope } : {}), ...(generated ? { trustedGeneratedResult: true } : {}) })
-        .some(candidate => candidate.kind === 'key' || cards)) notice.show(true);
+        .some(candidate => candidate.kind === 'key' || cards)) showNotice(true);
       return;
     }
     // Candidate values survive only this observation send; no page-side raw-value suppression cache.
@@ -48,8 +49,8 @@ export function startSecretCapture(doc: Document, documentId: string, options: O
         const result: unknown = await send({ channel: SECRET_CAPTURE_CHANNEL, type: 'observe', documentId, candidate });
         if (stopped || epoch !== revision) break;
         if (status(result) === 'accepted' && result && typeof result === 'object' && 'id' in result && typeof result.id === 'string') {
-          noticeId = result.id; notice.show(false);
-        } else if (status(result) === 'locked') { enabled = false; locked = true; notice.show(true); break; }
+          noticeId = result.id; showNotice(false);
+        } else if (status(result) === 'locked') { enabled = false; locked = true; showNotice(true); break; }
       } catch { break; }
     }
   }
@@ -131,14 +132,15 @@ export function startSecretCapture(doc: Document, documentId: string, options: O
     if (cardTimer !== undefined) clearTimeout(cardTimer);
     if (timer !== undefined) clearTimeout(timer);
     const wasLocked = locked; enabled = false; locked = false;
-    if (unlocked === false) { locked = true; if (noticeId) notice.show(true); noticeId = undefined; schedule(); return; }
+    if (unlocked === false) { locked = true; if (noticeId) showNotice(true); noticeId = undefined; schedule(); return; }
     try {
       const result = await send(command('status'));
       if (stopped || epoch !== revision) return;
+      if (status(result) === 'accepted' && result && typeof result === 'object' && 'id' in result && typeof result.id === 'string') { noticeId = result.id; showNotice(false); }
       locked = status(result) === 'locked';
       enabled = !['locked','stale','error','muted'].includes(status(result));
       if (enabled && wasLocked) { noticeId = undefined; notice.hide(); }
-      if (enabled || locked) schedule(); else if (noticeId) notice.show(true);
+      if (enabled || locked) schedule(); else if (noticeId) showNotice(true);
     } catch { enabled = false; }
   }
   void refresh();

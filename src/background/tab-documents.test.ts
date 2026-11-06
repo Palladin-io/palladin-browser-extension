@@ -65,3 +65,19 @@ describe("top-frame browser document registry", () => {
     removeSecond?.();
   });
 });
+
+it('invalidates capture only when the registered top document is replaced or disconnected', () => {
+  let invalidations = 0;
+  const changed = () => { invalidations++; };
+  const make = (documentId: string, frameId = 0) => port({ id: 'extension', frameId, tab: { id: 91 } as chrome.tabs.Tab, documentId });
+  const first = registerTopFrameDocument(make('top-document'), 'extension', changed);
+  expect(invalidations).toBe(0);
+  expect(registerTopFrameDocument(make('child-document', 1), 'extension', changed)).toBeNull();
+  expect(invalidations).toBe(0);
+  const next = registerTopFrameDocument(make('replacement-document'), 'extension', changed);
+  expect(invalidations).toBe(1);
+  first?.();
+  expect(invalidations).toBe(1);
+  next?.();
+  expect(invalidations).toBe(2);
+});

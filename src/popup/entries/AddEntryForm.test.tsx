@@ -92,7 +92,8 @@ describe("AddEntryForm", () => {
     await user.type(screen.getByLabelText("Name"), "Example login");
     await user.type(screen.getByLabelText("Password"), "correct horse battery staple");
     await user.click(screen.getByRole("button", { name: "Add field" }));
-    await user.selectOptions(screen.getByLabelText("Type of additional field 1"), "concealed");
+    await user.click(screen.getByRole("combobox", { name: "Type of additional field 1" }));
+    await user.click(screen.getByRole("option", { name: "Hidden" }));
     await user.type(screen.getByLabelText("Name of additional field 1"), "Recovery phrase hint");
     await user.type(screen.getByLabelText("Value of additional field 1"), "private note");
     await user.click(screen.getByRole("button", { name: "Save entry" }));
@@ -192,4 +193,26 @@ describe('capture draft reuse', () => {
     await waitFor(() => expect(captured).toHaveBeenCalledWith({ entryType: 'key', label: 'Captured', value: 'edited-captured-value' }));
     expect(manual).not.toHaveBeenCalled();
   });
+});
+
+it('keeps capture details and custom fields collapsed and delegates the submit footer', () => {
+  render(<AddEntryForm client={{} as VaultClient} initialEntry={{ entryType: 'key', label: 'Example', value: 'synthetic-value' }} captureFormId="capture-test" />);
+  expect(screen.queryByRole('button', { name: 'Save entry' })).toBeNull();
+  expect(screen.getByText('Additional details').closest('details')).not.toHaveAttribute('open');
+  expect(screen.getByText('Additional fields', { selector: 'summary' }).closest('details')).not.toHaveAttribute('open');
+  expect(screen.queryByRole('combobox', { name: 'Entry type' })).toBeNull();
+});
+
+it('edits authenticator additional fields masked and saves canonical configuration', async () => {
+  const save = vi.fn(async () => ({ status: 'saved' as const }));
+  render(<AddEntryForm client={client(save)} initialEntry={{ entryType: 'key', label: 'Example', value: 'synthetic', customFields: [{ id: 'custom:authenticator', label: 'One-time code', type: 'totp', value: { secret: 'JBSWY3DPEHPK3PXP', algorithm: 'SHA1', digits: 6, period: 30 } }] }} />);
+  const value = screen.getByLabelText('Value of additional field 1');
+  expect(value).toHaveAttribute('type', 'password');
+  fireEvent.change(value, { target: { value: 'invalid' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save entry' }));
+  await screen.findByText("Couldn't save this entry");
+  expect(save).not.toHaveBeenCalled();
+  fireEvent.change(value, { target: { value: 'otpauth://totp/Example?secret=JBSWY3DPEHPK3PXP' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save entry' }));
+  await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ customFields: [expect.objectContaining({ type: 'totp', value: expect.objectContaining({ secret: 'JBSWY3DPEHPK3PXP', digits: 6, period: 30 }) })] })));
 });

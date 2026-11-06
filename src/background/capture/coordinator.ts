@@ -2,8 +2,9 @@
  * Worker-owned coordinator for new-password suggestions.
  *
  * Pending prompts contain only structural metadata and live in service-worker
- * memory. Generated values are accepted only from the extension popup, relayed
- * once to a still-bound top-frame candidate, and never stored by this class.
+ * memory. Values come from the popup or worker generation after an explicit
+ * closed-surface action, travel only to a still-bound top-frame candidate,
+ * and are never stored by this class.
  */
 
 import {
@@ -22,7 +23,7 @@ import type {
   SaveGeneratedPasswordInput,
 } from "../vault/protocol2/service";
 import { registrableDomain } from "@shared/security/domain";
-import { generatePassword } from '@palladin/crypto';
+import { generatePassword, generatePassphrase } from '@palladin/crypto';
 import { GENERATED_PASSWORD_LENGTH, type GeneratePasswordCommand } from '@shared/messaging/capture';
 
 const PROMPT_TTL_MS = 5 * 60_000;
@@ -95,7 +96,9 @@ export class CaptureCoordinator {
       || prompt.documentId !== command.documentId || prompt.browserDocumentId !== source.browserDocumentId
       || prompt.origin !== httpsOrigin(source.url)) return this.blocked('stale-prompt');
     this.pendingByTab.set(source.tabId, { ...prompt, generationOperationId: command.operationId });
-    return this.fillGenerated(prompt.id, generatePassword({ length: GENERATED_PASSWORD_LENGTH, digits: true, symbols: true }), command.operationId);
+    const options = command.options ?? { mode: 'password', length: GENERATED_PASSWORD_LENGTH, digits: true, symbols: true };
+    const value = options.mode === 'passphrase' ? generatePassphrase(options) : generatePassword(options);
+    return this.fillGenerated(prompt.id, value, command.operationId);
   }
 
   observe(message: CaptureDetectedMessage, source: CaptureSource): boolean {

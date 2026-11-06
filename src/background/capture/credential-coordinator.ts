@@ -1,3 +1,4 @@
+import type { ManualEntrySaveInput } from '../vault/protocol2/service';
 import {
   type CredentialCaptureCommand,
   type CredentialCapturePrompt,
@@ -26,6 +27,7 @@ export type CredentialWriteTarget =
       readonly revision: string;
       readonly label: string;
       readonly vaultLabel: string;
+      readonly review?: Extract<ManualEntrySaveInput, { entryType: 'credential' }>;
       readonly exactAccount: boolean;
       readonly previousPasswordMatches: boolean;
     };
@@ -60,13 +62,15 @@ export interface CredentialCaptureCoordinatorDeps {
   getSession(): Promise<CaptureSession | null>;
   isSubmissionDocument(source: CredentialCaptureSource): boolean;
   isCurrentDocument(source: CredentialCaptureSource): Promise<boolean>;
+  icon?(url: string): Promise<string | undefined>;
   choices(credential: SubmittedCredential, url: string): Promise<CredentialCaptureChoices>;
   save(
     credential: SubmittedCredential,
     url: string,
     target: CredentialWriteTarget,
     stillAuthorized: () => Promise<boolean>,
-  ): Promise<{ readonly action: "created" | "updated"; readonly revision: string }>;
+    review?: Extract<ManualEntrySaveInput, { entryType: 'credential' }>,
+  ): Promise<{ readonly action: "created" | "updated"; readonly revision: string; readonly vaultId?: string; readonly entryId?: string }>;
   readonly preferences: CredentialCapturePreferences;
   now?: () => number;
   createId?: () => string;
@@ -105,6 +109,43 @@ function sameDocument(left: CredentialCaptureSource, right: CredentialCaptureSou
 }
 
 export class CredentialCaptureCoordinator {
+  /** Plaintext review is available only through the extension-page runtime boundary. */
+  async nativeReview(source: CredentialCaptureSource, targetId?: string) {
+    const result = await this.dispatch({ channel: "palladin.credential-capture", documentId: source.documentId, type: 'get' }, source);
+    if (result.status !== 'prompt' || !result.prompt || result.prompt.state !== 'ready') return null;
+    const pending = this.pending.get(source.tabId);
+    const icon = pending ? await this.deps.icon?.(pending.source.url).catch(() => undefined) : undefined;
+    const session = await this.deps.getSession();
+    if (!pending?.credential || !session || !await this.stillAuthorized(pending, session)) return null;
+    const target = pending.choices.get(targetId ?? result.prompt.defaultTargetId ?? '');
+    return { prompt: result.prompt, entry: target?.action === 'update' && target.review ? target.review : { entryType: 'credential' as const, label: new URL(pending.source.url).hostname,
+      username: pending.credential.username, password: pending.credential.password, url: pending.origin,
+      notes: '', customFields: [], ...(icon ? { icon } : {}) } };
+  }
+
+  nativeSave(source: CredentialCaptureSource, promptId: string, targetId: string,
+    autoUpdate: boolean, entry: Extract<ManualEntrySaveInput, { entryType: 'credential' }>): Promise<CredentialCaptureResult> {
+    const previous = this.operations.get(source.tabId);
+    const operation = (previous ?? Promise.resolve()).then(() => this.saveNative(source, promptId, targetId, autoUpdate, entry))
+      .catch((): CredentialCaptureResult => ({ status: 'unavailable' }));
+    this.operations.set(source.tabId, operation);
+    void operation.finally(() => { if (this.operations.get(source.tabId) === operation) this.operations.delete(source.tabId); });
+    return operation;
+  }
+
+  private async saveNative(source: CredentialCaptureSource, promptId: string, targetId: string,
+    autoUpdate: boolean, entry: Extract<ManualEntrySaveInput, { entryType: 'credential' }>): Promise<CredentialCaptureResult> {
+    const pending = this.pending.get(source.tabId);
+    const session = await this.deps.getSession();
+    if (!pending || pending.id !== promptId || !sameDocument(pending.source, source) || !session?.unlocked
+      || pending.sessionGeneration !== session.generation || !await this.stillAuthorized(pending, session)) return { status: 'stale' };
+    const target = pending.choices.get(targetId);
+    if (!target || !entry.url || origin(entry.url) !== pending.origin) return { status: 'stale' };
+    if (!pending.credential) return { status: 'stale' };
+    pending.credential = { ...pending.credential, username: entry.username, password: entry.password };
+    return this.save(pending, session, target, autoUpdate, entry);
+  }
+
   private readonly pending = new Map<number, PendingCredential>();
   private readonly timers = new Map<number, ReturnType<typeof setTimeout>>();
   private readonly operations = new Map<number, Promise<CredentialCaptureResult>>();
@@ -344,12 +385,13 @@ export class CredentialCaptureCoordinator {
     session: CaptureSession,
     target: CredentialWriteTarget,
     autoUpdate: boolean,
+    review?: Extract<ManualEntrySaveInput, { entryType: 'credential' }>,
   ): Promise<CredentialCaptureResult> {
     if (pending.credential === null || (pending.usernameOptions && pending.usernameChoice === null)) return { status: "stale" };
     const stillAuthorized = () => this.stillAuthorized(pending, session);
     if (!(await stillAuthorized())) return { status: "stale" };
     let result: Awaited<ReturnType<CredentialCaptureCoordinatorDeps["save"]>>;
-    try { result = await this.deps.save(pending.credential, pending.source.url, target, stillAuthorized); }
+    try { result = await this.deps.save(pending.credential, pending.source.url, target, stillAuthorized, review); }
     catch {
       if (!(await stillAuthorized())) return { status: "stale" };
       // Never retry automation after an uncertain write; refresh and ask for a new explicit decision.
@@ -357,7 +399,9 @@ export class CredentialCaptureCoordinator {
       try {
         const refreshed = await this.present(pending, session, true);
         if (refreshed.status !== "prompt" || !refreshed.prompt) return refreshed;
-        return { status: "prompt", prompt: { ...refreshed.prompt, error: "save-failed" } };
+        const retryTargetId = review ? [...pending.choices].find(([, candidate]) => candidate.action === target.action
+          && candidate.vaultId === target.vaultId && (candidate.action === 'create' || target.action === 'update' && candidate.entryId === target.entryId))?.[0] : undefined;
+        return { status: "prompt", prompt: { ...refreshed.prompt, ...(retryTargetId ? { defaultTargetId: retryTargetId } : {}), error: "save-failed" } };
       } catch {
         if (!(await stillAuthorized())) return { status: "stale" };
         return { status: "prompt", prompt: { ...this.view(pending, "ready"), error: "save-failed" } };
@@ -371,7 +415,7 @@ export class CredentialCaptureCoordinator {
           { ...target, revision: result.revision, origin: pending.origin }, autoUpdate);
       } catch { /* The password was saved; automation remains disabled for the new revision. */ }
     }
-    return { status: "saved", action: result.action };
+    return { status: "saved", action: result.action, ...(review && result.vaultId && result.entryId ? { vaultId: result.vaultId, entryId: result.entryId } : {}) };
   }
 
   private async stillAuthorized(pending: PendingCredential, session: CaptureSession): Promise<boolean> {
@@ -398,6 +442,8 @@ export class CredentialCaptureCoordinator {
       id: pending.id, site: pending.site, state,
       targets: state === "locked" ? [] : [...pending.choices].map(([id, target]) => ({
         id, action: target.action, label: target.label, vaultLabel: target.vaultLabel,
+        ...(target.action === 'update' && target.review?.icon ? { icon: target.review.icon } : {}),
+        ...(target.action === 'update' && target.review?.color ? { color: target.review.color } : {}),
       })),
       defaultTargetId: state === "locked" ? null : pending.defaultTargetId,
       ...(state === 'ready' && pending.usernameOptions ? { usernameSelection: { selected: pending.usernameChoice } } : {}),

@@ -1,3 +1,4 @@
+import { activePageTab } from '../active-page-tab';
 import { TOTP_CAPTURE_CHANNEL, type TotpContentCommand, type TotpPopupCommand } from '@shared/messaging/totp-capture';
 import { initializeServerConfig, serverConfig } from '../config/server-runtime';
 import { sessionManager } from '../session/runtime';
@@ -27,9 +28,9 @@ export const totpCaptureCoordinator = new TotpCaptureCoordinator({
     } catch { return false; }
   },
   invalidated: publishTotpInvalidation,
-  activeTabId: async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id ?? null,
-  choices: url => credentialWriter.totpChoices(url),
-  save: (totp, url, target, authorized, create) => credentialWriter.saveTotp(totp, url, target, authorized, create),
+  activeTabId: async () => (await activePageTab())?.id ?? null,
+  choices: (url, entry) => credentialWriter.totpChoices(url, entry),
+  save: (totp, url, target, authorized, create, confirmDomainMismatch) => credentialWriter.saveTotp(totp, url, target, authorized, create, confirmDomainMismatch),
 });
 export function publishTotpInvalidation(): void { void chrome.runtime.sendMessage({ type: 'totp-capture/invalidated' }).catch(() => undefined); }
 const clearSession = () => { generation++; observationSequences.clear(); totpCaptureCoordinator.clear(); publishTotpInvalidation(); };
@@ -57,13 +58,15 @@ export async function handleTotpContent(command: TotpContentCommand, sender: chr
 export async function handleTotpPopup(command: TotpPopupCommand) {
   if (command.type === 'get') return totpCaptureCoordinator.review();
   if (command.type === 'dismiss') { await totpCaptureCoordinator.dismiss(command.id); publishTotpInvalidation(); return { status: 'dismissed' as const }; }
-  if (command.type === 'save') return totpCaptureCoordinator.save(command.id, command.targetId, command.replace, command.create);
-  const tab = (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+  if (command.type === 'save') return totpCaptureCoordinator.save(command.id, command.targetId, command.replace, command.create, command.confirmDomainMismatch);
+  const tab = await activePageTab();
   if (typeof tab?.id !== 'number') return { status: 'empty' as const };
   try {
     const found: unknown = await chrome.tabs.sendMessage(tab.id, { channel: TOTP_CAPTURE_CHANNEL, type: 'scan-page' }, { frameId: 0 });
     if (found === 'ambiguous') return { status: 'ambiguous' as const };
     if (found !== 'found') return { status: 'empty' as const };
-    return totpCaptureCoordinator.review();
+    const review = await totpCaptureCoordinator.review(command.entry, tab.id);
+    void chrome.runtime.sendMessage({ type: 'totp-capture/available' }).catch(() => undefined);
+    return review;
   } catch { return { status: 'empty' as const }; }
 }

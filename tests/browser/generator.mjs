@@ -50,15 +50,25 @@ try {
   await page.getByLabel('Email', { exact: true }).fill('synthetic-user');
   await page.getByLabel('New password', { exact: true }).click();
   const cdp = await context.newCDPSession(page);
-  const find = async () => (await cdp.send('Accessibility.getFullAXTree')).nodes.find(node =>
-    !node.ignored && node.role?.value === 'button' && node.name?.value === 'Use strong password');
-  const deadline = Date.now() + 10000;
-  let button;
-  while (!(button = await find()) && Date.now() < deadline) await page.waitForTimeout(100);
-  assert(button, 'Inline generation action is accessible');
-  const { model } = await cdp.send('DOM.getBoxModel', { backendNodeId: button.backendDOMNodeId });
-  await page.mouse.click((model.content[0] + model.content[4]) / 2, (model.content[1] + model.content[5]) / 2);
-  await page.waitForFunction(() => document.querySelector('[name=password]').value.length === 20).catch(async error => {
+  const clickSurfaceButton = async name => {
+    const deadline = Date.now() + 10000;
+    let button;
+    while (!button && Date.now() < deadline) {
+      button = (await cdp.send('Accessibility.getFullAXTree')).nodes.find(node =>
+        !node.ignored && node.role?.value === 'button' && node.name?.value === name);
+      if (!button) await page.waitForTimeout(100);
+    }
+    assert(button, `Inline action is accessible: ${name}`);
+    const { model } = await cdp.send('DOM.getBoxModel', { backendNodeId: button.backendDOMNodeId });
+    await page.mouse.click((model.content[0] + model.content[4]) / 2, (model.content[1] + model.content[5]) / 2);
+  };
+  await clickSurfaceButton('Options');
+  await page.waitForTimeout(250);
+  await clickSurfaceButton('Length +');
+  await clickSurfaceButton('Numbers');
+  await clickSurfaceButton('Symbols');
+  await clickSurfaceButton('Use strong password');
+  await page.waitForFunction(() => document.querySelector('[name=password]').value.length === 21).catch(async error => {
     const nodes = (await cdp.send('Accessibility.getFullAXTree')).nodes;
     console.log('Generation diagnostics', {
       errorVisible: nodes.some(node => node.name?.value?.includes('Could not')),
@@ -70,6 +80,7 @@ try {
     throw error;
   });
   const generated = await page.locator('[name=password]').inputValue();
+  assert.match(generated, /^[A-Za-z]{21}$/);
   assert.equal(await page.locator('[name=confirm]').inputValue(), generated);
   assert.equal(api.writes.length, 0, 'Generation must not create a Vault entry');
   const stored = await worker.evaluate(() => chrome.storage.local.get(null));
@@ -82,6 +93,23 @@ try {
   popup.close();
   popup = await openNativePopup(worker, profile, extensionId);
   assert(!(await popup.hasText('Password history')), 'No standalone password history tab');
+  popup.close(); popup = undefined;
+  await page.goto('https://register.example.test/signup?mode=passphrase');
+  await page.getByLabel('New password', { exact: true }).click();
+  await clickSurfaceButton('Options');
+  await page.waitForTimeout(250);
+  await clickSurfaceButton('Passphrase');
+  await clickSurfaceButton('Dot');
+  await clickSurfaceButton('Add number');
+  await clickSurfaceButton('Use strong password');
+  await page.waitForFunction(() => document.querySelector('[name=password]').value.split('.').length === 6);
+  const phrase = await page.locator('[name=password]').inputValue();
+  assert.match(phrase, /^[a-z]+(?:\.[a-z]+){5}$/);
+  assert.equal(await page.locator('[name=confirm]').inputValue(), phrase);
+  const afterPhrase = await worker.evaluate(() => chrome.storage.local.get(null));
+  assert(!JSON.stringify(afterPhrase).includes(phrase), 'Passphrase must not persist as plaintext');
+  assert.equal(api.writes.length, 0, 'Options and fill must not create a Vault entry');
+  console.log('PASS: trusted password/passphrase options fill matching values without persistence');
 } finally {
   popup?.close(); await context?.close(); await api.close(); await rm(profile, { recursive: true, force: true });
 }
