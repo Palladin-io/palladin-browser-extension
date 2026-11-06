@@ -53,11 +53,11 @@ function endpoint(role: "web" | "extension", source: boolean) {
       input.send(packet);
       return { operationId: context.operationId, webGeneration: context.webGeneration, extensionGeneration: context.extensionGeneration };
     } })),
-    receiver: vi.fn(async (binding, _signal, check) => ({ publicKey: operation.recipientPublicKey, proofPublicKey: operation.recipientProofPublicKey,
+    receiver: vi.fn(async (binding, _signal, check, replacementSequence) => ({ publicKey: operation.recipientPublicKey, proofPublicKey: operation.recipientProofPublicKey,
       cancel: vi.fn(), receive: async (input: Parameters<Awaited<ReturnType<SharedUnlockCoordinatorClient["receiver"]>>["receive"]>[0]) => {
         check(); expect(input.operation.context).toMatchObject(binding); await input.envelope(new AbortController().signal);
         installed = true;
-        state = { accountId, status: "unlocked", source: { organizationId, generation: role === "web" ? binding.webGeneration : binding.extensionGeneration } };
+        state = { accountId, status: "unlocked", source: { organizationId, generation: role === "web" ? binding.webGeneration : binding.extensionGeneration, ...(replacementSequence ? { sequence: replacementSequence } : {}) } };
         for (const watcher of watchers) watcher();
         try { input.acknowledge({ operationId: input.operation.context.operationId, webGeneration: binding.webGeneration, extensionGeneration: binding.extensionGeneration }); } catch { /* lost ACK */ }
         return { authorizationId: "local-only" };
@@ -191,6 +191,33 @@ describe("automatic browser account/link selection", () => {
     expect(f.web.client.selectLink).not.toHaveBeenCalled(); expect(f.extension.client.selectLink).not.toHaveBeenCalled();
     expect(recipient.client.receiver).not.toHaveBeenCalled(); close();
   });
+  it.each([[262, 262, true], [259, 262, true], [262, 259, false]] as const)("does not replace equal/newer authority or negotiate replacement over v1 (%s/%s/%s)", async (webSequence, extensionSequence, enabled) => {
+    const f = pair("web");
+    Object.assign(f.web.route, { authoritySync: enabled }); Object.assign(f.extension.route, { authoritySync: enabled });
+    f.web.setState({ accountId, status: "unlocked", source: { organizationId, generation: operation.context.webGeneration, sequence: webSequence } });
+    f.extension.setState({ accountId, status: "unlocked", source: { organizationId, generation: operation.context.extensionGeneration, sequence: extensionSequence } });
+    const close = f.start();
+    try { await settle(); expect(f.web.client.source).not.toHaveBeenCalled(); expect(f.extension.client.source).not.toHaveBeenCalled(); }
+    finally { close(); }
+  });
+  it("converges an older unlocked extension to a newer Web authority once", async () => {
+    const f = pair("web");
+    Object.assign(f.web.route, { authoritySync: true });
+    Object.assign(f.extension.route, { authoritySync: true });
+    f.web.setState({ accountId, status: "unlocked", source: { organizationId, generation: operation.context.webGeneration, sequence: 262 } });
+    f.extension.setState({ accountId, status: "unlocked", source: { organizationId, generation: operation.context.extensionGeneration, sequence: 259 } });
+    const close = f.start();
+    try {
+      await settle();
+      expect(f.extension.installed()).toBe(true);
+      expect(f.web.client.source).toHaveBeenCalledOnce();
+      expect(f.web.client.receiver).not.toHaveBeenCalled();
+      for (const changed of f.extension.watchers) changed();
+      await settle();
+      expect(f.web.client.source).toHaveBeenCalledOnce();
+    } finally { close(); }
+  });
+
   it("waits for late manual source preparation without a new browser connection", async () => {
     const f = pair("web");
     f.web.setState({ accountId, status: "unlocked", source: null });

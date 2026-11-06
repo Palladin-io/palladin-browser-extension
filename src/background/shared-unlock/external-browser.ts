@@ -1,13 +1,14 @@
 import type { SharedUnlockEnvironment } from "../../shared/config/shared-unlock-environments";
 import type { SharedUnlockOperationFrame } from "../../shared/messaging/shared-unlock-operation";
 import { randomBytes, toBase64Url } from "@palladin/crypto";
-import { SHARED_UNLOCK_BROWSER_PORT, isSharedUnlockBrowserMessage, type SharedUnlockBrowserReady } from "../../shared/messaging/shared-unlock-browser";
+import { SHARED_UNLOCK_BROWSER_PORT, SHARED_UNLOCK_BROWSER_PORT_V2, isSharedUnlockBrowserMessage, type SharedUnlockBrowserReady } from "../../shared/messaging/shared-unlock-browser";
 import type { SharedUnlockBrowserRoute } from "./browser-route";
 
 export type ExternalSharedUnlockBrowserApi = Pick<typeof chrome, "runtime" | "tabs" | "webNavigation">;
 type DocumentRoute = SharedUnlockBrowserRoute & { readonly tabId: number; readonly documentId: string };
 interface ExternalBrowserOptions<Route extends DocumentRoute> {
   readonly native: ExternalSharedUnlockBrowserApi;
+  readonly authoritySync?: boolean;
   initialize(): Promise<unknown>;
   environments(): readonly SharedUnlockEnvironment[];
   accept(port: chrome.runtime.Port, channelId: string, onClosed: () => void): Route | null;
@@ -31,7 +32,7 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
   const configuredOrigin = (port: chrome.runtime.Port) => options.environments().some(item => item.webOrigin === port.sender?.origin);
   const retire = (tabId: number) => { active.get(tabId)?.close(); active.delete(tabId); };
   const connect = (port: chrome.runtime.Port) => {
-    if (port.name !== SHARED_UNLOCK_BROWSER_PORT) return;
+    if (port.name !== SHARED_UNLOCK_BROWSER_PORT && !(options.authoritySync && port.name === SHARED_UNLOCK_BROWSER_PORT_V2)) return;
     const tabId = port.sender?.tab?.id;
     // Any Web page may connect, so a foreign origin must not consume the shared
     // budget. Before configuration loads, a per-tab cap bounds unverified Ports.
@@ -72,7 +73,7 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
       if (pending) connections.add(disconnect);
     };
     const message = (raw: unknown) => {
-      if (!isSharedUnlockBrowserMessage(raw)) { disconnect(); return; }
+      if (!isSharedUnlockBrowserMessage(raw) || raw.protocol !== port.name) { disconnect(); return; }
       if (ready && route && raw.type === "operation") {
         if (pendingOperations.length >= 4) { disconnect(); return; }
         pendingOperations.push(raw);
@@ -105,7 +106,7 @@ export function startExternalSharedUnlockBrowser<Route extends DocumentRoute>(op
         active.set(route.tabId, route);
         await route.verifyCurrent();
         if (disconnected) return;
-        const response: SharedUnlockBrowserReady = { type: "ready", protocol: SHARED_UNLOCK_BROWSER_PORT,
+        const response: SharedUnlockBrowserReady = { type: "ready", protocol: route.protocol,
           apiUrl: route.apiUrl, webOrigin: route.webOrigin, extensionId: route.extensionId,
           webNonce: raw.webNonce, channelId, documentBinding: route.documentBinding };
         route.openOperations(raw.webNonce);
