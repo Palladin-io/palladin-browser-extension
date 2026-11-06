@@ -101,3 +101,14 @@ The independently validated popup command names one exact method ID for edits or
 removal; null explicitly adds. Capture confirmation appends a method and preserves
 its existing browser document/origin/session fences. See [federated sign-in methods](FEDERATED-SIGNIN.md)
 for compatibility, disclosure and pending SDK publication gates.
+
+### Entry-scoped authenticator scan
+
+The QR action expands inline under the current Entry. Its native confirmation
+uses that Entry directly, without an account picker or redundant QR metadata.
+A short warning explains a different website and any existing authenticator
+replacement. Cancel is on the left; Save, or Replace when TOTP exists, is on the
+right. Clicking that action explicitly confirms the displayed mismatch and
+replacement for this operation. Collapsing the section never saves. Passive
+capture keeps its existing review flow; worker target, document and freshness
+checks and autofill policy are unchanged.

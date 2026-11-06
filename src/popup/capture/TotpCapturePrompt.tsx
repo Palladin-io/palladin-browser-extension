@@ -25,16 +25,31 @@ export function TotpCapturePrompt({ review, send = sendDefault, onDone, onSaved 
   const [replace, setReplace] = useState(false); const [label, setLabel] = useState(''); const [username, setUsername] = useState('');
   const [confirmDomainMismatch, setConfirmDomainMismatch] = useState(false);
   const [busy, setBusy] = useState(false); const [error, setError] = useState(false);
-  const target = review.targets.find(item => item.id === targetId);
+  const manual = Boolean(review.entryScope);
+  const target = review.targets.find(item => manual
+    ? item.entryId === review.entryScope?.id && item.vaultId === review.entryScope.vaultId && item.action === 'update'
+    : item.id === targetId);
   async function save() {
-    if (!target || busy || target.domainMismatch && !confirmDomainMismatch || target.hasTotp && !replace || target.action === 'create' && !label.trim()) return;
+    if (!target || busy || !manual && (target.domainMismatch && !confirmDomainMismatch || target.hasTotp && !replace) || target.action === 'create' && !label.trim()) return;
     setBusy(true); setError(false);
     try {
-      const result = await send({ channel: TOTP_CAPTURE_CHANNEL, type: 'save', id: review.id, targetId, replace, confirmDomainMismatch,
+      const result = await send({ channel: TOTP_CAPTURE_CHANNEL, type: 'save', id: review.id, targetId: target.id, replace: manual ? target.hasTotp : replace, confirmDomainMismatch: manual ? target.domainMismatch : confirmDomainMismatch,
         ...(target.action === 'create' ? { create: { label: label.trim(), username } } : {}) });
-      if (result.status === 'saved') { if (result.entryId && result.vaultId) setSavedTarget({id:result.entryId,vaultId:result.vaultId}); setLabel(''); setUsername(''); setReplace(false); setStage('saved'); onSaved?.(); } else if (result.status === 'stale') onDone(); else setError(true);
+      if (result.status === 'saved') { if (manual) { onDone(); return; } if (result.entryId && result.vaultId) setSavedTarget({id:result.entryId,vaultId:result.vaultId}); setLabel(''); setUsername(''); setReplace(false); setStage('saved'); onSaved?.(); } else if (result.status === 'stale') onDone(); else setError(true);
     } catch { setError(true); } finally { setBusy(false); }
   }
+  if (manual) return <section className="capture-prompt" aria-label={t('totpCapture.title')}>
+    <div className="totp-domain-warning" role={target?.domainMismatch || target?.hasTotp ? 'alert' : 'status'}>
+      <h3>{target?.domainMismatch || target?.hasTotp ? <><span className="totp-warning-label">{t('totpCapture.warning')}</span><span className="totp-warning-separator" aria-hidden="true">|</span></> : null}<span>{t('totpCapture.title')}</span></h3>
+      <p>{t(target?.domainMismatch ? 'totpCapture.entryDomainWarning' : 'totpCapture.confirmSave')}
+        {target?.hasTotp ? ` ${t('totpCapture.replaceNotice')}` : null}</p>
+    </div>
+    {error ? <p role="alert">{t('totpCapture.error')}</p> : null}
+    <div className="totp-scan-actions">
+      <Button variant="subtle" disabled={busy} onClick={() => { setBusy(true); void send({ channel: TOTP_CAPTURE_CHANNEL, type: 'dismiss', id: review.id }).then(onDone).catch(() => { setError(true); setBusy(false); }); }}>{t('totpCapture.cancel')}</Button>
+      <Button disabled={!target || busy} loading={busy} onClick={() => void save()}>{t(target?.hasTotp ? 'totpCapture.replaceAction' : 'common.save')}</Button>
+    </div>
+  </section>;
   return <CaptureReview title={t('totpCapture.title')} savedTitle={t('captureReview.authenticatorSaved')} origin={new URL(review.origin).hostname}
     name={review.issuer || new URL(review.origin).hostname} {...(review.account ? { detail: review.account } : {})} identity={{ name: review.issuer || '', type: ENTRY_TYPE_CREDENTIAL }}
     stage={stage} {...(target ? { vault: target.vaultLabel } : {})} saveLabel={t('totpCapture.save')} busy={busy}
@@ -63,6 +78,7 @@ export function TotpCapturePrompt({ review, send = sendDefault, onDone, onSaved 
 }
 export function TotpCaptureSurface({ revision, entry }: { revision: number; entry?: { id: string; vaultId: string } }) {
   const { t } = useI18n(); const [review, setReview] = useState<Review | null>(null); const [empty, setEmpty] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [scanning, setScanning] = useState(false); const [ambiguous, setAmbiguous] = useState(false);
   const saved = useRef(false);
   const sequence = useRef(0); const mounted = useRef(true);
@@ -95,9 +111,18 @@ export function TotpCaptureSurface({ revision, entry }: { revision: number; entr
     ? review.entryScope?.id === entry.id && review.entryScope.vaultId === entry.vaultId
     : !review.entryScope) ? review : null;
   const scopedReview = visibleReview?.targets.length ? visibleReview : null;
-  return <>{scopedReview ? <TotpCapturePrompt key={scopedReview.id} review={scopedReview} onSaved={() => { saved.current = true; sequence.current++; }} onDone={() => { saved.current = false; setReview(null); }} /> : null}
-    {entry && !scopedReview ? <button className="detail-link" disabled={scanning} onClick={() => void scan()}><PopupIcon name="qr" />{t('totpCapture.scan')}<PopupIcon name="chevron" /></button> : null}
+  const content = <>
+    {scopedReview ? <TotpCapturePrompt key={scopedReview.id} review={scopedReview} onSaved={() => { saved.current = true; sequence.current++; }} onDone={() => { saved.current = false; setReview(null); setExpanded(false); }} /> : null}
     {entry && visibleReview && !scopedReview ? <p className="entry-status totp-capture-feedback" role="status">{t('totpCapture.entryUnavailable')}</p> : null}
     {empty ? <p className="entry-status totp-capture-feedback" role="status">{t('totpCapture.noResult')}</p> : null}
-    {ambiguous ? <p className="entry-status totp-capture-feedback" role="status">{t('totpCapture.ambiguous')}</p> : null}</>;
+    {ambiguous ? <p className="entry-status totp-capture-feedback" role="status">{t('totpCapture.ambiguous')}</p> : null}
+  </>;
+  if (!entry) return content;
+  return <>
+    <button className="detail-link totp-scan-toggle" aria-expanded={expanded} disabled={scanning} onClick={() => {
+      if (expanded) setExpanded(false);
+      else { setExpanded(true); void scan(); }
+    }}><PopupIcon name="qr" />{t('totpCapture.scan')}<PopupIcon name="chevron" /></button>
+    {expanded ? <div className="totp-scan-content">{content}</div> : null}
+  </>;
 }

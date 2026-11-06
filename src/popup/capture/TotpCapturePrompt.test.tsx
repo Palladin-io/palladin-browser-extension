@@ -110,15 +110,15 @@ it.each(['bob', 'missing'])('limits an Entry scan to its worker-approved target:
     const view = render(<TotpCaptureSurface revision={0} entry={{ id: entryId, vaultId: 'vault' }} />);
     fireEvent.click(screen.getByRole('button', { name: 'Scan authenticator QR code' }));
     if (entryId === 'bob') {
-      fireEvent.click(await screen.findByRole('button', { name: 'Review' }));
-      expect(screen.getByLabelText('Credential')).toHaveValue('Bob');
+      expect(await screen.findByRole('button', { name: 'Save' })).toBeEnabled();
+      expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
       expect(screen.queryByRole('option', { name: /Alice/ })).not.toBeInTheDocument();
-      fireEvent.click(screen.getByRole('button', { name: 'Save authenticator' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
       await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'save', targetId: 'two' })));
       expect(send).toHaveBeenCalledWith({ channel: 'palladin.totp-capture', type: 'scan', entry: { id: 'bob', vaultId: 'vault' } });
     } else {
       expect(await screen.findByRole('status')).toHaveTextContent('This Entry cannot be updated');
-      expect(screen.queryByRole('button', { name: 'Save authenticator' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
     }
     view.unmount();
   } finally { vi.unstubAllGlobals(); }
@@ -142,7 +142,45 @@ it('warns about a different domain and allows saving after explicit confirmation
   render(<TotpCapturePrompt review={{ ...review, defaultTargetId: 'two', targets: [{ ...review.targets[1]!, domainMismatch: true }] }} send={send} onDone={() => {}} />);
   fireEvent.click(screen.getByRole('button', { name: 'Review' }));
   expect(screen.getByRole('button', { name: 'Save authenticator' })).toBeDisabled();
-  fireEvent.click(screen.getByLabelText('Save to this Entry despite the different website'));
+  fireEvent.click(screen.getByLabelText('This is the right account'));
   fireEvent.click(screen.getByRole('button', { name: 'Save authenticator' }));
   await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ targetId: 'two', confirmDomainMismatch: true })));
+});
+
+it('shows the manual review only below an expanded QR action without saving on collapse', async () => {
+  const { TotpCaptureSurface } = await import('./TotpCapturePrompt');
+  const candidate = { ...review, entryScope: { id: 'bob', vaultId: 'vault' }, defaultTargetId: 'two', targets: [{ ...review.targets[1]!, domainMismatch: true }] };
+  const send = vi.fn(async () => candidate);
+  vi.stubGlobal('chrome', { runtime: { sendMessage: send, onMessage: { addListener() {}, removeListener() {} } } });
+  try {
+    const view = render(<TotpCaptureSurface revision={0} entry={{ id: 'bob', vaultId: 'vault' }} />);
+    await waitFor(() => expect(send).toHaveBeenCalled());
+    const toggle = screen.getByRole('button', { name: 'Scan authenticator QR code' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('region', { name: 'Save authenticator' })).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    const prompt = await screen.findByRole('region', { name: 'Save authenticator' });
+    expect(toggle.compareDocumentPosition(prompt) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(screen.queryByRole('region', { name: 'Save authenticator' })).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(await screen.findByRole('button', { name: 'Save' })).toBeEnabled();
+    expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'save' }));
+    view.unmount();
+  } finally { vi.unstubAllGlobals(); }
+});
+
+it('confirms a scoped mismatch and replacement with Replace, without redundant fields', async () => {
+  const send = vi.fn(async () => ({ status: 'saved' as const }));
+  render(<TotpCapturePrompt review={{ ...review, entryScope: { id: 'alice', vaultId: 'vault' }, defaultTargetId: 'one', targets: [{ ...review.targets[0]!, domainMismatch: true }] }} send={send} onDone={() => {}} />);
+  expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  expect(screen.queryByText(/Detected on/)).not.toBeInTheDocument();
+  expect(screen.getByRole('alert')).toHaveTextContent('The Entry URL does not match this website. Continue?');
+  expect(screen.getByRole('alert')).toHaveTextContent('The existing authenticator will be replaced.');
+  expect(screen.getAllByRole('button').map(button => button.textContent)).toEqual(['Cancel', 'Replace']);
+  expect(send).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Replace' }));
+  await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ targetId: 'one', confirmDomainMismatch: true, replace: true })));
 });
