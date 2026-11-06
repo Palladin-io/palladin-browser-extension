@@ -113,3 +113,26 @@ it('binds legacy Firefox to an explicit current capture route and exact iframe P
   current=false;
   expect(await sessions.dispatch(command,child,port)).toEqual({status:'stale'});
 });
+
+it('hands off edited draft without writes and survives intentional iframe teardown, then consumes once',async()=>{
+ const draft={kind:'totp' as const,targetId:'target',label:'Edited draft',username:'account',replace:false,confirmDomainMismatch:false};
+ let writes=0;
+ const sessions=new InlineCaptureReviewSessions({runtimeId:'ext',frameUrl:frame.url!,sessionGeneration:()=>1,current:async()=>true,candidate:async()=>true,attest:async()=>true,verifyFrameParent:async()=>true,dispatch:async()=>{writes++;return {status:'saved'};},navigateDraft:async()=>true});
+ const owner={},port={};const capability=(await sessions.mint(sourceSender,{kind:'totp',captureId:'capture',documentId:'isolated'},owner))!;
+ await sessions.connect(capability,frame,port);
+ expect(await sessions.dispatch({channel,capability,kind:'totp',command:{type:'open-draft',draft}},frame,port)).toEqual({status:'dismissed'});
+ sessions.revokeOwner(port);sessions.revokeOwner(owner);
+ expect(await sessions.takeDraft('totp','capture')).toEqual(draft);
+ expect(await sessions.takeDraft('totp','capture')).toBeNull();
+ expect(writes).toBe(0);sessions.clear();
+});
+
+it.each(['lock','navigation','expiry','source'] as const)('drops transferred draft after %s',async invalidation=>{
+ let now=0,generation=1,current=true;
+ const sessions=new InlineCaptureReviewSessions({runtimeId:'ext',frameUrl:frame.url!,now:()=>now,sessionGeneration:()=>generation,current:async()=>current,candidate:async()=>true,attest:async()=>true,verifyFrameParent:async()=>true,dispatch:async()=>({status:'stale'}),navigateDraft:async()=>true});
+ const owner={},port={};const capability=(await sessions.mint(sourceSender,{kind:'totp',captureId:'capture',documentId:'isolated'},owner))!;
+ await sessions.connect(capability,frame,port);
+ await sessions.dispatch({channel,capability,kind:'totp',command:{type:'open-draft',draft:{kind:'totp',targetId:'target',label:'Edited draft',username:'',replace:false,confirmDomainMismatch:false}}},frame,port);
+ if(invalidation==='lock'){generation++;sessions.clear();}else if(invalidation==='navigation')sessions.revokeTab(1);else if(invalidation==='expiry')now=180001;else current=false;
+ expect(await sessions.takeDraft('totp','capture')).toBeNull();sessions.clear();
+});

@@ -1,3 +1,4 @@
+import type { CaptureDraft, CaptureFormDraft } from '../../shared/messaging/capture-draft';
 import { FilterSelect } from '../components/FilterSelect';
 import { useEffect, useRef, useState } from 'react';
 import { ENTRY_TYPE_CREDENTIAL } from '../../background/vault/entry-metadata';
@@ -75,8 +76,8 @@ export function LoginCaptureSurface({ revision }: { revision: number }): React.J
     onDone={() => { saved.current = false; promptId.current = null; setReview(null); }} /> : null;
 }
 
-export function LoginCapturePrompt({ review: initialReview, send, onDone, onSaved, onOpenCapture, initialExpanded = false, client = vaultClient }: {
-  onOpenCapture?(saved: boolean): void; initialExpanded?: boolean; client?: ReturnType<typeof createVaultClient>; review: NativeLoginCaptureReview; send: Send; onDone(): void; onSaved?(): void;
+export function LoginCapturePrompt({ review: initialReview, send, onDone, onSaved, onOpenCapture, initialDraft, initialExpanded = false, client = vaultClient }: {
+  initialDraft?: Extract<CaptureDraft,{kind:'login'}> | undefined; onOpenCapture?(saved: boolean, draft?: CaptureDraft): void; initialExpanded?: boolean; client?: ReturnType<typeof createVaultClient>; review: NativeLoginCaptureReview; send: Send; onDone(): void; onSaved?(): void;
 }): React.JSX.Element {
   const { t, locale } = useI18n();
   const [review, setReview] = useState(initialReview);
@@ -84,16 +85,18 @@ export function LoginCapturePrompt({ review: initialReview, send, onDone, onSave
   const [savedEntry, setSavedEntry] = useState<{vaultId:string;id:string} | null>(null);
   const [savedIdentity, setSavedIdentity] = useState<{name:string;detail:string;icon?:string} | null>(null);
   const [stage, setStage] = useState<CaptureReviewStage>(initialExpanded ? 'review' : 'notice');
-  const [targetId, setTargetId] = useState(review.prompt.defaultTargetId ?? '');
-  const [accountId, setAccountId] = useState(review.kind === 'federated' ? review.prompt.defaultAccountId ?? '' : '');
+  const [targetId, setTargetId] = useState(initialDraft?.targetId ?? review.prompt.defaultTargetId ?? '');
+  const [accountId, setAccountId] = useState(initialDraft?.accountId ?? (review.kind === 'federated' ? review.prompt.defaultAccountId ?? '' : ''));
   const [entry, setEntry] = useState(review.kind === 'credential' ? review.entry : null);
   const [formVersion, setFormVersion] = useState(0);
-  const [methodMode, setMethodMode] = useState<'create'|'update'>(review.prompt.targets.some(value => value.action === 'update') ? 'update' : 'create');
-  const [entryName, setEntryName] = useState(review.prompt.site);
-  const [autoUpdate, setAutoUpdate] = useState(false);
-  const [replace, setReplace] = useState(false);
+  const [methodMode, setMethodMode] = useState<'create'|'update'>(initialDraft?.methodMode ?? (review.prompt.targets.some(value => value.action === 'update') ? 'update' : 'create'));
+  const [entryName, setEntryName] = useState(initialDraft?.entryName ?? review.prompt.site);
+  const [autoUpdate, setAutoUpdate] = useState(initialDraft?.autoUpdate ?? false);
+  const [replace, setReplace] = useState(initialDraft?.replace ?? false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
+  const formDraft=useRef<CaptureFormDraft|null>(initialDraft?.form ?? null);
+  const restoredForm=useRef(initialDraft?.form ?? undefined);
   const alive = useRef(true);
   const request = useRef(0);
   useEffect(() => { alive.current = true; return () => { alive.current = false; request.current++; }; }, []);
@@ -107,6 +110,7 @@ export function LoginCapturePrompt({ review: initialReview, send, onDone, onSave
   const formId = `login-capture-${review.prompt.id}`;
 
   async function selectTarget(value: string) {
+    restoredForm.current=undefined; formDraft.current=null;
     setTargetId(value); setAutoUpdate(false); setReplace(false); setError(false);
     if (review.kind !== 'credential' || !value) return;
     const generation = ++request.current;
@@ -125,7 +129,7 @@ export function LoginCapturePrompt({ review: initialReview, send, onDone, onSave
     try {
       const result = await send(command);
       if (!alive.current) return false;
-      if (result.status === 'saved') { setSavedIdentity({ name: command.type === 'save' ? command.entry.label : target?.action === 'create' ? entryName.trim() : target?.label ?? review.prompt.site,
+      if (result.status === 'saved') { formDraft.current=null;restoredForm.current=undefined; setSavedIdentity({ name: command.type === 'save' ? command.entry.label : target?.action === 'create' ? entryName.trim() : target?.label ?? review.prompt.site,
         detail: command.type === 'save' ? command.entry.username : `${provider ?? ''} · ${account?.label ?? ''}`,
         ...(entry?.icon ? { icon: entry.icon } : {}) }); if (result.vaultId && result.entryId) setSavedEntry({ vaultId: result.vaultId, id: result.entryId }); setEntry(null); setReview(value => safeSummary(value)); setStage('saved'); onSaved?.(); return true; }
       if (result.status === 'stale' || result.status === 'dismissed') { onDone(); return false; }
@@ -165,7 +169,7 @@ export function LoginCapturePrompt({ review: initialReview, send, onDone, onSave
     stage={stage} vault={target?.vaultLabel ?? ''} busy={busy} disabled={!target || review.kind === 'federated' && (!account || replacing && !replace || target?.action === 'create' && !entryName.trim())}
     saveLabel={review.kind === 'credential' ? t(updating ? 'captureReview.updatePassword' : 'captureReview.saveLogin') : t('captureReview.rememberAction')}
     {...(review.kind === 'credential' ? { saveForm: formId } : {})} {...(error ? { error: t('captureToast.error') } : {})}
-    {...(onOpenCapture ? {onIdentity: () => onOpenCapture(stage === 'saved')} : stage === 'saved' && savedEntry && navigation ? {onIdentity: () => { navigation.update({view:'vault',selected:savedEntry});onDone(); }} : {})}
+    {...(onOpenCapture ? {onIdentity: () => onOpenCapture(stage === 'saved',{kind:'login',targetId,accountId,methodMode,entryName,autoUpdate,replace,form:formDraft.current})} : stage === 'saved' && savedEntry && navigation ? {onIdentity: () => { navigation.update({view:'vault',selected:savedEntry});onDone(); }} : {})}
     onReview={() => setStage('review')} onDone={onDone}
     onDismiss={() => void finish({ channel, type: 'dismiss', kind: review.kind, promptId: review.prompt.id })}
     onSave={() => { if (review.kind === 'federated' && target && account && (!replacing || replace)) void finish({ channel, type: 'confirm', promptId: review.prompt.id,
@@ -181,7 +185,7 @@ export function LoginCapturePrompt({ review: initialReview, send, onDone, onSave
         options={review.prompt.targets.map(value => ({ id: value.id, name: value.label, detail: value.vaultLabel, ...('icon' in value && value.icon ? { icon: value.icon } : {}), ...('color' in value && value.color ? { color: value.color } : {}), type: ENTRY_TYPE_CREDENTIAL }))}
         value={targetId} onValueChange={value => void selectTarget(value)} disabled={busy} /> : null}
 
-      {review.kind === 'credential' && entry ? <AddEntryForm key={`${targetId}:${formVersion}`} client={client} initialEntry={entry}
+      {review.kind === 'credential' && entry ? <AddEntryForm key={`${targetId}:${formVersion}`} client={client} initialEntry={entry} captureDraftRef={formDraft} initialCaptureDraft={restoredForm.current}
         captureFormId={formId} capturePasswordUpdate={updating} onBusyChange={setBusy}
         afterCredentialUrl={target?.action === 'update' ? <label className="capture-checkbox"><input type="checkbox" checked={autoUpdate} onChange={event => setAutoUpdate(event.target.checked)} />{t('captureToast.autoUpdate')}</label> : undefined}
         onSave={async next => {

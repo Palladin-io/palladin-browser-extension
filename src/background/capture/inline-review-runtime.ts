@@ -1,3 +1,5 @@
+import { CAPTURE_DRAFT_CHANNEL } from '../../shared/messaging/capture-draft';
+import { isTrustedExtensionPage } from '../trusted-sender';
 import { captureTopDocumentKey } from './document-identity';
 import { InlineCaptureReviewSessions, inlineDocumentLifecycle, type InlineCaptureReviewDependencies } from './inline-review';
 import { isInlineCaptureReviewCommand, type InlineCaptureKind, type InlineCaptureReviewResult } from '../../shared/messaging/inline-capture-review';
@@ -62,6 +64,12 @@ export function createInlineCaptureReviewRuntime(deps: Dependencies) {
   }
   function close(port: chrome.runtime.Port) { send(port, { type: 'invalidated' }); revokePort(port); try { port.disconnect(); } catch { /* Already closed. */ } }
   return {
+    readDraft(raw:unknown,sender:chrome.runtime.MessageSender) {
+      if(!record(raw)||raw.channel!==CAPTURE_DRAFT_CHANNEL)return null;
+      if(!isTrustedExtensionPage(sender,deps.runtimeId,deps.frameUrl.slice(0,deps.frameUrl.indexOf('/src/'))+'/')
+        ||!only(raw,['channel','kind','id'])||!['login','secret','totp'].includes(String(raw.kind))||!id(raw.id))return Promise.resolve({draft:null});
+      return deps.withOperation(async()=>({draft:await sessions.takeDraft(raw.kind as InlineCaptureKind,raw.id as string)}));
+    },
     clear() { sessions.clear(); for (const port of [...ports]) close(port); },
     revokeTab(tabId: number) { sessions.revokeTab(tabId); for (const port of [...ports]) if (port.sender?.tab?.id === tabId) close(port); },
     connect(port: chrome.runtime.Port): boolean {

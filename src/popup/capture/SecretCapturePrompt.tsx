@@ -1,3 +1,4 @@
+import type { CaptureDraft, CaptureFormDraft } from '../../shared/messaging/capture-draft';
 import { CaptureTransition } from './CaptureTransition';
 import { EntryAutocomplete } from '../components/EntryAutocomplete';
 import { cardNetwork } from '@shared/card-network';
@@ -62,19 +63,21 @@ export function SecretCaptureSurface({ revision, client, onOpenEntry }: { revisi
     saveLabel="" onReview={() => {}} onSave={() => {}} onDismiss={() => setSaved(null)} onDone={() => setSaved(null)}>{null}</CaptureReview> : review ? <SecretCapturePrompt key={review.id} review={review} client={client} onDone={clear}
     onSaved={summary => { setSaved(summary); clear(); }} /> : null}</CaptureTransition>;
 }
-export function SecretCapturePrompt({ review, client, send = sendSecretCapture, onDone, onSaved, onOpenCapture, initialExpanded = false }: {
-  onOpenCapture?(saved: boolean): void; initialExpanded?: boolean; review: Review; client: VaultClient; send?: Send; onDone(): void; onSaved?(summary: SavedSecretSummary): void;
+export function SecretCapturePrompt({ review, client, send = sendSecretCapture, onDone, onSaved, onOpenCapture, initialDraft, initialExpanded = false }: {
+  initialDraft?: Extract<CaptureDraft,{kind:'secret'}> | undefined; onOpenCapture?(saved: boolean, draft?: CaptureDraft): void; initialExpanded?: boolean; review: Review; client: VaultClient; send?: Send; onDone(): void; onSaved?(summary: SavedSecretSummary): void;
 }): React.JSX.Element {
   const { t } = useI18n();
   const formId = useId();
+  const formDraft=useRef<CaptureFormDraft|null>(initialDraft?.form ?? null);
+
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const initialTarget = initialExpanded && review.cardTargets?.length === 1 ? review.cardTargets[0] : undefined;
-  const [targetId, setTargetId] = useState(initialTarget?.id ?? '');
+  const [targetId, setTargetId] = useState(initialDraft?.targetId ?? initialTarget?.id ?? '');
   const [selected, setSelected] = useState<Review | null>(initialExpanded ? review : null);
   const [selecting, setSelecting] = useState(false);
   const draftReview = selected ?? review;
-  const [vaultId, setVaultId] = useState(initialTarget?.vaultId ?? review.vaults.find(v => v.isDefault)?.id ?? review.vaults[0]?.id ?? '');
+  const [vaultId, setVaultId] = useState(initialDraft?.vaultId ?? initialTarget?.vaultId ?? review.vaults.find(v => v.isDefault)?.id ?? review.vaults[0]?.id ?? '');
   const [terminal, setTerminal] = useState<'stale' | 'duplicate' | null>(null);
   const [actionError, setActionError] = useState(false);
   const selectionGeneration = useRef(0);
@@ -126,7 +129,7 @@ export function SecretCapturePrompt({ review, client, send = sendSecretCapture, 
   const detail = draftReview.candidate.kind === 'card' ? `•••• ${draftReview.candidate.cardNumber.slice(-4)} · ${t('entry.typeCard')}` : t('captureReview.capturedKey');
   return <CaptureReview title={t(card ? draftReview.cardTargets?.length ? 'captureReview.updateCardTitle' : 'captureReview.saveCard' : 'captureReview.saveKey')} savedTitle={t(card ? target ? 'captureReview.cardUpdated' : 'captureReview.cardSaved' : 'captureReview.keySaved')}
     origin={new URL(review.origin).hostname} name={name} detail={detail} identity={{ name, type: card ? ENTRY_TYPE_CREDIT_CARD : ENTRY_TYPE_KEY, ...(initialEntry.icon ? { icon: initialEntry.icon } : {}) }}
-    {...(onOpenCapture ? {onIdentity: () => onOpenCapture(saved)} : {})} stage={saved ? 'saved' : selected ? 'review' : 'notice'} vault={review.vaults.find(vault => vault.id === vaultId)?.name ?? ''}
+    {...(onOpenCapture ? {onIdentity: () => onOpenCapture(saved,{kind:'secret',targetId,vaultId,form:formDraft.current})} : {})} stage={saved ? 'saved' : selected ? 'review' : 'notice'} vault={review.vaults.find(vault => vault.id === vaultId)?.name ?? ''}
     saveLabel={t(target ? 'captureReview.updateCard' : card ? 'captureReview.saveCardAction' : 'captureReview.saveKeyAction')} saveForm={formId} busy={selecting || saving} disabled={!vaultId || !!selected?.cardTargets?.length && !target}
     {...(actionError ? { error: t('entry.error') } : {})} onReview={() => void beginReview()} onSave={() => {}} onDismiss={() => void dismiss()} onDone={onDone}>
     {selected && !saved ? <>
@@ -139,7 +142,7 @@ export function SecretCapturePrompt({ review, client, send = sendSecretCapture, 
       <FilterSelect floating aria-label={t('captureReview.vault')} value={vaultId} disabled={saving || !!selected.cardTargets?.length} onValueChange={setVaultId}>
         {review.vaults.map(vault => <option value={vault.id} key={vault.id}>{vault.name}</option>)}
       </FilterSelect>
-      {vaultId ? <AddEntryForm key={targetId || "create"} client={client} initialEntry={initialEntry} captureFormId={formId} onBusyChange={setSaving} onSave={async entry => {
+      {vaultId ? <AddEntryForm key={targetId || "create"} client={client} initialEntry={initialEntry} initialCaptureDraft={targetId===initialDraft?.targetId ? initialDraft.form ?? undefined : undefined} captureDraftRef={formDraft} captureFormId={formId} onBusyChange={setSaving} onSave={async entry => {
         if (selected.cardTargets?.length && !target) throw Error('Choose an existing card');
         const epoch = selectionGeneration.current;
         const result = await send(target && entry.entryType === 'creditCard'
@@ -147,6 +150,7 @@ export function SecretCapturePrompt({ review, client, send = sendSecretCapture, 
           : { channel: SECRET_CAPTURE_CHANNEL, type: 'save', id: review.id, vaultId, entry });
         if (epoch !== selectionGeneration.current) throw Error('Capture invalidated');
         if (result.status === 'saved') {
+          formDraft.current=null;
           setSaved(true); setSelected(null);
           onSaved?.({ name: entry.label, detail, card, updated: !!target, ...(entry.icon ? { icon: entry.icon } : {}), origin: new URL(review.origin).hostname,
             vault: review.vaults.find(vault => vault.id === vaultId)?.name ?? '',

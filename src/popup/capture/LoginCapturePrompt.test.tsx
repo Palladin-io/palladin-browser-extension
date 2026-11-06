@@ -213,3 +213,18 @@ it('defaults OAuth to the existing match and creates only after explicitly choos
   fireEvent.click(screen.getByRole('button',{name:'Remember method'}));
   await waitFor(()=>expect(send).toHaveBeenCalledWith(expect.objectContaining({type:'confirm',targetId:'create',accountId:'account'})));
 });
+it('restores partial form edits and update consent without reading or saving during handoff', () => {
+ const send=vi.fn();const open=vi.fn();
+ const draft={kind:'login' as const,targetId:'one',accountId:'',methodMode:'update' as const,entryName:'',autoUpdate:true,replace:false,
+  form:{fields:{label:'Edited unfinished',username:'edited-account',password:'edited-password',url:'https://accounts.example.com'},customFields:[{id:'custom:one',label:'',type:'totp' as const,value:'otpauth://unfinished'}],methods:[],presentation:{}}};
+ render(<LoginCapturePrompt initialExpanded initialDraft={draft} review={review} send={send} onOpenCapture={open} onDone={()=>{}}/>);
+ expect(screen.getByLabelText('Name')).toHaveValue('Edited unfinished');
+ expect(screen.getByLabelText('New password')).toHaveValue('edited-password');
+ expect(screen.getByRole('checkbox')).toBeChecked();
+ fireEvent.click(screen.getByText('Additional fields'));
+ expect(screen.getByLabelText('Name of additional field 1')).toHaveValue('');
+ expect(screen.getByLabelText('Value of additional field 1')).toHaveValue('otpauth://unfinished');
+ fireEvent.click(screen.getByRole('button',{name:'Example'}));
+ expect(open).toHaveBeenCalledWith(false,expect.objectContaining({targetId:'one',autoUpdate:true,form:expect.objectContaining({customFields:draft.form.customFields})}));
+ expect(send).not.toHaveBeenCalled();
+});

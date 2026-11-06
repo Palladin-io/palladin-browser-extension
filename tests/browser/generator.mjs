@@ -50,7 +50,7 @@ try {
   await page.getByLabel('Email', { exact: true }).fill('synthetic-user');
   await page.getByLabel('New password', { exact: true }).click();
   const cdp = await context.newCDPSession(page);
-  const clickSurfaceButton = async (name, role = 'button') => {
+  const clickSurfaceButton = async (name, role = 'button', beforeClick) => {
     const deadline = Date.now() + 10000;
     let button;
     while (!button && Date.now() < deadline) {
@@ -60,6 +60,7 @@ try {
     }
     assert(button, `Inline action is accessible: ${name}`);
     const { model } = await cdp.send('DOM.getBoxModel', { backendNodeId: button.backendDOMNodeId });
+    if (beforeClick) await beforeClick();
     await page.mouse.click((model.content[0] + model.content[4]) / 2, (model.content[1] + model.content[5]) / 2);
     if (role === 'option') await waitPreview();
   };
@@ -92,7 +93,9 @@ try {
   const waitPreview = async () => {
     const deadline = Date.now() + 10000;
     while (Date.now() < deadline) { const current = await inspect(); if (current?.value && !current.buttons[1].disabled) return current; await page.waitForTimeout(50); }
-    throw Error('Generated preview was not ready');
+    const current = await inspect();
+    const filled = await page.locator('[name=password]').evaluate(input => input.value.length > 0);
+    throw Error(`Generated preview was not ready: ${JSON.stringify({ surfacePresent:!!current,hidden:current?.hidden,previewPresent:!!current?.value,useDisabled:current?.buttons[1]?.disabled,siteFilled:filled })}`);
   };
   await mkdir('test-results/generator', { recursive: true });
   if (!process.env.PALLADIN_VISUAL_ONLY) {
@@ -116,7 +119,34 @@ try {
   assert(slider); const sliderBox = (await cdp.send('DOM.getBoxModel', { backendNodeId: slider.backendDOMNodeId })).model;
   await page.mouse.click((sliderBox.content[0] + sliderBox.content[4]) / 2, (sliderBox.content[1] + sliderBox.content[5]) / 2);
   await page.keyboard.press('Home'); for (let index = 0; index < 9; index++) await page.keyboard.press('ArrowRight');
-  await clickSurfaceButton('Numbers', 'checkbox'); await clickSurfaceButton('Symbols', 'checkbox');
+  await waitPreview();
+  // Hold a preview response so it settles between pointer targeting and click.
+  // Controls must not move under an already-targeted trusted user action.
+  await worker.evaluate(() => {
+    const get = chrome.storage.local.get.bind(chrome.storage.local);
+    let held;
+    globalThis.generatorPreviewHeld = new Promise(resolve => { held = resolve; });
+    globalThis.restoreGeneratorStorage = () => { chrome.storage.local.get = get; };
+    let holdNext = true;
+    chrome.storage.local.get = async keys => {
+      const result = await get(keys);
+      if (keys === 'palladin.generator.suggestions-enabled' && holdNext) {
+        holdNext = false;
+        await new Promise(resolve => { globalThis.releaseGeneratorPreview = resolve; held(); });
+      }
+      return result;
+    };
+  });
+  await clickSurfaceButton('Numbers', 'checkbox');
+  await worker.evaluate(() => globalThis.generatorPreviewHeld);
+  await clickSurfaceButton('Symbols', 'checkbox', async () => {
+    await worker.evaluate(() => globalThis.releaseGeneratorPreview());
+    await waitPreview();
+  });
+  await worker.evaluate(() => {
+    globalThis.restoreGeneratorStorage();
+    delete globalThis.restoreGeneratorStorage; delete globalThis.releaseGeneratorPreview; delete globalThis.generatorPreviewHeld;
+  });
   visible = await waitPreview(); assert.equal(visible.length, '21');
   await page.screenshot({ path: 'test-results/generator/password-options-light.png' });
   await clickSurfaceButton('Type', 'combobox'); await clickSurfaceButton('Passphrase', 'option');

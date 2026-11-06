@@ -431,6 +431,13 @@ chrome.runtime.onConnect.addListener((port) => {
 // candidate. This listener has a separate sender gate from the popup channel.
 // Discovery exposes no session state; authorization still occurs on the native document-bound Port.
 chrome.runtime.onMessage.addListener((raw, sender, respond) => {
+  const draft=inlineCaptureReview.readDraft(raw,sender);
+  if(!draft)return false;
+  void draft.then(respond).catch(()=>respond({draft:null}));
+  return true;
+});
+
+chrome.runtime.onMessage.addListener((raw, sender, respond) => {
   if (!raw || typeof raw !== 'object' || Object.keys(raw).length !== 1 || raw.type !== 'shared-unlock/discover') return false;
   if (sender.id !== chrome.runtime.id || sender.frameId !== 0 || sender.tab?.incognito !== false || !sender.url) { respond(false); return false; }
   void initializeServerConfig().then(() => {

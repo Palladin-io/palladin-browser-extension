@@ -26,7 +26,7 @@ export function isPopupViewCommand(raw: unknown): raw is PopupViewCommand {
   if (!Object.keys(command).every((key) => ["type", "generation", "state"].includes(key))) return false;
   if (typeof command.state !== "object" || command.state === null) return false;
   const state = command.state as Record<string, unknown>;
-  return Object.keys(state).length === (state.pendingCapture === undefined ? 7 : 8)
+  return Object.keys(state).length === (Object.hasOwn(state, "pendingCapture") ? 8 : 7)
     && (state.pendingCapture === undefined || validPendingCapture(state.pendingCapture))
     && typeof state.query === "string" && state.query.length <= 4096
     && ["capture", "vault", "generator", "add-entry", "logs", "shares", "grants", "settings"].includes(state.view as string)

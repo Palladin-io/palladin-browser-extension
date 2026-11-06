@@ -135,13 +135,35 @@ try {
   await page.getByLabel('Password',{exact:true}).fill('SyntheticPending!001');
   await page.getByRole('button',{name:'Submit',exact:true}).click();
   { const frame=await openReview('pending-draft'),count=api.writes.length;
+    await frame.getByRole('combobox',{name:label('Save to Vault')}).click();
+    await frame.getByRole('option',{name:'Team',exact:true}).click();
+    await wait(()=>frame.getByRole('button',{name:label('Save login'),exact:true}).isEnabled(),'selected Vault form ready');
+    await frame.getByRole('textbox',{name:label('Name'),exact:true}).fill('Edited pending login');
+    await frame.getByLabel(label('Username'),{exact:true}).fill('edited-pending-user');
+    await frame.getByLabel(label('Password'),{exact:true}).fill('SyntheticEdited!002');
+    await frame.locator('.capture-custom-fields > summary').click();
+    await frame.getByRole('button',{name:label('Add field'),exact:true}).click();
+    await frame.getByLabel(label('Value of additional field 1'),{exact:true}).fill('Unfinished custom value');
+    assert.equal(await frame.getByLabel(label('Password'),{exact:true}).inputValue(),'SyntheticEdited!002','inline edited password before transfer');
     await frame.locator('.capture-review-identity-link').click();
     popup=await attachNativePopup(profile,extensionId);
     await popup.waitButton(label('Save login'));
-    assert.equal(await popup.hasText('pending-draft.example.test'),true,'thumbnail opens this pending draft');
+    assert.equal(await popup.secretCaptureFieldsMatch({'input[type="password"]':'SyntheticEdited!002'}),true,'edited password survives handoff');
+    assert.equal(await popup.secretCaptureFieldsMatch({'input[aria-label="Value of additional field 1"]':'Unfinished custom value'}),true,'partial custom value survives handoff');
+    assert.equal(await popup.secretCaptureFieldsMatch({'input[aria-label="Name of additional field 1"]':''}),true,'empty custom name survives handoff');
+    assert.equal(await popup.hasText('Team'),true,'chosen destination survives');
     assert.equal(api.writes.length,count,'draft navigation does not save');
-    await popup.click(label('Dismiss')); await popup.dismiss(); popup=null;
-    console.log('PASS: pending thumbnail opens native draft without mutation');
+    await popup.click(label('Additional fields'),'DisclosureTriangle');
+    await popup.fill('input[aria-label="Name of additional field 1"]','Completed custom field');
+    await popup.click(label('Save login'));
+    await wait(()=>api.writes.length===count+1,'native handoff encrypted save');
+    const plain=await api.decrypt(api.writes.at(-1));
+    assert.equal(plain.content.password,'SyntheticEdited!002');
+    assert.equal(plain.content.username,'edited-pending-user');
+    assert.equal(plain.content.customFields[0].value,'Unfinished custom value');
+    assert.equal(api.writes.at(-1).vaultId,api.vaults[1].detail.id,'native save uses selected Vault');
+    await popup.dismiss(); popup=null;
+    console.log('PASS: edited pending thumbnail preserves partial fields and destination without mutation, native save encrypts edits');
   }
   }
   assert.deepEqual(api.errors,[]);assert.deepEqual(failures,[],'All inline scenarios pass');

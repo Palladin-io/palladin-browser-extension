@@ -1,3 +1,4 @@
+import type { CaptureFormDraft } from '../../shared/messaging/capture-draft';
 import { SignInMethodsEditor, type MethodDraft } from '../workspace/SignInMethodField';
 import { formatOtpauthUri } from '@palladin/crypto';
 import { parseCapturedTotp } from '@shared/totp-capture';
@@ -5,7 +6,7 @@ import { ENTRY_CREDENTIAL, ENTRY_KEY, ENTRY_SCRIPT, ENTRY_CREDIT_CARD } from '..
 import { EntryIconPicker } from '../components/EntryIconPicker';
 import { FilterSelect } from '../components/FilterSelect';
 import { PopupIcon } from '../components/PopupIcon';
-import { useId, useState } from "react";
+import { useId, useState, useLayoutEffect, type RefObject } from "react";
 
 import type {
   ManualCustomFieldInput,
@@ -39,7 +40,9 @@ const INITIAL = {
   notes: "",
 };
 
-export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, captureFormId, onBusyChange, afterCredentialUrl, capturePasswordUpdate }: {
+export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, captureFormId, onBusyChange, afterCredentialUrl, capturePasswordUpdate, initialCaptureDraft, captureDraftRef }: {
+  readonly initialCaptureDraft?: CaptureFormDraft | undefined;
+  readonly captureDraftRef?: RefObject<CaptureFormDraft | null>;
   readonly client: VaultClient;
   readonly captureFormId?: string;
   readonly capturePasswordUpdate?: boolean;
@@ -52,11 +55,15 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, ca
 }): React.JSX.Element {
   const { t } = useI18n();
   const [entryType, setEntryType] = useState<EntryType>(initialEntry?.entryType ?? "credential");
-  const [draft, setDraft] = useState(() => ({ ...INITIAL, ...initialEntry }));
-  const [methods, setMethods] = useState<MethodDraft[]>(() => initialEntry?.entryType === 'credential' ? [...(initialEntry.signInMethods ?? [])] : []);
-  const [customFields, setCustomFields] = useState<CustomFieldDraft[]>(() => (initialEntry?.customFields ?? []).map(field => ({ ...field, value: field.type === 'totp' ? formatOtpauthUri(field.value) : field.value })));
-  const [presentation, setPresentation] = useState<{ icon?: string; color?: string }>(() => ({ ...(initialEntry?.icon ? { icon: initialEntry.icon } : {}), ...(initialEntry?.color ? { color: initialEntry.color } : {}) }));
+  const [draft, setDraft] = useState(() => ({ ...INITIAL, ...initialEntry, ...initialCaptureDraft?.fields }));
+  const [methods, setMethods] = useState<MethodDraft[]>(() => initialCaptureDraft?.methods ?? (initialEntry?.entryType === 'credential' ? [...(initialEntry.signInMethods ?? [])] : []));
+  const [customFields, setCustomFields] = useState<CustomFieldDraft[]>(() => initialCaptureDraft?.customFields ?? (initialEntry?.customFields ?? []).map(field => ({ ...field, value: field.type === 'totp' ? formatOtpauthUri(field.value) : field.value })));
+  const [presentation, setPresentation] = useState<{ icon?: string; color?: string }>(() => initialCaptureDraft?.presentation ?? ({ ...(initialEntry?.icon ? { icon: initialEntry.icon } : {}), ...(initialEntry?.color ? { color: initialEntry.color } : {}) }));
   const [status, setStatus] = useState<SaveStatus>("idle");
+
+  useLayoutEffect(() => { if(captureDraftRef) captureDraftRef.current={fields:Object.fromEntries(Object.keys(INITIAL).map(key=>[key,draft[key as keyof typeof INITIAL]])),customFields,methods,presentation}; },[draft,customFields,methods,presentation,captureDraftRef]);
+
+  useLayoutEffect(()=>()=>{if(captureDraftRef)captureDraftRef.current=null;},[captureDraftRef]);
 
   function update<K extends keyof typeof INITIAL>(field: K, value: (typeof INITIAL)[K]): void {
     setDraft((current) => ({ ...current, [field]: value }));

@@ -201,3 +201,12 @@ it('retains the edited saved name and account after clearing the authenticator f
  expect(screen.getByText('saved@example.com · Authenticator')).toBeVisible();
  expect(screen.queryByLabelText('Name')).toBeNull();
 });
+it('passes edited unsaved authenticator fields and destination to thumbnail handoff', () => {
+ const open=vi.fn();
+ render(<TotpCapturePrompt initialExpanded onOpenCapture={open} review={{...review,targets:review.targets.filter(target=>target.action==='create')}} send={async()=>({status:'saved'})} onDone={()=>{}} />);
+ fireEvent.click(screen.getByRole('button',{name:'Create a login entry'}));
+ fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Edited draft'}});
+ fireEvent.change(screen.getByLabelText('Username'),{target:{value:'draft-account'}});
+ fireEvent.click(screen.getByRole('button',{name:'example.com'}));
+ expect(open).toHaveBeenCalledWith(false,expect.objectContaining({kind:'totp',label:'Edited draft',username:'draft-account',targetId:expect.any(String)}));
+});

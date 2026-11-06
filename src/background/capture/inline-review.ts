@@ -1,3 +1,4 @@
+import type { CaptureDraft } from '../../shared/messaging/capture-draft';
 import { captureDocumentKey, captureTopDocumentKey } from './document-identity';
 import { isInlineCaptureReviewCommand, type InlineCaptureKind, type InlineCaptureReviewCommand, type InlineCaptureReviewResult } from '../../shared/messaging/inline-capture-review';
 import { isManualEntrySaveInput } from '../vault/commands';
@@ -24,14 +25,24 @@ interface Session extends Request {
   receipt?: {vaultId:string;entryId:string}; terminal?: boolean; frame?: chrome.runtime.MessageSender; port?: object; busy: boolean;
 }
 export class InlineCaptureReviewSessions {
+  private readonly drafts=new Map<string,{session:Session;draft:CaptureDraft;timer:ReturnType<typeof setTimeout>}>();
+  private dropDraft(key:string):void { const value=this.drafts.get(key); if(value)clearTimeout(value.timer);this.drafts.delete(key); }
+  async takeDraft(kind:InlineCaptureKind,id:string):Promise<CaptureDraft|null>{
+    const key=`${kind}:${id}`,value=this.drafts.get(key);if(!value)return null;
+    this.dropDraft(key);
+    const {session}=value;
+    const epoch=this.epoch;
+    if(session.expires<=this.now()||session.generation!==this.deps.sessionGeneration()||!await this.deps.current(session.source)||!await this.deps.candidate(kind,id,session.source)||!await this.deps.current(session.source)||epoch!==this.epoch||session.expires<=this.now()||session.generation!==this.deps.sessionGeneration())return null;
+    return value.draft;
+  }
   private readonly sessions = new Map<string, Session>();
   private readonly now: () => number;
   private epoch = 0;
   private readonly ownerEpochs = new WeakMap<object, number>();
   constructor(private readonly deps: InlineCaptureReviewDependencies) { this.now = deps.now ?? Date.now; }
-  clear(): void { this.epoch++; this.sessions.clear(); }
+  clear(): void { this.epoch++; this.sessions.clear(); for(const key of this.drafts.keys())this.dropDraft(key); }
   revokeOwner(owner: object): void { this.ownerEpochs.set(owner, (this.ownerEpochs.get(owner) ?? 0) + 1); for (const [key, session] of this.sessions) if (session.owner === owner || session.port === owner) this.sessions.delete(key); }
-  revokeTab(tabId: number): void { this.epoch++; for (const [key, session] of this.sessions) if (session.source.tabId === tabId) this.sessions.delete(key); }
+  revokeTab(tabId: number): void { this.epoch++; for(const [key,value] of this.drafts)if(value.session.source.tabId===tabId)this.dropDraft(key); for (const [key, session] of this.sessions) if (session.source.tabId === tabId) this.sessions.delete(key); }
   private live(key: string, session: Session): boolean {
     return this.sessions.get(key) === session && session.generation === this.deps.sessionGeneration() && session.expires > this.now();
   }
@@ -90,8 +101,14 @@ export class InlineCaptureReviewSessions {
       }
       if (session.terminal) return {status:'stale'};
       if (raw.command.type === 'open-draft') {
-        if (!await authorized() || !await this.deps.candidate(session.kind,session.captureId,session.source)
-          || !await authorized() || !await this.deps.navigateDraft?.(session.kind,session.captureId,session.source)) return {status:'stale'};
+        if (!await authorized() || !await this.deps.candidate(session.kind,session.captureId,session.source) || !await authorized()) return {status:'stale'};
+        const key=`${session.kind}:${session.captureId}`;
+        this.dropDraft(key);
+        if(this.drafts.size>=8)this.dropDraft(this.drafts.keys().next().value!);
+        this.drafts.set(key,{session,draft:structuredClone(raw.command.draft),timer:setTimeout(()=>this.dropDraft(key),Math.max(0,session.expires-this.now()))});
+        try {
+          if(!await this.deps.navigateDraft?.(session.kind,session.captureId,session.source)){this.dropDraft(key);return {status:'stale'};}
+        } catch {this.dropDraft(key);return {status:'stale'};}
         this.sessions.delete(raw.capability); return {status:'dismissed'};
       }
       if (!await authorized() || !await this.deps.candidate(session.kind, session.captureId, session.source) || !await authorized()) return { status: 'stale' };

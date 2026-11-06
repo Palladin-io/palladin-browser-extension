@@ -11,3 +11,14 @@ it('rejects a different pending capture instead of displaying whichever candidat
   expect(screen.queryByLabelText('Value')).toBeNull();
   expect(document.body.textContent).not.toContain('synthetic');
 });
+it('consumes a handoff once across StrictMode effect replay and restores its edits',async()=>{
+ const {StrictMode}=await import('react');
+ let reads=0;
+ vi.stubGlobal('chrome',{runtime:{sendMessage:vi.fn(async command=>{
+  if(command.channel==='palladin.capture-draft.v1')return {draft:++reads===1?{kind:'totp',targetId:'create',label:'Edited draft',username:'edited-account',replace:false,confirmDomainMismatch:false}:null};
+  return {status:'ready',id:'capture',origin:'https://example.test',entryScope:null,account:'original',issuer:null,targets:[{id:'create',action:'create',label:'Create',vaultLabel:'Personal',vaultId:'vault',entryId:null,domainMismatch:false,hasTotp:false}],defaultTargetId:null};
+ })}});
+ render(<StrictMode><PendingCaptureView capture={{kind:'totp',id:'capture'}} client={createVaultClient(async()=>{throw Error();})} onDone={()=>{}}/></StrictMode>);
+ expect(await screen.findByLabelText('Name')).toHaveValue('Edited draft');
+ expect(reads).toBe(1);
+});

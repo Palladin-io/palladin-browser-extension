@@ -138,3 +138,11 @@ it.each(['chrome-extension:', 'moz-extension:', 'safari-web-extension:'])('check
     expect(await verifyInlineReviewFrame(child,source)).toBe(false);
   } finally { vi.unstubAllGlobals(); }
 });
+
+it('denies handoff plaintext retrieval to content and embedded extension frames',async()=>{
+ const r=runtime();
+ const request={channel:'palladin.capture-draft.v1',kind:'login',id:'capture'};
+ expect(await r.readDraft(request,sender)).toEqual({draft:null});
+ expect(await r.readDraft(request,{...sender,url:'chrome-extension://ext/src/capture-review/index.html',frameId:2})).toEqual({draft:null});
+ r.clear();
+});

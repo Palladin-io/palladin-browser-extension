@@ -1,3 +1,4 @@
+import type { CaptureDraft } from '../shared/messaging/capture-draft';
 import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import { ApiUrlContext } from '../popup/components/PublicAssetImages';
 import captureBrand from '../../icons/icon-128.png';
@@ -48,7 +49,7 @@ export function CaptureFrameApp({ connection }: { connection: CaptureFrameConnec
     observer.observe(node);
     return () => observer.disconnect();
   }, [connection]);
-  const openCapture = (saved: boolean) => { void connection.send({type:saved ? 'open-saved' : 'open-draft'}).then(result => { if (result.status === 'dismissed') connection.close(); }).catch(connection.failed); };
+  const openCapture = (saved: boolean, draft?: CaptureDraft) => { if(!saved && !draft)return; void connection.send(saved ? {type:'open-saved'} : {type:'open-draft',draft:draft!}).then(result => { if (result.status === 'dismissed') connection.close(); }).catch(connection.failed); };
   return <ApiUrlContext.Provider value={connection.apiUrl}><div className="popup capture-frame" ref={container}>
     <header className="popup-header"><div className="brand-lockup"><img className="brand-logo" src={captureBrand} alt="" /><h1 className="wordmark" aria-label="Palladin.io">Palladin<span className="wordmark-tld">.io</span></h1></div><button type="button" className="toolbar-icon" aria-label={t('captureReview.close')} onClick={connection.close}><span aria-hidden="true">×</span></button></header>
     {review?.kind === 'login' ? <LoginCapturePrompt initialExpanded onOpenCapture={openCapture} client={noVaultCommands} review={review.value}
