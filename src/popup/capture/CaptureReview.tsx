@@ -15,10 +15,10 @@ interface Props {
 }
 export function CaptureReview(props: Props): React.JSX.Element {
   const { t } = useI18n();
-  const identityText = <span><strong>{props.name}</strong>{props.detail ? <small>{props.detail}</small> : null}{props.stage !== 'notice' ? <small>{t('captureReview.source', { origin: props.origin })}</small> : null}</span>;
+  const identityText = <span><strong>{props.name}</strong>{props.detail ? <small>{props.detail}</small> : null}</span>;
   return <CaptureTransition><section className="capture-review" data-stage={props.stage} aria-label={props.title}>
     <div className="capture-review-heading-wrap" aria-hidden={props.stage === 'review'}><div><div className="capture-review-heading"><h3>{props.stage === 'saved' ? props.savedTitle : props.title}</h3><p>{props.stage === 'saved' ? t('captureReview.savedVault', { vault: props.vault ?? '' }) : t('captureReview.source', { origin: props.origin })}</p></div></div></div>
-    <div className="entry-identity-card capture-review-identity">{props.onIdentity ? <button type="button" className="capture-review-identity-link" onClick={props.onIdentity}><EntryIcon {...props.identity} />{identityText}</button> : <><EntryIcon {...props.identity} />{identityText}</>}{props.identityTrailing}</div>
+    <div className="entry-identity-card capture-review-identity">{props.onIdentity ? <button type="button" className="capture-review-identity-link" aria-label={props.name} onClick={props.onIdentity}><EntryIcon {...props.identity} /></button> : <EntryIcon {...props.identity} />}{identityText}{props.identityTrailing}</div>
     <div className="capture-review-expansion" inert={props.stage !== 'review'} aria-hidden={props.stage !== 'review'}><div><div className="capture-review-fields">{props.stage !== 'saved' ? props.children : null}</div></div></div>
     {props.error ? <p className="capture-review-error" role="alert">{props.error}</p> : null}
     <div className="capture-review-footer">

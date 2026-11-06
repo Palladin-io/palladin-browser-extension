@@ -42,3 +42,15 @@ it('shows empty results and closes when disabled', async () => {
   const user=userEvent.setup();const view=render(<Harness />);await user.type(screen.getByRole('combobox'),'missing');expect(screen.getByRole('status')).toHaveTextContent('No matching entries');
   view.rerender(<Harness disabled />);expect(screen.getByRole('combobox')).toBeDisabled();expect(screen.queryByRole('listbox')).toBeNull();
 });
+
+it('shows the account before the entry and Vault and marks an existing authenticator', async () => {
+  const user = userEvent.setup();
+  const change = vi.fn();
+  render(<EntryAutocomplete label="Existing entry" options={[{id:'entry',name:'Work',account:'alice@example.com',detail:'Personal',hasTotp:true}]} value="" onValueChange={change} />);
+  await user.type(screen.getByRole('combobox'), 'alice');
+  const option = screen.getByRole('option');
+  expect(option).toHaveTextContent('alice@example.comWork · Personal');
+  expect(screen.getByLabelText('Authenticator already saved')).toBeInTheDocument();
+  await user.click(option);
+  expect(change).toHaveBeenLastCalledWith('entry');
+});

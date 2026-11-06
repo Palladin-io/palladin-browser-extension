@@ -1531,22 +1531,22 @@ html[data-extension-surface='side-panel'] .popup-header {
 .entry-autocomplete-menu > .entry-head { width: 100%; text-align: left; }
 .entry-autocomplete-menu > .entry-head[aria-selected='true'], .entry-autocomplete-menu > .entry-autocomplete-active { border-color: var(--cv-t1); background: var(--cv-selection); }
 .entry-autocomplete-menu > p { padding: 8px; font-size: 12px; color: var(--cv-t3); }
-.capture-review { border: 1px solid var(--cv-border); border-radius: 8px; background: var(--cv-surface); color: var(--cv-t1); overflow: hidden; }
-.capture-review-heading { padding: 16px 16px 0; }
-.capture-review-heading h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.capture-review { border: 1px solid var(--cv-border); border-radius: 10px; background: var(--cv-surface); color: var(--cv-t1); overflow: hidden; }
+.capture-review-heading { padding: 16px 20px 0; }
+.capture-review-heading h3 { margin: 0; font-size: 18px; font-weight: 600; }
 .capture-review-heading p { margin: 6px 0 0; color: var(--cv-t3); font-size: 12px; overflow-wrap: anywhere; }
 .capture-review-heading-wrap { display:grid; grid-template-rows:1fr; opacity:1; transition:grid-template-rows .24s ease,opacity .2s ease; }
 .capture-review-heading-wrap > div { min-height:0; overflow:hidden; }
 .capture-review[data-stage='review'] .capture-review-heading-wrap { grid-template-rows:0fr; opacity:0; }
-.capture-review-identity { display:flex; align-items:center; gap:12px; margin:16px; padding:16px; border:1px solid var(--cv-border); border-radius:10px; background:var(--cv-surface); }
+.capture-review-identity { display:flex; align-items:center; gap:10px; margin:16px 20px; padding:12px; border:1px solid var(--cv-border); border-radius:8px; background:var(--cv-surface); }
 .capture-review-identity strong, .capture-review-identity small { display: block; overflow-wrap: anywhere; }
 .capture-review-identity strong { font-size: 13px; }
-.capture-review-identity small { margin-top: 4px; font-size: 12px; color: var(--cv-t3); }
+.capture-review-identity small { margin-top: 0; font-size: 11px; color: var(--cv-t3); }
 .capture-review-expansion { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .24s ease, opacity .2s ease; }
 .capture-review-expansion > div { min-height: 0; overflow: hidden; }
 .capture-review[data-stage='review'] .capture-review-expansion { grid-template-rows: 1fr; opacity: 1; }
-.capture-review-fields { display: flex; flex-direction: column; gap: 12px; padding: 0 16px 16px; max-height: min(50vh, max(96px, calc(100dvh - 320px))); overflow-y: auto; scrollbar-width: thin; }
-.capture-review-footer { display: flex; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--cv-border); }
+.capture-review-fields { display: flex; flex-direction: column; gap: 12px; padding: 0 20px 16px; max-height: min(50vh, max(96px, calc(100dvh - 320px))); overflow-y: auto; scrollbar-width: thin; }
+.capture-review-footer { display: flex; gap: 10px; padding: 12px 20px; border-top: 1px solid var(--cv-border); }
 .capture-review-footer > button { flex: 1; }
 .capture-review-error { margin: 0; padding: 0 16px 12px; color: var(--cv-primary); font-size: 12px; }
 @media (prefers-reduced-motion: reduce) { .capture-review-expansion { transition: none; } }
@@ -1558,11 +1558,10 @@ html[data-extension-surface='side-panel'] .popup-header {
 .entry-form--capture details[open] > summary { margin-bottom: 12px; }
 .capture-custom-fields .entry-custom-fields-header h3 { display: none; }
 
-.capture-review-identity-link { display:flex; align-items:center; gap:12px; flex:1; min-width:0; border:0; background:transparent; padding:0; color:inherit; text-align:left; font:inherit; cursor:pointer; }
-.capture-review-identity-link > span:last-child { display:flex; flex-direction:column; min-width:0; }
+.capture-review-identity-link { display:flex; align-items:center; flex-shrink:0; border:0; background:transparent; padding:0; color:inherit; text-align:left; font:inherit; cursor:pointer; }
 .capture-review-identity-link:focus-visible { outline:2px solid var(--cv-primary); outline-offset:4px; border-radius:6px; }
 
-.capture-review-identity .entry-icon { width:40px; height:40px; flex-shrink:0; }
+.capture-review-identity .entry-icon { width:36px; height:32px; flex-shrink:0; }
 .capture-provider { margin-left:auto; flex-shrink:0; display:flex; align-items:center; }
 .capture-checkbox, .capture-review .settings-checkbox { display:flex; align-items:flex-start; gap:8px; font-size:12px; color:var(--cv-t2); }
 .capture-checkbox input, .capture-review .settings-checkbox input { width:15px; height:15px; flex-shrink:0; margin:2px 0 0; accent-color:var(--cv-primary); }
@@ -1630,3 +1629,21 @@ html[data-extension-surface='side-panel'] .popup-header {
 
 .sign-in-provider-logo:is([data-provider='apple'], [data-provider='github']) { filter:brightness(0); }
 :root[data-theme='dark'] .sign-in-provider-logo:is([data-provider='apple'], [data-provider='github']) { filter:brightness(0) invert(1); }
+
+.capture-field-hint { margin:0; font-size:11px; color:var(--cv-t3); }
+.entry-form--capture .entry-create-credentials { grid-template-columns:1fr; }
+.entry-form--capture .entry-custom-add { width:100%; text-align:left; padding:9px; }
+.capture-review-identity > span:not(.entry-icon):not(.capture-provider) { min-width:0; flex:1; }
+.capture-review-identity .entry-icon-image { width:22px; height:22px; object-fit:contain; }
+
+.capture-update-context { border:1px solid var(--cv-border); border-radius:8px; padding:12px; font-size:12px; }
+.capture-update-context p { margin:5px 0; }
+.capture-update-context small { color:var(--cv-t3); }
+.capture-totp-badge { margin-left:auto; color:var(--cv-t3); }
+
+.capture-review-fields .entry-reveal-field{position:relative;display:block}
+.capture-review-fields .entry-reveal-field .field-input{padding-right:42px}
+.capture-review-fields .entry-reveal-field .toolbar-icon{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:30px;height:30px}
+
+.capture-review-identity .capture-provider{width:36px;height:32px;justify-content:center;border:1px solid var(--cv-border);border-radius:6px;background:var(--cv-surface)}
+.capture-review-identity .capture-provider img{width:22px;height:22px;object-fit:contain}

@@ -1,3 +1,4 @@
+import { currentLegacyCaptureLogin, captureDocumentRoutes, resolveCaptureSource } from '../capture/document-route-runtime';
 import { FEDERATED_SIGNIN_CHANNEL, type FederatedSignInCommand, type FederatedSignInRefresh } from '@shared/messaging/federated-signin'
 import { isLiveCredentialDocument } from '../capture/credential-document'
 import { captureSourceFromSender } from '../capture/runtime'
@@ -51,22 +52,25 @@ export const federatedSignIn = new FederatedSignInCoordinator({
     }
     return credentials
   },
-  save: (url, target, binding, label, stillAuthorized) => credentialWriter.saveSignIn(url, target, binding, label, stillAuthorized),
+  save: (url, target, binding, label, stillAuthorized, entryName) => credentialWriter.saveSignIn(url, target, binding, label, stillAuthorized, entryName),
   isCurrentDocument: (source) => isLiveCredentialDocument(source, browserDocumentIdForTab,
-    (tabId, message, options) => chrome.tabs.sendMessage(tabId, message, options)),
+    (tabId, message, options) => chrome.tabs.sendMessage(tabId, message, options), currentLegacyCaptureLogin),
   notify(tabId) {
     const documentId = browserDocumentIdForTab(tabId)
-    if (documentId === null) return
     const refresh: FederatedSignInRefresh = { channel: FEDERATED_SIGNIN_CHANNEL, type: 'refresh' }
-    void chrome.tabs.sendMessage(tabId, refresh, { documentId }).catch(() => undefined)
+    if (documentId !== null) void chrome.tabs.sendMessage(tabId, refresh, { documentId }).catch(() => undefined)
+    else if (captureDocumentRoutes) void captureDocumentRoutes.resolve(tabId).then(source => {
+      // This notification carries no values; its receiver resolves its own current source.
+      if (source) return chrome.tabs.sendMessage(tabId, refresh, { frameId: 0 });
+    }).catch(() => undefined)
   },
 })
 
 sessionManager.hooks.onLocked(() => { sessionGeneration += 1; federatedSignIn.clear() })
 sessionManager.hooks.onUnlocked(() => { sessionGeneration += 1 })
 
-export function federatedSignInSource(command: FederatedSignInCommand, sender: chrome.runtime.MessageSender): SignInSource | null {
-  const source = captureSourceFromSender(sender, chrome.runtime.id)
-  if (source === null || (sender.documentLifecycle !== undefined && sender.documentLifecycle !== 'active')) return null
+export async function federatedSignInSource(command: FederatedSignInCommand, sender: chrome.runtime.MessageSender): Promise<SignInSource | null> {
+  const source = sender.documentId == null ? await resolveCaptureSource(sender, command.documentId) : captureSourceFromSender(sender, chrome.runtime.id)
+  if (source === null || sender.frameId !== 0 || (sender.documentLifecycle !== undefined && sender.documentLifecycle !== 'active')) return null
   return { ...source, documentId: command.documentId }
 }

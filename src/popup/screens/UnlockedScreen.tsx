@@ -1,3 +1,4 @@
+import { PendingCaptureView } from '../capture/PendingCaptureView';
 import { LoginCaptureSurface } from '../capture/LoginCapturePrompt';
 import { TotpCaptureSurface } from '../capture/TotpCapturePrompt';
 import { ScrollableTabs } from '../components/ScrollableTabs';
@@ -156,11 +157,11 @@ function UnlockedContent({
           <PopupIcon name="plus" />
         </button>
       </Header>
-      <div className="capture-surfaces">
+      {view !== 'capture' && !selected ? <div className="capture-surfaces">
       <LoginCaptureSurface revision={viewRevision} />
       <TotpCaptureSurface revision={viewRevision} />
       <SecretCaptureSurface revision={viewRevision} client={client} onOpenEntry={(id, vaultId) => navigation.update({ selected: { id, vaultId }, view: 'vault' })} />
-      </div>
+      </div> : null}
       <h2 className="sr-only">{t('vault.title')}</h2>
       {capture.prompt !== null && view === 'vault' ? (
         <CapturePrompt
@@ -221,7 +222,7 @@ function UnlockedContent({
       </ScrollableTabs>
 
       <div className="vault-content">
-        {view === 'settings' ? settings : view === 'grants' ? (
+        {view === 'capture' && navigation.state.pendingCapture ? <PendingCaptureView capture={navigation.state.pendingCapture} client={client} onDone={() => navigation.update({view:'vault',pendingCapture:undefined})} /> : view === 'settings' ? settings : view === 'grants' ? (
           <GrantsPanel
             onShowLogs={showLogs}
             revision={pendingGrants.revision}

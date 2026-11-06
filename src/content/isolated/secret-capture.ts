@@ -1,3 +1,4 @@
+import { isCaptureNoticeIdentity, type CaptureNoticeIdentity } from '@shared/messaging/capture-notice';
 import { SECRET_CAPTURE_CHANNEL, type SecretCaptureContentCommand } from '@shared/messaging/secret-capture';
 import type { SecretCandidate } from '@shared/messaging/secret-capture';
 import { detectSecretCandidates, type SecretDetectionOptions } from './secret-detection';
@@ -24,12 +25,18 @@ export function startSecretCapture(doc: Document, documentId: string, options: O
   let action: { scope: Element; expires: number } | null = null;
   const generatedScopes = new Set<Element>();
   let noticeId: string | undefined;
+  let reviewingId: string | undefined;
   const command = (type: 'status' | 'open' | 'dismiss', id?: string): SecretCaptureContentCommand => ({ channel: SECRET_CAPTURE_CHANNEL, type, documentId, ...(id ? { id } : {}) });
   const notice = new SecretCaptureNotice(doc, async type => {
+    if (type === 'open' && !locked && noticeId) {
+      const id = noticeId;
+      if (await notice.review(documentId, 'secret', id)) reviewingId = id;
+      return;
+    }
     await send(command(type, noticeId));
     if (type === 'dismiss') { noticeId = undefined; notice.hide(); }
   });
-  const showNotice = (isLocked: boolean) => { if (doc.defaultView?.top === doc.defaultView) notice.show(isLocked); };
+  const showNotice = (isLocked: boolean, identity?: CaptureNoticeIdentity) => { if (doc.defaultView?.top === doc.defaultView && (isLocked || noticeId !== reviewingId)) notice.show(isLocked, identity); };
   const status = (raw: unknown) => raw && typeof raw === 'object' && 'status' in raw ? String(raw.status) : 'error';
   async function scan(scope?: Element, cards = false, generated = false): Promise<void> {
     if (stopped || !enabled && !locked || new URL(url()).protocol !== 'https:') return;
@@ -49,7 +56,7 @@ export function startSecretCapture(doc: Document, documentId: string, options: O
         const result: unknown = await send({ channel: SECRET_CAPTURE_CHANNEL, type: 'observe', documentId, candidate });
         if (stopped || epoch !== revision) break;
         if (status(result) === 'accepted' && result && typeof result === 'object' && 'id' in result && typeof result.id === 'string') {
-          noticeId = result.id; showNotice(false);
+          noticeId = result.id; showNotice(false, 'notice' in result && isCaptureNoticeIdentity(result.notice) ? result.notice : undefined);
         } else if (status(result) === 'locked') { enabled = false; locked = true; showNotice(true); break; }
       } catch { break; }
     }
@@ -136,7 +143,7 @@ export function startSecretCapture(doc: Document, documentId: string, options: O
     try {
       const result = await send(command('status'));
       if (stopped || epoch !== revision) return;
-      if (status(result) === 'accepted' && result && typeof result === 'object' && 'id' in result && typeof result.id === 'string') { noticeId = result.id; showNotice(false); }
+      if (status(result) === 'accepted' && result && typeof result === 'object' && 'id' in result && typeof result.id === 'string') { noticeId = result.id; showNotice(false, 'notice' in result && isCaptureNoticeIdentity(result.notice) ? result.notice : undefined); }
       locked = status(result) === 'locked';
       enabled = !['locked','stale','error','muted'].includes(status(result));
       if (enabled && wasLocked) { noticeId = undefined; notice.hide(); }

@@ -252,7 +252,7 @@ describe("credential capture worker", () => {
   it("clears a ready capture when its document disconnects during loading", async () => {
     const view = await ready();
     coordinator.navigationUpdated(source.tabId, "loading");
-    coordinator.documentDisconnected(source.tabId, source.browserDocumentId);
+    coordinator.documentDisconnected(source.tabId, source.browserDocumentId!);
     await coordinator.dispatch(command({ type: "save", promptId: view.id,
       targetId: view.defaultTargetId!, autoUpdate: false }), source);
     expect(save).not.toHaveBeenCalled();
@@ -260,7 +260,7 @@ describe("credential capture worker", () => {
   it("admits a classic successor whose content port connects after loading completes", async () => {
     await coordinator.dispatch(submitted, source);
     coordinator.navigationUpdated(source.tabId, "loading");
-    coordinator.documentDisconnected(source.tabId, source.browserDocumentId);
+    coordinator.documentDisconnected(source.tabId, source.browserDocumentId!);
     isSubmissionDocument.mockReturnValue(false);
     coordinator.navigationUpdated(source.tabId, "complete");
     const next = { ...source, browserDocumentId: "next-browser-document", documentId: "next-isolated-document" };

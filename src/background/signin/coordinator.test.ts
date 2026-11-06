@@ -67,18 +67,33 @@ function provider(entry: Partial<EntryMetadata> & { id: string; username: string
 }
 
 describe('FederatedSignInCoordinator', () => {
-  it.each([1, 2])('offers only %s eligible host targets and defaults only the single target', async count => {
+  it.each([1, 2])('offers %s existing targets plus an explicit new alternative and defaults only the sole existing target', async count => {
     const h = harness({ credentials: Array.from({ length: count }, (_, index) => credential(`entry-${index}`, { status: 'absent' })) });
     h.coordinator.documentConnected(1, SERVICE, undefined);
     h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
     h.coordinator.documentConnected(1, 'https://app.example.com/callback', undefined);
     const view = (await h.prompt())!;
-    expect(view.targets).toHaveLength(count);
-    expect(view.targets.every(target => target.action === 'update')).toBe(true);
+    expect(view.targets.filter(target => target.action === 'update')).toHaveLength(count);
+    expect(view.targets.filter(target => target.action === 'create')).toHaveLength(1);
     expect(view.defaultTargetId).toBe(count === 1 ? view.targets[0]!.id : null);
   });
 
-  it('lets the user pick the Vault for a new record when several are writable', async () => {
+
+  it('saves an explicitly chosen new target with the selected provider account despite an existing match', async () => {
+    const h = harness({ credentials: [credential('existing', { status: 'absent' })], metadata: [provider({ id: 'g1', username: 'alice@gmail.com' })] });
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    h.coordinator.documentConnected(1, 'https://app.example.com/callback', undefined);
+    const view = (await h.prompt())!;
+    expect(view.targets.find(target => target.id === view.defaultTargetId)?.action).toBe('update');
+    const target = view.targets.find(target => target.action === 'create')!;
+    const account = view.accounts.find(account => account.label === 'alice@gmail.com')!;
+    expect(await h.send({ type: 'confirm', promptId: view.id, accountId: account.id, targetId: target.id, locale: 'en' })).toMatchObject({ status: 'saved' });
+    expect(h.save).toHaveBeenCalledWith('https://app.example.com', { action: 'create', vaultId: 'vault-1' },
+      { provider: 'google', account: 'alice@gmail.com', entry: { vaultId: 'vault-1', entryId: 'g1' } }, expect.any(String), expect.any(Function));
+  });
+
+  it('defaults to the personal Vault while retaining other writable choices', async () => {
     const h = harness({ vaults: [{ vaultId: 'vault-1', label: 'Personal', isDefault: true },
       { vaultId: 'vault-2', label: 'Team', isDefault: false }] });
     h.coordinator.documentConnected(1, SERVICE, undefined);
@@ -86,7 +101,7 @@ describe('FederatedSignInCoordinator', () => {
     h.coordinator.documentConnected(1, 'https://app.example.com/callback?code=c&state=s', undefined);
     const view = (await h.prompt())!;
     expect(view.targets.map((target) => target.vaultLabel)).toEqual(['Personal', 'Team']);
-    expect(view.defaultTargetId).toBeNull();
+    expect(view.targets.find(target => target.id === view.defaultTargetId)?.vaultLabel).toBe('Personal');
   });
 
   it('asks only after a same-tab provider round trip and saves the explicit choice', async () => {
@@ -464,7 +479,8 @@ describe('FederatedSignInCoordinator', () => {
     expect(isFederatedSignInResult(result)).toBe(true);
     const view = result.status === 'prompt' ? result.prompt! : null;
     expect(view!.targets.length).toBeLessThanOrEqual(64);
-    expect(view!.targets.every((target) => target.action === 'update')).toBe(true);
+    expect(view!.targets.some((target) => target.action === 'update')).toBe(true);
+    expect(view!.targets.some((target) => target.action === 'create')).toBe(true);
     expect(view!.accounts.length).toBeLessThanOrEqual(32);
     expect(view!.accounts.at(-1)!.source).toBe('none');
     expect(view!.accounts.find((account) => account.id === view!.defaultAccountId)?.label).toBe('user39@gmail.com');

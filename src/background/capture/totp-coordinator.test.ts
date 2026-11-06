@@ -209,3 +209,17 @@ it('requires explicit mismatch confirmation for a manual Entry target', async ()
   expect(save).toHaveBeenCalledWith(expect.anything(), source.url, expect.objectContaining({ entryId: 'entry' }), expect.any(Function), undefined, true);
   c.clear();
 });
+it('returns safe target presentation and the default creation Vault without revealing the seed', async () => {
+ const coordinator = new TotpCaptureCoordinator({session:async()=>({profileId:'p',generation:1,unlocked:true}),current:async()=>true,sourceMatches:async()=>true,activeTabId:async()=>1,
+  choices:async()=>[{...target,name:'Work',username:'alice@example.com',icon:'public-asset:site'}, {action:'create',vaultId:'default',label:'Personal',vaultLabel:'Personal',isDefault:true}],
+  save:async()=>({action:'updated',revision:'5'})});
+ await coordinator.observe(uri,source);const view=await coordinator.review();
+ expect(view).toMatchObject({targets:[expect.objectContaining({name:'Work',username:'alice@example.com',icon:'public-asset:site'}),expect.objectContaining({isDefault:true})]});
+ expect(JSON.stringify(view)).not.toContain('JBSWY3DPEHPK3PXP');coordinator.clear();
+});
+it('drops a passive review if its source changes while resolving the site icon', async () => {
+ let live=true;
+ const coordinator=new TotpCaptureCoordinator({session:async()=>({profileId:'p',generation:1,unlocked:true}),current:async()=>live,sourceMatches:async()=>true,activeTabId:async()=>1,
+  choices:async()=>[target],resolveIcon:async()=>{live=false;return 'public-asset:site';},save:async()=>({action:'updated',revision:'5'})});
+ await coordinator.observe(uri,source);expect(await coordinator.review()).toEqual({status:'empty'});coordinator.clear();
+});

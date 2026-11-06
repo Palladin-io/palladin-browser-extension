@@ -1,10 +1,12 @@
 # Federated sign-in methods
 
-Status: implemented on a feature branch for the Chromium family; synthetic
-Chromium acceptance passes; real-provider acceptance is open. **Firefox and
-Safari are currently unsupported:** the sender gate requires the browser-issued
-`sender.documentId`, which those targets do not provide, so every command is
-rejected as stale and nothing is observed or written there (see "Acceptance").
+Status: implemented with synthetic Chromium acceptance; real-provider acceptance
+remains open. Capture now has an explicit Firefox 140–152 compatibility boundary
+using browser-authenticated live content Ports and worker-issued route identities
+when `sender.documentId` is absent. Disconnect/navigation revokes those bindings.
+Actual Firefox 140/155 login-capture evidence does not establish federated-provider
+acceptance. Further Safari acceptance work was cancelled by the user; native Safari
+16.4 remains unverified.
 
 This feature remembers how the user signs in to an **external** service with a
 federated provider ("Continue with Google", Apple, Microsoft, GitHub or
@@ -102,8 +104,9 @@ Palladin never reads provider page text to identify an account.
 3. Return: a later document in S on the same registrable domain, a popup
    redirected back to it, or the popup closing. An OAuth `error` parameter on the
    return (query or fragment) cancels silently.
-4. The worker sends a value-free refresh to S; a closed-shadow notice opens the native popup to ask
-   "Signed in with Google?". The user must explicitly choose the provider
+4. The worker sends a value-free refresh to S. Review expands the closed-shadow
+   notification into a capture-only extension-origin iframe to remember the
+   sign-in method. The user must explicitly choose the provider
    account (Palladin-filled, already remembered, saved provider Credentials or
    "Account not specified") and where to remember it (an existing exact-host
    Credential, or a new record only when there is no eligible existing match). A single
@@ -122,7 +125,9 @@ Palladin never reads provider page text to identify an account.
    the write stays bound to the start host.
 5. "Remember" performs one canonical encrypted Entry update/create with fresh
    state, base revision, grant re-wrap and repeated document/session checks.
-   "Not now" mutes the host until Palladin locks.
+   "Dismiss" mutes the host until Palladin locks. Unlock remains native. Clicking
+   the Entry thumbnail explicitly opens the pending draft in the native popup
+   before saving or the saved Entry detail afterward.
 
 Flows live only in service-worker memory, expire after ten minutes, are keyed by
 tab, are limited to twenty and are discarded on lock. Incognito tabs are not
@@ -174,12 +179,20 @@ The web panel and mobile app edit the same encrypted fields.
 - Page messages cannot name an account, Entry, Vault or provider for a write; the
   prompt and suggestions carry only worker-issued opaque IDs bound to the tab,
   browser document and isolated-world document.
-- The page notice is a closed shadow surface without inputs or account labels;
+- The page notice is a closed shadow surface with safe identity metadata and no
+  editable inputs, passwords or OAuth tokens;
   opening review requires a trusted, unobstructed click
   (`createClosedSurface().acceptsAction`). Account and target autocomplete controls
-  live in the extension popup. Replacing another remembered provider/account
-  requires an explicit replacement checkbox and is rechecked by the native worker
-  boundary. Site/provider images use the trusted public-asset pipeline.
+  live in the capture-only extension frame (or the explicitly opened native
+  editor). Replacing another remembered provider/account requires an explicit
+  replacement checkbox and is rechecked by the worker boundary. Site images use
+  the trusted public-asset pipeline; known provider logos are packaged assets.
+- Private capability handoff and browser-authenticated Ports bind embedded
+  review to the source/candidate/session. Top-layer containment, ancestry/style
+  checks and interference rejection mitigate overlays; they do not guarantee
+  visibility at the exact click. This is the explicit capture-only residual-risk
+  exception in `AGENTS.md`; general Vault, unlock, approval and reveal APIs stay
+  outside the embedded surface.
 - Confirmation rechecks sender frame, HTTPS origin equal to the flow's service
   origin, document identity and session generation before and during the write.
 - No new manifest permission is used.
@@ -193,13 +206,19 @@ Automated:
   `src/popup/workspace/SignInMethodField.test.tsx`, writer and inline-runtime tests.
 - Chromium: `npm run test:browser:signin` drives real clicks with routed synthetic
   provider documents: denied return, same-tab Google with explicit multi-account
-  choice and encrypted create through native review (Review itself never saves), suggestion choice with chosen-account ranking and no
-  re-prompt, GitHub popup updating an existing account, and a storage scan for
+  choice and encrypted create through explicitly opened native review (historical
+  page-Review routing is no longer the contract; Review itself never saves), suggestion choice with chosen-account ranking and
+  no re-prompt, GitHub popup updating an existing account, and a storage scan for
   OAuth values and plaintext provider accounts.
+- The current Chromium inline matrix separately verifies same-notification
+  federated review and explicit save. TOTP and generator use separate harnesses;
+  their passing results are not real-provider OAuth evidence.
 
 Manual (not yet performed): real Google, Apple, Microsoft and GitHub accounts
 on Chrome, Firefox and Safari, including popup-blocker behavior, FedCM/One Tap
-fallback, SPA return without navigation, and Safari `openerTabId` availability.
+fallback and SPA return without navigation. Safari `openerTabId` and native
+Safari acceptance remain unverified; further Safari work was cancelled, not
+completed or made a blocker for this task.
 
 ## SDK and verification
 

@@ -1,3 +1,4 @@
+import { isCaptureNoticeIdentity, type CaptureNoticeIdentity } from './capture-notice';
 export const CREDENTIAL_CAPTURE_CHANNEL = "palladin.credential-capture" as const;
 
 export type CredentialSubmissionKind = "login" | "registration" | "password-change";
@@ -51,6 +52,7 @@ export interface CredentialCaptureTarget {
 }
 
 export interface CredentialCapturePrompt {
+  readonly notice?: CaptureNoticeIdentity;
   readonly id: string;
   readonly site: string;
   readonly state: "locked" | "ready";
@@ -158,13 +160,14 @@ export function isCredentialCaptureResult(value: unknown): value is CredentialCa
       if (!only(value, ["status", "prompt"])) return false;
       const prompt = value.prompt;
       return prompt === null || (record(prompt)
-        && only(prompt, ["id", "site", "state", "targets", "defaultTargetId", "error", 'usernameSelection'])
+        && only(prompt, ["id", "site", "state", "targets", "defaultTargetId", "error", 'usernameSelection', 'notice'])
         && (prompt.usernameSelection === undefined || (record(prompt.usernameSelection)
           && only(prompt.usernameSelection, ['selected']) && prompt.state === 'ready'
           && (prompt.usernameSelection.selected === null || prompt.usernameSelection.selected === 'email'
             || prompt.usernameSelection.selected === 'nickname')
           && (prompt.usernameSelection.selected !== null || (Array.isArray(prompt.targets)
             && prompt.targets.length === 0 && prompt.defaultTargetId === null))))
+        && (prompt.notice === undefined || prompt.state === 'ready' && isCaptureNoticeIdentity(prompt.notice))
         && (prompt.error === undefined || prompt.error === "save-failed")
         && id(prompt.id) && boundedString(prompt.site, 1, 253)
         && (prompt.state === "locked" || prompt.state === "ready")
