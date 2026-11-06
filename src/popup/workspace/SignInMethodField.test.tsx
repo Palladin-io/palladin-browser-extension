@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { WorkspaceCommand, WorkspaceReply } from '../../shared/workspace/commands';
 import { I18nProvider } from '../i18n';
 import { createWorkspaceClient } from './client';
 import { EntryFields } from './EntryFields';
 import type { VaultClient } from '../vault/client';
 beforeAll(() => { HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); }; HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); }; });
+vi.mock('../../shared/config/contact', () => ({ contactEmail: 'contact@example.test' }));
+afterEach(() => vi.restoreAllMocks());
 const vaultId = '11111111-1111-4111-8111-111111111111';
 const entryId = '22222222-2222-4222-8222-222222222222';
 const methodId = 'custom:AAAAAA11-1111-4111-8111-111111111111';
@@ -19,6 +21,45 @@ function setup(methods: unknown[] = [], fails = false) {
  return send;
 }
 describe('popup sign-in collection', () => {
+ it('scrolls providers without changing the method and selects with the keyboard', async () => {
+  const send = setup();
+  await userEvent.click(await screen.findByRole('button', { name: 'Add a sign-in method' }));
+  const rail = screen.getByRole('group', { name: 'Provider' });
+  rail.scrollBy = vi.fn();
+  await userEvent.click(screen.getByRole('button', { name: 'Next providers' }));
+  expect(rail.scrollBy).toHaveBeenCalled();
+  fireEvent.scroll(rail);
+  expect(screen.getByRole('button', { name: 'Google', pressed: true })).toBeVisible();
+  screen.getByRole('button', { name: 'GitHub', pressed: false }).focus();
+  await userEvent.keyboard('{Enter}');
+  expect(screen.getByRole('button', { name: 'GitHub', pressed: true })).toHaveFocus();
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(send).toHaveBeenCalledWith({ type: 'workspace/sign-in', vaultId, entryId, fieldId: null, binding: { provider: 'github', account: null }, agentVisible: false, locale: 'en' }));
+ });
+ it('keeps provider suggestion mail free of account and Entry data', async () => {
+  setup([{ id: methodId, provider: 'google', account: 'private-account', agentVisible: true }]);
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit sign-in method' }));
+  const link = screen.getByRole('link', { name: 'Missing a provider? Let us know' });
+  expect(link).toHaveAttribute('href', 'mailto:contact@example.test?subject=Sign-in%20provider%20suggestion');
+  await userEvent.type(screen.getByRole('textbox', { name: 'Account (optional)' }), 'private-draft');
+  expect(link).toHaveAttribute('href', 'mailto:contact@example.test?subject=Sign-in%20provider%20suggestion');
+ });
+ it('reveals a saved final provider once without stealing focus or resetting user scroll', async () => {
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+   if (this.getAttribute('role') === 'group' && this.getAttribute('aria-label') === 'Provider') return new DOMRect(0, 0, 200, 100);
+   if (this.getAttribute('aria-pressed') === 'true' && this.textContent === 'Facebook') return new DOMRect(384, 0, 88, 100);
+   return new DOMRect();
+  });
+  setup([{ id: methodId, provider: 'facebook', account: null, agentVisible: false }]);
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit sign-in method' }));
+  const rail = screen.getByRole('group', { name: 'Provider' });
+  expect(rail.scrollLeft).toBe(272);
+  expect(screen.getByRole('button', { name: 'Facebook', pressed: true })).not.toHaveFocus();
+  rail.scrollLeft = 0;
+  fireEvent.scroll(rail);
+  await userEvent.type(screen.getByRole('textbox', { name: 'Account (optional)' }), 'typing');
+  expect(rail.scrollLeft).toBe(0);
+ });
  it('renders compact same-provider rows and edits/removes the chosen exact ID', async () => {
   const send = setup([{ id: methodId, provider: 'google', account: 'first@test', agentVisible: true },
    { id: 'custom:bbbbbb22-2222-4222-8222-222222222222', provider: 'google', account: 'second@test', agentVisible: false }]);

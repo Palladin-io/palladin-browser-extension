@@ -1,3 +1,4 @@
+import { contactEmail } from '../../shared/config/contact';
 import { normalizeSignInAccount } from '../../shared/signin/binding';
 import googleLogo from '../assets/sign-in-providers/google.svg';
 import appleLogo from '../assets/sign-in-providers/apple.svg';
@@ -27,6 +28,7 @@ export function SignInMethodsEditor({ methods, onSave, disabled = false }: {
  disabled?: boolean;
 }): React.JSX.Element {
  const { t } = useI18n();
+ const providerRail = useRef<HTMLDivElement>(null);
  const dialog = useRef<HTMLDialogElement>(null);
  const trigger = useRef<HTMLButtonElement | null>(null);
  const addTrigger = useRef<HTMLButtonElement>(null);
@@ -37,7 +39,17 @@ export function SignInMethodsEditor({ methods, onSave, disabled = false }: {
  const [busy, setBusy] = useState(false);
  const [error, setError] = useState(false);
  useEffect(() => {
-  if (editing !== undefined) dialog.current?.showModal();
+  if (editing !== undefined) {
+   dialog.current?.showModal();
+   const rail = providerRail.current;
+   const selected = rail?.querySelector<HTMLButtonElement>('[aria-pressed="true"]');
+   if (rail && selected) {
+    const bounds = rail.getBoundingClientRect();
+    const item = selected.getBoundingClientRect();
+    if (item.right > bounds.right) rail.scrollLeft += item.right - bounds.right;
+    else if (item.left < bounds.left) rail.scrollLeft += item.left - bounds.left;
+   }
+  }
   else if (trigger.current) {
    (trigger.current.isConnected ? trigger.current : addTrigger.current)?.focus();
    trigger.current = null;
@@ -56,6 +68,10 @@ export function SignInMethodsEditor({ methods, onSave, disabled = false }: {
   try { await onSave(editing ?? null, remove ? null : { provider, account: normalizeSignInAccount(account), agentVisible: visible }); finish(); }
   catch { setError(true); } finally { setBusy(false); }
  }
+ function scrollProviders(direction: number) {
+  const rail = providerRail.current;
+  rail?.scrollBy({ left: direction * rail.clientWidth * 0.75, behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+ }
  return <section className="sign-in-methods" aria-label={t('signIn.section')}>
   <div className="entry-custom-fields-header sign-in-methods-header"><h3>{t('signIn.section')}</h3>
    <button ref={addTrigger} type="button" className="toolbar-icon" aria-label={t('signIn.add')} disabled={disabled || busy || methods.length >= 20} onClick={() => edit()}><PopupIcon name="plus" /></button>
@@ -72,11 +88,16 @@ export function SignInMethodsEditor({ methods, onSave, disabled = false }: {
    </div>
    <div className="sign-in-method-form">
     <p className="sign-in-method-hint">{t('signIn.editorHint')}</p>
-    <div className="sign-in-provider-choices" role="group" aria-label={t('signIn.provider')}>
+    <div className="sign-in-provider-toolbar"><span>{t('signIn.provider')}</span><div>
+     <button type="button" className="toolbar-icon" aria-label={t('signIn.previousProviders')} disabled={busy || disabled} onClick={() => scrollProviders(-1)}><PopupIcon name="back" /></button>
+     <button type="button" className="toolbar-icon" aria-label={t('signIn.nextProviders')} disabled={busy || disabled} onClick={() => scrollProviders(1)}><PopupIcon name="chevron" /></button>
+    </div></div>
+    <div ref={providerRail} className="sign-in-provider-choices" role="group" aria-label={t('signIn.provider')}>
      {PROVIDER_DISPLAY_ORDER.map(value => <button key={value} type="button" className="sign-in-provider-choice" aria-pressed={provider === value} disabled={busy || disabled} onClick={() => setProvider(value)}>
       <img className="sign-in-provider-logo" data-provider={value} src={providerLogos[value]} alt="" /><span>{SIGN_IN_PROVIDER_NAMES[value]}</span>
      </button>)}
     </div>
+    {contactEmail ? <a className="sign-in-provider-request" href={`mailto:${contactEmail}?subject=${encodeURIComponent(t('signIn.missingProviderSubject'))}`}>{t('signIn.missingProvider')}</a> : null}
     <h3 className="sign-in-account-heading">{t('signIn.providerAccountTitle', { provider: SIGN_IN_PROVIDER_NAMES[provider] })}</h3>
     <FormInput type="text" label={t('signIn.account')} value={account} disabled={busy || disabled} maxLength={256} autoComplete="off" spellCheck={false} onChange={event => setAccount(event.target.value)} />
     <label className="generator-check sign-in-visibility"><span><span>{t('signIn.agentVisible')}</span><small>{t('signIn.visibilityHint')}</small></span><input type="checkbox" checked={visible} disabled={busy || disabled} onChange={event => setVisible(event.target.checked)} /></label>

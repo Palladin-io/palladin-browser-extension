@@ -210,3 +210,7 @@ MemberSecret and redacted AgentDiscovery after appending same-provider accounts.
 Synthetic verification does not establish real-provider or store acceptance.
 Provider logo SVGs are bundled copies of the first-party web panel assets; no remote
 assets or new runtime permissions are used.
+
+## Provider editor presentation
+
+The native popup method editor offers a horizontally scrollable provider-logo rail with previous/next controls. Scrolling never selects a provider; keyboard activation and touch select explicitly. Saved-method rows and native modal focus restoration remain unchanged. The generic localized provider-suggestion mail link contains only a subject and the central `VITE_CONTACT_EMAIL` destination. Generic builds leave this unset; Chrome store bundles require the repository `CONTACT_EMAIL` variable through the packaging workflow. No Entry/account values enter the URI or telemetry.
