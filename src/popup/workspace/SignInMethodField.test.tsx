@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { WorkspaceCommand, WorkspaceReply } from '../../shared/workspace/commands';
 import { I18nProvider } from '../i18n';
 import { createWorkspaceClient } from './client';
@@ -9,6 +9,7 @@ import { EntryFields } from './EntryFields';
 import type { VaultClient } from '../vault/client';
 beforeAll(() => { HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); }; HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); }; });
 vi.mock('../../shared/config/contact', () => ({ contactEmail: 'contact@example.test' }));
+afterEach(() => vi.restoreAllMocks());
 const vaultId = '11111111-1111-4111-8111-111111111111';
 const entryId = '22222222-2222-4222-8222-222222222222';
 const methodId = 'custom:AAAAAA11-1111-4111-8111-111111111111';
@@ -42,6 +43,22 @@ describe('popup sign-in collection', () => {
   expect(link).toHaveAttribute('href', 'mailto:contact@example.test?subject=Sign-in%20provider%20suggestion');
   await userEvent.type(screen.getByRole('textbox', { name: 'Account (optional)' }), 'private-draft');
   expect(link).toHaveAttribute('href', 'mailto:contact@example.test?subject=Sign-in%20provider%20suggestion');
+ });
+ it('reveals a saved final provider once without stealing focus or resetting user scroll', async () => {
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+   if (this.getAttribute('role') === 'group' && this.getAttribute('aria-label') === 'Provider') return new DOMRect(0, 0, 200, 100);
+   if (this.getAttribute('aria-pressed') === 'true' && this.textContent === 'Facebook') return new DOMRect(384, 0, 88, 100);
+   return new DOMRect();
+  });
+  setup([{ id: methodId, provider: 'facebook', account: null, agentVisible: false }]);
+  await userEvent.click(await screen.findByRole('button', { name: 'Edit sign-in method' }));
+  const rail = screen.getByRole('group', { name: 'Provider' });
+  expect(rail.scrollLeft).toBe(272);
+  expect(screen.getByRole('button', { name: 'Facebook', pressed: true })).not.toHaveFocus();
+  rail.scrollLeft = 0;
+  fireEvent.scroll(rail);
+  await userEvent.type(screen.getByRole('textbox', { name: 'Account (optional)' }), 'typing');
+  expect(rail.scrollLeft).toBe(0);
  });
  it('renders compact same-provider rows and edits/removes the chosen exact ID', async () => {
   const send = setup([{ id: methodId, provider: 'google', account: 'first@test', agentVisible: true },

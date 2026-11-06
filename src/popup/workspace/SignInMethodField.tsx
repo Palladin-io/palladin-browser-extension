@@ -39,7 +39,17 @@ export function SignInMethodsEditor({ methods, onSave, disabled = false }: {
  const [busy, setBusy] = useState(false);
  const [error, setError] = useState(false);
  useEffect(() => {
-  if (editing !== undefined) dialog.current?.showModal();
+  if (editing !== undefined) {
+   dialog.current?.showModal();
+   const rail = providerRail.current;
+   const selected = rail?.querySelector<HTMLButtonElement>('[aria-pressed="true"]');
+   if (rail && selected) {
+    const bounds = rail.getBoundingClientRect();
+    const item = selected.getBoundingClientRect();
+    if (item.right > bounds.right) rail.scrollLeft += item.right - bounds.right;
+    else if (item.left < bounds.left) rail.scrollLeft += item.left - bounds.left;
+   }
+  }
   else if (trigger.current) {
    (trigger.current.isConnected ? trigger.current : addTrigger.current)?.focus();
    trigger.current = null;
