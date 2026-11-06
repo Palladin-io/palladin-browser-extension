@@ -19,6 +19,7 @@ import {
 } from '@palladin/crypto'
 type MemberSecretV1 = currentVaultPlaintext.MemberSecretV1
 import { isManualCustomFields } from '../commands'
+import type { TotpEntryRef } from '@shared/messaging/totp-capture'
 import { matchesTab } from '@shared/security/domain'
 import { readSignInBinding, sameSignInAccount, withSignInBinding, type SignInBinding, type SignInBindingState } from '@shared/signin/binding'
 import type { SubmittedCredential } from '@shared/messaging/credential-capture'
@@ -38,7 +39,7 @@ export type CapturedTotp = NonNullable<CredentialMemberSecret['content']['totp']
 export type TotpWriteTarget =
   | { readonly action: 'create'; readonly vaultId: string; readonly label: string; readonly vaultLabel: string }
   | { readonly action: 'update'; readonly vaultId: string; readonly entryId: string; readonly revision: string;
-      readonly label: string; readonly vaultLabel: string; readonly hasTotp: boolean }
+      readonly label: string; readonly vaultLabel: string; readonly hasTotp: boolean; readonly domainMismatch?: boolean }
 export interface SignInTargets {
   readonly writable: boolean
   readonly vaults: { readonly vaultId: string; readonly label: string; readonly isDefault: boolean }[]
@@ -123,25 +124,25 @@ export class Protocol2CredentialWriter {
     return { identical: false, targets, defaultIndex: personalIndex }
   }
 
-  async totpChoices(url: string): Promise<TotpWriteTarget[]> {
+  async totpChoices(url: string, selected?: TotpEntryRef): Promise<TotpWriteTarget[]> {
     this.secureUrl(url)
     if (!(await this.deps.canWrite())) return []
     const { privateKey, userId } = await this.context()
     const metadata = await this.deps.data.refresh()
     const vaults = await this.withAuth(token => this.deps.client.listVaults(token))
     const targets: TotpWriteTarget[] = []
-    for (const listed of vaults) {
+    for (const listed of vaults.filter(vault => !selected || vault.id === selected.vaultId)) {
       const vault = await this.withAuth(token => this.deps.client.getVault(token, listed.id))
       const opened = await this.deps.keyEpochFloor.observe(userId, vault, () => openVaultProjection(vault, privateKey, userId))
       try {
-        targets.push({ action: 'create', vaultId: vault.id, label: opened.metadata.name, vaultLabel: opened.metadata.name })
+        if (!selected) targets.push({ action: 'create', vaultId: vault.id, label: opened.metadata.name, vaultLabel: opened.metadata.name })
         for (const entry of metadata.filter(item => item.vaultId === vault.id && item.type === ENTRY_TYPE_CREDENTIAL
-          && matchesTab(url, item.urlDomain, { exactSubdomain: true }))) {
+          && (selected ? item.id === selected.id : matchesTab(url, item.urlDomain, { exactSubdomain: true })))) {
           const detail = await this.withAuth(token => this.deps.client.getEntry(token, vault.id, entry.id))
-          const secret = await this.openCredential(detail, vault, entry.id, opened.vaultKey, url)
+          const secret = await this.openCredential(detail, vault, entry.id, opened.vaultKey, url, selected ? 'manual-totp' : 'exact-host')
           targets.push({ action: 'update', vaultId: vault.id, entryId: entry.id, revision: detail.currentRevision,
             label: secret.content.username ? `${secret.memberLabel} (${secret.content.username})` : secret.memberLabel,
-            vaultLabel: opened.metadata.name, hasTotp: secret.content.totp !== null })
+            vaultLabel: opened.metadata.name, hasTotp: secret.content.totp !== null, domainMismatch: !matchesTab(url, secret.content.urlDomain, { exactSubdomain: true }) })
         }
       } finally { wipe(opened.vaultKey) }
     }
@@ -179,7 +180,7 @@ export class Protocol2CredentialWriter {
   }
 
   async saveTotp(totp: CapturedTotp, url: string, target: TotpWriteTarget,
-    stillAuthorized: () => Promise<boolean>, create?: { label: string; username: string }): Promise<{ action: 'created' | 'updated'; revision: string; vaultId?: string; entryId?: string }> {
+    stillAuthorized: () => Promise<boolean>, create?: { label: string; username: string }, confirmDomainMismatch = false): Promise<{ action: 'created' | 'updated'; revision: string; vaultId?: string; entryId?: string }> {
     return this.write(url, target, stillAuthorized,
       site => {
         const secret = createCapturedCredentialSecret({ label: create?.label ?? site.hostname, username: create?.username ?? '',
@@ -191,12 +192,12 @@ export class Protocol2CredentialWriter {
         if (current && current.secret === totp.secret && current.algorithm === totp.algorithm && current.digits === totp.digits
           && current.period === totp.period && current.issuer === totp.issuer && current.account === totp.account) return previous
         return { ...previous, content: { ...previous.content, totp } }
-      })
+      }, target.action === 'update' && target.domainMismatch && confirmDomainMismatch ? 'manual-totp' : 'exact-host')
   }
 
   private async write(url: string, target: CredentialWriteTarget | TotpWriteTarget,
     stillAuthorized: () => Promise<boolean>, create: (site: URL) => CredentialMemberSecret,
-    update: (previous: CredentialMemberSecret) => CredentialMemberSecret): Promise<{ action: 'created' | 'updated'; revision: string; vaultId?: string; entryId?: string }> {
+    update: (previous: CredentialMemberSecret) => CredentialMemberSecret, scope: 'exact-host' | 'manual-totp' = 'exact-host'): Promise<{ action: 'created' | 'updated'; revision: string; vaultId?: string; entryId?: string }> {
     const site = this.secureUrl(url)
     const { privateKey, userId } = await this.context()
     if (!(await this.deps.canWrite()) || !(await stillAuthorized())) throw new VaultDataError('locked', 'Capture authorization changed')
@@ -229,7 +230,7 @@ export class Protocol2CredentialWriter {
       }
       const detail = await this.withAuth((token) => this.deps.client.getEntry(token, vault.id, target.entryId))
       if (detail.currentRevision !== target.revision) throw new Protocol2MutationConflictError()
-      const previous = await this.openCredential(detail, vault, target.entryId, opened.vaultKey, url)
+      const previous = await this.openCredential(detail, vault, target.entryId, opened.vaultKey, url, scope)
       const next = update(previous)
       if (next === previous) {
         if (!(await authorized())) throw new VaultDataError('locked', 'Capture authorization changed')
@@ -538,11 +539,11 @@ export class Protocol2CredentialWriter {
   }
 
   private async openCredential(detail: EntryDetail, vault: EncryptedVaultSummary, entryId: string, key: Uint8Array,
-    url: string, scope: 'exact-host' | 'related-login-comparison' = 'exact-host') {
+    url: string, scope: 'exact-host' | 'related-login-comparison' | 'manual-totp' = 'exact-host') {
     assertCoordinates(detail, vault, entryId)
     const secret = await openCurrentMemberSecret(detail.entryKey, detail.memberSecret, key,
       { organizationId: vault.organizationId, vaultId: vault.id, entryId, revision: detail.currentRevision })
-    if (secret.entryType !== 'credential' || !matchesTab(url, secret.content.urlDomain,
+    if (secret.entryType !== 'credential' || scope !== 'manual-totp' && !matchesTab(url, secret.content.urlDomain,
       { exactSubdomain: scope === 'exact-host' })) throw new Error('Capture Entry scope changed')
     return secret
   }

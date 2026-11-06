@@ -51,7 +51,7 @@ it('keeps Share creation separate from the shared-link list', async () => {
   const client = { credentialUsername: vi.fn(async () => ''), totp: vi.fn(async () => null) } as unknown as VaultClient;
   const user = userEvent.setup();
   renderDetail(client, onShares);
-  await user.click(screen.getByRole('button', { name: 'Sharing' }));
+  await user.click(screen.getByRole('button', { name: 'Share history' }));
   expect(onShares).toHaveBeenCalledOnce();
   await user.click(screen.getAllByRole('button', { name: 'Share' }).at(-1)!);
   expect(screen.getByRole('button', { name: 'Create link' })).toBeInTheDocument();
@@ -68,4 +68,9 @@ it('loads recent activity for the selected Entry and opens its Logs', async () =
   await userEvent.click(await screen.findByRole('button', { name: 'Show more' }));
   expect(send).toHaveBeenCalledWith({ type: 'workspace/audit', entryId: 'entry-1', vaultId: 'vault-1' });
   expect(onLogs).toHaveBeenCalledOnce();
+});
+
+it('offers QR scanning inside the selected Credential', () => {
+  renderDetail({ credentialUsername: vi.fn(async () => ''), totp: vi.fn(async () => null) } as unknown as VaultClient);
+  expect(screen.getByRole('button', { name: 'Scan authenticator QR code' })).toBeInTheDocument();
 });

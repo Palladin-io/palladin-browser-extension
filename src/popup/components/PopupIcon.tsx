@@ -1,5 +1,5 @@
 import {
-  RefreshCw, Shield, Layers, Hourglass, CircleX, Trash2, UserPlus,
+  QrCode, ListChecks, RefreshCw, Shield, Layers, Hourglass, CircleX, Trash2, UserPlus,
   ExternalLink, ArrowLeft, Share2, Bot, Check, ChevronRight, CodeXml,
   Copy, CreditCard, Dice5, Eye, EyeOff, History, KeyRound,
   LockKeyhole, LogOut, PanelRight, Pencil, Plus, Settings, TerminalSquare,
@@ -27,6 +27,8 @@ const icons = {
   back: ArrowLeft,
   edit: Pencil,
   share: Share2,
+  'share-history': ListChecks,
+  qr: QrCode,
   agent: Bot,
   logs: History,
   chevron: ChevronRight,

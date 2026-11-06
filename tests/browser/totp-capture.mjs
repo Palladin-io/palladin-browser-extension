@@ -59,13 +59,18 @@ try {
   assert.equal(updated.memberLabel, first.memberLabel); assert.equal(updated.content.username, first.content.username)
   assert(!JSON.stringify(api.writes[1].request).includes(nextSeed))
   await popup.dismiss(); popup = null; await page.goto('https://capture.example.test/blank');
-  popup = await openNativePopup(worker, profile, extensionId); await popup.click('Scan QR on page');
-  await popup.waitText('No readable authenticator setup found on this page.'); await popup.dismiss(); popup = null
+  popup = await openNativePopup(worker, profile, extensionId);
+  assert.equal(await popup.hasText('Scan authenticator QR code'), false, 'manual scan is absent from the main list');
+  await popup.click(/Synthetic account.*Personal/); await popup.waitText('Share history');
+  await popup.click('Scan authenticator QR code');
+  await popup.waitText('No readable authenticator setup found on this page.');
+  await popup.screenshot('/tmp/cvt-737-entry-totp-scan.png');
+  await popup.dismiss(); popup = null
   await page.evaluate(([firstUri, secondUri]) => { for (const uri of [firstUri, secondUri]) { const a = document.createElement('a'); a.href = uri; a.textContent = 'setup'; document.body.append(a) } }, [uri, uri.replace(seed, nextSeed)])
   await new Promise(resolve => setTimeout(resolve, 600)); popup = await openNativePopup(worker, profile, extensionId)
-  await popup.click('Scan QR on page'); await popup.waitText('Multiple authenticator setups found.')
+  await popup.click('Scan authenticator QR code'); await popup.waitText('Multiple authenticator setups found.')
   assert.equal(api.writes.length, 2, 'ambiguous scan performs no write')
-  await popup.dismiss(); popup = null; await page.goto('https://canvas.capture.example.test/blank')
+  await popup.dismiss(); popup = null; await page.goto('https://capture.example.test/blank-canvas')
   await page.evaluate(async ([firstQr, secondQr]) => {
     const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 256; document.body.append(canvas)
     const images = await Promise.all([firstQr, secondQr].map(encoded => new Promise((resolve, reject) => {
@@ -77,25 +82,49 @@ try {
   await page.evaluate(() => { document.querySelector('canvas').getContext('2d').drawImage(globalThis.syntheticQrImages[0], 0, 0) })
   await wait(() => page.locator('palladin-capture').count(), 'canvas-only automatic discovery')
   popup = await openNativePopup(worker, profile, extensionId); await popup.waitText('Save authenticator')
-  await createLogin('Canvas draft')
+  await popup.click('Review'); await popup.click('Replace existing authenticator', 'checkbox')
   await page.evaluate(() => document.body.append(document.createElement('span')))
   await new Promise(resolve => setTimeout(resolve, 700))
-  assert.equal(await popup.inputValue(nameInput), 'Canvas draft', 'unrelated mutation preserves native draft')
+  assert(await popup.hasText('Replace existing authenticator'), 'unrelated mutation preserves native review')
   const observationsBeforeCancel = await worker.evaluate(() => globalThis.syntheticTotpObservations)
   await popup.click('Dismiss'); await new Promise(resolve => setTimeout(resolve, 5_500))
-  assert((await worker.evaluate(() => globalThis.syntheticTotpObservations)) > observationsBeforeCancel, 'canvas poll actually ran after Dismiss')
-  assert.equal(await popup.hasText('Save authenticator'), false, 'Dismiss suppresses unchanged canvas proposal')
-  await popup.click('Scan QR on page'); await popup.waitText('Save authenticator')
-  await createLogin('Canvas draft')
+  assert((await worker.evaluate(() => globalThis.syntheticTotpObservations)) > observationsBeforeCancel, 'canvas poll actually ran after Cancel')
+  assert.equal(await popup.hasText('Save authenticator'), false, 'Cancel suppresses unchanged canvas proposal')
+  await popup.click('Scan authenticator QR code', 'button', { completedText: 'Save authenticator' });
+  await popup.waitText('Save authenticator'); await popup.click('Review')
+  await popup.click('Replace existing authenticator', 'checkbox')
 
   await page.evaluate(() => { document.querySelector('canvas').getContext('2d').drawImage(globalThis.syntheticQrImages[1], 0, 0) })
   await popup.click('Save authenticator')
   await new Promise(resolve => setTimeout(resolve, 7_000)) // Outlast the icon resolver and its timeout before asserting no mutation.
   assert.equal(api.writes.length, 2, 'pixel-only canvas change blocks stale save')
-  await popup.click('Scan QR on page'); await popup.waitText('Save authenticator')
-  await createLogin('Canvas current')
+  if (await popup.hasCaptureReview()) await popup.click('Dismiss')
+  await popup.click('Scan authenticator QR code', 'button', { completedText: 'Save authenticator' });
+  await popup.waitText('Save authenticator'); await popup.click('Review')
+  await popup.click('Replace existing authenticator', 'checkbox')
   await popup.click('Save authenticator'); await wait(() => api.writes.length === 3, 'unchanged current canvas can save')
   const canvasSaved = await api.decrypt(api.writes[2]); assert.equal(canvasSaved.content.totp.secret, seed)
+
+  await popup.dismiss(); popup = null
+  await page.goto('https://different-setup.example.test/setup')
+  await page.evaluate(value => { document.querySelector('a').href = value }, uri.replace(seed, nextSeed))
+  await wait(() => page.locator('palladin-capture').count(), 'cross-domain setup detected')
+  popup = await openNativePopup(worker, profile, extensionId)
+  await popup.waitText('Save authenticator'); await popup.click('Dismiss')
+  await popup.click('Scan authenticator QR code', 'button', { completedText: 'Save authenticator' })
+  await popup.waitText('Save authenticator'); await popup.click('Review')
+  await popup.waitText('This website differs from the website saved in this Entry.')
+  assert.equal(api.writes.length, 3, 'cross-domain review does not save automatically')
+  await popup.click('Save to this Entry despite the different website', 'checkbox')
+  await popup.click('Replace existing authenticator', 'checkbox')
+  await popup.screenshot('/tmp/cvt-737-cross-domain-confirm.png')
+  await popup.click('Save authenticator')
+  await wait(() => api.writes.length === 4, 'confirmed cross-domain update')
+  const crossDomainSaved = await api.decrypt(api.writes[3])
+  assert.equal(crossDomainSaved.content.totp.secret, nextSeed)
+  assert.equal(crossDomainSaved.content.urlDomain, first.content.urlDomain)
+  assert.equal(crossDomainSaved.content.username, first.content.username)
+  assert.equal(crossDomainSaved.content.password, first.content.password)
 
   const storage = JSON.stringify(await worker.evaluate(async () => {
     const stores = []
