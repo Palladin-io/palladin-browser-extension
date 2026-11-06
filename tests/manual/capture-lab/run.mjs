@@ -19,7 +19,14 @@ if (hosted && (!smoke || new URL(hosted).protocol !== 'https:')) throw Error('--
 const origin = hosted ? new URL(hosted).origin : 'https://capture.example.test';
 const files = new Map([['/', ['index.html','text/html']], ['/lab.js',['lab.js','text/javascript']], ['/lab.css',['lab.css','text/css']], ['/favicon.svg',['favicon.svg','image/svg+xml']], ['/totp.png',['totp.png','image/png']]]);
 const profile = await mkdtemp(path.join(tmpdir(), 'palladin-capture-lab-'));
-const api = await createCaptureApi();
+const api = await createCaptureApi(hosted ? { workspaceHandler: ({method,url,request,send}) => {
+  if (method !== 'POST' || url.pathname !== '/api/public-assets/website-icons/ensure') return false;
+  assert.deepEqual(Object.keys(request),['hostnames']);
+  const allowed = new Set([new URL(origin).hostname,'visa.com','mastercard.com','americanexpress.com']);
+  assert(request.hostnames.every(hostname=>allowed.has(hostname)));
+  send({items:request.hostnames.map(hostname=>({hostname,status:'pending',asset:null}))});
+  return true;
+}} : {});
 let context, popup;
 let stopping;
 async function stop() {
@@ -126,15 +133,15 @@ try {
     await page.getByRole('button',{name:'Reveal QR code'}).click();
     await checkNotice('TOTP QR','Save authenticator');
     if (!hosted) {
-    await page.goto(`${origin}/?scenario=oauth`);
-    await page.getByRole('button',{name:'Continue with Google'}).click();
-    await page.getByRole('link',{name:'Allow',exact:true}).click();
-    await checkNotice('Google sign-in','Remember');
-    await page.goto(`${origin}/?scenario=oauth`);
-    await page.getByRole('button',{name:'Continue with GitHub'}).click();
-    await page.getByRole('link',{name:'Cancel',exact:true}).click();
-    await page.waitForTimeout(1800);
-    assert.equal(await page.locator('palladin-capture').count(),0);
+      await page.goto(`${origin}/?scenario=oauth`);
+      await page.getByRole('button',{name:'Continue with Google'}).click();
+      await page.getByRole('link',{name:'Allow',exact:true}).click();
+      await checkNotice('Google sign-in','Remember');
+      await page.goto(`${origin}/?scenario=oauth`);
+      await page.getByRole('button',{name:'Continue with GitHub'}).click();
+      await page.getByRole('link',{name:'Cancel',exact:true}).click();
+      await page.waitForTimeout(1800);
+      assert.equal(await page.locator('palladin-capture').count(),0);
     }
     await page.goto(`${origin}/?scenario=frame`);
     const payment = page.frameLocator('iframe');

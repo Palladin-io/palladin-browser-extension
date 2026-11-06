@@ -7,6 +7,8 @@ Vault, never real credentials or cards.
 
 ## Hosted page
 
+[Open the deployed capture lab](https://palladin-capture-lab.netlify.app).
+
 Publish only `site/` to an HTTPS static host. On Netlify, deploy this directory
 as the publish directory; `_headers` blocks form submission/network connections
 and disables indexing. Do not enable Netlify Forms or inject analytics/scripts.
