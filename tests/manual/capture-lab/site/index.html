@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Palladin · Capture lab</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="lab.css">
+  <script src="lab.js" defer></script>
+</head>
+<body>
+  <header><a class="brand" href="./">palladin<span>.io</span></a><span class="tag">Capture lab</span><a class="reset" href="">Restart scenario ↻</a></header>
+  <main>
+    <div class="intro"><p class="eyebrow">Browser extension / hands-on testing</p><h1>One place. Every capture.</h1><p>Exercise real Palladin prompts using disposable data. Unlock your extension and select a test Vault before starting.</p></div>
+    <p class="notice">Use fictional data only. This page does not send or store form values. Saving in Palladin writes to the Vault you choose.</p>
+    <nav aria-label="Scenarios"></nav>
+    <div class="workspace"><article><div class="section-head"><span id="number"></span><span>Live form</span></div><h2 id="title"></h2><p id="description"></p><div id="fixture"></div></article>
+      <aside><h2>Try it</h2><ol id="steps"></ol><div class="data"><h3>Disposable values</h3><div id="values"></div></div><h3>What to check</h3><ul id="checks"></ul></aside></div>
+    <details class="help"><summary>No notification?</summary><p>Use HTTPS and allow Palladin on this site. Unlock the extension, then reload. Type or paste into the fields yourself; programmatic field changes do not count as trusted input. If you dismissed a capture, restart this scenario. If you chose “Never prompt on this site”, re-enable capture for this host in extension settings. Pending captures expire after a few minutes.</p><p>To test the locked state, lock Palladin and repeat. To test automatic updates, first save a matching login and enable its automatic-update option, then change its password here. Verify the result inside the extension; this page cannot read your Vault.</p><p>Use Chrome/Edge for the full acceptance pass. Firefox/Safari builds require their own runtime checks; federated capture currently requires browser document identity unavailable in those adapters.</p></details>
+    <footer>No analytics · No real authentication · No payments · No backend</footer>
+  </main>
+  <noscript>This lab requires JavaScript to prevent form submissions and expose one scenario at a time.</noscript>
+</body>
+</html>

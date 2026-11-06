@@ -40,7 +40,9 @@
     "test:browser:form-corpus": "node tests/browser/form-corpus.mjs",
     "test:browser:workspace": "node tests/browser/workspace.mjs",
     "test:browser:totp-capture": "node tests/browser/totp-capture.mjs",
-    "test:browser:totp-autofill": "node tests/browser/totp-autofill.mjs"
+    "test:browser:totp-autofill": "node tests/browser/totp-autofill.mjs",
+    "lab:capture": "node tests/manual/capture-lab/run.mjs",
+    "test:browser:capture-lab": "node tests/manual/capture-lab/site-smoke.mjs && node tests/manual/capture-lab/run.mjs --smoke"
   },
   "dependencies": {
     "@microsoft/signalr": "10.0.0",
