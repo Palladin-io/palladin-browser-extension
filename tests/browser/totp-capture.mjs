@@ -90,19 +90,17 @@ try {
   await popup.click('Dismiss'); await new Promise(resolve => setTimeout(resolve, 5_500))
   assert((await worker.evaluate(() => globalThis.syntheticTotpObservations)) > observationsBeforeCancel, 'canvas poll actually ran after Cancel')
   assert.equal(await popup.hasText('Save authenticator'), false, 'Cancel suppresses unchanged canvas proposal')
-  await popup.click('Scan authenticator QR code', 'button', { completedText: 'Save authenticator' });
-  await popup.waitText('Save authenticator'); await popup.click('Review')
-  await popup.click('Replace existing authenticator', 'checkbox')
+  await popup.click('Scan authenticator QR code', 'button', { completedText: 'Save this authenticator to this Entry?' });
+  await wait(async () => await popup.hasText('Save this authenticator to this Entry?'), 'Entry-scoped scan review ready')
 
   await page.evaluate(() => { document.querySelector('canvas').getContext('2d').drawImage(globalThis.syntheticQrImages[1], 0, 0) })
-  await popup.click('Save authenticator')
+  await popup.click('Replace')
   await new Promise(resolve => setTimeout(resolve, 7_000)) // Outlast the icon resolver and its timeout before asserting no mutation.
   assert.equal(api.writes.length, 2, 'pixel-only canvas change blocks stale save')
   if (await popup.hasCaptureReview()) await popup.click('Dismiss')
-  await popup.click('Scan authenticator QR code', 'button', { completedText: 'Save authenticator' });
-  await popup.waitText('Save authenticator'); await popup.click('Review')
-  await popup.click('Replace existing authenticator', 'checkbox')
-  await popup.click('Save authenticator'); await wait(() => api.writes.length === 3, 'unchanged current canvas can save')
+  await popup.click('Scan authenticator QR code', 'button', { completedText: 'Save this authenticator to this Entry?' });
+  await wait(async () => await popup.hasText('Save this authenticator to this Entry?'), 'Entry-scoped scan review ready')
+  await popup.click('Replace'); await wait(() => api.writes.length === 3, 'unchanged current canvas can save')
   const canvasSaved = await api.decrypt(api.writes[2]); assert.equal(canvasSaved.content.totp.secret, seed)
 
   await popup.dismiss(); popup = null
@@ -111,14 +109,12 @@ try {
   await wait(() => page.locator('palladin-capture').count(), 'cross-domain setup detected')
   popup = await openNativePopup(worker, profile, extensionId)
   await popup.waitText('Save authenticator'); await popup.click('Dismiss')
-  await popup.click('Scan authenticator QR code', 'button', { completedText: 'Save authenticator' })
-  await popup.waitText('Save authenticator'); await popup.click('Review')
-  await popup.waitText('This website differs from the website saved in this Entry.')
+  await popup.click('Scan authenticator QR code', 'button', { completedText: 'The Entry URL does not match this website. Continue?' })
+  await wait(async () => await popup.hasText('The Entry URL does not match this website. Continue?'), 'cross-domain Entry review ready')
+  await popup.waitText('The Entry URL does not match this website. Continue?')
   assert.equal(api.writes.length, 3, 'cross-domain review does not save automatically')
-  await popup.click('Save to this Entry despite the different website', 'checkbox')
-  await popup.click('Replace existing authenticator', 'checkbox')
   await popup.screenshot('/tmp/cvt-737-cross-domain-confirm.png')
-  await popup.click('Save authenticator')
+  await popup.click('Replace')
   await wait(() => api.writes.length === 4, 'confirmed cross-domain update')
   const crossDomainSaved = await api.decrypt(api.writes[3])
   assert.equal(crossDomainSaved.content.totp.secret, nextSeed)
