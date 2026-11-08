@@ -1,3 +1,4 @@
+import { createCaptureDismiss } from './capture-dismiss';
 import { openInlineCaptureReview } from './capture-review-host';
 import en from "../../popup/locales/en.json";
 import pl from "../../popup/locales/pl.json";
@@ -30,10 +31,7 @@ export class CredentialCaptureToast {
   private theme: ThemePreference = "system";
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
-  private closeSitePreference: (() => void) | null = null;
-  private readonly outsidePointer = (event: Event) => {
-    if (!event.composedPath().includes(this.surface.host)) this.closeSitePreference?.();
-  };
+  private dismissControl: ReturnType<typeof createCaptureDismiss> | null = null;
 
   constructor(
     private readonly doc: Document,
@@ -51,7 +49,6 @@ export class CredentialCaptureToast {
     this.panel.className = "panel";
     this.panel.setAttribute("role", "region");
     this.surface.shadow.append(style, this.panel);
-    doc.addEventListener("pointerdown", this.outsidePointer);
   }
 
   setAppearance(locale: UiLocale, theme: ThemePreference): void {
@@ -93,7 +90,7 @@ export class CredentialCaptureToast {
     }
   }
 
-  stop(): void { this.disposed = true; this.doc.removeEventListener("pointerdown", this.outsidePointer); this.hide(); }
+  stop(): void { this.disposed = true; this.hide(); }
 
   isOwnedSurface(element: Element): boolean { return element === this.surface.host; }
 
@@ -102,7 +99,7 @@ export class CredentialCaptureToast {
   }
 
   private hide(): void {
-    this.closeSitePreference?.(); this.closeSitePreference = null;
+    this.dismissControl?.dispose(); this.dismissControl = null;
     if (this.closeTimer !== null) clearTimeout(this.closeTimer);
     this.closeTimer = null;
     this.prompt = null;
@@ -111,7 +108,7 @@ export class CredentialCaptureToast {
   }
 
   private render(): void {
-    this.closeSitePreference?.(); this.closeSitePreference = null;
+    this.dismissControl?.dispose(); this.dismissControl = null;
     const prompt = this.prompt;
     if (!prompt) return;
     this.panel.setAttribute("role", "region");
@@ -136,24 +133,12 @@ export class CredentialCaptureToast {
     if (prompt.state === "locked") body.append(this.note('captureToast.locked'));
     const footer = this.doc.createElement("div");
     footer.className = "footer";
-    const split = this.doc.createElement('div'); split.className = 'dismiss-split';
-    const preference = this.doc.createElement('div'); preference.className = 'site-preference'; preference.hidden = true;
-    const mute = this.button(this.text('captureToast.mute'), 'site-mute', () => this.perform({type:'mute',promptId:prompt.id}));
-    const domain = this.doc.createElement('small'); domain.textContent = prompt.site; mute.append(domain); preference.append(mute);
-    const toggle = this.button('', 'secondary dismiss-options', () => {
-      const open = preference.hidden; preference.hidden = !open; toggle.setAttribute('aria-expanded', String(open));
-      if (open) mute.focus();
+    this.dismissControl = createCaptureDismiss(this.doc, {
+      button: (label, style, action) => this.button(label, style, action),
+      dismissLabel: this.text('secretCapture.dismiss'), muteLabel: this.text('captureToast.mute'), optionsLabel: this.text('captureToast.dismissOptions'), site: prompt.site,
+      onDismiss: () => this.perform({type:'dismiss',promptId:prompt.id}), onMute: () => this.perform({type:'mute',promptId:prompt.id}),
     });
-    toggle.setAttribute('aria-label', this.text('captureToast.dismissOptions'));
-    toggle.setAttribute('aria-expanded', 'false');
-    const chevron = this.doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    chevron.setAttribute('viewBox', '0 0 24 24'); chevron.setAttribute('aria-hidden', 'true');
-    const line = this.doc.createElementNS('http://www.w3.org/2000/svg', 'path'); line.setAttribute('d','m6 9 6 6 6-6'); chevron.append(line); toggle.append(chevron);
-    this.closeSitePreference = () => { preference.hidden = true; toggle.setAttribute('aria-expanded','false'); };
-    split.addEventListener('keydown', event => { if (event.key === 'Escape' && !preference.hidden) { event.preventDefault(); event.stopPropagation(); this.closeSitePreference?.(); toggle.focus(); } });
-    split.addEventListener('focusout', event => { if (!split.contains(event.relatedTarget as Node | null)) this.closeSitePreference?.(); });
-    split.append(this.button(this.text('secretCapture.dismiss'), 'secondary', () => this.perform({type:'dismiss',promptId:prompt.id})), toggle, preference);
-    footer.append(split, this.button(this.text(prompt.state === 'locked' ? 'captureToast.unlock' : 'captureReview.review'), 'primary', () => this.perform({ type: 'unlock' })));
+    footer.append(this.dismissControl.element, this.button(this.text(prompt.state === 'locked' ? 'captureToast.unlock' : 'captureReview.review'), 'primary', () => this.perform({ type: 'unlock' })));
     this.panel.append(footer);
   }
 

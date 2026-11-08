@@ -125,7 +125,10 @@ Palladin never reads provider page text to identify an account.
    the write stays bound to the start host.
 5. "Remember" performs one canonical encrypted Entry update/create with fresh
    state, base revision, grant re-wrap and repeated document/session checks.
-   "Dismiss" mutes the host until Palladin locks. Unlock remains native. Clicking
+   "Dismiss" mutes the host until Palladin locks. Its separate arrow action,
+   available in the notice and Review, persists the shared registrable-domain
+   capture preference for the active profile. It does not save a sign-in method
+   or disable explicitly choosing an already remembered account. Unlock remains native. Clicking
    the Entry thumbnail explicitly opens the pending draft in the native popup
    before saving or the saved Entry detail afterward.
 

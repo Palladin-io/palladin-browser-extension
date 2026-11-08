@@ -1,3 +1,4 @@
+import { capturePreferences } from './preferences-runtime';
 import { captureDocumentKey } from './document-identity';
 import { resolveCaptureSource, captureDocumentRoutes } from './document-route-runtime';
 import { activePageTab } from '../active-page-tab';
@@ -13,6 +14,7 @@ let generation = 0;
 const observationSequences = new Map<number, { document: string; sequence: number }>();
 export function clearTotpObservation(tabId: number): void { observationSequences.delete(tabId); }
 export const totpCaptureCoordinator = new TotpCaptureCoordinator({
+  preferences: capturePreferences,
   session: async () => {
     await initializeServerConfig(); const userId = await sessionManager.getUserId();
     return userId ? { profileId: `${serverConfig.apiUrl}:${userId}`, generation, unlocked: sessionManager.getKeys() !== null } : null;
@@ -47,6 +49,12 @@ export const totpSessionGeneration = () => generation;
 export async function handleTotpContent(command: TotpContentCommand, sender: chrome.runtime.MessageSender, expectedGeneration: number) {
   const source = await resolveCaptureSource(sender, command.documentId);
   if (generation !== expectedGeneration || !source || source.frameId !== 0) return { status: 'stale' as const };
+  if (command.type === 'mute') {
+    if (!await totpCaptureCoordinator.matchesSource(command.id, source)) return { status: 'stale' as const };
+    const result = await totpCaptureCoordinator.dismiss(command.id, true, () => totpCaptureCoordinator.matchesSource(command.id, source));
+    if (result.status === 'dismissed') publishTotpInvalidation();
+    return result;
+  }
   const document = `${captureDocumentKey(source)}:${source.documentId}`;
   if (command.type === 'observe' || command.type === 'invalidate' || command.type === 'advance') {
     const previous = observationSequences.get(source.tabId);
@@ -63,7 +71,7 @@ export async function handleTotpContent(command: TotpContentCommand, sender: chr
 }
 export async function handleTotpPopup(command: TotpPopupCommand) {
   if (command.type === 'get') return totpCaptureCoordinator.review();
-  if (command.type === 'dismiss') { await totpCaptureCoordinator.dismiss(command.id); publishTotpInvalidation(); return { status: 'dismissed' as const }; }
+  if (command.type === 'dismiss' || command.type === 'mute') { const result = await totpCaptureCoordinator.dismiss(command.id, command.type === 'mute'); if (result.status === 'dismissed') publishTotpInvalidation(); return result; }
   if (command.type === 'save') return totpCaptureCoordinator.save(command.id, command.targetId, command.replace, command.create, command.confirmDomainMismatch);
   const tab = await activePageTab();
   if (typeof tab?.id !== 'number') return { status: 'empty' as const };

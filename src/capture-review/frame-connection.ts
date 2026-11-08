@@ -43,7 +43,10 @@ export function bindCaptureFrame(
     parentPort?.postMessage({ type: 'close' }); clear(); runtime?.disconnect();
   };
   const key = (event: KeyboardEvent) => {
-    if (event.isTrusted && event.key === 'Escape') { event.preventDefault(); close(); return; }
+    if (event.isTrusted && event.key === 'Escape') {
+      if (event.target instanceof Element && event.target.closest('.capture-site-preference')) return;
+      event.preventDefault(); close(); return;
+    }
     if (!event.isTrusted || !['Enter', ' '].includes(event.key)) return;
     const box = (event.target as Element | null)?.getBoundingClientRect?.();
     if (box) gesture = { x: box.x + box.width / 2, y: box.y + box.height / 2, keyboard: true, at: Date.now() };
@@ -75,7 +78,7 @@ export function bindCaptureFrame(
           authorized = true;
           onReady({ kind, apiUrl: 'apiUrl' in message && typeof message.apiUrl === 'string' ? message.apiUrl : null,
             send(command) {
-              if (!authorized || closed || !runtime || command.type === 'scan' || command.type === 'mute') return Promise.reject(new Error('Capture frame unavailable'));
+              if (!authorized || closed || !runtime || command.type === 'scan') return Promise.reject(new Error('Capture frame unavailable'));
               const mutation = command.type !== 'get' && command.type !== 'begin-review' && command.type !== 'check';
               if (mutation && (!gesture || Date.now() - gesture.at > 1_500)) return Promise.reject(new Error('Trusted capture action required'));
               const id = String(++requestId);

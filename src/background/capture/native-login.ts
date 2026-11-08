@@ -68,8 +68,8 @@ async function handleSource(command: NativeLoginCaptureCommand, source: Credenti
     if (command.type === 'choose-username') return credentialCaptureCoordinator.dispatch({ ...command,
       channel: CREDENTIAL_CAPTURE_CHANNEL, documentId: source.documentId }, source);
     return command.kind === 'credential'
-      ? credentialCaptureCoordinator.dispatch({ channel: CREDENTIAL_CAPTURE_CHANNEL, documentId: source.documentId, type: 'dismiss', promptId: command.promptId }, source)
-      : federatedSignIn.dispatch({ channel: FEDERATED_SIGNIN_CHANNEL, documentId: source.documentId, type: 'dismiss', promptId: command.promptId }, source);
+      ? credentialCaptureCoordinator.dispatch({ channel: CREDENTIAL_CAPTURE_CHANNEL, documentId: source.documentId, type: command.type, promptId: command.promptId }, source, authorized)
+      : federatedSignIn.dispatch({ channel: FEDERATED_SIGNIN_CHANNEL, documentId: source.documentId, type: command.type, promptId: command.promptId }, source, undefined, authorized);
   } catch { return { status: 'unavailable' }; }
 }
 

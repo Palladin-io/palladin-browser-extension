@@ -1,3 +1,5 @@
+import { capturePreferences } from '../capture/preferences-runtime';
+import { initializeServerConfig, serverConfig } from '../config/server-runtime';
 import { currentLegacyCaptureLogin, captureDocumentRoutes, resolveCaptureSource } from '../capture/document-route-runtime';
 import { FEDERATED_SIGNIN_CHANNEL, type FederatedSignInCommand, type FederatedSignInRefresh } from '@shared/messaging/federated-signin'
 import { isLiveCredentialDocument } from '../capture/credential-document'
@@ -14,8 +16,12 @@ import { ENTRY_TYPE_CREDENTIAL } from '../vault/entry-metadata'
 let sessionGeneration = 0
 
 export const federatedSignIn = new FederatedSignInCoordinator({
-  getSession: async () => (await sessionManager.getUserId()) === null ? null
-    : { unlocked: sessionManager.getKeys() !== null, generation: sessionGeneration },
+  preferences: capturePreferences,
+  getSession: async () => {
+    await initializeServerConfig();
+    const userId = await sessionManager.getUserId();
+    return userId === null ? null : { profileId: `${serverConfig.apiUrl}:${userId}`, unlocked: sessionManager.getKeys() !== null, generation: sessionGeneration };
+  },
   providerAccounts: async (provider) => {
     const domains = SIGN_IN_PROVIDER_ACCOUNT_DOMAINS[provider]
     const candidates = (await vaultData.getMetadata()).filter((entry) => entry.type === ENTRY_TYPE_CREDENTIAL

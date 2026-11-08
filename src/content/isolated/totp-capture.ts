@@ -17,7 +17,11 @@ export function startTotpCapture(doc: Document, documentId: string, options: Opt
   let reviewingId: string | null = null;
   const notice = options.notice ?? new SecretCaptureNotice(doc, async action => {
     if (!candidateId) return;
-    if (action === 'dismiss') { dismissed = true; candidateId = null; notice.hide(); generation++;
+    if (action === 'mute') {
+      const result = await send({channel:TOTP_CAPTURE_CHANNEL,type:'mute',documentId,id:candidateId});
+      if (!result || typeof result !== 'object' || !('status' in result) || !['dismissed','stale'].includes(String(result.status))) throw Error('Capture preference unavailable');
+      dismissed = true; candidateId = null; notice.hide(); generation++;
+    } else if (action === 'dismiss') { dismissed = true; candidateId = null; notice.hide(); generation++;
       await send({ channel: TOTP_CAPTURE_CHANNEL, type: 'invalidate', documentId, sequence: generation });
     } else {
       const id = candidateId;

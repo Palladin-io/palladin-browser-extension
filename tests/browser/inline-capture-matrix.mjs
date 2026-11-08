@@ -48,7 +48,7 @@ try {
       const geometry=await frame.evaluate(()=>{
         const footer=document.querySelector('.capture-review-footer'), header=document.querySelector('.popup-header');
         return {width:innerWidth,scroll:document.documentElement.scrollWidth,header:header.getBoundingClientRect().height,
-          buttons:[...footer.querySelectorAll('button')].map(button=>button.getBoundingClientRect().width)};
+          buttons:[...footer.children].map(control=>control.getBoundingClientRect().width)};
       });
       assert(geometry.scroll<=geometry.width,'localized review has no horizontal overflow');
       assert.equal(geometry.header,68);
@@ -88,6 +88,13 @@ try {
     await wait(()=>page.frames().some(f=>f.url().includes('/capture-review/')),'inline frame');
     const frame=page.frames().find(f=>f.url().includes('/capture-review/'));
     await frame.locator('.capture-review[data-stage="review"]').waitFor(); await page.waitForTimeout(800);
+    const beforeMenu = api.writes.length;
+    await frame.getByRole('button',{name:label('More dismiss options'),exact:true}).click();
+    await frame.getByRole('menuitem',{name:new RegExp(label("Don't offer to save on this site"))}).waitFor();
+    await page.screenshot({path:path.join(artifacts,`${name}-dismiss-options.png`),clip:await page.locator('palladin-capture').last().boundingBox()});
+    await page.keyboard.press('Escape');
+    assert.equal(await frame.getByRole('button',{name:label('More dismiss options'),exact:true}).getAttribute('aria-expanded'),'false');
+    assert.equal(api.writes.length,beforeMenu,'review options never write the Entry');
     if (name !== 'card-create' && name !== 'card-update') {
       const image = frame.locator('.capture-review-identity .entry-icon-image').first();
       await image.waitFor();

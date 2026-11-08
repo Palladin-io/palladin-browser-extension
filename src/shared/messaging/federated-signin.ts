@@ -28,7 +28,7 @@ export type FederatedSignInCommand = DocumentCommand & (
       readonly targetId: string;
       readonly locale: SignInLocale;
     }
-  | { readonly type: 'dismiss'; readonly promptId: string }
+  | { readonly type: 'dismiss' | 'mute'; readonly promptId: string }
   | { readonly type: 'unlock' }
 );
 
@@ -121,6 +121,7 @@ export function isFederatedSignInCommand(value: unknown): value is FederatedSign
     case 'confirm':
       return only(value, [...base, 'promptId', 'accountId', 'targetId', 'locale']) && id(value.promptId)
         && id(value.accountId) && id(value.targetId) && (value.locale === 'en' || value.locale === 'pl');
+    case 'mute':
     case 'dismiss':
       return only(value, [...base, 'promptId']) && id(value.promptId);
     default:

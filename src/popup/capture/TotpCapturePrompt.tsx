@@ -40,6 +40,13 @@ export function TotpCapturePrompt({ review, send = sendDefault, onDone, onSaved,
       if (result.status === 'saved') { if (manual) { onDone(); return; } if (result.entryId && result.vaultId) setSavedTarget({id:result.entryId,vaultId:result.vaultId}); setSavedIdentity({name:target.action==='create'?label.trim():target.name??target.label,account:target.action==='create'?username:target.username??review.account??''}); setLabel(''); setUsername(''); setReplace(false); setStage('saved'); onSaved?.(); } else if (result.status === 'stale') onDone(); else setError(true);
     } catch { setError(true); } finally { setBusy(false); }
   }
+  async function dismiss(type: 'dismiss' | 'mute') {
+    setBusy(true); setError(false);
+    try {
+      const result = await send({ channel: TOTP_CAPTURE_CHANNEL, type, id: review.id });
+      if (result.status === 'dismissed' || result.status === 'stale') onDone(); else setError(true);
+    } catch { setError(true); } finally { setBusy(false); }
+  }
   if (manual) return <section className="capture-prompt" aria-label={t('totpCapture.title')}>
     <div className="totp-domain-warning" role={target?.domainMismatch || target?.hasTotp ? 'alert' : 'status'}>
       <h3>{target?.domainMismatch || target?.hasTotp ? <><span className="totp-warning-label">{t('totpCapture.warning')}</span><span className="totp-warning-separator" aria-hidden="true">|</span></> : null}<span>{t('totpCapture.title')}</span></h3>
@@ -58,7 +65,7 @@ export function TotpCapturePrompt({ review, send = sendDefault, onDone, onSaved,
     disabled={!target || !!target.domainMismatch && !confirmDomainMismatch || !!target.hasTotp && !replace || target.action === 'create' && !label.trim()}
     {...(error ? { error: t('totpCapture.error') } : {})}
     {...(onOpenCapture ? {onIdentity: () => onOpenCapture(stage === 'saved',{kind:'totp',targetId,label,username,replace,confirmDomainMismatch})} : stage === 'saved' && savedTarget && navigation ? { onIdentity: () => { navigation.update({view:'vault',selected:savedTarget}); onDone(); } } : {})} onReview={() => setStage('review')} onSave={() => void save()} onDone={onDone}
-    onDismiss={() => { setBusy(true); void send({ channel: TOTP_CAPTURE_CHANNEL, type: 'dismiss', id: review.id }).then(onDone).catch(() => { setError(true); setBusy(false); }); }}>
+    onDismiss={() => void dismiss('dismiss')} onMute={() => void dismiss('mute')}>
     {existing.length ? <EntryAutocomplete label={t('totpCapture.credential')} value={targetId} disabled={busy}
       options={existing.map(item => ({ id: item.id, name: item.name ?? item.label, detail: t('captureReview.vaultLocation',{name:item.vaultLabel}), hasTotp:item.hasTotp, ...(item.username ? {account:item.username} : {}), ...(item.icon ? {icon:item.icon} : {}) }))}
       onValueChange={value => { setTargetId(value); setReplace(false); setConfirmDomainMismatch(false); }} /> : target?.action !== 'create' ?

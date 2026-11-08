@@ -172,6 +172,7 @@ export function LoginCapturePrompt({ review: initialReview, send, onDone, onSave
     {...(onOpenCapture ? {onIdentity: () => onOpenCapture(stage === 'saved',{kind:'login',targetId,accountId,methodMode,entryName,autoUpdate,replace,form:formDraft.current})} : stage === 'saved' && savedEntry && navigation ? {onIdentity: () => { navigation.update({view:'vault',selected:savedEntry});onDone(); }} : {})}
     onReview={() => setStage('review')} onDone={onDone}
     onDismiss={() => void finish({ channel, type: 'dismiss', kind: review.kind, promptId: review.prompt.id })}
+    onMute={() => void finish({ channel, type: 'mute', kind: review.kind, promptId: review.prompt.id })}
     onSave={() => { if (review.kind === 'federated' && target && account && (!replacing || replace)) void finish({ channel, type: 'confirm', promptId: review.prompt.id,
       targetId, accountId, locale: locale === 'pl' ? 'pl' : 'en', replace, ...(target.action === 'create' ? {entryName:entryName.trim()} : {}) }); }}>
     {review.kind === 'credential' && review.prompt.usernameSelection ? <div>

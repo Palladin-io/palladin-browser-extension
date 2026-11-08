@@ -162,7 +162,7 @@ export class CredentialCaptureCoordinator {
     this.createId = deps.createId ?? (() => crypto.randomUUID());
   }
 
-  dispatch(command: CredentialCaptureCommand, source: CredentialCaptureSource): Promise<CredentialCaptureResult> {
+  dispatch(command: CredentialCaptureCommand, source: CredentialCaptureSource, operationAuthorized: () => Promise<boolean> = async () => true): Promise<CredentialCaptureResult> {
     if (command.documentId !== source.documentId || origin(source.url) === null) return Promise.resolve({ status: "stale" });
     // Admit browser-authenticated submits before storage awaits can race a classic navigation.
     const isSubmission = command.type === "submitted" || command.type === "identifier";
@@ -170,7 +170,7 @@ export class CredentialCaptureCoordinator {
       ? this.stage(command, source) : null;
     if (isSubmission && submission === null) return Promise.resolve({ status: "stale" });
     const previous = this.operations.get(source.tabId);
-    const operation = (previous ?? Promise.resolve()).then(() => this.handle(command, source, submission))
+    const operation = (previous ?? Promise.resolve()).then(() => this.handle(command, source, submission, operationAuthorized))
       .catch((): CredentialCaptureResult => {
         if (submission && this.pending.get(source.tabId) === submission) this.clearTab(source.tabId);
         return { status: "unavailable" };
@@ -235,7 +235,7 @@ export class CredentialCaptureCoordinator {
   }
 
   private async handle(command: CredentialCaptureCommand, source: CredentialCaptureSource,
-    submission: PendingCredential | null): Promise<CredentialCaptureResult> {
+    submission: PendingCredential | null, operationAuthorized: () => Promise<boolean>): Promise<CredentialCaptureResult> {
     if (submission ? this.pending.get(source.tabId) !== submission
       : !(await this.deps.isCurrentDocument(source))) return { status: "stale" };
     const session = await this.deps.getSession();
@@ -299,8 +299,11 @@ export class CredentialCaptureCoordinator {
     if (command.type === "unlock") return { status: "accepted" };
     if (command.promptId !== pending.id || pending.outcome === "waiting") return { status: "stale" };
     if (command.type === "dismiss" || command.type === "mute") {
+      if (command.type === "mute") {
+        if (!await this.stillAuthorized(pending, session) || !await operationAuthorized()) return { status: "stale" };
+        await this.deps.preferences.mute(session.profileId, pending.site);
+      }
       this.clearTab(source.tabId);
-      if (command.type === "mute") await this.deps.preferences.mute(session.profileId, pending.site);
       return { status: "dismissed" };
     }
     if (!session.unlocked || pending.sessionGeneration !== session.generation) return { status: "stale" };

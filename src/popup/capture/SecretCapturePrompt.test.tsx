@@ -203,3 +203,14 @@ it('requires another review after card conflict and shows the refreshed existing
  await waitFor(()=>expect(screen.getByLabelText('Notes')).toHaveValue('Changed elsewhere'));
  expect(send.mock.calls.filter(([command])=>command.type==='update')).toHaveLength(1);
 });
+it('keeps the secret review on mute failure and sends dismiss separately', async () => {
+ const send=vi.fn().mockResolvedValueOnce({status:'error'}).mockResolvedValueOnce({status:'dismissed'}),done=vi.fn();
+ render(<SecretCapturePrompt review={card} send={send} client={{} as VaultClient} onDone={done} />);
+ fireEvent.click(screen.getByRole('button',{name:'More dismiss options'}));
+ expect(send).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('menuitem'));
+ await screen.findByRole('alert');expect(done).not.toHaveBeenCalled();
+ expect(send).toHaveBeenCalledWith(expect.objectContaining({type:'mute',id:'capture'}));
+ fireEvent.click(screen.getByRole('button',{name:'Dismiss'}));
+ await waitFor(()=>expect(done).toHaveBeenCalledTimes(1));
+ expect(send).toHaveBeenLastCalledWith(expect.objectContaining({type:'dismiss',id:'capture'}));
+});

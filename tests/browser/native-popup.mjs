@@ -252,6 +252,13 @@ async function connectNativeSurface(worker, profile, extensionId, surface, attac
       });
       return exceptionDetails ? { error: true } : result.value;
     },
+    async unmuteCaptureSite(site) {
+      const { result, exceptionDetails } = await command('Runtime.evaluate', {
+        expression: `(async () => { const r = await chrome.runtime.sendMessage(${JSON.stringify({ type: 'capture-settings/unmute', site })}); return r?.ok === true && !r.mutedSites.includes(${JSON.stringify(site)}); })()`,
+        awaitPromise: true, returnByValue: true,
+      });
+      return !exceptionDetails && result.value === true;
+    },
     async connectionFormState() {
       return evaluate(`(() => {
         const form = document.querySelector('.server-settings-form');

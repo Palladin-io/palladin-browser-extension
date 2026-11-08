@@ -293,6 +293,15 @@ describe("credential capture worker", () => {
     expect(await coordinator.dispatch(confirmed, source)).toEqual({ status: "dismissed" });
     expect(save).not.toHaveBeenCalled();
   });
+  it.each(['locked', 'navigated', 'capability-revoked'])('does not persist mute after %s', async reason => {
+    const view = await ready();
+    if (reason === 'locked') session = { ...session!, unlocked: false };
+    if (reason === 'navigated') isCurrentDocument.mockResolvedValue(false);
+    expect(await coordinator.dispatch(command({ type: 'mute', promptId: view.id }), source,
+      async () => reason !== 'capability-revoked')).toEqual({ status: 'stale' });
+    expect(preferences.mute).not.toHaveBeenCalled();
+  });
+
   it.each(["dismiss", "mute"] as const)("clears credentials on %s without mutation", async (type) => {
     const view = await ready();
     await coordinator.dispatch(command({ type, promptId: view.id }), source);

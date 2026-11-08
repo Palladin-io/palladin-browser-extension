@@ -1,3 +1,5 @@
+import { registrableDomain } from '@shared/security/domain';
+import { createCaptureDismiss } from './capture-dismiss';
 import { openInlineCaptureReview } from './capture-review-host';
 import en from '../../popup/locales/en.json';
 import pl from '../../popup/locales/pl.json';
@@ -19,7 +21,7 @@ import { createAgentInjectDomAccess } from './agent-inject';
 import { createClosedSurface } from './closed-surface';
 import { detectProviderControls, providerForControl, uniqueProviderControl } from './federated-signin-detect';
 
-type CopyKey = Extract<keyof typeof en, `signInToast.${string}` | `captureReview.${string}` | "inline.openFromToolbar" | "secretCapture.dismiss">;
+type CopyKey = Extract<keyof typeof en, `captureToast.${string}` | `signInToast.${string}` | `captureReview.${string}` | "inline.openFromToolbar" | "secretCapture.dismiss">;
 type Body<T> = T extends FederatedSignInCommand ? Omit<T, 'channel' | 'documentId'> : never;
 type Send = (command: FederatedSignInCommand) => Promise<unknown>;
 
@@ -116,6 +118,7 @@ export class FederatedSignInSurface {
   }
 
   private note(key: CopyKey, closeAfter: number, name = ''): void {
+    this.dismissControl?.dispose(); this.dismissControl = null;
     this.mode = 'note';
     this.prompt = null;
     this.panel.setAttribute('role', 'status');
@@ -132,6 +135,7 @@ export class FederatedSignInSurface {
   }
 
   private hide(): void {
+    this.dismissControl?.dispose(); this.dismissControl = null;
     if (this.closeTimer !== null) clearTimeout(this.closeTimer);
     this.closeTimer = null;
     this.mode = 'none';
@@ -141,7 +145,10 @@ export class FederatedSignInSurface {
     this.panel.replaceChildren();
   }
 
+  private dismissControl: ReturnType<typeof createCaptureDismiss> | null = null;
+
   private render(): void {
+    this.dismissControl?.dispose(); this.dismissControl = null;
     if (this.mode === 'suggestions') this.renderSuggestions();
     else if (this.mode === 'prompt') this.renderPrompt();
   }
@@ -207,7 +214,12 @@ export class FederatedSignInSurface {
   private footer(promptId: string): HTMLDivElement {
     const footer = this.doc.createElement('div');
     footer.className = 'footer';
-    footer.append(this.button(this.text('secretCapture.dismiss'), 'secondary', () => this.perform({ type: 'dismiss', promptId })));
+    this.dismissControl = createCaptureDismiss(this.doc, {
+      button: (label, style, action) => this.button(label, style, action),
+      dismissLabel: this.text('secretCapture.dismiss'), muteLabel: this.text('captureToast.mute'), optionsLabel: this.text('captureToast.dismissOptions'), site: registrableDomain(this.prompt?.site) ?? this.prompt?.site ?? '',
+      onDismiss: () => this.perform({type:'dismiss',promptId}), onMute: () => this.perform({type:'mute',promptId}),
+    });
+    footer.append(this.dismissControl.element);
     return footer;
   }
 

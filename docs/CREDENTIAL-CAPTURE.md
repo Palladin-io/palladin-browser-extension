@@ -95,6 +95,12 @@ binding; this prevents the opt-in silently carrying over to another account.
   `palladin.capture-preferences.v1`. The store explicitly serializes opaque Entry
   and Vault IDs, revision and origin; no username, password, display label or key.
   Profiles are partitioned by authenticated API origin and account ID.
+- Initial notices and Review use a split Dismiss control. The arrow reveals the
+  persistent site-mute action; ordinary Dismiss never changes this preference.
+  Login, card/key, remembered sign-in method and passive TOTP suggestions share
+  the same registrable-domain preference. The worker derives domain/profile from
+  the authorized pending capture; UI messages carry only its opaque identifier.
+  Saved confirmations retain Done only. Settings can re-enable suggestions.
 - The initial notice requires a trusted closed-surface action. Embedded review
   uses private capability handoff, browser-authenticated Ports and repeated
   source/candidate/session/target authorization before mutation. Top-layer

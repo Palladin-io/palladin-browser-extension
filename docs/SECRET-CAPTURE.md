@@ -158,7 +158,12 @@ multiple distinct setups are visible, isolate the intended one and scan again.
 
 After the content script receives a dismissal response, passive TOTP detection is
 paused for that document, including changed configurations. The user can scan
-again explicitly or navigate to a new document to resume detection.
+again explicitly or navigate to a new document to resume detection. The separate
+site-mute action under the Dismiss arrow persists across documents in the active
+profile and also suppresses other automatic capture suggestions for that
+registrable domain. Explicit Entry-scoped scans remain available. Both the initial
+notice and inline Review bind mute to the current worker-owned candidate; lock,
+navigation or revoked frame authority prevent preference changes.
 
 Manual QR scanning is an action in a Credential's Entry detail, not in the global
 search toolbar. The scan review is scoped to that Entry's worker-approved target

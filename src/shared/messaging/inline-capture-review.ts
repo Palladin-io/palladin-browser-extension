@@ -11,7 +11,7 @@ export type InlineCaptureNavigation = { type:'open-saved' } | { type:'open-draft
 export type InlineCaptureReviewCommand = { channel: typeof INLINE_CAPTURE_REVIEW_CHANNEL; capability: string } & (
   | { kind: InlineCaptureKind; command: InlineCaptureNavigation }
   | { kind: 'login'; command: NativeLoginCaptureCommand }
-  | { kind: 'secret'; command: Exclude<SecretCapturePopupCommand, { type: 'mute' }> }
+  | { kind: 'secret'; command: SecretCapturePopupCommand }
   | { kind: 'totp'; command: Exclude<TotpPopupCommand, { type: 'scan' }> }
 );
 export type InlineCaptureReviewResult = NativeLoginCaptureResult | SecretCaptureResult | Awaited<ReturnType<typeof handleTotpPopup>>;
@@ -26,6 +26,6 @@ export function isInlineCaptureReviewCommand(raw: unknown, validEntry: (entry: u
     if(command.type==='open-draft')return Object.keys(command).length===2 && isCaptureDraft(command.draft) && command.draft.kind===item.kind;
   }
   if (item.kind === 'login') return isNativeLoginCaptureCommand(item.command, validEntry);
-  if (item.kind === 'secret') return isSecretCapturePopupCommand(item.command, validEntry) && item.command.type !== 'mute';
+  if (item.kind === 'secret') return isSecretCapturePopupCommand(item.command, validEntry);
   return item.kind === 'totp' && isTotpPopupCommand(item.command) && item.command.type !== 'scan';
 }

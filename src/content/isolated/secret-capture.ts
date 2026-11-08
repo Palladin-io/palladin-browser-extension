@@ -33,8 +33,10 @@ export function startSecretCapture(doc: Document, documentId: string, options: O
       if (await notice.review(documentId, 'secret', id)) reviewingId = id;
       return;
     }
-    await send(command(type, noticeId));
-    if (type === 'dismiss') { noticeId = undefined; notice.hide(); }
+    if (type === 'mute' && !noticeId) throw Error('Capture expired');
+    const result = await send(type === 'mute' ? {channel:SECRET_CAPTURE_CHANNEL,type,documentId,id:noticeId!} : command(type, noticeId));
+    if (type === 'mute' && !['dismissed','stale'].includes(status(result))) throw Error('Capture preference unavailable');
+    if (type === 'dismiss' || type === 'mute') { noticeId = undefined; notice.hide(); }
   });
   const showNotice = (isLocked: boolean, identity?: CaptureNoticeIdentity) => { if (doc.defaultView?.top === doc.defaultView && (isLocked || noticeId !== reviewingId)) notice.show(isLocked, identity); };
   const status = (raw: unknown) => raw && typeof raw === 'object' && 'status' in raw ? String(raw.status) : 'error';

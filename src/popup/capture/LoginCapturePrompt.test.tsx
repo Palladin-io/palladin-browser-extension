@@ -228,3 +228,16 @@ it('restores partial form edits and update consent without reading or saving dur
  expect(open).toHaveBeenCalledWith(false,expect.objectContaining({targetId:'one',autoUpdate:true,form:expect.objectContaining({customFields:draft.form.customFields})}));
  expect(send).not.toHaveBeenCalled();
 });
+it.each(['credential', 'federated'] as const)('mutes %s capture only after selecting the site action and retains review after failure', async kind => {
+ const input: NativeLoginCaptureReview = kind === 'credential' ? review : {kind:'federated',prompt:{id:'capture',site:'accounts.example.com',state:'ready',provider:'google',accounts:[],defaultAccountId:null,targets:[],defaultTargetId:null}};
+ const send=vi.fn().mockResolvedValueOnce({status:'unavailable'}).mockResolvedValueOnce({status:'dismissed'}),done=vi.fn();
+ render(<LoginCapturePrompt review={input} send={send} onDone={done} initialExpanded />);
+ fireEvent.click(screen.getByRole('button',{name:'More dismiss options'}));
+ expect(send).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('menuitem'));
+ await screen.findByRole('alert');expect(done).not.toHaveBeenCalled();
+ expect(send).toHaveBeenCalledWith(expect.objectContaining({type:'mute',kind,promptId:'capture'}));
+ fireEvent.click(screen.getByRole('button',{name:'Dismiss'}));
+ await waitFor(()=>expect(done).toHaveBeenCalledTimes(1));
+ expect(send).toHaveBeenLastCalledWith(expect.objectContaining({type:'dismiss',kind,promptId:'capture'}));
+});

@@ -1,3 +1,5 @@
+import { registrableDomain } from '@shared/security/domain';
+import type { CredentialCapturePreferences } from './credential-coordinator';
 import { captureDocumentKey, captureTopDocumentKey } from './document-identity';
 import type { CaptureNoticeIdentity } from '@shared/messaging/capture-notice';
 import type { TotpEntryRef } from '@shared/messaging/totp-capture';
@@ -7,6 +9,7 @@ import type { SecretCaptureSource } from './secret-coordinator';
 
 interface Session { profileId: string; generation: number; unlocked: boolean }
 interface Deps {
+  preferences?: Pick<CredentialCapturePreferences, 'isMuted' | 'mute'>;
   session(): Promise<Session | null>;
   current(source: SecretCaptureSource): Promise<boolean>;
   sourceMatches(source: SecretCaptureSource, expected: CapturedTotp): Promise<boolean>;
@@ -44,6 +47,7 @@ export class TotpCaptureCoordinator {
     if (!parsed || (parsed.digits !== 6 && parsed.digits !== 8)) return { status: 'invalid' };
     const session = await this.deps.session();
     if (!initiatingSessionCurrent() || !session?.unlocked || !(await this.deps.current(source))) return { status: 'stale' };
+    if (!manual && await this.deps.preferences?.isMuted(session.profileId, registrableDomain(source.url) ?? new URL(source.url).hostname)) return { status: 'dismissed' };
     const current = await this.deps.session();
     if (!initiatingSessionCurrent() || !current?.unlocked || current.generation !== session.generation || current.profileId !== session.profileId) return { status: 'stale' };
     const totp: CapturedTotp = { ...parsed, digits: parsed.digits as 6 | 8, issuer: parsed.issuer ?? null, account: parsed.account ?? null };
@@ -143,10 +147,17 @@ export class TotpCaptureCoordinator {
     } catch { return await this.valid(p) ? { status: 'error' as const } : { status: 'stale' as const }; }
     finally { p.saving = false; }
   }
-  async dismiss(id: string): Promise<void> {
+  async dismiss(id: string, mute = false, operationAuthorized: () => Promise<boolean> = async () => true) {
     const tab = await this.deps.activeTabId(); const pending = tab === null ? undefined : this.pending.get(tab);
+    if (mute) {
+      if (pending?.id !== id || !this.deps.preferences || !await operationAuthorized() || !await this.valid(pending)
+        || !await operationAuthorized()) return { status: 'stale' as const };
+      await this.deps.preferences.mute(pending.session.profileId, registrableDomain(pending.source.url) ?? new URL(pending.source.url).hostname);
+    }
     if (pending?.id === id) { pending.dismissed = true; pending.targets.clear(); pending.loaded = false; }
+    return { status: 'dismissed' as const };
   }
+
 }
 
 function safeHint(value: string | null, secret: string): string | null {

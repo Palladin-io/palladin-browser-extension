@@ -51,3 +51,11 @@ it('never applies a new-entry name to an existing OAuth target', async () => {
  expect(await dispatchNativeLoginCapture({channel,type:'confirm',promptId:'p',targetId:'t',accountId:'a',locale:'en',replace:false,entryName:'Rename attack'},sender,'extension',origin)).toEqual({status:'stale'});
  expect(mocks.federated).toHaveBeenCalledTimes(1);
 });
+
+it.each(['credential','federated'] as const)('routes native %s mute without accepting a caller domain', async kind => {
+  runtime(); mocks.dispatch.mockResolvedValue({status:'dismissed'}); mocks.federated.mockResolvedValue({status:'dismissed'});
+  const command = { channel, type:'mute', kind, promptId:'prompt' };
+  expect(dispatchNativeLoginCapture({...command,domain:'other.test'},sender,'extension',origin)).toBeNull();
+  expect(await dispatchNativeLoginCapture(command,sender,'extension',origin)).toEqual({status:'dismissed'});
+  expect(kind==='credential'?mocks.dispatch:mocks.federated).toHaveBeenCalledWith(expect.objectContaining({type:'mute',promptId:'prompt'}),expect.objectContaining({url:'https://accounts.example.com'}),...kind==='federated'?[undefined,expect.any(Function)]:[expect.any(Function)]);
+});

@@ -104,7 +104,7 @@ export class SecretCaptureCoordinator {
     this.timers.set(item.id, setTimeout(() => this.remove(item.id), 180_000));
     return { status: 'accepted', id: item.id, notice: this.notice(item) };
   }
-  async contentStatus(source: SecretCaptureSource, dismissId?: string): Promise<SecretCaptureResult> {
+  async contentStatus(source: SecretCaptureSource, dismissId?: string, mute = false): Promise<SecretCaptureResult> {
     this.prune();
     if (!(await this.deps.session())?.unlocked) return { status: 'locked' };
     for (const item of this.pending.values()) {
@@ -113,7 +113,7 @@ export class SecretCaptureCoordinator {
       const topFrame = source.frameId === 0 && captureDocumentKey(source) === captureTopDocumentKey(source) && captureTopDocumentKey(source) === captureTopDocumentKey(item.source);
       if (item.source.tabId !== source.tabId || !originalFrame && !topFrame) continue;
       if (!await this.authorized(item, this.generation)) return { status: 'stale' };
-      if (dismissId === item.id) { item.dismissed = true; return { status: 'dismissed' }; }
+      if (dismissId === item.id) return this.dismiss(item.id, mute);
       return { status: 'accepted', id: item.id, notice: this.notice(item) };
     }
     return { status: 'empty' };
@@ -158,9 +158,14 @@ export class SecretCaptureCoordinator {
     }
     return { status: 'empty' };
   }
-  async dismiss(id: string, mute = false): Promise<SecretCaptureResult> {
-    const item = this.pending.get(id); if (item) item.dismissed = true;
-    if (mute && item && await this.sameSession(item)) await this.deps.mute(item.session.profileId, registrableDomain(item.source.url) ?? new URL(item.source.url).hostname);
+  async dismiss(id: string, mute = false, operationAuthorized: () => Promise<boolean> = async () => true): Promise<SecretCaptureResult> {
+    const item = this.pending.get(id);
+    if (mute) {
+      if (!item || !await operationAuthorized() || !await this.authorized(item, this.generation, true)
+        || !await this.sameSession(item) || !await operationAuthorized()) return { status: 'stale' };
+      await this.deps.mute(item.session.profileId, registrableDomain(item.source.url) ?? new URL(item.source.url).hostname);
+    }
+    if (item) item.dismissed = true;
     return { status: 'dismissed' };
   }
   private async sameSession(item: Pending): Promise<boolean> {

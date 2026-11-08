@@ -210,3 +210,19 @@ it('passes edited unsaved authenticator fields and destination to thumbnail hand
  fireEvent.click(screen.getByRole('button',{name:'example.com'}));
  expect(open).toHaveBeenCalledWith(false,expect.objectContaining({kind:'totp',label:'Edited draft',username:'draft-account',targetId:expect.any(String)}));
 });
+it('retains automatic TOTP review on mute failure and keeps dismiss separate', async () => {
+ const send=vi.fn().mockResolvedValueOnce({status:'error'}).mockResolvedValueOnce({status:'dismissed'}),done=vi.fn();
+ render(<TotpCapturePrompt review={review} send={send} onDone={done} initialExpanded />);
+ fireEvent.click(screen.getByRole('button',{name:'More dismiss options'}));
+ expect(send).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('menuitem'));
+ await screen.findByRole('alert');expect(done).not.toHaveBeenCalled();
+ expect(send).toHaveBeenCalledWith(expect.objectContaining({type:'mute',id:'candidate'}));
+ fireEvent.click(screen.getByRole('button',{name:'Dismiss'}));
+ await waitFor(()=>expect(done).toHaveBeenCalledTimes(1));
+ expect(send).toHaveBeenLastCalledWith(expect.objectContaining({type:'dismiss',id:'candidate'}));
+});
+it('does not expose site mute in an explicitly requested entry TOTP scan', () => {
+ render(<TotpCapturePrompt review={{...review,entryScope:{id:'alice',vaultId:'vault'}}} send={async()=>({status:'dismissed'})} onDone={()=>{}} />);
+ expect(screen.getByRole('button',{name:'Cancel'})).toBeInTheDocument();
+ expect(screen.queryByRole('button',{name:'More dismiss options'})).toBeNull();
+});

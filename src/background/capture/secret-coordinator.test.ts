@@ -207,3 +207,19 @@ it('binds child captures to their live owning top document while preserving chil
   f.navigate();
   expect(await f.coordinator.matchesSource(accepted.id,owner)).toBe(false);
 });
+
+it('never persists a site mute after navigation', async () => {
+  const f = fixture(); const observed = await f.coordinator.observe(candidate, source);
+  if (observed.status !== 'accepted') throw Error('missing candidate');
+  f.navigate();
+  expect(await f.coordinator.dismiss(observed.id, true)).toEqual({ status: 'stale' });
+  f.coordinator.clear();
+});
+it('binds a content mute to the exact originating document and suppresses future candidates', async () => {
+  const f = fixture(); const observed = await f.coordinator.observe(candidate, source);
+  if (observed.status !== 'accepted') throw Error('missing candidate');
+  expect(await f.coordinator.contentStatus({ ...source, browserDocumentId: 'foreign' }, observed.id, true)).toEqual({ status: 'empty' });
+  expect(await f.coordinator.contentStatus(source, observed.id, true)).toEqual({ status: 'dismissed' });
+  expect(await f.coordinator.observe({ ...candidate, value: 'another-synthetic-capture-value' }, source)).toEqual({ status: 'muted' });
+  f.coordinator.clear();
+});

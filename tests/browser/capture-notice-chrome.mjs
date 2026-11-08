@@ -23,26 +23,28 @@ try {
     for (const kind of ['credential', 'card', 'key', 'totp', 'federated']) {
       const result = await page.evaluate(async ({ kind, theme, language }) => {
         window.notice?.stop();
+        window.noticeActions = [];
         const attach = Element.prototype.attachShadow;
         let root;
         Element.prototype.attachShadow = function(options) { root = attach.call(this, options); return root; };
         const preferences = { theme, language };
         const identity = {kind: ['credential','federated'].includes(kind) ? 'credential' : kind,site:'example.test',name:kind==='card'?'Visa':'Example',detail:kind==='card'?'•••• 4242':kind==='key'?'':'demo@example.test',...(kind==='card'?{cardBrand:'Visa'}:{})};
+        window.noticeIdentity = identity;
         window.chrome = { storage: { onChanged: { addListener() {}, removeListener() {} }, local: { async get() { return { 'palladin.ui.preferences': preferences }; } } }, i18n: { getUILanguage: () => language } };
         try {
           if (kind === 'credential') {
             const { CredentialCaptureToast } = await import('/src/content/isolated/credential-toast.ts');
-            window.notice = new CredentialCaptureToast(document, 'synthetic-document', async () => ({ status: 'accepted' }));
+            window.notice = new CredentialCaptureToast(document, 'synthetic-document', async command => { window.noticeActions.push(command.type); return {status:'accepted'}; });
             window.notice.setAppearance(language, theme);
             window.notice.show({ status: 'prompt', prompt: { id: 'synthetic-prompt', site: 'example.test', state: 'ready', targets: [], defaultTargetId: null, notice:identity } });
           } else if (kind === 'federated') {
             const { FederatedSignInSurface } = await import('/src/content/isolated/federated-signin.ts');
-            window.notice = new FederatedSignInSurface(document, 'synthetic-document', async () => ({ status: 'accepted' }), () => 'manual');
+            window.notice = new FederatedSignInSurface(document, 'synthetic-document', async command => { window.noticeActions.push(command.type); return {status:'accepted'}; }, () => 'manual');
             window.notice.setAppearance(language, theme);
             window.notice.showResult({ status: 'prompt', prompt: { id: 'synthetic-prompt', site: 'example.test', state: 'ready', provider: 'google', notice:identity } });
           } else {
             const { SecretCaptureNotice } = await import('/src/content/isolated/secret-notice.ts');
-            window.notice = new SecretCaptureNotice(document, async () => {}, kind==='totp'?'totp':'secret');
+            window.notice = new SecretCaptureNotice(document, async type => { window.noticeActions.push(type); }, kind==='totp'?'totp':'secret');
             window.notice.show(false, identity);
           }
           await new Promise(resolve => requestAnimationFrame(resolve));
@@ -53,7 +55,7 @@ try {
           const logo = root.querySelector('.notice-brand img');
           window.noticeShadow = root;
           const split = root.querySelector('.dismiss-split');
-          if (kind === 'credential') {
+          {
             if (!split || root.querySelector('.notice-body .site-mute')) throw new Error('site preference must be inside split Dismiss');
           }
           await logo.decode();
@@ -80,9 +82,11 @@ try {
       assert.equal(result.animation, 'none');
       assert.equal(result.closed, true);
       assert.equal(result.theme, theme);
-      if (kind === 'credential') {
+      {
+        if (kind === 'federated') await page.waitForTimeout(550);
         const toggle = await page.evaluate(() => {const rect=window.noticeShadow.querySelector('.dismiss-options').getBoundingClientRect();return {x:rect.x+rect.width/2,y:rect.y+rect.height/2};});
         await page.mouse.click(toggle.x,toggle.y);
+        if (['card','key','totp'].includes(kind)) await page.evaluate(() => window.notice.show(false,{...window.noticeIdentity}));
         assert.equal(await page.evaluate(() => window.noticeShadow.querySelector('.site-preference').hidden), false, 'pointer click on chevron opens preference');
         await page.keyboard.press('Escape');
         await page.evaluate(() => { window.noticeShadow.querySelector('.dismiss-options').focus(); });
@@ -92,6 +96,12 @@ try {
         await page.screenshot({ path: `test-results/capture-notice-chrome/${language}-${theme}-dismiss-options.png` });
         await page.keyboard.press('Escape');
         assert.equal(await page.evaluate(() => window.noticeShadow.querySelector('.site-preference').hidden), true);
+        assert.deepEqual(await page.evaluate(() => window.noticeActions), [], 'opening and closing options does not dismiss or mute');
+        await page.keyboard.press('Enter');
+        const mute = await page.evaluate(() => {const rect=window.noticeShadow.querySelector('.site-mute').getBoundingClientRect();return {x:rect.x+rect.width/2,y:rect.y+rect.height/2};});
+        await page.mouse.click(mute.x,mute.y);
+        await page.waitForFunction(() => window.noticeActions.includes('mute'));
+        assert.deepEqual(await page.evaluate(() => window.noticeActions), ['mute']);
       }
       await page.screenshot({ path: `test-results/capture-notice-chrome/${language}-${theme}-${kind}.png` });
       console.log(`PASS ${theme} ${kind}: brand, neutral gradient, fixed header, equal actions, closed root, reduced motion`);

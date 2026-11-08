@@ -62,5 +62,5 @@ export async function handleSecretCaptureContent(command: SecretCaptureContentCo
   const source = await resolveCaptureSource(sender, command.documentId);
   if (!source) return { status: 'stale' };
   if (command.type === 'observe') return secretCaptureCoordinator.observe(command.candidate, source);
-  return secretCaptureCoordinator.contentStatus(source, command.type === 'dismiss' ? command.id : undefined);
+  return secretCaptureCoordinator.contentStatus(source, command.type === 'dismiss' || command.type === 'mute' ? command.id : undefined, command.type === 'mute');
 }

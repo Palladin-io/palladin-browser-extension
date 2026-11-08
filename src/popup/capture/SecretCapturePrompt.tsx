@@ -120,8 +120,12 @@ export function SecretCapturePrompt({ review, client, send = sendSecretCapture, 
     finally { if (epoch === selectionGeneration.current) setSelecting(false); }
   }
   async function dismiss(mute = false) {
-    try { await send({ channel: SECRET_CAPTURE_CHANNEL, type: mute ? 'mute' : 'dismiss', id: review.id }); onDone(); }
-    catch { setActionError(true); }
+    setSelecting(true); setActionError(false);
+    try {
+      const result = await send({ channel: SECRET_CAPTURE_CHANNEL, type: mute ? 'mute' : 'dismiss', id: review.id });
+      if (result.status === 'dismissed' || result.status === 'stale') onDone(); else setActionError(true);
+    } catch { setActionError(true); }
+    finally { setSelecting(false); }
   }
   if (terminal) return <section className="capture-review"><p role="status">{t(terminal === 'duplicate' ? 'secretCapture.duplicate' : 'secretCapture.expired')}</p><Button onClick={onDone}>{t('captureReview.done')}</Button></section>;
   const card = draftReview.candidate.kind === 'card';
@@ -131,7 +135,7 @@ export function SecretCapturePrompt({ review, client, send = sendSecretCapture, 
     origin={new URL(review.origin).hostname} name={name} detail={detail} identity={{ name, type: card ? ENTRY_TYPE_CREDIT_CARD : ENTRY_TYPE_KEY, ...(initialEntry.icon ? { icon: initialEntry.icon } : {}) }}
     {...(onOpenCapture ? {onIdentity: () => onOpenCapture(saved,{kind:'secret',targetId,vaultId,form:formDraft.current})} : {})} stage={saved ? 'saved' : selected ? 'review' : 'notice'} vault={review.vaults.find(vault => vault.id === vaultId)?.name ?? ''}
     saveLabel={t(target ? 'captureReview.updateCard' : card ? 'captureReview.saveCardAction' : 'captureReview.saveKeyAction')} saveForm={formId} busy={selecting || saving} disabled={!vaultId || !!selected?.cardTargets?.length && !target}
-    {...(actionError ? { error: t('entry.error') } : {})} onReview={() => void beginReview()} onSave={() => {}} onDismiss={() => void dismiss()} onDone={onDone}>
+    {...(actionError ? { error: t('entry.error') } : {})} onReview={() => void beginReview()} onSave={() => {}} onDismiss={() => void dismiss()} onMute={() => void dismiss(true)} onDone={onDone}>
     {selected && !saved ? <>
       {target ? <div className="capture-update-context"><strong>{t('captureReview.cardUpdateContext')}</strong><p>{target.name} · {detail} · {target.vaultName}</p>
         <p>{t('card.expiryMonth')} / {t('card.expiryYear')}: {target.entry.expiryMonth}/{target.entry.expiryYear} → {initialEntry.entryType === 'creditCard' ? `${initialEntry.expiryMonth}/${initialEntry.expiryYear}` : ''}</p><small>{t('captureReview.cardUnchanged')}</small></div> : null}

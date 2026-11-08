@@ -43,6 +43,8 @@ jobs:
         run: node tests/browser/inline-capture-matrix.mjs
       - name: Verify inline authenticator save
         run: node tests/browser/inline-capture-review.mjs
+      - name: Verify site mute from every capture surface
+        run: node tests/browser/capture-mute.mjs
       - name: Verify capture overlay guards and animated resize
         run: node tests/browser/capture-review-host.mjs
       - name: Verify capture motion throughout each transition

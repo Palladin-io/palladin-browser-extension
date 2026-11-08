@@ -1547,7 +1547,16 @@ html[data-extension-surface='side-panel'] .popup-header {
 .capture-review[data-stage='review'] .capture-review-expansion { grid-template-rows: 1fr; opacity: 1; }
 .capture-review-fields { display: flex; flex-direction: column; gap: 12px; padding: 0 20px 16px; max-height: min(50vh, max(96px, calc(100dvh - 320px))); overflow-y: auto; scrollbar-width: thin; }
 .capture-review-footer { display: flex; gap: 10px; padding: 12px 20px; border-top: 1px solid var(--cv-border); }
-.capture-review-footer > button { flex: 1; }
+.capture-review-footer > button, .capture-review-footer > .capture-dismiss-split { flex: 1 1 0; min-width:0; }
+.capture-dismiss-split { position:relative; display:flex; }
+.capture-dismiss-split > .btn:first-child { flex:1; }
+.capture-dismiss-split:has(.capture-dismiss-options) > .btn:first-child { border-radius:6px 0 0 6px; border-right:0; }
+.capture-dismiss-split > .capture-dismiss-options { flex:0 0 32px; width:32px; padding:0; border-radius:0 6px 6px 0; display:grid; place-items:center; }
+.capture-dismiss-options svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
+.capture-site-preference { position:absolute; z-index:2; bottom:calc(100% + 8px); left:0; width:min(300px, calc(100vw - 76px)); padding:4px; background:var(--cv-surface); border:1px solid var(--cv-border); border-radius:8px; box-shadow:0 8px 24px #0002; }
+.capture-site-preference > button { display:block; width:100%; padding:10px; border:0; border-radius:6px; background:transparent; color:var(--cv-t1); text-align:left; font:inherit; font-size:13px; font-weight:500; cursor:pointer; }
+.capture-site-preference > button:hover { background:var(--cv-subtle); }
+.capture-site-preference small { display:block; margin-top:3px; font-size:11px; color:var(--cv-t2); font-weight:400; overflow-wrap:anywhere; }
 .capture-review-error { margin: 0; padding: 0 16px 12px; color: var(--cv-primary); font-size: 12px; }
 @media (prefers-reduced-motion: reduce) { .capture-review-expansion { transition: none; } }
 .entry-form--capture { margin: 0; padding: 0; border: 0; background: transparent; }

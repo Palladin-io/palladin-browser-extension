@@ -22,7 +22,7 @@ export async function dispatchInlineCapture(command: InlineCaptureReviewCommand,
       const result = await secretCaptureCoordinator.beginReview(captureId);
       return await current() ? result : { status: 'stale' };
     }
-    if (operation.type === 'dismiss') return secretCaptureCoordinator.dismiss(captureId);
+    if (operation.type === 'dismiss' || operation.type === 'mute') return secretCaptureCoordinator.dismiss(captureId, operation.type === 'mute', current);
     if (operation.type === 'update') return secretCaptureCoordinator.update(captureId, operation.targetId, operation.entry, current);
     if (operation.type === 'save') return secretCaptureCoordinator.save(captureId, operation.vaultId, operation.entry, current);
     return { status: 'stale' };
@@ -34,7 +34,7 @@ export async function dispatchInlineCapture(command: InlineCaptureReviewCommand,
     const result = await totpCaptureCoordinator.review(undefined, source.tabId);
     return await current() && result.status === 'ready' && result.id === captureId ? result : { status: 'stale' };
   }
-  if (operation.type === 'dismiss') { await totpCaptureCoordinator.dismiss(captureId); return { status: 'dismissed' }; }
+  if (operation.type === 'dismiss' || operation.type === 'mute') return totpCaptureCoordinator.dismiss(captureId, operation.type === 'mute', current);
   if (command.kind !== 'totp' || operation.type !== 'save') return {status:'stale'};
   return totpCaptureCoordinator.save(captureId, operation.targetId, operation.replace, operation.create, operation.confirmDomainMismatch, current);
 }

@@ -11,7 +11,7 @@ export type NativeLoginCaptureCommand = Base & (
   | { type: 'save'; promptId: string; targetId: string; autoUpdate: boolean; entry: CapturedLoginEntry }
   | { type: 'choose-username'; promptId: string; choice: UsernameChoice }
   | { type: 'confirm'; promptId: string; accountId: string; targetId: string; locale: SignInLocale; replace: boolean; entryName?: string }
-  | { type: 'dismiss'; kind: 'credential' | 'federated'; promptId: string }
+  | { type: 'dismiss' | 'mute'; kind: 'credential' | 'federated'; promptId: string }
 );
 export type NativeLoginCaptureReview =
   | { kind: 'credential'; prompt: CredentialCapturePrompt; entry: CapturedLoginEntry }
@@ -36,6 +36,7 @@ export function isNativeLoginCaptureCommand(value: unknown, validEntry: (entry: 
     case 'confirm': return keys('promptId', 'accountId', 'targetId', 'locale', 'replace', 'entryName') && id('promptId') && id('accountId') && id('targetId')
       && (item.locale === 'en' || item.locale === 'pl') && typeof item.replace === 'boolean'
       && (item.entryName === undefined || typeof item.entryName === 'string' && item.entryName.trim().length > 0 && item.entryName.length <= 512 && !/[\u0000-\u001f\u007f]/.test(item.entryName));
+    case 'mute':
     case 'dismiss': return keys('promptId', 'kind') && id('promptId') && (item.kind === 'credential' || item.kind === 'federated');
     default: return false;
   }

@@ -1,3 +1,4 @@
+import type { CredentialCapturePreferences } from '../capture/credential-coordinator';
 import { captureDocumentKey } from '../capture/document-identity';
 import type {
   FederatedSignInCommand,
@@ -47,11 +48,13 @@ export interface ProviderAccount {
 }
 
 export interface SignInSession {
+  readonly profileId?: string;
   readonly unlocked: boolean;
   readonly generation: number;
 }
 
 export interface FederatedSignInDeps {
+  preferences?: Pick<CredentialCapturePreferences, 'isMuted' | 'mute'>;
   getSession(): Promise<SignInSession | null>;
   /** Provider Credentials from the local cache; `entry` is set only for discoverable ones. */
   providerAccounts(provider: SignInProvider): Promise<ProviderAccount[]>;
@@ -242,6 +245,20 @@ export class FederatedSignInCoordinator {
         return { status: 'prompt', prompt: await this.prompt(source) };
       case 'confirm':
         return this.confirm(command, source, entryName, operationAuthorized);
+      case 'mute': {
+        const flow = this.flows.get(source.tabId), stored = flow?.prompt;
+        const session = await this.deps.getSession();
+        if (!flow || !stored || stored.view.id !== command.promptId || !session?.unlocked || !session.profileId || !this.deps.preferences
+          || stored.browserDocumentId !== captureDocumentKey(source) || stored.documentId !== source.documentId
+          || !this.sameService(source.url, flow) || !await this.deps.isCurrentDocument(source)
+          || operationAuthorized && !await operationAuthorized()) return { status: 'stale' };
+        const current = await this.deps.getSession();
+        if (!current?.unlocked || current.generation !== session.generation || current.profileId !== session.profileId
+          || this.flows.get(source.tabId) !== flow) return { status: 'stale' };
+        await this.deps.preferences.mute(session.profileId, registrableDomain(flow.serviceOrigin) ?? hostOf(flow.serviceOrigin));
+        this.flows.delete(source.tabId);
+        return { status: 'dismissed' };
+      }
       case 'dismiss': {
         const flow = this.flows.get(source.tabId);
         if (flow?.prompt?.view.id === command.promptId) {
@@ -368,6 +385,7 @@ export class FederatedSignInCoordinator {
       return { id: flow.prompt?.view.id ?? this.createId(), site, provider: flow.provider, state: 'locked',
         accounts: [], targets: [], defaultAccountId: null, defaultTargetId: null };
     }
+    if (session.profileId && await this.deps.preferences?.isMuted(session.profileId, registrableDomain(flow.serviceOrigin) ?? site)) return null;
     if (flow.prompt !== null && flow.prompt.browserDocumentId === captureDocumentKey(source)
       && flow.prompt.documentId === source.documentId) {
       return flow.error ? { ...flow.prompt.view, error: 'save-failed' } : flow.prompt.view;
