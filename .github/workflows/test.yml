@@ -45,6 +45,10 @@ jobs:
         run: node tests/browser/inline-capture-review.mjs
       - name: Verify capture overlay guards and animated resize
         run: node tests/browser/capture-review-host.mjs
+      - name: Verify capture motion throughout each transition
+        run: node tests/browser/capture-review-motion.mjs
+      - name: Verify payment CVC is never a login-password target
+        run: node tests/browser/capturelab-card.mjs
       - name: Verify generated password fill without local history
         run: npm run test:browser:generator
       - name: Verify trusted multi-step and formless capture

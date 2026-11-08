@@ -182,7 +182,7 @@ export function LoginCapturePrompt({ review: initialReview, send, onDone, onSave
         <FilterSelect floating aria-label={t('captureReview.vault')} value={targetId} disabled={busy} onValueChange={value => void selectTarget(value)}>
           {review.prompt.targets.map(value => <option value={value.id} key={value.id}>{value.vaultLabel}</option>)}
         </FilterSelect></> : <EntryAutocomplete label={t('captureReview.existingEntry')}
-        options={review.prompt.targets.map(value => ({ id: value.id, name: value.label, detail: value.vaultLabel, ...('icon' in value && value.icon ? { icon: value.icon } : {}), ...('color' in value && value.color ? { color: value.color } : {}), type: ENTRY_TYPE_CREDENTIAL }))}
+        options={review.prompt.targets.map(value => ({ id: value.id, name: value.label, detail: t('captureReview.vaultLocation', {name:value.vaultLabel}), ...('icon' in value && value.icon ? { icon: value.icon } : {}), ...('color' in value && value.color ? { color: value.color } : {}), type: ENTRY_TYPE_CREDENTIAL }))}
         value={targetId} onValueChange={value => void selectTarget(value)} disabled={busy} /> : null}
 
       {review.kind === 'credential' && entry ? <AddEntryForm key={`${targetId}:${formVersion}`} client={client} initialEntry={entry} captureDraftRef={formDraft} initialCaptureDraft={restoredForm.current}
@@ -214,7 +214,7 @@ export function LoginCapturePrompt({ review: initialReview, send, onDone, onSave
           </FilterSelect>
           <label className="field-label">{t('captureReview.entryName')}<input className="field-input" autoComplete="off" value={entryName} maxLength={512} required disabled={busy} onChange={event=>setEntryName(event.target.value)} /></label>
         </> : <EntryAutocomplete label={t('captureReview.existingEntry')} value={targetId} disabled={busy}
-          options={review.prompt.targets.filter(item=>item.action==='update').map(item=>({id:item.id,name:item.label,detail:item.vaultLabel,...(item.icon ? {icon:item.icon} : {})}))}
+          options={review.prompt.targets.filter(item=>item.action==='update').map(item=>({id:item.id,name:item.label,detail:t('captureReview.vaultLocation',{name:item.vaultLabel}),...(item.icon ? {icon:item.icon} : {})}))}
           onValueChange={value=>{setTargetId(value);setReplace(false);}} />}
         <p className="capture-field-hint">{t(methodMode === 'create' ? 'captureReview.methodNewHint' : 'captureReview.methodExistingHint',{site:review.prompt.site,provider:provider ?? ''})}</p>
         {replacing ? <label className="capture-checkbox"><input type="checkbox" checked={replace} onChange={event => setReplace(event.target.checked)} />{t('captureReview.replaceSignIn')}</label> : null}

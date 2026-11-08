@@ -198,7 +198,7 @@ it('retains the edited saved name and account after clearing the authenticator f
  fireEvent.change(screen.getByLabelText('Username'),{target:{value:'saved@example.com'}});
  fireEvent.click(screen.getByRole('button',{name:'Save authenticator'}));
  expect(await screen.findByText('Synthetic inline account')).toBeVisible();
- expect(screen.getByText('saved@example.com · Authenticator')).toBeVisible();
+ expect(screen.getByText('Account: saved@example.com · Authenticator')).toBeVisible();
  expect(screen.queryByLabelText('Name')).toBeNull();
 });
 it('passes edited unsaved authenticator fields and destination to thumbnail handoff', () => {

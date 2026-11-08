@@ -27,6 +27,7 @@ export function CaptureFrameApp({ connection }: { connection: CaptureFrameConnec
   const [review, setReview] = useState<Review | null>(null);
   const [savedSecret, setSavedSecret] = useState<SavedSecret | null>(null);
   const container = useRef<HTMLDivElement>(null);
+  const hasContent = review !== null || savedSecret !== null;
   useEffect(() => {
     let current = true;
     const channel = connection.kind === 'login' ? NATIVE_LOGIN_CAPTURE_CHANNEL : connection.kind === 'secret' ? SECRET_CAPTURE_CHANNEL : TOTP_CAPTURE_CHANNEL;
@@ -48,8 +49,9 @@ export function CaptureFrameApp({ connection }: { connection: CaptureFrameConnec
     const observer = new ResizeObserver(() => connection.resize(node.getBoundingClientRect().height));
     observer.observe(node);
     return () => observer.disconnect();
-  }, [connection]);
+  }, [connection, hasContent]);
   const openCapture = (saved: boolean, draft?: CaptureDraft) => { if(!saved && !draft)return; void connection.send(saved ? {type:'open-saved'} : {type:'open-draft',draft:draft!}).then(result => { if (result.status === 'dismissed') connection.close(); }).catch(connection.failed); };
+  if (!hasContent) return null;
   return <ApiUrlContext.Provider value={connection.apiUrl}><div className="popup capture-frame" ref={container}>
     <header className="popup-header"><div className="brand-lockup"><img className="brand-logo" src={captureBrand} alt="" /><h1 className="wordmark" aria-label="Palladin.io">Palladin<span className="wordmark-tld">.io</span></h1></div><button type="button" className="toolbar-icon" aria-label={t('captureReview.close')} onClick={connection.close}><span aria-hidden="true">×</span></button></header>
     {review?.kind === 'login' ? <LoginCapturePrompt initialExpanded onOpenCapture={openCapture} client={noVaultCommands} review={review.value}

@@ -137,7 +137,7 @@ export async function openInlineCaptureReview(doc: Document, documentId: string,
   const height = Math.max(100, Math.min(initial?.height ?? 200, win.innerHeight - top - 16));
   for (const [property, value] of Object.entries({ top: `${top}px`, right: `${right}px`, left: 'auto', bottom: 'auto',
     margin: '0', padding: '0', border: '0', width: `${width}px`, height: `${height}px`,
-    'pointer-events': 'auto', 'border-radius': '12px', overflow: 'hidden', 'box-shadow': '0 18px 45px #0003',
+    background: 'transparent', 'pointer-events': 'auto', 'border-radius': '12px', overflow: 'hidden', 'box-shadow': '0 18px 45px #0003',
     transition: win.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'none' : `height ${TRANSITION_MS}ms ease`,
   })) host.style.setProperty(property, value, 'important');
   if (modal) {
@@ -153,6 +153,7 @@ export async function openInlineCaptureReview(doc: Document, documentId: string,
   catch { return false; }
   return new Promise<boolean>(resolve => {
     let closed = false, ready = false, loaded = false, booted = false, capability: string | undefined;
+    let pendingHeight: number | undefined;
     let guard: ReturnType<typeof createCaptureReviewGuard> | undefined;
     const channel = new MessageChannel();
     const started = Date.now();
@@ -194,10 +195,13 @@ export async function openInlineCaptureReview(doc: Document, documentId: string,
         if (!guard?.attest()) { close(); return; }
         ready = true; clearTimeout(timeout);
         timeout = setTimeout(close, Math.max(0, 180_000 - (Date.now() - started)));
-        initial?.onReady?.(); resolve(true);
+        initial?.onReady?.();
+        if (pendingHeight !== undefined) guard.resize(pendingHeight);
+        resolve(true);
       } else if (data.type === 'close' || data.type === 'failed') close();
       else if (data.type === 'resize' && 'height' in data && typeof data.height === 'number' && Number.isFinite(data.height)) {
-        guard?.resize(Math.max(100, Math.min(Math.ceil(data.height), win.innerHeight - top - 16)));
+        pendingHeight = Math.max(100, Math.min(Math.ceil(data.height), win.innerHeight - top - 16));
+        if (ready) guard?.resize(pendingHeight);
       }
     };
     owner.onMessage.addListener((raw: unknown) => {

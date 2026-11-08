@@ -64,12 +64,35 @@ try {
     await page.waitForTimeout(650);
     const hosts=page.locator('palladin-capture'); assert.equal(await hosts.last().evaluate(h=>h.shadowRoot),null);
     const before=await hosts.last().boundingBox();
+    if (name !== 'card-create' && name !== 'card-update') {
+      const { root } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
+      const findIdentity = node => {
+        const attributes = node.attributes ?? [];
+        if (attributes[attributes.indexOf('class') + 1] === 'notice-identity-icon') return node;
+        for (const child of [...(node.children ?? []), ...(node.shadowRoots ?? [])]) {
+          const found = findIdentity(child); if (found) return found;
+        }
+      };
+      const identity = findIdentity(root);
+      const image = identity?.children?.find(node => node.nodeName === 'IMG');
+      assert(image, `${name}: initial notice has a site image`);
+      const { object } = await cdp.send('DOM.resolveNode', { backendNodeId: image.backendNodeId });
+      const decoded = await cdp.send('Runtime.callFunctionOn', { objectId: object.objectId,
+        functionDeclaration: 'async function() { await this.decode(); return this.naturalWidth; }', awaitPromise: true, returnByValue: true });
+      assert.equal(decoded.result.value, 32, `${name}: initial site PNG decodes`);
+    }
+
     let model;
     await wait(async()=>{review=(await cdp.send('Accessibility.getFullAXTree')).nodes.find(n=>!n.ignored&&n.role?.value==='button'&&n.name?.value===label('Review'));if(!review)return false;try{model=(await cdp.send('DOM.getBoxModel',{backendNodeId:review.backendDOMNodeId})).model;return true}catch{return false}},'live notice button');
     await page.mouse.click((model.content[0]+model.content[4])/2,(model.content[1]+model.content[5])/2);
     await wait(()=>page.frames().some(f=>f.url().includes('/capture-review/')),'inline frame');
     const frame=page.frames().find(f=>f.url().includes('/capture-review/'));
     await frame.locator('.capture-review[data-stage="review"]').waitFor(); await page.waitForTimeout(800);
+    if (name !== 'card-create' && name !== 'card-update') {
+      const image = frame.locator('.capture-review-identity .entry-icon-image').first();
+      await image.waitFor();
+      assert.equal(await image.evaluate(async img => { await img.decode(); return img.naturalWidth; }), 32, `${name}: review site PNG decodes`);
+    }
     const box=await hosts.last().boundingBox(); assert(Math.abs(box.y-before.y)<1&&Math.abs(box.x+box.width-before.x-before.width)<1,'same notification anchor');
     assert.equal(await frame.locator('.popup-header').evaluate(el=>el.getBoundingClientRect().height),68,'approved header height');
     await page.screenshot({path:path.join(artifacts,`${name}-review.png`),clip:await page.locator('palladin-capture').last().boundingBox()}); await visualVariants(frame,name,'review'); return frame;
@@ -97,13 +120,25 @@ try {
     await page.getByLabel('Username',{exact:true}).fill('matrix-user'); await page.getByLabel('Password',{exact:true}).fill(password);
     await page.getByRole('button',{name:'Submit',exact:true}).click();
     const frame=await openReview(name), count=api.writes.length;
+    if(name==='login-update') {
+      const geometry=await frame.locator('.capture-checkbox').evaluate(label=>{
+        const input=label.querySelector('input').getBoundingClientRect();
+        const range=document.createRange();range.selectNodeContents(label);
+        const text=[...label.childNodes].find(node=>node.nodeType===Node.TEXT_NODE&&node.textContent.trim());
+        range.selectNodeContents(text);const first=range.getClientRects()[0];
+        return {inputRight:input.right,inputTop:input.top,textLeft:first.left,textTop:first.top};
+      });
+      assert(geometry.inputRight<geometry.textLeft&&Math.abs(geometry.inputTop-geometry.textTop)<5,'auto-update checkbox aligned beside the first text line');
+    }
+
     await frame.getByRole('button',{name:label(name==='login-create'?'Save login':'Update password'),exact:true}).click();
     const write=await saved(frame,name,count,(plain,write)=>{assert(plain.content.password===password,'password roundtrip');if(original){assert.equal(write.action,'updated');assert.equal(write.entryId,original.entryId)}});
     original??=write;
   }
   for(const [name,cvv,year] of [['card-create','739','2031'],['card-update','913','2035']]) {
     if(!selected(name))continue;
-    await run(name,async()=>{await page.goto(`https://payment.example.test/card?${name}`);await page.waitForTimeout(500);
+    await run(name,async()=>{await page.goto(`https://login.example.test/card?${name}`);await page.waitForTimeout(750);
+    assert.equal(await page.locator('[autocomplete="cc-csc"]').inputValue(),'','saved portal password must not autofill masked CVC');
     for(const [autocomplete,value] of [['cc-number',pan],['cc-name','Synthetic Cardholder'],['cc-exp-month','12'],['cc-exp-year',year],['cc-csc',cvv]]) await page.locator(`[autocomplete="${autocomplete}"]`).fill(value);
     await page.getByRole('heading').click();await page.waitForTimeout(700);
     const frame=await openReview(name),count=api.writes.length;
@@ -175,7 +210,7 @@ function fixture(url) {
  if(url.hostname==='accounts.google.com')return html('<a href="https://app.example.test/callback?code=synthetic-code&state=synthetic-state">Allow</a>');
  if(url.pathname==='/oauth')return html('<a href="https://accounts.google.com/o/oauth2/v2/auth?client_id=synthetic&redirect_uri=https%3A%2F%2Fapp.example.test%2Fcallback&state=synthetic-state">Continue with Google</a>');
  if(url.pathname==='/callback')return html('Signed in');
- if(url.pathname==='/card')return html('<form>'+['cc-number','cc-name','cc-exp-month','cc-exp-year','cc-csc'].map(a=>`<input autocomplete="${a}">`).join('')+'</form>');
+ if(url.pathname==='/card')return html('<form>'+['cc-number','cc-name','cc-exp-month','cc-exp-year','cc-csc'].map(a=>`<input autocomplete="${a}" type="${a==='cc-csc'?'password':'text'}">`).join('')+'</form>');
  if(url.pathname==='/key')return html(`<section><h2>API key</h2><button onclick="document.querySelector('output').textContent='${key}'">Generate</button><output></output></section>`);
  return fixturePage(url);
 }

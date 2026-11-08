@@ -60,7 +60,7 @@ export function TotpCapturePrompt({ review, send = sendDefault, onDone, onSaved,
     {...(onOpenCapture ? {onIdentity: () => onOpenCapture(stage === 'saved',{kind:'totp',targetId,label,username,replace,confirmDomainMismatch})} : stage === 'saved' && savedTarget && navigation ? { onIdentity: () => { navigation.update({view:'vault',selected:savedTarget}); onDone(); } } : {})} onReview={() => setStage('review')} onSave={() => void save()} onDone={onDone}
     onDismiss={() => { setBusy(true); void send({ channel: TOTP_CAPTURE_CHANNEL, type: 'dismiss', id: review.id }).then(onDone).catch(() => { setError(true); setBusy(false); }); }}>
     {existing.length ? <EntryAutocomplete label={t('totpCapture.credential')} value={targetId} disabled={busy}
-      options={existing.map(item => ({ id: item.id, name: item.name ?? item.label, detail: item.vaultLabel, hasTotp:item.hasTotp, ...(item.username ? {account:item.username} : {}), ...(item.icon ? {icon:item.icon} : {}) }))}
+      options={existing.map(item => ({ id: item.id, name: item.name ?? item.label, detail: t('captureReview.vaultLocation',{name:item.vaultLabel}), hasTotp:item.hasTotp, ...(item.username ? {account:item.username} : {}), ...(item.icon ? {icon:item.icon} : {}) }))}
       onValueChange={value => { setTargetId(value); setReplace(false); setConfirmDomainMismatch(false); }} /> : target?.action !== 'create' ?
       <Button variant="subtle" disabled={busy || !createTargets.length} onClick={() => { setTargetId((createTargets.find(item => item.isDefault) ?? createTargets[0])!.id); setReplace(false); setConfirmDomainMismatch(false); }}>{t('captureReview.createLogin')}</Button> : null}
     {target?.action === 'create' ? <>

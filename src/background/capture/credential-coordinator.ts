@@ -121,7 +121,8 @@ export class CredentialCaptureCoordinator {
     const session = await this.deps.getSession();
     if (!pending?.credential || !session || !await this.stillAuthorized(pending, session)) return null;
     const target = pending.choices.get(targetId ?? result.prompt.defaultTargetId ?? '');
-    return { prompt: result.prompt, entry: target?.action === 'update' && target.review ? target.review : { entryType: 'credential' as const, label: new URL(pending.source.url).hostname,
+    return { prompt: result.prompt, entry: target?.action === 'update' && target.review ? { ...target.review,
+      ...(!target.review.icon && icon ? { icon } : {}) } : { entryType: 'credential' as const, label: new URL(pending.source.url).hostname,
       username: pending.credential.username, password: pending.credential.password, url: pending.origin,
       notes: '', customFields: [], ...(icon ? { icon } : {}) } };
   }

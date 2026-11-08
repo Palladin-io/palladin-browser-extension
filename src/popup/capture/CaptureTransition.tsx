@@ -6,7 +6,7 @@ export function CaptureTransition({ children }: { children: ReactNode }) {
   const inner = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const container = outer.current, content = inner.current;
-    if (!container || !content || typeof ResizeObserver === 'undefined') return;
+    if (!container || !content || container.closest('.capture-frame') || typeof ResizeObserver === 'undefined') return;
     let height = content.getBoundingClientRect().height;
     let animation: Animation | undefined;
     const observer = new ResizeObserver(() => {

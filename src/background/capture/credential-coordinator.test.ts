@@ -525,6 +525,23 @@ describe('native credential review', () => {  it('serializes native saves so a d
     coordinator.clear();
   });
 
+  it.each([undefined, 'fingerprint'])('uses the site icon for an update only without an existing icon (%s)', async existingIcon => {
+    const siteIcon = 'public-asset:11111111-1111-4111-8111-111111111111';
+    const choices: CredentialCaptureChoices = { identical: false, defaultIndex: 0, targets: [{ ...updateTarget,
+      review: { entryType: 'credential', label: 'Alice', username: 'alice', password: 'new',
+        url: 'https://accounts.example.com', ...(existingIcon ? { icon: existingIcon } : {}) } }] };
+    const coordinator = new CredentialCaptureCoordinator({
+      getSession: async () => ({ profileId: 'user', generation: 1, unlocked: true }),
+      isCurrentDocument: async () => true, isSubmissionDocument: () => true,
+      choices: async () => choices, save: async () => ({ action: 'updated', revision: '5' }),
+      preferences: { isMuted: async () => false, mute: async () => {}, isAutomatic: async () => false, setAutomatic: async () => {} }, icon: async () => siteIcon,
+    });
+    await coordinator.dispatch(submitted, source);
+    await coordinator.dispatch(confirmed, source);
+    expect((await coordinator.nativeReview(source))?.entry.icon).toBe(existingIcon ?? siteIcon);
+    coordinator.clear();
+  });
+
   it('returns captured fields only to an authorized native review and fails closed after document loss', async () => {
     let current = true;
     const coordinator = new CredentialCaptureCoordinator({

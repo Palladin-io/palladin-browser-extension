@@ -1563,7 +1563,7 @@ html[data-extension-surface='side-panel'] .popup-header {
 
 .capture-review-identity .entry-icon { width:36px; height:32px; flex-shrink:0; }
 .capture-provider { margin-left:auto; flex-shrink:0; display:flex; align-items:center; }
-.capture-checkbox, .capture-review .settings-checkbox { display:flex; align-items:flex-start; gap:8px; font-size:12px; color:var(--cv-t2); }
+.capture-review .capture-checkbox, .capture-review .settings-checkbox { display:flex; flex-direction:row; align-items:flex-start; gap:8px; font-size:12px; color:var(--cv-t2); }
 .capture-checkbox input, .capture-review .settings-checkbox input { width:15px; height:15px; flex-shrink:0; margin:2px 0 0; accent-color:var(--cv-primary); }
 
 .capture-transition { overflow:hidden; }
