@@ -32,6 +32,13 @@ as part of visual changes.
   transitions. Side-panel bounds remain browser-owned.
 
 
+## Mockup-first workflow
+
+Follow `AGENTS.md` before changing any UI. Update the root `design/workbench/`
+preview with actual extension components, obtain acceptance of new decisions,
+and match the accepted revision pixel for pixel. Keep fixtures offline; native
+runtime/security verification remains separate.
+
 ## Verification boundary
 
 Component tests cover filters and access flows; `tests/browser/workspace.mjs`
