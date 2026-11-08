@@ -49,15 +49,20 @@ try {
           const host = document.querySelector('palladin-capture');
           const header = root.querySelector('.header');
           const footer = root.querySelector('.footer');
-          const buttons = [...footer.querySelectorAll('button')];
+          const buttons = [...footer.querySelectorAll('button.secondary:not(.dismiss-options), button.primary')];
           const logo = root.querySelector('.notice-brand img');
+          window.noticeShadow = root;
+          const split = root.querySelector('.dismiss-split');
+          if (kind === 'credential') {
+            if (!split || root.querySelector('.notice-body .site-mute')) throw new Error('site preference must be inside split Dismiss');
+          }
           await logo.decode();
           return { brand: root.querySelector('.notice-brand').textContent, logoWidth: logo.naturalWidth,
             title:root.querySelector('.notice-title')?.textContent, identity:root.querySelector('.notice-identity')?.textContent,
             body:root.querySelector('.notice-body, .body')?.textContent,
             headerHeight: header.getBoundingClientRect().height, gradient: getComputedStyle(header).backgroundImage,
             footerBorder: getComputedStyle(footer).borderTopWidth, primary: getComputedStyle(buttons[1]).backgroundColor,
-            buttons: buttons.map(button => ({ label: button.textContent, width: button.getBoundingClientRect().width })),
+            buttons: buttons.map(button => ({ label: button.textContent, width: (button.closest('.dismiss-split') ?? button).getBoundingClientRect().width })),
             animation: getComputedStyle(root.querySelector('.panel')).animationName,
             closed: host.shadowRoot === null, theme: host.dataset.theme,
           };
@@ -75,6 +80,19 @@ try {
       assert.equal(result.animation, 'none');
       assert.equal(result.closed, true);
       assert.equal(result.theme, theme);
+      if (kind === 'credential') {
+        const toggle = await page.evaluate(() => {const rect=window.noticeShadow.querySelector('.dismiss-options').getBoundingClientRect();return {x:rect.x+rect.width/2,y:rect.y+rect.height/2};});
+        await page.mouse.click(toggle.x,toggle.y);
+        assert.equal(await page.evaluate(() => window.noticeShadow.querySelector('.site-preference').hidden), false, 'pointer click on chevron opens preference');
+        await page.keyboard.press('Escape');
+        await page.evaluate(() => { window.noticeShadow.querySelector('.dismiss-options').focus(); });
+        await page.keyboard.press('Enter');
+        assert.equal(await page.evaluate(() => window.noticeShadow.querySelector('.dismiss-options').getAttribute('aria-expanded')), 'true');
+        assert.equal(await page.evaluate(() => window.noticeShadow.querySelector('.site-preference').hidden), false);
+        await page.screenshot({ path: `test-results/capture-notice-chrome/${language}-${theme}-dismiss-options.png` });
+        await page.keyboard.press('Escape');
+        assert.equal(await page.evaluate(() => window.noticeShadow.querySelector('.site-preference').hidden), true);
+      }
       await page.screenshot({ path: `test-results/capture-notice-chrome/${language}-${theme}-${kind}.png` });
       console.log(`PASS ${theme} ${kind}: brand, neutral gradient, fixed header, equal actions, closed root, reduced motion`);
     }

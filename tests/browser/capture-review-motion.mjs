@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { mkdir } from 'node:fs/promises';
 import { createServer } from 'vite';
 import { chromium } from 'playwright';
 
@@ -10,34 +11,39 @@ await server.listen();
 const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1200, height: 850 } });
+  const artifacts=path.resolve('test-results/capture-review-motion'); await mkdir(artifacts,{recursive:true});
   let kind = 'secret';
   await page.route('https://capture.example.test/**', async route => {
     const url = new URL(route.request().url());
-    if (url.pathname === '/fixture') return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><body></body></html>' });
+    if (url.pathname === '/fixture') return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><body><div id="notice-sentinel" style="position:fixed;left:764px;top:16px;width:420px;height:260px;background:magenta">Synthetic original notice</div></body></html>' });
     if (url.pathname === '/src/capture-review/index.html') return route.fulfill({ contentType: 'text/html', body: `<!doctype html><html><body><div id="root"></div><script type="module">
       import React from '/node_modules/.vite/deps/react.js';
       import ReactDOM from '/node_modules/.vite/deps/react-dom_client.js'; const {createRoot} = ReactDOM;
+      import { PopupPreferencesProvider } from '/src/popup/preferences.tsx';
       import { CaptureFrameApp } from '/src/capture-review/App.tsx';
       import { bindCaptureFrame } from '/src/capture-review/frame-connection.ts';
       import '/src/popup/popup.css'; import '/src/popup/redesign.css'; import '/src/capture-review/frame.css';
       window.React = React;
+      window.frameSamples=[];
+      const sampleFrame=()=>{const header=document.querySelector('.popup-header')?.getBoundingClientRect();window.frameSamples.push({at:performance.now(),background:getComputedStyle(document.body).backgroundColor,header:header?{height:header.height,top:header.top,width:header.width}:null});requestAnimationFrame(sampleFrame);};sampleFrame();
       const listeners = [];
       const secretReview = { status: 'review', id: 'candidate', origin: 'https://example.test', candidate: { kind: 'key', value: 'synthetic-capture-secret' }, vaults: [{ id: 'vault', name: 'Personal', isDefault: true }] };
       const review = ${kind === 'secret' ? 'secretReview' : JSON.stringify({ status:'review',review:{kind:'credential',prompt:{id:'capture',site:'example.test',state:'ready',targets:[{id:'target',action:'create',label:'Personal',vaultLabel:'Personal'}],defaultTargetId:'target'},entry:{entryType:'credential',label:'Example',username:'synthetic-user',password:'synthetic-password',url:'https://example.test'}}})};
       bindCaptureFrame(window, () => ({
         postMessage(message) {
           if(message.type === 'connect') queueMicrotask(() => listeners.forEach(fn => fn({type:'connected',ok:true})));
-          if(message.type === 'command') setTimeout(() => listeners.forEach(fn => fn({type:'result',requestId:message.requestId,result:message.envelope.command.type === 'get' ? review : {status:'saved'}})), message.envelope.command.type === 'get' ? 350 : 0);
+          if(message.type === 'command') { const reply = () => listeners.forEach(fn => fn({type:'result',requestId:message.requestId,result:message.envelope.command.type === 'get' ? review : {status:'saved'}})); if(message.envelope.command.type === 'get') window.releaseReview=reply; else setTimeout(reply,0); }
         }, disconnect() {}, onMessage:{addListener:fn => listeners.push(fn)}, onDisconnect:{addListener() {}}
-      }), connection => createRoot(document.getElementById('root')).render(React.createElement(CaptureFrameApp,{connection})), () => {});
+      }), connection => createRoot(document.getElementById('root')).render(React.createElement(PopupPreferencesProvider,null,React.createElement(CaptureFrameApp,{connection}))), () => {});
     </script></body></html>` });
     const response = await fetch(new URL(url.pathname + url.search, server.resolvedUrls.local[0]));
-    await route.fulfill({ status: response.status, contentType: response.headers.get('content-type') ?? 'text/javascript', body: await response.text() });
+    await route.fulfill({ status: response.status, contentType: response.headers.get('content-type') ?? 'text/javascript', body: Buffer.from(await response.arrayBuffer()) });
   });
   page.on('pageerror', error => console.error(error.message));
-  for (kind of ['secret','login']) for (const reduced of [false, true]) {
-    await page.emulateMedia({ reducedMotion: reduced ? 'reduce' : 'no-preference' });
+  for (kind of ['secret','login']) for (const theme of ['light','dark']) for (const reduced of [false, true]) {
+    await page.emulateMedia({ colorScheme:theme, reducedMotion: reduced ? 'reduce' : 'no-preference' });
     await page.goto('https://capture.example.test/fixture');
+    const framePromise=page.waitForEvent('framenavigated',{predicate:frame=>frame.url().includes('/capture-review/')});
     await page.evaluate(async kind => {
       const { openInlineCaptureReview } = await import('/src/content/isolated/capture-review-host.ts');
       const listeners = [];
@@ -49,28 +55,45 @@ try {
       const sample = () => {
         const host = document.querySelector('palladin-capture');
         if(host) {
-          const header = window.frames[0]?.document.querySelector('.popup-header')?.getBoundingClientRect();
-          window.samples.push({at:performance.now(),height:host.getBoundingClientRect().height, background:window.frames[0]?.document.body ? getComputedStyle(window.frames[0].document.body).backgroundColor : null, header:header ? {height:header.height,top:header.top,width:header.width} : null});
+          window.samples.push({at:performance.now(),height:host.getBoundingClientRect().height});
         }
         window.sampling = requestAnimationFrame(sample);
       }; sample();
-      void openInlineCaptureReview(document,'document',kind,'capture',{left:764,top:16,width:420,height:260,onReady:() => {window.readyAt=performance.now();}});
+      void openInlineCaptureReview(document,'document',kind,'capture',{left:764,top:16,width:420,height:260,onReady:() => {window.readyAt=performance.now();document.getElementById('notice-sentinel').remove();}});
     }, kind);
+    const frame = await framePromise;
+    await frame.waitForFunction(()=>typeof window.releaseReview==='function');
+    await page.screenshot({path:path.join(artifacts,`${kind}-${theme}-${reduced}-loading.png`)});
+    const pixel=await page.screenshot({clip:{x:800,y:200,width:1,height:1}});
+    const rgba=await page.evaluate(async data=>{const image=new Image();image.src=data;await image.decode();const canvas=document.createElement('canvas');canvas.width=canvas.height=1;const ctx=canvas.getContext('2d');ctx.drawImage(image,0,0);return [...ctx.getImageData(0,0,1,1).data];},`data:image/png;base64,${pixel.toString('base64')}`);
+    assert.deepEqual(rgba,[255,0,255,255],'actual pixels preserve original notice while preferences and scoped review load');
+    await frame.evaluate(()=>window.releaseReview());
     await page.waitForFunction(() => window.readyAt !== null, null, { timeout: 10000 });
-    const frame = page.frames().find(frame => frame.url().includes('/capture-review/'));
     await page.waitForTimeout(750);
     const expansion = await page.evaluate(() => window.samples);
-    assert(expansion.filter(s=>!s.header&&s.background).every(s=>s.background==='rgba(0, 0, 0, 0)'), 'loading frame stays transparent over the original notice');
+    await frame.waitForFunction(()=>{const logo=document.querySelector('.brand-logo');return logo.complete&&logo.naturalWidth>0;});
     console.log('Expansion heights', reduced, Math.min(...expansion.map(s=>s.height)), expansion.at(-1).height);
     assert(expansion.every(s => s.height >= 259), 'opening never contracts to a header-only loading frame');
+    const headerClip={x:770,y:22,width:408,height:56};
+    const headerBefore=await page.screenshot({clip:headerClip});
+    await page.screenshot({path:path.join(artifacts,`${kind}-${theme}-${reduced}-review.png`)});
     await page.evaluate(() => {window.samples=[];});
     await frame.getByRole('button', { name: kind === 'secret' ? 'Save key' : 'Save login', exact: true }).click();
     await frame.getByRole('button', { name: 'Done', exact: true }).waitFor();
     const savedAt = await page.evaluate(() => performance.now());
+    for(let sample=0;sample<6;sample++) {
+      const headerDuring=await page.screenshot({clip:headerClip});
+      assert(headerBefore.equals(headerDuring),'review→saved keeps rendered header pixels unchanged, including secret remount');
+      await page.screenshot({path:path.join(artifacts,`${kind}-${theme}-${reduced}-saved-${sample}.png`)});
+    }
     await page.waitForTimeout(750);
     const collapse = await page.evaluate(() => window.samples);
     const final = collapse.at(-1).height;
-    assert([...expansion,...collapse].filter(s=>s.header).every(s=>s.header.height===68 && s.header.top===0 && s.header.width===420), 'header geometry stays fixed on every animation frame');
+    const frames=await frame.evaluate(()=>window.frameSamples);
+    assert(frames.filter(s=>!s.header).length>0,'sample pending scoped review');
+    assert(frames.filter(s=>!s.header).every(s=>s.background==='rgba(0, 0, 0, 0)'), 'loading frame stays transparent over the original notice');
+    assert(frames.filter(s=>s.header).length>10,'sample real child frames across both transitions');
+    assert(frames.filter(s=>s.header).every(s=>s.header.height===68 && s.header.top===0 && s.header.width===420), 'header geometry stays fixed on every animation frame');
     console.log('Collapse heights', reduced, Math.min(...collapse.map(s=>s.height)), final);
     assert(collapse.filter(s=>s.at>savedAt+380).every(s=>Math.abs(s.height-final)<1), 'saved resize settles in one 320ms transition');
     assert(collapse.every(s => s.height >= final - 1), 'saved transition never undershoots and rebounds');

@@ -288,7 +288,8 @@ try {
   console.log('PASS: disabling one account restores manual confirmation; Dismiss makes no mutation')
 
   await submit({ host: 'muted-login', kind: 'login', mode: 'spa', username: 'alice', password: 'Synthetic-muted!' })
-  await click('button', "Don't ask for this site")
+  await click('button', "More dismiss options")
+  await click('button', "Don't offer to save on this site example.test")
   // Navigation must follow the acknowledged preference write, not just pointer dispatch.
   await wait(async () => await page.locator('palladin-capture').count() === 0, 'site mute acknowledged')
   await submit({ host: 'muted-login', kind: 'login', mode: 'classic', username: 'alice', password: 'Synthetic-muted-again!' })

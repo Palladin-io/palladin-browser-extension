@@ -40,7 +40,7 @@ describe("credential capture toast", () => {
     toast.show({ status: "prompt", prompt: view });
   });
   afterEach(() => { toast.stop(); vi.restoreAllMocks(); vi.useRealTimers(); });
-  const ui = () => within(shadow as unknown as HTMLElement);
+  const ui = () => within(shadow.querySelector('.panel') as HTMLElement);
   async function click(name: string | RegExp) {
     ui().getByRole("button", { name }).click();
     await vi.advanceTimersByTimeAsync(0);
@@ -49,8 +49,9 @@ describe("credential capture toast", () => {
   it('keeps the branded header separate from the two review actions and site mute', () => {
     expect(shadow.querySelector('.notice-brand')?.textContent).toBe('Palladin.io');
     expect(shadow.querySelector('.notice-brand img')).not.toBeNull();
-    expect(shadow.querySelector('.footer')?.querySelectorAll('button')).toHaveLength(2);
-    expect(ui().getByRole('button', { name: "Don't ask for this site" })).toBeVisible();
+    expect(shadow.querySelector('.footer')?.children).toHaveLength(2);
+    expect(ui().queryByRole('button', { name: /Don't offer/ })).toBeNull();
+    expect(ui().getByRole('button', { name: 'More dismiss options' })).toHaveAttribute('aria-expanded','false');
   });
   it('opens scoped inline review without invoking native popup', async () => {
     send.mockResolvedValue({ status: 'accepted' });
@@ -80,9 +81,13 @@ describe("credential capture toast", () => {
     expect(ui().getByRole('button', { name: label })).toBeVisible();
     expect(ui().getByRole('alert')).toHaveTextContent(locale === 'pl' ? 'Nie udało' : 'Could not');
   });
-  it('keeps site mute available outside the review footer', async () => {
+  it('reveals site mute from Dismiss without dispatching an action', async () => {
     send.mockResolvedValue({ status: 'dismissed' });
-    await click("Don't ask for this site");
+    await click('More dismiss options');
+    expect(send).not.toHaveBeenCalled();
+    expect(shadow.querySelector('.site-preference')).not.toHaveAttribute('hidden');
+    (shadow.querySelector('.site-mute') as HTMLButtonElement).click();
+    await vi.advanceTimersByTimeAsync(0);
     expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'mute', promptId: view.id }));
     expect(document.querySelector('palladin-capture')).toBeNull();
   });
