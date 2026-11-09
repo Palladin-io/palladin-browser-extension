@@ -1,7 +1,8 @@
 # Popup component standard
 
 The extension uses the accepted Palladin web-panel component treatment, at native
-popup density. Source: `src/popup/redesign.css`, shared React controls under
+popup density. Component lookup: `COMPONENT-CATALOG.md`. Read the selected source
+and current consumer before composing a new flow. Source: `src/popup/redesign.css`, shared React controls under
 `src/popup/components/`. Do not restyle worker permissions or secret presentation
 as part of visual changes.
 
