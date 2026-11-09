@@ -1498,7 +1498,7 @@ html[data-extension-surface='side-panel'] .popup-header {
 .entry-icon-grid .entry-icon { width:24px; height:24px; border:0; }
 .entry-icon-picker p { margin:0; font-size:12px; color:var(--cv-t2); }
 
-.popup[data-phase="locked"]:has(> .auth-brand-header) .auth-form-panel { min-height:0; flex-shrink:1; overflow-y:auto; }
+.popup[data-phase="locked"]:has(> .auth-brand-header) .auth-form-panel { min-height:0; flex-shrink:0; overflow:visible; }
 .popup[data-phase="locked"] .auth-form-panel > .form { margin-bottom:0; }
 
 .share-management-card .share-detail-actions { display:flex; flex-wrap:nowrap; gap:8px; justify-content:flex-start; }
@@ -1661,3 +1661,11 @@ html[data-extension-surface='side-panel'] .popup-header {
 .capture-review-footer[data-saved='true'] > button { animation:capture-footer-enter 180ms ease-out both; }
 @keyframes capture-footer-enter { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
 @media(prefers-reduced-motion:reduce) { .capture-review-footer > * { animation:none!important; transition:none!important; } }
+
+html:has(.popup[data-phase='locked']), html:has(.popup[data-phase='locked']) body,
+.popup[data-phase='locked'] { transition:height 240ms ease, max-height 240ms ease; }
+.popup[data-phase='locked'] { height:var(--popup-height); }
+@media(prefers-reduced-motion:reduce) {
+  html:has(.popup[data-phase='locked']), html:has(.popup[data-phase='locked']) body,
+  .popup[data-phase='locked'] { transition:none; }
+}

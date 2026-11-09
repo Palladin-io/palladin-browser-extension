@@ -49,6 +49,8 @@
 
 ## Checkpoint
 
+Unlock error follow-up: the native locked popup now measures feedback height and animates the matching viewport growth instead of scrolling the fixed 292px form. Chromium renderer regression reproduced the old defect; normal/reduced-motion cases pass. Installed Chromium expands 292→313px through intermediate sizes without scrollbar, then accepts a correct-password retry. Full suite: 4368 tests; all builds passed. Same local build path; no merge/release.
+
 Latest animation correction (2026-11-09): saved actions now wait until the 320ms host collapse has finished, then enter over 180ms. The frame footer follows the viewport bottom; outgoing actions are disabled while the secret editor is removed immediately. Card/key remounts carry only action presentation. A new Chromium regression first failed on premature Done, then passed eight login/key × light/dark × reduced-motion scenarios, including bottom anchoring. Unit suite: 4368 passed; all target builds passed. No merge/release; user visual acceptance remains next.
 
 Current: PR123 worktree `capture-notice-parity` includes main #122 and #124 and the scoped iframe implementation. All Review actions stay inline when unlocked; unlock stays browser-owned. Exact pixel shield, identity cards, provider/card icons, fields, autocomplete, captured CVV and saved/draft thumbnail navigation implemented. Unique matching card and default OAuth Vault corrected after real browser tests. Generator PASS2 includes actual 3-word passphrases (preview-only crypto adapter), portal controls, draft retention and exact preview fill.

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useLayoutEffect, useRef, useState, type FormEvent } from "react";
 
 import { Button } from "../components/Button";
 import { FormInput } from "../components/FormInput";
@@ -33,6 +33,20 @@ export function UnlockScreen({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<"unlock" | "sign-out" | null>(null);
 
+  const panel = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const feedback = panel.current?.querySelector<HTMLElement>('.field-feedback');
+    const root = document.documentElement;
+    const measure = () => {
+      const height = feedback ? feedback.getBoundingClientRect().height + parseFloat(getComputedStyle(feedback).marginTop) : 0;
+      root.style.setProperty('--unlock-feedback-height', `${Math.ceil(height)}px`);
+    };
+    measure();
+    const observer = feedback ? new ResizeObserver(measure) : null;
+    if (feedback) observer?.observe(feedback);
+    return () => { observer?.disconnect(); root.style.removeProperty('--unlock-feedback-height'); };
+  }, [error]);
+
   const canSubmit = password.length > 0 && busy === null;
 
   async function handleSubmit(event: FormEvent): Promise<void> {
@@ -62,7 +76,7 @@ export function UnlockScreen({
   }
 
   return (
-    <section className="auth-form-panel">
+    <section className="auth-form-panel" ref={panel}>
       <h2 className="screen-title">{t("auth.unlock.title")}</h2>
       <form className="form" onSubmit={handleSubmit} noValidate>
         <FormInput
