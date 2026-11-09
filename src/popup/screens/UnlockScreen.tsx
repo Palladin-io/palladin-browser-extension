@@ -52,7 +52,6 @@ export function UnlockScreen({
   async function handleSubmit(event: FormEvent): Promise<void> {
     event.preventDefault();
     if (!canSubmit) return;
-    setError("");
     setBusy("unlock");
     try {
       await onUnlock(password);

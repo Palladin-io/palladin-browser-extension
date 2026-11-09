@@ -49,7 +49,9 @@
 
 ## Checkpoint
 
-Header polish: shared initial notice chrome and shared React review/saved header use a 12px brand gap and 16px wordmark. The close glyph is now a centered SVG in both renderers. Chromium checks verify icon/button centers and retain stable header pixels in all eight motion cases. 4368 tests and all builds pass.
+Latest owner correction: reverse the saved transition: animate the new footer first (180ms), then resize after 200ms; reduced motion remains immediate. Shared brand gap is now 16px. Unlock retries retain the previous feedback so the second wrong password does not collapse/re-expand; the outer locked popup also suppresses transient overflow. Installed Chromium regression reproduced the outer-scroll defect and now checks both containers plus a second incorrect attempt and a successful retry.
+
+Header polish: shared initial notice chrome and shared React review/saved header use a 16px brand gap and 16px wordmark. The close glyph is now a centered SVG in both renderers. Chromium checks verify icon/button centers and retain stable header pixels in all eight motion cases. 4368 tests and all builds pass.
 
 Unlock error follow-up: the native locked popup now measures feedback height and animates the matching viewport growth instead of scrolling the fixed 292px form. Chromium renderer regression reproduced the old defect; normal/reduced-motion cases pass. Installed Chromium expands 292→313px through intermediate sizes without scrollbar, then accepts a correct-password retry. Full suite: 4368 tests; all builds passed. Same local build path; no merge/release.
 

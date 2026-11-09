@@ -289,7 +289,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface, attac
       await evaluate(`(() => {
         globalThis.__popupSizes = [];
         let frames = 0;
-        const sample = () => { const panel = document.querySelector('.auth-form-panel'); globalThis.__popupSizes.push({ width: innerWidth, height: innerHeight, scroll: panel ? panel.scrollHeight - panel.clientHeight : 0, overflow: panel ? getComputedStyle(panel).overflowY : '' }); if (++frames < 60) requestAnimationFrame(sample); };
+        const sample = () => { const panel = document.querySelector('.auth-form-panel'); const popup = document.querySelector('.popup'); globalThis.__popupSizes.push({ width: innerWidth, height: innerHeight, popupScroll: popup ? popup.scrollHeight-popup.clientHeight : 0, popupOverflow: popup ? getComputedStyle(popup).overflowY : '', scroll: panel ? panel.scrollHeight - panel.clientHeight : 0, overflow: panel ? getComputedStyle(panel).overflowY : '' }); if (++frames < 60) requestAnimationFrame(sample); };
         requestAnimationFrame(sample);
       })()`);
     },

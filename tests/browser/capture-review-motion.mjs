@@ -98,11 +98,12 @@ try {
     assert(frames.filter(s=>s.header).every(s=>s.header.height===68 && s.header.top===0 && s.header.width===420), 'header geometry stays fixed on every animation frame');
     const savedFrames=frames.filter(s=>s.stage==='saved');
     if(!reduced) {
-      assert(savedFrames.filter(s=>s.at<savedFrames[0].at+250).every(s=>!s.done),'footer changes only after collapse');
+      assert(savedFrames.every(s=>s.done),'new footer appears before collapse');
+      assert(collapse.filter(s=>s.at<savedAt+120).every(s=>Math.abs(s.height-collapse[0].height)<1),'window holds its height while the new button animates');
       assert(savedFrames.every(s=>Math.abs(s.footerBottom-s.viewport)<2),'footer follows the bottom edge throughout collapse');
     }
     console.log('Collapse heights', reduced, Math.min(...collapse.map(s=>s.height)), final);
-    assert(collapse.filter(s=>s.at>savedAt+380).every(s=>Math.abs(s.height-final)<1), 'saved resize settles in one 320ms transition');
+    assert(collapse.filter(s=>s.at>savedAt+600).every(s=>Math.abs(s.height-final)<1), 'saved resize settles after button animation and one 320ms transition');
     assert(collapse.every(s => s.height >= final - 1), 'saved transition never undershoots and rebounds');
     assert.equal(await frame.locator('input,textarea').count(),0,'saved state removes secret editor nodes immediately');
     assert.equal(await frame.locator('.popup-header').evaluate(n=>n.getBoundingClientRect().height),68);

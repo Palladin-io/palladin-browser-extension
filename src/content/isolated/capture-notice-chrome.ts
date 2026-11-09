@@ -53,7 +53,7 @@ export const CAPTURE_NOTICE_STYLES = `
     color:var(--cv-t1); box-shadow:0 12px 32px rgba(0,0,0,.16); font:13px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; animation:notice-appear 180ms ease-out; }
   .header { display:flex; align-items:center; justify-content:space-between; gap:12px; height:68px; min-height:68px; padding:16px 20px;
     border-bottom:1px solid var(--cv-border); background:linear-gradient(115deg,var(--cv-wash),var(--cv-surface) 80%); }
-  .notice-brand { display:flex; align-items:center; gap:12px; font-size:16px; font-weight:700; }
+  .notice-brand { display:flex; align-items:center; gap:16px; font-size:16px; font-weight:700; }
   .notice-brand img { width:28px; height:28px; object-fit:contain; }
   .notice-brand strong { font:inherit; }
   .notice-brand strong span { color:var(--cv-primary); }

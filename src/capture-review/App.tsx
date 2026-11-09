@@ -46,9 +46,19 @@ export function CaptureFrameApp({ connection }: { connection: CaptureFrameConnec
   useEffect(() => {
     const node = container.current;
     if (!node || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(() => connection.resize(node.getBoundingClientRect().height));
+    let height = node.getBoundingClientRect().height;
+    let pending: ReturnType<typeof setTimeout> | undefined;
+    const observer = new ResizeObserver(() => {
+      const next = node.getBoundingClientRect().height;
+      clearTimeout(pending);
+      const collapse = next < height && node.querySelector('.capture-review[data-stage="saved"]');
+      height = next;
+      if (collapse && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        pending = setTimeout(() => connection.resize(next), 200);
+      } else connection.resize(next);
+    });
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); clearTimeout(pending); };
   }, [connection, hasContent]);
   const openCapture = (saved: boolean, draft?: CaptureDraft) => { if(!saved && !draft)return; void connection.send(saved ? {type:'open-saved'} : {type:'open-draft',draft:draft!}).then(result => { if (result.status === 'dismissed') connection.close(); }).catch(connection.failed); };
   if (!hasContent) return null;
@@ -67,6 +77,6 @@ export function CaptureFrameApp({ connection }: { connection: CaptureFrameConnec
     {savedSecret ? <CaptureReview title="" savedTitle={t(savedSecret.card ? savedSecret.updated ? 'captureReview.cardUpdated' : 'captureReview.cardSaved' : 'captureReview.keySaved')}
       stage="saved" origin={savedSecret.origin} name={savedSecret.name} detail={savedSecret.detail} vault={savedSecret.vault}
       identity={{ name: savedSecret.name, type: savedSecret.card ? ENTRY_TYPE_CREDIT_CARD : ENTRY_TYPE_KEY, ...(savedSecret.icon ? { icon: savedSecret.icon } : {}) }}
-      transitionFromReview saveLabel={t(savedSecret.card ? savedSecret.updated ? 'captureReview.updateCard' : 'captureReview.saveCardAction' : 'captureReview.saveKeyAction')} onIdentity={() => openCapture(true)} onReview={() => {}} onSave={() => {}} onDismiss={connection.close} onDone={connection.close}>{null}</CaptureReview> : null}
+      saveLabel="" onIdentity={() => openCapture(true)} onReview={() => {}} onSave={() => {}} onDismiss={connection.close} onDone={connection.close}>{null}</CaptureReview> : null}
   </div></ApiUrlContext.Provider>;
 }

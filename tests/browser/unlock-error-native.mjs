@@ -37,7 +37,11 @@ try {
   const samples=await popup.resizeSamples();
   assert(samples.some(s=>s.height>292&&s.height<310),'native popup animates intermediate heights');
   assert(samples.every(s=>s.scroll<=1||!['auto','scroll'].includes(s.overflow)),'native error never shows form scrollbar');
+  assert(samples.every(s=>s.popupScroll<=1||!['auto','scroll'].includes(s.popupOverflow)),'outer popup never flashes a scrollbar');
   assert(samples.at(-1).scroll<=1,'native form fully fits');
+  await popup.observeResize(); await popup.click('Unlock');
+  const retry=await popup.resizeSamples();
+  assert(retry.every(s=>s.height===samples.at(-1).height),'another wrong password keeps the error space stable throughout retry');
   await popup.fill('input[type="password"]',api.password,{replace:true}); await popup.click('Unlock'); await popup.waitText('No entries yet.');
   console.log('PASS installed Chromium: wrong master password smoothly expands native popup without scrollbar; retry unlock succeeds');
 } finally { popup?.close(); await context?.close(); await api.close(); await rm(profile,{recursive:true,force:true}); }

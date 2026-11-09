@@ -19,7 +19,7 @@ html:has(.capture-frame) { background:var(--cv-surface)!important; }
 .capture-frame .capture-review-footer[data-saved='true'] { grid-template-columns:1fr; }
 @media(prefers-reduced-motion:reduce) { .capture-frame *, .capture-frame *::before, .capture-frame *::after { animation:none!important; transition:none!important; } }
 .capture-frame .popup-header > .toolbar-icon { width:28px; height:28px; padding:0; display:grid; place-items:center; flex-shrink:0; }
-.capture-frame .brand-lockup { gap:12px; }
+.capture-frame .brand-lockup { gap:16px; }
 .capture-frame .capture-review-footer .btn--subtle { background:var(--cv-surface); color:var(--cv-t1); border:1px solid var(--cv-border); }
 .capture-frame .capture-dismiss-split:has(.capture-dismiss-options) > .btn:first-child { border-right:0; }
 .capture-frame .capture-review-footer .btn--subtle:hover { background:var(--cv-subtle); }

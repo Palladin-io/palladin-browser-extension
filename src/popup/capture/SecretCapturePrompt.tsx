@@ -60,7 +60,7 @@ export function SecretCaptureSurface({ revision, client, onOpenEntry }: { revisi
     origin={saved.origin} name={saved.name} detail={saved.detail} vault={saved.vault}
     identity={{ name: saved.name, type: saved.card ? ENTRY_TYPE_CREDIT_CARD : ENTRY_TYPE_KEY, ...(saved.icon ? { icon: saved.icon } : {}) }}
     {...(saved.entryId && saved.vaultId ? { onIdentity: () => { onOpenEntry(saved.entryId!, saved.vaultId!); setSaved(null); } } : {})}
-    transitionFromReview saveLabel={t(saved.card ? saved.updated ? 'captureReview.updateCard' : 'captureReview.saveCardAction' : 'captureReview.saveKeyAction')} onReview={() => {}} onSave={() => {}} onDismiss={() => setSaved(null)} onDone={() => setSaved(null)}>{null}</CaptureReview> : review ? <SecretCapturePrompt key={review.id} review={review} client={client} onDone={clear}
+    saveLabel="" onReview={() => {}} onSave={() => {}} onDismiss={() => setSaved(null)} onDone={() => setSaved(null)}>{null}</CaptureReview> : review ? <SecretCapturePrompt key={review.id} review={review} client={client} onDone={clear}
     onSaved={summary => { setSaved(summary); clear(); }} /> : null}</CaptureTransition>;
 }
 export function SecretCapturePrompt({ review, client, send = sendSecretCapture, onDone, onSaved, onOpenCapture, initialDraft, initialExpanded = false }: {

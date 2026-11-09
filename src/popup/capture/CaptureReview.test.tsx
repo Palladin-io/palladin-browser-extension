@@ -50,18 +50,13 @@ it('shows only Done after saved even when site mute is available', () => {
  expect(screen.getAllByRole('button').map(button=>button.textContent)).toEqual(['Done']);
 });
 
-it('removes the editor immediately but keeps outgoing actions disabled until collapse finishes', async () => {
+it('removes the editor immediately and replaces outgoing actions before collapse', async () => {
   const action = vi.fn();
   const props = {title:'Capture',savedTitle:'Saved',origin:'example.com',name:'Example',identity:{name:'Example',type:1 as const},saveLabel:'Save',onReview:action,onSave:action,onDone:action,onDismiss:action,onMute:action};
   const {rerender} = render(<CaptureReview {...props} stage="review"><input aria-label="Secret" /></CaptureReview>);
   rerender(<CaptureReview {...props} stage="saved"><input aria-label="Secret" /></CaptureReview>);
   expect(screen.queryByRole('textbox')).toBeNull();
-  expect(screen.getByRole('button',{name:'Save'})).toBeDisabled();
-  expect(screen.getByRole('button',{name:'Dismiss'})).toBeDisabled();
-  expect(screen.getByRole('button',{name:'More dismiss options'})).toBeDisabled();
-  expect(screen.queryByRole('button',{name:'Done'})).toBeNull();
-  await userEvent.setup().click(screen.getByRole('button',{name:'Save'}));
-  expect(action).not.toHaveBeenCalled();
+  expect(screen.queryByRole('button',{name:'Save'})).toBeNull();
   expect(await screen.findByRole('button',{name:'Done'})).toBeEnabled();
   expect(screen.queryByRole('button',{name:'Dismiss'})).toBeNull();
 });
