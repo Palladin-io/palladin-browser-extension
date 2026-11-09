@@ -88,7 +88,7 @@ it('suppresses dismissed material and never writes a locally identical item', as
 
 
 it('does not retain an observation whose frame disconnects during asynchronous admission', async () => {
-  const f = fixture(); f.whileObserving(() => f.coordinator.disconnected(source.tabId, source.browserDocumentId));
+  const f = fixture(); f.whileObserving(() => f.coordinator.disconnected(source.tabId, source.browserDocumentId!));
   expect(await f.coordinator.observe(candidate, source)).toEqual({ status: 'stale' });
   expect(await f.coordinator.review()).toEqual({ status: 'empty' });
 });
@@ -183,4 +183,43 @@ it('mutes all queued candidates for the site while retaining a different site', 
   expect(await f.coordinator.save('id' in second ? second.id : '', 'v', entry)).toEqual({ status: 'stale' });
   expect(await f.coordinator.review()).toMatchObject({ status: 'review', id: 'id' in other ? other.id : '' });
   expect(f.writes()).toBe(0); f.coordinator.clear();
+});
+
+it('exposes only masked card identity and no key material in page notice metadata', async () => {
+  const f = fixture();
+  const card = await f.coordinator.observe({kind:'card',cardNumber:'4242424242424242',cardholderName:'Synthetic',expiryMonth:'05',expiryYear:'2030',cvv:'987'},source);
+  expect(card).toMatchObject({status:'accepted',notice:{kind:'card',name:'Visa',site:'pay.example.test',detail:'•••• 4242',cardBrand:'Visa'}});
+  expect(JSON.stringify(card)).not.toContain('4242424242424242');
+  expect(JSON.stringify(card)).not.toContain('987');
+  const key = await f.coordinator.observe(candidate,source);
+  expect(key).toMatchObject({status:'accepted',notice:{kind:'key',name:'pay.example.test',detail:''}});
+  expect(JSON.stringify(key)).not.toContain(candidate.value);
+  f.coordinator.clear();
+});
+
+it('binds child captures to their live owning top document while preserving child revalidation', async () => {
+  const f = fixture();
+  const accepted = await f.coordinator.observe(candidate, source);
+  if (accepted.status !== 'accepted') throw new Error('Expected candidate');
+  const owner = {...source,frameId:0,browserDocumentId:'top',documentId:'top-local',url:'https://example.test/'};
+  expect(await f.coordinator.matchesSource(accepted.id,owner)).toBe(true);
+  expect(await f.coordinator.matchesSource(accepted.id,{...owner,topDocumentId:'different',browserDocumentId:'different'})).toBe(false);
+  f.navigate();
+  expect(await f.coordinator.matchesSource(accepted.id,owner)).toBe(false);
+});
+
+it('never persists a site mute after navigation', async () => {
+  const f = fixture(); const observed = await f.coordinator.observe(candidate, source);
+  if (observed.status !== 'accepted') throw Error('missing candidate');
+  f.navigate();
+  expect(await f.coordinator.dismiss(observed.id, true)).toEqual({ status: 'stale' });
+  f.coordinator.clear();
+});
+it('binds a content mute to the exact originating document and suppresses future candidates', async () => {
+  const f = fixture(); const observed = await f.coordinator.observe(candidate, source);
+  if (observed.status !== 'accepted') throw Error('missing candidate');
+  expect(await f.coordinator.contentStatus({ ...source, browserDocumentId: 'foreign' }, observed.id, true)).toEqual({ status: 'empty' });
+  expect(await f.coordinator.contentStatus(source, observed.id, true)).toEqual({ status: 'dismissed' });
+  expect(await f.coordinator.observe({ ...candidate, value: 'another-synthetic-capture-value' }, source)).toEqual({ status: 'muted' });
+  f.coordinator.clear();
 });

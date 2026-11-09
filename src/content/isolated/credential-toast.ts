@@ -1,6 +1,8 @@
+import { createCaptureDismiss } from './capture-dismiss';
+import { openInlineCaptureReview } from './capture-review-host';
 import en from "../../popup/locales/en.json";
 import pl from "../../popup/locales/pl.json";
-import palladinIconUrl from "../../../icons/icon-32.png?inline";
+import { captureNoticeIdentity, captureNoticeHeader, captureNoticeCloseIcon, CAPTURE_NOTICE_STYLES } from "./capture-notice-chrome";
 import type { ThemePreference, UiLocale } from "@shared/config/ui-preferences";
 import {
   CREDENTIAL_CAPTURE_CHANNEL,
@@ -11,7 +13,7 @@ import {
 } from "@shared/messaging/credential-capture";
 import { createClosedSurface } from "./closed-surface";
 
-type CopyKey = Extract<keyof typeof en, `captureToast.${string}` | `captureReview.${string}` | "inline.openFromToolbar">;
+type CopyKey = Extract<keyof typeof en, `captureToast.${string}` | `captureReview.${string}` | "inline.openFromToolbar" | "secretCapture.dismiss">;
 type WithoutDocument<T> = T extends CredentialCaptureCommand ? Omit<T, "channel" | "documentId"> : never;
 type ToastAction = WithoutDocument<Extract<CredentialCaptureCommand, { type: "save" | "dismiss" | "mute" | "unlock" | 'choose-username' }>>;
 
@@ -23,10 +25,13 @@ export class CredentialCaptureToast {
   private busy = false;
   private error = false;
   private manualOpen = false;
+  private inlineError = false;
+  private reviewingId: string | null = null;
   private locale: UiLocale = "en";
   private theme: ThemePreference = "system";
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
+  private dismissControl: ReturnType<typeof createCaptureDismiss> | null = null;
 
   constructor(
     private readonly doc: Document,
@@ -35,11 +40,11 @@ export class CredentialCaptureToast {
   ) {
     this.surface = createClosedSurface(doc, "palladin-capture");
     for (const [key, value] of Object.entries({ top: "16px", right: "16px",
-      width: "min(360px, calc(100vw - 32px))", "pointer-events": "auto" })) {
+      width: "min(420px, calc(100vw - 32px))", "pointer-events": "auto" })) {
       this.surface.host.style.setProperty(key, value, "important");
     }
     const style = doc.createElement("style");
-    style.textContent = CLOSED_TOAST_STYLES;
+    style.textContent = CAPTURE_NOTICE_STYLES;
     this.panel = doc.createElement("div");
     this.panel.className = "panel";
     this.panel.setAttribute("role", "region");
@@ -57,10 +62,11 @@ export class CredentialCaptureToast {
   systemThemeChanged(): void { this.setAppearance(this.locale, this.theme); }
 
   show(result: CredentialCaptureResult): void {
+    if (result.status === 'prompt' && result.prompt?.id === this.reviewingId) return;
     if (this.disposed) return;
     if (result.status === "saved") {
       this.prompt = null;
-      this.panel.replaceChildren(this.header(result.action === "updated" ? "captureToast.updated" : "captureToast.saved"));
+      this.panel.replaceChildren(captureNoticeHeader(this.doc), this.bodyTitle(result.action === "updated" ? "captureToast.updated" : "captureToast.saved"));
       this.panel.setAttribute("role", "status");
       this.mount();
       this.closeTimer = setTimeout(() => this.hide(), 3_000);
@@ -93,6 +99,7 @@ export class CredentialCaptureToast {
   }
 
   private hide(): void {
+    this.dismissControl?.dispose(); this.dismissControl = null;
     if (this.closeTimer !== null) clearTimeout(this.closeTimer);
     this.closeTimer = null;
     this.prompt = null;
@@ -101,31 +108,38 @@ export class CredentialCaptureToast {
   }
 
   private render(): void {
+    this.dismissControl?.dispose(); this.dismissControl = null;
     const prompt = this.prompt;
     if (!prompt) return;
     this.panel.setAttribute("role", "region");
     const target = prompt.targets.find((candidate) => candidate.id === this.targetId);
-    const titleKey = target?.action === "update" ? "captureToast.updateTitle" : "captureToast.title";
+    const titleKey = target?.action === "update" ? "captureReview.updatePassword" : "captureReview.saveLogin";
     this.panel.setAttribute("aria-label", this.text(titleKey));
-    const header = this.header(titleKey);
-    const close = this.button("×", "close", () => this.perform({ type: "dismiss", promptId: prompt.id }));
+    const header = captureNoticeHeader(this.doc);
+    const body = this.bodyTitle(titleKey);
+    const close = this.button("", "close", () => this.perform({ type: "dismiss", promptId: prompt.id }));
+    close.append(captureNoticeCloseIcon(this.doc));
     close.setAttribute("aria-label", this.text("captureToast.close"));
     header.append(close);
     const site = this.doc.createElement("div");
     site.className = "site";
-    site.textContent = prompt.site;
-    this.panel.replaceChildren(header, site);
-    if (this.manualOpen) this.panel.append(this.note("inline.openFromToolbar", true));
-    if (this.error) this.panel.append(this.note("captureToast.error", true));
+    site.textContent = this.text('captureReview.source').replace('{origin}',prompt.notice?.site ?? prompt.site);
+    body.append(site);
+    if (prompt.state === 'ready') body.append(captureNoticeIdentity(this.doc, prompt.notice ?? {kind:'credential',site:prompt.site,name:prompt.site,detail:''}, prompt.notice?.detail ?? ''));
+    this.panel.replaceChildren(header, body);
+    if (this.inlineError) body.append(this.note('captureReview.openError', true));
+    if (this.manualOpen) body.append(this.note("inline.openFromToolbar", true));
+    if (this.error) body.append(this.note("captureToast.error", true));
 
-    if (prompt.state === "locked") this.panel.append(this.note('captureToast.locked'));
+    if (prompt.state === "locked") body.append(this.note('captureToast.locked'));
     const footer = this.doc.createElement("div");
     footer.className = "footer";
-    footer.append(
-      this.button(this.text("captureToast.notNow"), "secondary", () => this.perform({ type: "dismiss", promptId: prompt.id })),
-      this.button(this.text('captureToast.mute'), 'secondary', () => this.perform({ type: 'mute', promptId: prompt.id })),
-      this.button(this.text(prompt.state === 'locked' ? 'captureToast.unlock' : 'captureReview.review'), 'primary', () => this.perform({ type: 'unlock' })),
-    );
+    this.dismissControl = createCaptureDismiss(this.doc, {
+      button: (label, style, action) => this.button(label, style, action),
+      dismissLabel: this.text('secretCapture.dismiss'), muteLabel: this.text('captureToast.mute'), optionsLabel: this.text('captureToast.dismissOptions'), site: prompt.site,
+      onDismiss: () => this.perform({type:'dismiss',promptId:prompt.id}), onMute: () => this.perform({type:'mute',promptId:prompt.id}),
+    });
+    footer.append(this.dismissControl.element, this.button(this.text(prompt.state === 'locked' ? 'captureToast.unlock' : 'captureReview.review'), 'primary', () => this.perform({ type: 'unlock' })));
     this.panel.append(footer);
   }
 
@@ -141,16 +155,14 @@ export class CredentialCaptureToast {
     return button;
   }
 
-  private header(key: CopyKey): HTMLDivElement {
-    const header = this.doc.createElement("div");
-    header.className = "header";
-    const icon = this.doc.createElement("img");
-    icon.src = palladinIconUrl;
-    icon.alt = "";
-    const title = this.doc.createElement("strong");
+  private bodyTitle(key: CopyKey): HTMLDivElement {
+    const body = this.doc.createElement("div");
+    body.className = "notice-body";
+    const title = this.doc.createElement("h2");
+    title.className = "notice-title";
     title.textContent = this.text(key);
-    header.append(icon, title);
-    return header;
+    body.append(title);
+    return body;
   }
 
   private note(key: CopyKey, error = false): HTMLDivElement {
@@ -167,6 +179,21 @@ export class CredentialCaptureToast {
 
   private async perform(action: ToastAction): Promise<void> {
     if (this.busy) return;
+    if (action.type === 'unlock' && this.prompt?.state === 'ready') {
+      const pendingId = this.prompt.id;
+      const rect = this.surface.host.getBoundingClientRect();
+      this.busy = true;
+      const opened = await openInlineCaptureReview(this.doc, this.documentId, 'login', pendingId, {
+        left: rect.left, top: rect.top, width: rect.width, height: rect.height,
+        onReady: () => { this.reviewingId = pendingId; this.hide(); },
+      }).catch(() => false);
+      this.busy = false;
+      if (!opened && this.prompt?.id === pendingId) {
+        this.inlineError = true;
+        this.render();
+      }
+      return;
+    }
     const pendingId = this.prompt?.id;
     this.busy = true;
     this.error = false;
@@ -185,37 +212,3 @@ export class CredentialCaptureToast {
     else this.show(result);
   }
 }
-
-export const CLOSED_TOAST_STYLES = `
-  :host { color-scheme:light; --cv-primary:#E54645; --cv-primary-hover:#d43e3e;
-    --cv-bg:#f3f5f8; --cv-surface:#fff; --cv-t1:#0c0e12; --cv-t2:#3d4e66;
-    --cv-border:rgba(12,14,18,.1); --cv-subtle:rgba(12,14,18,.05); }
-  :host([data-theme="dark"]) { color-scheme:dark; --cv-bg:#16161a; --cv-surface:#1f232b;
-    --cv-t1:#e8eaed; --cv-t2:#b8c5d4; --cv-border:rgba(232,234,237,.1); --cv-subtle:rgba(232,234,237,.07); }
-  * { box-sizing:border-box; }
-  .panel { padding:14px; border:1px solid var(--cv-border); border-radius:15px; background:var(--cv-bg);
-    color:var(--cv-t1); box-shadow:0 12px 32px rgba(0,0,0,.16); font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; }
-  .header { display:flex; gap:9px; align-items:center; }
-  .header img { width:22px; height:22px; }
-  .header strong { flex:1; font-size:14px; font-weight:700; }
-  .site { margin:5px 0 12px 31px; color:var(--cv-t2); font-size:12px; overflow-wrap:anywhere; }
-  button { font:inherit; text-transform:none; letter-spacing:normal; cursor:pointer; border:0; border-radius:8px; }
-  button:focus-visible { outline:2px solid var(--cv-primary); outline-offset:2px; }
-  button:disabled { opacity:.6; cursor:wait; }
-  .close { background:transparent; color:var(--cv-t2); font-size:20px; width:28px; height:28px; }
-  .actions { display:flex; align-items:stretch; gap:8px; margin-top:12px; }
-  .primary { flex:1; min-height:36px; padding:8px 12px; background:var(--cv-primary); color:#fff; font-weight:650; overflow-wrap:anywhere; }
-  .primary:hover { background:var(--cv-primary-hover); }
-  .secondary { min-height:32px; padding:6px 8px; background:transparent; color:var(--cv-t2); font-size:12px; }
-  .secondary:hover,.close:hover { background:var(--cv-subtle); }
-  .footer { display:flex; justify-content:space-between; gap:8px; margin:8px -6px -6px; }
-  .checkbox { display:flex; align-items:flex-start; gap:8px; padding:4px 0; background:transparent; color:var(--cv-t2); text-align:left; font-size:12px; }
-  .checkbox::before { content:""; width:16px; height:16px; flex-shrink:0; border:1px solid var(--cv-border); border-radius:4px; background:var(--cv-surface); }
-  .checkbox[aria-checked="true"]::before { content:"✓"; text-align:center; color:#fff; background:var(--cv-primary); border-color:var(--cv-primary); line-height:14px; }
-  .choices { display:flex; flex-direction:column; gap:6px; max-height:220px; overflow:auto; margin-bottom:10px; }
-  .choice { padding:9px 10px; min-height:36px; text-align:left; background:var(--cv-surface); color:var(--cv-t1); border:1px solid var(--cv-border); overflow-wrap:anywhere; }
-  .choice[aria-pressed="true"],.choice[aria-checked="true"] { border-color:var(--cv-primary); }
-  .choice-vault { display:block; margin-top:3px; color:var(--cv-t2); font-size:12px; }
-  .note { font-size:12px; color:var(--cv-t2); margin:8px 0; }
-  .error { color:var(--cv-primary); }
-`;

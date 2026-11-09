@@ -60,6 +60,7 @@ export default defineConfig(({ mode }) => {
           ? {
               input: {
                 onboarding: fileURLToPath(new URL("./src/onboarding/index.html", import.meta.url)),
+                captureReview: fileURLToPath(new URL("./src/capture-review/index.html", import.meta.url)),
                 offscreen: fileURLToPath(new URL("./src/offscreen/index.html", import.meta.url)),
               },
             }
@@ -70,6 +71,7 @@ export default defineConfig(({ mode }) => {
                 // explicit HTML build input. Both still compile the same app.
                 input: {
                   onboarding: fileURLToPath(new URL("./src/onboarding/index.html", import.meta.url)),
+                captureReview: fileURLToPath(new URL("./src/capture-review/index.html", import.meta.url)),
                   sidePanel: fileURLToPath(new URL("./src/side-panel/index.html", import.meta.url)),
                   ...({
                     sharedUnlockBridge: fileURLToPath(new URL("./src/shared-unlock-bridge/index.html", import.meta.url)),
@@ -79,6 +81,7 @@ export default defineConfig(({ mode }) => {
             : {
                 input: {
                   onboarding: fileURLToPath(new URL("./src/onboarding/index.html", import.meta.url)),
+                captureReview: fileURLToPath(new URL("./src/capture-review/index.html", import.meta.url)),
                 },
               }),
         output: {

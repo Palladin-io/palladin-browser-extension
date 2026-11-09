@@ -252,7 +252,7 @@ describe("credential capture worker", () => {
   it("clears a ready capture when its document disconnects during loading", async () => {
     const view = await ready();
     coordinator.navigationUpdated(source.tabId, "loading");
-    coordinator.documentDisconnected(source.tabId, source.browserDocumentId);
+    coordinator.documentDisconnected(source.tabId, source.browserDocumentId!);
     await coordinator.dispatch(command({ type: "save", promptId: view.id,
       targetId: view.defaultTargetId!, autoUpdate: false }), source);
     expect(save).not.toHaveBeenCalled();
@@ -260,7 +260,7 @@ describe("credential capture worker", () => {
   it("admits a classic successor whose content port connects after loading completes", async () => {
     await coordinator.dispatch(submitted, source);
     coordinator.navigationUpdated(source.tabId, "loading");
-    coordinator.documentDisconnected(source.tabId, source.browserDocumentId);
+    coordinator.documentDisconnected(source.tabId, source.browserDocumentId!);
     isSubmissionDocument.mockReturnValue(false);
     coordinator.navigationUpdated(source.tabId, "complete");
     const next = { ...source, browserDocumentId: "next-browser-document", documentId: "next-isolated-document" };
@@ -293,6 +293,15 @@ describe("credential capture worker", () => {
     expect(await coordinator.dispatch(confirmed, source)).toEqual({ status: "dismissed" });
     expect(save).not.toHaveBeenCalled();
   });
+  it.each(['locked', 'navigated', 'capability-revoked'])('does not persist mute after %s', async reason => {
+    const view = await ready();
+    if (reason === 'locked') session = { ...session!, unlocked: false };
+    if (reason === 'navigated') isCurrentDocument.mockResolvedValue(false);
+    expect(await coordinator.dispatch(command({ type: 'mute', promptId: view.id }), source,
+      async () => reason !== 'capability-revoked')).toEqual({ status: 'stale' });
+    expect(preferences.mute).not.toHaveBeenCalled();
+  });
+
   it.each(["dismiss", "mute"] as const)("clears credentials on %s without mutation", async (type) => {
     const view = await ready();
     await coordinator.dispatch(command({ type, promptId: view.id }), source);
@@ -522,6 +531,23 @@ describe('native credential review', () => {  it('serializes native saves so a d
     expect(await first).toMatchObject({ status: 'saved' });
     expect(await second).toMatchObject({ status: 'stale' });
     expect(writes).toBe(1);
+    coordinator.clear();
+  });
+
+  it.each([undefined, 'fingerprint'])('uses the site icon for an update only without an existing icon (%s)', async existingIcon => {
+    const siteIcon = 'public-asset:11111111-1111-4111-8111-111111111111';
+    const choices: CredentialCaptureChoices = { identical: false, defaultIndex: 0, targets: [{ ...updateTarget,
+      review: { entryType: 'credential', label: 'Alice', username: 'alice', password: 'new',
+        url: 'https://accounts.example.com', ...(existingIcon ? { icon: existingIcon } : {}) } }] };
+    const coordinator = new CredentialCaptureCoordinator({
+      getSession: async () => ({ profileId: 'user', generation: 1, unlocked: true }),
+      isCurrentDocument: async () => true, isSubmissionDocument: () => true,
+      choices: async () => choices, save: async () => ({ action: 'updated', revision: '5' }),
+      preferences: { isMuted: async () => false, mute: async () => {}, isAutomatic: async () => false, setAutomatic: async () => {} }, icon: async () => siteIcon,
+    });
+    await coordinator.dispatch(submitted, source);
+    await coordinator.dispatch(confirmed, source);
+    expect((await coordinator.nativeReview(source))?.entry.icon).toBe(existingIcon ?? siteIcon);
     coordinator.clear();
   });
 

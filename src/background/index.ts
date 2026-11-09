@@ -1,3 +1,13 @@
+import { isCaptureDetectedMessage } from '@shared/messaging/capture';
+import { CAPTURE_DOCUMENT_PORT } from '@shared/messaging/capture-document';
+import { captureDocumentRoutes, resolveCaptureSource, currentCaptureDocument, onCaptureRouteConnected, onCaptureRouteRetired } from './capture/document-route-runtime';
+import { captureDocumentKey } from './capture/document-identity';
+import { emptyPopupView, type PopupViewState } from '@shared/messaging/popup-view';
+import type { SecretCaptureSource } from './capture/secret-coordinator';
+import { activePageTab } from './active-page-tab';
+import { createInlineCaptureReviewRuntime, verifyInlineReviewFrame } from './capture/inline-review-runtime';
+import { matchesInlineCapture, dispatchInlineCapture } from './capture/inline-review-dispatch';
+import { resolveCaptureNoticeIcon } from './capture/notice-icon';
 import { dispatchNativeLoginCapture } from './capture/native-login';
 import { isNativeLoginCaptureCommand } from '@shared/messaging/native-login-capture';
 import { isManualEntrySaveInput } from './vault/commands';
@@ -5,7 +15,7 @@ import { isTotpContentCommand, isTotpPopupCommand } from '@shared/messaging/totp
 import { handleTotpContent, handleTotpPopup, totpCaptureCoordinator, totpSessionGeneration, publishTotpInvalidation, clearTotpObservation } from './capture/totp-runtime';
 import { dispatchSecretCapturePopup } from './capture/secret-dispatch';
 import { isSecretCaptureContentCommand } from '@shared/messaging/secret-capture';
-import { secretCaptureCoordinator, secretCaptureFrames, handleSecretCaptureContent, handleSecretCapturePopup, publishSecretCaptureInvalidation } from './capture/secret-runtime';
+import { currentSecretCaptureDocument, secretCaptureCoordinator, secretCaptureFrames, handleSecretCaptureContent, handleSecretCapturePopup, publishSecretCaptureInvalidation } from './capture/secret-runtime';
 import { PopupViewStore } from "./popup-view";
 import { shareSource } from './share-save/source';
 import { isConnectionCommand, handleConnectionCommand, saveConnectionSharingPreference } from "./config/connection-commands";
@@ -46,8 +56,8 @@ import { loadInlineIcon } from "./vault/inline-icon";
 import { openCapturePopup } from "@shared/browser/popup";
 import { isCredentialCaptureCommand } from "@shared/messaging/credential-capture";
 import { isCaptureSettingsCommand } from "@shared/messaging/capture-settings";
-import { isGeneratePasswordCommand } from '@shared/messaging/capture';
-import { handleGeneratePassword } from './capture/runtime';
+import { isGeneratePasswordCommand, isGeneratorPreviewCommand } from '@shared/messaging/capture';
+import { handleGeneratePassword, handleGeneratorPreview, captureCoordinator } from './capture/runtime';
 import { handleCaptureSettings } from "./capture/settings-runtime";
 import { credentialCaptureCoordinator, credentialCaptureSource } from "./capture/credential-runtime";
 import { isFederatedSignInCommand } from "@shared/messaging/federated-signin";
@@ -89,7 +99,7 @@ import {
   handleInlineAutofillContentMessage,
   inlineAutofillSource,
 } from "./vault/inline-runtime";
-import { clipboardGuard, vaultCommandDeps, vaultData } from "./vault/runtime";
+import { credentialWriter, clipboardGuard, vaultCommandDeps, vaultData } from "./vault/runtime";
 import { legacyFirefoxDocuments } from "./vault/firefox-legacy-runtime";
 import { FIREFOX_LEGACY_FILL_PORT } from "../shared/messaging/firefox-legacy-fill";
 import {
@@ -206,6 +216,58 @@ function unavailableDuringServerChange(raw: unknown): unknown {
 }
 
 const popupView = new PopupViewStore();
+async function openCaptureDestination(source: SecretCaptureSource, state: PopupViewState): Promise<boolean> {
+  const tab = await activePageTab();
+  if (tab?.id !== source.tabId || tab.windowId === undefined || !await currentSecretCaptureDocument(source)) return false;
+  const snapshot = popupView.handle({ type: 'popup/view/get' });
+  if (!snapshot) return false;
+  if (!popupView.handle({ type: 'popup/view/set', generation: snapshot.generation, state })) return false;
+  const opened = await openCapturePopup(tab.windowId);
+  if (!opened) popupView.handle({ type: 'popup/view/set', generation: snapshot.generation, state: snapshot.state ?? emptyPopupView() });
+  return opened;
+}
+const inlineCaptureReview = createInlineCaptureReviewRuntime({
+  runtimeId: chrome.runtime.id,
+  frameUrl: chrome.runtime.getURL('src/capture-review/index.html'),
+  sessionGeneration: totpSessionGeneration,
+  current: async source => !!sessionManager.getKeys()
+    && (await activePageTab())?.id === source.tabId && await currentSecretCaptureDocument(source),
+  resolveSource: resolveCaptureSource,
+  verifyFrameParent: (frame, source) => source.legacyRouteId ? currentCaptureDocument(source) : verifyInlineReviewFrame(frame, source),
+  candidate: matchesInlineCapture,
+  dispatch: dispatchInlineCapture,
+  navigateDraft: (kind, id, source) => openCaptureDestination(source, { ...emptyPopupView(), view: 'capture', pendingCapture: {kind,id} }),
+  navigateSaved: (receipt, source) => openCaptureDestination(source, { ...emptyPopupView(), selected: {id:receipt.entryId,vaultId:receipt.vaultId} }),
+  withOperation: withServerOperation,
+  apiUrl: () => serverConfig.apiUrl,
+  onSaved() {
+    publishLoginCaptureInvalidation();
+    publishTotpInvalidation();
+    void chrome.runtime.sendMessage({ type: 'secret-capture/available' }).catch(() => undefined);
+  },
+});
+onCaptureRouteConnected(source => {
+  if (source.frameId !== 0) return;
+  credentialCaptureCoordinator.documentConnected(source.tabId, captureDocumentKey(source), source.url);
+  void chrome.tabs.get(source.tabId).then(async tab => {
+    if (await currentCaptureDocument(source)) await federatedSignIn.documentConnected(source.tabId, source.url, tab.openerTabId);
+  }).catch(() => undefined);
+});
+onCaptureRouteRetired((tabId, routeId, frameId) => {
+  const key = `legacy:${routeId}`;
+  captureCoordinator.clearDocument(tabId, key);
+  credentialCaptureCoordinator.documentDisconnected(tabId, key);
+  publishSecretCaptureInvalidation(secretCaptureCoordinator.disconnected(tabId, key));
+  if (totpCaptureCoordinator.clearDocument(tabId, key)) publishTotpInvalidation();
+  if (frameId === 0) { publishLoginCaptureInvalidation(tabId); inlineCaptureReview.revokeTab(tabId); }
+});
+chrome.tabs.onRemoved.addListener(tabId => captureDocumentRoutes?.retire(tabId));
+chrome.tabs.onUpdated.addListener((tabId, change) => { if (change.url) captureDocumentRoutes?.retire(tabId); });
+chrome.tabs.onReplaced.addListener((_added, removed) => captureDocumentRoutes?.retire(removed));
+sessionManager.hooks.onTerminating(() => inlineCaptureReview.clear());
+sessionManager.hooks.onLocked(() => inlineCaptureReview.clear());
+chrome.tabs.onRemoved.addListener(tabId => inlineCaptureReview.revokeTab(tabId));
+chrome.tabs.onUpdated.addListener((tabId, change) => { if (change.url) inlineCaptureReview.revokeTab(tabId); });
 function publishLoginCaptureInvalidation(tabId?: number): void {
   void chrome.runtime.sendMessage({ type: 'login-capture/invalidated', ...(tabId === undefined ? {} : { tabId }) }).catch(() => undefined);
 }
@@ -282,6 +344,11 @@ const sharedUnlockBrowser = __PALLADIN_TARGET__ === "chromium"
 startNativeAgentBridge();
 
 chrome.runtime.onConnect.addListener((port) => {
+  if (inlineCaptureReview.connect(port)) return;
+  if (port.name === CAPTURE_DOCUMENT_PORT) {
+    if (captureDocumentRoutes) captureDocumentRoutes.register(port); else port.disconnect();
+    return;
+  }
   if (port.name === FIREFOX_LEGACY_FILL_PORT) {
     if (legacyFirefoxDocuments) legacyFirefoxDocuments.register(port); else port.disconnect();
     return;
@@ -314,6 +381,7 @@ chrome.runtime.onConnect.addListener((port) => {
   if (unregisterDocument !== null) {
     if (shareSave.clearReplacedDocument(port.sender!.tab!.id!, port.sender!.documentId!)) publishShareSaveChanged();
     port.onDisconnect.addListener(() => {
+      captureCoordinator.clearDocument(port.sender!.tab!.id!, port.sender!.documentId!);
       credentialCaptureCoordinator.documentDisconnected(port.sender!.tab!.id!, port.sender!.documentId!);
       if (shareSave.clearDocument(port.sender!.tab!.id!, port.sender!.documentId!)) publishShareSaveChanged();
       unregisterDocument();
@@ -363,6 +431,13 @@ chrome.runtime.onConnect.addListener((port) => {
 // candidate. This listener has a separate sender gate from the popup channel.
 // Discovery exposes no session state; authorization still occurs on the native document-bound Port.
 chrome.runtime.onMessage.addListener((raw, sender, respond) => {
+  const draft=inlineCaptureReview.readDraft(raw,sender);
+  if(!draft)return false;
+  void draft.then(respond).catch(()=>respond({draft:null}));
+  return true;
+});
+
+chrome.runtime.onMessage.addListener((raw, sender, respond) => {
   if (!raw || typeof raw !== 'object' || Object.keys(raw).length !== 1 || raw.type !== 'shared-unlock/discover') return false;
   if (sender.id !== chrome.runtime.id || sender.frameId !== 0 || sender.tab?.incognito !== false || !sender.url) { respond(false); return false; }
   void initializeServerConfig().then(() => {
@@ -373,37 +448,46 @@ chrome.runtime.onMessage.addListener((raw, sender, respond) => {
 });
 
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
+  if (isGeneratorPreviewCommand(raw)) {
+    void withServerOperation(() => handleGeneratorPreview(raw, sender)).then(sendResponse,
+      () => sendResponse({ status: 'blocked', reason: 'stale-prompt', saveAvailable: false }));
+    return true;
+  }
   if (isGeneratePasswordCommand(raw)) {
     void withServerOperation(() => handleGeneratePassword(raw, sender)).then(sendResponse,
       () => sendResponse({ status: 'blocked', reason: 'stale-prompt', saveAvailable: false }));
     return true;
   }
-  const result = handleCaptureContentRuntimeMessage(raw, sender, chrome.runtime.id);
-  if (result === null) return false;
-  sendResponse(result);
-  return false;
+  if (!isCaptureDetectedMessage(raw)) return false;
+  void handleCaptureContentRuntimeMessage(raw, sender, chrome.runtime.id).then(sendResponse, () => sendResponse({accepted:false}));
+  return true;
 });
 
-chrome.tabs.onRemoved.addListener((tabId) => { inlineAutofillRecency.clearTab(tabId); credentialCaptureCoordinator.clearTab(tabId); if (totpCaptureCoordinator.clearTab(tabId)) publishTotpInvalidation(); clearTotpObservation(tabId); });
+chrome.tabs.onRemoved.addListener((tabId) => { captureCoordinator.clearTab(tabId); inlineAutofillRecency.clearTab(tabId); credentialCaptureCoordinator.clearTab(tabId); if (totpCaptureCoordinator.clearTab(tabId)) publishTotpInvalidation(); clearTotpObservation(tabId); });
 chrome.tabs.onRemoved.addListener((tabId) => federatedSignIn.tabRemoved(tabId));
 
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isFederatedSignInCommand(raw)) return false;
-  const source = federatedSignInSource(raw, sender);
-  if (source === null || sender.tab?.incognito === true) { sendResponse({ status: "stale" }); return false; }
+  void (async () => {
+  const source = await federatedSignInSource(raw, sender);
+  if (source === null || sender.tab?.incognito === true) { sendResponse({ status: "stale" }); return; }
   if (raw.type === "unlock") {
-    if (sender.tab?.windowId === undefined) { sendResponse({ status: "unavailable" }); return false; }
+    if (sender.tab?.windowId === undefined) { sendResponse({ status: "unavailable" }); return; }
     void openCapturePopup(sender.tab.windowId)
       .then((opened) => sendResponse({ status: opened ? "accepted" : "unavailable" }))
       .catch(() => sendResponse({ status: "unavailable" }));
-    return true;
+    return;
   }
-  void (async () => {
     await initializeServerConfig();
     const lease = serverOperations.tryAcquire();
     if (lease === null) { sendResponse({ status: "unavailable" }); return; }
     try {
-      const result = await federatedSignIn.dispatch(raw, source);
+      let result = await federatedSignIn.dispatch(raw, source);
+      if (result.status === 'prompt' && result.prompt?.notice) {
+        const notice = await resolveCaptureNoticeIcon(result.prompt.notice, url => credentialWriter.captureIcon(url), icon => loadInlineIcon(serverConfig.apiUrl, icon));
+        if (!await currentCaptureDocument({ ...source, frameId: 0, ...(source.browserDocumentId ? { topDocumentId: source.browserDocumentId } : source.legacyRouteId ? { legacyTopRouteId: source.legacyRouteId } : {}) }) || !sessionManager.getKeys()) { sendResponse({status:'stale'}); return; }
+        result = { ...result, prompt: { ...result.prompt, notice } };
+      }
       sendResponse(result);
       if (result.status === 'prompt' && result.prompt?.state === 'ready') {
         void chrome.runtime.sendMessage({ type: 'login-capture/available', tabId: source.tabId }).catch(() => undefined);
@@ -426,13 +510,24 @@ chrome.tabs.onUpdated.addListener((tabId, change) => {
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isTotpContentCommand(raw)) return false;
   if (raw.type === 'open') {
-    const source = secretCaptureFrames.source(sender, chrome.runtime.id, raw.documentId);
-    if (!source || source.frameId !== 0 || sender.tab?.windowId === undefined) { sendResponse({ status: 'stale' }); return false; }
-    void openCapturePopup(sender.tab.windowId).then(opened => sendResponse({ status: opened ? 'accepted' : 'error' })).catch(() => sendResponse({ status: 'error' }));
+    void (async () => {
+      const source = await resolveCaptureSource(sender, raw.documentId);
+      if (!source || source.frameId !== 0 || sender.tab?.windowId === undefined) return { status: 'stale' };
+      const opened = await openCapturePopup(sender.tab!.windowId);
+      return { status: opened ? 'accepted' : 'error' };
+    })().then(sendResponse, () => sendResponse({status:'error'}));
     return true;
   }
   const expectedGeneration = totpSessionGeneration();
-  void withServerOperation(() => handleTotpContent(raw, sender, expectedGeneration)).then(result => {
+  void withServerOperation(async () => {
+    const result = await handleTotpContent(raw, sender, expectedGeneration);
+    if (result.status === 'accepted' && 'notice' in result) {
+      result.notice = await resolveCaptureNoticeIcon(result.notice, url => credentialWriter.captureIcon(url), icon => loadInlineIcon(serverConfig.apiUrl, icon));
+      const source = await resolveCaptureSource(sender, raw.documentId);
+      if (totpSessionGeneration() !== expectedGeneration || !source || !sessionManager.getKeys() || !await currentSecretCaptureDocument(source)) return { status: 'stale' as const };
+    }
+    return result;
+  }).then(result => {
     sendResponse(result);
     if (result.status === 'accepted') void chrome.runtime.sendMessage({ type: 'totp-capture/available' }).catch(() => undefined);
   }).catch(() => sendResponse({ status: 'error' }));
@@ -441,18 +536,29 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isSecretCaptureContentCommand(raw)) return false;
   if (raw.type === 'open') {
-    const source = secretCaptureFrames.source(sender, chrome.runtime.id, raw.documentId);
-    if (!source || sender.tab?.windowId === undefined) { sendResponse({ status: 'stale' }); return false; }
-    void openCapturePopup(sender.tab.windowId).then(opened => sendResponse({ status: opened ? 'accepted' : 'error' })).catch(() => sendResponse({ status: 'error' }));
+    void (async () => {
+      const source = await resolveCaptureSource(sender, raw.documentId);
+      if (!source || sender.tab?.windowId === undefined) return { status: 'stale' };
+      const opened = await openCapturePopup(sender.tab!.windowId);
+      return { status: opened ? 'accepted' : 'error' };
+    })().then(sendResponse, () => sendResponse({status:'error'}));
     return true;
   }
-  void withServerOperation(() => handleSecretCaptureContent(raw, sender)).then(result => {
+  void withServerOperation(async () => {
+    const result = await handleSecretCaptureContent(raw, sender);
+    if (result.status === 'accepted' && 'notice' in result) {
+      result.notice = await resolveCaptureNoticeIcon(result.notice, url => credentialWriter.captureIcon(url), icon => loadInlineIcon(serverConfig.apiUrl, icon));
+      const source = await resolveCaptureSource(sender, raw.documentId);
+      if (!source || !sessionManager.getKeys() || !await currentSecretCaptureDocument(source)) return { status: 'stale' as const };
+    }
+    return result;
+  }).then(async result => {
     sendResponse(result);
     if (result.status === 'accepted') {
       void chrome.runtime.sendMessage({ type: 'secret-capture/available' }).catch(() => undefined);
-      const source = secretCaptureFrames.source(sender, chrome.runtime.id, raw.documentId);
+      const source = await resolveCaptureSource(sender, raw.documentId);
       if (raw.type === 'observe' && source?.frameId !== 0 && source) {
-        void chrome.tabs.sendMessage(source.tabId, { type: 'secret-capture/notice' }, { documentId: source.topDocumentId }).catch(() => undefined);
+        void chrome.tabs.sendMessage(source.tabId, { type: 'secret-capture/notice' }, source.topDocumentId ? { documentId: source.topDocumentId } : { frameId: 0 }).catch(() => undefined);
       }
     }
   }).catch(() => sendResponse({ status: 'error' }));
@@ -463,26 +569,32 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 });
 chrome.tabs.onUpdated.addListener((tabId, change) => {
   if ((change.url || change.status === 'loading') && shareSave.clearTab(tabId)) publishShareSaveChanged();
+  if (change.url) captureCoordinator.clearTab(tabId);
   if (change.status) credentialCaptureCoordinator.navigationUpdated(tabId, change.status);
   if (change.url) credentialCaptureCoordinator.navigation(tabId, change.url);
 });
 
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isCredentialCaptureCommand(raw)) return false;
-  const source = credentialCaptureSource(raw, sender);
-  if (source === null) { sendResponse({ status: "stale" }); return false; }
+  void (async () => {
+  const source = await credentialCaptureSource(raw, sender);
+  if (source === null) { sendResponse({ status: "stale" }); return; }
   if (raw.type === "unlock") {
-    if (sender.tab?.windowId === undefined) { sendResponse({ status: "unavailable" }); return false; }
+    if (sender.tab?.windowId === undefined) { sendResponse({ status: "unavailable" }); return; }
     void openCapturePopup(sender.tab.windowId)
       .then((opened) => sendResponse({ status: opened ? "accepted" : "unavailable" }))
       .catch(() => sendResponse({ status: "unavailable" }));
-    return true;
+    return;
   }
-  void (async () => {
     const lease = serverOperations.tryAcquire();
     if (lease === null) { sendResponse({ status: "unavailable" }); return; }
     try {
-      const result = await credentialCaptureCoordinator.dispatch(raw, source);
+      let result = await credentialCaptureCoordinator.dispatch(raw, source);
+      if (result.status === 'prompt' && result.prompt?.notice) {
+        const notice = await resolveCaptureNoticeIcon(result.prompt.notice, url => credentialWriter.captureIcon(url), icon => loadInlineIcon(serverConfig.apiUrl, icon));
+        if (!await currentCaptureDocument({ ...source, frameId: 0, ...(source.browserDocumentId ? { topDocumentId: source.browserDocumentId } : source.legacyRouteId ? { legacyTopRouteId: source.legacyRouteId } : {}) }) || !sessionManager.getKeys()) { sendResponse({status:'stale'}); return; }
+        result = { ...result, prompt: { ...result.prompt, notice } };
+      }
       sendResponse(result);
       if (result.status === 'prompt' && result.prompt?.state === 'ready') {
         void chrome.runtime.sendMessage({ type: 'login-capture/available', tabId: source.tabId }).catch(() => undefined);

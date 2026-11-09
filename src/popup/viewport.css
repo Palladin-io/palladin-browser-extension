@@ -1,6 +1,6 @@
 html { --popup-width: 400px; --popup-height: 360px; }
 html:has(.popup[data-phase='unlocked']) { --popup-width: 780px; --popup-height: 580px; }
-html:has(.popup[data-phase='locked']) { --popup-height: 292px; }
-html:has(.popup[data-phase='locked'] .form > button:nth-of-type(3)) { --popup-height: 348px; }
+html:has(.popup[data-phase='locked']) { --popup-height: calc(292px + var(--unlock-feedback-height, 0px)); }
+html:has(.popup[data-phase='locked'] .form > button:nth-of-type(3)) { --popup-height: calc(348px + var(--unlock-feedback-height, 0px)); }
 html:has(.popup[data-phase='settings']) { --popup-height: 580px; }
 html, body { width: var(--popup-width); height: var(--popup-height); margin: 0; overflow: hidden; }

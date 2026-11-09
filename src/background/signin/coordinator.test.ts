@@ -23,7 +23,9 @@ function credential(entryId: string, signIn: Credential['signIn'], username = ''
 
 function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata[]; unlocked?: boolean; save?: () => Promise<{ action: 'created' | 'updated' }>; vaults?: SignInTargets['vaults'] } = {}) {
   let counter = 0;
-  let session = { unlocked: options.unlocked ?? true, generation: 1 };
+  let session = { unlocked: options.unlocked ?? true, generation: 1, profileId: 'profile' };
+  const mutedSites = new Set<string>();
+  const mute = vi.fn(async (_profile: string, site: string) => { mutedSites.add(site); });
   let now = 1_000;
   const notify = vi.fn();
   const save = vi.fn(options.save ?? (async () => ({ action: 'updated' as const })));
@@ -31,6 +33,7 @@ function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata
     vaults: options.vaults ?? [{ vaultId: 'vault-1', label: 'Personal', isDefault: true }], credentials: options.credentials ?? [] }));
   const coordinator = new FederatedSignInCoordinator({
     getSession: async () => session,
+    preferences: { isMuted: async (_profile: string, site: string) => mutedSites.has(site), mute },
     providerAccounts: async () => (options.metadata ?? []).map((entry) => ({ account: entry.username!,
       context: `${entry.name} \u00b7 ${entry.vaultName}`,
       entry: entry.id.startsWith('hidden') ? null : { vaultId: entry.vaultId, entryId: entry.id } })),
@@ -51,8 +54,8 @@ function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata
     return result.status === 'prompt' ? result.prompt : null;
   };
   return {
-    coordinator, notify, save, targets, source, send, prompt,
-    lock: () => { session = { unlocked: false, generation: session.generation + 1 }; coordinator.clear(); },
+    coordinator, notify, save, targets, source, send, prompt, mute,
+    lock: () => { session = { ...session, unlocked: false, generation: session.generation + 1 }; coordinator.clear(); },
     advance: (ms: number) => { now += ms; },
   };
 }
@@ -67,18 +70,33 @@ function provider(entry: Partial<EntryMetadata> & { id: string; username: string
 }
 
 describe('FederatedSignInCoordinator', () => {
-  it.each([1, 2])('offers only %s eligible host targets and defaults only the single target', async count => {
+  it.each([1, 2])('offers %s existing targets plus an explicit new alternative and defaults only the sole existing target', async count => {
     const h = harness({ credentials: Array.from({ length: count }, (_, index) => credential(`entry-${index}`, { status: 'absent' })) });
     h.coordinator.documentConnected(1, SERVICE, undefined);
     h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
     h.coordinator.documentConnected(1, 'https://app.example.com/callback', undefined);
     const view = (await h.prompt())!;
-    expect(view.targets).toHaveLength(count);
-    expect(view.targets.every(target => target.action === 'update')).toBe(true);
+    expect(view.targets.filter(target => target.action === 'update')).toHaveLength(count);
+    expect(view.targets.filter(target => target.action === 'create')).toHaveLength(1);
     expect(view.defaultTargetId).toBe(count === 1 ? view.targets[0]!.id : null);
   });
 
-  it('lets the user pick the Vault for a new record when several are writable', async () => {
+
+  it('saves an explicitly chosen new target with the selected provider account despite an existing match', async () => {
+    const h = harness({ credentials: [credential('existing', { status: 'absent' })], metadata: [provider({ id: 'g1', username: 'alice@gmail.com' })] });
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    h.coordinator.documentConnected(1, 'https://app.example.com/callback', undefined);
+    const view = (await h.prompt())!;
+    expect(view.targets.find(target => target.id === view.defaultTargetId)?.action).toBe('update');
+    const target = view.targets.find(target => target.action === 'create')!;
+    const account = view.accounts.find(account => account.label === 'alice@gmail.com')!;
+    expect(await h.send({ type: 'confirm', promptId: view.id, accountId: account.id, targetId: target.id, locale: 'en' })).toMatchObject({ status: 'saved' });
+    expect(h.save).toHaveBeenCalledWith('https://app.example.com', { action: 'create', vaultId: 'vault-1' },
+      { provider: 'google', account: 'alice@gmail.com', entry: { vaultId: 'vault-1', entryId: 'g1' } }, expect.any(String), expect.any(Function));
+  });
+
+  it('defaults to the personal Vault while retaining other writable choices', async () => {
     const h = harness({ vaults: [{ vaultId: 'vault-1', label: 'Personal', isDefault: true },
       { vaultId: 'vault-2', label: 'Team', isDefault: false }] });
     h.coordinator.documentConnected(1, SERVICE, undefined);
@@ -86,7 +104,7 @@ describe('FederatedSignInCoordinator', () => {
     h.coordinator.documentConnected(1, 'https://app.example.com/callback?code=c&state=s', undefined);
     const view = (await h.prompt())!;
     expect(view.targets.map((target) => target.vaultLabel)).toEqual(['Personal', 'Team']);
-    expect(view.defaultTargetId).toBeNull();
+    expect(view.targets.find(target => target.id === view.defaultTargetId)?.vaultLabel).toBe('Personal');
   });
 
   it('asks only after a same-tab provider round trip and saves the explicit choice', async () => {
@@ -464,7 +482,8 @@ describe('FederatedSignInCoordinator', () => {
     expect(isFederatedSignInResult(result)).toBe(true);
     const view = result.status === 'prompt' ? result.prompt! : null;
     expect(view!.targets.length).toBeLessThanOrEqual(64);
-    expect(view!.targets.every((target) => target.action === 'update')).toBe(true);
+    expect(view!.targets.some((target) => target.action === 'update')).toBe(true);
+    expect(view!.targets.some((target) => target.action === 'create')).toBe(true);
     expect(view!.accounts.length).toBeLessThanOrEqual(32);
     expect(view!.accounts.at(-1)!.source).toBe('none');
     expect(view!.accounts.find((account) => account.id === view!.defaultAccountId)?.label).toBe('user39@gmail.com');
@@ -533,4 +552,15 @@ it('retains manual provider-account provenance after an automatic TOTP fill', as
   h.coordinator.documentConnected(1, SERVICE, undefined);
   const prompt = (await h.prompt())!;
   expect(prompt.accounts.find(account => account.id === prompt.defaultAccountId)?.label).toBe('alice@gmail.com');
+});
+
+it.each(['live','other-document','locked'])('persists OAuth site mute only from the authorized prompt (%s)', async state => {
+  const h = harness();
+  const round = () => { h.coordinator.documentConnected(1,SERVICE,undefined); h.coordinator.documentConnected(1,GOOGLE_AUTH,undefined); h.coordinator.documentConnected(1,SERVICE,undefined); };
+  round(); const view = (await h.prompt())!;
+  if(state==='locked')h.lock();
+  const from = state==='other-document' ? h.source(1,SERVICE,'foreign-document') : h.source(1);
+  expect(await h.send({type:'mute',promptId:view.id},from)).toEqual({status:state==='live'?'dismissed':'stale'});
+  if(state==='live') { expect(h.mute).toHaveBeenCalledWith('profile','example.com'); round(); expect(await h.prompt()).toBeNull(); }
+  else expect(h.mute).not.toHaveBeenCalled();
 });

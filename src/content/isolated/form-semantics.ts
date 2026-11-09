@@ -14,6 +14,10 @@ export function autocompleteTokens(element: Element): string[] {
   return (element.getAttribute('autocomplete') ?? '').toLowerCase().split(/\s+/);
 }
 
+export function hasPaymentAutocomplete(element: Element): boolean {
+  return autocompleteTokens(element).some(token => token.startsWith('cc-'));
+}
+
 export function hasOneTimeCodeHint(element: Element): boolean {
   return autocompleteTokens(element).includes('one-time-code')
     || normalizedControlLabels(element).some(isOneTimeCodeLabel);

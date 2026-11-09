@@ -6,7 +6,7 @@ export function CaptureTransition({ children }: { children: ReactNode }) {
   const inner = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const container = outer.current, content = inner.current;
-    if (!container || !content || typeof ResizeObserver === 'undefined') return;
+    if (!container || !content || container.closest('.capture-frame') || typeof ResizeObserver === 'undefined') return;
     let height = content.getBoundingClientRect().height;
     let animation: Animation | undefined;
     const observer = new ResizeObserver(() => {
@@ -16,7 +16,7 @@ export function CaptureTransition({ children }: { children: ReactNode }) {
       height = next;
       animation?.cancel();
       if (previous > 0 && typeof container.animate === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        animation = container.animate([{ height: `${previous}px` }, { height: `${next}px` }], { duration: 240, easing: 'ease-out' });
+        animation = container.animate([{ height: `${previous}px` }, { height: `${next}px` }], { duration: 240, easing: 'ease-out', delay: next < previous && content.querySelector('[data-stage="saved"]') ? 200 : 0, fill: 'backwards' });
       }
     });
     observer.observe(content);

@@ -1,6 +1,9 @@
+import { registrableDomain } from '@shared/security/domain';
+import { createCaptureDismiss } from './capture-dismiss';
+import { openInlineCaptureReview } from './capture-review-host';
 import en from '../../popup/locales/en.json';
 import pl from '../../popup/locales/pl.json';
-import palladinIconUrl from '../../../icons/icon-32.png?inline';
+import { captureNoticeIdentity, captureNoticeHeader, CAPTURE_NOTICE_STYLES } from './capture-notice-chrome';
 import {
   DEFAULT_UI_PREFERENCES, UI_PREFERENCES_STORAGE_KEY, parseUiPreferences, resolveUiLocale,
   type ThemePreference, type UiLocale,
@@ -16,10 +19,9 @@ import {
 import { SIGN_IN_PROVIDER_NAMES, type SignInProvider } from '@shared/signin/providers';
 import { createAgentInjectDomAccess } from './agent-inject';
 import { createClosedSurface } from './closed-surface';
-import { CLOSED_TOAST_STYLES } from './credential-toast';
 import { detectProviderControls, providerForControl, uniqueProviderControl } from './federated-signin-detect';
 
-type CopyKey = Extract<keyof typeof en, `signInToast.${string}` | `captureReview.${string}` | "inline.openFromToolbar">;
+type CopyKey = Extract<keyof typeof en, `captureToast.${string}` | `signInToast.${string}` | `captureReview.${string}` | "inline.openFromToolbar" | "secretCapture.dismiss">;
 type Body<T> = T extends FederatedSignInCommand ? Omit<T, 'channel' | 'documentId'> : never;
 type Send = (command: FederatedSignInCommand) => Promise<unknown>;
 
@@ -42,6 +44,8 @@ export class FederatedSignInSurface {
   private prompt: SignInPrompt | null = null;
   private busy = false;
   private manualOpen = false;
+  private inlineError = false;
+  private reviewingId: string | null = null;
   private locale: UiLocale = 'en';
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
@@ -55,11 +59,11 @@ export class FederatedSignInSurface {
   ) {
     this.surface = createClosedSurface(doc, 'palladin-capture');
     for (const [key, value] of Object.entries({ top: '16px', right: '16px',
-      width: 'min(360px, calc(100vw - 32px))', 'pointer-events': 'auto' })) {
+      width: 'min(420px, calc(100vw - 32px))', 'pointer-events': 'auto' })) {
       this.surface.host.style.setProperty(key, value, 'important');
     }
     const style = doc.createElement('style');
-    style.textContent = CLOSED_TOAST_STYLES + EXTRA_STYLES;
+    style.textContent = CAPTURE_NOTICE_STYLES + EXTRA_STYLES;
     this.panel = doc.createElement('div');
     this.panel.className = 'panel';
     this.surface.shadow.append(style, this.panel);
@@ -92,6 +96,7 @@ export class FederatedSignInSurface {
   }
 
   showResult(result: FederatedSignInResult): void {
+    if (result.status === 'prompt' && result.prompt?.id === this.reviewingId) return;
     if (this.disposed) return;
     if (result.status === 'saved') {
       this.note('signInToast.saved', 3_000);
@@ -113,10 +118,11 @@ export class FederatedSignInSurface {
   }
 
   private note(key: CopyKey, closeAfter: number, name = ''): void {
+    this.dismissControl?.dispose(); this.dismissControl = null;
     this.mode = 'note';
     this.prompt = null;
     this.panel.setAttribute('role', 'status');
-    this.panel.replaceChildren(this.header(key, name));
+    this.panel.replaceChildren(captureNoticeHeader(this.doc), this.bodyTitle(key, name));
     this.mount();
     if (this.closeTimer !== null) clearTimeout(this.closeTimer);
     this.closeTimer = setTimeout(() => this.hide(), closeAfter);
@@ -129,6 +135,7 @@ export class FederatedSignInSurface {
   }
 
   private hide(): void {
+    this.dismissControl?.dispose(); this.dismissControl = null;
     if (this.closeTimer !== null) clearTimeout(this.closeTimer);
     this.closeTimer = null;
     this.mode = 'none';
@@ -138,7 +145,10 @@ export class FederatedSignInSurface {
     this.panel.replaceChildren();
   }
 
+  private dismissControl: ReturnType<typeof createCaptureDismiss> | null = null;
+
   private render(): void {
+    this.dismissControl?.dispose(); this.dismissControl = null;
     if (this.mode === 'suggestions') this.renderSuggestions();
     else if (this.mode === 'prompt') this.renderPrompt();
   }
@@ -146,7 +156,8 @@ export class FederatedSignInSurface {
   private renderSuggestions(): void {
     this.panel.setAttribute('role', 'region');
     this.panel.setAttribute('aria-label', this.text('signInToast.suggestTitle'));
-    const header = this.header('signInToast.suggestTitle');
+    const header = captureNoticeHeader(this.doc);
+    const body = this.bodyTitle('signInToast.suggestTitle');
     header.append(this.close(() => this.hide()));
     const list = this.doc.createElement('div');
     list.className = 'choices';
@@ -159,7 +170,8 @@ export class FederatedSignInSurface {
       option.append(context);
       list.append(option);
     }
-    this.panel.replaceChildren(header, this.paragraph('signInToast.suggestHint'), list);
+    body.append(this.paragraph('signInToast.suggestHint'), list);
+    this.panel.replaceChildren(header, body);
   }
 
   private async choose(suggestion: SignInSuggestion): Promise<void> {
@@ -176,19 +188,25 @@ export class FederatedSignInSurface {
   private renderPrompt(): void {
     const prompt = this.prompt;
     if (!prompt) return;
-    const providerName = this.providerName(prompt.provider);
     this.panel.setAttribute('role', 'region');
-    this.panel.setAttribute('aria-label', this.text('signInToast.title', providerName));
-    const header = this.header('signInToast.title', providerName);
+    this.panel.setAttribute('aria-label', this.text('captureReview.rememberMethod'));
+    const header = captureNoticeHeader(this.doc);
+    const body = this.bodyTitle('captureReview.rememberMethod');
     header.append(this.close(() => this.perform({ type: 'dismiss', promptId: prompt.id })));
     const site = this.doc.createElement('div');
     site.className = 'site';
-    site.textContent = `${prompt.site} · ${providerName}`;
-    this.panel.replaceChildren(header, site);
-    if (this.manualOpen) this.panel.append(this.paragraph('inline.openFromToolbar', true));
-    if (prompt.error === 'save-failed') this.panel.append(this.paragraph('signInToast.error', true));
-    if (prompt.state === 'locked') this.panel.append(this.paragraph('signInToast.locked'));
+    site.textContent = this.text('captureReview.source').replace('{origin}', prompt.site);
+    body.append(site);
+    this.panel.replaceChildren(header, body);
+    if (this.inlineError) body.append(this.paragraph('captureReview.openError', true));
+    if (this.manualOpen) body.append(this.paragraph('inline.openFromToolbar', true));
+    if (prompt.error === 'save-failed') body.append(this.paragraph('signInToast.error', true));
+    if (prompt.state === 'locked') body.append(this.paragraph('signInToast.locked'));
     const footer = this.footer(prompt.id);
+    if (prompt.state === 'ready') {
+      const identity = prompt.notice ?? {kind:'credential' as const,site:prompt.site,name:prompt.site,detail:''};
+      body.append(captureNoticeIdentity(this.doc,identity,`${this.providerName(prompt.provider)}${identity.detail ? ` · ${identity.detail}` : ''}`,prompt.provider));
+    }
     footer.append(this.button(this.text(prompt.state === 'locked' ? 'signInToast.unlock' : 'captureReview.review'), 'primary', () => this.perform({ type: 'unlock' })));
     this.panel.append(footer);
   }
@@ -196,13 +214,33 @@ export class FederatedSignInSurface {
   private footer(promptId: string): HTMLDivElement {
     const footer = this.doc.createElement('div');
     footer.className = 'footer';
-    footer.append(this.button(this.text('signInToast.notNow'), 'secondary', () => this.perform({ type: 'dismiss', promptId })));
+    this.dismissControl = createCaptureDismiss(this.doc, {
+      button: (label, style, action) => this.button(label, style, action),
+      dismissLabel: this.text('secretCapture.dismiss'), muteLabel: this.text('captureToast.mute'), optionsLabel: this.text('captureToast.dismissOptions'), site: registrableDomain(this.prompt?.site) ?? this.prompt?.site ?? '',
+      onDismiss: () => this.perform({type:'dismiss',promptId}), onMute: () => this.perform({type:'mute',promptId}),
+    });
+    footer.append(this.dismissControl.element);
     return footer;
   }
 
 
   private async perform(action: Body<FederatedSignInCommand>): Promise<void> {
     if (this.busy) return;
+    if (action.type === 'unlock' && this.prompt?.state === 'ready') {
+      const pendingId = this.prompt.id;
+      const rect = this.surface.host.getBoundingClientRect();
+      this.busy = true;
+      const opened = await openInlineCaptureReview(this.doc, this.documentId, 'login', pendingId, {
+        left: rect.left, top: rect.top, width: rect.width, height: rect.height,
+        onReady: () => { this.reviewingId = pendingId; this.hide(); },
+      }).catch(() => false);
+      this.busy = false;
+      if (!opened && this.prompt?.id === pendingId) {
+        this.inlineError = true;
+        this.render();
+      }
+      return;
+    }
     const pendingId = this.prompt?.id;
     this.busy = true;
     this.manualOpen = false;
@@ -240,16 +278,14 @@ export class FederatedSignInSurface {
     return button;
   }
 
-  private header(key: CopyKey, name = ''): HTMLDivElement {
-    const header = this.doc.createElement('div');
-    header.className = 'header';
-    const icon = this.doc.createElement('img');
-    icon.src = palladinIconUrl;
-    icon.alt = '';
-    const title = this.doc.createElement('strong');
+  private bodyTitle(key: CopyKey, name = ''): HTMLDivElement {
+    const body = this.doc.createElement('div');
+    body.className = 'notice-body';
+    const title = this.doc.createElement('h2');
+    title.className = 'notice-title';
     title.textContent = this.text(key, name);
-    header.append(icon, title);
-    return header;
+    body.append(title);
+    return body;
   }
 
   private paragraph(key: CopyKey, error = false, name = ''): HTMLDivElement {

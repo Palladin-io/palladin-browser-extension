@@ -3,7 +3,7 @@ import { parsePublicAssetIconReference } from "@palladin/crypto";
 import { normalizeServerUrl } from "@shared/config/server";
 import type { ServerConfigClient } from "../config/client";
 
-import { loadPublicAssetPng } from "@shared/public-asset-image";
+import { loadPublicAssetIcon } from "@shared/public-asset-image";
 
 export const ApiUrlContext = createContext<string | null>(null);
 
@@ -34,21 +34,8 @@ export function usePublicAssetImage(icon: string | undefined): string | null {
     const controller = new AbortController();
     let objectUrl: string | null = null;
     void (async () => {
-      let asset: { assetId: string; revision: number } | null = reference;
-      if (!asset && catalogId) {
-        const response = await fetch(`${apiUrl}/api/public-assets/by-ids`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assetIds: [catalogId] }),
-          signal: controller.signal, credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer',
-        });
-        if (!response.ok) throw new Error('Public icon unavailable');
-        const page = await response.json() as { items: { id: string; revision: number }[] };
-        const match = page.items.find(item => item.id === catalogId);
-        if (!match) return;
-        asset = { assetId: catalogId, revision: match.revision };
-      }
-      if (!asset) return;
-      // Only selected-API content is trusted; catalog/decrypted URLs never become image destinations.
-      const blob = await loadPublicAssetPng(`${apiUrl}/api/public-assets/${asset.assetId}/revisions/${encodeURIComponent(asset.revision)}/content`, controller.signal);
+      const blob = await loadPublicAssetIcon(apiUrl, icon!, controller.signal);
+      if (!blob) return;
       if (controller.signal.aborted) return;
       objectUrl = URL.createObjectURL(blob);
       setLoaded({ source, blob: objectUrl });

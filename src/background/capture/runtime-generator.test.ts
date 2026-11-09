@@ -24,7 +24,8 @@ describe('generated fill runtime boundary', () => {
       if (message.channel === 'palladin.tab/current-url') return { url, documentId };
       return { ok: true };
     });
-    vi.stubGlobal('chrome', { tabs: { query: vi.fn(async () => [{ id: activeTab }]), sendMessage } });
+    vi.stubGlobal('chrome', { windows: { getLastFocused: vi.fn(async () => ({ id: 1 })) },
+      tabs: { query: vi.fn(async () => [{ id: activeTab, windowId: 1, incognito: false }]), sendMessage } });
     const keys = { privateKey: new Uint8Array(32) };
     vi.spyOn(sessionManager, 'getKeys').mockImplementation(() => {
       activeTab = 8;
