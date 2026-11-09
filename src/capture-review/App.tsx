@@ -67,6 +67,6 @@ export function CaptureFrameApp({ connection }: { connection: CaptureFrameConnec
     {savedSecret ? <CaptureReview title="" savedTitle={t(savedSecret.card ? savedSecret.updated ? 'captureReview.cardUpdated' : 'captureReview.cardSaved' : 'captureReview.keySaved')}
       stage="saved" origin={savedSecret.origin} name={savedSecret.name} detail={savedSecret.detail} vault={savedSecret.vault}
       identity={{ name: savedSecret.name, type: savedSecret.card ? ENTRY_TYPE_CREDIT_CARD : ENTRY_TYPE_KEY, ...(savedSecret.icon ? { icon: savedSecret.icon } : {}) }}
-      saveLabel="" onIdentity={() => openCapture(true)} onReview={() => {}} onSave={() => {}} onDismiss={connection.close} onDone={connection.close}>{null}</CaptureReview> : null}
+      transitionFromReview saveLabel={t(savedSecret.card ? savedSecret.updated ? 'captureReview.updateCard' : 'captureReview.saveCardAction' : 'captureReview.saveKeyAction')} onIdentity={() => openCapture(true)} onReview={() => {}} onSave={() => {}} onDismiss={connection.close} onDone={connection.close}>{null}</CaptureReview> : null}
   </div></ApiUrlContext.Provider>;
 }

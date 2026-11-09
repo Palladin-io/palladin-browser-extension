@@ -16,7 +16,7 @@ html:has(.capture-frame) { background:var(--cv-surface)!important; }
 .capture-frame .capture-review-fields { padding:0 20px 16px; max-height:340px; }
 .capture-frame .capture-review-footer { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); padding:12px 20px; }
 .capture-frame .capture-review-footer > button { min-width:0; width:100%; }
-.capture-frame .capture-review[data-stage='saved'] .capture-review-footer { grid-template-columns:1fr; }
+.capture-frame .capture-review-footer[data-saved='true'] { grid-template-columns:1fr; }
 @media(prefers-reduced-motion:reduce) { .capture-frame *, .capture-frame *::before, .capture-frame *::after { animation:none!important; transition:none!important; } }
 .capture-frame .popup-header > .toolbar-icon { width:28px; height:28px; padding:0; font-size:20px; line-height:1; flex-shrink:0; }
 .capture-frame .brand-lockup { gap:9px; }
@@ -27,3 +27,7 @@ html:has(.capture-frame) { background:var(--cv-surface)!important; }
 
 /* The outer notification owns size motion; nested size animations retarget it every frame. */
 .capture-frame .capture-review-heading-wrap, .capture-frame .capture-review-expansion { transition:none; }
+
+/* Reserve intrinsic height for the host while actions follow its moving bottom edge. */
+.capture-frame .capture-review-footer-space { height:61px; }
+.capture-frame .capture-review-footer { position:fixed; bottom:0; left:0; right:0; z-index:3; }

@@ -25,7 +25,7 @@ try {
       import '/src/popup/popup.css'; import '/src/popup/redesign.css'; import '/src/capture-review/frame.css';
       window.React = React;
       window.frameSamples=[];
-      const sampleFrame=()=>{const header=document.querySelector('.popup-header')?.getBoundingClientRect();window.frameSamples.push({at:performance.now(),background:getComputedStyle(document.body).backgroundColor,header:header?{height:header.height,top:header.top,width:header.width}:null});requestAnimationFrame(sampleFrame);};sampleFrame();
+      const sampleFrame=()=>{const header=document.querySelector('.popup-header')?.getBoundingClientRect();window.frameSamples.push({at:performance.now(),background:getComputedStyle(document.body).backgroundColor,header:header?{height:header.height,top:header.top,width:header.width}:null,stage:document.querySelector('.capture-review')?.dataset.stage,viewport:innerHeight,footerBottom:document.querySelector('.capture-review-footer')?.getBoundingClientRect().bottom,done:[...document.querySelectorAll('button')].some(b=>b.textContent==='Done')});requestAnimationFrame(sampleFrame);};sampleFrame();
       const listeners = [];
       const secretReview = { status: 'review', id: 'candidate', origin: 'https://example.test', candidate: { kind: 'key', value: 'synthetic-capture-secret' }, vaults: [{ id: 'vault', name: 'Personal', isDefault: true }] };
       const review = ${kind === 'secret' ? 'secretReview' : JSON.stringify({ status:'review',review:{kind:'credential',prompt:{id:'capture',site:'example.test',state:'ready',targets:[{id:'target',action:'create',label:'Personal',vaultLabel:'Personal'}],defaultTargetId:'target'},entry:{entryType:'credential',label:'Example',username:'synthetic-user',password:'synthetic-password',url:'https://example.test'}}})};
@@ -94,6 +94,11 @@ try {
     assert(frames.filter(s=>!s.header).every(s=>s.background==='rgba(0, 0, 0, 0)'), 'loading frame stays transparent over the original notice');
     assert(frames.filter(s=>s.header).length>10,'sample real child frames across both transitions');
     assert(frames.filter(s=>s.header).every(s=>s.header.height===68 && s.header.top===0 && s.header.width===420), 'header geometry stays fixed on every animation frame');
+    const savedFrames=frames.filter(s=>s.stage==='saved');
+    if(!reduced) {
+      assert(savedFrames.filter(s=>s.at<savedFrames[0].at+250).every(s=>!s.done),'footer changes only after collapse');
+      assert(savedFrames.every(s=>Math.abs(s.footerBottom-s.viewport)<2),'footer follows the bottom edge throughout collapse');
+    }
     console.log('Collapse heights', reduced, Math.min(...collapse.map(s=>s.height)), final);
     assert(collapse.filter(s=>s.at>savedAt+380).every(s=>Math.abs(s.height-final)<1), 'saved resize settles in one 320ms transition');
     assert(collapse.every(s => s.height >= final - 1), 'saved transition never undershoots and rebounds');

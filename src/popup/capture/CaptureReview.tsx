@@ -9,6 +9,7 @@ interface Props {
   title: string; savedTitle: string; origin: string; name: string; detail?: string; identity: EntryIconProps;
   stage: CaptureReviewStage; vault?: string; children: ReactNode; saveLabel: string;
   saveForm?: string;
+  transitionFromReview?: boolean;
   identityTrailing?: ReactNode;
   onIdentity?(): void;
   busy?: boolean; disabled?: boolean; error?: string;
@@ -17,6 +18,17 @@ interface Props {
 }
 export function CaptureReview(props: Props): React.JSX.Element {
   const { t } = useI18n();
+  const [footerSaved, setFooterSaved] = useState(props.stage === 'saved' && !props.transitionFromReview);
+  const previousAction = useRef({ label: props.saveLabel, mute: !!props.onMute || !!props.transitionFromReview });
+  if (props.stage !== 'saved') previousAction.current = { label: props.saveLabel, mute: !!props.onMute };
+  const settling = props.stage === 'saved' && !footerSaved;
+  useEffect(() => {
+    if (props.stage !== 'saved') { setFooterSaved(false); return; }
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { setFooterSaved(true); return; }
+    // Only action presentation survives collapse; secret fields are removed immediately.
+    const timer = window.setTimeout(() => setFooterSaved(true), 360);
+    return () => window.clearTimeout(timer);
+  }, [props.stage]);
   const [menuOpen, setMenuOpen] = useState(false);
   const split = useRef<HTMLDivElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
@@ -44,10 +56,10 @@ export function CaptureReview(props: Props): React.JSX.Element {
     <div className="entry-identity-card capture-review-identity">{props.onIdentity ? <button type="button" className="capture-review-identity-link" aria-label={props.name} onClick={props.onIdentity}><EntryIcon {...props.identity} /></button> : <EntryIcon {...props.identity} />}{identityText}{props.identityTrailing}</div>
     <div className="capture-review-expansion" inert={props.stage !== 'review'} aria-hidden={props.stage !== 'review'}><div><div className="capture-review-fields">{props.stage !== 'saved' ? props.children : null}</div></div></div>
     {props.error ? <p className="capture-review-error" role="alert">{props.error}</p> : null}
-    <div className="capture-review-footer">
-      {props.stage !== 'saved' ? <div className="capture-dismiss-split" ref={split}>
-        <Button variant="subtle" disabled={props.busy} onClick={() => { setMenuOpen(false); props.onDismiss(); }}>{t('secretCapture.dismiss')}</Button>
-        {props.onMute ? <button type="button" className="btn btn--subtle capture-dismiss-options" ref={toggle} disabled={props.busy}
+    <div className="capture-review-footer-space"><div className="capture-review-footer" data-settling={settling} data-saved={footerSaved}>
+      {!footerSaved ? <div className="capture-dismiss-split" ref={split}>
+        <Button variant="subtle" disabled={props.busy || settling} onClick={() => { setMenuOpen(false); props.onDismiss(); }}>{t('secretCapture.dismiss')}</Button>
+        {(props.onMute || settling && previousAction.current.mute) ? <button type="button" className="btn btn--subtle capture-dismiss-options" ref={toggle} disabled={props.busy || settling}
           aria-label={t('captureToast.dismissOptions')} aria-haspopup="menu" aria-expanded={menuVisible}
           onClick={() => setMenuOpen(value => !value)} onKeyDown={event => {
             if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setMenuOpen(true); }
@@ -58,9 +70,9 @@ export function CaptureReview(props: Props): React.JSX.Element {
           </button>
         </div> : null}
       </div> : null}
-      <Button type={props.stage === 'review' && props.saveForm ? 'submit' : 'button'} form={props.stage === 'review' ? props.saveForm : undefined} loading={!!props.busy} disabled={!!props.busy || props.stage === 'review' && !!props.disabled} onClick={props.stage === 'notice' ? event => { event.preventDefault(); props.onReview(); } : props.stage === 'saved' ? props.onDone : props.saveForm ? undefined : props.onSave}>
-        {props.stage === 'notice' ? t('captureReview.review') : props.stage === 'saved' ? t('captureReview.done') : props.saveLabel}
+      <Button type={props.stage === 'review' && props.saveForm ? 'submit' : 'button'} form={props.stage === 'review' ? props.saveForm : undefined} loading={!!props.busy} disabled={settling || !!props.busy || props.stage === 'review' && !!props.disabled} onClick={props.stage === 'notice' ? event => { event.preventDefault(); props.onReview(); } : props.stage === 'saved' ? props.onDone : props.saveForm ? undefined : props.onSave}>
+        {props.stage === 'notice' ? t('captureReview.review') : props.stage === 'saved' ? footerSaved ? t('captureReview.done') : previousAction.current.label : props.saveLabel}
       </Button>
-    </div>
+    </div></div>
   </section></CaptureTransition>;
 }
