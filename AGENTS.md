@@ -63,7 +63,8 @@ require a mockup. Do not restart the design from scratch for each feature.
 
 1. **Recover the current baseline.** Read the Palladin root's
    `.agents/skills/palladin-design/SKILL.md`, `design/workbench/README.md`,
-   `COMPONENTS.md` and `sources.json`, plus the relevant product component docs.
+   `design/workbench/COMPONENTS.md` and `design/workbench/sources.json`,
+   then the product catalog and concern-specific documents listed there.
    Compare pinned sources with the affected repository's latest `main`; refresh
    stale sources/dependencies before designing, preserving accepted in-progress
    mockups. Never edit generated `.sources/` files. In a standalone checkout,
@@ -98,8 +99,10 @@ require a mockup. Do not restart the design from scratch for each feature.
    evidence. Include the mockup revision/link and visual/interaction results in
    the PR; retain the fixture flow as the baseline for subsequent work.
 
-Extension references: `docs/POPUP-DESIGN.md`, `src/popup/components/`,
-`popup.css`, `redesign.css` and the original App/UnlockedScreen layouts.
+Extension references: start with `docs/COMPONENT-CATALOG.md`, then
+`docs/POPUP-DESIGN.md` and the selected component source/current consumer.
+Style sources are `src/popup/popup.css`, `src/popup/redesign.css` and
+`src/popup/viewport.css`; preserve the original App/UnlockedScreen layouts.
 A browser-tab mockup does not verify native popup resizing or worker security.
 
 ## Architecture
@@ -235,7 +238,7 @@ backend. **No `*-viewed` events** - screen/tab views are covered generically.
 - **Copy uses a plain hyphen `-`,** never an em dash or en dash. No all-caps in UI
   (no `text-transform: uppercase`) - render strings in the case written.
 - **Colors** mirror the web panel `--cv-*` tokens; do not invent brand hexes
-  (brand red is `#E54645`).
+  from the current popup CSS cascade, including `redesign.css` overrides.
 - **Every user-facing string is localized.** English and Polish catalogs are
   required from the first implementation; never add literal UI copy in a React
   component. Keep popup catalogs and manifest `_locales` in exact key parity,
