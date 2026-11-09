@@ -74,6 +74,8 @@ try {
     await frame.waitForFunction(()=>{const logo=document.querySelector('.brand-logo');return logo.complete&&logo.naturalWidth>0;});
     console.log('Expansion heights', reduced, Math.min(...expansion.map(s=>s.height)), expansion.at(-1).height);
     assert(expansion.every(s => s.height >= 259), 'opening never contracts to a header-only loading frame');
+    const closeOffset=await frame.locator('.popup-header > button').evaluate(button=>{const box=button.getBoundingClientRect(),icon=button.querySelector('svg').getBoundingClientRect();return {x:(icon.left+icon.right-box.left-box.right)/2,y:(icon.top+icon.bottom-box.top-box.bottom)/2};});
+    assert(Math.abs(closeOffset.x)<0.5&&Math.abs(closeOffset.y)<0.5,'close icon stays centered inside its button');
     const headerClip={x:770,y:22,width:408,height:56};
     const headerBefore=await page.screenshot({clip:headerClip});
     await page.screenshot({path:path.join(artifacts,`${kind}-${theme}-${reduced}-review.png`)});

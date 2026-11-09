@@ -2,7 +2,7 @@ import { createCaptureDismiss } from './capture-dismiss';
 import { registrableDomain } from '@shared/security/domain';
 import { openInlineCaptureReview } from './capture-review-host';
 import type { CaptureNoticeIdentity } from '@shared/messaging/capture-notice';
-import { captureNoticeIdentity, captureNoticeHeader, CAPTURE_NOTICE_STYLES } from './capture-notice-chrome';
+import { captureNoticeIdentity, captureNoticeHeader, captureNoticeCloseIcon, CAPTURE_NOTICE_STYLES } from './capture-notice-chrome';
 import en from '../../popup/locales/en.json';
 import pl from '../../popup/locales/pl.json';
 import { DEFAULT_UI_PREFERENCES, UI_PREFERENCES_STORAGE_KEY, parseUiPreferences, resolveUiLocale } from '@shared/config/ui-preferences';
@@ -79,7 +79,7 @@ export class SecretCaptureNotice {
     this.surface.host.dataset.theme = dark ? 'dark' : 'light';
     const panel = this.doc.createElement('div'); panel.className = 'panel'; panel.setAttribute('role','status');
     const header = captureNoticeHeader(this.doc);
-    const close=this.doc.createElement('button');close.type='button';close.className='close';close.textContent='×';close.setAttribute('aria-label',copy['captureToast.close']);
+    const close=this.doc.createElement('button');close.type='button';close.className='close';close.append(captureNoticeCloseIcon(this.doc));close.setAttribute('aria-label',copy['captureToast.close']);
     close.addEventListener('click',event=>{if(this.surface.acceptsAction(event,close))void this.runAction('dismiss');});
     header.append(close);panel.append(header);
     const footer = this.doc.createElement('div'); footer.className = 'footer notice-footer';

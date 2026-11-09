@@ -10,7 +10,7 @@ html:has(.capture-frame) { background:var(--cv-surface)!important; }
 .capture-frame .popup-header { height:68px; min-height:68px; flex:0 0 68px; padding:16px 20px; border-bottom:1px solid var(--cv-border); background:linear-gradient(115deg,var(--capture-wash),var(--cv-surface) 80%); }
 .capture-frame .popup-header::before { display:none; }
 .capture-frame .brand-logo { width:28px; height:28px; }
-.capture-frame .wordmark { font-size:14px; }
+.capture-frame .wordmark { font-size:16px; }
 .capture-frame .capture-review { border:0; border-radius:0; }
 .capture-frame .capture-review-identity { margin:16px 20px; }
 .capture-frame .capture-review-fields { padding:0 20px 16px; max-height:340px; }
@@ -18,8 +18,8 @@ html:has(.capture-frame) { background:var(--cv-surface)!important; }
 .capture-frame .capture-review-footer > button { min-width:0; width:100%; }
 .capture-frame .capture-review-footer[data-saved='true'] { grid-template-columns:1fr; }
 @media(prefers-reduced-motion:reduce) { .capture-frame *, .capture-frame *::before, .capture-frame *::after { animation:none!important; transition:none!important; } }
-.capture-frame .popup-header > .toolbar-icon { width:28px; height:28px; padding:0; font-size:20px; line-height:1; flex-shrink:0; }
-.capture-frame .brand-lockup { gap:9px; }
+.capture-frame .popup-header > .toolbar-icon { width:28px; height:28px; padding:0; display:grid; place-items:center; flex-shrink:0; }
+.capture-frame .brand-lockup { gap:12px; }
 .capture-frame .capture-review-footer .btn--subtle { background:var(--cv-surface); color:var(--cv-t1); border:1px solid var(--cv-border); }
 .capture-frame .capture-dismiss-split:has(.capture-dismiss-options) > .btn:first-child { border-right:0; }
 .capture-frame .capture-review-footer .btn--subtle:hover { background:var(--cv-subtle); }
@@ -31,3 +31,5 @@ html:has(.capture-frame) { background:var(--cv-surface)!important; }
 /* Reserve intrinsic height for the host while actions follow its moving bottom edge. */
 .capture-frame .capture-review-footer-space { height:61px; }
 .capture-frame .capture-review-footer { position:fixed; bottom:0; left:0; right:0; z-index:3; }
+
+.capture-frame .popup-header > .toolbar-icon svg { display:block; width:16px; height:16px; pointer-events:none; }

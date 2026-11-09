@@ -28,6 +28,20 @@ export function captureNoticeHeader(doc: Document): HTMLDivElement {
   return header;
 }
 
+export function captureNoticeCloseIcon(doc: Document): SVGSVGElement {
+  const icon = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  icon.setAttribute('viewBox', '0 0 24 24');
+  icon.setAttribute('aria-hidden', 'true');
+  icon.setAttribute('fill', 'none');
+  icon.setAttribute('stroke', 'currentColor');
+  icon.setAttribute('stroke-width', '2');
+  icon.setAttribute('stroke-linecap', 'round');
+  const path = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', 'M6 6l12 12M18 6 6 18');
+  icon.append(path);
+  return icon;
+}
+
 export const CAPTURE_NOTICE_STYLES = `
   :host { color-scheme:light; --cv-primary:#D43E3E; --cv-primary-hover:color-mix(in srgb,var(--cv-primary) 90%,black);
     --cv-bg:#f3f5f8; --cv-surface:#fff; --cv-wash:#f7f8fa; --cv-t1:#0c0e12; --cv-t2:#5a6478;
@@ -39,7 +53,7 @@ export const CAPTURE_NOTICE_STYLES = `
     color:var(--cv-t1); box-shadow:0 12px 32px rgba(0,0,0,.16); font:13px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; animation:notice-appear 180ms ease-out; }
   .header { display:flex; align-items:center; justify-content:space-between; gap:12px; height:68px; min-height:68px; padding:16px 20px;
     border-bottom:1px solid var(--cv-border); background:linear-gradient(115deg,var(--cv-wash),var(--cv-surface) 80%); }
-  .notice-brand { display:flex; align-items:center; gap:9px; font-size:14px; font-weight:700; }
+  .notice-brand { display:flex; align-items:center; gap:12px; font-size:16px; font-weight:700; }
   .notice-brand img { width:28px; height:28px; object-fit:contain; }
   .notice-brand strong { font:inherit; }
   .notice-brand strong span { color:var(--cv-primary); }
@@ -49,7 +63,8 @@ export const CAPTURE_NOTICE_STYLES = `
   button { font:inherit; font-size:12px; font-weight:600; text-transform:none; letter-spacing:normal; cursor:pointer; border:1px solid transparent; border-radius:6px; }
   button:focus-visible { outline:2px solid var(--cv-primary); outline-offset:2px; }
   button:disabled { opacity:.6; cursor:wait; }
-  .close { background:transparent; color:var(--cv-t2); font-size:20px; width:28px; height:28px; padding:0; }
+  .close { background:transparent; color:var(--cv-t2); width:28px; height:28px; padding:0; display:grid; place-items:center; }
+  .close svg { display:block; width:16px; height:16px; pointer-events:none; }
   .primary { min-height:36px; padding:7px 13px; background:var(--cv-primary); color:#fff; overflow-wrap:anywhere; }
   .primary:hover { background:var(--cv-primary-hover); }
   .secondary { min-height:36px; padding:7px 13px; background:var(--cv-surface); color:var(--cv-t1); border-color:var(--cv-border); }

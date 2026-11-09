@@ -49,6 +49,8 @@
 
 ## Checkpoint
 
+Header polish: shared initial notice chrome and shared React review/saved header use a 12px brand gap and 16px wordmark. The close glyph is now a centered SVG in both renderers. Chromium checks verify icon/button centers and retain stable header pixels in all eight motion cases. 4368 tests and all builds pass.
+
 Unlock error follow-up: the native locked popup now measures feedback height and animates the matching viewport growth instead of scrolling the fixed 292px form. Chromium renderer regression reproduced the old defect; normal/reduced-motion cases pass. Installed Chromium expands 292→313px through intermediate sizes without scrollbar, then accepts a correct-password retry. Full suite: 4368 tests; all builds passed. Same local build path; no merge/release.
 
 Latest animation correction (2026-11-09): saved actions now wait until the 320ms host collapse has finished, then enter over 180ms. The frame footer follows the viewport bottom; outgoing actions are disabled while the secret editor is removed immediately. Card/key remounts carry only action presentation. A new Chromium regression first failed on premature Done, then passed eight login/key × light/dark × reduced-motion scenarios, including bottom anchoring. Unit suite: 4368 passed; all target builds passed. No merge/release; user visual acceptance remains next.

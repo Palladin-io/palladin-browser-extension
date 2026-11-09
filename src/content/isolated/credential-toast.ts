@@ -2,7 +2,7 @@ import { createCaptureDismiss } from './capture-dismiss';
 import { openInlineCaptureReview } from './capture-review-host';
 import en from "../../popup/locales/en.json";
 import pl from "../../popup/locales/pl.json";
-import { captureNoticeIdentity, captureNoticeHeader, CAPTURE_NOTICE_STYLES } from "./capture-notice-chrome";
+import { captureNoticeIdentity, captureNoticeHeader, captureNoticeCloseIcon, CAPTURE_NOTICE_STYLES } from "./capture-notice-chrome";
 import type { ThemePreference, UiLocale } from "@shared/config/ui-preferences";
 import {
   CREDENTIAL_CAPTURE_CHANNEL,
@@ -117,7 +117,8 @@ export class CredentialCaptureToast {
     this.panel.setAttribute("aria-label", this.text(titleKey));
     const header = captureNoticeHeader(this.doc);
     const body = this.bodyTitle(titleKey);
-    const close = this.button("×", "close", () => this.perform({ type: "dismiss", promptId: prompt.id }));
+    const close = this.button("", "close", () => this.perform({ type: "dismiss", promptId: prompt.id }));
+    close.append(captureNoticeCloseIcon(this.doc));
     close.setAttribute("aria-label", this.text("captureToast.close"));
     header.append(close);
     const site = this.doc.createElement("div");
