@@ -49,6 +49,8 @@
 
 ## Checkpoint
 
+2026-11-15: capture notice/review headers now match the main extension gradient (110°, 4% text-token wash) and shared grain asset/mask in both themes. Local 4368 tests, all builds and eight Chromium motion/pixel scenarios pass. Head 9dded7e cloud round1 found a valid native card/key handoff acknowledgement defect. PendingCaptureView now retains only SavedSecretSummary, clears the secret review/draft and reuses the saved surface with receipt-based navigation; regressions cover edited names, update acknowledgement and committed Entry/Vault selection. CI43746540795 found an obsolete 115° visual expectation; it is updated to the approved 110° and all 20 notice theme/locale cases pass. Round2/CI on the follow-up remain pending. Hosted OAuth controls are intentionally disabled: current-build disposable Chromium lab was launched and actual notices from synthetic Google/GitHub were verified; X is not a supported provider. No merge/release.
+
 Latest owner correction: reverse the saved transition: animate the new footer first (180ms), then resize after 200ms; reduced motion remains immediate. Shared brand gap is now 16px. Unlock retries retain the previous feedback so the second wrong password does not collapse/re-expand; the outer locked popup also suppresses transient overflow. Installed Chromium regression reproduced the outer-scroll defect and now checks both containers plus a second incorrect attempt and a successful retry.
 
 Header polish: shared initial notice chrome and shared React review/saved header use a 16px brand gap and 16px wordmark. The close glyph is now a centered SVG in both renderers. Chromium checks verify icon/button centers and retain stable header pixels in all eight motion cases. 4368 tests and all builds pass.

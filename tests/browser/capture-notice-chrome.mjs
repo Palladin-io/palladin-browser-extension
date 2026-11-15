@@ -74,7 +74,7 @@ try {
       assert.equal(result.title, (language==='pl'?{credential:'Zapisz login',card:'Zapisz kartę płatniczą',key:'Zapisz klucz API',totp:'Zapisz uwierzytelniacz',federated:'Zapamiętaj metodę logowania'}:{credential:'Save login',card:'Save payment card',key:'Save API key',totp:'Save authenticator',federated:'Remember sign-in method'})[kind]);
       assert.equal(result.logoWidth, 128, 'exact approved prototype shield derivative loads');
       assert.equal(result.headerHeight, 68);
-      assert(result.gradient.startsWith('linear-gradient(115deg,'));
+      assert(result.gradient.startsWith('linear-gradient(110deg,'));
       assert.equal(result.footerBorder, '1px');
       assert.equal(result.primary, 'rgb(212, 62, 62)', 'approved primary color');
       assert.deepEqual(result.buttons.map(button => button.label), language==='pl'?['Odrzuć', 'Sprawdź']:['Dismiss', 'Review']);

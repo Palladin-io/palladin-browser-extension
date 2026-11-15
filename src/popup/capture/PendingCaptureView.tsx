@@ -5,21 +5,22 @@ import { NATIVE_LOGIN_CAPTURE_CHANNEL } from '../../shared/messaging/native-logi
 import { SECRET_CAPTURE_CHANNEL } from '../../shared/messaging/secret-capture';
 import { TOTP_CAPTURE_CHANNEL } from '../../shared/messaging/totp-capture';
 import { LoginCapturePrompt } from './LoginCapturePrompt';
-import { SecretCapturePrompt } from './SecretCapturePrompt';
+import { SecretCapturePrompt, SavedSecretCapture, type SavedSecretSummary } from './SecretCapturePrompt';
 import { TotpCapturePrompt } from './TotpCapturePrompt';
 import type { VaultClient } from '../vault/client';
 import { useI18n } from '../i18n';
 import { Button } from '../components/Button';
 type Review = {kind:'login';value:ComponentProps<typeof LoginCapturePrompt>['review']} | {kind:'secret';value:ComponentProps<typeof SecretCapturePrompt>['review']} | {kind:'totp';value:ComponentProps<typeof TotpCapturePrompt>['review']};
-export function PendingCaptureView({capture,client,onDone}:{capture:PendingCaptureRef;client:VaultClient;onDone():void}) {
+export function PendingCaptureView({capture,client,onDone,onOpenEntry}:{capture:PendingCaptureRef;client:VaultClient;onDone():void;onOpenEntry(entryId:string,vaultId:string):void}) {
   const {t}=useI18n();
   const handoffRequest=useRef<{key:string;promise:Promise<{draft:CaptureDraft|null}>}|null>(null);
   const clearDraft=()=>{handoffRequest.current=null;setDraft(null);};
+  const [saved,setSaved]=useState<SavedSecretSummary|null>(null);
   const [draft,setDraft]=useState<CaptureDraft|null>(null);
   const [review,setReview]=useState<Review|null>(null), [unavailable,setUnavailable]=useState(false);
   useEffect(()=>{
     let current=true;
-    setReview(null);setUnavailable(false);
+    setReview(null);setSaved(null);setUnavailable(false);
     void (async()=>{
       const key=`${capture.kind}:${capture.id}`;
       if(handoffRequest.current?.key!==key)handoffRequest.current={key,promise:chrome.runtime.sendMessage({channel:CAPTURE_DRAFT_CHANNEL,kind:capture.kind,id:capture.id})};
@@ -40,8 +41,9 @@ export function PendingCaptureView({capture,client,onDone}:{capture:PendingCaptu
     })().catch(()=>{if(current)setUnavailable(true);});
     return()=>{current=false;};
   },[capture.kind,capture.id]);
+  if(saved)return <SavedSecretCapture saved={saved} onOpenEntry={onOpenEntry} onDone={onDone}/>;
   if(review?.kind==='login')return <LoginCapturePrompt initialExpanded initialDraft={draft?.kind==='login'?draft:undefined} client={client} review={review.value} send={command=>chrome.runtime.sendMessage(command)} onSaved={clearDraft} onDone={onDone}/>;
-  if(review?.kind==='secret')return <SecretCapturePrompt initialExpanded initialDraft={draft?.kind==='secret'?draft:undefined} client={client} review={review.value} onSaved={clearDraft} onDone={onDone}/>;
+  if(review?.kind==='secret')return <SecretCapturePrompt initialExpanded initialDraft={draft?.kind==='secret'?draft:undefined} client={client} review={review.value} onSaved={summary=>{clearDraft();setReview(null);setSaved(summary);}} onDone={onDone}/>;
   if(review?.kind==='totp')return <TotpCapturePrompt initialExpanded initialDraft={draft?.kind==='totp'?draft:undefined} review={review.value} onSaved={clearDraft} onDone={onDone}/>;
   return <div>{unavailable?<p role="status">{t('captureReview.unavailable')}</p>:null}<Button onClick={onDone}>{t('captureReview.done')}</Button></div>;
 }

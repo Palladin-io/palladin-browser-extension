@@ -47,20 +47,23 @@ export function useSecretCapture(revision: number): [Review | null, () => void] 
   }, [revision]);
   return [review, () => setReview(null)];
 }
-interface SavedSecretSummary {
+export interface SavedSecretSummary {
   name: string; detail: string; vault: string; origin: string; card: boolean; updated: boolean;
   entryId?: string; vaultId?: string; icon?: string;
 }
-export function SecretCaptureSurface({ revision, client, onOpenEntry }: { revision: number; client: VaultClient; onOpenEntry(entryId: string, vaultId: string): void }) {
+export function SavedSecretCapture({ saved, onOpenEntry, onDone }: { saved: SavedSecretSummary; onOpenEntry(entryId: string, vaultId: string): void; onDone(): void }) {
   const { t } = useI18n();
-  const [review, clear] = useSecretCapture(revision);
-  const [saved, setSaved] = useState<SavedSecretSummary | null>(null);
-  return <CaptureTransition>{saved ? <CaptureReview title={t(saved.card ? 'captureReview.saveCard' : 'captureReview.saveKey')}
+  return <CaptureReview title={t(saved.card ? 'captureReview.saveCard' : 'captureReview.saveKey')}
     savedTitle={t(saved.card ? saved.updated ? 'captureReview.cardUpdated' : 'captureReview.cardSaved' : 'captureReview.keySaved')} stage="saved"
     origin={saved.origin} name={saved.name} detail={saved.detail} vault={saved.vault}
     identity={{ name: saved.name, type: saved.card ? ENTRY_TYPE_CREDIT_CARD : ENTRY_TYPE_KEY, ...(saved.icon ? { icon: saved.icon } : {}) }}
-    {...(saved.entryId && saved.vaultId ? { onIdentity: () => { onOpenEntry(saved.entryId!, saved.vaultId!); setSaved(null); } } : {})}
-    saveLabel="" onReview={() => {}} onSave={() => {}} onDismiss={() => setSaved(null)} onDone={() => setSaved(null)}>{null}</CaptureReview> : review ? <SecretCapturePrompt key={review.id} review={review} client={client} onDone={clear}
+    {...(saved.entryId && saved.vaultId ? { onIdentity: () => { onOpenEntry(saved.entryId!, saved.vaultId!); } } : {})}
+    saveLabel="" onReview={() => {}} onSave={() => {}} onDismiss={onDone} onDone={onDone}>{null}</CaptureReview>;
+}
+export function SecretCaptureSurface({ revision, client, onOpenEntry }: { revision: number; client: VaultClient; onOpenEntry(entryId: string, vaultId: string): void }) {
+  const [review, clear] = useSecretCapture(revision);
+  const [saved, setSaved] = useState<SavedSecretSummary | null>(null);
+  return <CaptureTransition>{saved ? <SavedSecretCapture saved={saved} onOpenEntry={(id,vaultId)=>{onOpenEntry(id,vaultId);setSaved(null);}} onDone={() => setSaved(null)} /> : review ? <SecretCapturePrompt key={review.id} review={review} client={client} onDone={clear}
     onSaved={summary => { setSaved(summary); clear(); }} /> : null}</CaptureTransition>;
 }
 export function SecretCapturePrompt({ review, client, send = sendSecretCapture, onDone, onSaved, onOpenCapture, initialDraft, initialExpanded = false }: {

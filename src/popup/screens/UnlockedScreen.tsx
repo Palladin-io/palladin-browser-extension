@@ -222,7 +222,7 @@ function UnlockedContent({
       </ScrollableTabs>
 
       <div className="vault-content">
-        {view === 'capture' && navigation.state.pendingCapture ? <PendingCaptureView capture={navigation.state.pendingCapture} client={client} onDone={() => navigation.update({view:'vault',pendingCapture:undefined})} /> : view === 'settings' ? settings : view === 'grants' ? (
+        {view === 'capture' && navigation.state.pendingCapture ? <PendingCaptureView onOpenEntry={(id,vaultId) => navigation.update({selected:{id,vaultId},view:'vault',pendingCapture:undefined})} capture={navigation.state.pendingCapture} client={client} onDone={() => navigation.update({view:'vault',pendingCapture:undefined})} /> : view === 'settings' ? settings : view === 'grants' ? (
           <GrantsPanel
             onShowLogs={showLogs}
             revision={pendingGrants.revision}
