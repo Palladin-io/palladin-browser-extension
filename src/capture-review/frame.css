@@ -1,5 +1,3 @@
-:root { --capture-wash:#f7f8fa; }
-:root[data-theme='dark'] { --capture-wash:#22262c; }
 html, body { width:100%; min-width:0; height:auto; max-height:none; overflow-x:hidden; overflow-y:auto; background:transparent; }
 /* Chromium makes a transparent child canvas opaque when its color scheme differs from the iframe element. */
 html:not(:has(.capture-frame)) { color-scheme:normal!important; }
@@ -7,8 +5,8 @@ html, body, #root { background:transparent!important; box-shadow:none!important;
 html:has(.capture-frame) { background:var(--cv-surface)!important; }
 #root { width:100%; min-width:0; }
 .popup.capture-frame { width:100%; min-width:0; height:auto; min-height:0; background:var(--cv-surface); }
-.capture-frame .popup-header { height:68px; min-height:68px; flex:0 0 68px; padding:16px 20px; border-bottom:1px solid var(--cv-border); background:linear-gradient(115deg,var(--capture-wash),var(--cv-surface) 80%); }
-.capture-frame .popup-header::before { display:none; }
+.capture-frame .popup-header { height:68px; min-height:68px; flex:0 0 68px; padding:16px 20px; border-bottom:1px solid var(--cv-border); background:linear-gradient(110deg,color-mix(in srgb,var(--cv-t3) 4%,var(--cv-surface)),var(--cv-surface)); }
+.capture-frame .popup-header::before { mask-image:linear-gradient(to bottom,#000,rgb(0 0 0 / .25)); }
 .capture-frame .brand-logo { width:28px; height:28px; }
 .capture-frame .wordmark { font-size:16px; }
 .capture-frame .capture-review { border:0; border-radius:0; }

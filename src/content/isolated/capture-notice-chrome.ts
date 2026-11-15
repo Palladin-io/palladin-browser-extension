@@ -8,6 +8,7 @@ import apple from '../../popup/assets/sign-in-providers/apple.svg?inline';
 import microsoft from '../../popup/assets/sign-in-providers/microsoft.svg?inline';
 import github from '../../popup/assets/sign-in-providers/github.svg?inline';
 import facebook from '../../popup/assets/sign-in-providers/facebook.svg?inline';
+import brandGrainUrl from '../../popup/assets/brand-grain.svg?inline';
 import brandLogoUrl from '../../../icons/icon-128.png?inline';
 
 export function captureNoticeHeader(doc: Document): HTMLDivElement {
@@ -44,15 +45,19 @@ export function captureNoticeCloseIcon(doc: Document): SVGSVGElement {
 
 export const CAPTURE_NOTICE_STYLES = `
   :host { color-scheme:light; --cv-primary:#D43E3E; --cv-primary-hover:color-mix(in srgb,var(--cv-primary) 90%,black);
-    --cv-bg:#f3f5f8; --cv-surface:#fff; --cv-wash:#f7f8fa; --cv-t1:#0c0e12; --cv-t2:#5a6478;
+    --cv-bg:#f3f5f8; --cv-surface:#fff; --cv-t3:#5a6478; --cv-grain-opacity:.018; --cv-t1:#0c0e12; --cv-t2:#5a6478;
     --cv-border:rgba(12,14,18,.13); --cv-subtle:rgba(12,14,18,.05); }
-  :host([data-theme="dark"]) { color-scheme:dark; --cv-bg:#15171b; --cv-surface:#191c20; --cv-wash:#22262c;
+  :host([data-theme="dark"]) { color-scheme:dark; --cv-bg:#15171b; --cv-surface:#191c20; --cv-t3:#b8c5d4; --cv-grain-opacity:.055;
     --cv-t1:#e8eaed; --cv-t2:#b8c5d4; --cv-border:rgba(232,234,237,.15); --cv-subtle:rgba(232,234,237,.07); }
   * { box-sizing:border-box; }
   .panel { overflow:hidden; border:1px solid var(--cv-border); border-radius:10px; background:var(--cv-surface);
     color:var(--cv-t1); box-shadow:0 12px 32px rgba(0,0,0,.16); font:13px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; animation:notice-appear 180ms ease-out; }
   .header { display:flex; align-items:center; justify-content:space-between; gap:12px; height:68px; min-height:68px; padding:16px 20px;
-    border-bottom:1px solid var(--cv-border); background:linear-gradient(115deg,var(--cv-wash),var(--cv-surface) 80%); }
+    border-bottom:1px solid var(--cv-border); background:linear-gradient(110deg,color-mix(in srgb,var(--cv-t3) 4%,var(--cv-surface)),var(--cv-surface)); }
+  .header { position:relative; isolation:isolate; }
+  .header::before { content:''; position:absolute; inset:0; z-index:-1; pointer-events:none;
+    background:url('${brandGrainUrl}') repeat; background-size:180px; opacity:var(--cv-grain-opacity);
+    mask-image:linear-gradient(to bottom,#000,rgb(0 0 0 / .25)); }
   .notice-brand { display:flex; align-items:center; gap:16px; font-size:16px; font-weight:700; }
   .notice-brand img { width:28px; height:28px; object-fit:contain; }
   .notice-brand strong { font:inherit; }
