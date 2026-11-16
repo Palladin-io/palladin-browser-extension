@@ -29,7 +29,7 @@ const payloadSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("link-reconnect-ack"), accountId: uuid, linkId: uuid, reconnectRevision: uint }).strict(),
   z.object({ kind: z.literal("state"), stateId: key, accountId: uuid.nullable(),
     status: z.enum(["signed-out", "locked", "unlocked"]), generation: key,
-    source: z.object({ organizationId: uuid }).strict().nullable() }).strict(),
+    source: z.object({ organizationId: uuid, sequence: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional() }).strict().nullable() }).strict(),
   z.object({ kind: z.literal("link"), webStateId: key, extensionStateId: key, accountId: uuid, linkId: uuid }).strict(),
   z.object({ kind: z.literal("link-selected"), webStateId: key, extensionStateId: key, accountId: uuid, linkId: uuid }).strict(),
   z.object({ kind: z.literal("prepare"), webStateId: key, extensionStateId: key, accountId: uuid,
@@ -44,6 +44,7 @@ const payloadSchema = z.discriminatedUnion("kind", [
 export const sharedUnlockOperationSchema = z.object({ attemptId: key, payload: payloadSchema }).strict();
 export type SharedUnlockOperationMessage = z.infer<typeof sharedUnlockOperationSchema>;
 export const sharedUnlockOperationFrameSchema = z.object({ type: z.literal("operation"),
-  protocol: z.literal("palladin.shared-unlock.browser.v1"), apiUrl: text, webNonce: key, channelId: key,
-  documentBinding: z.string().min(1).max(256), attemptId: key, payload: payloadSchema }).strict();
+  protocol: z.enum(["palladin.shared-unlock.browser.v1", "palladin.shared-unlock.browser.v2"]), apiUrl: text, webNonce: key, channelId: key,
+  documentBinding: z.string().min(1).max(256), attemptId: key, payload: payloadSchema }).strict().refine(frame => frame.protocol !== "palladin.shared-unlock.browser.v1"
+    || frame.payload.kind !== "state" || frame.payload.source?.sequence === undefined);
 export type SharedUnlockOperationFrame = z.infer<typeof sharedUnlockOperationFrameSchema>;

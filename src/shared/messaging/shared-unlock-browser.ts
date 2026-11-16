@@ -1,16 +1,18 @@
 import { sharedUnlockOperationFrameSchema, type SharedUnlockOperationFrame } from "./shared-unlock-operation";
 /** Private framing over an independently browser-authenticated route. */
 export const SHARED_UNLOCK_BROWSER_PORT = "palladin.shared-unlock.browser.v1";
+export const SHARED_UNLOCK_BROWSER_PORT_V2 = "palladin.shared-unlock.browser.v2";
+export type SharedUnlockBrowserProtocol = typeof SHARED_UNLOCK_BROWSER_PORT | typeof SHARED_UNLOCK_BROWSER_PORT_V2;
 export interface SharedUnlockBrowserHello {
   readonly type: "hello";
-  readonly protocol: typeof SHARED_UNLOCK_BROWSER_PORT;
+  readonly protocol: SharedUnlockBrowserProtocol;
   readonly apiUrl: string;
   /** Request correlation only; never a crypto-session/source-authorization generation. */
   readonly webNonce: string;
 }
 export interface SharedUnlockBrowserReady {
   readonly type: "ready";
-  readonly protocol: typeof SHARED_UNLOCK_BROWSER_PORT;
+  readonly protocol: SharedUnlockBrowserProtocol;
   readonly apiUrl: string;
   readonly webOrigin: string;
   readonly extensionId: string;
@@ -25,7 +27,7 @@ const text = (value: unknown, maximum: number): value is string => typeof value 
 export function isSharedUnlockBrowserMessage(value: unknown): value is SharedUnlockBrowserMessage {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
-  if (row.protocol !== SHARED_UNLOCK_BROWSER_PORT || !text(row.apiUrl, 2048) || !nonce(row.webNonce)) return false;
+  if ((row.protocol !== SHARED_UNLOCK_BROWSER_PORT && row.protocol !== SHARED_UNLOCK_BROWSER_PORT_V2) || !text(row.apiUrl, 2048) || !nonce(row.webNonce)) return false;
   const fields = Object.keys(row).sort().join(",");
   if (row.type === "operation") return sharedUnlockOperationFrameSchema.safeParse(row).success;
   if (row.type === "hello") return fields === "apiUrl,protocol,type,webNonce";
