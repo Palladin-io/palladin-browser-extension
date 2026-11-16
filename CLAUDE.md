@@ -54,6 +54,57 @@ treat any violation below as a Critical (blocking) finding.
 - **Security over convenience.** If a shortcut weakens the model, it is not
   acceptable regardless of deadline pressure.
 
+## Mandatory UI workflow: mockup first, pixel-perfect implementation
+
+For every new or changed user-facing screen, component or interaction, update the
+interactive mockup **before integrating the feature into the application**. This
+includes small UI changes; backend-only changes with no visible effect do not
+require a mockup. Do not restart the design from scratch for each feature.
+
+1. **Recover the current baseline.** Read the Palladin root's
+   `.agents/skills/palladin-design/SKILL.md`, `design/workbench/README.md`,
+   `design/workbench/COMPONENTS.md` and `design/workbench/sources.json`,
+   then the product catalog and concern-specific documents listed there.
+   Compare pinned sources with the affected repository's latest `main`; refresh
+   stale sources/dependencies before designing, preserving accepted in-progress
+   mockups. Never edit generated `.sources/` files. In a standalone checkout,
+   locate the root/workbench through existing worktrees; if unavailable, ask for
+   its location instead of inventing a replacement.
+2. **Update the interactive mockup first.** Reuse actual product React components,
+   layouts, CSS tokens and local assets. Mock only data, API/crypto and browser
+   side effects with fictional, memory-only fixtures. Make the affected flow
+   clickable, including navigation, submit/cancel and relevant loading, empty,
+   error and disabled states. Do not connect previews to staging or production.
+3. **Reuse the accepted style.** Use existing buttons, tabs, selection treatments,
+   chips, zones, inputs, icons, spacing and grain. Do not copy shell JSX, create
+   parallel look-alike controls, invent colors or use generic `frontend-design`,
+   retired HTML/Astro prototypes or old design skills as a new visual baseline.
+   If a required component/pattern is missing or its design is unclear, **ask the
+   owner with a concrete proposal before inventing it**. Once agreed, implement
+   one reusable component for both preview and product, not two copies.
+4. **Agree the concrete result.** Show a runnable preview/link and record the
+   accepted revision and states in the existing task plan. Obtain acceptance of
+   new visual/interaction decisions before product integration. Existing explicit
+   acceptance of that exact mockup remains valid; do not ask again or reopen it.
+5. **Implement pixel for pixel.** The accepted mockup is the binding visual and
+   interaction specification. Preserve component composition, geometry, typography,
+   icons, colors, borders, spacing, grain and responsive behavior while replacing
+   fixture boundaries with production logic. Any intended deviation requires
+   updating the mockup and agreement first. Never weaken security to match a demo.
+6. **Verify before handoff.** Compare mockup and implementation screenshots at the
+   same viewport, theme, locale and equivalent synthetic data/state; fix visual
+   differences, and exercise the actual flow. Check light/dark, long labels and
+   scrolling, web at 1520px and narrow widths, or extension popup and side-panel
+   sizes as applicable. Passing build/unit tests alone is not pixel-perfect
+   evidence. Include the mockup revision/link and visual/interaction results in
+   the PR; retain the fixture flow as the baseline for subsequent work.
+
+Extension references: start with `docs/COMPONENT-CATALOG.md`, then
+`docs/POPUP-DESIGN.md` and the selected component source/current consumer.
+Style sources are `src/popup/popup.css`, `src/popup/redesign.css` and
+`src/popup/viewport.css`; preserve the original App/UnlockedScreen layouts.
+A browser-tab mockup does not verify native popup resizing or worker security.
+
 ## Architecture
 
 Three cooperating layers plus a typed message bridge that is the foundation for
@@ -187,7 +238,7 @@ backend. **No `*-viewed` events** - screen/tab views are covered generically.
 - **Copy uses a plain hyphen `-`,** never an em dash or en dash. No all-caps in UI
   (no `text-transform: uppercase`) - render strings in the case written.
 - **Colors** mirror the web panel `--cv-*` tokens; do not invent brand hexes
-  (brand red is `#E54645`).
+  from the current popup CSS cascade, including `redesign.css` overrides.
 - **Every user-facing string is localized.** English and Polish catalogs are
   required from the first implementation; never add literal UI copy in a React
   component. Keep popup catalogs and manifest `_locales` in exact key parity,

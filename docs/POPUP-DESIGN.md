@@ -1,7 +1,8 @@
 # Popup component standard
 
 The extension uses the accepted Palladin web-panel component treatment, at native
-popup density. Source: `src/popup/redesign.css`, shared React controls under
+popup density. Component lookup: `COMPONENT-CATALOG.md`. Read the selected source
+and current consumer before composing a new flow. Source: `src/popup/redesign.css`, shared React controls under
 `src/popup/components/`. Do not restyle worker permissions or secret presentation
 as part of visual changes.
 
@@ -31,6 +32,13 @@ as part of visual changes.
   settings use 400 x 580. Phase changes resize immediately without dimension
   transitions. Side-panel bounds remain browser-owned.
 
+
+## Mockup-first workflow
+
+Follow `AGENTS.md` before changing any UI. Update the root `design/workbench/`
+preview with actual extension components, obtain acceptance of new decisions,
+and match the accepted revision pixel for pixel. Keep fixtures offline; native
+runtime/security verification remains separate.
 
 ## Verification boundary
 
