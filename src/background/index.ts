@@ -1,3 +1,4 @@
+import { restoreContentScripts } from './restore-content-scripts';
 import { isCaptureDetectedMessage } from '@shared/messaging/capture';
 import { CAPTURE_DOCUMENT_PORT } from '@shared/messaging/capture-document';
 import { captureDocumentRoutes, resolveCaptureSource, currentCaptureDocument, onCaptureRouteConnected, onCaptureRouteRetired } from './capture/document-route-runtime';
@@ -845,6 +846,7 @@ async function removeUnusedServerPermission(
 void chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
 
 chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === 'update') void restoreContentScripts().catch(() => undefined);
   chrome.alarms.create(SYNC_ALARM, { periodInMinutes: SYNC_PERIOD_MINUTES });
   void openOnboardingAfterInstall(details).catch(() => undefined);
 });

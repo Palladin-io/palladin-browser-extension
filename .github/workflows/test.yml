@@ -37,6 +37,8 @@ jobs:
         run: npm run test:browser:agent-frames
       - name: Verify manual autofill and shield layout
         run: npm run test:browser:inline
+      - name: Verify inline UI survives extension reload
+        run: node tests/browser/inline-extension-reload.mjs
       - name: Verify encrypted credential capture
         run: npm run test:browser:capture
       - name: Verify inline capture review and encrypted saves

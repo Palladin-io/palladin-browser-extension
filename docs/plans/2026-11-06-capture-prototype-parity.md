@@ -49,6 +49,21 @@
 
 ## Checkpoint
 
+Reload regression, 2026-11-18: `inline-extension-reload.mjs` went RED on
+26099cb: native reload + re-unlock left the existing page's shield unavailable;
+a page refresh restored it. Full extension update now reinjects the packaged
+isolated top-frame script into permitted HTTPS tabs. New bootstrap removes stale
+hosts; a value-free lifecycle observer stops old invalidated controllers so they
+cannot recreate duplicate UI. No new permissions, keys or DOM credential reads.
+Two successive reloads, single shield, preserved username and responsive unlocked
+suggestions PASS on both faithful offline CaptureLab specimen and live Netlify.
+Full suite 4371/273 and all builds PASS. Ordinary worker/BFCache port tests PASS.
+The current test harness requires a fresh page once when first replacing a legacy
+build whose already-running code lacks invalidation cleanup. No claim of actual
+Edge/Firefox reload acceptance. Next: reconcile current main, CI/cloud review;
+no merge/release.
+
+
 2026-11-15: capture notice/review headers now match the main extension gradient (110°, 4% text-token wash) and shared grain asset/mask in both themes. Local 4368 tests, all builds and eight Chromium motion/pixel scenarios pass. Head 9dded7e cloud round1 found a valid native card/key handoff acknowledgement defect. PendingCaptureView now retains only SavedSecretSummary, clears the secret review/draft and reuses the saved surface with receipt-based navigation; regressions cover edited names, update acknowledgement and committed Entry/Vault selection. CI43746540795 found an obsolete 115° visual expectation; it is updated to the approved 110° and all 20 notice theme/locale cases pass. Round2/CI on the follow-up remain pending. Hosted OAuth controls are intentionally disabled: current-build disposable Chromium lab was launched and actual notices from synthetic Google/GitHub were verified; X is not a supported provider. No merge/release.
 
 Latest owner correction: reverse the saved transition: animate the new footer first (180ms), then resize after 200ms; reduced motion remains immediate. Shared brand gap is now 16px. Unlock retries retain the previous feedback so the second wrong password does not collapse/re-expand; the outer locked popup also suppresses transient overflow. Installed Chromium regression reproduced the outer-scroll defect and now checks both containers plus a second incorrect attempt and a successful retry.

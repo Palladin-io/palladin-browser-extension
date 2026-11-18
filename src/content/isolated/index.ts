@@ -65,6 +65,11 @@ import { sharePageRequest } from '../../shared/messaging/share-save';
 import { isFederatedSignInRefresh } from '../../shared/messaging/federated-signin';
 import { startFederatedSignIn } from './federated-signin';
 
+// Reload destroys the old isolated world but can leave its closed-shadow hosts
+// in the page. This module runs once in the new world, before creating any UI.
+// Tags identify presentation debris only; they grant no messaging authority.
+for (const host of document.querySelectorAll('palladin-autofill, palladin-capture')) host.remove();
+
 const sessionNonce = generateNonce();
 const documentId = generateNonce();
 const selfOrigin = window.location.origin;
@@ -160,6 +165,24 @@ const agentInjectDom = createAgentInjectDomAccess(
     || (secretCapture?.isOwnedSurface(element) ?? false)
     || (totpCapture?.isOwnedSurface(element) ?? false),
 );
+
+// Chrome may leave old observers alive without notifying their invalidated Port.
+// Reinjection removes stale hosts, which triggers this value-free lifecycle check.
+let contextInvalidated = false;
+const contextObserver = new MutationObserver(() => {
+  if (chrome.runtime.id) return;
+  contextInvalidated = true;
+  contextObserver.disconnect();
+  sessionKeepalive.stop();
+  passwordCapture.stop();
+  inlineAutofill?.stop();
+  generatorSuggestion?.stop();
+  credentialCapture?.stop(); credentialCapture = null;
+  secretCapture?.stop(); secretCapture = null;
+  totpCapture?.stop(); totpCapture = null;
+  federatedSignIn?.stop(); federatedSignIn = null;
+});
+contextObserver.observe(document, { childList: true, subtree: true });
 
 const liveLogin = new LiveLogin(document, documentId, () => window.location.href, () => agentLoginFrameAllowed(window), agentInjectDom);
 
@@ -317,7 +340,7 @@ window.addEventListener("message", (event: MessageEvent) => {
 // and content-script state survive, so restore a fresh worker registration when
 // the same page returns instead of logging an unchecked runtime.lastError.
 window.addEventListener("pageshow", (event: PageTransitionEvent) => {
-  if (event.persisted) {
+  if (event.persisted && !contextInvalidated) {
     port.reconnect();
     if (window.location.protocol === "https:") secretCapture = startSecretCapture(document, documentId);
     if (window.top === window && window.location.protocol === "https:") {
