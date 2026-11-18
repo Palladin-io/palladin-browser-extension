@@ -1,10 +1,11 @@
+import { generateInlinePassphrase } from '@shared/crypto/inline-passphrase';
+import { captureDocumentKey } from './document-identity';
 /**
  * Worker-owned coordinator for new-password suggestions.
  *
- * Pending prompts contain only structural metadata and live in service-worker
- * memory. Values come from the popup or worker generation after an explicit
- * closed-surface action, travel only to a still-bound top-frame candidate,
- * and are never stored by this class.
+ * Prompts and one short-lived generated preview per tab live only in bounded
+ * worker memory. Preview values leave the worker only for their bound closed
+ * surface; explicit Use consumes the preview before the existing fill gates.
  */
 
 import {
@@ -24,21 +25,23 @@ import type {
 } from "../vault/protocol2/service";
 import { registrableDomain } from "@shared/security/domain";
 import { generatePassword, generatePassphrase } from '@palladin/crypto';
-import { GENERATED_PASSWORD_LENGTH, type GeneratePasswordCommand } from '@shared/messaging/capture';
+import { GENERATED_PASSWORD_LENGTH, type GeneratePasswordCommand, type GeneratorPreviewCommand, type GeneratorPreviewResult } from '@shared/messaging/capture';
 
 const PROMPT_TTL_MS = 5 * 60_000;
 
 export interface CaptureSource {
   readonly tabId: number;
   readonly url: string;
-  readonly browserDocumentId: string;
+  readonly browserDocumentId?: string;
+  readonly legacyRouteId?: string;
 }
 
 export interface CaptureTab {
   readonly id: number;
   readonly url: string;
   readonly documentId: string;
-  readonly browserDocumentId: string;
+  readonly browserDocumentId?: string;
+  readonly legacyRouteId?: string;
 }
 
 export interface CaptureCoordinatorDeps {
@@ -58,7 +61,7 @@ interface PendingCapture {
   readonly candidateId: string;
   readonly tabId: number;
   readonly documentId: string;
-  readonly browserDocumentId: string;
+  readonly documentKey: string;
   readonly origin: string;
   readonly site: string;
   readonly kind: CaptureDetectedMessage["kind"];
@@ -81,6 +84,63 @@ function defaultId(): string {
 }
 
 export class CaptureCoordinator {
+  private readonly previews = new Map<number, { id: string; value: string; expiresAt: number; url: string; promptId: string; timer: ReturnType<typeof setTimeout> }>();
+  private readonly previewRequests = new Map<number, symbol>();
+
+  private dropPreview(tabId: number): void {
+    const preview = this.previews.get(tabId);
+    if (preview) clearTimeout(preview.timer);
+    this.previews.delete(tabId);
+    this.previewRequests.delete(tabId);
+  }
+
+  clear(): void {
+    for (const tabId of this.previews.keys()) this.dropPreview(tabId);
+    this.previewRequests.clear(); this.pendingByTab.clear();
+  }
+
+  clearTab(tabId: number): void { this.dropPreview(tabId); this.pendingByTab.delete(tabId); }
+
+  clearDocument(tabId: number, browserDocumentId: string): void {
+    if (this.pendingByTab.get(tabId)?.documentKey === browserDocumentId) this.clearTab(tabId);
+  }
+
+  async preview(command: GeneratorPreviewCommand, source: CaptureSource): Promise<GeneratorPreviewResult> {
+    const prompt = this.livePrompt(source.tabId);
+    if (!prompt || prompt.candidateId !== command.candidateId || prompt.documentId !== command.documentId
+      || prompt.documentKey !== captureDocumentKey(source) || prompt.origin !== httpsOrigin(source.url)) return this.blocked('stale-prompt');
+    if (command.type === 'dismiss') {
+      const current = this.previews.get(source.tabId);
+      if (!command.previewId || current?.id === command.previewId) this.dropPreview(source.tabId);
+      return { status: 'dismissed' };
+    }
+    const request = Symbol();
+    while (this.previewRequests.size >= 20 && !this.previewRequests.has(source.tabId)) this.dropPreview(this.previewRequests.keys().next().value!);
+    this.previewRequests.set(source.tabId, request);
+    const active = await this.deps.getActiveTab();
+    const latest = this.previewRequests.get(source.tabId) === request;
+    if (latest) this.previewRequests.delete(source.tabId);
+    if (!latest || this.pendingByTab.get(source.tabId) !== prompt
+      || active?.id !== source.tabId || active.documentId !== prompt.documentId || captureDocumentKey(active) !== prompt.documentKey
+      || active.url !== source.url || httpsOrigin(active.url) !== prompt.origin) return this.blocked('stale-prompt');
+    if (command.type === 'use') {
+      const current = this.previews.get(source.tabId);
+      if (!current || current.id !== command.previewId || current.promptId !== prompt.id || current.url !== source.url || this.now() >= current.expiresAt) {
+        this.dropPreview(source.tabId); return this.blocked('stale-prompt');
+      }
+      this.dropPreview(source.tabId);
+      return this.fillGenerated(prompt.id, current.value, command.operationId);
+    }
+    this.dropPreview(source.tabId);
+    while (this.previews.size >= 20) this.dropPreview(this.previews.keys().next().value!);
+    const options = command.options;
+    const value = options.mode === 'password' ? generatePassword(options) : generateInlinePassphrase(options);
+    const id = crypto.randomUUID(), expiresAt = this.now() + 60_000;
+    const timer = setTimeout(() => { if (this.previews.get(source.tabId)?.id === id) this.dropPreview(source.tabId); }, 60_000);
+    this.previews.set(source.tabId, { id, value, expiresAt, url: source.url, promptId: prompt.id, timer });
+    return { status: 'preview', previewId: id, value, expiresAt };
+  }
+
   private readonly pendingByTab = new Map<number, PendingCapture>();
   private readonly now: () => number;
   private readonly createId: () => string;
@@ -93,7 +153,7 @@ export class CaptureCoordinator {
   async generate(command: GeneratePasswordCommand, source: CaptureSource): Promise<CaptureGeneratedFillResult> {
     const prompt = this.livePrompt(source.tabId);
     if (!prompt || prompt.generationOperationId === command.operationId || prompt.candidateId !== command.candidateId
-      || prompt.documentId !== command.documentId || prompt.browserDocumentId !== source.browserDocumentId
+      || prompt.documentId !== command.documentId || prompt.documentKey !== captureDocumentKey(source)
       || prompt.origin !== httpsOrigin(source.url)) return this.blocked('stale-prompt');
     this.pendingByTab.set(source.tabId, { ...prompt, generationOperationId: command.operationId });
     const options = command.options ?? { mode: 'password', length: GENERATED_PASSWORD_LENGTH, digits: true, symbols: true };
@@ -112,7 +172,7 @@ export class CaptureCoordinator {
       existing !== undefined &&
       existing.candidateId === message.candidateId &&
       existing.documentId === message.documentId &&
-      existing.browserDocumentId === source.browserDocumentId &&
+      existing.documentKey === captureDocumentKey(source) &&
       existing.origin === origin &&
       existing.kind === message.kind
     ) {
@@ -120,12 +180,13 @@ export class CaptureCoordinator {
       return true;
     }
 
+    this.dropPreview(source.tabId);
     this.pendingByTab.set(source.tabId, {
       id: this.createId(),
       candidateId: message.candidateId,
       tabId: source.tabId,
       documentId: message.documentId,
-      browserDocumentId: source.browserDocumentId,
+      documentKey: captureDocumentKey(source),
       origin,
       site,
       kind: message.kind,
@@ -189,7 +250,7 @@ export class CaptureCoordinator {
     const prompt = this.livePrompt(tab.id);
     if (prompt === null || prompt.id !== promptId) return this.blocked("stale-prompt");
     if (tab.documentId !== prompt.documentId
-      || tab.browserDocumentId !== prompt.browserDocumentId) {
+      || captureDocumentKey(tab) !== prompt.documentKey) {
       this.pendingByTab.delete(prompt.tabId);
       return this.blocked("stale-prompt");
     }
@@ -204,7 +265,7 @@ export class CaptureCoordinator {
       return this.blocked("origin-changed");
     }
 
-    const outcome = await this.deps.sendFill(prompt.tabId, prompt.browserDocumentId, {
+    const outcome = await this.deps.sendFill(prompt.tabId, prompt.documentKey, {
       channel: CAPTURE_FILL_CHANNEL,
       expectedDocumentId: prompt.documentId,
       candidateId: prompt.candidateId,
@@ -212,6 +273,7 @@ export class CaptureCoordinator {
       value,
       ...(operationId === undefined ? {} : { operationId }),
     });
+    if (this.pendingByTab.get(prompt.tabId) !== prompt) return this.blocked("stale-prompt");
     if (outcome.ok) {
       this.pendingByTab.set(prompt.tabId, { ...prompt, filled: true, observedAt: this.now() });
       return { status: "filled", saveAvailable: true };
@@ -231,7 +293,7 @@ export class CaptureCoordinator {
       return { status: "blocked", reason: "stale-prompt" };
     }
     if (tab.documentId !== prompt.documentId
-      || tab.browserDocumentId !== prompt.browserDocumentId) {
+      || captureDocumentKey(tab) !== prompt.documentKey) {
       this.pendingByTab.delete(prompt.tabId);
       return { status: "blocked", reason: "stale-prompt" };
     }
@@ -262,7 +324,7 @@ export class CaptureCoordinator {
     const prompt = this.livePrompt(tab.id);
     if (prompt === null) return null;
     if (tab.documentId !== prompt.documentId
-      || tab.browserDocumentId !== prompt.browserDocumentId) {
+      || captureDocumentKey(tab) !== prompt.documentKey) {
       this.pendingByTab.delete(tab.id);
       return null;
     }

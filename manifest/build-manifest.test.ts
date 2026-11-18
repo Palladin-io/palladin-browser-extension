@@ -261,7 +261,7 @@ describe("configured Chromium shared-unlock route", () => {
     const configured = buildManifest("firefox", pairs) as unknown as Manifest;
     expect(configured.externally_connectable).toBeUndefined();
     expect(configured.permissions).toContain("webNavigation");
-    expect(configured.web_accessible_resources).toEqual([{ resources: ["manifest.json", "src/shared-unlock-bridge/index.html"],
+    expect(configured.web_accessible_resources).toEqual([{ resources: ["src/capture-review/index.html"], matches: ["https://*/*"] }, { resources: ["manifest.json", "src/shared-unlock-bridge/index.html"],
       matches: ["http://*/*", "https://*/*"] }]);
     expect(configured.content_scripts?.at(-1)).toEqual({ matches: ["http://*/*", "https://*/*"],
       js: ["src/content/shared-unlock-firefox.ts"], run_at: "document_start", all_frames: false });
@@ -277,7 +277,7 @@ describe("configured Chromium shared-unlock route", () => {
     expect(configured.key).toBeUndefined();
     expect(configured.externally_connectable).toEqual({ matches: ["http://*/*", "https://*/*"] });
     expect(configured.host_permissions).not.toContain("https://app.example.test/*");
-    expect(configured.web_accessible_resources).toBeUndefined();
+    expect(configured.web_accessible_resources).toEqual([{ resources: ["src/capture-review/index.html"], matches: ["https://*/*"] }]);
     expect(manifests.safari.permissions).toContain("webNavigation");
     expect(manifests.safari.externally_connectable).toEqual(configured.externally_connectable);
     expect(manifests.safari.host_permissions).not.toContain("https://app.example.test/*");

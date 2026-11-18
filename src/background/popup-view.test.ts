@@ -48,6 +48,15 @@ describe("PopupViewStore", () => {
     expect(restarted.handle({ type: "popup/view/get" })?.state).toBeNull();
   });
 
+  it("accepts a cleared capture reference preserved by Firefox structured clone", () => {
+    const state = structuredClone({ ...emptyPopupView(), pendingCapture: undefined });
+    const command = { type: "popup/view/set", generation: "session", state };
+    expect(Object.hasOwn(state, "pendingCapture")).toBe(true);
+    expect(isPopupViewCommand(command)).toBe(true);
+    expect(isPopupViewCommand({ ...command, state: { ...state, query: "next view" } })).toBe(true);
+    expect(isPopupViewCommand({ ...command, state: { ...state, password: "not-allowed" } })).toBe(false);
+  });
+
   it("rejects malformed and oversized messages and secret-bearing extra fields", () => {
     const state = emptyPopupView();
     for (const bad of [

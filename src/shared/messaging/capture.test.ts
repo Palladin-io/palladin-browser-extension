@@ -74,3 +74,13 @@ describe("capture message guards", () => {
     expect(isCaptureFillOutcome({ ok: false, reason: "other" })).toBe(false);
   });
 });
+
+it('bounds preview options and accepts only ID-bound use without a supplied password', async () => {
+  const { isGeneratorPreviewCommand } = await import('./capture');
+  const base = { channel: 'palladin.capture/generator-preview.v1', documentId: DOCUMENT_ID, candidateId: ID };
+  const options = { mode: 'password', length: 20, digits: true, symbols: true };
+  expect(isGeneratorPreviewCommand({ ...base, type: 'preview', options })).toBe(true);
+  expect(isGeneratorPreviewCommand({ ...base, type: 'preview', options: { ...options, length: 8 } })).toBe(false);
+  expect(isGeneratorPreviewCommand({ ...base, type: 'use', previewId: ID, operationId: ID })).toBe(true);
+  expect(isGeneratorPreviewCommand({ ...base, type: 'use', previewId: ID, operationId: ID, value: 'site-substitution' })).toBe(false);
+});

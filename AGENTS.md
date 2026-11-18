@@ -25,10 +25,18 @@ treat any violation below as a Critical (blocking) finding.
 - **Never leak secrets to logs.** Passwords, keys, tokens, and mnemonics must
   never reach `console.log`, `debugPrint`, analytics, or diagnostics. Failure
   telemetry is value-free (shape only, never values).
-- **Confirmation UI is never in the page DOM.** Approvals, save prompts, and any
-  security-relevant prompt render in the native popup or a closed shadow-root
-  surface with no text inputs - never as page-injected DOM the site can style,
-  overlay, or read (anti-clickjacking).
+- **Confirmation UI uses an explicit extension-owned boundary.** General approvals,
+  unlock and secret reveal remain in the native popup or an input-free closed
+  shadow-root surface. The product-owner-approved capture flow is the narrow
+  exception: review and save/update stay in a capture-only extension-origin
+  iframe inside the notification. It must use private capability handoff,
+  browser-authenticated Ports, source/candidate/session binding and worker-side
+  authorization immediately before mutation. Top-layer containment, strict
+  ancestry/style checks and interference rejection mitigate page overlays;
+  they do not guarantee browser-authenticated visibility at the exact click.
+  This residual capture-only risk is explicit; it does not authorize general
+  Vault APIs, unlock, approval or reveal in the embedded frame. See
+  `docs/plans/2026-11-06-capture-prototype-parity.md`.
 - **Strict eTLD+1 origin gate before every fill.** The frame's eTLD+1 (Public
   Suffix List) must equal the entry's registered domain; HTTPS-only; re-checked
   after navigation. Automatic and exact-match fill never crosses stored hosts.
@@ -183,7 +191,7 @@ src/
 | Layer | Choice | Notes |
 |-------|--------|-------|
 | Bundler | Vite + `@crxjs/vite-plugin` | MV3-native: handles worlds, SW module bundling, HMR |
-| UI | React 19 + TypeScript (strict) | popup only |
+| UI | React 19 + TypeScript (strict) | popup and capture-only extension frame |
 | Manifest | MV3 target overlays | One Chromium-family artifact plus Firefox and Safari adapters |
 | Tests | Vitest | node environment; pure units |
 
@@ -201,8 +209,9 @@ src/
 
 - **Least privilege.** Shared permissions are `storage`, `activeTab`, `alarms`,
   and `scripting`; Chromium adds `nativeMessaging`, `offscreen`, `sidePanel`, and `webNavigation`.
-  `webNavigation` is used only for on-demand Agent login frame/document identity
-  checks; the Agent path installs no navigation listeners or history collection.
+  `webNavigation` is used for on-demand Agent login, shared-unlock and capture
+  frame/document identity checks; the Agent path installs no navigation
+  listeners or history collection.
   Firefox and Safari must not request `nativeMessaging` until their own reviewed
   native bridge adapters exist. Required hosts retain the packaged API origins;
   optional API/panel origins are granted only through extension-owned settings.

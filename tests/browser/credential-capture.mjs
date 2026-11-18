@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createCaptureApi, allowCaptureApi } from './capture-api.mjs'
-import { openNativePopup, attachNativePopup } from './native-popup.mjs'
+import { openNativePopup } from './native-popup.mjs'
 import { multistepPage } from './capture-multistep.mjs'
 import { cacheBustContentLoaders } from '../../scripts/cache-bust-content-loaders.mjs'
 import { validateBuiltManifest } from '../../scripts/validate-built-manifest.mjs'
@@ -113,21 +113,27 @@ try {
   const openReview = async () => {
     await popup?.dismiss().catch(() => undefined)
     popup = null
-    await click('button', 'Review')
-    popup?.close()
-    popup = await attachNativePopup(profile, extensionId)
+    // Native-editor regression coverage uses the actual toolbar popup. Page
+    // Review now opens inline and is covered by the inline capture matrix.
+    await wait(() => find('button', 'Review'), 'capture notice before native toolbar review')
+    popup = await openNativePopup(worker, profile, extensionId)
     await popup.waitButton('Review')
     const writesBeforeReview = api.writes.length
     await popup.click('Review')
     await new Promise(resolve => setTimeout(resolve, 400))
     assert.equal(api.writes.length, writesBeforeReview, 'Opening native review must never save')
-    await popup.waitButton('Save entry')
+    await popup.waitButton(/^(Save login|Update password)$/)
+  }
+  const waitSaved = () => wait(async () => await popup.hasText('Login saved') || await popup.hasText('Password updated'), 'native capture saved confirmation')
+  const saveNativeReview = async () => {
+    const updating = await popup.hasButton('Update password')
+    await popup.click(updating ? 'Update password' : 'Save login', 'button', { completedText: updating ? 'Password updated' : 'Login saved' })
   }
   const saveCapture = async ({ vault } = {}) => {
     await openReview()
-    if (vault) { await popup.click('Where to save', 'combobox'); await popup.click(new RegExp(vault), 'option') }
-    await popup.click('Save entry', 'button', { completedText: 'Login saved' })
-    await popup.waitText('Login saved')
+    if (vault) { await popup.click('Save to Vault', 'combobox'); await popup.click(new RegExp(vault), 'option') }
+    await saveNativeReview()
+    await waitSaved()
   }
   const absent = async () => {
     await page.waitForTimeout(1600)
@@ -141,7 +147,7 @@ try {
       await submit({ host, kind, mode, username: 'alice', password })
       await saveCapture()
       await wait(() => api.writes.length === writeCount + 1, 'encrypted create')
-      await popup.waitText('Login saved')
+      await waitSaved()
       const write = api.writes.at(-1)
       assert.equal(write.vaultId, api.vaults[0].detail.id)
       const secret = await api.decrypt(write)
@@ -163,11 +169,11 @@ try {
       await popup.screenshot(path.join(artifactDir, `${mode}-${kind}-prompt.png`))
       await popup.click('Automatically update passwords for this account', 'checkbox')
       assert.equal(await popup.checkboxChecked('Automatically update passwords for this account'), true)
-      await popup.click('Save entry', 'button', { completedText: 'Login saved' })
+      await saveNativeReview()
       await wait(() => api.writes.length === before + 1, 'manual update with opt-in')
       assert.equal(api.writes.at(-1).entryId, write.entryId)
       assert.equal((await api.decrypt(write)).content.password, updatePassword)
-      await popup.waitText('Login saved')
+      await waitSaved()
       const consent = await worker.evaluate(async (entryId) => {
         const values = await chrome.storage.local.get('palladin.capture-preferences.v1')
         return (values['palladin.capture-preferences.v1'] ?? []).flatMap((profile) => profile.automaticUpdates)
@@ -196,7 +202,7 @@ try {
   await submit({ host: 'regional.spa-login', kind: 'login', mode: 'spa', username: 'alice', password: 'Synthetic-regional-old!42' })
   await saveCapture()
   await wait(() => api.writes.length === beforeRegional + 1, 'stale regional fixture credential saved')
-  await popup.waitText('Login saved')
+  await waitSaved()
   const regionalWrite = api.writes.at(-1)
   assert.equal((await api.decrypt(regionalWrite)).content.password, 'Synthetic-regional-old!42')
   await submit({ host: 'regional.spa-login', kind: 'login', mode: 'classic', username: 'alice', password: 'Synthetic-spa-login-third!' })
@@ -235,13 +241,13 @@ try {
     assert.equal(await popup.hasButton('Nickname'), true)
     assert.equal(api.writes.length, count)
     await popup.click(initialChoice)
-    await popup.click('Where to save', 'combobox')
+    await popup.click('Save to Vault', 'combobox')
     await popup.click(/Team/, 'option')
     assert.equal(api.writes.length, count, 'Identity and Vault selection are not saves')
     await popup.click(finalChoice)
-    await popup.waitButton('Save entry')
+    await popup.waitButton(/^(Save login|Update password)$/)
     assert.equal(api.writes.length, count)
-    await popup.click('Save entry', 'button', { completedText: 'Login saved' })
+    await saveNativeReview()
     await wait(() => api.writes.length === count + 1, 'encrypted signup saved with explicitly chosen identity')
     const write = api.writes.at(-1)
     const saved = await api.decrypt(write)
@@ -249,7 +255,7 @@ try {
     assert.equal(saved.content.username, selected === 'email' ? email : nickname)
     assert.equal(saved.content.password, password)
     assert.equal(saved.content.urlDomain, `identity-${selected}.example.test`)
-    await popup.waitText('Login saved')
+    await waitSaved()
   }
   console.log('PASS: email/nickname chooser has no default, resets prior write targets, and saves only the explicitly chosen identity')
 
@@ -277,12 +283,13 @@ try {
     password: 'Synthetic-after-opt-out!', previousPassword: 'Synthetic-spa-login-third!' })
   await wait(() => find('button', 'Review'), 'manual review after opt-out')
   assert.equal(api.writes.length, before)
-  await click('button', 'Not now')
+  await click('button', 'Dismiss')
   assert.equal(api.writes.length, before)
-  console.log('PASS: disabling one account restores manual confirmation; Not now makes no mutation')
+  console.log('PASS: disabling one account restores manual confirmation; Dismiss makes no mutation')
 
   await submit({ host: 'muted-login', kind: 'login', mode: 'spa', username: 'alice', password: 'Synthetic-muted!' })
-  await click('button', "Don't ask for this site")
+  await click('button', "More dismiss options")
+  await click('button', "Don't offer to save on this site example.test")
   // Navigation must follow the acknowledged preference write, not just pointer dispatch.
   await wait(async () => await page.locator('palladin-capture').count() === 0, 'site mute acknowledged')
   await submit({ host: 'muted-login', kind: 'login', mode: 'classic', username: 'alice', password: 'Synthetic-muted-again!' })
@@ -332,7 +339,7 @@ try {
   // The submitted username differs from CVT-374's password-only Entry; a full account still needs consent.
   await wait(() => find('button', 'Review'), 'explicit capture of the submitted account')
   assert.equal(api.writes.length, before + 1, 'The new capture does not silently add another Entry')
-  await click('button', 'Not now')
+  await click('button', 'Dismiss')
   console.log('PASS: existing generator fills both fields and saves explicitly; account capture never adds an Entry without consent')
 
   before = api.writes.length
@@ -353,7 +360,7 @@ try {
   await popup.waitButton('Lock')
   await popup.waitButton('Review')
   await popup.click('Review')
-  await popup.click('Save entry', 'button', { completedText: 'Login saved' })
+  await saveNativeReview()
   await wait(() => api.writes.length === before + 1, 'locked capture continues after real popup unlock')
   assert.equal((await api.decrypt(api.writes.at(-1))).content.password, 'Synthetic-locked-capture!')
   console.log('PASS: classic submission while locked resumes after explicit popup unlock and native review and explicit Save')
@@ -371,11 +378,11 @@ try {
     password: 'Synthetic-granted-replacement!', previousPassword: 'Synthetic-granted-initial!' })
   api.rejectNextUpdate()
   await openReview()
-  await popup.click('Save entry', 'button', { completedText: 'Could not save. Try again.' })
+  await popup.click(/^(Save login|Update password)$/, 'button', { completedText: 'Could not save. Try again.' })
   await popup.waitText('Could not save. Try again.')
   assert.equal(api.writes.length, before + 1, 'Rejected atomic mutation has not replaced the Entry')
   assert.equal((await api.decrypt(grantedWrite)).content.password, 'Synthetic-granted-initial!')
-  await popup.click('Save entry', 'button', { completedText: 'Login saved' })
+  await saveNativeReview()
   await wait(() => api.writes.length === before + 2, 'explicit retry of Entry and grant mutation')
   const replacement = api.writes.at(-1)
   assert.equal(replacement.request.grantEnvelopes.length, 1, 'Only GRANULAR needs a replacement')
@@ -397,10 +404,10 @@ try {
     password: 'Synthetic-ambiguous-updated!', previousPassword: 'Synthetic-ambiguous-team!' })
   await openReview()
   assert.equal(api.writes.length, before + 1, 'Ambiguous accounts are never automatically updated')
-  await popup.click('Where to save', 'combobox')
+  await popup.click('Existing entry', 'combobox')
   await popup.click(/Second exact-host account.*Team/, 'option')
   assert.equal(api.writes.length, before + 1, 'Choosing a concrete Entry is not a mutation')
-  await popup.click('Save entry', 'button', { completedText: 'Login saved' })
+  await saveNativeReview()
   await wait(() => api.writes.length === before + 2, 'explicitly selected account update')
   assert.equal(api.writes.at(-1).entryId, teamCandidate.entryId)
   assert.equal(api.writes.at(-1).vaultId, teamCandidate.vaultId)
@@ -448,7 +455,7 @@ try {
   await page.waitForTimeout(500)
   assert.equal(api.writes.length, before, 'Clicking through a page overlay cannot save')
   await page.evaluate(() => document.getElementById('test-overlay').remove())
-  await click('button', 'Not now')
+  await click('button', 'Dismiss')
   await absent()
 
   await submit({ host: 'leaving-origin', kind: 'login', mode: 'spa', username: 'boundary-user', password: boundaryPassword })

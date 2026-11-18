@@ -112,7 +112,7 @@ export function buildManifest(target: BuildTarget = "chromium", _sharedUnlockEnv
   if (target === "firefox") {
     const matches = ["http://*/*", "https://*/*"];
     manifest.permissions = [...new Set([...(manifest.permissions as string[]), "webNavigation"])];
-    manifest.web_accessible_resources = [{ resources: ["manifest.json", FIREFOX_SHARED_UNLOCK_BRIDGE_PATH], matches }];
+    manifest.web_accessible_resources = [...(Array.isArray(manifest.web_accessible_resources) ? manifest.web_accessible_resources : []), { resources: ["manifest.json", FIREFOX_SHARED_UNLOCK_BRIDGE_PATH], matches }];
     manifest.content_scripts = [...(manifest.content_scripts as unknown[]), {
       matches, js: ["src/content/shared-unlock-firefox.ts"], run_at: "document_start", all_frames: false,
     }];

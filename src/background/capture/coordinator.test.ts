@@ -277,3 +277,79 @@ describe("CaptureCoordinator", () => {
     });
   });
 });
+
+describe('inline generator preview', () => {
+  const source = { tabId: TAB.id, url: TAB.url, browserDocumentId: BROWSER_DOCUMENT_ID };
+  const preview = { channel: 'palladin.capture/generator-preview.v1' as const, type: 'preview' as const,
+    documentId: DOCUMENT_ID, candidateId: CANDIDATE_ID, options: { mode: 'password' as const, length: 20, digits: true, symbols: true } };
+  it('only fills the displayed preview once after explicit use, without a Vault write', async () => {
+    const h = harness(); observe(h.coordinator);
+    const shown = await h.coordinator.preview(preview, source);
+    expect(shown.status).toBe('preview');
+    expect(h.sendFill).not.toHaveBeenCalled();
+    if (shown.status !== 'preview') throw Error('Missing preview');
+    const use = { ...preview, type: 'use' as const, previewId: shown.previewId, operationId: 'operation_preview_123456' };
+    expect((await h.coordinator.preview(use, source)).status).toBe('filled');
+    expect(h.sendFill).toHaveBeenCalledWith(TAB.id, BROWSER_DOCUMENT_ID, expect.objectContaining({ value: shown.value, operationId: use.operationId }));
+    expect((await h.coordinator.preview(use, source)).status).toBe('blocked');
+    expect(h.sendFill).toHaveBeenCalledTimes(1); expect(h.savePassword).not.toHaveBeenCalled();
+    h.coordinator.clear();
+  });
+  it.each(['regenerate', 'dismiss', 'lock', 'navigation', 'same-document-navigation', 'expiry'] as const)('revokes the old preview on %s', async cause => {
+    const h = harness(); observe(h.coordinator);
+    const shown = await h.coordinator.preview(preview, source);
+    if (shown.status !== 'preview') throw Error('Missing preview');
+    if (cause === 'regenerate') await h.coordinator.preview(preview, source);
+    if (cause === 'dismiss') await h.coordinator.preview({ ...preview, type: 'dismiss', previewId: shown.previewId }, source);
+    if (cause === 'lock') h.coordinator.clear();
+    if (cause === 'navigation') h.coordinator.clearDocument(TAB.id, BROWSER_DOCUMENT_ID);
+    if (cause === 'same-document-navigation') h.setActive({ ...TAB, url: 'https://accounts.example.com/next' });
+    if (cause === 'expiry') h.advance(60_001);
+    expect((await h.coordinator.preview({ ...preview, type: 'use', previewId: shown.previewId, operationId: 'operation_preview_123456' }, source)).status).toBe('blocked');
+    expect(h.sendFill).not.toHaveBeenCalled(); h.coordinator.clear();
+  });
+  it('does not release a preview to a changed active document or a substituted origin', async () => {
+    const h = harness(); observe(h.coordinator);
+    h.setActive({ ...TAB, browserDocumentId: 'replaced-document' });
+    expect((await h.coordinator.preview(preview, source)).status).toBe('blocked');
+    h.setActive(TAB); observe(h.coordinator);
+    expect((await h.coordinator.preview(preview, { ...source, url: 'https://other.example.test' })).status).toBe('blocked');
+    h.coordinator.clear();
+  });
+});
+
+it('does not release an in-flight preview after lock or replacement by a newer request', async () => {
+  const waits: ((tab: CaptureTab | null) => void)[] = [];
+  const coordinator = new CaptureCoordinator({ getActiveTab: () => new Promise(resolve => waits.push(resolve)),
+    sendFill: vi.fn(), savePassword: vi.fn() });
+  observe(coordinator);
+  const source = { tabId: TAB.id, url: TAB.url, browserDocumentId: BROWSER_DOCUMENT_ID };
+  const request = { channel: 'palladin.capture/generator-preview.v1' as const, type: 'preview' as const,
+    documentId: DOCUMENT_ID, candidateId: CANDIDATE_ID, options: { mode: 'password' as const, length: 20, digits: true, symbols: true } };
+  const locked = coordinator.preview(request, source); coordinator.clear(); waits.shift()!(TAB);
+  expect((await locked).status).toBe('blocked');
+  observe(coordinator);
+  const old = coordinator.preview(request, source), latest = coordinator.preview(request, source);
+  waits.pop()!(TAB); expect((await latest).status).toBe('preview');
+  waits.pop()!(TAB); expect((await old).status).toBe('blocked');
+  coordinator.clear();
+});
+
+it('fills the exact legacy Firefox preview once and rejects its replacement Port even with the same document marker', async () => {
+  const h = harness();
+  const tab = { id: TAB.id, url: TAB.url, documentId: DOCUMENT_ID, legacyRouteId: 'original-route' };
+  const source = { tabId: TAB.id, url: TAB.url, legacyRouteId: 'original-route' };
+  h.setActive(tab);
+  h.coordinator.observe({ channel: CAPTURE_DETECTED_CHANNEL, documentId: DOCUMENT_ID, candidateId: CANDIDATE_ID, kind: 'registration' }, source);
+  const command = { channel: 'palladin.capture/generator-preview.v1' as const, type: 'preview' as const,
+    documentId: DOCUMENT_ID, candidateId: CANDIDATE_ID, options: { mode: 'password' as const, length: 20, digits: true, symbols: true } };
+  const preview = await h.coordinator.preview(command, source);
+  if (preview.status !== 'preview') throw Error('Expected preview');
+  const use = { ...command, type: 'use' as const, previewId: preview.previewId, operationId: 'operation_legacy_123456' };
+  expect((await h.coordinator.preview(use, source)).status).toBe('filled');
+  expect(h.sendFill).toHaveBeenCalledWith(TAB.id, 'legacy:original-route', expect.objectContaining({ value: preview.value }));
+  h.setActive({ ...tab, legacyRouteId: 'replacement-route' });
+  expect((await h.coordinator.preview(command, source)).status).toBe('blocked');
+  expect(h.sendFill).toHaveBeenCalledTimes(1);
+  h.coordinator.clear();
+});

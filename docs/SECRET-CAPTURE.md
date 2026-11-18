@@ -5,13 +5,16 @@ from a visible HTTPS page. Detection uses HTML structure and standards first,
 local context and recognizable provider formats second. A match is a heuristic;
 it does not prove that a key is new or usable, or that a card is valid.
 
-The optional closed-shadow notice contains no inputs or secret values. Its Review
-action opens the browser-owned action popup. When a browser cannot open it
-programmatically, the notice retains manual-toolbar guidance. An already-open
-side panel remains supported; capture never forces that panel open. An ordinary extension tab cannot authorize the save. The trusted editor
-shows the browser-derived source origin, an explicit destination Vault, concealed
-key/PAN fields and the existing Entry form. Review and Vault selection never
-write; only **Save entry** creates an encrypted canonical Entry. A captured card
+The optional closed-shadow notice contains no inputs or secret values. Review
+expands that same notification into a capture-only extension-origin iframe with
+the existing Entry form, browser-derived source origin, explicit destination Vault
+and concealed key/PAN fields. Review and Vault selection never write; only the
+explicit Save key/Save card action creates an encrypted canonical Entry.
+Unlock remains in the native toolbar popup. Clicking the Entry thumbnail opens
+the pending native draft before saving or the saved Entry detail afterward.
+An already-open side panel/native toolbar editor remains supported; capture
+never forces a side panel open. An ordinary extension tab cannot authorize a save.
+A captured card
 matching a full normalized PAN offers an explicit update of the matching Entry.
 One eligible card is preselected; multiple matches require an autocomplete choice.
 The worker rechecks the complete PAN, frozen revision, scope, permissions and
@@ -31,7 +34,7 @@ authorize a match. Existing unrelated fields and delivery policy are preserved.
   Synthetic autofill events cannot authorize card capture. A single visible
   standard `cc-csc` field in the same local card group supplies a 3–4 digit CVV.
   Ambiguous, hidden, unrelated and malformed security-code fields are excluded.
-  CVV is initially populated and concealed in the native review editor.
+  CVV is initially populated and concealed in the capture review editor.
 - Accessible frame documents and discovered open Shadow DOM. Frames remain
   independent. A standalone `cc-number` field can offer a partial PAN for trusted
   completion without collecting unrelated document-level fields. Explicit HTML
@@ -48,7 +51,7 @@ assembled across unrelated forms or frames.
 
 ## Review presentation
 
-The native review uses the extension Entry identity, buttons and custom controls.
+The inline and native review use the extension Entry identity, buttons and custom controls.
 Review expands editable fields; Additional details and Additional fields start
 collapsed. Text, multiline, concealed and authenticator custom fields are supported
 for all captured editable Entry types. Card names default to a recognized card
@@ -85,6 +88,13 @@ capture drafts, plaintext secrets or Vault keys. There is no capture telemetry,
 network interception, clipboard monitoring, new permission or remote detection
 service.
 
+The embedded surface uses private capability handoff and browser-authenticated
+Ports, with source/candidate/session authorization repeated before mutation.
+Top-layer, ancestry/style and interference guards mitigate page overlays; they
+do not guarantee browser-authenticated visibility at the exact click. The
+capture-only residual-risk exception in `AGENTS.md` does not extend to generic
+Vault APIs, unlock, approvals or reveal.
+
 ## Synthetic Chromium acceptance
 
 Run from the extension repository with installed dependencies and Playwright
@@ -94,7 +104,7 @@ Chromium:
 npm run test:browser:secret-capture
 ```
 
-The command builds a production Chromium artifact into a disposable profile,
+This native-editor corpus builds a production Chromium artifact into a disposable profile,
 uses routed HTTPS `*.example.test` pages and a loopback synthetic provider, and
 uses the real shared crypto package. The fixture-only loopback host grant does
 not change the shipped manifest. Trusted mouse/keyboard events drive observation,
@@ -116,9 +126,16 @@ storage. The native-popup screenshot at
 `test-results/secret-capture/native-key-editor-masked.png` keeps the input
 concealed. Only synthetic data is used.
 
+Current same-notification review/save is covered separately by the Chromium
+inline capture matrix, including key/card creation and card update. Historical
+native-route results above remain native-editor evidence, not proof that page
+Review still opens a popup. Firefox installed login evidence and the cancelled
+Safari acceptance follow-up are scoped in [browser compatibility](BROWSER-COMPATIBILITY.md).
+
 This is a bounded synthetic corpus, not an internet-wide accuracy percentage or
-real-provider acceptance. Firefox/Safari runtime acceptance and store/distributed
-artifact review remain separate. Closed shadows, canvas, inaccessible frames,
+real-provider acceptance. Full Firefox platform and store/distributed artifact acceptance remain separate.
+Native Safari 16.4 remains unverified; the user cancelled further Safari acceptance
+work, so it is not a blocker for this task. Closed shadows, canvas, inaccessible frames,
 unobservable page state, ambiguous split-frame card assembly and trees beyond
 the traversal budget are unsupported. An open shadow attached without an
 observable event is discovered on a later scoped scan or interaction. Card
@@ -131,7 +148,7 @@ TOTP setup capture has a separate synthetic Chromium acceptance harness:
 npm run test:browser:totp-capture
 ```
 
-It exercises a synthetic setup link, local QR pixel decoding, encrypted Credential
+The current harness exercises inline setup review/save from a synthetic setup link, local QR pixel decoding, encrypted Credential
 creation and confirmed replacement, manual no-result and ambiguous-result copy,
 and extension storage exclusion. The fixture does not establish real-site
 compatibility. Destination selection uses the extension autocomplete/custom select; save and
@@ -141,7 +158,12 @@ multiple distinct setups are visible, isolate the intended one and scan again.
 
 After the content script receives a dismissal response, passive TOTP detection is
 paused for that document, including changed configurations. The user can scan
-again explicitly or navigate to a new document to resume detection.
+again explicitly or navigate to a new document to resume detection. The separate
+site-mute action under the Dismiss arrow persists across documents in the active
+profile and also suppresses other automatic capture suggestions for that
+registrable domain. Explicit Entry-scoped scans remain available. Both the initial
+notice and inline Review bind mute to the current worker-owned candidate; lock,
+navigation or revoked frame authority prevent preference changes.
 
 Manual QR scanning is an action in a Credential's Entry detail, not in the global
 search toolbar. The scan review is scoped to that Entry's worker-approved target
@@ -150,5 +172,5 @@ TOTP from a different HTTPS host or without a saved domain after an explicit nat
 warning confirmation. The worker enforces that confirmation and the Entry revision;
 the writer changes only TOTP, never the saved domain. Passive suggestions remain
 exact-host, and autofill origin rules are unchanged. Existing TOTP replacement
-still requires confirmation. Passive detection continues to offer native review
+still requires confirmation. Passive detection offers same-notification inline review
 without a permanently visible global scan button.

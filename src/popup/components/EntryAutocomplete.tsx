@@ -5,10 +5,10 @@ import { PopupIcon } from './PopupIcon';
 import { ENTRY_TYPE_CREDENTIAL, type EntryTypeCode } from '../../background/vault/entry-metadata';
 import { useI18n } from '../i18n';
 
-export interface EntryAutocompleteOption { id: string; name: string; detail?: string; icon?: string; color?: string; type?: EntryTypeCode }
-export interface EntryAutocompleteProps { label: string; options: readonly EntryAutocompleteOption[]; value: string; onValueChange(value: string): void; disabled?: boolean }
+export interface EntryAutocompleteOption { id: string; name: string; detail?: string; icon?: string; color?: string; type?: EntryTypeCode; account?: string; hasTotp?: boolean }
+export interface EntryAutocompleteProps { label: string; options: readonly EntryAutocompleteOption[]; value: string; onValueChange(value: string): void; disabled?: boolean; placeholder?: string }
 
-export function EntryAutocomplete({ label, options, value, onValueChange, disabled }: EntryAutocompleteProps): React.JSX.Element {
+export function EntryAutocomplete({ label, options, value, onValueChange, disabled, placeholder }: EntryAutocompleteProps): React.JSX.Element {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState<string | null>(null);
@@ -18,7 +18,7 @@ export function EntryAutocomplete({ label, options, value, onValueChange, disabl
   const root = useRef<HTMLDivElement>(null), menu = useRef<HTMLDivElement>(null), input = useRef<HTMLInputElement>(null);
   const id = useId();
   const selected = options.find(option => option.id === value);
-  const matches = options.filter(option => `${option.name} ${option.detail ?? ''}`.toLocaleLowerCase().includes((query ?? '').toLocaleLowerCase()));
+  const matches = options.filter(option => `${option.name} ${option.account ?? ''} ${option.detail ?? ''}`.toLocaleLowerCase().includes((query ?? '').toLocaleLowerCase()));
   const visible = matches.slice(0, limit);
   const expanded = open && !disabled;
   function close() { setOpen(false); setQuery(null); setActive(-1); }
@@ -47,7 +47,7 @@ export function EntryAutocomplete({ label, options, value, onValueChange, disabl
     <div className="entry-autocomplete-control" ref={root}>
       <input id={`${id}-input`} ref={input} role="combobox" className="field-input" aria-autocomplete="list" aria-expanded={expanded} aria-controls={expanded ? id : undefined}
         aria-activedescendant={expanded && visible[active] ? `${id}-${active}` : undefined} autoComplete="off" disabled={disabled}
-        value={query ?? selected?.name ?? ''} placeholder={t('captureReview.chooseEntry')}
+        value={query ?? selected?.name ?? ''} placeholder={placeholder ?? t('captureReview.chooseEntry')}
         onClick={() => { if (!expanded) show(); }} onFocus={show}
         onBlur={event => { if (!root.current?.contains(event.relatedTarget) && !menu.current?.contains(event.relatedTarget)) close(); }}
         onChange={event => { setQuery(event.target.value); setLimit(5); setActive(-1); setOpen(true); onValueChange(''); }}
@@ -63,6 +63,7 @@ export function EntryAutocomplete({ label, options, value, onValueChange, disabl
         }} />
       <button type="button" tabIndex={-1} aria-label={t('captureReview.chooseEntry')} disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => expanded ? close() : show()}><PopupIcon name="chevron" /></button>
     </div>
+    {selected?.detail ? <small className="capture-field-hint">{selected.account ? `${selected.account} · ` : ''}{selected.detail}</small> : null}
     {expanded ? createPortal(<div ref={menu} className="entry-autocomplete-menu" style={position} id={id} role="listbox" aria-label={label}
       onMouseDown={event => event.preventDefault()} onScroll={event => {
         const list = event.currentTarget;
@@ -71,7 +72,8 @@ export function EntryAutocomplete({ label, options, value, onValueChange, disabl
       {visible.map((option, index) => <button key={option.id} id={`${id}-${index}`} type="button" role="option" tabIndex={-1} aria-selected={option.id === value}
         className={`entry-head${index === active ? ' entry-autocomplete-active' : ''}`} onClick={() => choose(option)}>
         <EntryIcon name={option.name} type={option.type ?? ENTRY_TYPE_CREDENTIAL} {...(option.icon ? { icon: option.icon } : {})} {...(option.color ? { color: option.color } : {})} />
-        <span className="entry-text"><span className="entry-name">{option.name}</span>{option.detail ? <span className="entry-sub">{option.detail}</span> : null}</span>
+        <span className="entry-text"><span className="entry-name">{option.account || option.name}</span>{option.detail || option.account ? <span className="entry-sub">{option.account ? `${option.name} · ${option.detail ?? ''}` : option.detail}</span> : null}</span>
+        {option.hasTotp ? <span className="capture-totp-badge" aria-label={t('captureReview.totpSavedBadge')} title={t('captureReview.totpSavedBadge')}><PopupIcon name="lock" /></span> : null}
       </button>)}
       {matches.length === 0 ? <p role="status">{t('captureReview.noEntries')}</p> : null}
     </div>, document.body) : null}

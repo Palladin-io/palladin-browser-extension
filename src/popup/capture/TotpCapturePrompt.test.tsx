@@ -15,7 +15,7 @@ it('requires account selection and explicit replacement confirmation', async () 
   fireEvent.click(screen.getByLabelText('Credential'));fireEvent.click(screen.getByRole('option', { name: /Alice/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Save authenticator' }));
   expect(send).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByLabelText('Replace existing authenticator'));
+  fireEvent.click(screen.getByLabelText('Replace the saved authenticator for Alice'));
   fireEvent.click(screen.getByRole('button', { name: 'Save authenticator' }));
   await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'save', targetId: 'one', replace: true })));
 });
@@ -24,6 +24,7 @@ it('requires a name when creating a Credential and submits the selected Vault', 
   const send = vi.fn(async () => ({ status: 'saved' as const }));
   render(<TotpCapturePrompt review={{ ...review, targets: review.targets.filter(target => target.action === 'create') }} send={send} onDone={() => {}} />);fireEvent.click(screen.getByRole('button', { name: 'Review' }));
   fireEvent.click(screen.getByRole('button', { name: 'Create a login entry' }));
+  fireEvent.change(screen.getByLabelText('Name'), { target: { value: '' } });
   expect(screen.getByRole('button', { name: 'Save authenticator' })).toBeDisabled();
   fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'My account' } });
   fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'alice' } });
@@ -97,7 +98,7 @@ it('opens the committed Entry from the saved authenticator summary', async () =>
   const done = vi.fn(); render(<PopupViewProvider><TotpCapturePrompt review={{...review,targets:[review.targets[1]!]}}
     send={async()=>({status:'saved',entryId:'committed',vaultId:'vault'})} onDone={done}/></PopupViewProvider>);
   fireEvent.click(await screen.findByRole('button',{name:'Review'})); fireEvent.click(screen.getByRole('button',{name:'Save authenticator'}));
-  await screen.findByRole('button',{name:'Done'}); fireEvent.click(screen.getByRole('button',{name:/^example.com/}));
+  await screen.findByRole('button',{name:'Done'}); fireEvent.click(screen.getByRole('button',{name:review.targets[1]!.label}));
   expect(messages).toHaveBeenCalledWith(expect.objectContaining({type:'popup/view/set',state:expect.objectContaining({view:'vault',selected:{id:'committed',vaultId:'vault'}})}));
   expect(done).toHaveBeenCalledOnce();
  } finally {vi.unstubAllGlobals();}
@@ -183,4 +184,45 @@ it('confirms a scoped mismatch and replacement with Replace, without redundant f
   expect(send).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Replace' }));
   await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ targetId: 'one', confirmDomainMismatch: true, replace: true })));
+});
+it('prefills a new authenticator login from its site and safe account hint', () => {
+ render(<TotpCapturePrompt review={{...review,account:'alice@example.com',targets:review.targets.filter(target=>target.action==='create')}} send={async()=>({status:'saved'})} onDone={()=>{}} />);
+ fireEvent.click(screen.getByRole('button',{name:'Review'})); fireEvent.click(screen.getByRole('button',{name:'Create a login entry'}));
+ expect(screen.getByLabelText('Name')).toHaveValue('example.com');expect(screen.getByLabelText('Username')).toHaveValue('alice@example.com');
+ expect(screen.getByText('Creates a new login entry with this authenticator.')).toBeInTheDocument();
+});
+it('retains the edited saved name and account after clearing the authenticator form', async () => {
+ render(<TotpCapturePrompt initialExpanded review={{...review,account:'alice@example.com',targets:review.targets.filter(target=>target.action==='create')}} send={async()=>({status:'saved'})} onDone={()=>{}} />);
+ fireEvent.click(screen.getByRole('button',{name:'Create a login entry'}));
+ fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Synthetic inline account'}});
+ fireEvent.change(screen.getByLabelText('Username'),{target:{value:'saved@example.com'}});
+ fireEvent.click(screen.getByRole('button',{name:'Save authenticator'}));
+ expect(await screen.findByText('Synthetic inline account')).toBeVisible();
+ expect(screen.getByText('Account: saved@example.com · Authenticator')).toBeVisible();
+ expect(screen.queryByLabelText('Name')).toBeNull();
+});
+it('passes edited unsaved authenticator fields and destination to thumbnail handoff', () => {
+ const open=vi.fn();
+ render(<TotpCapturePrompt initialExpanded onOpenCapture={open} review={{...review,targets:review.targets.filter(target=>target.action==='create')}} send={async()=>({status:'saved'})} onDone={()=>{}} />);
+ fireEvent.click(screen.getByRole('button',{name:'Create a login entry'}));
+ fireEvent.change(screen.getByLabelText('Name'),{target:{value:'Edited draft'}});
+ fireEvent.change(screen.getByLabelText('Username'),{target:{value:'draft-account'}});
+ fireEvent.click(screen.getByRole('button',{name:'example.com'}));
+ expect(open).toHaveBeenCalledWith(false,expect.objectContaining({kind:'totp',label:'Edited draft',username:'draft-account',targetId:expect.any(String)}));
+});
+it('retains automatic TOTP review on mute failure and keeps dismiss separate', async () => {
+ const send=vi.fn().mockResolvedValueOnce({status:'error'}).mockResolvedValueOnce({status:'dismissed'}),done=vi.fn();
+ render(<TotpCapturePrompt review={review} send={send} onDone={done} initialExpanded />);
+ fireEvent.click(screen.getByRole('button',{name:'More dismiss options'}));
+ expect(send).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('menuitem'));
+ await screen.findByRole('alert');expect(done).not.toHaveBeenCalled();
+ expect(send).toHaveBeenCalledWith(expect.objectContaining({type:'mute',id:'candidate'}));
+ fireEvent.click(screen.getByRole('button',{name:'Dismiss'}));
+ await waitFor(()=>expect(done).toHaveBeenCalledTimes(1));
+ expect(send).toHaveBeenLastCalledWith(expect.objectContaining({type:'dismiss',id:'candidate'}));
+});
+it('does not expose site mute in an explicitly requested entry TOTP scan', () => {
+ render(<TotpCapturePrompt review={{...review,entryScope:{id:'alice',vaultId:'vault'}}} send={async()=>({status:'dismissed'})} onDone={()=>{}} />);
+ expect(screen.getByRole('button',{name:'Cancel'})).toBeInTheDocument();
+ expect(screen.queryByRole('button',{name:'More dismiss options'})).toBeNull();
 });

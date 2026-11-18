@@ -2,7 +2,7 @@
 import { genericLoginTargetFor } from './generic-login';
 import { composedParent } from './open-dom';
 import { normalizedControlLabels, personalNameLabelPurpose } from './control-labels';
-import { autocompleteTokens, controlPurpose } from './form-semantics';
+import { autocompleteTokens, controlPurpose, hasPaymentAutocomplete } from './form-semantics';
 import { credentialScopeFor, scopeInputs, usernameCandidates, isIdentifiedUsername, isVisibleScopeHint,
   scopeHasCredentialAction, isRegistrationScope, isSubscriptionIdentity, isCollapsedClip, hasRegistrationSubmit,
   hasExplicitPasswordLogin, isOneTimeCodeControl, type CredentialScope } from './login-controls';
@@ -63,7 +63,7 @@ export function isFillable(input: FillControl): boolean {
 
 /** One launcher per unambiguous login step, including password-only screens. */
 export function loginTargetFor(input: HTMLInputElement): LoginTarget | null {
-  if (!isFillable(input)) return null;
+  if (!isFillable(input) || hasPaymentAutocomplete(input)) return null;
   for (const detect of [appleLoginTargetFor, tomojdomLoginTargetFor, scopedLoginTargetFor, genericLoginTargetFor]) {
     const target = detect(input);
     // undefined delegates; null is a terminal rejection by an applicable detector.
@@ -169,7 +169,7 @@ export type CredentialFormStage = 'identifier' | 'verification' | 'login' | 'reg
  * Visibility and execution policy are supplied by each caller before this step.
  */
 export function analyzeCredentialForm(form: CredentialScope, fields: readonly HTMLInputElement[]) {
-  const passwords = fields.filter(field => field.type === 'password');
+  const passwords = fields.filter(field => field.type === 'password' && !hasPaymentAutocomplete(field));
   const explicitLogin = passwords.some(field => autocompleteTokens(field).includes("new-password"))
     && hasExplicitPasswordLogin(form, fields);
   // Some account-creation forms mark their confirmation as current-password.

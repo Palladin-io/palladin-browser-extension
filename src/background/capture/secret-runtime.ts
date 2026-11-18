@@ -1,14 +1,12 @@
+import { secretCaptureFrames, currentCaptureDocument, resolveCaptureSource } from './document-route-runtime';
 import { activePageTab } from '../active-page-tab';
 import { cardNetworkDomain } from '@shared/card-network';
 import { isExactCapturedSecret } from './secret-duplicate';
-import { TAB_URL_REQUEST_CHANNEL, isTabUrlResponse } from '@shared/messaging';
 import type { SecretCaptureContentCommand, SecretCapturePopupCommand, SecretCaptureInvalidation } from '@shared/messaging/secret-capture';
 import { initializeServerConfig, serverConfig } from '../config/server-runtime';
 import { sessionManager } from '../session/runtime';
-import { browserDocumentIdForTab } from '../tab-documents';
 import { vaultData, credentialWriter } from '../vault/runtime';
-import { SecretCaptureCoordinator, type SecretCaptureSource } from './secret-coordinator';
-import { SecretCaptureFrames } from './secret-source';
+import { SecretCaptureCoordinator } from './secret-coordinator';
 import { capturePreferences } from './preferences-runtime';
 import { hasVaultManagePermission } from './permissions';
 
@@ -16,18 +14,8 @@ let generation = 0;
 export function publishSecretCaptureInvalidation(candidateIds: readonly string[]): void {
   if (candidateIds.length) void chrome.runtime.sendMessage({ type: 'secret-capture/invalidated', candidateIds } satisfies SecretCaptureInvalidation).catch(() => undefined);
 }
-export const secretCaptureFrames = new SecretCaptureFrames(browserDocumentIdForTab);
-export async function currentSecretCaptureDocument(source: SecretCaptureSource): Promise<boolean> {
-  if (browserDocumentIdForTab(source.tabId) !== source.topDocumentId) return false;
-  const sender = { id: chrome.runtime.id, tab: { id: source.tabId }, frameId: source.frameId, documentId: source.browserDocumentId, url: source.url } as chrome.runtime.MessageSender;
-  if (!secretCaptureFrames.source(sender, chrome.runtime.id, source.documentId)) return false;
-  try {
-    const response = await chrome.tabs.sendMessage(source.tabId, { channel: TAB_URL_REQUEST_CHANNEL }, { documentId: source.browserDocumentId });
-    return secretCaptureFrames.source(sender, chrome.runtime.id, source.documentId) !== null
-      && browserDocumentIdForTab(source.tabId) === source.topDocumentId && isTabUrlResponse(response)
-      && response.documentId === source.documentId && response.url === source.url;
-  } catch { return false; }
-}
+export { secretCaptureFrames };
+export const currentSecretCaptureDocument = currentCaptureDocument;
 export const secretCaptureCoordinator = new SecretCaptureCoordinator({
   session: async () => {
     await initializeServerConfig(); const userId = await sessionManager.getUserId();
@@ -71,8 +59,8 @@ export async function handleSecretCapturePopup(command: SecretCapturePopupComman
   return secretCaptureCoordinator.save(command.id, command.vaultId, command.entry);
 }
 export async function handleSecretCaptureContent(command: SecretCaptureContentCommand, sender: chrome.runtime.MessageSender) {
-  const source = secretCaptureFrames.source(sender, chrome.runtime.id, command.documentId);
+  const source = await resolveCaptureSource(sender, command.documentId);
   if (!source) return { status: 'stale' };
   if (command.type === 'observe') return secretCaptureCoordinator.observe(command.candidate, source);
-  return secretCaptureCoordinator.contentStatus(source, command.type === 'dismiss' ? command.id : undefined);
+  return secretCaptureCoordinator.contentStatus(source, command.type === 'dismiss' || command.type === 'mute' ? command.id : undefined, command.type === 'mute');
 }

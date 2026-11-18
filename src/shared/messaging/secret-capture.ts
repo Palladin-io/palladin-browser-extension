@@ -20,6 +20,7 @@ import type { ManualEntrySaveInput } from '../../background/vault/protocol2/serv
 export const SECRET_CAPTURE_CHANNEL = 'palladin.secret-capture.v1' as const;
 export type SecretCaptureContentCommand =
   | { channel: typeof SECRET_CAPTURE_CHANNEL; type: 'observe'; documentId: string; candidate: SecretCandidate }
+  | { channel: typeof SECRET_CAPTURE_CHANNEL; type: 'mute'; documentId: string; id: string }
   | { channel: typeof SECRET_CAPTURE_CHANNEL; type: 'status' | 'dismiss' | 'open'; documentId: string; id?: string };
 export type SecretCapturePopupCommand =
   | { channel: typeof SECRET_CAPTURE_CHANNEL; type: 'get' }
@@ -36,6 +37,7 @@ export function isSecretCaptureInvalidation(value: unknown): value is SecretCapt
 }
 export function isSecretCaptureContentCommand(value: unknown): value is SecretCaptureContentCommand {
   if (!record(value) || value.channel !== SECRET_CAPTURE_CHANNEL || !id(value.documentId)) return false;
+  if (value.type === 'mute') return keys(value, ['channel','type','documentId','id']) && id(value.id);
   return value.type === 'observe' ? keys(value, ['channel','type','documentId','candidate']) && isSecretCandidate(value.candidate)
     && (value.candidate.kind !== 'card' || typeof value.candidate.scopeId === 'string')
     : ['status','dismiss','open'].includes(String(value.type)) && keys(value, ['channel','type','documentId','id']) && (value.id === undefined || id(value.id));

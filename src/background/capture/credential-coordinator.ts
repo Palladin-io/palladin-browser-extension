@@ -1,3 +1,4 @@
+import { captureDocumentKey } from './document-identity';
 import type { ManualEntrySaveInput } from '../vault/protocol2/service';
 import {
   type CredentialCaptureCommand,
@@ -13,7 +14,9 @@ const MAX_PENDING_TABS = 20;
 
 export interface CredentialCaptureSource {
   readonly tabId: number;
-  readonly browserDocumentId: string;
+  readonly browserDocumentId?: string;
+  readonly legacyRouteId?: string;
+  readonly legacyTopRouteId?: string;
   readonly documentId: string;
   readonly url: string;
 }
@@ -104,7 +107,7 @@ function origin(url: string): string | null {
 }
 
 function sameDocument(left: CredentialCaptureSource, right: CredentialCaptureSource): boolean {
-  return left.tabId === right.tabId && left.browserDocumentId === right.browserDocumentId
+  return left.tabId === right.tabId && captureDocumentKey(left) === captureDocumentKey(right)
     && left.documentId === right.documentId && origin(left.url) === origin(right.url);
 }
 
@@ -118,15 +121,16 @@ export class CredentialCaptureCoordinator {
     const session = await this.deps.getSession();
     if (!pending?.credential || !session || !await this.stillAuthorized(pending, session)) return null;
     const target = pending.choices.get(targetId ?? result.prompt.defaultTargetId ?? '');
-    return { prompt: result.prompt, entry: target?.action === 'update' && target.review ? target.review : { entryType: 'credential' as const, label: new URL(pending.source.url).hostname,
+    return { prompt: result.prompt, entry: target?.action === 'update' && target.review ? { ...target.review,
+      ...(!target.review.icon && icon ? { icon } : {}) } : { entryType: 'credential' as const, label: new URL(pending.source.url).hostname,
       username: pending.credential.username, password: pending.credential.password, url: pending.origin,
       notes: '', customFields: [], ...(icon ? { icon } : {}) } };
   }
 
   nativeSave(source: CredentialCaptureSource, promptId: string, targetId: string,
-    autoUpdate: boolean, entry: Extract<ManualEntrySaveInput, { entryType: 'credential' }>): Promise<CredentialCaptureResult> {
+    autoUpdate: boolean, entry: Extract<ManualEntrySaveInput, { entryType: 'credential' }>, operationAuthorized: () => Promise<boolean> = async () => true): Promise<CredentialCaptureResult> {
     const previous = this.operations.get(source.tabId);
-    const operation = (previous ?? Promise.resolve()).then(() => this.saveNative(source, promptId, targetId, autoUpdate, entry))
+    const operation = (previous ?? Promise.resolve()).then(() => this.saveNative(source, promptId, targetId, autoUpdate, entry, operationAuthorized))
       .catch((): CredentialCaptureResult => ({ status: 'unavailable' }));
     this.operations.set(source.tabId, operation);
     void operation.finally(() => { if (this.operations.get(source.tabId) === operation) this.operations.delete(source.tabId); });
@@ -134,7 +138,8 @@ export class CredentialCaptureCoordinator {
   }
 
   private async saveNative(source: CredentialCaptureSource, promptId: string, targetId: string,
-    autoUpdate: boolean, entry: Extract<ManualEntrySaveInput, { entryType: 'credential' }>): Promise<CredentialCaptureResult> {
+    autoUpdate: boolean, entry: Extract<ManualEntrySaveInput, { entryType: 'credential' }>, operationAuthorized: () => Promise<boolean> = async () => true): Promise<CredentialCaptureResult> {
+    if (!await operationAuthorized()) return { status: 'stale' };
     const pending = this.pending.get(source.tabId);
     const session = await this.deps.getSession();
     if (!pending || pending.id !== promptId || !sameDocument(pending.source, source) || !session?.unlocked
@@ -143,7 +148,7 @@ export class CredentialCaptureCoordinator {
     if (!target || !entry.url || origin(entry.url) !== pending.origin) return { status: 'stale' };
     if (!pending.credential) return { status: 'stale' };
     pending.credential = { ...pending.credential, username: entry.username, password: entry.password };
-    return this.save(pending, session, target, autoUpdate, entry);
+    return this.save(pending, session, target, autoUpdate, entry, operationAuthorized);
   }
 
   private readonly pending = new Map<number, PendingCredential>();
@@ -157,7 +162,7 @@ export class CredentialCaptureCoordinator {
     this.createId = deps.createId ?? (() => crypto.randomUUID());
   }
 
-  dispatch(command: CredentialCaptureCommand, source: CredentialCaptureSource): Promise<CredentialCaptureResult> {
+  dispatch(command: CredentialCaptureCommand, source: CredentialCaptureSource, operationAuthorized: () => Promise<boolean> = async () => true): Promise<CredentialCaptureResult> {
     if (command.documentId !== source.documentId || origin(source.url) === null) return Promise.resolve({ status: "stale" });
     // Admit browser-authenticated submits before storage awaits can race a classic navigation.
     const isSubmission = command.type === "submitted" || command.type === "identifier";
@@ -165,7 +170,7 @@ export class CredentialCaptureCoordinator {
       ? this.stage(command, source) : null;
     if (isSubmission && submission === null) return Promise.resolve({ status: "stale" });
     const previous = this.operations.get(source.tabId);
-    const operation = (previous ?? Promise.resolve()).then(() => this.handle(command, source, submission))
+    const operation = (previous ?? Promise.resolve()).then(() => this.handle(command, source, submission, operationAuthorized))
       .catch((): CredentialCaptureResult => {
         if (submission && this.pending.get(source.tabId) === submission) this.clearTab(source.tabId);
         return { status: "unavailable" };
@@ -206,14 +211,14 @@ export class CredentialCaptureCoordinator {
     if (!pending) return;
     pending.loading = status === "loading";
     // Chrome also emits loading/complete for history.pushState, without a new document.
-    const browserDocumentId = pending.successorDocumentId ?? pending.source.browserDocumentId;
-    if (this.deps.isSubmissionDocument({ ...pending.source, browserDocumentId })) return;
+    const browserDocumentId = pending.successorDocumentId ?? captureDocumentKey(pending.source);
+    if (this.deps.isSubmissionDocument(pending.source.legacyRouteId ? pending.source : { ...pending.source, browserDocumentId })) return;
     if (status === "loading") this.navigationStarted(tabId);
   }
 
   documentDisconnected(tabId: number, browserDocumentId: string): void {
     const pending = this.pending.get(tabId);
-    if (pending?.loading && this.deps.isSubmissionDocument({ ...pending.source, browserDocumentId })) {
+    if (pending?.loading && this.deps.isSubmissionDocument(pending.source.legacyRouteId ? pending.source : { ...pending.source, browserDocumentId })) {
       this.navigationStarted(tabId);
     }
   }
@@ -222,7 +227,7 @@ export class CredentialCaptureCoordinator {
     const pending = this.pending.get(tabId);
     if (!pending) return;
     if (origin(url) !== pending.origin) { this.clearTab(tabId); return; }
-    if (documentId === pending.source.browserDocumentId) return;
+    if (documentId === captureDocumentKey(pending.source)) return;
     if (pending.credential === null) { pending.successorDocumentId = documentId; return; }
     if (pending.outcome !== "waiting"
       || (pending.successorDocumentId !== null && pending.successorDocumentId !== documentId)) this.clearTab(tabId);
@@ -230,7 +235,7 @@ export class CredentialCaptureCoordinator {
   }
 
   private async handle(command: CredentialCaptureCommand, source: CredentialCaptureSource,
-    submission: PendingCredential | null): Promise<CredentialCaptureResult> {
+    submission: PendingCredential | null, operationAuthorized: () => Promise<boolean>): Promise<CredentialCaptureResult> {
     if (submission ? this.pending.get(source.tabId) !== submission
       : !(await this.deps.isCurrentDocument(source))) return { status: "stale" };
     const session = await this.deps.getSession();
@@ -270,7 +275,7 @@ export class CredentialCaptureCoordinator {
 
     if (command.type === "resume") {
       // Only a pending submission may cross to one new browser-issued document.
-      if (pending.outcome !== "waiting" || source.browserDocumentId === pending.sourceDocumentId) {
+      if (pending.outcome !== "waiting" || captureDocumentKey(source) === pending.sourceDocumentId) {
         return { status: "accepted" };
       }
       if (command.hasError || (command.hasPasswordForm && !command.hasSuccess)) {
@@ -294,8 +299,11 @@ export class CredentialCaptureCoordinator {
     if (command.type === "unlock") return { status: "accepted" };
     if (command.promptId !== pending.id || pending.outcome === "waiting") return { status: "stale" };
     if (command.type === "dismiss" || command.type === "mute") {
+      if (command.type === "mute") {
+        if (!await this.stillAuthorized(pending, session) || !await operationAuthorized()) return { status: "stale" };
+        await this.deps.preferences.mute(session.profileId, pending.site);
+      }
       this.clearTab(source.tabId);
-      if (command.type === "mute") await this.deps.preferences.mute(session.profileId, pending.site);
       return { status: "dismissed" };
     }
     if (!session.unlocked || pending.sessionGeneration !== session.generation) return { status: "stale" };
@@ -328,7 +336,7 @@ export class CredentialCaptureCoordinator {
     if (inherit) {
       if (!previous || previous.credential !== null || previous.profileId === null
         || previous.origin !== origin(source.url) || this.now() - previous.submittedAt >= PENDING_TTL_MS
-        || !(sameDocument(previous.source, source) || previous.successorDocumentId === source.browserDocumentId)) {
+        || !(sameDocument(previous.source, source) || previous.successorDocumentId === captureDocumentKey(source))) {
         this.clearTab(source.tabId);
         return null;
       }
@@ -342,7 +350,7 @@ export class CredentialCaptureCoordinator {
       id: this.createId(), submissionId: command.submissionId, profileId: inherit ? previous!.profileId : null,
       credential, usernameOptions, usernameChoice: null,
       identifier: command.type === "identifier" ? command.username : null, origin: origin(source.url)!, site,
-      submittedAt: inherit ? previous!.submittedAt : this.now(), sourceDocumentId: source.browserDocumentId, source,
+      submittedAt: inherit ? previous!.submittedAt : this.now(), sourceDocumentId: captureDocumentKey(source), source,
       outcome: "waiting", choices: new Map(), defaultTargetId: null, sessionGeneration: inherit ? previous!.sessionGeneration : null,
       navigationStarted: false, loading: false, successorDocumentId: null,
     };
@@ -386,9 +394,10 @@ export class CredentialCaptureCoordinator {
     target: CredentialWriteTarget,
     autoUpdate: boolean,
     review?: Extract<ManualEntrySaveInput, { entryType: 'credential' }>,
+    operationAuthorized: () => Promise<boolean> = async () => true,
   ): Promise<CredentialCaptureResult> {
     if (pending.credential === null || (pending.usernameOptions && pending.usernameChoice === null)) return { status: "stale" };
-    const stillAuthorized = () => this.stillAuthorized(pending, session);
+    const stillAuthorized = async () => await operationAuthorized() && await this.stillAuthorized(pending, session);
     if (!(await stillAuthorized())) return { status: "stale" };
     let result: Awaited<ReturnType<CredentialCaptureCoordinatorDeps["save"]>>;
     try { result = await this.deps.save(pending.credential, pending.source.url, target, stillAuthorized, review); }
@@ -440,6 +449,7 @@ export class CredentialCaptureCoordinator {
   private view(pending: PendingCredential, state: "locked" | "ready"): CredentialCapturePrompt {
     return {
       id: pending.id, site: pending.site, state,
+      ...(state === 'ready' ? { notice: { kind: 'credential' as const, site: new URL(pending.source.url).hostname, name: new URL(pending.source.url).hostname, detail: pending.credential?.username ?? '' } } : {}),
       targets: state === "locked" ? [] : [...pending.choices].map(([id, target]) => ({
         id, action: target.action, label: target.label, vaultLabel: target.vaultLabel,
         ...(target.action === 'update' && target.review?.icon ? { icon: target.review.icon } : {}),

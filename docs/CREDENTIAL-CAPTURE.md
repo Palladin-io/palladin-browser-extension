@@ -9,15 +9,17 @@ The isolated content script captures submitted login, registration and password
 change forms on HTTPS in the top frame. No main-world bridge message carries
 captured credentials. The generated-password flow remains separate.
 
-A top-right closed-shadow notice contains the site and Review/Dismiss controls;
-account labels and editable fields appear only in the native extension popup.
-Review opens the default popup, with manual toolbar opening when the browser
-cannot open it programmatically. The native review reuses the Entry editor and
-an autocomplete backed by worker-authoritative exact-host targets: one match is
-preselected, multiple matches require a choice, and creation is offered only
-when there is no eligible existing match. All writable Vaults remain choices
-for creation. The popup settings reuse the existing SettingsSection and Button
-controls.
+A top-right closed-shadow notice contains the site and Review/Dismiss controls.
+Review expands that same notification into a capture-only extension-origin iframe,
+reusing the Entry editor for review and explicit Save login/Update password.
+A successful save collapses it to a safe acknowledgement. Clicking the Entry
+thumbnail explicitly opens the pending draft in the native popup before saving,
+or the saved Entry detail afterward. Unlock remains native; it is never embedded.
+
+The review uses worker-authoritative exact-host targets: one match is preselected,
+multiple matches require a choice, and creation is offered only when there is no
+eligible existing match. All writable Vaults remain choices for creation. The
+toolbar popup retains the native editor and existing SettingsSection/Button controls.
 
 An identical nonempty username and password suppress a login proposal, including
 when the saved Credential belongs to another host of the same registrable domain
@@ -30,7 +32,7 @@ The capture currently has no binding to the Entry selected during autofill, so
 the equality check considers eligible saved Credentials within that domain.
 
 An ambiguous registration may supply two identity alternatives: email and
-nickname. The native review asks which field is the login, with neither
+nickname. The capture review asks which field is the login, with neither
 preselected and no Save/Update target before the choice. The alternatives stay
 in the existing bounded worker-memory capture; the surface receives only the
 selected field name, never the alternative values. Choosing a field resolves
@@ -44,10 +46,10 @@ establish live AWS acceptance. A manual acceptance check must observe a fresh
 user-controlled submission, no Save/Update proposal after the outcome settles,
 and no Entry revision change. A CLI login alone is insufficient: Agent-managed
 controls are deliberately excluded from user credential capture. Do not inspect
-field values, storage or request bodies for this check. The three-second
+field values, storage or request bodies for this check. The
 "Login saved" acknowledgement after an intentional save is not an update prompt.
 
-The native review shows editable name, username, masked password and URL.
+The capture review shows editable name, username, masked password and URL.
 The automatic-update checkbox sits immediately below URL for an existing Entry.
 Notes and custom fields are collapsed initially. Edits are encrypted through the
 canonical Credential writer, retaining the existing built-in TOTP and fields not
@@ -93,10 +95,23 @@ binding; this prevents the opt-in silently carrying over to another account.
   `palladin.capture-preferences.v1`. The store explicitly serializes opaque Entry
   and Vault IDs, revision and origin; no username, password, display label or key.
   Profiles are partitioned by authenticated API origin and account ID.
-- Confirmation controls reuse the closed-surface construction used by autofill
-  and the existing visibility/topmost check. Untrusted clicks, overlays and
-  detached surfaces cannot activate a write. The worker independently checks
-  the sender/frame, document, origin, session and target before writing.
+- Initial notices and Review use a split Dismiss control. The arrow reveals the
+  persistent site-mute action; ordinary Dismiss never changes this preference.
+  Login, card/key, remembered sign-in method and passive TOTP suggestions share
+  the same registrable-domain preference. The worker derives domain/profile from
+  the authorized pending capture; UI messages carry only its opaque identifier.
+  Saved confirmations retain Done only. Settings can re-enable suggestions.
+- The initial notice requires a trusted closed-surface action. Embedded review
+  uses private capability handoff, browser-authenticated Ports and repeated
+  source/candidate/session/target authorization before mutation. Top-layer
+  containment, ancestry/style checks and interference rejection mitigate page
+  overlays; they do not attest visibility at the exact click. This is the
+  explicit capture-only residual-risk exception in `AGENTS.md`, not permission
+  to expose general Vault, unlock, approval or reveal APIs in an iframe.
+- Firefox 140–152 binds capture to a browser-authenticated live content Port and
+  its worker-issued route identity when `sender.documentId` is unavailable.
+  Disconnect/navigation revokes that route; a message-supplied ID cannot replace
+  browser identity. Newer browsers retain their browser-document binding.
 
 ## Canonical writes
 
@@ -151,8 +166,10 @@ opt-in, later automatic update, disable in Settings; site mute/unmute and dismis
 locked classic submission followed by native popup unlock and Save; existing
 generator fill and explicit save. Review expansion makes no mutation. Ambiguous
 exact-host accounts require an explicit Entry/Vault choice and cannot default to
-creation; the selected Entry alone is updated. The 2026-11-05 native-review run
-made 26 encrypted writes. HTTP, cross-origin iframe and
+creation; the selected Entry alone is updated. The historical 2026-11-05
+native-review run made 26 encrypted writes. The 2026-11-06 adapted native-editor
+suite also passed 26 encrypted writes by opening the actual toolbar popup
+explicitly; it no longer treats page Review as a native-popup action. HTTP, cross-origin iframe and
 script-dispatched submits produce no capture; a page overlay cannot click through
 the toast, and leaving/returning to an origin cannot resurrect pending values.
 The storage check reads Chrome local/session storage and every IndexedDB store,
@@ -187,6 +204,15 @@ persisted exact Entry/revision/origin binding before proceeding. An explicit
 checkbox aria-label prevents the decorative checkmark from changing its AX name.
 The latest full 20-write run with crypto `1583104` passed alongside the web suite;
 that alone is not proof of the original intermittent cause being eliminated.
+
+The current Chromium inline matrix separately exercises same-notification
+review/save, capture draft and saved-Entry navigation, and card/key/federated
+flows; the TOTP and generator harnesses cover their own inline actions.
+Actual Firefox 140 and 155 passed synthetic installed login capture, inline
+review and save. This is bounded synthetic evidence, not real-site, store or
+distribution acceptance. Safari follow-up acceptance was cancelled by the user;
+the completed modal fallback has Chromium simulation evidence only (see
+[BROWSER-COMPATIBILITY.md](BROWSER-COMPATIBILITY.md)).
 
 ## Acceptance remaining
 

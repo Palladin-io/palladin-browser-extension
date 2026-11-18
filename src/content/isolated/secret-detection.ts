@@ -1,3 +1,4 @@
+import { autocompleteTokens } from './form-semantics';
 import type { SecretCandidate } from '../../shared/messaging/secret-capture';
 
 const API = /api[\s_-]*(?:key|token)|secret[\s_-]*key|access[\s_-]*token/i;
@@ -165,7 +166,8 @@ export function detectSecretCandidates(doc: Document, options: SecretDetectionOp
   const fields = elements.filter((element): element is HTMLInputElement | HTMLSelectElement =>
     (element instanceof HTMLInputElement || element instanceof HTMLSelectElement)
     && !element.disabled
-    && !['hidden', 'password', 'checkbox', 'radio', 'submit', 'button'].includes(element.type)
+    && !['hidden', 'checkbox', 'radio', 'submit', 'button'].includes(element.type)
+    && (element.type !== 'password' || autocompleteTokens(element).includes('cc-csc'))
     && laidOut(element)
     && !EXCLUDED.test(hint(element)));
   const output: SecretCandidate[] = [];
@@ -176,6 +178,8 @@ export function detectSecretCandidates(doc: Document, options: SecretDetectionOp
   for (const element of elements) {
     if (output.length >= 8 || work <= 0) break;
     const field = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement;
+    // Masked CVC participates only in card capture, never generic key discovery.
+    if (element instanceof HTMLInputElement && element.type === 'password') continue;
     if (field && !fields.includes(element as HTMLInputElement)
       && !(element instanceof HTMLTextAreaElement && !element.disabled && laidOut(element))) {
       continue;

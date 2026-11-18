@@ -11,6 +11,7 @@ type FillControl = HTMLInputElement | HTMLTextAreaElement;
 
 import { isFillable, isCurrentLoginTarget, loginTargetFor, type LoginTarget } from './credential-form-analysis';
 import { credentialScopeFor, hasLoginActionLabel, isVisibleScopeHint } from './login-controls';
+import { hasPaymentAutocomplete } from './form-semantics';
 import { composedForm, composedParent, queryOpenElements } from './open-dom';
 export { isFillable, isCurrentLoginTarget, loginTargetFor, type LoginTarget } from './credential-form-analysis';
 
@@ -26,7 +27,7 @@ const CARD_AUTOCOMPLETE_KIND: Readonly<Record<string, FillField["kind"]>> = {
 
 function firstFillablePassword(doc: Document): HTMLInputElement | null {
   for (const input of doc.querySelectorAll<HTMLInputElement>("input[type=password]")) {
-    if (isFillable(input)) return input;
+    if (isFillable(input) && !hasPaymentAutocomplete(input)) return input;
   }
   return null;
 }
@@ -109,7 +110,7 @@ export function performFill(doc: Document, fields: readonly FillField[]): FillOu
   let password: HTMLInputElement | undefined;
   for (const input of queryOpenElements<HTMLInputElement>(doc, 'input')) {
     if (!isFillable(input)) continue;
-    if (input.type === 'password' && (input.form !== null || isManualPasswordOnlyStep(input))) {
+    if (input.type === 'password' && !hasPaymentAutocomplete(input) && (input.form !== null || isManualPasswordOnlyStep(input))) {
       password = input;
       break;
     }

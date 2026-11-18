@@ -238,3 +238,31 @@ it('edits authenticator additional fields masked and saves canonical configurati
   fireEvent.click(screen.getByRole('button', { name: 'Save entry' }));
   await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ customFields: [expect.objectContaining({ type: 'totp', value: expect.objectContaining({ secret: 'JBSWY3DPEHPK3PXP', digits: 6, period: 30 }) })] })));
 });
+it('orders captured card expiry before CVC and explains its source', () => {
+  render(<AddEntryForm client={client()} captureFormId="card-review" initialEntry={{entryType:'creditCard',label:'Visa',cardNumber:'4111111111111111',cardholderName:'Example',expiryMonth:'06',expiryYear:'2029',cvv:'123'}} />);
+  expect(screen.getByLabelText('Expiry year').compareDocumentPosition(screen.getByLabelText('CVV / CVC')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.getByText('Captured from the payment form. Check before saving.')).toBeInTheDocument();
+  expect(screen.queryByRole('button',{name:'Choose icon'})).toBeNull();
+});
+it('focuses a new capture additional field and explains TOTP setup input', async () => {
+  render(<AddEntryForm client={client()} captureFormId="login-review" initialEntry={{entryType:'credential',label:'Example',username:'alice',password:'synthetic'}} />);
+  fireEvent.click(screen.getByText('Additional fields', {selector:'summary'}));
+  fireEvent.click(screen.getByRole('button',{name:'Add field'}));
+  expect(screen.getByLabelText('Name of additional field 1')).toHaveFocus();
+  fireEvent.click(screen.getByRole('combobox',{name:'Type of additional field 1'}));
+  fireEvent.click(screen.getByRole('option',{name:'One-time password (TOTP)'}));
+  expect(screen.getByPlaceholderText('Setup key or otpauth:// URI')).toHaveAttribute('type','password');
+  expect(screen.getByText('Enter the setup key from the service, not the current six-digit code.')).toBeInTheDocument();
+});
+
+it('reveals only the captured card field selected by the user', () => {
+  render(<AddEntryForm client={client()} captureFormId="capture-card" initialEntry={{entryType:'creditCard',label:'Visa',cardNumber:'4111111111111111',cardholderName:'Example',expiryMonth:'12',expiryYear:'2031',cvv:'739'}} />);
+  const number = screen.getByLabelText('Card number');
+  const cvv = screen.getByLabelText('CVV / CVC');
+  expect(number).toHaveAttribute('type','password');
+  fireEvent.click(screen.getByRole('button',{name:'Show Card number'}));
+  expect(number).toHaveAttribute('type','text');
+  expect(cvv).toHaveAttribute('type','password');
+  fireEvent.click(screen.getByRole('button',{name:'Hide Card number'}));
+  expect(number).toHaveAttribute('type','password');
+});

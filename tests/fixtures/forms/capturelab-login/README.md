@@ -1,0 +1,35 @@
+# CaptureLab extension-reload regression
+
+Observed public source: https://palladin-capture-lab.netlify.app/, Save login,
+English, 2026-11-18. The lab is synthetic, not a merchant or provider login.
+Expanded lab.js field templates preserve labels, form, input names, types,
+autocomplete and required attributes. Relevant form/label/input CSS is retained;
+navigation, explanatory text and submit-result handlers are omitted. Article
+position is reduced to a fixed visible test layout. No field values are captured.
+
+`node tests/browser/inline-extension-reload.mjs` uses this offline specimen with
+an installed Chromium extension and synthetic API/account. Add `--live` to use
+the public Netlify DOM instead. Both grant only the lab host in the temporary
+manifest to isolate full reload from activeTab-grant expiry. No production
+permission changes. This exercises User UI and browser-authenticated worker
+transport; Agent Inject and merchant sign-in are not asserted.
+
+RED on 26099cb: working unlocked empty suggestions before reload; native reload
+and re-unlock leave the old shield unavailable; page refresh restores it. The
+assertion requires working suggestions without refreshing. Developer mode is
+explicitly enabled in the disposable profile, and enabled extension state is
+checked, so a browser-disabled extension cannot masquerade as this regression.
+
+GREEN: two successive full reloads and native re-unlocks preserve one functional
+shield and the synthetic username without refreshing. A separate browser-controlled
+worker stop/start preserves the shield and returns locked status. Both offline
+specimen and live Netlify checks passed on 2026-11-18. Existing legacy content
+scripts lack the new cleanup, so refresh their page once when first testing this
+build. Normal worker restart is not a full extension update.
+
+The regression also keeps a generator open in another tab during both reloads.
+Offline mode changes the specimen password autocomplete to `new-password` as an
+explicit synthetic registration variant; live mode uses Netlify's actual generator
+scenario. Only preview presence is inspected, never printed. Before the disposal
+fix this produced an uncaught invalid-context exception; afterward a single
+populated generator returns after focus with zero such errors.

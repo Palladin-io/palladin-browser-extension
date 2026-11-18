@@ -47,7 +47,7 @@ const run = async (name, test) => {
 }
 const nodes = async () => (await cdp.send('Accessibility.getFullAXTree')).nodes
 const noticeButton = async () => (await nodes()).find(node => !node.ignored && node.role?.value === 'button'
-  && ['Review in Palladin', 'Sprawdź w Palladin'].includes(node.name?.value))
+  && ['Review', 'Sprawdź'].includes(node.name?.value))
 async function openReview() {
   await wait(noticeButton, 'closed notice')
   assert.equal(await page.locator('palladin-capture').evaluate(host => host.shadowRoot), null, 'Notice uses closed shadow')

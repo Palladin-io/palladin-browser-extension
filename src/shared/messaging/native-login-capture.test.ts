@@ -19,3 +19,8 @@ describe('native login capture input boundary', () => {
     expect(isNativeLoginCaptureCommand({ channel, type: 'get', documentId: 'forged' })).toBe(false);
   });
 });
+it('accepts an edited new-entry name but rejects empty, control-character and overlong names', () => {
+ const command={channel,type:'confirm',promptId:'p',accountId:'a',targetId:'t',locale:'en',replace:false,entryName:'Work GitHub'};
+ expect(isNativeLoginCaptureCommand(command)).toBe(true);
+ for(const entryName of ['', '  ', 'x\nname', 'x'.repeat(513)]) expect(isNativeLoginCaptureCommand({...command,entryName})).toBe(false);
+});

@@ -1,3 +1,4 @@
+import { isCaptureNoticeIdentity, type CaptureNoticeIdentity } from '@shared/messaging/capture-notice';
 import { TOTP_CAPTURE_CHANNEL, type TotpContentCommand } from '@shared/messaging/totp-capture';
 import { capturedTotpIdentity, parseCapturedTotp, type CapturedTotpIdentityFields } from '@shared/totp-capture';
 import type { TotpParams } from '@palladin/crypto';
@@ -6,18 +7,26 @@ import { SecretCaptureNotice } from './secret-notice';
 interface Options {
   send?(command: TotpContentCommand): Promise<unknown>;
   detect?(doc: Document): string[];
-  notice?: { show(locked: boolean): void; hide(): void; stop(): void; isOwnedSurface?(element: Element): boolean };
+  notice?: { show(locked: boolean, identity?: CaptureNoticeIdentity): void; hide(): void; stop(): void; review?(documentId: string, kind: 'totp', captureId: string): Promise<boolean>; isOwnedSurface?(element: Element): boolean };
 }
 export function startTotpCapture(doc: Document, documentId: string, options: Options = {}) {
   const send = options.send ?? (command => chrome.runtime.sendMessage(command));
   const detect = options.detect ?? (document => [...new Set([...detectTotpUris(document), ...scanTotpQr(document)])]);
   let stopped = false, generation = 0, candidateId: string | null = null, dismissed = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let reviewingId: string | null = null;
   const notice = options.notice ?? new SecretCaptureNotice(doc, async action => {
     if (!candidateId) return;
-    if (action === 'dismiss') { dismissed = true; candidateId = null; notice.hide(); generation++;
+    if (action === 'mute') {
+      const result = await send({channel:TOTP_CAPTURE_CHANNEL,type:'mute',documentId,id:candidateId});
+      if (!result || typeof result !== 'object' || !('status' in result) || !['dismissed','stale'].includes(String(result.status))) throw Error('Capture preference unavailable');
+      dismissed = true; candidateId = null; notice.hide(); generation++;
+    } else if (action === 'dismiss') { dismissed = true; candidateId = null; notice.hide(); generation++;
       await send({ channel: TOTP_CAPTURE_CHANNEL, type: 'invalidate', documentId, sequence: generation });
-    } else await send({ channel: TOTP_CAPTURE_CHANNEL, type: 'open', documentId, id: candidateId });
+    } else {
+      const id = candidateId;
+      if (await notice.review?.(documentId, 'totp', id)) reviewingId = id;
+    }
   }, 'totp');
   function configurations() {
     const unique = new Map<string, { uri: string; params: TotpParams }>();
@@ -38,7 +47,7 @@ export function startTotpCapture(doc: Document, documentId: string, options: Opt
     const result = await send({ channel: TOTP_CAPTURE_CHANNEL, type: 'observe', documentId, uri: values[0]!.uri, sequence: epoch, manual }).catch(() => null);
     if (stopped || generation !== epoch) return 'empty';
     if (result && typeof result === 'object' && 'status' in result && result.status === 'accepted' && 'id' in result && typeof result.id === 'string') {
-      candidateId = result.id; if (!manual) notice.show(false); return 'found';
+      candidateId = result.id; if (!manual && candidateId !== reviewingId) notice.show(false, 'notice' in result && isCaptureNoticeIdentity(result.notice) ? result.notice : undefined); return 'found';
     }
     if (result && typeof result === 'object' && 'status' in result && result.status === 'dismissed') { dismissed = true; candidateId = null; notice.hide(); }
     return 'empty';
@@ -65,7 +74,7 @@ export function startTotpCapture(doc: Document, documentId: string, options: Opt
   doc.addEventListener('load', onLoad, true);
   schedule(false);
   const canvasTimer = setInterval(() => { if (!stopped && !dismissed && doc.visibilityState !== 'hidden' && hasVisibleTotpCanvas(doc)) { generation++; void scan(); } }, 5_000);
-  return { scan: () => scan(true), matches: (expected: CapturedTotpIdentityFields) => {
+  return { refresh: () => scan(false), scan: () => scan(true), matches: (expected: CapturedTotpIdentityFields) => {
     const values = configurations(); return !stopped && values.length === 1 && capturedTotpIdentity(values[0]!.params) === capturedTotpIdentity(expected);
   }, isOwnedSurface: (element: Element) => notice.isOwnedSurface?.(element) ?? false, stop() { stopped = true; generation++; observer.disconnect(); clearInterval(canvasTimer); doc.removeEventListener('load', onLoad, true); if (timer) clearTimeout(timer); candidateId = null; notice.stop(); } };
 }

@@ -1,3 +1,4 @@
+import { currentLegacyCaptureLogin, captureDocumentRoutes, resolveCaptureSource } from './document-route-runtime';
 import type { CredentialCaptureCommand } from '@shared/messaging/credential-capture'
 import { initializeServerConfig, serverConfig } from '../config/server-runtime'
 import { sessionManager } from '../session/runtime'
@@ -18,9 +19,9 @@ export const credentialCaptureCoordinator = new CredentialCaptureCoordinator({
     return userId === null ? null : { profileId: `${serverConfig.apiUrl}:${userId}`,
       unlocked: sessionManager.getKeys() !== null, generation: sessionGeneration }
   },
-  isSubmissionDocument: (source) => browserDocumentIdForTab(source.tabId) === source.browserDocumentId,
+  isSubmissionDocument: (source) => source.legacyRouteId ? captureDocumentRoutes?.isRegistered(source) === true : !!source.browserDocumentId && browserDocumentIdForTab(source.tabId) === source.browserDocumentId,
   isCurrentDocument: (source) => isLiveCredentialDocument(source, browserDocumentIdForTab,
-    (tabId, message, options) => chrome.tabs.sendMessage(tabId, message, options)),
+    (tabId, message, options) => chrome.tabs.sendMessage(tabId, message, options), currentLegacyCaptureLogin),
   icon: url => credentialWriter.captureIcon(url),
   choices: (credential, url) => credentialWriter.choices(credential, url),
   save: (credential, url, target, stillAuthorized, review) => credentialWriter.save(credential, url, target, stillAuthorized, review),
@@ -30,8 +31,8 @@ export const credentialCaptureCoordinator = new CredentialCaptureCoordinator({
 sessionManager.hooks.onLocked(() => { sessionGeneration += 1; credentialCaptureCoordinator.clear() })
 sessionManager.hooks.onUnlocked(() => { sessionGeneration += 1 })
 
-export function credentialCaptureSource(command: CredentialCaptureCommand, sender: chrome.runtime.MessageSender): CredentialCaptureSource | null {
-  const source = captureSourceFromSender(sender, chrome.runtime.id)
-  if (source === null || (sender.documentLifecycle !== undefined && sender.documentLifecycle !== 'active')) return null
+export async function credentialCaptureSource(command: CredentialCaptureCommand, sender: chrome.runtime.MessageSender): Promise<CredentialCaptureSource | null> {
+  const source = sender.documentId == null ? await resolveCaptureSource(sender, command.documentId) : captureSourceFromSender(sender, chrome.runtime.id)
+  if (source === null || sender.frameId !== 0 || (sender.documentLifecycle !== undefined && sender.documentLifecycle !== 'active')) return null
   return { ...source, documentId: command.documentId }
 }

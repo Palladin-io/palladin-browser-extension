@@ -209,3 +209,34 @@ it('requires explicit mismatch confirmation for a manual Entry target', async ()
   expect(save).toHaveBeenCalledWith(expect.anything(), source.url, expect.objectContaining({ entryId: 'entry' }), expect.any(Function), undefined, true);
   c.clear();
 });
+it('returns safe target presentation and the default creation Vault without revealing the seed', async () => {
+ const coordinator = new TotpCaptureCoordinator({session:async()=>({profileId:'p',generation:1,unlocked:true}),current:async()=>true,sourceMatches:async()=>true,activeTabId:async()=>1,
+  choices:async()=>[{...target,name:'Work',username:'alice@example.com',icon:'public-asset:site'}, {action:'create',vaultId:'default',label:'Personal',vaultLabel:'Personal',isDefault:true}],
+  save:async()=>({action:'updated',revision:'5'})});
+ await coordinator.observe(uri,source);const view=await coordinator.review();
+ expect(view).toMatchObject({targets:[expect.objectContaining({name:'Work',username:'alice@example.com',icon:'public-asset:site'}),expect.objectContaining({isDefault:true})]});
+ expect(JSON.stringify(view)).not.toContain('JBSWY3DPEHPK3PXP');coordinator.clear();
+});
+it('drops a passive review if its source changes while resolving the site icon', async () => {
+ let live=true;
+ const coordinator=new TotpCaptureCoordinator({session:async()=>({profileId:'p',generation:1,unlocked:true}),current:async()=>live,sourceMatches:async()=>true,activeTabId:async()=>1,
+  choices:async()=>[target],resolveIcon:async()=>{live=false;return 'public-asset:site';},save:async()=>({action:'updated',revision:'5'})});
+ await coordinator.observe(uri,source);expect(await coordinator.review()).toEqual({status:'empty'});coordinator.clear();
+});
+
+it.each(['live', 'navigated', 'locked'])('persists TOTP mute only for an authorized candidate (%s)', async state => {
+  let live = true, unlocked = true;
+  const muted = new Set<string>(); const mute = vi.fn(async (_profile: string, site: string) => { muted.add(site); });
+  const c = new TotpCaptureCoordinator({ session: async () => ({profileId:'user',generation:1,unlocked}), current: async () => live,
+    sourceMatches: async () => true, activeTabId: async () => 1, choices: async () => [target], save: async () => ({action:'updated',revision:'5'}),
+    preferences: { isMuted: async (_profile: string, site: string) => muted.has(site), mute } });
+  const observed = await c.observe(uri, source); if(observed.status!=='accepted')throw Error('missing candidate');
+  if(state==='navigated')live=false; if(state==='locked')unlocked=false;
+  expect(await c.dismiss(observed.id, true)).toEqual({status:state==='live'?'dismissed':'stale'});
+  if(state==='live') {
+    expect(mute).toHaveBeenCalledWith('user','example.com');
+    expect(await c.observe(uri, source)).toEqual({status:'dismissed'});
+    expect(await c.observe(uri, source, () => true, true)).toMatchObject({status:'accepted'});
+  } else expect(mute).not.toHaveBeenCalled();
+  c.clear();
+});

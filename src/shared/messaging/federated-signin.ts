@@ -1,3 +1,4 @@
+import { isCaptureNoticeIdentity, type CaptureNoticeIdentity } from './capture-notice';
 import { isSignInProvider, type SignInProvider } from '@shared/signin/providers';
 
 /**
@@ -27,7 +28,7 @@ export type FederatedSignInCommand = DocumentCommand & (
       readonly targetId: string;
       readonly locale: SignInLocale;
     }
-  | { readonly type: 'dismiss'; readonly promptId: string }
+  | { readonly type: 'dismiss' | 'mute'; readonly promptId: string }
   | { readonly type: 'unlock' }
 );
 
@@ -70,6 +71,7 @@ export interface SignInTargetOption {
 }
 
 export interface SignInPrompt {
+  readonly notice?: CaptureNoticeIdentity;
   readonly id: string;
   readonly site: string;
   readonly provider: SignInProvider;
@@ -119,6 +121,7 @@ export function isFederatedSignInCommand(value: unknown): value is FederatedSign
     case 'confirm':
       return only(value, [...base, 'promptId', 'accountId', 'targetId', 'locale']) && id(value.promptId)
         && id(value.accountId) && id(value.targetId) && (value.locale === 'en' || value.locale === 'pl');
+    case 'mute':
     case 'dismiss':
       return only(value, [...base, 'promptId']) && id(value.promptId);
     default:
@@ -157,10 +160,11 @@ function target(value: unknown): value is SignInTargetOption {
 
 function prompt(value: unknown): value is SignInPrompt {
   if (!record(value) || !only(value, ['id', 'site', 'provider', 'state', 'accounts', 'targets',
-    'defaultAccountId', 'defaultTargetId', 'error'])) return false;
+    'defaultAccountId', 'defaultTargetId', 'error', 'notice'])) return false;
   const accounts = value.accounts;
   const targets = value.targets;
-  return id(value.id) && text(value.site, 1, 253) && isSignInProvider(value.provider)
+  return (value.notice === undefined || value.state === 'ready' && isCaptureNoticeIdentity(value.notice))
+    && id(value.id) && text(value.site, 1, 253) && isSignInProvider(value.provider)
     && (value.state === 'locked' || value.state === 'ready')
     && Array.isArray(accounts) && accounts.length <= MAX_SIGN_IN_PROMPT_ACCOUNTS && accounts.every(account)
     && Array.isArray(targets) && targets.length <= MAX_SIGN_IN_PROMPT_TARGETS && targets.every(target)
