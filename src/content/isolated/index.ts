@@ -170,7 +170,8 @@ const agentInjectDom = createAgentInjectDomAccess(
 // Reinjection removes stale hosts, which triggers this value-free lifecycle check.
 let contextInvalidated = false;
 const contextObserver = new MutationObserver(() => {
-  if (chrome.runtime.id) return;
+  try { if (chrome.runtime.id) return; }
+  catch { /* The browser discarded this extension context. */ }
   contextInvalidated = true;
   contextObserver.disconnect();
   sessionKeepalive.stop();

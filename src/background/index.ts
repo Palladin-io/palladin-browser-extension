@@ -297,6 +297,8 @@ sessionManager.hooks.onLocked(() => {
 sessionManager.hooks.onUnlocked(() => sessionLiveness.setEnabled(true));
 sessionManager.hooks.onUnlocked(() => vaultRealtime.start());
 sessionManager.hooks.onUnlocked(() => void ensureActiveTabSessionLiveness());
+// A toolbar unlock can restore activeTab access lost during extension reload.
+sessionManager.hooks.onUnlocked(() => void restoreContentScripts(true).catch(() => undefined));
 sessionManager.hooks.onLocked(() => sessionLiveness.setEnabled(false));
 sessionManager.hooks.onLocked(() => {
   vaultData.setRealtimeConnected(false);

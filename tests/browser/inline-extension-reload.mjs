@@ -62,7 +62,7 @@ try {
     await page.mouse.click(bounds.x+13,bounds.y+13);
     for (let attempt=0;attempt<50;attempt++) {
       const text=await statusText();
-      if (text.includes('No Palladin login matches this website.') || text.includes('temporarily unavailable')) return text;
+      if (text.includes('No Palladin login matches this website.') || text.includes('temporarily unavailable') || text.includes('Palladin is locked.')) return text;
       await page.waitForTimeout(100);
     }
     await page.screenshot({path:'/tmp/palladin-reload-status-timeout.png'});
@@ -106,5 +106,33 @@ try {
   assert(refreshed.includes('No Palladin login matches this website.'),'page refresh preserves working suggestions');
   assert.equal(await page.locator('palladin-autofill').count(),1,'one shield after page refresh');
   console.log(`PASS ${live ? 'live Netlify' : 'offline specimen'} page refresh`);
+  const versions = new Map();
+  let stoppedByBrowser = false;
+  cdp.on('ServiceWorker.workerVersionUpdated', ({versions: updates}) => {
+    for (const version of updates) {
+      versions.set(version.versionId, version);
+      if (version.scriptURL.startsWith(`chrome-extension://${extensionId}/`) && version.runningStatus === 'stopped') stoppedByBrowser = true;
+    }
+  });
+  await cdp.send('ServiceWorker.enable');
+  let version;
+  for(let attempt=0;attempt<50 && !version;attempt++) {
+    version=[...versions.values()].find(v=>v.scriptURL===previousWorker.url() && v.runningStatus==='running');
+    if(!version) await page.waitForTimeout(100);
+  }
+  assert(version,'running extension worker is exposed by browser');
+  await cdp.send('ServiceWorker.stopWorker',{versionId:version.versionId});
+  await cdp.send('ServiceWorker.startWorker',{scopeURL:`chrome-extension://${extensionId}/`});
+  for(let attempt=0;attempt<50;attempt++) {
+    if(stoppedByBrowser && versions.get(version.versionId)?.runningStatus==='running') break;
+    await page.waitForTimeout(100);
+  }
+  assert(stoppedByBrowser && versions.get(version.versionId)?.runningStatus==='running','browser stopped and restarted worker');
+  await page.getByRole('heading',{name:'Sign in',exact:true}).click();
+  const locked=await clickShield();
+  assert(locked.includes('Palladin is locked.'),'ordinary worker restart retains a working shield and loses unlocked key material');
+  assert.equal(await page.locator('palladin-autofill').count(),1);
+  console.log('PASS ordinary worker restart: one responding shield, session locked');
+
 
 } finally {popup?.close();await context?.close();await api.close();await rm(profile,{recursive:true,force:true});}

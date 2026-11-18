@@ -19,3 +19,10 @@ and re-unlock leave the old shield unavailable; page refresh restores it. The
 assertion requires working suggestions without refreshing. Developer mode is
 explicitly enabled in the disposable profile, and enabled extension state is
 checked, so a browser-disabled extension cannot masquerade as this regression.
+
+GREEN: two successive full reloads and native re-unlocks preserve one functional
+shield and the synthetic username without refreshing. A separate browser-controlled
+worker stop/start preserves the shield and returns locked status. Both offline
+specimen and live Netlify checks passed on 2026-11-18. Existing legacy content
+scripts lack the new cleanup, so refresh their page once when first testing this
+build. Normal worker restart is not a full extension update.

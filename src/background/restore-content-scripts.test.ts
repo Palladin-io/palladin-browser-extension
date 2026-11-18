@@ -19,3 +19,13 @@ it('restores only packaged isolated scripts in top frames and tolerates a closed
     target: { tabId, frameIds: [0] }, world: 'ISOLATED', files: ['assets/isolated-loader.js'],
   }]));
 });
+
+it('limits an unlock retry to the active HTTPS tab', async () => {
+  const query = vi.fn().mockResolvedValue([]);
+  vi.stubGlobal('chrome', {
+    runtime: { getManifest: () => ({ content_scripts: [{ js: ['isolated.js'] }] }) },
+    tabs: { query }, scripting: { executeScript: vi.fn() },
+  });
+  await restoreContentScripts(true);
+  expect(query).toHaveBeenCalledWith({ url: ['https://*/*'], active: true, currentWindow: true });
+});

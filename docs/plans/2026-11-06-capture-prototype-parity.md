@@ -57,10 +57,13 @@ hosts; a value-free lifecycle observer stops old invalidated controllers so they
 cannot recreate duplicate UI. No new permissions, keys or DOM credential reads.
 Two successive reloads, single shield, preserved username and responsive unlocked
 suggestions PASS on both faithful offline CaptureLab specimen and live Netlify.
-Full suite 4371/273 and all builds PASS. Ordinary worker/BFCache port tests PASS.
+Merged current main (b6ff47f); full suite 4391/273 and all builds PASS.
+Actual Chromium worker stop/start also PASS: one responsive shield and locked
+session. Ordinary worker/BFCache port tests PASS. Active-tab reinjection is retried
+on unlock, allowing browser-granted activeTab access to recover without adding permissions.
 The current test harness requires a fresh page once when first replacing a legacy
 build whose already-running code lacks invalidation cleanup. No claim of actual
-Edge/Firefox reload acceptance. Next: reconcile current main, CI/cloud review;
+Edge/Firefox reload acceptance. Next: head-specific CI/cloud review;
 no merge/release.
 
 
