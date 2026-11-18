@@ -174,14 +174,12 @@ const contextObserver = new MutationObserver(() => {
   catch { /* The browser discarded this extension context. */ }
   contextInvalidated = true;
   contextObserver.disconnect();
-  sessionKeepalive.stop();
-  passwordCapture.stop();
-  inlineAutofill?.stop();
-  generatorSuggestion?.stop();
-  credentialCapture?.stop(); credentialCapture = null;
-  secretCapture?.stop(); secretCapture = null;
-  totpCapture?.stop(); totpCapture = null;
-  federatedSignIn?.stop(); federatedSignIn = null;
+  for (const controller of [sessionKeepalive, passwordCapture, inlineAutofill,
+    generatorSuggestion, credentialCapture, secretCapture, totpCapture, federatedSignIn]) {
+    try { controller?.stop(); }
+    catch { /* An invalidated browser API must not strand the other controllers. */ }
+  }
+  credentialCapture = null; secretCapture = null; totpCapture = null; federatedSignIn = null;
 });
 contextObserver.observe(document, { childList: true, subtree: true });
 

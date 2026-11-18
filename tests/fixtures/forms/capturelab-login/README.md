@@ -26,3 +26,10 @@ worker stop/start preserves the shield and returns locked status. Both offline
 specimen and live Netlify checks passed on 2026-11-18. Existing legacy content
 scripts lack the new cleanup, so refresh their page once when first testing this
 build. Normal worker restart is not a full extension update.
+
+The regression also keeps a generator open in another tab during both reloads.
+Offline mode changes the specimen password autocomplete to `new-password` as an
+explicit synthetic registration variant; live mode uses Netlify's actual generator
+scenario. Only preview presence is inspected, never printed. Before the disposal
+fix this produced an uncaught invalid-context exception; afterward a single
+populated generator returns after focus with zero such errors.

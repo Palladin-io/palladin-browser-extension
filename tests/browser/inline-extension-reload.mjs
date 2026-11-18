@@ -76,6 +76,32 @@ try {
   await management.goto('chrome://extensions');
   await management.evaluate(() => new Promise(resolve => chrome.developerPrivate.updateProfileConfiguration({inDeveloperMode:true},resolve)));
   await page.getByLabel('Username',{exact:true}).fill('reload-test@example.test');
+  // Synthetic registration counterpart; live mode uses the lab's generator scenario.
+  const generatorPage = await context.newPage();
+  if (!live) await generatorPage.route('https://palladin-capture-lab.netlify.app/**', route => route.fulfill({contentType:'text/html',body:specimen.replace('autocomplete="current-password"','autocomplete="new-password"')}));
+  let invalidationErrors = 0;
+  generatorPage.on('pageerror', error => { if (/Extension context invalidated/i.test(error.message)) invalidationErrors++; });
+  await generatorPage.goto('https://palladin-capture-lab.netlify.app/?scenario=generator');
+  const generatorCdp = await context.newCDPSession(generatorPage);
+  const expectGenerator = async () => {
+    for(let attempt=0;attempt<50;attempt++) {
+      const {root} = await generatorCdp.send('DOM.getDocument',{depth:-1,pierce:true});
+      let panels=0, preview=false;
+      const walk=(node,inPanel=false)=> {
+        const attrs=node.attributes??[];
+        const panel=attrs.some((value,index)=>index%2===0 && value==='class' && attrs[index+1].split(' ').includes('generator-panel'));
+        if(panel) panels++;
+        if(inPanel && node.localName==='code') preview ||= (node.children??[]).some(child=>child.nodeType===3 && child.nodeValue.length>0);
+        for(const child of [...(node.children??[]),...(node.shadowRoots??[])]) walk(child,inPanel||panel);
+      };
+      walk(root);
+      if(panels===1 && preview) return;
+      await generatorPage.waitForTimeout(100);
+    }
+    assert.fail('one generator with a populated preview must remain usable after reload');
+  };
+  await generatorPage.locator('[autocomplete="new-password"]').first().click();
+  await expectGenerator();
   let previousWorker = worker;
   for (let reload = 1; reload <= 2; reload++) {
   const restart = context.waitForEvent('serviceworker',{predicate:candidate=>candidate!==previousWorker});
@@ -98,8 +124,15 @@ try {
   assert(after.includes('No Palladin login matches this website.'),'extension reload must restore working suggestions without refreshing the existing page');
   assert(!after.includes('temporarily unavailable'),'no stale unavailable surface');
   await page.getByRole('heading',{name:'Sign in',exact:true}).click();
+  await generatorPage.bringToFront();
+  await generatorPage.getByLabel('Username',{exact:true}).click();
+  await generatorPage.locator('[autocomplete="new-password"]').first().click();
+  await expectGenerator();
+  assert.equal(invalidationErrors,0,'open generator cleanup must not abort on invalidated runtime');
   console.log(`PASS reload ${reload}: unlocked suggestions without page refresh, one shield`);
   }
+  await generatorPage.close();
+  await page.bringToFront();
   await page.reload();
   await page.locator('palladin-autofill').waitFor({state:'visible'});
   const refreshed = await clickShield();

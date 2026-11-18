@@ -83,7 +83,9 @@ export function startGeneratorSuggestion(doc: Document, documentId: string, capt
     const discard = () => {
       request++; clearTimeout(expiry);
       const previewId = preview?.previewId; preview = null; value.textContent = '';
-      void chrome.runtime.sendMessage({ ...binding, type: 'dismiss', ...(previewId ? { previewId } : {}) }).catch(() => undefined);
+      try {
+        void chrome.runtime.sendMessage({ ...binding, type: 'dismiss', ...(previewId ? { previewId } : {}) }).catch(() => undefined);
+      } catch { /* Reload already discarded the worker's preview; finish local disposal. */ }
     };
     revoke = () => { closeMenu(); doc.removeEventListener('pointerdown', outsideMenu); discard(); };
     const dismiss = () => { closeMenu(); discard(); card.hidden = true; capture.cancelGeneration(); reposition(); };

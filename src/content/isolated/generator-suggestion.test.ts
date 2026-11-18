@@ -86,3 +86,29 @@ it('previews before use and sends only the displayed preview ID on a protected a
     expect(root.querySelector('.generator-heading')?.textContent).toContain('Use strong password');
   } finally { suggestion.stop(); spy.mockRestore(); }
 });
+
+it('removes an open generator and its listeners when runtime invalidation throws synchronously', async () => {
+  const sendMessage = vi.fn(() => Promise.resolve({ accepted: true, status: 'blocked' }));
+  vi.stubGlobal('chrome', {
+    runtime: { sendMessage }, i18n: { getUILanguage: () => 'en' },
+    storage: { local: { get: async () => ({}) }, onChanged: { addListener: vi.fn(), removeListener: vi.fn() } },
+  });
+  document.body.innerHTML = '<form><input type="password" autocomplete="new-password"></form>';
+  const input = document.querySelector('input')!;
+  vi.spyOn(input, 'getBoundingClientRect').mockReturnValue(new DOMRect(20, 20, 320, 40));
+  const capture = new PasswordCaptureController(document, () => 'https://example.test/signup', 'document_0123456789abcdef');
+  capture.scan();
+  const suggestion = startGeneratorSuggestion(document, 'document_0123456789abcdef', capture);
+  try {
+    await Promise.resolve(); input.focus();
+    expect(document.querySelector('palladin-autofill')).not.toBeNull();
+    sendMessage.mockImplementation(() => { throw new Error('Extension context invalidated.'); });
+    expect(() => suggestion.stop()).not.toThrow();
+    expect(document.querySelector('palladin-autofill')).toBeNull();
+    input.blur(); input.focus();
+    expect(document.querySelector('palladin-autofill')).toBeNull();
+  } finally {
+    sendMessage.mockResolvedValue({ accepted: true, status: 'blocked' });
+    suggestion.stop();
+  }
+});

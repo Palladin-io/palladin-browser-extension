@@ -57,7 +57,7 @@ hosts; a value-free lifecycle observer stops old invalidated controllers so they
 cannot recreate duplicate UI. No new permissions, keys or DOM credential reads.
 Two successive reloads, single shield, preserved username and responsive unlocked
 suggestions PASS on both faithful offline CaptureLab specimen and live Netlify.
-Merged current main (b6ff47f); full suite 4391/273 and all builds PASS.
+Merged current main (b6ff47f); full suite 4392/273 and all builds PASS.
 Actual Chromium worker stop/start also PASS: one responsive shield and locked
 session. Ordinary worker/BFCache port tests PASS. Active-tab reinjection is retried
 on unlock, allowing browser-granted activeTab access to recover without adding permissions.
@@ -65,6 +65,14 @@ The current test harness requires a fresh page once when first replacing a legac
 build whose already-running code lacks invalidation cleanup. No claim of actual
 Edge/Firefox reload acceptance. Next: head-specific CI/cloud review;
 no merge/release.
+Cloud round1 on e7e1ba3 found generator disposal could synchronously throw after
+runtime invalidation, skipping later controllers. Unit and actual Chromium open-
+generator reload regressions reproduced it; dismiss now handles both synchronous
+and asynchronous transport failure, and each controller is disposed independently.
+Both offline and live Netlify two-reload checks pass with a populated generator
+preview and zero invalidation errors. A full-suite attempt hit the known
+SharingOverview observer timing failure (`intersect is not a function`); isolated
+9-test and full 4392-test reruns passed. Builds pass. Round2/CI pending.
 
 
 2026-11-15: capture notice/review headers now match the main extension gradient (110°, 4% text-token wash) and shared grain asset/mask in both themes. Local 4368 tests, all builds and eight Chromium motion/pixel scenarios pass. Head 9dded7e cloud round1 found a valid native card/key handoff acknowledgement defect. PendingCaptureView now retains only SavedSecretSummary, clears the secret review/draft and reuses the saved surface with receipt-based navigation; regressions cover edited names, update acknowledgement and committed Entry/Vault selection. CI43746540795 found an obsolete 115° visual expectation; it is updated to the approved 110° and all 20 notice theme/locale cases pass. Round2/CI on the follow-up remain pending. Hosted OAuth controls are intentionally disabled: current-build disposable Chromium lab was launched and actual notices from synthetic Google/GitHub were verified; X is not a supported provider. No merge/release.
