@@ -54,6 +54,105 @@ const erased = (value: SharedUnlockInstallation) => {
 };
 
 describe("shared unlock receiver installation", () => {
+  it("replaces an unlocked own session without extending idle or replacing live keys", async () => {
+    const h = harness(), first = fresh();
+    await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install(first);
+    const live = h.manager.getKeys(), activity = await h.store.getAutoLock();
+    const onUnlocked = vi.fn(); h.hooks.onUnlocked(onUnlocked);
+    h.now.value += 10_000;
+    const candidate = fresh();
+    const tokens = { ...candidate.tokens, accessToken: "new-own-access" };
+    const replacement = await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {}, true);
+    await replacement.install({ ...candidate, tokens });
+    expect(replacement.completed).toBe(true);
+    expect(h.manager.getKeys()).toBe(live);
+    expect(await h.manager.getAccessToken()).toBe("new-own-access");
+    expect(await h.store.getAutoLock()).toEqual(activity);
+    expect(h.alarms.whenFor(AUTO_LOCK_ALARM)).toBe(1_100_000);
+    expect(onUnlocked).not.toHaveBeenCalled(); erased(candidate);
+    expect(await harness(h.storage).manager.initialize()).toBe("locked");
+  });
+
+  it("preserves activity admitted while a replacement checkpoint is pending", async () => {
+    const h = harness();
+    await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install(fresh());
+    h.now.value = 1_099_000;
+    const replacement = await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {}, true);
+    let release!: (deadline: number) => void;
+    const checkpoint = vi.fn(() => new Promise<number>(resolve => { release = resolve; }));
+    const candidate = fresh(), installing = replacement.install({ ...candidate, checkpoint,
+      limits: { ...candidate.limits, idleDeadlineMs: 1_200_000 } }).catch(error => error);
+    await vi.waitFor(() => expect(checkpoint).toHaveBeenCalledOnce());
+    h.now.value += 1;
+    await h.manager.touchActivity();
+    expect(replacement.signal.aborted).toBe(true); erased(candidate);
+    const renewed = h.manager.getSharedUnlockLimits();
+    expect(h.alarms.whenFor(AUTO_LOCK_ALARM)).toBe(1_200_000);
+    release(1_100_000); expect(await installing).toBeInstanceOf(Error);
+    expect(h.manager.getSharedUnlockLimits()).toEqual(renewed);
+    expect(h.alarms.whenFor(AUTO_LOCK_ALARM)).toBe(1_200_000);
+    expect(await h.manager.getAccessToken()).toBe("receiver-own-access");
+  });
+  it.each(["cancel", "lock", "logout"] as const)("erases candidate keys synchronously on %s while storage is pending", async action => {
+    const h = harness();
+    await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install(fresh());
+    let release!: () => void;
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    const write = vi.spyOn(h.store, "setSealedSession").mockImplementationOnce(async () => { await waiting; });
+    const replacement = await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {}, true);
+    const candidate = fresh(), installing = replacement.install(candidate).catch(error => error);
+    await vi.waitFor(() => expect(write).toHaveBeenCalledOnce());
+    const closing = action === "cancel" ? Promise.resolve(replacement.cancel()) : h.manager[action]();
+    erased(candidate);
+    release(); await closing; expect(await installing).toBeInstanceOf(Error);
+  });
+  it("finishes replacement rollback before refresh reads the durable lineage", async () => {
+    const h = harness();
+    await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install(fresh());
+    const ownKeys = h.manager.getKeys();
+    let release!: () => void;
+    const written = new Promise<void>(resolve => { release = resolve; });
+    const originalWrite = h.store.setSealedSession.bind(h.store);
+    const write = vi.spyOn(h.store, "setSealedSession").mockImplementationOnce(async envelope => {
+      await originalWrite(envelope); await written;
+    });
+    const replacement = await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {}, true);
+    const installing = replacement.install(fresh()).catch(error => error);
+    await vi.waitFor(() => expect(write).toHaveBeenCalledOnce());
+    const refresh = h.manager.refreshAccessToken();
+    expect(replacement.signal.aborted).toBe(true);
+    release();
+    expect(await installing).toBeInstanceOf(Error);
+    expect(await refresh).toBe("access-token-1");
+    expect(h.manager.getKeys()).toBe(ownKeys);
+    const envelope = (await h.store.getSealedSession())!;
+    const bytes = await openBrowserSessionEnvelope(envelope, ownKeys!.masterKey, { now: () => h.now.value });
+    try { expect(JSON.parse(new TextDecoder().decode(bytes)).accessToken).toBe("access-token-1"); }
+    finally { wipe(bytes); }
+  });
+  it.each(["keys", "cancel", "lock", "logout", "checkpoint", "policy"] as const)("preserves replacement boundaries on %s", async action => {
+    const h = harness(), first = fresh();
+    await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install(first);
+    const ownKeys = h.manager.getKeys(), envelope = await h.store.getSealedSession();
+    const replacement = await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {}, true);
+    const value = fresh();
+    if (action === "keys") value.keys.masterKey[0] ^= 1;
+    if (action === "cancel") replacement.cancel();
+    if (action === "lock") await h.manager.lock();
+    if (action === "logout") await h.manager.logout();
+    if (action === "policy") await h.manager.setAutoLockPolicy("15m");
+    await expect(replacement.install({ ...value, checkpoint: async deadline => {
+      if (action === "checkpoint") throw new Error("storage unavailable");
+      return deadline;
+    } })).rejects.toThrow();
+    expect(replacement.completed).toBe(false); erased(value);
+    if (action !== "lock" && action !== "logout") {
+      expect(h.manager.getKeys()).toBe(ownKeys);
+      expect(await h.manager.getAccessToken()).toBe("receiver-own-access");
+      expect(await h.store.getSealedSession()).toEqual(envelope);
+    } else expect(h.manager.getKeys()).toBeNull();
+  });
+
   it('keeps Settings usable during a pending receiver so OFF can cancel it before key installation', async () => {
     const h = harness(), value = fresh()
     const first = await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})

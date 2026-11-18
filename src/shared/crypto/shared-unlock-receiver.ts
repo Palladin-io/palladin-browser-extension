@@ -1,6 +1,6 @@
 import type { SharedUnlockTransportPolicy } from '@palladin/crypto'
 import {
-  createSharedUnlockIdentityProofSigner, createSharedUnlockOffer, hashSharedUnlockTranscript, wipe,
+  createSharedUnlockIdentityProofSigner, createSharedUnlockOffer, hashSharedUnlockTranscript, loadSodium, wipe,
   type SharedUnlockContext, type SharedUnlockIdentityProofContext, type SharedUnlockKeyContext,
   type SharedUnlockParticipant,
 } from '@palladin/crypto'
@@ -96,5 +96,15 @@ export async function createSharedUnlockReceiverCrypto(assertCurrent: () => void
       if (digest !== consumed.transcriptHash) throw new Error('Shared unlock commit binding failed')
     },
     dispose() { closed = true; offer.dispose(); participant?.dispose(); signer.dispose() },
+  }
+}
+
+/** A newer authority may replace tokens, never the already-live account keys. */
+export async function assertSameSharedUnlockKeys(candidate: SessionKeys, own: SessionKeys): Promise<void> {
+  const sodium = await loadSodium()
+  if (candidate.masterKey.length !== 32 || own.masterKey.length !== 32
+    || candidate.privateKey.length !== 32 || own.privateKey.length !== 32
+    || !sodium.memcmp(candidate.masterKey, own.masterKey) || !sodium.memcmp(candidate.privateKey, own.privateKey)) {
+    throw new Error('Shared unlock account keys changed')
   }
 }

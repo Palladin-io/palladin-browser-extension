@@ -64,7 +64,7 @@ export function coordinateSharedUnlockBrowser(route: SharedUnlockBrowserRoute) {
       const state = sharedUnlockSource.snapshot();
       const source = status === "unlocked" && accountId && !sharedUnlockPreferences.isDisabled(scope(accountId)) && await sharedUnlockPreferenceGate.isAllowed(scope(accountId)) && state.authorization?.accountId === accountId
         && state.sourceGeneration && state.preference?.sharedUnlockEnabled
-        ? { organizationId: state.authorization.organizationId, generation: state.sourceGeneration } : null;
+        ? { organizationId: state.authorization.organizationId, generation: state.sourceGeneration, sequence: state.authorization.sequence } : null;
       return { accountId, status, source };
     },
     subscribe,
@@ -92,11 +92,24 @@ export function coordinateSharedUnlockBrowser(route: SharedUnlockBrowserRoute) {
     },
     source: (binding, signal, assertCurrent) => beginSharedUnlockSource({ apiUrl: route.apiUrl, binding, signal,
       assertCurrent: () => { assertCurrent(); sharedUnlockPreferenceGate.assertAllowed(scope(binding.accountId)); sharedUnlockPreferences.assertNotDisabled(scope(binding.accountId)); } }, sessionManager, sharedUnlockSource, api),
-    receiver: async (binding, signal, assertCurrent) => {
+    receiver: async (binding, signal, assertAttempt, replacementSequence) => {
+      const root = sharedUnlockSource.snapshot();
+      const assertCurrent = () => {
+        assertAttempt();
+        if (replacementSequence !== undefined) {
+          const current = sharedUnlockSource.snapshot();
+          if (!root.authorization || replacementSequence <= root.authorization.sequence
+            || root.authorization.accountId !== binding.accountId
+            || current.authorization?.authorizationId !== root.authorization.authorizationId
+            || current.sourceGeneration !== root.sourceGeneration) throw new Error("Shared unlock replacement authority changed");
+        }
+      };
+      assertCurrent();
       const marker = await admissible(binding.accountId, binding.linkId, true, binding.linkEpoch); assertCurrent();
       const localLink = staging.capture(marker, binding, sharedUnlockLinks, api);
       await sharedUnlockLinks.markAdmission(scope(binding.accountId), binding.linkId); assertCurrent();
       return beginSharedUnlockReceiver({ apiUrl: route.apiUrl, binding, signal,
+        ...(replacementSequence !== undefined ? { replacementSequence } : {}),
         confirmLocalLink: localLink.confirm,
         assertCurrent: () => { assertCurrent(); localLink.assertCurrent(); sharedUnlockPreferenceGate.assertAllowed(scope(binding.accountId)); sharedUnlockPreferences.assertNotDisabled(scope(binding.accountId)); },
         assertFreshAuthorization: (sequence, deadlineMs, hardDeadlineMs) => sharedUnlockExpiry.checkpoint(scope(binding.accountId), sequence, deadlineMs, hardDeadlineMs) }, sessionManager, api,

@@ -118,3 +118,29 @@ Safari/Firefox optional host patterns omit ports, matching their manifest
 representation. The saved API/panel URLs and runtime message authorization still
 retain and enforce exact ports. Safari's native `WKWebExtensionMatchPattern`
 rejects a port-bearing host pattern; see the WebKit `UserContentURLPattern` parser.
+
+## Fresh authority after a Web manual unlock
+
+Chromium additionally accepts `palladin.shared-unlock.browser.v2`. Its state frame
+advertises the source authorization sequence for direction selection only. An
+already-unlocked Extension may receive a strictly newer Web authorization for the
+same account. The receiver independently checks the committed Identity sequence
+against the selection and its captured own authority, verifies identical account
+keys, and keeps the existing live key objects. It replaces only its own committed
+session and inherited limits, preserving activity timestamps and the stricter
+existing/received deadlines. This is not activity and emits no unlock notification.
+
+Replacement is serialized with durable-session writes and token refresh. Failure
+preserves the old own session where still current, wipes candidate keys and
+revokes only the newly issued receiver session. Expiry denial metadata is never
+rolled back. A worker restart remains locked, whether its sealed envelope belongs
+to the old or newly committed session. Lock, logout, OFF, revocation and account
+changes continue to cancel admission.
+
+The Web client tries v2 on Chromium and uses v1 after an unsuccessful handshake;
+a failed live v2 operation never causes downgrade. v1 retains its original state
+schema and locked-receiver behavior. Firefox and Safari remain on v1. This repair
+does not replace an already-unlocked Web session or alter browser cookie handling.
+Both updated components are required for authority convergence; legacy mixed
+versions keep ordinary shared unlock. Reload the panel after updating the extension
+to negotiate the newer transport in a document that previously selected v1.

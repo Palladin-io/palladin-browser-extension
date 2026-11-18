@@ -61,6 +61,10 @@ try {
   assert.equal(first.webNonce, 'A'.repeat(43))
   assert.match(first.documentBinding, /^\d+\/[^/]+\/[A-Za-z0-9_-]{43}$/)
   checks.push('actual-product-worker-browser-id-and-document-bound-ready')
+  const upgraded = await connect(page, extensionId, { protocol: 'palladin.shared-unlock.browser.v2' })
+  assert.equal(upgraded.type, 'ready')
+  assert.equal(upgraded.protocol, 'palladin.shared-unlock.browser.v2')
+  checks.push('actual-product-worker-negotiates-v2-with-v1-compatibility')
 
   await page.evaluate(() => history.pushState({}, '', '/vaults#same-document'))
   await page.waitForTimeout(150)
@@ -137,8 +141,8 @@ try {
       const original = runtime.connect
       runtime.connect = function (...args) {
         const port = original.apply(runtime, args)
-        if (args[1]?.name === 'palladin.shared-unlock.browser.v1') {
-          const observed = { extensionId: args[0], closed: false, ready: null, stateSent: false, stateReceived: false }
+        if (['palladin.shared-unlock.browser.v1', 'palladin.shared-unlock.browser.v2'].includes(args[1]?.name)) {
+          const observed = { protocol: args[1].name, extensionId: args[0], closed: false, ready: null, stateSent: false, stateReceived: false }
           globalThis.applicationChannelProbe.push(observed)
           const send = port.postMessage.bind(port), disconnect = port.disconnect.bind(port)
           const isSignedOutState = message => message?.type === 'operation' && message.payload?.kind === 'state'
@@ -156,6 +160,8 @@ try {
     })
     await context.route('**/*', route => {
       const url = new URL(route.request().url())
+      // Bootstrap distinguishes signed-out from a transport outage. No real Identity service is used here.
+      if (url.origin === apiUrl && url.pathname === '/api/browser/auth/refresh') return route.fulfill({ status: 401, body: '' })
       return url.origin === allowed || url.protocol === 'chrome-extension:' ? route.continue() : route.abort()
     })
     const application = await context.newPage()
@@ -164,6 +170,7 @@ try {
     await application.waitForFunction(() => globalThis.applicationChannelProbe.some(item => item.ready && item.stateSent && item.stateReceived && !item.closed), { timeout: 15000 })
     const beforeReload = await application.evaluate(() => globalThis.applicationChannelProbe.find(item => item.ready && !item.closed))
     assert.equal(beforeReload.extensionId, extensionId)
+    assert.equal(beforeReload.protocol, 'palladin.shared-unlock.browser.v2')
     await application.reload()
     await application.waitForFunction(() => globalThis.applicationChannelProbe.some(item => item.ready && item.stateSent && item.stateReceived && !item.closed), { timeout: 15000 })
     const afterReload = await application.evaluate(() => globalThis.applicationChannelProbe.find(item => item.ready && !item.closed))
@@ -215,7 +222,7 @@ async function connect(pageOrFrame, extensionId, overrides = {}) {
     port.onDisconnect.addListener(() => { void chrome.runtime.lastError; probe.disconnected = true; clearTimeout(timer); resolve({ type: 'disconnected' }) })
     port.onMessage.addListener(message => { clearTimeout(timer); resolve(message) })
     port.postMessage({ type: 'hello', protocol, apiUrl, webNonce: 'A'.repeat(43), ...overrides })
-  }), { extensionId, protocol, apiUrl, overrides })
+  }), { extensionId, protocol: overrides.protocol ?? protocol, apiUrl, overrides })
 }
 async function waitForFrame(page) {
   for (let attempt = 0; attempt < 100; attempt += 1) {

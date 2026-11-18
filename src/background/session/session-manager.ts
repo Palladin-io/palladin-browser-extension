@@ -12,6 +12,7 @@
  * so the whole lifecycle is unit-testable against fakes.
  */
 
+import { assertSameSharedUnlockKeys } from "../../shared/crypto/shared-unlock-receiver";
 import type { SharedUnlockSourceSession } from "./shared-unlock-source";
 import type { SharedUnlockSettingsSession } from './shared-unlock-settings';
 import {
@@ -320,7 +321,9 @@ export class SessionManager {
     accountId: string,
     apiUrl: string,
     assertRouteCurrent: () => void,
+    replaceUnlocked = false,
   ): Promise<SharedUnlockInstaller> {
+    if (replaceUnlocked) return this.beginSharedUnlockReplacement(accountId, apiUrl, assertRouteCurrent);
     const generation = this.captureLifecycleGeneration();
     const clearGeneration = this.sessionClearGeneration;
     const attempt = ++this.sharedUnlockAttempt;
@@ -446,6 +449,108 @@ export class SessionManager {
     }
   }
 
+  private async beginSharedUnlockReplacement(accountId: string, apiUrl: string,
+    assertRouteCurrent: () => void): Promise<SharedUnlockInstaller> {
+    const generation = this.captureLifecycleGeneration(), attempt = this.sharedUnlockAttempt;
+    const clearGeneration = this.sessionClearGeneration, policyRevision = this.policyRevision;
+    const ownKeys = this.getKeys(), ownTokens = this.tokens, ownLimits = this.getSharedUnlockLimits();
+    const ownDeadline = this.sharedUnlockLocalDeadline, activityAt = this.lastActivityAt;
+    this.sharedUnlockReceiverAbort?.abort();
+    const abort = new AbortController();
+    this.sharedUnlockReceiverAbort = abort;
+    let completed = false, consumed = false;
+    let pendingKeys: SessionKeys | null = null;
+    const erasePending = () => { if (pendingKeys) this.wipeSessionKeys(pendingKeys); };
+    abort.signal.addEventListener("abort", erasePending, { once: true });
+    const assertCurrent = () => {
+      this.assertLifecycleGeneration(generation); this.assertApiUrl(apiUrl);
+      if (abort.signal.aborted || this.sharedUnlockReceiverAbort !== abort || attempt !== this.sharedUnlockAttempt
+        || !ownKeys || !ownTokens || !ownLimits || this.getKeys() !== ownKeys || this.tokens !== ownTokens
+        || ownTokens.userId !== accountId || ownTokens.apiUrl !== apiUrl || this.refreshInFlight
+        || this.loginInFlight || this.unlocksInFlight > 0 || this.pendingTotp || policyRevision !== this.policyRevision
+        || this.now() >= Math.min(ownDeadline, unlockDeadline(ownLimits))) throw new SessionLifecycleChangedError();
+      assertRouteCurrent();
+    };
+    const cancel = () => {
+      if (completed) return;
+      abort.abort();
+      if (this.sharedUnlockReceiverAbort === abort) this.sharedUnlockReceiverAbort = null;
+    };
+    try {
+      assertCurrent();
+      const record = await this.store.getAutoLock(); assertCurrent();
+      const policy = record?.policy ?? DEFAULT_AUTO_LOCK_POLICY;
+      const idle = policyIdleMs(policy);
+      const localDeadline = Math.min(ownDeadline, idle === null ? Infinity : activityAt + idle);
+      return { get completed() { return completed; }, signal: abort.signal, assertCurrent, cancel,
+        assertInstalled: () => {
+          this.assertLifecycleGeneration(generation); this.assertApiUrl(apiUrl);
+          if (!completed || this.getKeys() !== ownKeys || this.sharedUnlockAttempt !== attempt + 1
+            || !this.getSharedUnlockLimits()) throw new SessionLifecycleChangedError();
+        },
+        install: async ({ tokens, material, keys, limits, checkpoint }) => {
+          try {
+            if (consumed || keys === ownKeys || keys.masterKey === ownKeys!.masterKey || keys.privateKey === ownKeys!.privateKey) {
+              throw new SessionLifecycleChangedError();
+            }
+            consumed = true; pendingKeys = keys; this.trackSessionKeys(keys); assertCurrent();
+            if (tokens.userId !== accountId || tokens.apiUrl !== apiUrl || material.accountId !== accountId) throw new SessionLifecycleChangedError();
+            await assertSameSharedUnlockKeys(keys, ownKeys!); assertCurrent();
+            const inherited = { unlockedAtMs: Math.min(ownLimits!.unlockedAtMs, limits.unlockedAtMs),
+              idleDeadlineMs: Math.min(ownLimits!.idleDeadlineMs, limits.idleDeadlineMs, localDeadline),
+              absoluteDeadlineMs: Math.min(ownLimits!.absoluteDeadlineMs, limits.absoluteDeadlineMs),
+              offlineDeadlineMs: Math.min(ownLimits!.offlineDeadlineMs, limits.offlineDeadlineMs) };
+            const check = () => { assertCurrent(); if (this.now() >= unlockDeadline(inherited)) throw new SessionLifecycleChangedError(); };
+            check();
+            if (checkpoint) inherited.idleDeadlineMs = Math.min(inherited.idleDeadlineMs, await checkpoint(unlockDeadline(inherited)));
+            check();
+            const issuedAt = this.now();
+            const envelope = await this.sealDurablePayload({ state: "active", ...tokens }, keys.masterKey, {
+              apiUrl, accountId, clientId: this.clientId, identitySecurityVersion: material.kdf.securityVersion,
+              minimumIdentitySecurityVersion: material.kdf.minimumSecurityVersion, kdfProfileId: material.kdf.profileId,
+              kdfSalt: material.kdf.kdfSalt, encryptedPrivateKey: material.encryptedPrivateKey,
+              issuedAt, expiresAt: issuedAt + this.durableSessionTtlMs,
+            });
+            check();
+            // Refresh waits for this entire write/publication/rollback transaction.
+            await this.runDurableMutation(async () => {
+              check();
+              const previous = await this.store.getSealedSession(); check();
+              try {
+                await this.store.setSealedSession(envelope); check();
+                this.autoLock.arm(policy, activityAt, unlockDeadline(inherited));
+                this.tokens = tokens;
+                this.sharedUnlockLimits = inherited;
+                this.sharedUnlockLocalDeadline = Math.min(localDeadline, unlockDeadline(inherited));
+                this.sharedUnlockAttempt++;
+                completed = true;
+                this.sharedUnlockReceiverAbort = null;
+                this.invalidateSharedUnlockSources(); this.invalidateSharedUnlockSettings();
+              } finally {
+                if (!completed) {
+                  const current = await this.store.getSealedSession();
+                  if (current?.encodedSuitePayload === envelope.encodedSuitePayload) {
+                    if (previous && clearGeneration === this.sessionClearGeneration && apiUrl === this.authClient.currentApiUrl()) {
+                      await this.store.setSealedSession(previous);
+                    } else await this.store.clearSealedSession();
+                  }
+                }
+              }
+            });
+          } finally {
+            if (pendingKeys === keys) {
+              pendingKeys = null; this.untrackSessionKeys(keys);
+            }
+            // Never erase the live buffers, even on a malformed duplicate call.
+            if (keys.masterKey !== ownKeys?.masterKey) wipe(keys.masterKey);
+            if (keys.privateKey !== ownKeys?.privateKey) wipe(keys.privateKey);
+            if (!completed) cancel();
+          }
+        },
+      };
+    } catch (error) { cancel(); throw error; }
+  }
+
   /**
    * Current access token for in-worker REST consumers (the vault data layer), or
    * null when signed out. Read straight from the store so it always reflects the
@@ -479,6 +584,7 @@ export class SessionManager {
 
   private refreshAccessTokenUsing(keys: SessionKeys | null): Promise<string | null> {
     if (this.refreshInFlight) return this.refreshInFlight;
+    this.sharedUnlockReceiverAbort?.abort();
     this.invalidateSharedUnlockSources();
     this.invalidateSharedUnlockSettings();
     const operation = this.rotateAccessToken(keys).finally(() => {
@@ -490,6 +596,8 @@ export class SessionManager {
 
   private async rotateAccessToken(keys: SessionKeys | null): Promise<string | null> {
     const generation = this.captureLifecycleGeneration();
+    await this.durableMutationTail;
+    this.assertLifecycleGeneration(generation);
     const tokens = await this.getBoundMemoryTokens();
     if (!tokens || !keys) return null;
     const envelope = await this.getBoundEnvelope();
@@ -1435,6 +1543,8 @@ export class SessionManager {
     // new login/bootstrap. Queueing/retry also cannot manufacture a later time.
     if (!Number.isSafeInteger(at) || at > now || (observedAt !== undefined
       && (now - at > 5_000 || at <= this.keyInstalledAt)) || at <= this.lastActivityAt) return;
+    // A replacement captured older idle limits; accepted own activity wins.
+    this.sharedUnlockReceiverAbort?.abort();
     this.lastActivityAt = at;
     const revision = this.policyRevision;
     const current = () => this.isLifecycleCurrent(generation) && revision === this.policyRevision && at === this.lastActivityAt && this.getKeys();

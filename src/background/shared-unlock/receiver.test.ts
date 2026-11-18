@@ -36,7 +36,7 @@ beforeEach(() => { vi.spyOn(Date, "now").mockReturnValue(now); vi.spyOn(sharedUn
 afterEach(() => { for (const cancel of cancels.splice(0)) cancel(); vi.restoreAllMocks(); });
 const deferred = <T>() => { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; };
 
-async function setup(options: { confirmLocalLink?: SharedUnlockReceiverRoute["confirmLocalLink"]; assertFreshAuthorization?: SharedUnlockReceiverRoute["assertFreshAuthorization"]; onInstalled?: SharedUnlockInstalled; pause?: "consume" | "commit";
+async function setup(options: { replacementSequence?: number; confirmLocalLink?: SharedUnlockReceiverRoute["confirmLocalLink"]; assertFreshAuthorization?: SharedUnlockReceiverRoute["assertFreshAuthorization"]; onInstalled?: SharedUnlockInstalled; pause?: "consume" | "commit";
   transformConsume?: (op: SharedUnlockOperation) => SharedUnlockOperation;
   transformCommit?: (commit: SharedUnlockCommit) => SharedUnlockCommit } = {}) {
   const routeAbort = new AbortController();
@@ -44,6 +44,7 @@ async function setup(options: { confirmLocalLink?: SharedUnlockReceiverRoute["co
   const original = baseline.context;
   let current = true;
   const route: SharedUnlockReceiverRoute = {
+    ...(options.replacementSequence !== undefined ? { replacementSequence: options.replacementSequence } : {}),
     ...(options.confirmLocalLink ? { confirmLocalLink: options.confirmLocalLink } : {}),
     ...(options.assertFreshAuthorization ? { assertFreshAuthorization: options.assertFreshAuthorization } : {}),
     apiUrl, signal: routeAbort.signal, binding: {
@@ -81,14 +82,24 @@ async function setup(options: { confirmLocalLink?: SharedUnlockReceiverRoute["co
   const autoLock = new AutoLock(new FakeAlarms(), () => { void manager.lock(); });
   manager = new SessionManager({ store, hooks, autoLock, authClient: new AuthClient(fetcher, () => environment.value) });
   const api = new SharedUnlockApi(fetcher, () => environment.value);
-  const receiver = await beginSharedUnlockReceiver(route, manager, api, options.onInstalled);
-  cancels.push(receiver.cancel, () => { void manager.lock(); });
   const masterKey = await randomBytes(32);
   const member = await generateKeyPair();
   const source = await createSharedUnlockOffer({ role: "source", assertCurrent: () => {} });
   const keyContext = { ...baseline.keyContext, publicKey: toBase64Url(member.publicKey),
     encryptedPrivateKey: toBase64Url(await encryptWithKey(member.privateKey, masterKey)) };
   const context = { ...original, keyContextDigest: await hashSharedUnlockKeyContext(keyContext) };
+  if (options.replacementSequence !== undefined) {
+    const initial = await manager.beginSharedUnlockInstall(original.accountId, apiUrl, () => {});
+    await initial.install({ tokens: { apiUrl, userId: original.accountId, accessToken: "old-own-access", refreshToken: "old-own-refresh" },
+      keys: { masterKey: masterKey.slice(), privateKey: member.privateKey.slice() },
+      material: { accountId: keyContext.accountId, encryptedPrivateKey: keyContext.encryptedPrivateKey,
+        kdf: { securityVersion: keyContext.securityVersion, minimumSecurityVersion: keyContext.minimumSecurityVersion,
+          profileId: keyContext.kdfProfileId, kdfSalt: keyContext.kdfSalt } },
+      limits: { unlockedAtMs: original.unlockedAtMs, idleDeadlineMs: original.idleDeadlineMs,
+        absoluteDeadlineMs: original.absoluteDeadlineMs, offlineDeadlineMs: original.offlineDeadlineMs } });
+  }
+  const receiver = await beginSharedUnlockReceiver(route, manager, api, options.onInstalled);
+  cancels.push(receiver.cancel, () => { void manager.lock(); });
   const operation: SharedUnlockOperation = { ...baseline, context, keyContext, sourcePublicKey: source.publicKey,
     recipientPublicKey: receiver.publicKey, recipientProofPublicKey: receiver.proofPublicKey,
     transcriptHash: await hashSharedUnlockTranscript(context, source.publicKey, receiver.publicKey) };
@@ -104,6 +115,25 @@ async function setup(options: { confirmLocalLink?: SharedUnlockReceiverRoute["co
 }
 
 describe("Extension own receiver transaction with real crypto and session installation", () => {
+  it("adopts the committed newer authority without replacing live keys or showing unlock UI", async () => {
+    const adopted = vi.fn(), f = await setup({ replacementSequence: 5, onInstalled: adopted });
+    const ownKeys = f.manager.getKeys();
+    await expect(f.receiver.receive(f.input)).resolves.toMatchObject({ authorizationSequence: 5 });
+    expect(f.manager.getKeys()).toBe(ownKeys);
+    expect(await f.manager.getAccessToken()).toBe(newSession.accessToken);
+    expect(adopted).toHaveBeenCalledOnce();
+    expect(sharedUnlockCompletionNotice.completed).not.toHaveBeenCalled();
+    expect(f.events).not.toContain("logout");
+  });
+  it("does not let advertised authority replace a session with a different committed sequence", async () => {
+    const f = await setup({ replacementSequence: 262 });
+    const ownKeys = f.manager.getKeys();
+    await expect(f.receiver.receive(f.input)).rejects.toThrow();
+    expect(f.manager.getKeys()).toBe(ownKeys);
+    expect(await f.manager.getAccessToken()).toBe("old-own-access");
+    expect(f.events).toContain("logout");
+    expect(f.ack).not.toHaveBeenCalled();
+  });
   it('authenticates denied-install cleanup using the issued own session', async () => {
     const f = await setup({ assertFreshAuthorization: async () => { throw new Error('local admission denied'); } });
     await expect(f.receiver.receive(f.input)).rejects.toThrow('local admission denied');
