@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { observeNativeSubmit } from './manual-submit.test-helper';
 import { readFileSync } from 'node:fs';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InlineAutofillCommand } from '@shared/messaging';
 import { startInlineAutofill } from './inline-autofill';
 import { performBoundFill, loginTargetFor, submitLoginForm } from './fill';
@@ -85,4 +85,43 @@ it('rejects ambiguous formless native actions and never clicks an arbitrary DIV'
   document.querySelector('section')!.insertAdjacentHTML('beforeend', '<div role="button">Continue</div>');
   expect(submitLoginForm(username, loginTargetFor(username)!)).toBe(false);
   expect(click).not.toHaveBeenCalled();
+});
+
+describe('related-host continuation on a separate password or TOTP stage', () => {
+  const related = { vaultId: 'v1', entryId: 'e1', name: 'Fixture', username: 'synthetic@example.test', vaultName: 'Fixture',
+    urlDomain: 'login.example.test', updatedAt: '2026-11-22T00:00:00Z', match: 'related' as const };
+  function start(html: string, continuation: boolean) {
+    document.body.innerHTML = html;
+    const commands: InlineAutofillCommand[] = [];
+    const send = vi.fn(async (command: InlineAutofillCommand) => {
+      commands.push(command);
+      if (command.type === 'inline/list') return { ok: true, kind: 'suggestions', status: 'ready', entries: [related],
+        ...(continuation ? { continuation: { vaultId: 'v1', entryId: 'e1' } } : {}) };
+      return { ok: true, kind: 'fill', status: 'filled' };
+    });
+    const controller = startInlineAutofill(document, 'a'.repeat(32), send); stop = () => controller.stop();
+    return commands;
+  }
+  const passwordStage = '<form><label>Password<input type="password" autocomplete="current-password"></label><button type="submit">Sign in</button></form>';
+  const totpStage = '<form><label>MFA code<input id="otp" inputmode="numeric" autocomplete="one-time-code"></label><button type="submit">Submit</button></form>';
+  const automaticFills = (commands: InlineAutofillCommand[]) => commands.filter(command => command.type === 'inline/fill' && command.intent === 'automatic');
+
+  it('requests the tab-continued related account for a password-only stage', async () => {
+    const commands = start(passwordStage, true);
+    await vi.waitFor(() => expect(automaticFills(commands)).toHaveLength(1));
+    expect(automaticFills(commands)[0]).toMatchObject({ entryId: 'e1', scope: 'related' });
+  });
+
+  it('requests the tab-continued related account for a TOTP stage', async () => {
+    const commands = start(totpStage, true);
+    await vi.waitFor(() => expect(automaticFills(commands)).toHaveLength(1));
+    expect(automaticFills(commands)[0]).toMatchObject({ entryId: 'e1', scope: 'related', purpose: 'totp' });
+  });
+
+  it('never fills a related account automatically without a tab continuation', async () => {
+    const commands = start(passwordStage + totpStage, false);
+    await vi.waitFor(() => expect(commands.filter(command => command.type === 'inline/list').length).toBeGreaterThanOrEqual(2));
+    await new Promise(resolve => setTimeout(resolve, 250));
+    expect(automaticFills(commands)).toEqual([]);
+  });
 });

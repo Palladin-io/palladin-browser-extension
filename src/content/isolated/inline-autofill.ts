@@ -582,8 +582,7 @@ class InlineAutofillController {
     if (this.stopped || generation !== this.totpGeneration || this.totpPending?.intent === 'manual' || this.doc.location.href !== url
       || !binding.current() || !isCurrentTotpTarget(this.doc, target) || target.some(input => input.value !== '')
       || !isInlineAutofillResult(raw) || !raw.ok || raw.kind !== 'suggestions' || raw.status !== 'ready') return;
-    const entry = raw.entries.find(item => item.match === 'exact' && (raw.continuation === undefined
-      || (item.vaultId === raw.continuation.vaultId && item.entryId === raw.continuation.entryId)));
+    const entry = raw.entries.find(item => isAutomaticCandidate(item, raw.continuation));
     if (!entry) return;
     this.automaticTotpUrl = url;
     await this.sendTotp(target, entry, 'automatic', binding);
@@ -958,7 +957,8 @@ class InlineWidget {
   /**
    * Fill once when a standard login form appears. The worker orders exact-host
    * results by session recency first and deterministic first match second.
-   * Related sibling hosts remain explicit-only and can never enter this path.
+   * A related host enters this path only as the worker-confirmed continuation
+   * of an explicit choice made earlier in this tab on the same host.
    */
   async autoFillPreferredExact(continuation?: InlineAutofillSuggestion): Promise<void> {
     if (this.automaticFillCompleted || this.destroyed
@@ -988,8 +988,7 @@ class InlineWidget {
         return;
       }
       if (raw.status !== "ready") return;
-      const preferredExact = raw.entries.find((entry) => entry.match === "exact" && entry.username.length > 0
-        && (raw.continuation === undefined || (entry.vaultId === raw.continuation.vaultId && entry.entryId === raw.continuation.entryId))
+      const preferredExact = raw.entries.find((entry) => isAutomaticCandidate(entry, raw.continuation) && entry.username.length > 0
         && (continuation === undefined || (entry.entryId === continuation.entryId
           && entry.vaultId === continuation.vaultId && entry.username === continuation.username)));
       if (preferredExact !== undefined) {
@@ -1387,3 +1386,12 @@ export const INLINE_STYLES = `
   .open-palladin:hover { background:var(--cv-primary-hover); }
   .open-palladin:focus-visible { outline:2px solid var(--cv-primary); outline-offset:2px; }
 `;
+
+/** Exact matches fill passively; a related Entry only as this tab's explicit continuation. */
+function isAutomaticCandidate(
+  entry: InlineAutofillSuggestion,
+  continuation: { readonly vaultId: string; readonly entryId: string } | undefined,
+): boolean {
+  if (continuation !== undefined) return entry.vaultId === continuation.vaultId && entry.entryId === continuation.entryId;
+  return entry.match === 'exact';
+}

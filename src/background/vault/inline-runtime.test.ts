@@ -293,7 +293,7 @@ it('rejects an automatic related-host fill before delivery', async () => {
   expect(await handleInlineAutofillContentMessage(deps({ fill }), {
     channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', intent: 'automatic', documentId,
     vaultId: 'vault-1', entryId: 'entry-1', scope: 'related', loginTargetId: 'login-1',
-  }, sender, 'extension-id')).toBeNull();
+  }, sender, 'extension-id')).toEqual({ ok: true, kind: 'fill', status: 'blocked' });
   expect(fill).not.toHaveBeenCalled();
 });
 
@@ -435,4 +435,62 @@ it('fails an earlier list closed when native selection fails during session look
   const request = handleInlineAutofillContentMessage(subject, { channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', documentId, purpose: 'totp' }, sender, 'extension-id');
   await ready; const finish = recency.beginNative(7, sender.url!); finish(false); release();
   expect(await request).toEqual({ ok: false, code: 'unavailable' });
+});
+
+describe('related-host account continuation across login stages', () => {
+  const related: EntryMetadata = { ...entries[0]!, id: 'entry-related', urlDomain: 'login.example.com' };
+  const command = (intent: 'manual' | 'automatic', entryId = 'entry-related', purpose?: 'totp') => ({
+    channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', intent, documentId, vaultId: 'vault-1', entryId,
+    scope: 'related', loginTargetId: 'login-1', ...(purpose ? { purpose } : {}),
+  });
+  const at = (url: string, tabId = 7) => ({ ...sender, url, tab: { id: tabId, url } }) as chrome.runtime.MessageSender;
+
+  function subject() {
+    const recency = new InMemoryInlineAutofillRecency();
+    const fill = vi.fn<InlineAutofillDeps['fill']>(async () => ({ status: 'filled' }) as const);
+    return { recency, fill, deps: deps({ recency, fill, getMetadata: async () => [related] }) };
+  }
+
+  it('fills later password and TOTP stages with the account explicitly chosen in this tab', async () => {
+    const { deps: d, fill } = subject();
+    await handleInlineAutofillContentMessage(d, command('manual'), at('https://accounts.example.com/identifier'), 'extension-id');
+    const password = at('https://accounts.example.com/password');
+    expect(await handleInlineAutofillContentMessage(d, { channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/list', documentId }, password, 'extension-id'))
+      .toMatchObject({ continuation: { vaultId: 'vault-1', entryId: 'entry-related' }, entries: [{ entryId: 'entry-related', match: 'related' }] });
+    expect(await handleInlineAutofillContentMessage(d, command('automatic'), password, 'extension-id'))
+      .toEqual({ ok: true, kind: 'fill', status: 'filled' });
+    expect(await handleInlineAutofillContentMessage(d, command('automatic', 'entry-related', 'totp'), at('https://accounts.example.com/mfa'), 'extension-id'))
+      .toEqual({ ok: true, kind: 'fill', status: 'filled' });
+    expect(fill.mock.calls.slice(1).map(call => [call[3], call[5], call[6]]))
+      .toEqual([['tab-continuation', 'automatic', undefined], ['tab-continuation', 'automatic', 'totp']]);
+  });
+
+  it('never fills a related host automatically without an explicit choice in the same tab and host', async () => {
+    const { deps: d, fill } = subject();
+    const blocked = { ok: true, kind: 'fill', status: 'blocked' };
+    expect(await handleInlineAutofillContentMessage(d, command('automatic'), at('https://accounts.example.com/password'), 'extension-id')).toEqual(blocked);
+    await handleInlineAutofillContentMessage(d, command('manual'), at('https://accounts.example.com/identifier'), 'extension-id');
+    fill.mockClear();
+    expect(await handleInlineAutofillContentMessage(d, command('automatic'), at('https://accounts.example.com/password', 8), 'extension-id')).toEqual(blocked);
+    expect(await handleInlineAutofillContentMessage(d, command('automatic'), at('https://other.example.com/password'), 'extension-id')).toEqual(blocked);
+    expect(await handleInlineAutofillContentMessage(d, command('automatic'), at('https://accounts.example.com/password'), 'extension-id')).toEqual(blocked);
+    expect(fill).not.toHaveBeenCalled();
+  });
+
+  it('does not let another account ride on the tab continuation and forgets it on lock', async () => {
+    const { deps: d, fill, recency } = subject();
+    await handleInlineAutofillContentMessage(d, command('manual'), at('https://accounts.example.com/identifier'), 'extension-id');
+    fill.mockClear();
+    const blocked = { ok: true, kind: 'fill', status: 'blocked' };
+    expect(await handleInlineAutofillContentMessage(d, command('automatic', 'entry-other'), at('https://accounts.example.com/password'), 'extension-id')).toEqual(blocked);
+    recency.clear();
+    expect(await handleInlineAutofillContentMessage(d, command('automatic'), at('https://accounts.example.com/password'), 'extension-id')).toEqual(blocked);
+    expect(fill).not.toHaveBeenCalled();
+  });
+
+  it('keeps related choices out of the cross-tab host recency', async () => {
+    const { deps: d, recency } = subject();
+    await handleInlineAutofillContentMessage(d, command('manual'), at('https://accounts.example.com/identifier'), 'extension-id');
+    expect(recency.preferred('https://accounts.example.com/identifier')).toBeNull();
+  });
 });

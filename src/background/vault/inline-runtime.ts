@@ -23,7 +23,7 @@ export interface InlineAutofillDeps {
     source: ActiveTab,
     vaultId: string,
     entryId: string,
-    scope: "exact" | "related",
+    scope: "exact" | "related" | "tab-continuation",
     loginTargetId: string,
     intent: "automatic" | "manual",
     purpose?: "totp",
@@ -223,17 +223,26 @@ export async function handleInlineAutofillContentMessage(
     if (raw.intent === "automatic" && nativeChoice
       && (nativeChoice.vaultId !== raw.vaultId || nativeChoice.entryId !== raw.entryId))
       return { ok: true, kind: "fill", status: "blocked" };
+    let scope: "exact" | "related" | "tab-continuation" = raw.scope;
+    if (raw.scope === "related" && raw.intent === "automatic") {
+      // A later login stage may reuse only the Entry explicitly chosen in this tab on this exact host.
+      const selected = deps.recency?.preferredForTab?.(source.id, source.url);
+      if (!selected || selected.vaultId !== raw.vaultId || selected.entryId !== raw.entryId)
+        return { ok: true, kind: "fill", status: "blocked" };
+      scope = "tab-continuation";
+    }
     const stillCurrent = deps.recency?.capture?.(source.id, source.url);
     const fill = raw.intent === "automatic" && stillCurrent
-      ? await deps.fill(source, raw.vaultId, raw.entryId, raw.scope, raw.loginTargetId, raw.intent, raw.purpose,
+      ? await deps.fill(source, raw.vaultId, raw.entryId, scope, raw.loginTargetId, raw.intent, raw.purpose,
         () => { if (!stillCurrent()) throw new Error("Fill superseded"); })
       : raw.purpose === "totp"
-      ? await deps.fill(source, raw.vaultId, raw.entryId, raw.scope, raw.loginTargetId, raw.intent, "totp")
-      : await deps.fill(source, raw.vaultId, raw.entryId, raw.scope, raw.loginTargetId, raw.intent);
-    if (fill.status === "filled" && raw.scope === "exact" && (stillCurrent?.() ?? true)) {
-      deps.recency?.remember(source.url, raw.vaultId, raw.entryId);
+      ? await deps.fill(source, raw.vaultId, raw.entryId, scope, raw.loginTargetId, raw.intent, "totp")
+      : await deps.fill(source, raw.vaultId, raw.entryId, scope, raw.loginTargetId, raw.intent);
+    if (fill.status === "filled" && (stillCurrent?.() ?? true)) {
+      // Related choices stay tab-scoped; only exact fills feed the cross-tab host recency.
+      if (raw.scope === "exact") deps.recency?.remember(source.url, raw.vaultId, raw.entryId);
       deps.recency?.rememberForTab?.(source.id, source.url, raw.vaultId, raw.entryId);
-      if (deps.signIn && (raw.purpose !== "totp" || raw.intent === "manual")) {
+      if (raw.scope === "exact" && deps.signIn && (raw.purpose !== "totp" || raw.intent === "manual")) {
         const filled = (await deps.getMetadata()).find((entry) => entry.vaultId === raw.vaultId && entry.id === raw.entryId);
         deps.signIn.filled(source.id, source.url, filled, raw.intent);
       }

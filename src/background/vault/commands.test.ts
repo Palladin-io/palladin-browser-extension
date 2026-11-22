@@ -255,6 +255,29 @@ describe("vault/fill gates", () => {
     );
   });
 
+  it("fills a tab continuation automatically but never a bare automatic related scope", async () => {
+    const world = await buildVaultWorld();
+    const { deps, sendFill } = await makeHarness(world, { id: 7, url: "https://accounts.example.com/password" });
+    const tab = { id: 7, url: "https://accounts.example.com/password", documentId: "document-1", browserDocumentId: "browser-document-1" };
+    expect(await fillInlineSelectedEntry(deps, tab, "vault-1", "entry-cred", "related", "login-1", "automatic"))
+      .toEqual({ status: "blocked", reason: "domain-mismatch" });
+    expect(sendFill).not.toHaveBeenCalled();
+    expect(await fillInlineSelectedEntry(deps, tab, "vault-1", "entry-cred", "tab-continuation", "login-1", "automatic"))
+      .toEqual({ status: "filled" });
+    expect(sendFill).toHaveBeenCalledWith(expect.objectContaining({ url: tab.url }), "accounts.example.com",
+      expect.any(Array), false, "login-1", undefined, "automatic");
+  });
+
+  it("never lets a tab continuation cross a registrable-domain boundary", async () => {
+    const world = await buildVaultWorld();
+    const { deps, sendFill, revealEntry } = await makeHarness(world, { id: 7, url: "https://evil.test/password" });
+    expect(await fillInlineSelectedEntry(deps, { id: 7, url: "https://evil.test/password", documentId: "document-1",
+      browserDocumentId: "browser-document-1" }, "vault-1", "entry-cred", "tab-continuation", "login-1", "automatic"))
+      .toEqual({ status: "blocked", reason: "domain-mismatch" });
+    expect(revealEntry).not.toHaveBeenCalled();
+    expect(sendFill).not.toHaveBeenCalled();
+  });
+
   it("never lets related-host consent cross a registrable-domain boundary", async () => {
     const world = await buildVaultWorld();
     const { deps, sendFill, revealEntry } = await makeHarness(world, {

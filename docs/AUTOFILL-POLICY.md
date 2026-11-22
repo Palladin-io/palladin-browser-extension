@@ -92,7 +92,22 @@ cleared on lock, tab close or navigation to a different host. A full reload crea
 new content-document controller; a URL or session change permits another automatic
 attempt. Explicit choice in the closed surface remains available for retry. A
 visible account identifier that differs from the selected Credential vetoes the code.
-Related-host selection authorizes only that explicit operation.
+
+## Related-host stage continuation
+
+Product-owner decision of 2026-11-22. Many sign-ins split the identifier,
+password and authenticator code into separate forms or pages on one host. When
+that host is only a related match for the saved Credential, the user explicitly
+chooses the Entry once in the closed surface. A successful explicit choice is then
+remembered for that tab and that exact live host in the same service-worker
+memory as exact-host tab continuity. Later password-only and TOTP stages on the
+same host and tab may fill that one Entry automatically, fill-only and without
+overwriting values. The worker accepts an automatic related request only when the
+requested Entry equals the tab selection; the content script cannot choose it.
+Another host, another tab, another Entry, lock, tab close or navigation to a
+different host requires a new explicit choice. Related selections never enter the
+cross-tab per-host recency and never authorize the first automatic fill of a host.
+The final DOM write remains bound to the exact live host.
 
 TOTP detection accepts one-time-code autocomplete or authenticator/MFA labels,
 including coherent six- or eight-digit groups and open shadow roots. Explicit SMS,
@@ -137,8 +152,9 @@ value or submits. See [FEDERATED-SIGNIN.md](FEDERATED-SIGNIN.md).
   logs, analytics, or persistent storage.
 
 A same-registrable-domain sibling is only a labelled related-site candidate. It
-always requires a closed-surface, per-Entry choice for one operation, and the
-final write is rebound to the exact live host. Cards, neutral custom fields,
+always requires a closed-surface, per-Entry choice, and the final write is rebound
+to the exact live host. That choice may continue only through later stages in the
+same tab and host, as described above. Cards, neutral custom fields,
 form submission, capture, save, and update also remain explicit actions.
 
 ## Explicit manual choice
@@ -146,7 +162,7 @@ form submission, capture, save, and update also remain explicit actions.
 A click on a particular Entry in the closed inline surface sends a typed `manual`
 intent through the authenticated worker/document channel. It may replace another
 account already present in the bound controls. `automatic` intent never overwrites
-existing values, never permits related-host selection and never submits. Missing
+existing values, never selects a related-host Entry and never submits. Missing
 inline intent is rejected; legacy worker fill messages do not gain replacement rights.
 
 Matching values are preserved without replaying input events. After each DOM write,
@@ -222,7 +238,7 @@ enforcing the exact host/document gates; it does not claim that a saved origin's
 own page scripts are unable to observe a password filled into that page.
 
 Page content cannot name a Vault/Entry, broaden the domain, opt a related host
-into automatic fill, trigger form submission, or bypass the worker and isolated-
+into automatic fill without the user's explicit choice in that tab, trigger form submission, or bypass the worker and isolated-
 world gates. Those are security boundaries. The absence of a focus/click
 requirement for the canonical first exact-host fill is the documented UX choice.
 
@@ -233,15 +249,17 @@ requirement for the canonical first exact-host fill is the documented UX choice.
   fill-only behavior.
 - `src/content/isolated/fill.ts` revalidates that exact control pair immediately
   before each inline DOM write.
-- `src/background/vault/inline-runtime.ts` owns exact-before-related ordering and
-  the in-memory per-host recency preference.
+- `src/background/vault/inline-runtime.ts` owns exact-before-related ordering,
+  the in-memory per-host recency preference and the per-tab stage continuation,
+  including authorization of a related continuation.
 - `src/background/vault/entry-metadata.ts` provides deterministic name ordering.
 - `src/background/vault/commands.ts` repeats HTTPS, host, tab/document, type, and
   pre-decrypt/pre-write gates.
 
 Tests must continue to cover automatic fill without focus/user activation,
 preference promotion and lock reset, existing-value protection, no repeat fill,
-related-host exclusion, and no automatic submit.
+related-host exclusion without an explicit tab choice, related continuation only
+in the same tab and host, and no automatic submit.
 
 ## Card verification codes
 

@@ -34,13 +34,14 @@ describe("inline autofill messages", () => {
 });
 
 
-it('requires explicit intent and refuses automatic related-host selection', () => {
+it('requires explicit intent and leaves automatic related-host authorization to the worker', () => {
   const fill = { channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/fill', documentId: 'a'.repeat(32),
     vaultId: 'v', entryId: 'e', scope: 'exact', loginTargetId: 'login-1' };
   expect(isInlineAutofillCommand(fill)).toBe(false);
   expect(isInlineAutofillCommand({ ...fill, intent: 'manual' })).toBe(true);
   expect(isInlineAutofillCommand({ ...fill, intent: 'automatic' })).toBe(true);
-  expect(isInlineAutofillCommand({ ...fill, intent: 'automatic', scope: 'related' })).toBe(false);
+  expect(isInlineAutofillCommand({ ...fill, intent: 'automatic', scope: 'related' })).toBe(true);
+  expect(isInlineAutofillCommand({ ...fill, intent: 'automatic', scope: 'tab-continuation' })).toBe(false);
   expect(isInlineAutofillCommand({ ...fill, intent: 'unknown' })).toBe(false);
 });
 
