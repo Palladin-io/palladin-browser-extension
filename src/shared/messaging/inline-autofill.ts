@@ -87,7 +87,8 @@ export function isInlineAutofillCommand(value: unknown): value is InlineAutofill
       && validOpaqueId(value.entryId)
       && validOpaqueId(value.loginTargetId)
       && (value.scope === "exact" || value.scope === "related")
-      && (value.intent === "manual" || (value.intent === "automatic" && value.scope === "exact"));
+      // Automatic related fills are authorized by the worker only for this tab's explicit choice.
+      && (value.intent === "manual" || value.intent === "automatic");
   }
   return false;
 }

@@ -10,6 +10,7 @@ import * as crypto from '@palladin/crypto';
 import { createCaptureApi, allowCaptureApi } from './capture-api.mjs';
 import { openNativePopup } from './native-popup.mjs';
 import { cacheBustContentLoaders } from '../../scripts/cache-bust-content-loaders.mjs';
+import { readFileSync } from 'node:fs';
 
 // Synthetic encrypted Entries and routed pages; no live account or real service.
 const api = await createCaptureApi();
@@ -54,6 +55,17 @@ try {
       : pagePath === '/filled' ? '<input autocomplete="one-time-code" value="111111">'
       : `${pagePath === '/mfa' ? '' : '<input autocomplete="username"><input type="password">'}<input autocomplete="one-time-code">`;
     return route.fulfill({ contentType: 'text/html', body: `<style>input{display:block;width:400px;height:40px;margin:12px}</style><form onsubmit="event.preventDefault();if(location.pathname==='/native')location.assign('/mfa')">${content}</form>` });
+  });
+  // A related host for the saved totp.example.test Entries. Only the identifier
+  // structure was observed (fixture README); the password and MFA stages are synthetic.
+  const awsIdentifier = readFileSync('tests/fixtures/forms/aws-root-identifier-2026-11-22/page.html', 'utf8')
+    .replace('<form ', '<form onsubmit="event.preventDefault()" ');
+  await context.route('https://signin.example.test/**', route => {
+    const pagePath = new URL(route.request().url()).pathname;
+    const body = pagePath === '/identifier' ? awsIdentifier
+      : pagePath === '/password' ? '<form onsubmit="event.preventDefault()"><label>Password<input type="password" autocomplete="current-password"></label><button type="submit">Sign in</button></form>'
+      : '<form onsubmit="event.preventDefault()"><label>MFA code<input autocomplete="one-time-code"></label><button type="submit">Submit</button></form>';
+    return route.fulfill({ contentType: 'text/html', body: `<style>input{display:block;width:400px;height:40px;margin:12px}</style>${body}` });
   });
   const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
   const extensionId = new URL(worker.url()).host;
@@ -163,6 +175,32 @@ try {
   await staged.waitForFunction(() => document.querySelector('input').value !== '', null, { timeout: 10000 });
   await staged.goto('https://totp.example.test/mfa');
   await staged.waitForFunction(() => /^\d{6}$/.test(document.querySelector('input').value), null, { timeout: 10000 });
+  // One explicit related-host choice continues through later stages in that tab only.
+  const relatedFlow = await context.newPage(); await relatedFlow.goto('https://signin.example.test/identifier');
+  await relatedFlow.waitForTimeout(800);
+  assert.equal(await relatedFlow.locator('#resolving_input').inputValue(), '', 'related identifier is never filled passively');
+  const idRect = await relatedFlow.locator('#resolving_input').boundingBox();
+  await relatedFlow.mouse.click(idRect.x + idRect.width - 21, idRect.y + 13);
+  const relatedCdp = await context.newCDPSession(relatedFlow); let relatedChoice;
+  for (let attempt = 0; attempt < 100 && !relatedChoice; attempt++) {
+    relatedChoice = (await relatedCdp.send('Accessibility.getFullAXTree')).nodes.find(item => !item.ignored && item.role?.value === 'button' && item.name?.value?.startsWith('B synthetic login'));
+    if (!relatedChoice) await new Promise(resolve => setTimeout(resolve, 75));
+  }
+  assert(relatedChoice, 'related chooser appears');
+  const { model: relatedModel } = await relatedCdp.send('DOM.getBoxModel', { backendNodeId: relatedChoice.backendDOMNodeId });
+  await relatedFlow.mouse.click((relatedModel.content[0] + relatedModel.content[4]) / 2, (relatedModel.content[1] + relatedModel.content[5]) / 2);
+  await relatedFlow.waitForFunction(() => document.querySelector('#resolving_input').value === 'second@example.test', null, { timeout: 10000 });
+  await relatedFlow.goto('https://signin.example.test/password');
+  await relatedFlow.waitForFunction(() => document.querySelector('input[type=password]').value === 'synthetic-B synthetic login-password', null, { timeout: 10000 });
+  await relatedFlow.goto('https://signin.example.test/mfa');
+  const relatedNow = Date.now();
+  const relatedCodes = await Promise.all([-30000, 0, 30000].map(offset => crypto.generateTotp({ secret: 'JBSWY3DPEHPK3PXP', algorithm: 'SHA1', digits: 6, period: 30 }, relatedNow + offset)));
+  await relatedFlow.waitForFunction(codes => codes.includes(document.querySelector('input').value), relatedCodes.map(item => item.code), { timeout: 10000 });
+  assert.equal(new URL(relatedFlow.url()).pathname, '/mfa', 'continuation never submits');
+  const otherTab = await context.newPage(); await otherTab.goto('https://signin.example.test/password');
+  await otherTab.waitForTimeout(800);
+  assert.equal(await otherTab.locator('input[type=password]').inputValue(), '', 'another tab needs its own explicit choice');
+  await otherTab.close(); await relatedFlow.close();
   for (const suffix of ['mutate', 'push']) {
     const stale = await context.newPage(); await stale.goto(`https://totp.example.test/${suffix}`);
     await stale.waitForFunction(() => document.querySelector('input').value !== '', null, { timeout: 10000 });
@@ -182,5 +220,5 @@ try {
     assert.equal(await negative.locator('input').inputValue(), suffix === 'filled' ? '111111' : '');
     await negative.close();
   }
-  console.log('PASS: combined, navigation, tab isolation, split and negative OTP fixtures');
+  console.log('PASS: combined, navigation, tab isolation, related-host continuation, split and negative OTP fixtures');
 } finally { popup?.close(); await context?.close(); await api.close(); await rm(profile, { recursive: true, force: true }); }

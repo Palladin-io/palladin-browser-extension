@@ -302,14 +302,16 @@ async function fillActiveTab(
 /**
  * Inline-only fill bound to the content script's authenticated tab/document.
  * A related-host scope is a one-shot opt-in from the closed Shadow DOM menu;
- * it never changes the entry and is never eligible for automatic fill.
+ * it never changes the entry. "tab-continuation" is the same Entry carried to a
+ * later login stage on the same live host and tab after that explicit choice;
+ * only the inline runtime may grant it after checking the tab's selection.
  */
 export async function fillInlineSelectedEntry(
   deps: VaultCommandDeps,
   tab: ActiveTab,
   vaultId: string,
   entryId: string,
-  scope: "exact" | "related",
+  scope: "exact" | "related" | "tab-continuation",
   loginTargetId: string,
   intent: "automatic" | "manual",
   purpose?: "totp",
@@ -323,8 +325,8 @@ export async function fillInlineSelectedEntry(
   if (meta.type !== ENTRY_TYPE_CREDENTIAL || !meta.urlDomain) {
     return { status: "blocked", reason: "not-fillable" };
   }
-  const related = scope === "related";
-  if (related && intent !== "manual") return { status: "blocked", reason: "domain-mismatch" };
+  const related = scope !== "exact";
+  if (scope === "related" && intent !== "manual") return { status: "blocked", reason: "domain-mismatch" };
   if (!matchesTab(tab.url, meta.urlDomain, related ? { exactSubdomain: false } : undefined)) {
     return { status: "blocked", reason: "domain-mismatch" };
   }

@@ -41,7 +41,8 @@ treat any violation below as a Critical (blocking) finding.
   Suffix List) must equal the entry's registered domain; HTTPS-only; re-checked
   after navigation. Automatic and exact-match fill never crosses stored hosts.
   A sibling host may be shown only as a related-site candidate and filled only
-  after a closed-surface, per-entry choice for that one operation; the final DOM
+  after a closed-surface, per-entry choice; that choice may continue only through
+  later login and TOTP stages in the same tab and exact live host. The final DOM
   write is rebound to the exact live host. An entry with no domain is fail-closed.
 - **Automatic exact-host first-match autofill is intentional user UX.** While
   unlocked, passive detection of an empty standard login form may perform one
@@ -52,8 +53,8 @@ treat any violation below as a Critical (blocking) finding.
   chose from a remembered sign-in method ranks first on that provider's own page
   (`docs/FEDERATED-SIGNIN.md`). The page never chooses the Entry or widens the
   host. Related/sibling
-  hosts, form submission, cards, and neutral custom fields always require an
-  explicit extension-owned action. Do not add a blanket user-intent requirement
+  hosts (beyond that same-tab stage continuation), form submission, cards, and
+  neutral custom fields always require an explicit extension-owned action. Do not add a blanket user-intent requirement
   to automatic exact-host fill without an explicit product decision. Full
   rationale and invariants: `docs/AUTOFILL-POLICY.md`. A separate bounded TOTP
   stage may fill at the same URL under that policy. User autofill does not use
