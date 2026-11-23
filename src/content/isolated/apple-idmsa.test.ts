@@ -245,7 +245,7 @@ describe('Apple IDMSA inline login', () => {
     ], 'manual')).toEqual({ ok: true });
     const submission = submitFilledLoginTarget(target, () => true);
     username.value = 'other@example.com';
-    expect(await submission).toBe(false);
+    expect(await submission).toBe('stale');
     expect(click).not.toHaveBeenCalled();
   });
 });

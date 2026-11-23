@@ -1,8 +1,8 @@
 /**
- * Reserved value-free analytics vocabulary. Extension telemetry is disabled.
- * Neither a project key nor an injected transport can enable capture. A future
- * release must implement an independently reviewed consent and withdrawal
- * contract before changing this gate (see docs/TELEMETRY.md).
+ * Reserved value-free analytics vocabulary. General extension telemetry is
+ * disabled: neither a project key nor an injected transport can enable capture.
+ * The only exception is the separately allowlisted anonymous report in
+ * ./form-compatibility.ts (see docs/TELEMETRY.md).
  */
 
 export const ANALYTICS_COMPONENT = "ex" as const;

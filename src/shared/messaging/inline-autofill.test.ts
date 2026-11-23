@@ -13,6 +13,9 @@ describe("inline autofill messages", () => {
     expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/list", documentId })).toBe(true);
     expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", intent: "manual", documentId, vaultId: "v", entryId: "e", scope: "exact", loginTargetId: "login-1" })).toBe(true);
     expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/open-palladin", documentId })).toBe(true);
+    expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/submit-unavailable", documentId })).toBe(true);
+    expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/submit-unavailable", documentId, host: "example.com" })).toBe(false);
+    expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/submit-unavailable", documentId: "bad" })).toBe(false);
     expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/list", documentId, extra: true })).toBe(false);
     expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", intent: "manual", documentId: "bad", vaultId: "v", entryId: "e", scope: "exact", loginTargetId: "login-1" })).toBe(false);
     expect(isInlineAutofillCommand({ channel: INLINE_AUTOFILL_CHANNEL, type: "inline/fill", intent: "manual", documentId, vaultId: "v", entryId: "e", scope: "site-wide", loginTargetId: "login-1" })).toBe(false);

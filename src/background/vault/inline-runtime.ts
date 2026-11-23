@@ -145,7 +145,7 @@ export async function handleInlineAutofillContentMessage(
   extensionId: string,
 ): Promise<InlineAutofillResult | null> {
   if (!isInlineAutofillCommand(raw)) return null;
-  if (raw.type === "inline/open-palladin") return null;
+  if (raw.type === "inline/open-palladin" || raw.type === "inline/submit-unavailable") return null;
   try {
     const source = inlineAutofillSource(raw, sender, extensionId)
       ?? (sender.documentId == null ? await deps.resolveLegacySource?.(raw.documentId, sender) : null);

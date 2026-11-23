@@ -224,6 +224,7 @@
   "inline.fillAndLogin": "Fill and log in",
   "inline.logIn": "Log in",
   "inline.noForm": "The login form could not be filled.",
+  "inline.submitNotFound": "Login filled, but Palladin couldn't find the sign-in button. Click it yourself to continue.",
   "inline.blocked": "Palladin blocked this fill for your safety.",
   "inline.vault": "Vault",
   "inline.related": "Related site",

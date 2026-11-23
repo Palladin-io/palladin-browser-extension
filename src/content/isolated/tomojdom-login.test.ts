@@ -280,7 +280,7 @@ describe("tomojdom staged form-less login", () => {
     action.addEventListener("click", clicked);
     const target = loginTargetFor(password)!;
     expect(performLoginTargetFill(target, fields, "manual")).toEqual({ ok: true });
-    expect(await submitFilledLoginTarget(target, () => true)).toBe(true);
+    expect(await submitFilledLoginTarget(target, () => true)).toBe('submitted');
     expect(clicked).toHaveBeenCalledOnce();
   });
 
@@ -293,7 +293,7 @@ describe("tomojdom staged form-less login", () => {
       const clicked = vi.fn(); action.addEventListener('click', clicked);
       const target = loginTargetFor(password)!;
       expect(performLoginTargetFill(target, fields, 'manual')).toEqual({ ok: true });
-      expect(await submitFilledLoginTarget(target, () => true)).toBe(false);
+      expect(await submitFilledLoginTarget(target, () => true)).toBe('no-action');
       expect(clicked).not.toHaveBeenCalled();
     },
   );
@@ -317,7 +317,7 @@ describe("tomojdom staged form-less login", () => {
     }
     const target = loginTargetFor(password)!;
     expect(performLoginTargetFill(target, fields, "manual")).toEqual({ ok: true });
-    expect(await submitFilledLoginTarget(target, () => true)).toBe(false);
+    expect(await submitFilledLoginTarget(target, () => true)).toBe('no-action');
     expect(clicked).not.toHaveBeenCalled();
   });
 
