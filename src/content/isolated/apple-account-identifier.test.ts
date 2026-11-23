@@ -184,6 +184,11 @@ describe('Apple Account password step - inline menu status after "Log in"', () =
       root.querySelector<HTMLButtonElement>('.submit-login')!.click();
       await vi.waitFor(() => expect(root.querySelector('.status')?.textContent).toBe(expected), { timeout: 3_000 });
       expect(password.value).toBe('secret');
+      const reports = send.mock.calls.map(([command]) => command).filter(command => command.type === 'inline/submit-unavailable');
+      // The content script never names the site; the worker derives the host from the authenticated sender.
+      expect(reports).toEqual(variant === 'missing-action'
+        ? [{ channel: 'palladin.inline-autofill.v1', type: 'inline/submit-unavailable', documentId: 'a'.repeat(32) }]
+        : []);
     } finally {
       subject.stop();
       attachShadow.mockRestore();

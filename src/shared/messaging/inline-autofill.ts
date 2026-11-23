@@ -24,6 +24,12 @@ export type InlineAutofillCommand =
       readonly channel: typeof INLINE_AUTOFILL_CHANNEL;
       readonly type: "inline/open-palladin";
       readonly documentId: string;
+    }
+  | {
+      readonly channel: typeof INLINE_AUTOFILL_CHANNEL;
+      /** A completed explicit fill had no unique enabled login action. Value-free. */
+      readonly type: "inline/submit-unavailable";
+      readonly documentId: string;
     };
 
 export interface InlineAutofillSuggestion {
@@ -67,7 +73,7 @@ export function isInlineAutofillCommand(value: unknown): value is InlineAutofill
     return hasOnlyKeys(value, ["channel", "type", "documentId", "purpose"])
       && (value.purpose === undefined || value.purpose === "totp");
   }
-  if (value.type === "inline/open-palladin") {
+  if (value.type === "inline/open-palladin" || value.type === "inline/submit-unavailable") {
     return hasOnlyKeys(value, ["channel", "type", "documentId"]);
   }
   if (value.type === "inline/fill") {

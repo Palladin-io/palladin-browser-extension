@@ -54,6 +54,8 @@ import {
   serverPermissionOrigin,
 } from "@shared/config/server";
 import { loadInlineIcon } from "./vault/inline-icon";
+import { env } from "./config/env";
+import { createFormCompatibilityReporter } from "./telemetry/form-compatibility";
 import { openCapturePopup } from "@shared/browser/popup";
 import { isCredentialCaptureCommand } from "@shared/messaging/credential-capture";
 import { isCaptureSettingsCommand } from "@shared/messaging/capture-settings";
@@ -612,8 +614,20 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 // Top-frame isolated content scripts request value-free matching suggestions,
 // then may fill one explicitly selected Entry. The browser-authenticated sender
 // supplies the exact tab/document binding; page scripts cannot call this API.
+const reportFormCompatibility = createFormCompatibilityReporter({
+  projectKey: env.posthogKey,
+  ingestHost: env.posthogHost,
+  extensionVersion: chrome.runtime.getManifest().version,
+});
+
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isInlineAutofillCommand(raw)) return false;
+  if (raw.type === "inline/submit-unavailable") {
+    // Only the browser-authenticated inline frame URL supplies the host.
+    const source = inlineAutofillSource(raw, sender, chrome.runtime.id);
+    if (source !== null) reportFormCompatibility(source.url, "submit-action-missing");
+    return false;
+  }
   if (raw.type === "inline/open-palladin") {
     const source = inlineAutofillSource(raw, sender, chrome.runtime.id);
     if (source === null || sender.tab?.windowId === undefined || !chrome.action?.openPopup) {

@@ -1246,6 +1246,13 @@ class InlineWidget {
           if (!silent && !this.destroyed && this.pendingFill === operation) {
             this.renderStatus(submitted === 'no-action' ? "inline.submitNotFound" : "inline.noForm");
           }
+          if (submitted === 'no-action') {
+            void Promise.resolve(this.options.send({
+              channel: INLINE_AUTOFILL_CHANNEL,
+              type: "inline/submit-unavailable",
+              documentId: this.options.documentId,
+            })).catch(() => undefined);
+          }
           return false;
         }
       }
