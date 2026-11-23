@@ -93,6 +93,7 @@ type InlineKey =
   | "inline.fillAndLogin"
   | "inline.logIn"
   | "inline.noForm"
+  | "inline.submitNotFound"
   | "inline.blocked"
   | "inline.vault"
   | "inline.related";
@@ -1238,9 +1239,13 @@ class InlineWidget {
         return false;
       }
       if (raw.status === "filled" && submitAfterFill) {
-        if (!await submitFilledLoginTarget(operation.target,
-          () => !this.destroyed && this.pendingFill === operation && this.options.doc.location.href === operation.url)) {
-          if (!silent && !this.destroyed && this.pendingFill === operation) this.renderStatus("inline.noForm");
+        const submitted = await submitFilledLoginTarget(operation.target,
+          () => !this.destroyed && this.pendingFill === operation && this.options.doc.location.href === operation.url);
+        if (submitted !== 'submitted') {
+          // The values are already in the page; only a missing action is safe to hand back to the user.
+          if (!silent && !this.destroyed && this.pendingFill === operation) {
+            this.renderStatus(submitted === 'no-action' ? "inline.submitNotFound" : "inline.noForm");
+          }
           return false;
         }
       }

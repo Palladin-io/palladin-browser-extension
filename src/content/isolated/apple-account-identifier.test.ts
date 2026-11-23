@@ -4,6 +4,8 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loginTargetFor, performLoginTargetFill, submitFilledLoginTarget } from './fill';
+import { startInlineAutofill } from './inline-autofill';
+import type { InlineAutofillCommand } from '@shared/messaging';
 
 const html = readFileSync('tests/fixtures/forms/apple-account-2026-11-23/identifier.html', 'utf8');
 const fields = [
@@ -42,7 +44,7 @@ describe('Apple Account identifier step - Log in from the inline menu', () => {
     const submitted = submitFilledLoginTarget(target, () => true);
     await vi.advanceTimersByTimeAsync(100);
 
-    expect(await submitted).toBe(true);
+    expect(await submitted).toBe('submitted');
     expect(click).toHaveBeenCalledTimes(1);
     expect(passkeyClick).not.toHaveBeenCalled();
     expect(username.value).toBe('member@example.com');
@@ -59,7 +61,7 @@ describe('Apple Account identifier step - Log in from the inline menu', () => {
     const submitted = submitFilledLoginTarget(target, () => true);
     await vi.advanceTimersByTimeAsync(6_000);
 
-    expect(await submitted).toBe(false);
+    expect(await submitted).toBe('no-action');
     expect(click).not.toHaveBeenCalled();
     expect(passkeyClick).not.toHaveBeenCalled();
   });
@@ -74,7 +76,7 @@ describe('Apple Account identifier step - Log in from the inline menu', () => {
     username.value = 'other@example.com';
     await vi.advanceTimersByTimeAsync(100);
 
-    expect(await submitted).toBe(false);
+    expect(await submitted).toBe('stale');
     expect(click).not.toHaveBeenCalled();
   });
 
@@ -90,7 +92,7 @@ describe('Apple Account identifier step - Log in from the inline menu', () => {
     current = false;
     await vi.advanceTimersByTimeAsync(100);
 
-    expect(await submitted).toBe(false);
+    expect(await submitted).toBe('stale');
     expect(click).not.toHaveBeenCalled();
   });
 });
@@ -110,7 +112,7 @@ describe('Apple Account password step - Log in from the inline menu', () => {
     const submitted = submitFilledLoginTarget(target, () => true);
     await vi.advanceTimersByTimeAsync(100);
 
-    expect(await submitted).toBe(true);
+    expect(await submitted).toBe('submitted');
     expect(click).toHaveBeenCalledTimes(1);
     expect(password.value).toBe('secret');
   });
@@ -138,8 +140,53 @@ describe('Apple Account password step - Polish variant with a passkey action', (
     const submitted = submitFilledLoginTarget(target, () => true);
     await vi.advanceTimersByTimeAsync(100);
 
-    expect(await submitted).toBe(true);
+    expect(await submitted).toBe('submitted');
     expect(click).toHaveBeenCalledTimes(1);
     expect(passkeyClick).not.toHaveBeenCalled();
+  });
+});
+
+describe('Apple Account password step - inline menu status after "Log in"', () => {
+  it.each([
+    ['missing-action', "Login filled, but Palladin couldn't find the sign-in button. Click it yourself to continue."],
+    ['changed-account', 'The login form could not be filled.'],
+  ])('reports %s without misreporting the completed fill', async (variant, expected) => {
+    vi.useRealTimers();
+    const nativeAttachShadow = Element.prototype.attachShadow;
+    const attachShadow = vi.spyOn(Element.prototype, 'attachShadow').mockImplementation(function (
+      this: Element, init: ShadowRootInit,
+    ) { return nativeAttachShadow.call(this, { ...init, mode: 'open' }); });
+    Object.assign(globalThis, {
+      chrome: { storage: { local: { get: vi.fn(async () => ({})) } }, i18n: { getUILanguage: () => 'en' } },
+    });
+    document.body.innerHTML = readFileSync('tests/fixtures/forms/apple-account-2026-11-23/password.html', 'utf8');
+    const username = document.querySelector<HTMLInputElement>('#account_name_text_field')!;
+    const password = document.querySelector<HTMLInputElement>('#password_text_field')!;
+    username.value = 'member@example.com';
+    if (variant === 'missing-action') document.querySelector('#sign-in')!.remove();
+    const send = vi.fn(async (command: InlineAutofillCommand) => {
+      if (command.type === 'inline/list') return { ok: true, kind: 'suggestions', status: 'ready', entries: [{
+        vaultId: 'v1', entryId: 'e1', name: 'Apple', username: 'member@example.com', vaultName: 'Personal',
+        urlDomain: 'idmsa.apple.com', updatedAt: '2026-11-23T00:00:00Z', match: 'exact',
+      }] };
+      if (command.type !== 'inline/fill') throw new Error('Unexpected command');
+      const result = subject.performFillRequest({ channel: 'palladin.fill/request', documentId: 'a'.repeat(32),
+        expectedOrigin: 'https://idmsa.apple.com', expectedDomain: 'idmsa.apple.com',
+        loginTargetId: command.loginTargetId, fields, intent: 'manual', submit: false });
+      if (variant === 'changed-account') username.value = 'other@example.com';
+      return { ok: true, kind: 'fill', status: result.ok ? 'filled' : 'no-form' };
+    });
+    const subject = startInlineAutofill(document, 'a'.repeat(32), send);
+    try {
+      const root = document.querySelector('palladin-autofill')!.shadowRoot!;
+      root.querySelector<HTMLButtonElement>('.launcher')!.click();
+      await vi.waitFor(() => expect(root.querySelector('.submit-login')).not.toBeNull());
+      root.querySelector<HTMLButtonElement>('.submit-login')!.click();
+      await vi.waitFor(() => expect(root.querySelector('.status')?.textContent).toBe(expected), { timeout: 3_000 });
+      expect(password.value).toBe('secret');
+    } finally {
+      subject.stop();
+      attachShadow.mockRestore();
+    }
   });
 });

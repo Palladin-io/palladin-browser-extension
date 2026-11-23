@@ -234,12 +234,15 @@ function rememberFill(target: LoginTarget): void {
     expiresAt: performance.now() + FILL_RECEIPT_TTL_MS, timer });
 }
 /** One-use local receipt from the actual approved DOM write, never a worker-reply snapshot. */
-export async function submitFilledLoginTarget(target: LoginTarget, stillCurrent: () => boolean): Promise<boolean> {
+/** `no-action` means the filled target stayed intact but had no unique enabled login action. */
+export type FilledSubmitOutcome = 'submitted' | 'no-action' | 'stale';
+
+export async function submitFilledLoginTarget(target: LoginTarget, stillCurrent: () => boolean): Promise<FilledSubmitOutcome> {
   const receipt = fillReceipts.get(target);
   discardLoginTargetFill(target);
-  if (!receipt) return false;
+  if (!receipt) return 'stale';
   const anchor = target.username ?? target.password;
-  if (anchor === null) return false;
+  if (anchor === null) return 'stale';
   // Apple enables its native Continue tens of milliseconds after the identifier
   // input. Every attempt rebinds the same document, controls and filled values.
   const deadline = Math.min(receipt.expiresAt, performance.now() + SUBMIT_ENABLE_WAIT_MS);
@@ -247,10 +250,10 @@ export async function submitFilledLoginTarget(target: LoginTarget, stillCurrent:
     await new Promise<void>(resolve => setTimeout(resolve, SUBMIT_RETRY_MS));
     if (performance.now() >= receipt.expiresAt || !stillCurrent()
       || target.form.ownerDocument.location.href !== receipt.url
-      || !isCurrentLoginTarget(target) || targetValues(target) !== receipt.snapshot) return false;
-    if (submitLoginForm(anchor, target)) return true;
+      || !isCurrentLoginTarget(target) || targetValues(target) !== receipt.snapshot) return 'stale';
+    if (submitLoginForm(anchor, target)) return 'submitted';
   } while (performance.now() < deadline);
-  return false;
+  return 'no-action';
 }
 
 /** Final isolated-world binding check immediately before any DOM write. */

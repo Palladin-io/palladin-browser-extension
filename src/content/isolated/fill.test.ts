@@ -433,8 +433,8 @@ describe('one-use isolated manual submit receipt', () => {
     const target = loginTargetFor(document.querySelector('input')! )!;
     const submit = observeNativeSubmit(document.querySelector('form')!);
     expect(performLoginTargetFill(target, CREDS)).toEqual({ ok: true });
-    expect(await submitFilledLoginTarget(target, () => true)).toBe(true);
-    expect(await submitFilledLoginTarget(target, () => true)).toBe(false);
+    expect(await submitFilledLoginTarget(target, () => true)).toBe('submitted');
+    expect(await submitFilledLoginTarget(target, () => true)).toBe('stale');
     expect(submit).toHaveBeenCalledTimes(1);
   });
 
@@ -446,7 +446,7 @@ describe('one-use isolated manual submit receipt', () => {
       const submit = observeNativeSubmit(document.querySelector('form')!);
       expect(performLoginTargetFill(target, CREDS)).toEqual({ ok: true });
       await vi.advanceTimersByTimeAsync(5_001);
-      expect(await submitFilledLoginTarget(target, () => true)).toBe(false);
+      expect(await submitFilledLoginTarget(target, () => true)).toBe('stale');
       expect(submit).not.toHaveBeenCalled();
     } finally { vi.useRealTimers(); }
   });
