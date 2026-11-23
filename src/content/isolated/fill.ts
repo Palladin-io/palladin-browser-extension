@@ -213,6 +213,8 @@ interface FillReceipt {
 }
 const fillReceipts = new WeakMap<LoginTarget, FillReceipt>();
 const FILL_RECEIPT_TTL_MS = 5_000;
+const SUBMIT_ENABLE_WAIT_MS = 1_500;
+const SUBMIT_RETRY_MS = 25;
 
 function targetValues(target: LoginTarget): string {
   return JSON.stringify([
@@ -236,11 +238,19 @@ export async function submitFilledLoginTarget(target: LoginTarget, stillCurrent:
   const receipt = fillReceipts.get(target);
   discardLoginTargetFill(target);
   if (!receipt) return false;
-  await new Promise<void>(resolve => setTimeout(resolve, 0));
   const anchor = target.username ?? target.password;
-  return anchor !== null && performance.now() < receipt.expiresAt && stillCurrent()
-    && target.form.ownerDocument.location.href === receipt.url && isCurrentLoginTarget(target)
-    && targetValues(target) === receipt.snapshot && submitLoginForm(anchor, target);
+  if (anchor === null) return false;
+  // Apple enables its native Continue tens of milliseconds after the identifier
+  // input. Every attempt rebinds the same document, controls and filled values.
+  const deadline = Math.min(receipt.expiresAt, performance.now() + SUBMIT_ENABLE_WAIT_MS);
+  do {
+    await new Promise<void>(resolve => setTimeout(resolve, SUBMIT_RETRY_MS));
+    if (performance.now() >= receipt.expiresAt || !stillCurrent()
+      || target.form.ownerDocument.location.href !== receipt.url
+      || !isCurrentLoginTarget(target) || targetValues(target) !== receipt.snapshot) return false;
+    if (submitLoginForm(anchor, target)) return true;
+  } while (performance.now() < deadline);
+  return false;
 }
 
 /** Final isolated-world binding check immediately before any DOM write. */
@@ -317,7 +327,7 @@ export function submitLoginForm(input: HTMLInputElement, target?: LoginTarget): 
       && scope.ownerDocument.location.origin === 'https://tomojdom.pl'
       ? action.form === null && action.parentElement === target.password.parentElement
         && action.matches('button.btn.btn-block.btn-primary')
-      : credentialScopeFor(action) === scope));
+      : ownsFilledControl(credentialScopeFor(action), scope, input)));
   const submits = nativeForm === null ? [] : actions.filter(action => action.type === 'submit');
   const eligible = submits.length > 0 ? submits : actions.filter(hasLoginActionLabel);
   if (eligible.length !== 1) return false;
@@ -338,6 +348,13 @@ export function submitLoginForm(input: HTMLInputElement, target?: LoginTarget): 
   try { action.click(); return true; }
   catch { return false; }
   finally { eventRoot.removeEventListener('submit', guardGet); }
+}
+
+// Site detectors (Apple) may bind an outer widget while the action's nearest
+// credential scope is an inner wrapper; accept it only if it owns the filled field.
+function ownsFilledControl(actionScope: Element | null, scope: Element, input: HTMLInputElement): boolean {
+  return actionScope === scope
+    || (actionScope !== null && scope.contains(actionScope) && actionScope.contains(input));
 }
 
 function performCardFill(doc: Document, fields: readonly FillField[]): FillOutcome {

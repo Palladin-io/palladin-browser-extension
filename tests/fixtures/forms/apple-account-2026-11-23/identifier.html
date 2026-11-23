@@ -1,0 +1,40 @@
+<div id="sign_in_form" role="group" aria-labelledby="contentheader" class="signin-form swp eyebrow has-focus fed-auth hide-password">
+  <div>
+    <div class="signin-content">
+      <div class="account-name apple-id-focus">
+        <div>
+          <div class="form-cell-wrapper form-textbox">
+            <input type="text" id="account_name_text_field" enterkeyhint="done" can-field="accountName" aria-labelledby="apple_id_field_label" autocorrect="off" autocapitalize="off" aria-required="true" required="required" spellcheck="false" class="force-ltr form-textbox-input" autocomplete="username webauthn" aria-invalid="false">
+            <span aria-hidden="true" id="apple_id_field_label" class="form-textbox-label form-label-flyout">Email or Phone Number</span>
+          </div>
+        </div>
+      </div>
+      <div class="password apple-id-focus" aria-hidden="true">
+        <div>
+          <div class="form-cell-wrapper form-textbox">
+            <input type="password" id="password_text_field" aria-labelledby="password_field_label" aria-required="true" required="required" can-field="password" class="form-textbox-input" autocomplete="current-password" aria-invalid="false" tabindex="-1">
+            <span id="password_field_label" aria-hidden="true" class="form-textbox-label form-label-flyout">Password</span>
+          </div>
+        </div>
+      </div>
+      <div class="signin-content__footer signin-content__footer--has-content"><div class="signin-content__footer__items"></div></div>
+    </div>
+    <div class="signin-v2__buttons-wrapper">
+      <div class="signin-v2__buttons-wrapper__button-wrapper">
+        <div>
+          <button id="sign-in" class="tk-subbody button button-rounded-rectangle signin-v2__buttons-wrapper__button-wrapper__button" disabled="">
+            <span class="signin-v2__buttons-wrapper__button-wrapper__button__text">Continue</span>
+          </button>
+        </div>
+      </div>
+      <div class="signin-v2__buttons-wrapper__button-wrapper signin-v2__buttons-wrapper__button-wrapper--passkey">
+        <div>
+          <button id="swp" class="button-neutral button-block button-rounded-rectangle tk-subbody button signin-v2__buttons-wrapper__button-wrapper__button">
+            <span class="signin-v2__buttons-wrapper__button-wrapper__button__text"><i aria-hidden="true" class="shared-icon no-flip iphone-icon"></i> Sign in with Passkey</span>
+          </button>
+        </div>
+        <div class="tk-caption"><p>Requires a device with iOS 17 or later.</p></div>
+      </div>
+    </div>
+  </div>
+</div>
