@@ -235,7 +235,10 @@ or injected transport never enables `capture()`. The single exception is the
 anonymous site-compatibility report (`ex:autofill:submit-action-missing`: bare
 public hostname from the browser-authenticated frame, extension version, random
 per-event ID, no person profile). Adding any other event or property requires a
-new product decision and an updated allowlist; see `docs/TELEMETRY.md`.
+new product decision and an updated allowlist. Product analytics needs the
+single account-wide `product_analytics` consent (asked once after unlock, as on
+web/mobile); minimized diagnostics and errors are sent without it; classify
+every new event first. See `docs/TELEMETRY.md`.
 Autofill and synchronization remain independent.
 
 Follow the Palladin convention `{component}:{module}:{event}` with the extension
