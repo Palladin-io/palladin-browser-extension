@@ -121,8 +121,8 @@ try {
     assert.match(rejected.stderr, /TargetNotFound/);
   }
   console.log('PASS two profiles: exact tab is selected, formless match is not a connection failure, wrong target denied');
-  const secondSocket = (await readdir(sockets)).find(name => name.endsWith('.sock') && name !== firstSocket);
-  const secondSession = secondSocket.slice(2, -5);
+  let secondSocket = (await readdir(sockets)).find(name => name.endsWith('.sock') && name !== firstSocket);
+  let secondSession = secondSocket.slice(2, -5);
   const crossProfile = await success({ ...c.target, url: a.target.url }, { mode: 'prepare-live', session: secondSession });
   assert.match(crossProfile.stdout, /prepared:target-url-mismatch/);
   const wrongSession = await client(c.target, { session: firstSocket.slice(2, -5) }).result;
@@ -130,9 +130,26 @@ try {
   await success(c.target, { session: secondSession });
   assert.equal(await c.page.evaluate(() => globalThis.submits), 2);
   console.log('PASS explicit session never falls back to another profile');
+  const beforeReset = new Set(await readdir(sockets));
+  await writeFile(path.join(sockets, 'generation'), '43', { mode: 0o600 });
+  const submitsBeforeReset = await Promise.all([b.page, c.page].map(page => page.evaluate(() => globalThis.submits)));
+  await Promise.all([success(b.target), success(c.target)]);
+  assert.deepEqual(
+    await Promise.all([b.page, c.page].map(page => page.evaluate(() => globalThis.submits))),
+    submitsBeforeReset.map(count => count + 1),
+  );
+  const afterReset = (await readdir(sockets)).filter(name => name.endsWith('.sock'));
+  assert.equal(afterReset.length, 2);
+  assert.ok(afterReset.every(name => !beforeReset.has(name)));
+  console.log('PASS host authorization reset replaces both connections without replay');
   await first.context.close();
   await success(c.target);
   console.log('PASS closing first profile preserves second connection');
+  secondSocket = await until(async () => {
+    const routes = (await readdir(sockets)).filter(name => name.endsWith('.sock'));
+    return routes.length === 1 && routes[0];
+  }, 'Closed profile left its route');
+  secondSession = secondSocket.slice(2, -5);
   const cancelled = client(c.target, { hold: 10000 });
   await cancelled.ready();
   cancelled.child.kill();
@@ -144,6 +161,7 @@ try {
   // This proxy never decrypts data and never alters a signed/encrypted payload.
   const proxyRoot = path.join(root, 'proxy');
   await mkdir(proxyRoot, { mode: 0o700 });
+  await writeFile(path.join(proxyRoot, 'generation'), '43', { mode: 0o600 });
   let dropped = 0;
   const peers = new Set();
   const server = createServer(downstream => {
