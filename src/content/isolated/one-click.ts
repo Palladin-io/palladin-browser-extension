@@ -116,6 +116,8 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
 
   function present(): void {
     if (stopped || hidden || muted || running !== null || view.top !== view) return;
+    // One notice at a time: a pending save or confirmation keeps its place.
+    if ([...doc.querySelectorAll('palladin-capture')].some(element => !toast.isOwnedSurface(element))) { toast.hide(); presentedKey = ''; return; }
     const step = signedOutStep();
     const list = status === 'ready' ? accounts() : [];
     if (step === null || (status === 'ready' && list.length === 0) || (status === 'locked' && !isCredential(step))
@@ -242,14 +244,23 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
     const { run, account } = current;
     if (step.kind === 'totp') {
       toast.showProgress(account, 'oneClick.totp');
-      const binding = bindTotpTarget(doc, step.inputs);
-      if (!binding || !await grant('totp', run) || !alive()) return 'check';
-      const id = generateNonce();
-      pending = { id, kind: 'totp', inputs: step.inputs, binding };
-      const filled = await inline({ type: 'inline/fill', intent: 'manual', purpose: 'totp', vaultId: run.vaultId, entryId: run.entryId, scope: run.match, loginTargetId: id });
-      pending = null;
-      if (!alive()) return 'continue';
-      if (filled?.kind !== 'fill' || filled.status !== 'filled') return 'oneClick.sms';
+      if (!await grant('totp', run) || !alive()) return 'check';
+      let binding: TotpBinding | null = null;
+      // Passive autofill may write the same entry's code between binding and
+      // delivery. Rebind once to the current values; never force a stale binding.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        binding = bindTotpTarget(doc, step.inputs);
+        if (!binding) return 'check';
+        const id = generateNonce();
+        pending = { id, kind: 'totp', inputs: step.inputs, binding };
+        const filled = await inline({ type: 'inline/fill', intent: 'manual', purpose: 'totp', vaultId: run.vaultId, entryId: run.entryId, scope: run.match, loginTargetId: id });
+        pending = null;
+        if (!alive()) return 'continue';
+        if (filled?.kind === 'fill' && filled.status === 'filled') break;
+        if (attempt === 1) return 'oneClick.sms';
+        await wait(SETTLE_MS);
+      }
+      if (binding === null) return 'check';
       const startUrl = url();
       // Many sites submit a complete code themselves; never submit it twice.
       await wait(700);
@@ -299,10 +310,12 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
   }
 
   // --- Missing-prompt signal: a trusted manual password submission on a page where nothing was offered. ---
-  function reportMissing(): void {
-    if (missingReported || shown || hidden || muted || running !== null || status === 'locked') return;
-    missingReported = true;
-    void send({ type: 'prompt-missing' });
+  function manualSignIn(): void {
+    if (running !== null) return;
+    if (!missingReported && !shown && !hidden && !muted && status !== 'locked') { missingReported = true; void send({ type: 'prompt-missing' }); }
+    // The user is already signing in on their own; do not offer it again on this page.
+    hidden = true;
+    toast.hide();
   }
   function filledPassword(scope: Element | null): boolean {
     return scope !== null && queryOpenElements<HTMLInputElement>(scope, 'input[type="password"]').some(input =>
@@ -312,16 +325,26 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
     if (!event.isTrusted || isRegistrationUrl(url()) || !(event.target instanceof Element)) return;
     if (event instanceof KeyboardEvent) {
       if (event.key === 'Enter' && event.target instanceof HTMLInputElement && event.target.type === 'password'
-        && filledPassword(credentialScopeFor(event.target) ?? event.target.parentElement)) reportMissing();
+        && filledPassword(credentialScopeFor(event.target) ?? event.target.parentElement)) manualSignIn();
       return;
     }
     const control = event.target.closest('button, input[type="submit"], [role="button"]');
     if (control !== null && !owned(control) && filledPassword(credentialScopeFor(control))) {
       const step = observeSignInStep(doc, url());
       // A visibility toggle is not a submission: require the action Palladin would use, or an unrecognized form.
-      if (!isCredential(step) || step.action?.element === control || step.action === null) reportMissing();
+      if (!isCredential(step) || step.action?.element === control || step.action === null) manualSignIn();
     }
   };
+  // Palladin's own writes are untrusted events, so this is the user typing.
+  const typed = (event: Event) => {
+    if (!event.isTrusted || running !== null || hidden || !(event.target instanceof HTMLInputElement)) return;
+    const step = observeSignInStep(doc, url());
+    if (!isCredential(step) || (event.target !== step.target.username && event.target !== step.target.password)) return;
+    if (signedOutStep() !== null) shown = true;
+    hidden = true;
+    toast.hide();
+  };
+  doc.addEventListener('input', typed, true);
   doc.addEventListener('click', submitted, true);
   doc.addEventListener('keydown', submitted, true);
 
@@ -360,7 +383,7 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
         ? { ok: true } : { ok: false, reason: 'target-changed' };
     },
     /** A popup fill without any offered toast is strong evidence of a missed page. */
-    popupFillCompleted(outcome: FillOutcome): void { if (popupFilled && outcome.ok) reportMissing(); popupFilled = false; },
+    popupFillCompleted(outcome: FillOutcome): void { if (popupFilled && outcome.ok) manualSignIn(); popupFilled = false; },
     takeSuggestions(items: readonly SignInSuggestion[], choose: (item: SignInSuggestion) => 'opened' | 'manual'): boolean {
       if (stopped || hidden || muted || items.length === 0) return false;
       federated = { items, choose };
@@ -379,6 +402,7 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
       stopped = true; cancelRun();
       if (timer !== null) clearTimeout(timer);
       observer.disconnect();
+      doc.removeEventListener('input', typed, true);
       doc.removeEventListener('click', submitted, true);
       doc.removeEventListener('keydown', submitted, true);
       chrome.storage.onChanged.removeListener(storageChanged);

@@ -51,7 +51,8 @@ treat any violation below as a Critical (blocking) finding.
   the current in-memory session, then the deterministic name-sorted first exact
   match. During a federated sign-in flow, a provider account the user explicitly
   chose from a remembered sign-in method ranks first on that provider's own page
-  (`docs/FEDERATED-SIGNIN.md`). The page never chooses the Entry or widens the
+  (`docs/FEDERATED-SIGNIN.md`). One explicit one-click
+  sign-in may submit its own bounded stages (`docs/AUTOFILL-POLICY.md`). The page never chooses the Entry or widens the
   host. Related/sibling
   hosts (beyond that same-tab stage continuation), form submission, cards, and
   neutral custom fields always require an explicit extension-owned action. Do not add a blanket user-intent requirement
@@ -232,7 +233,8 @@ src/
 
 General extension telemetry is disabled at a hard release gate. A project key
 or injected transport never enables `capture()`. The single exception is the
-anonymous site-compatibility report (`ex:autofill:submit-action-missing`: bare
+anonymous site-compatibility report (`ex:autofill:submit-action-missing` and
+`ex:autofill:signin-prompt-missing`: bare
 public hostname from the browser-authenticated frame, extension version, random
 per-event ID, no person profile). Adding any other event or property requires a
 new product decision and an updated allowlist; see `docs/TELEMETRY.md`.
