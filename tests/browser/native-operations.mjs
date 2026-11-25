@@ -115,7 +115,7 @@ try {
   }
   const formless = await second.page('formless');
   assert.match((await success(formless.target, { mode: 'prepare-live' })).stdout, /prepared:provider-unavailable/);
-  for (const wrong of [{ ...c.target, url: a.target.url }, { ...c.target, id: 999999999 }]) {
+  for (const wrong of [{ ...c.target, url: 'https://login.example.test/not-open' }, { ...c.target, id: 999999999 }]) {
     const rejected = await client(wrong, { mode: 'prepare-live' }).result;
     assert.notEqual(rejected.code, 0);
     assert.match(rejected.stderr, /TargetNotFound/);
@@ -123,6 +123,8 @@ try {
   console.log('PASS two profiles: exact tab is selected, formless match is not a connection failure, wrong target denied');
   const secondSocket = (await readdir(sockets)).find(name => name.endsWith('.sock') && name !== firstSocket);
   const secondSession = secondSocket.slice(2, -5);
+  const crossProfile = await success({ ...c.target, url: a.target.url }, { mode: 'prepare-live', session: secondSession });
+  assert.match(crossProfile.stdout, /prepared:target-url-mismatch/);
   const wrongSession = await client(c.target, { session: firstSocket.slice(2, -5) }).result;
   assert.notEqual(wrongSession.code, 0);
   await success(c.target, { session: secondSession });
