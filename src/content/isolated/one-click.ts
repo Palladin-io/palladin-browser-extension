@@ -120,6 +120,7 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
     if ([...doc.querySelectorAll('palladin-capture')].some(element => !toast.isOwnedSurface(element))) { toast.hide(); presentedKey = ''; return; }
     const step = signedOutStep();
     const list = status === 'ready' ? accounts() : [];
+    if (step !== null && userIsTyping(step)) { shown = true; hidden = true; toast.hide(); return; }
     if (step === null || (status === 'ready' && list.length === 0) || (status === 'locked' && !isCredential(step))
       || status === 'unknown' || status === 'none') { toast.hide(); return; }
     shown = true;
@@ -313,7 +314,8 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
   function manualSignIn(): void {
     if (running !== null) return;
     if (!missingReported && !shown && !hidden && !muted && status !== 'locked') { missingReported = true; void send({ type: 'prompt-missing' }); }
-    // The user is already signing in on their own; do not offer it again on this page.
+    // The user signs in on their own; a reload after a rejected attempt must not offer it again.
+    if (!hidden || shown) void send({ type: 'dismiss' });
     hidden = true;
     toast.hide();
   }
@@ -335,9 +337,19 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
       if (!isCredential(step) || step.action?.element === control || step.action === null) manualSignIn();
     }
   };
-  // Palladin's own writes are untrusted events, so this is the user typing.
+  // Palladin's own writes are untrusted events; trusted ones are the user typing.
+  const pageWritten = new WeakSet<EventTarget>();
+  /** Typing may begin before this script runs, so a focused value is also evidence. */
+  function userIsTyping(step: SignInStep): boolean {
+    if (!isCredential(step)) return false;
+    return [step.target.username, step.target.password].some(input => input !== null && input.value !== ''
+      && (input.getRootNode() as Document | ShadowRoot).activeElement === input
+      && !pageWritten.has(input) && !suggestions.some(entry => entry.username === input.value));
+  }
   const typed = (event: Event) => {
-    if (!event.isTrusted || running !== null || hidden || !(event.target instanceof HTMLInputElement)) return;
+    if (!event.isTrusted) { if (event.target) pageWritten.add(event.target); return; }
+    if (event.target) pageWritten.delete(event.target);
+    if (running !== null || hidden || !(event.target instanceof HTMLInputElement)) return;
     const step = observeSignInStep(doc, url());
     if (!isCredential(step) || (event.target !== step.target.username && event.target !== step.target.password)) return;
     if (signedOutStep() !== null) shown = true;
