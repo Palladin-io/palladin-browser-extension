@@ -28,7 +28,8 @@ const mergeCheckpoint = (a: Checkpoint | null, b: Checkpoint | null): Checkpoint
   if (!a) return b;
   if (!b) return a;
   if (a.sequence !== b.sequence) return a.sequence > b.sequence ? a : b;
-  return { sequence: a.sequence, deadlineMs: Math.min(a.deadlineMs, b.deadlineMs), hardDeadlineMs: Math.min(a.hardDeadlineMs, b.hardDeadlineMs) };
+  const hardDeadlineMs = Math.min(a.hardDeadlineMs, b.hardDeadlineMs);
+  return { sequence: a.sequence, deadlineMs: Math.min(Math.max(a.deadlineMs, b.deadlineMs), hardDeadlineMs), hardDeadlineMs };
 };
 
 /** Denial-only metadata from a previously verified own Identity root. No key,
@@ -67,7 +68,7 @@ export class SharedUnlockExpiryStore {
     return this.serial(async () => {
       const record = await this.readAndRepair(selected);
       this.assertSequence(record, sequence);
-      return record.checkpoint!.deadlineMs;
+      return Math.min(deadlineMs, record.checkpoint!.deadlineMs);
     });
   }
   /** Only real own input with an independently captured live key/session/root
@@ -104,7 +105,9 @@ export class SharedUnlockExpiryStore {
   private merge(a: RecordState, b?: RecordState): RecordState {
     let throughSequence = Math.max(a.throughSequence, b?.throughSequence ?? 0);
     let checkpoint = mergeCheckpoint(a.checkpoint, b?.checkpoint ?? null);
-    if (checkpoint && this.now() >= checkpoint.deadlineMs) throughSequence = Math.max(throughSequence, checkpoint.sequence);
+    // Own idle only erases own keys. A still-live peer may hand the same root back,
+    // bounded by its own idle and Identity; the hard ceiling remains terminal.
+    if (checkpoint && this.now() >= checkpoint.hardDeadlineMs) throughSequence = Math.max(throughSequence, checkpoint.sequence);
     if (checkpoint && checkpoint.sequence <= throughSequence) checkpoint = null;
     return { throughSequence, checkpoint };
   }
