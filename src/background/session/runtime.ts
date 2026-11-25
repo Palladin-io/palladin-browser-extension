@@ -50,7 +50,7 @@ const runtimeClientId = typeof chrome === "undefined"
   ? "palladin-browser-extension-test-client"
   : chrome.runtime.id;
 export const sessionAutoLock = new AutoLock(alarms, () => {
-  void manager.lock();
+  void manager.lock("idle");
 });
 
 export const sharedUnlockExpiry = new SharedUnlockExpiryStore(durableStorageArea);

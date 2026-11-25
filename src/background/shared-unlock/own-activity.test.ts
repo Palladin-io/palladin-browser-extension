@@ -49,7 +49,7 @@ it('renews only own Identity/idle while OFF, preserving original hard ceilings a
   await vi.waitFor(() => expect(run.dispose).toHaveBeenCalledOnce());
   expect(h.authority.snapshot().authorization).toEqual({ ...h.root, idleDeadlineMs: h.now + 4_000 });
   expect(h.authority.snapshot().preference?.sharedUnlockEnabled).toBe(false);
-  expect(await h.expiry.checkpoint(h.scope, h.root.sequence, h.now + 7_000, h.root.offlineDeadlineMs)).toBe(h.now + 4_000);
+  expect(await h.expiry.checkpoint(h.scope, h.root.sequence, h.now + 7_000, h.root.offlineDeadlineMs)).toBe(h.now + 7_000);
   expect(h.fetcher).toHaveBeenCalledOnce();
 });
 it('hides the old expired source while a still-live own renewal awaits its Identity reply', async () => {

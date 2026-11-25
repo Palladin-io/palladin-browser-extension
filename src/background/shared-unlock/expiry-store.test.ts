@@ -114,20 +114,20 @@ describe('own activity renewal', () => {
     const s = storage(), store = new SharedUnlockExpiryStore(s, action => action(), () => 100);
     await store.checkpoint(scope, 5, 200, 500);
     await store.renewOwn(scope, 5, 300, () => {});
-    expect(await store.checkpoint(scope, 5, 900, 900)).toBe(300);
+    expect(await store.checkpoint(scope, 5, 900, 900)).toBe(500);
     await store.renewOwn(scope, 5, 900, () => {});
     expect(await store.checkpoint(scope, 5, 900, 900)).toBe(500);
     await expect(new SharedUnlockExpiryStore(s, action => action(), () => 500).assertFresh(scope, 5)).rejects.toThrow('retired locally');
   });
-  it('cannot renew a retired, expired, missing or different own authorization', async () => {
+  it('cannot renew a retired, hard-expired, missing or different own authorization', async () => {
     const s = storage(); let now = 100;
     const store = new SharedUnlockExpiryStore(s, action => action(), () => now);
     await expect(store.renewOwn(scope, 5, 300, () => {})).rejects.toThrow('checkpoint unavailable');
     await store.checkpoint(scope, 5, 200, 500);
     await expect(store.renewOwn(scope, 6, 300, () => {})).rejects.toThrow('checkpoint unavailable');
     await expect(store.renewOwn({ ...scope, apiUrl: 'https://other.example.test' }, 5, 300, () => {})).rejects.toThrow();
-    now = 200;
-    await expect(store.renewOwn(scope, 5, 300, () => {})).rejects.toThrow('retired locally');
+    now = 500;
+    await expect(store.renewOwn(scope, 5, 600, () => {})).rejects.toThrow('retired locally');
     now = 100;
     await expect(store.renewOwn(scope, 5, 300, () => {})).rejects.toThrow('retired locally');
   });
@@ -136,14 +136,14 @@ describe('own activity renewal', () => {
     await store.checkpoint(scope, 5, 200, 500);
     s.set.mockRejectedValueOnce(new Error('unavailable'));
     await expect(store.renewOwn(scope, 5, 300, () => {})).rejects.toThrow('unavailable');
-    expect(await store.checkpoint(scope, 5, 400, 500)).toBe(200);
+    expect(Object.values(s.values)).toEqual([expect.objectContaining({ checkpoint: { sequence: 5, deadlineMs: 200, hardDeadlineMs: 500 } })]);
   });
   it('requires live independent own authority, never just a persisted checkpoint', async () => {
     const s = storage(), store = new SharedUnlockExpiryStore(s, action => action(), () => 100);
     await store.checkpoint(scope, 5, 200, 500);
     const check = () => { throw new Error('own keys expired'); };
     expect(() => store.renewOwn(scope, 5, 300, check)).toThrow('own keys expired');
-    expect(await store.checkpoint(scope, 5, 400, 500)).toBe(200);
+    expect(Object.values(s.values)).toEqual([expect.objectContaining({ checkpoint: { sequence: 5, deadlineMs: 200, hardDeadlineMs: 500 } })]);
   });
   it('does not invent a longer hard ceiling for a legacy v2 checkpoint', async () => {
     const s = storage();
@@ -180,3 +180,26 @@ it('persists a closing that arrives while an own renewal write is in flight', as
   release(); await renewing; await closing;
   await expect(new SharedUnlockExpiryStore(s, action => action(), () => 100).assertFresh(scope, 5)).rejects.toThrow('retired locally');
 });
+
+describe('peer parity after own idle', () => {
+  it('admits the same live authorization after own idle passed, across a restart, until its hard ceiling', async () => {
+    const s = storage(); let now = 0
+    const open = () => new SharedUnlockExpiryStore(s, action => action(), () => now)
+    expect(await open().checkpoint(scope, 300, 15, 240)).toBe(15)
+    now = 60
+    expect(await open().checkpoint(scope, 300, 75, 240)).toBe(75)
+    now = 240
+    await expect(open().checkpoint(scope, 300, 255, 480)).rejects.toThrow('retired locally')
+  })
+  it('never returns more than the deadline requested by this handoff', async () => {
+    const store = new SharedUnlockExpiryStore(storage(), action => action(), () => 0)
+    await store.checkpoint(scope, 300, 200, 240)
+    expect(await store.checkpoint(scope, 300, 50, 240)).toBe(50)
+  })
+  it('still denies an explicitly retired authorization', async () => {
+    const s = storage(), open = () => new SharedUnlockExpiryStore(s, action => action(), () => 0)
+    await open().checkpoint(scope, 300, 15, 240)
+    await open().advance(scope, 300)
+    await expect(open().checkpoint(scope, 300, 75, 240)).rejects.toThrow('retired locally')
+  })
+})

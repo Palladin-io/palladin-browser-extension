@@ -430,7 +430,7 @@ describe("shared unlock receiver installation", () => {
   }
 });
 
-it('retires the verified own authorization at the exact key-use deadline and preserves the barrier after restart', async () => {
+it.each([['idle', false], ['manual', true]] as const)('%s lock erases keys and retires its root across restart: %s', async (kind, retired) => {
   const storage = new FakeStorageArea();
   const expiry = new SharedUnlockExpiryStore(storage);
   const scope = { accountId: account.accountId, apiUrl };
@@ -438,11 +438,14 @@ it('retires the verified own authorization at the exact key-use deadline and pre
   const h = harness(storage, own => expiry.retire({ accountId: own.userId, apiUrl: own.apiUrl }));
   const value = fresh();
   await (await h.manager.beginSharedUnlockInstall(account.accountId, apiUrl, () => {})).install(value);
-  h.now.value = value.limits.idleDeadlineMs;
+  if (kind === 'idle') h.now.value = value.limits.idleDeadlineMs;
+  else await h.manager.lock('manual');
   expect(h.manager.getKeys()).toBeNull();
   erased(value);
-  await expect(expiry.assertFresh(scope, 5)).rejects.toThrow('retired locally');
-  await expect(new SharedUnlockExpiryStore(storage).assertFresh(scope, 5)).rejects.toThrow('retired locally');
+  for (const store of [expiry, new SharedUnlockExpiryStore(storage)]) {
+    if (retired) await expect(store.assertFresh(scope, 5)).rejects.toThrow('retired locally');
+    else await expect(store.assertFresh(scope, 5)).resolves.toBeUndefined();
+  }
   await expect(expiry.assertFresh(scope, 6)).resolves.toBeUndefined();
 });
 it('destroys keys even when the local retirement callback fails', async () => {
@@ -562,7 +565,7 @@ it("connects admitted real SessionManager input to only its own Identity root an
 });
 
 
-it("persists a shorter live policy before reopening and never treats settings as activity", async () => {
+it("applies a shorter live policy to own keys and never treats settings as activity", async () => {
   let changed!: () => Promise<void>;
   const activity = vi.fn();
   const h = harness(undefined, undefined, activity, () => changed());
@@ -591,7 +594,7 @@ it("persists a shorter live policy before reopening and never treats settings as
   expect(activity).not.toHaveBeenCalled();
   h.now.value = deadline;
   const restarted = new SharedUnlockExpiryStore(storage, action => action(), () => h.now.value);
-  await expect(restarted.checkpoint(scope, root.sequence, root.idleDeadlineMs, root.offlineDeadlineMs)).rejects.toThrow();
+  await expect(restarted.assertFresh(scope, root.sequence)).resolves.toBeUndefined();
   expect(h.manager.getKeys()).toBeNull();
   erased(value);
 });
