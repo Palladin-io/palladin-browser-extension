@@ -70,6 +70,8 @@ export interface AccountResponse {
 export type FetchLike = typeof fetch;
 export type ApiUrlSource = string | (() => string);
 
+const REFRESH_TIMEOUT_MS = 10_000;
+
 export class AuthClient {
   constructor(
     private readonly doFetch: FetchLike,
@@ -97,6 +99,7 @@ export class AuthClient {
     body: unknown,
     accessToken?: string,
     expectedApiUrl?: string,
+    signal?: AbortSignal,
   ): Promise<T> {
     const apiUrl = this.boundApiUrl(expectedApiUrl);
     const headers: Record<string, string> = { "content-type": "application/json" };
@@ -107,11 +110,17 @@ export class AuthClient {
         method: "POST",
         headers,
         body: JSON.stringify(body),
+        ...(signal ? { signal } : {}),
       });
     } catch {
       throw new SessionError("network", `Request to ${path} failed`);
     }
-    return this.parse<T>(response, path);
+    try {
+      return await this.parse<T>(response, path);
+    } catch (error) {
+      if (signal?.aborted) throw new SessionError("network", `Request to ${path} timed out`);
+      throw error;
+    }
   }
 
   private async parse<T>(response: Response, path: string): Promise<T> {
@@ -167,12 +176,16 @@ export class AuthClient {
   }
 
   async refresh(refreshToken: string, expectedApiUrl?: string): Promise<RefreshResponse> {
+    // Rotation unpublishes the session until it settles, so it must always settle.
+    const abort = new AbortController();
+    const timeout = setTimeout(() => abort.abort(), REFRESH_TIMEOUT_MS);
     const response = await this.postJson<unknown>(
       "/api/auth/refresh",
       { refreshToken },
       undefined,
       expectedApiUrl,
-    );
+      abort.signal,
+    ).finally(() => clearTimeout(timeout));
     if (typeof response !== "object" || response === null) {
       throw new SessionError("network", "Refresh response failed validation");
     }

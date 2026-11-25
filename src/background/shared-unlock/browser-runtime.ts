@@ -6,7 +6,7 @@ import { randomBytes, toBase64Url, wipe } from "@palladin/crypto";
 import { serverConfig } from "../config/server-runtime";
 import { sessionManager, sharedUnlockLinks, sharedUnlockSource, sharedUnlockExpiry, sharedUnlockPreferenceGate } from "../session/runtime";
 import { startSharedUnlockLinkMonitor } from "./link-monitor";
-import { SharedUnlockApi } from "./api";
+import { SharedUnlockApi, SharedUnlockApiError } from "./api";
 import { startSharedUnlockBrowserCoordinator } from "./browser-coordinator";
 import type { SharedUnlockBrowserRoute } from "./browser-route";
 import { prepareSharedUnlockLink } from "./prepare-link";
@@ -81,8 +81,16 @@ export function coordinateSharedUnlockBrowser(route: SharedUnlockBrowserRoute) {
     prepareSource: async (accountId, organizationId, linkId, signal, assertAttempt) => {
       const assertCurrent = () => { assertAttempt(); sharedUnlockPreferenceGate.assertAllowed(scope(accountId)); sharedUnlockPreferences.assertNotDisabled(scope(accountId)); };
       await admissible(accountId, linkId); assertCurrent();
-      const result = await prepareSharedUnlockLink({ scope: scope(accountId), organizationId, signal,
+      const prepare = () => prepareSharedUnlockLink({ scope: scope(accountId), organizationId, signal,
         verifyBrowser: () => route.verifyCurrent(), assertCurrent }, sessionManager, sharedUnlockSource, api, sharedUnlockLinks);
+      const result = await prepare().catch(async (error: unknown) => {
+        // An idle worker may hold an expired access token. One durable rotation.
+        if (!(error instanceof SharedUnlockApiError) || error.code !== "unauthorized") throw error;
+        assertCurrent();
+        if (!await sessionManager.refreshAccessToken()) throw error;
+        assertCurrent();
+        return prepare();
+      });
       assertCurrent(); if (result.link.linkId !== linkId) throw new Error("Shared unlock local link changed");
       return { linkEpoch: result.link.epoch, preferenceRevision: result.preference.revision };
     },

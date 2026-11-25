@@ -14,7 +14,7 @@ import { verifySharedUnlockSettingsRaces } from './shared-unlock-settings-races.
 import { verifySharedUnlockAccountIsolation } from './shared-unlock-account-isolation.mjs'
 import { verifyAuthorizationRateLimitRetry } from './shared-unlock-rate-limit-steps.mjs'
 import { persistChromiumTestInstallation } from './chromium-persist-test-installation.mjs'
-import { verifyIndependentIdleExpiry } from './shared-unlock-idle-steps.mjs'
+import { verifyIdleParity } from './shared-unlock-idle-steps.mjs'
 import { verifyMultipleWebDocuments } from './shared-unlock-multiple-documents.mjs'
 import { verifyRetiredWebReceiver } from './shared-unlock-retired-receiver.mjs'
 
@@ -436,8 +436,7 @@ try {
     countOperations: () => requests.filter(value => value.path === '/api/account/shared-unlock/operations' && typeof value.status === 'number').length,
     cleanupStatuses: () => requests.filter(value => value.path === '/api/auth/logout' && typeof value.status === 'number').map(value => value.status),
     setStage: value => { stage = value }, recordCheck: value => checks.push(value), recordRequest: value => requests.push(value) })
-  if (independentIdleExpiry) await verifyIndependentIdleExpiry({ page, popup, password,
-    cleanupStatuses: () => requests.filter(value => value.path === '/api/auth/logout' && typeof value.status === 'number').map(value => value.status),
+  if (independentIdleExpiry) await verifyIdleParity({ page, popup, password,
     countOperationResponses: () => requests.filter(value => value.path === '/api/account/shared-unlock/operations' && typeof value.status === 'number').length,
     reopenPopup: async () => { popup?.close(); popup = await openNativePopup(null, path.join(temporary, 'profile'), extensionId); return popup },
     vaultId, entryId, entryPassword, setStage: value => { stage = value },

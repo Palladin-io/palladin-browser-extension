@@ -224,7 +224,7 @@ export class SessionManager {
     // Browser alarms can be delayed by suspension. Enforce the inherited
     // deadline synchronously at the key-use boundary as well.
     if (this.sharedUnlockLimits && this.now() >= Math.min(unlockDeadline(this.sharedUnlockLimits), this.sharedUnlockLocalDeadline)) {
-      void this.lock();
+      void this.lock("idle");
     }
     return this.keys;
   }
@@ -1187,8 +1187,8 @@ export class SessionManager {
   // ─── Lock / logout ──────────────────────────────────────────────────────────
 
   /** Wipe key material and stop the idle timer; the sealed durable session survives. */
-  async lock(reason?: "manual"): Promise<void> {
-    if (this.keys && this.keyScope) {
+  async lock(reason?: "manual" | "idle"): Promise<void> {
+    if (reason !== "idle" && this.keys && this.keyScope) {
       try { this.retireSharedUnlock?.({ ...this.keyScope }); }
       catch { /* Retirement observers cannot prevent key destruction. */ }
     }

@@ -34,8 +34,9 @@ session. A failed preference save is shown as failure. Signed-out configuration
 stores only the local switch. A locked existing session without in-memory tokens
 cannot report a successful account-preference change; saving fails until it is
 unlocked. Use production restores the complete API/panel pair, preserving a
-matching saved production configuration when available. Existing account OFF, MFA, expiry and independent
-idle policies are retained. Manual lock/logout propagation uses the existing
+matching saved production configuration when available. Existing account OFF, MFA and
+absolute/offline expiry are retained. Idle erases only own keys: a still-live peer
+may hand back the same authorization, bounded by that peer's own idle deadline. Manual lock/logout propagation uses the existing
 Identity lifecycle once a pair is active.
 
 On password unlock, a rejected cached access token triggers one durable session
@@ -71,6 +72,9 @@ Editing either address clears the draft consent. Legacy/build HTTP configuration
 does not bypass that consent at network-client creation. Consent is durable for
 the saved pair, not one browser session. No certificate error is ignored, no
 HTTPS request is downgraded, and ordinary autofill remains HTTPS-only.
+
+A source whose access token expired while idle performs one durable refresh and
+repeats link preparation once. Other failures are not retried.
 
 ## Current rollout gates
 
