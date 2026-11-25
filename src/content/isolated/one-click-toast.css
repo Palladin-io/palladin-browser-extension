@@ -1,0 +1,263 @@
+/* Accepted compact sign-in toast (design/workbench in-page.html). Tokens come from CAPTURE_NOTICE_STYLES. */
+/* Actions use the product button red; the logo and ".io" use the brand red. */
+:host {
+  --cv-primary: #d43e3e;
+  --cv-primary-rgb: 212 62 62;
+  --toast-brand: #e54645;
+}
+.compact {
+  overflow: visible;
+  border-radius: 12px;
+  box-shadow: none;
+}
+/* The shadow sits below the menu, so it falls on the page only. */
+.compact::before {
+  content: "";
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+  pointer-events: none;
+}
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+}
+.bar .notice-identity-icon {
+  flex-basis: 32px;
+  width: 32px;
+}
+.account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--cv-t1);
+  text-align: left;
+}
+button.account:hover {
+  background: var(--cv-subtle);
+}
+.account .notice-identity-text {
+  flex: 1;
+}
+.account strong,
+.account small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account span,
+.account strong,
+.account small {
+  pointer-events: none;
+}
+.bar .sign-in {
+  flex: none;
+  min-height: 36px;
+  padding: 7px 12px;
+  background: transparent;
+  color: var(--cv-primary);
+  font-size: 13px;
+}
+.bar .sign-in:hover {
+  background: rgb(var(--cv-primary-rgb) / 0.09);
+}
+.sign-in span {
+  display: block;
+  pointer-events: none;
+}
+.sign-in:hover span {
+  transform: scale(1.05);
+}
+.sign-in:active span {
+  transform: scale(0.95);
+}
+.bar .sign-in,
+.bar .account {
+  transition: background-color 160ms ease-out;
+}
+.sign-in span {
+  transition: transform 160ms ease-out;
+}
+.bar .secondary {
+  flex: none;
+}
+.menu {
+  position: absolute;
+  z-index: -1;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: min(320px, 60vh);
+  overflow: auto;
+  padding: 4px;
+  background: var(--cv-surface);
+  border: 1px solid var(--cv-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px #0002;
+}
+.menu .account {
+  width: 100%;
+  padding: 8px;
+}
+.menu .site-mute {
+  width: 100%;
+  border-top: 1px solid var(--cv-border);
+  border-radius: 0;
+  margin-top: 4px;
+}
+.account small {
+  font-weight: 400;
+}
+.menu .account[aria-current="true"] {
+  background: var(--cv-subtle);
+}
+
+.toast-brand {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--cv-t2);
+  font-size: 11px;
+  line-height: 1;
+}
+.toast-brand img {
+  width: 12px;
+  height: 12px;
+}
+.toast-brand strong {
+  font-weight: 600;
+}
+.toast-brand strong span {
+  color: var(--toast-brand);
+}
+.toast-brand {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 18px;
+  height: 22px;
+  padding: 0 6px;
+  transform: translateY(-50%);
+  border: 1px solid var(--cv-border);
+  border-radius: 6px;
+  background: var(--cv-surface);
+}
+.toast-brand:has(.close) {
+  padding-right: 0;
+}
+.toast-brand .close {
+  position: relative;
+  width: 24px;
+  height: 20px;
+  margin-left: 2px;
+  border-left-color: var(--cv-border);
+  border-radius: 0 5px 5px 0;
+}
+/* Keeps a 24 px target inside the 22 px chip. */
+.toast-brand .close::after {
+  content: "";
+  position: absolute;
+  inset: -3px 0;
+}
+.toast-brand .close svg {
+  width: 11px;
+  height: 11px;
+}
+.toast-brand .close:hover {
+  color: var(--cv-t1);
+}
+.account-hint {
+  flex: none;
+  color: var(--cv-t2);
+  font-size: 11px;
+  opacity: 0;
+  transform: translateX(8px);
+  transition:
+    opacity 160ms ease-out,
+    transform 160ms ease-out;
+}
+.account:hover .account-hint,
+.account:focus-visible .account-hint,
+.account[aria-expanded="true"] .account-hint {
+  opacity: 1;
+  transform: none;
+}
+.menu {
+  animation: menu-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.menu.leaving {
+  animation: menu-out 140ms ease-in forwards;
+}
+/* Slides out from behind the toast. */
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+}
+@keyframes menu-out {
+  to {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+}
+.countdown {
+  position: absolute;
+  z-index: 1;
+  inset: -1px;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
+  overflow: visible;
+  pointer-events: none;
+}
+.countdown rect {
+  x: 0.5px;
+  y: 0.5px;
+  width: calc(100% - 1px);
+  height: calc(100% - 1px);
+  fill: none;
+  stroke: var(--cv-primary);
+  stroke-width: 1.5;
+  stroke-dasharray: 100;
+  animation: countdown 12s linear forwards;
+}
+.compact:hover .countdown rect,
+.compact:focus-within .countdown rect,
+.compact:has(.menu) .countdown rect,
+.compact[data-hidden] .countdown rect {
+  animation-play-state: paused;
+}
+@keyframes countdown {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu,
+  .menu.leaving {
+    animation: none;
+  }
+  .bar .sign-in,
+  .bar .account,
+  .account-hint,
+  .sign-in span {
+    transition: none;
+  }
+  .account .account-hint,
+  .sign-in span,
+  .sign-in:hover span,
+  .sign-in:active span {
+    transform: none;
+  }
+  .countdown rect {
+    stroke: transparent;
+  }
+}

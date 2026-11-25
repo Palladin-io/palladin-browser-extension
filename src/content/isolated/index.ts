@@ -64,6 +64,7 @@ import { startShareSaveBridge } from './share-save';
 import { sharePageRequest } from '../../shared/messaging/share-save';
 import { isFederatedSignInRefresh } from '../../shared/messaging/federated-signin';
 import { startFederatedSignIn } from './federated-signin';
+import { startOneClick } from './one-click';
 
 // Reload destroys the old isolated world but can leave its closed-shadow hosts
 // in the page. This module runs once in the new world, before creating any UI.
@@ -144,10 +145,18 @@ const generatorSuggestion = window.top === window && window.location.protocol ==
 passwordCapture.controller.trustOverlay(element => generatorSuggestion?.isOwnedSurface(element) ?? false);
 let credentialCapture = window.top === window && window.location.protocol === "https:"
   ? startCredentialCapture(document, documentId) : null;
-const startTopFrameSignIn = () => window.top === window && window.location.protocol === "https:"
+const startTopFrameOneClick = (): ReturnType<typeof startOneClick> | null => window.top === window && window.location.protocol === "https:"
+  ? startOneClick(document, documentId, (element) => (inlineAutofill?.isOwnedSurface(element) ?? false)
+    || (generatorSuggestion?.isOwnedSurface(element) ?? false)
+    || (credentialCapture?.isOwnedSurface(element) ?? false)
+    || (federatedSignIn?.isOwnedSurface(element) ?? false)) : null;
+let oneClick = startTopFrameOneClick();
+const startTopFrameSignIn = (): ReturnType<typeof startFederatedSignIn> | null => window.top === window && window.location.protocol === "https:"
   ? startFederatedSignIn(document, documentId, (element) => (inlineAutofill?.isOwnedSurface(element) ?? false)
     || (generatorSuggestion?.isOwnedSurface(element) ?? false)
-    || (credentialCapture?.isOwnedSurface(element) ?? false)) : null;
+    || (credentialCapture?.isOwnedSurface(element) ?? false)
+    || (oneClick?.isOwnedSurface(element) ?? false),
+    (items, choose) => oneClick?.takeSuggestions(items, choose) ?? false) : null;
 let federatedSignIn = startTopFrameSignIn();
 secretCapture = window.location.protocol === 'https:' ? startSecretCapture(document, documentId) : null;
 totpCapture = window.top === window && window.location.protocol === 'https:' ? startTotpCapture(document, documentId) : null;
@@ -162,6 +171,7 @@ const agentInjectDom = createAgentInjectDomAccess(
     || (generatorSuggestion?.isOwnedSurface(element) ?? false)
     || (credentialCapture?.isOwnedSurface(element) ?? false)
     || (federatedSignIn?.isOwnedSurface(element) ?? false)
+    || (oneClick?.isOwnedSurface(element) ?? false)
     || (secretCapture?.isOwnedSurface(element) ?? false)
     || (totpCapture?.isOwnedSurface(element) ?? false),
 );
@@ -175,11 +185,11 @@ const contextObserver = new MutationObserver(() => {
   contextInvalidated = true;
   contextObserver.disconnect();
   for (const controller of [sessionKeepalive, passwordCapture, inlineAutofill,
-    generatorSuggestion, credentialCapture, secretCapture, totpCapture, federatedSignIn]) {
+    generatorSuggestion, credentialCapture, secretCapture, totpCapture, federatedSignIn, oneClick]) {
     try { controller?.stop(); }
     catch { /* An invalidated browser API must not strand the other controllers. */ }
   }
-  credentialCapture = null; secretCapture = null; totpCapture = null; federatedSignIn = null;
+  credentialCapture = null; secretCapture = null; totpCapture = null; federatedSignIn = null; oneClick = null;
 });
 contextObserver.observe(document, { childList: true, subtree: true });
 
@@ -242,12 +252,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (isSurfaceStateEvent(message)) {
     if (message.type === "surface/vault-changed") {
       inlineAutofill?.handleVaultChanged();
+      oneClick?.vaultChanged();
     } else {
       inlineAutofill?.handleSessionChanged(message.status);
       if (message.status !== "unlocked") generatorSuggestion?.hide();
     }
     if (message.type === "surface/session-changed") {
       void credentialCapture?.refresh();
+      oneClick?.sessionChanged(message.status === "unlocked");
       federatedSignIn?.sessionChanged(message.status === "unlocked");
       if (message.status === "unlocked" && !secretCapture && window.location.protocol === "https:") {
         secretCapture = startSecretCapture(document, documentId);
@@ -312,8 +324,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     sendResponse({ ok: false, reason: 'target-changed' } satisfies FillOutcome);
     return undefined;
   }
-  const outcome: FillOutcome = inlineAutofill?.performFillRequest(message)
+  const outcome: FillOutcome = oneClick?.performFillRequest(message) ?? inlineAutofill?.performFillRequest(message)
     ?? performBoundFill(document, message, window.location.href, documentId);
+  oneClick?.popupFillCompleted(outcome);
   sendResponse(outcome);
   return undefined;
 });
@@ -345,6 +358,7 @@ window.addEventListener("pageshow", (event: PageTransitionEvent) => {
     if (window.top === window && window.location.protocol === "https:") {
       credentialCapture = startCredentialCapture(document, documentId);
       totpCapture = startTotpCapture(document, documentId);
+      oneClick = startTopFrameOneClick();
       federatedSignIn = startTopFrameSignIn();
     }
   }
@@ -354,6 +368,7 @@ window.addEventListener("pagehide", () => sessionKeepalive.stop());
 window.addEventListener("pagehide", () => { secretCapture?.stop(); secretCapture = null; totpCapture?.stop(); totpCapture = null; });
 window.addEventListener("pagehide", () => { credentialCapture?.stop(); credentialCapture = null; });
 window.addEventListener("pagehide", () => { federatedSignIn?.stop(); federatedSignIn = null; });
+window.addEventListener("pagehide", () => { oneClick?.stop(); oneClick = null; });
 window.addEventListener("unload", () => inlineAutofill?.stop(), { once: true });
 window.addEventListener('unload', () => generatorSuggestion?.stop(), { once: true });
 

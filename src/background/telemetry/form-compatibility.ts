@@ -7,7 +7,7 @@
 
 import { registrableDomain } from "@shared/security/domain";
 
-export type FormCompatibilityIssue = "submit-action-missing";
+export type FormCompatibilityIssue = "submit-action-missing" | "signin-prompt-missing";
 
 export interface FormCompatibilityConfig {
   /** Build-injected public PostHog project key; empty disables reporting. */

@@ -14,6 +14,16 @@ function reporter(projectKey = "phc_public") {
 }
 
 describe("anonymous form-compatibility reports", () => {
+  it("reports a missing sign-in prompt with the same value-free fields", () => {
+    const bodies: string[] = [];
+    const report = createFormCompatibilityReporter({ projectKey: "phc", ingestHost: "https://eu.i.posthog.com", extensionVersion: "0.1.0",
+      randomId: () => "random", send: async (_url, body) => { bodies.push(body); } });
+    report("https://login.example.com/path?user=ada#x", "signin-prompt-missing");
+    report("https://login.example.com/other", "signin-prompt-missing");
+    expect(bodies).toHaveLength(1);
+    expect(JSON.parse(bodies[0]!)).toEqual({ api_key: "phc", event: "ex:autofill:signin-prompt-missing", distinct_id: "random",
+      properties: { host: "login.example.com", extension_version: "0.1.0", $process_person_profile: false, $geoip_disable: true } });
+  });
   it("sends only the event, the bare host and the extension version", () => {
     const { report, send, bodies } = reporter();
     report("https://IdMsa.Apple.com./appleauth/auth/authorize/signin?frame_id=abc&email=ada%40example.com#x", "submit-action-missing");

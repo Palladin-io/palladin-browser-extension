@@ -237,7 +237,8 @@ function rememberFill(target: LoginTarget): void {
 /** `no-action` means the filled target stayed intact but had no unique enabled login action. */
 export type FilledSubmitOutcome = 'submitted' | 'no-action' | 'stale';
 
-export async function submitFilledLoginTarget(target: LoginTarget, stillCurrent: () => boolean): Promise<FilledSubmitOutcome> {
+export async function submitFilledLoginTarget(target: LoginTarget, stillCurrent: () => boolean,
+  submit: () => boolean = () => submitLoginForm((target.username ?? target.password)!, target)): Promise<FilledSubmitOutcome> {
   const receipt = fillReceipts.get(target);
   discardLoginTargetFill(target);
   if (!receipt) return 'stale';
@@ -251,7 +252,7 @@ export async function submitFilledLoginTarget(target: LoginTarget, stillCurrent:
     if (performance.now() >= receipt.expiresAt || !stillCurrent()
       || target.form.ownerDocument.location.href !== receipt.url
       || !isCurrentLoginTarget(target) || targetValues(target) !== receipt.snapshot) return 'stale';
-    if (submitLoginForm(anchor, target)) return 'submitted';
+    if (submit()) return 'submitted';
   } while (performance.now() < deadline);
   return 'no-action';
 }
@@ -334,7 +335,10 @@ export function submitLoginForm(input: HTMLInputElement, target?: LoginTarget): 
   const submits = nativeForm === null ? [] : actions.filter(action => action.type === 'submit');
   const eligible = submits.length > 0 ? submits : actions.filter(hasLoginActionLabel);
   if (eligible.length !== 1) return false;
-  const action = eligible[0]!;
+  return clickWithGetGuard(eligible[0]!, scope, nativeForm);
+}
+
+export function clickWithGetGuard(action: HTMLElement, scope: Element, nativeForm: HTMLFormElement | null): boolean {
   // Run after existing framework submit handlers, which may respect prior
   // cancellation. Cancel a normally propagating browser-default GET; omitted or
   // invalid method means GET. A page can stop propagation or read filled values:

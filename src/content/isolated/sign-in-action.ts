@@ -51,6 +51,18 @@ export function signInActionFor(target: LoginTarget): SignInAction | null {
   }
 }
 
+const VERIFY = new Set([...LOGIN, 'verify', 'verify code', 'confirm', 'authenticate', 'zweryfikuj', 'potwierdź', 'bestätigen', 'vérifier', 'verificar', 'verifica']);
+
+/** The unique submit of an already classified authenticator-code scope. */
+export function verificationActionFor(input: HTMLInputElement, scope: HTMLElement): SignInAction | null {
+  const form = composedForm(input);
+  const candidates = queryOpenElements<HTMLElement>(scope, CANDIDATES).filter(element => composedForm(element) === form && visibleCandidate(element));
+  const labelled = candidates.filter(element => labels(element).some(label => VERIFY.has(label)));
+  const group = labelled.length > 0 ? labelled : candidates.filter(element => form !== null
+    && (element instanceof HTMLButtonElement || element instanceof HTMLInputElement) && element.type === 'submit');
+  return group.length === 1 ? describe(group[0]!) : null;
+}
+
 function visibleCandidate(element: Element): element is HTMLElement {
   if (!(element instanceof HTMLElement) || !isVisibleScopeHint(element, true)) return false;
   if (element instanceof HTMLInputElement && !['submit', 'button'].includes(element.type)) return false;
