@@ -39,6 +39,24 @@ describe("AuthClient refresh contract", () => {
   });
 });
 
+describe("AuthClient refresh timeout", () => {
+  it.each(["request", "body"] as const)("reports a stalled %s as a recoverable network failure", async (stall) => {
+    vi.useFakeTimers();
+    try {
+      const client = new AuthClient((_input, init) => {
+        const aborted = new Promise<never>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+        });
+        return stall === "request" ? aborted
+          : Promise.resolve({ ok: true, status: 200, json: () => aborted } as unknown as Response);
+      }, "https://api.test");
+      const result = expect(client.refresh("current-refresh")).rejects.toMatchObject({ name: "SessionError", code: "network" });
+      await vi.advanceTimersByTimeAsync(10_000);
+      await result;
+    } finally { vi.useRealTimers(); }
+  });
+});
+
 describe("AuthClient login rate limiting", () => {
   it.each([
     ["KDF bootstrap", (client: AuthClient) => client.fetchLoginKdf("member@example.com", "profile")],

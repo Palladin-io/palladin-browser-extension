@@ -4,7 +4,10 @@ import type { ChromiumSharedUnlockRoute } from './chromium-route'
 import type { SharedUnlockCoordinatorRoute } from './browser-coordinator'
 import type { SharedUnlockOperationMessage } from '../../shared/messaging/shared-unlock-operation'
 import { sharedUnlockPreferences } from './preference-state-runtime'
-import { sessionManager, sharedUnlockLinks } from '../session/runtime'
+import { sessionManager, sharedUnlockLinks, sharedUnlockSource } from '../session/runtime'
+import { prepareSharedUnlockLink } from './prepare-link'
+import { SharedUnlockApiError } from './api'
+vi.mock('./prepare-link', () => ({ prepareSharedUnlockLink: vi.fn() }))
 
 vi.mock('../config/server-runtime', () => ({ serverConfig: { apiUrl: 'https://api.test', networkApiUrl: 'https://api.test' } }))
 const values = vi.hoisted(() => ({} as Record<string, unknown>))
@@ -15,7 +18,7 @@ vi.mock('../session/runtime', async () => {
   sessionManager: {
     hooks: { onLocked: vi.fn(() => () => {}), onUnlocked: vi.fn(() => () => {}) },
     getUserId: async () => '11111111-1111-4111-8111-111111111111', getStatus: async () => 'locked', getKeys: () => null,
-    captureSharedUnlockSettingsSession: vi.fn(), captureSharedUnlockSource: vi.fn(), lock: vi.fn(), logout: vi.fn(),
+    captureSharedUnlockSettingsSession: vi.fn(), captureSharedUnlockSource: vi.fn(), refreshAccessToken: vi.fn(), lock: vi.fn(), logout: vi.fn(),
   },
   sharedUnlockSource: { snapshot: () => ({ authorization: null, preference: null, sourceGeneration: null }),
     closingWitness: () => null, manualLockCheckpoints: () => null, subscribe: () => () => {} },
@@ -171,4 +174,31 @@ it('joins the existing Web link after a fresh extension allocation without borro
   expect((await sharedUnlockLinks.read(linkScope))?.linkId).toBe(retained)
   expect(fetcher).not.toHaveBeenCalled()
   expect(sessionManager.captureSharedUnlockSource).not.toHaveBeenCalled()
+})
+
+it.each([
+  ['unauthorized', 'rotated', 2, 1],
+  ['unauthorized', null, 1, 1],
+  ['network', 'rotated', 1, 0],
+] as const)('a source with a %s preparation and refresh %s makes bounded attempts', async (code, refreshed, attempts, refreshes) => {
+  const organizationId = '33333333-3333-4333-8333-333333333333', generation = 'E'.repeat(42) + 'A'
+  vi.mocked(sessionManager.captureSharedUnlockSettingsSession).mockImplementation(() => { throw new Error('no settings lease') })
+  vi.spyOn(sessionManager, 'getStatus').mockResolvedValue('unlocked')
+  vi.spyOn(sharedUnlockSource, 'snapshot').mockReturnValue({ sourceGeneration: generation, failure: null,
+    preference: { sharedUnlockEnabled: true, revision: 1 }, authorization: { accountId: scope.accountId, organizationId, sequence: 5 } as never })
+  vi.mocked(sessionManager.refreshAccessToken).mockResolvedValue(refreshed)
+  vi.mocked(prepareSharedUnlockLink).mockReset().mockRejectedValue(new SharedUnlockApiError(code))
+  const f = start(), peerId = 'C'.repeat(42) + 'A'
+  await vi.waitFor(() => expect(f.sent.some(message => message.payload.kind === 'state')).toBe(true))
+  f.emit({ attemptId: peerId, payload: { kind: 'state', stateId: peerId, accountId: scope.accountId, status: 'locked',
+    generation: 'D'.repeat(42) + 'A', source: null } })
+  await vi.waitFor(() => expect(f.sent.some(message => message.payload.kind === 'link')).toBe(true))
+  const link = f.sent.find(message => message.payload.kind === 'link')!.payload
+  if (link.kind !== 'link') throw new Error('missing link')
+  f.emit({ attemptId: link.extensionStateId, payload: { ...link, kind: 'link-selected' } })
+  await vi.waitFor(() => expect(prepareSharedUnlockLink).toHaveBeenCalledTimes(attempts))
+  await new Promise(resolve => setTimeout(resolve, 20))
+  expect(prepareSharedUnlockLink).toHaveBeenCalledTimes(attempts)
+  expect(sessionManager.refreshAccessToken).toHaveBeenCalledTimes(refreshes)
+  vi.restoreAllMocks()
 })
