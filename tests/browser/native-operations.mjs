@@ -19,14 +19,15 @@ const processes = new Set();
 const execute = promisify(execFile);
 const html = `<!doctype html><form><input id="username" autocomplete="username"><input id="password" type="password" autocomplete="current-password"><button id="submit" type="submit">Sign in</button></form><script>
 globalThis.submits=0; document.querySelector('form').addEventListener('submit', e=>{e.preventDefault();globalThis.submits++;e.target.reset();});</script>`;
+const formlessHtml = '<!doctype html><main><h1>Signed-in page</h1></main>';
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(fn, message) {
   const deadline = Date.now() + 15000;
   do { const value = await fn(); if (value) return value; await delay(50); } while (Date.now() < deadline);
   throw new Error(message);
 }
-function client(target, { hold = 0, count = 1, session, socketRoot = sockets } = {}) {
-  const child = spawn(binary, ['client', socketRoot, String(target.id), target.url, String(hold), String(count), ...(session ? [session] : [])]);
+function client(target, { hold = 0, count = 1, session, socketRoot = sockets, mode = 'client' } = {}) {
+  const child = spawn(binary, [mode, socketRoot, String(target.id), target.url, String(hold), String(count), ...(session ? [session] : [])]);
   processes.add(child);
   let stdout = '', stderr = '';
   child.stdout.on('data', data => { stdout += data; });
@@ -69,7 +70,7 @@ try {
     const loaded = await devtools.send('Extensions.loadUnpacked', { path: extension });
     assert.equal(loaded.id, id);
     await devtools.detach();
-    await context.route(/^https?:/, route => new URL(route.request().url()).hostname === 'login.example.test' ? route.fulfill({ contentType: 'text/html', body: html }) : route.abort());
+    await context.route(/^https?:/, route => new URL(route.request().url()).hostname === 'login.example.test' ? route.fulfill({ contentType: 'text/html', body: new URL(route.request().url()).pathname === '/formless' ? formlessHtml : html }) : route.abort());
     const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
     async function page(suffix) {
       const page = await context.newPage();
@@ -109,6 +110,17 @@ try {
   await Promise.all([success(b.target), success(c.target)]);
   assert.equal(await c.page.evaluate(() => globalThis.submits), 1);
   console.log('PASS automatic exact-target selection across two profiles');
+  for (const target of [b.target, c.target]) {
+    assert.match((await success(target, { mode: 'prepare-live' })).stdout, /prepared:ready/);
+  }
+  const formless = await second.page('formless');
+  assert.match((await success(formless.target, { mode: 'prepare-live' })).stdout, /prepared:provider-unavailable/);
+  for (const wrong of [{ ...c.target, url: a.target.url }, { ...c.target, id: 999999999 }]) {
+    const rejected = await client(wrong, { mode: 'prepare-live' }).result;
+    assert.notEqual(rejected.code, 0);
+    assert.match(rejected.stderr, /TargetNotFound/);
+  }
+  console.log('PASS two profiles: exact tab is selected, formless match is not a connection failure, wrong target denied');
   const secondSocket = (await readdir(sockets)).find(name => name.endsWith('.sock') && name !== firstSocket);
   const secondSession = secondSocket.slice(2, -5);
   const wrongSession = await client(c.target, { session: firstSocket.slice(2, -5) }).result;
