@@ -423,6 +423,14 @@ unlocked as a repair mechanism for missed events after MV3 suspension or
 transport loss; it is not the primary synchronization channel. Local writes
 still reconcile immediately.
 
+`ReceiveNotification` is used only as a value-free signal: the worker ignores
+its payload, refreshes the open Inbox/Logs lists and counts the notification on
+the toolbar badge. The count lives in worker memory, starts from pending grant
+requests after unlock, resets when the Inbox tab is opened and clears on lock.
+Audit rows carry opaque principal IDs; the popup resolves Agent and member names
+from memory-only directories, refreshing a directory once when a visible ID is
+unknown and again only after a new audit invalidation.
+
 The web panel and browser extension deliberately keep separate client sessions,
 memory-only keys and ciphertext-cache stores. Their common source of truth is
 the backend's encrypted Vault state, coordinated by value-free SignalR

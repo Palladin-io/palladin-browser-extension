@@ -7,6 +7,7 @@ import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { WorkspaceError } from './WorkspaceError';
 import { useEffect, useRef, useState } from 'react';
 import type {
+  AgentIdentity,
   AuditLogItem,
   MemberIdentity,
 } from '../../shared/workspace/contracts';
@@ -151,6 +152,7 @@ export function AuditPanel({
   const listRevision = useWorkspaceListRevision(client, 'workspace/audit');
   const [items, setItems] = useState<AuditLogItem[]>([]);
   const [members, setMembers] = useState<MemberIdentity[]>([]);
+  const [agents, setAgents] = useState<AgentIdentity[]>([]);
   const [cursor, setCursor] = useState<Record<string, string> | null>(null);
   const [filter, setFilter] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -184,11 +186,13 @@ export function AuditPanel({
       const page = { items: pages.flatMap(result => result.page.items).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || a.id.localeCompare(b.id)) };
       const nextCursors = Object.fromEntries(pages.flatMap(result => result.page.nextCursor ? [[result.key, result.page.nextCursor]] : []));
 
-      const identities = await client.members(
-        page.items.flatMap((item) => (item.userId ? [item.userId] : [])),
-      );
+      const [identities, agentIdentities] = await Promise.all([
+        client.members(page.items.flatMap((item) => (item.userId ? [item.userId] : []))),
+        client.agents(page.items.flatMap((item) => (item.agentId ? [item.agentId] : []))),
+      ]);
       if (revision.current !== run) return;
       setMembers(identities);
+      setAgents(agentIdentities);
       setItems(previous => (next
         ? [...previous, ...page.items.filter(item => !previous.some(row => row.id === item.id))]
         : page.items).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || a.id.localeCompare(b.id)));
@@ -260,7 +264,7 @@ export function AuditPanel({
             ? (members.find((member) => member.userId === item.userId)
                 ?.displayName ?? item.actorName ?? shorten(item.userId))
             : item.agentId
-              ? (item.agentName ?? shorten(item.agentId))
+              ? (agents.find((agent) => agent.agentId === item.agentId)?.name ?? item.agentName ?? shorten(item.agentId))
               : t(
                   item.actorType === 'system'
                     ? 'audit.system'

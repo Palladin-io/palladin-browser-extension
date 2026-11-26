@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { signInMethodIdSchema } from '@palladin/crypto';
 import { SIGN_IN_PROVIDERS, type SignInProvider } from '../signin/providers';
 import type {
+  AgentIdentity,
   AuditLogItem,
   EntrySharesPage,
   MemberIdentity,
@@ -117,6 +118,7 @@ export const workspaceCommandSchema = z.discriminatedUnion('type', [
     })
     .strict(),
   z.object({ type: z.literal('workspace/members') }).strict(),
+  z.object({ type: z.literal('workspace/agents') }).strict(),
   z
     .object({
       type: z.literal('workspace/deny'),
@@ -188,6 +190,7 @@ export interface WorkspaceResults {
   'workspace/grants': Page<OrgGrant>;
   'workspace/audit': Page<AuditLogItem>;
   'workspace/members': { items: MemberIdentity[] };
+  'workspace/agents': { items: AgentIdentity[] };
   'workspace/deny': null;
   'workspace/revoke-grant': null;
   'workspace/shares': EntrySharesPage;
