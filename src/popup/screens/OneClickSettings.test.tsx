@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { act } from 'react'
+import { describe, expect, it, vi } from 'vitest'
 import { ONE_CLICK_DISABLED_KEY, ONE_CLICK_MUTED_KEY } from '@shared/config/one-click-preferences'
 import { OneClickSettings } from './OneClickSettings'
 
@@ -35,6 +36,26 @@ describe('one-click sign-in settings', () => {
     expect(storage.items[ONE_CLICK_MUTED_KEY]).toEqual(['allegro.pl'])
     expect(screen.queryByText('x.com')).not.toBeInTheDocument()
     expect(screen.getByText('allegro.pl')).toBeInTheDocument()
+  })
+
+  it('undoes turning a site back on for a few seconds', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const storage = memoryStorage({ [ONE_CLICK_MUTED_KEY]: ['x.com', 'allegro.pl'] })
+      render(<OneClickSettings storage={storage} />)
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      await user.click(await screen.findByRole('button', { name: 'Turn on one-click sign-in on x.com' }))
+      expect(screen.getByRole('status')).toHaveTextContent('Turned on for x.com')
+      await user.click(screen.getByRole('button', { name: 'Undo' }))
+      expect(storage.items[ONE_CLICK_MUTED_KEY]).toEqual(['x.com', 'allegro.pl'])
+      expect(screen.getByText('x.com')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Turn on one-click sign-in on allegro.pl' }))
+      await act(() => vi.advanceTimersByTimeAsync(6000))
+      expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+      expect(storage.items[ONE_CLICK_MUTED_KEY]).toEqual(['x.com'])
+    } finally { vi.useRealTimers() }
   })
 
   it('shows an empty list when no site is turned off', async () => {

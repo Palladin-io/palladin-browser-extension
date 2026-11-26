@@ -439,7 +439,16 @@ body {
 
 .capture-settings { display:flex; flex-direction:column; gap:8px; }
 .one-click-settings { display:flex; flex-direction:column; gap:10px; }
+.one-click-settings > .screen-subtitle { margin:0 0 6px; }
 .one-click-settings > .field-label { margin:10px 0 0; }
+.settings-detail:has(> .one-click-settings) { display:flex; flex-direction:column; }
+.settings-detail > .one-click-settings { flex:1; }
+.one-click-undo { position:sticky; bottom:0; margin-top:auto; }
+.one-click-undo:not(:empty) { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:0 4px 0 12px;
+  border:1px solid var(--cv-border); border-radius:8px; background:var(--cv-surface); box-shadow:0 8px 24px rgba(0,0,0,.12);
+  font-size:12px; color:var(--cv-t1); animation:one-click-undo-in 180ms ease-out; }
+@keyframes one-click-undo-in { from { opacity:0; transform:translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { .one-click-undo:not(:empty) { animation:none; } }
 .settings-check.one-click-site { justify-content:space-between; padding-block:0; padding-right:4px; }
 .one-click-site > span { min-width:0; overflow-wrap:anywhere; }
 .capture-setting-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; }

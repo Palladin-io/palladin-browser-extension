@@ -798,5 +798,8 @@
   "oneClickSettings.muted": "Sites with sign-in turned off",
   "oneClickSettings.noMuted": "None",
   "oneClickSettings.unmuteSite": "Turn on one-click sign-in on {name}",
-  "oneClickSettings.error": "Could not change settings. Try again."
+  "oneClickSettings.error": "Could not change settings. Try again.",
+  "oneClickSettings.description": "Palladin offers to sign you in with a saved account in one click.",
+  "oneClickSettings.unmuted": "Turned on for {name}",
+  "oneClickSettings.undo": "Undo"
 }

@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ONE_CLICK_DISABLED_KEY, ONE_CLICK_MUTED_KEY, parseMutedHosts } from '@shared/config/one-click-preferences'
 import { Button } from '../components/Button'
 import { LoadingSkeleton } from '../components/LoadingSkeleton'
 import { useI18n } from '../i18n'
+
+const UNDO_MS = 6000
 
 interface Storage {
   get(keys: string[]): Promise<Record<string, unknown>>
@@ -13,6 +15,9 @@ export function OneClickSettings({ storage = chrome.storage.local }: { storage?:
   const { t } = useI18n()
   const [state, setState] = useState<{ enabled: boolean; sites: string[] } | null>(null)
   const [error, setError] = useState(false)
+  const [undo, setUndo] = useState<{ site: string; sites: string[] } | null>(null)
+  const undoTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(undoTimer.current), [])
   useEffect(() => {
     let active = true
     void storage.get([ONE_CLICK_DISABLED_KEY, ONE_CLICK_MUTED_KEY]).then((items) => {
@@ -21,15 +26,30 @@ export function OneClickSettings({ storage = chrome.storage.local }: { storage?:
     return () => { active = false }
   }, [storage])
 
-  async function save(next: { enabled: boolean; sites: string[] }) {
+  async function save(next: { enabled: boolean; sites: string[] }): Promise<boolean> {
     setError(false)
     try {
       await storage.set({ [ONE_CLICK_DISABLED_KEY]: !next.enabled, [ONE_CLICK_MUTED_KEY]: next.sites })
       setState(next)
-    } catch { setError(true) }
+      return true
+    } catch { setError(true); return false }
+  }
+
+  async function unmute(current: { enabled: boolean; sites: string[] }, site: string) {
+    if (!await save({ ...current, sites: current.sites.filter((item) => item !== site) })) return
+    clearTimeout(undoTimer.current)
+    setUndo({ site, sites: current.sites })
+    undoTimer.current = setTimeout(() => setUndo(null), UNDO_MS)
+  }
+
+  async function restore(current: { enabled: boolean }, previous: string[]) {
+    clearTimeout(undoTimer.current)
+    setUndo(null)
+    await save({ ...current, sites: previous })
   }
 
   return <div className="one-click-settings">
+    <p className="screen-subtitle">{t('oneClickSettings.description')}</p>
     {error ? <p className="settings-warning" role="alert">{t('oneClickSettings.error')}</p> : null}
     {!state ? (error ? null : <LoadingSkeleton />) : <>
       <div className="shared-unlock-setting-row">
@@ -44,10 +64,16 @@ export function OneClickSettings({ storage = chrome.storage.local }: { storage?:
         state.sites.map((site) => <div className="settings-check one-click-site" key={site}>
           <span>{site}</span>
           <Button variant="ghost" aria-label={t('oneClickSettings.unmuteSite', { name: site })}
-            onClick={() => void save({ ...state, sites: state.sites.filter((item) => item !== site) })}>
+            onClick={() => void unmute(state, site)}>
             {t('oneClickSettings.enable')}
           </Button>
         </div>)}
+      <div className="one-click-undo" role="status" aria-live="polite">
+        {undo ? <>
+          <span>{t('oneClickSettings.unmuted', { name: undo.site })}</span>
+          <Button variant="ghost" onClick={() => void restore(state, undo.sites)}>{t('oneClickSettings.undo')}</Button>
+        </> : null}
+      </div>
     </>}
   </div>
 }
