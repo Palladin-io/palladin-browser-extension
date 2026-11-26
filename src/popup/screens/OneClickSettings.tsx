@@ -81,7 +81,7 @@ export function OneClickSettings({ storage = chrome.storage.local }: { storage?:
       {state.sites.length === 0 ? <p className="screen-subtitle">{t('oneClickSettings.noMuted')}</p> :
         state.sites.map((site) => <div className="settings-check one-click-site" key={site}>
           <SiteIcon site={site} />
-          <span>{site}</span>
+          <span className="one-click-site-name">{site}</span>
           <button type="button" className="toolbar-icon" aria-label={t('oneClickSettings.unmuteSite', { name: site })}
             title={t('oneClickSettings.unmuteSite', { name: site })} onClick={() => void unmute(state, site)}>
             <PopupIcon name="delete" />
