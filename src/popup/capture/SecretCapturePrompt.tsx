@@ -75,7 +75,8 @@ export function SecretCapturePrompt({ review, client, send = sendSecretCapture, 
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const initialTarget = initialExpanded ? review.cardTargets?.[0] : undefined;
-  const [creatingCard, setCreatingCard] = useState(false);
+  // A handed-off draft without a target was created through the explicit "Create a new card" action.
+  const [creatingCard, setCreatingCard] = useState(!!initialDraft && !initialDraft.targetId && !!review.cardTargets?.length);
   const [more, setMore] = useState(!!initialDraft?.form);
   const [targetId, setTargetId] = useState(initialDraft?.targetId ?? initialTarget?.id ?? '');
   const [selected, setSelected] = useState<Review | null>(initialExpanded ? review : null);

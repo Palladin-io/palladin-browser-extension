@@ -174,6 +174,17 @@ it('offers another matching card or a new card only from the Dismiss menu', asyn
   await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'save', vaultId: 'v' })));
 });
 
+it('keeps the explicit new-card choice when a draft is handed to the popup', async () => {
+  const entry = { entryType: 'creditCard' as const, label: 'Travel Visa', cardNumber: '4111111111111111', cardholderName: 'Old Holder', expiryMonth: '01', expiryYear: '2028' };
+  const captured = { ...card, candidate: { kind: 'card' as const, cardNumber: '4111111111111111', cardholderName: 'New Holder', expiryMonth: '08', expiryYear: '2030' },
+    cardTargets: [{ id: 'travel', vaultId: 'v', revision: 'r', name: 'Travel Visa', vaultName: 'Personal', entry }] };
+  const send = vi.fn(async () => ({ status: 'saved' as const }));
+  render(<SecretCapturePrompt initialExpanded initialDraft={{ kind: 'secret', targetId: '', vaultId: 'team', form: null }} review={captured} client={{} as VaultClient} send={send} onDone={() => {}} />);
+  expect(await screen.findByRole('combobox', { name: 'Save to Vault' })).toHaveTextContent('Team');
+  fireEvent.click(screen.getByRole('button', { name: 'Save card' }));
+  await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'save', vaultId: 'team' })));
+});
+
 it('retains only the safe saved summary across refresh and opens the committed item', async () => {
   const { SecretCaptureSurface } = await import('./SecretCapturePrompt');
   const captured = { ...card, candidate: { kind: 'key' as const, value: 'synthetic-secret' } };

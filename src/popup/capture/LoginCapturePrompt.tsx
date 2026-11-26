@@ -167,10 +167,11 @@ function CredentialCaptureReview({ review: initialReview, send, onDone, onSaved,
   const usernameOptions = review.usernameOptions && usernameChoice
     ? (['email', 'nickname'] as const).map(kind => ({ value: review.usernameOptions![kind], kind })) : undefined;
   const name = savedIdentity?.name ?? entry?.label ?? target?.label ?? review.prompt.site;
-  const vaultChoice = !updating ? <div className="capture-vault-choice">
+  const creating = !updating || target?.action === 'create';
+  const vaultChoice = creating ? <div className="capture-vault-choice">
     <label className="field-label">{t('captureReview.vault')}</label>
     <FilterSelect floating aria-label={t('captureReview.vault')} value={targetId} disabled={busy} onValueChange={value => void selectTarget(value)}>
-      {review.prompt.targets.map(value => <option value={value.id} key={value.id}>{value.vaultLabel}</option>)}
+      {review.prompt.targets.filter(value => value.action === 'create').map(value => <option value={value.id} key={value.id}>{value.vaultLabel}</option>)}
     </FilterSelect>
   </div> : undefined;
   const autoUpdateOption = <label className="capture-checkbox"><input type="checkbox" checked={autoUpdate} onChange={event => setAutoUpdate(event.target.checked)} />{t('captureToast.autoUpdate')}</label>;
@@ -200,8 +201,8 @@ function CredentialCaptureReview({ review: initialReview, send, onDone, onSaved,
       {autoUpdateOption}
     </> : null}
     {review.prompt.usernameSelection?.selected !== null && entry && !quickUpdate ? <AddEntryForm key={`${targetId}:${formVersion}`} client={client} initialEntry={entry} captureDraftRef={formDraft} initialCaptureDraft={restoredForm.current}
-        captureFormId={formId} capturePasswordUpdate={updating} onBusyChange={setBusy}
-        {...(!updating ? { compact: { ...(vaultChoice ? { slot: vaultChoice } : {}), open: more, onOpenChange: setMore } } : {})}
+        captureFormId={formId} capturePasswordUpdate={!creating} onBusyChange={setBusy}
+        {...(creating ? { compact: { ...(vaultChoice ? { slot: vaultChoice } : {}), open: more, onOpenChange: setMore } } : {})}
         {...(usernameOptions ? { usernameOptions, onUsernameChange: (value: string) => {
           const choice = usernameOptions.find(option => option.value === value)?.kind; if (choice && choice !== usernameChoice) void chooseUsername(choice);
         } } : {})}

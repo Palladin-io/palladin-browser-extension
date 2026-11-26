@@ -200,6 +200,21 @@ it('shows only the new password with a preview for a password update and saves t
   expect(send).toHaveBeenCalledWith(expect.objectContaining({type:'save',targetId:'one',autoUpdate:true,entry:review.entry}));
   expect(screen.queryByLabelText('New password')).toBeNull();
 });
+it('lets a password-update review create a new login in any writable Vault', async () => {
+  const targets = [{ id: 'one', action: 'update' as const, label: 'Alice', vaultLabel: 'Personal' },
+    { id: 'new-personal', action: 'create' as const, label: 'Personal', vaultLabel: 'Personal' }, { id: 'new-team', action: 'create' as const, label: 'Team', vaultLabel: 'Team' }];
+  const send = vi.fn(async (command: import('../../shared/messaging/native-login-capture').NativeLoginCaptureCommand) => command.type === 'get'
+    ? { status: 'review' as const, review: { ...review, prompt: { ...review.prompt, targets, defaultTargetId: 'one' } } } : { status: 'saved' as const, action: 'created' as const });
+  render(<LoginCapturePrompt initialExpanded review={{ ...review, prompt: { ...review.prompt, targets, defaultTargetId: 'one' } }} send={send} onDone={() => {}} />);
+  chooseFromDismissMenu('Create a new entry');
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Save to Vault' })).toBeEnabled());
+  fireEvent.click(screen.getByRole('combobox', { name: 'Save to Vault' }));
+  expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual(['Personal', 'Team']);
+  fireEvent.click(screen.getByRole('option', { name: 'Team' }));
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Save to Vault' })).toHaveTextContent('Team'));
+  fireEvent.click(screen.getByRole('button', { name: 'Update password' }));
+  await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'save', targetId: 'new-team' })));
+});
 it('saves a new login from the password and Vault, with the other fields behind More', async () => {
   const send = vi.fn(async () => ({status:'saved' as const,action:'created' as const}));
   render(<LoginCapturePrompt initialExpanded review={{...review,prompt:{...review.prompt,targets:[{id:'vault',action:'create',label:'Personal',vaultLabel:'Personal'}],defaultTargetId:'vault'}}} send={send} onDone={()=>{}} />);
