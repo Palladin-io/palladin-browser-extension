@@ -112,8 +112,10 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
     return observeSignedState(doc, form).state === 'signed-out' ? step : null;
   }
 
+  let listWanted = false;
   function present(): void {
     if (stopped || hidden || muted || running !== null || view.top !== view) return;
+    if (listWanted) { if (signedOutStep() !== null) { listWanted = false; void refresh(); } return; }
     // One notice at a time: a pending save or confirmation keeps its place.
     if ([...doc.querySelectorAll('palladin-capture')].some(element => !toast.isOwnedSurface(element))) { toast.hide(); presentedKey = ''; return; }
     const step = signedOutStep();
@@ -136,6 +138,9 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
     if (stopped) return;
     if (resumed?.status === 'hidden') { hidden = true; return; }
     if (resumed?.status === 'run') { void drive(resumed.run, accountFor(resumed.run)); return; }
+    // Listing claims the tab's autofill context, which would cancel a sign-in child frame (Apple), so ask only when there is something to offer.
+    listWanted = signedOutStep() === null;
+    if (listWanted) return;
     const result = await inline({ type: 'inline/list' });
     if (stopped || result?.kind !== 'suggestions') return;
     suggestions = result.status === 'ready' ? result.entries : [];
@@ -327,8 +332,11 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
   const submitted = (event: Event) => {
     if (!event.isTrusted || isRegistrationUrl(url()) || !(event.target instanceof Element)) return;
     if (event instanceof KeyboardEvent) {
-      if (event.key === 'Enter' && event.target instanceof HTMLInputElement && event.target.type === 'password'
-        && filledPassword(credentialScopeFor(event.target) ?? event.target.parentElement)) manualSignIn();
+      // An unrecognized form counts only through its trusted submit event.
+      if (event.key !== 'Enter' || !(event.target instanceof HTMLInputElement) || event.target.type !== 'password'
+        || !filledPassword(credentialScopeFor(event.target) ?? event.target.parentElement)) return;
+      const step = observeSignInStep(doc, url());
+      if (isCredential(step) && step.action !== null && step.target.password === event.target) manualSignIn();
       return;
     }
     const control = event.target.closest('button, input[type="submit"], [role="button"]');
@@ -362,6 +370,12 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
     toast.hide();
   };
   doc.addEventListener('input', typed, true);
+  // Opening Palladin's own field menu means the user chose that path; the toast must not cover it.
+  const otherSurfaceUsed = (event: Event) => {
+    if (!event.isTrusted || running !== null || !event.composedPath().some(node => node instanceof Element && isOtherOwnedSurface(node))) return;
+    hidden = true; toast.hide();
+  };
+  doc.addEventListener('pointerdown', otherSurfaceUsed, true);
   doc.addEventListener('click', submitted, true);
   doc.addEventListener('submit', formSubmitted, true);
   doc.addEventListener('keydown', submitted, true);
@@ -432,6 +446,7 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
       if (timer !== null) clearTimeout(timer);
       observer.disconnect();
       doc.removeEventListener('input', typed, true);
+      doc.removeEventListener('pointerdown', otherSurfaceUsed, true);
       doc.removeEventListener('click', submitted, true);
       doc.removeEventListener('submit', formSubmitted, true);
       doc.removeEventListener('keydown', submitted, true);
