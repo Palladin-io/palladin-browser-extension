@@ -120,6 +120,8 @@ const eventKeys: Record<string, TranslationKey> = {
 const shorten = (id: string) =>
   id.length > 18 ? `${id.slice(0, 8)}…${id.slice(-6)}` : id;
 /** Keeps both ends of a long Entry name or login visible; the chip title carries the full value. */
+const loginKey = (entry: EntryMetadata, item: AuditLogItem): TranslationKey =>
+  Date.parse(entry.updatedAt) > Date.parse(item.createdAt) ? 'audit.entryLoginCurrent' : 'audit.entryLogin';
 export const middleEllipsis = (value: string, max = 32) =>
   [...value].length > max ? `${[...value].slice(0, max - 13).join('')}…${[...value].slice(-12).join('')}` : value;
 
@@ -286,12 +288,12 @@ export function AuditPanel({
                 <div className="audit-chips" hidden={preview}>
                   <span className="audit-type">{eventKeys[item.eventType] ? t(eventKeys[item.eventType]!) : t('audit.unknownEvent', { event: item.eventType })}</span>
                   {entry ? (
-                    <span className="audit-entry" title={entry.name}><PopupIcon name="key" />{middleEllipsis(entry.name)}</span>
+                    <span className="audit-entry" title={entry.name}><PopupIcon name="key" /><span aria-hidden="true">{middleEllipsis(entry.name)}</span><span className="sr-only">{entry.name}</span></span>
                   ) : item.entryId ? (
                     <span className="audit-entry"><PopupIcon name="key" />{t('share.unavailableEntry')} · {shorten(item.entryId)}</span>
                   ) : null}
                   {entry?.username ? (
-                    <span className="audit-login" title={entry.username}><PopupIcon name="user" />{t(Date.parse(entry.updatedAt) > Date.parse(item.createdAt) ? 'audit.entryLoginCurrent' : 'audit.entryLogin', { login: middleEllipsis(entry.username) })}</span>
+                    <span className="audit-login" title={entry.username}><PopupIcon name="user" /><span aria-hidden="true">{t(loginKey(entry, item), { login: middleEllipsis(entry.username) })}</span><span className="sr-only">{t(loginKey(entry, item), { login: entry.username })}</span></span>
                   ) : null}
                   {item.vaultId ? (
                     <span><PopupIcon name="vault" />

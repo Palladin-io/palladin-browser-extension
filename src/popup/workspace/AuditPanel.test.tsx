@@ -92,8 +92,8 @@ it('identifies the exact Entry login by Entry ID and never claims a stale histor
   const { container } = render(<I18nProvider locale="en"><AuditPanel client={client} entries={[
     entry('x-one', 'synthetic_one', '2026-11-01T00:00:00Z'), entry('x-two', 'synthetic_two', '2026-11-25T00:00:00Z')]} /></I18nProvider>);
   await waitFor(() => expect(container.querySelectorAll('.audit-entry')).toHaveLength(3));
-  expect([...container.querySelectorAll('.audit-entry')].map(chip => chip.textContent)).toEqual(['X', 'X', 'Unavailable entry · x-gone-0…0-0000']);
-  expect([...container.querySelectorAll('.audit-login')].map(chip => chip.textContent)).toEqual(['synthetic_one', 'synthetic_two (current)']);
+  expect([...container.querySelectorAll('.audit-entry')].map(chip => chip.querySelector('.sr-only')?.textContent ?? chip.textContent)).toEqual(['X', 'X', 'Unavailable entry · x-gone-0…0-0000']);
+  expect([...container.querySelectorAll('.audit-login .sr-only')].map(chip => chip.textContent)).toEqual(['synthetic_one', 'synthetic_two (current)']);
 });
 
 it('keeps both ends of a long Entry name or login and leaves short values intact', () => {
