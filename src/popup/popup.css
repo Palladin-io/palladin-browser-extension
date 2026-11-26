@@ -440,7 +440,7 @@ body {
 .capture-settings { display:flex; flex-direction:column; gap:8px; }
 .one-click-settings { display:flex; flex-direction:column; gap:10px; }
 .one-click-settings > .field-label { margin:10px 0 0; }
-.one-click-site { justify-content:space-between; padding-block:0; padding-right:4px; }
+.settings-check.one-click-site { justify-content:space-between; padding-block:0; padding-right:4px; }
 .one-click-site > span { min-width:0; overflow-wrap:anywhere; }
 .capture-setting-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; }
 .capture-setting-row > span { min-width:0; overflow-wrap:anywhere; font-size:13px; }
