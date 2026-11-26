@@ -617,10 +617,12 @@ describe('observed and preselected provider accounts', () => {
     await observe(h, 'other@gmail.com');
     expect(selected(await back(h))?.label).toBe('other@gmail.com');
   });
-  it('does not ask again for an observed account that is already remembered', async () => {
+  it('still asks for an observed account that matches a remembered binding, because the final account is unconfirmed', async () => {
     const h = harness({ credentials: [credential('e', { status: 'recognized', fieldId: 'custom:1', binding: { provider: 'google', account: 'alice@gmail.com', entry: null } } as Credential['signIn'])] });
     start(h); await observe(h, 'alice@gmail.com');
-    expect(await back(h)).toBeNull();
+    const view = await back(h);
+    expect(selected(view)).toMatchObject({ label: 'alice@gmail.com', source: 'observed' });
+    expect(view?.notice?.detail).toBe('');
   });
   it('accepts an observation in the popup linked to the service tab', async () => {
     const h = harness(); h.coordinator.documentConnected(1, SERVICE, undefined);

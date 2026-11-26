@@ -35,12 +35,12 @@ export function FederatedCaptureReview({ review, send, onDone, onSaved, onOpenCa
 }): React.JSX.Element {
   const { t, locale } = useI18n();
   const navigation = usePopupView();
-  const { prompt } = review;
+  const [prompt, setPrompt] = useState(review.prompt);
   const provider = SIGN_IN_PROVIDER_NAMES[prompt.provider];
   const updates = prompt.targets.filter(item => item.action === 'update');
   const creates = prompt.targets.filter(item => item.action === 'create');
-  const [accountId, setAccountId] = useState(initialDraft?.accountId ?? prompt.defaultAccountId ?? '');
-  const [typed, setTyped] = useState('');
+  const [accountId, setAccountId] = useState(initialDraft?.typedAccount ? TYPED_ACCOUNT : initialDraft?.accountId ?? prompt.defaultAccountId ?? '');
+  const [typed, setTyped] = useState(initialDraft?.typedAccount ?? '');
   const [targetId, setTargetId] = useState(initialDraft?.targetId || prompt.defaultTargetId || updates[0]?.id || creates[0]?.id || '');
   const [entryName, setEntryName] = useState(initialDraft?.entryName ?? prompt.site);
   const [editing, setEditing] = useState(false);
@@ -80,6 +80,13 @@ export function FederatedCaptureReview({ review, send, onDone, onSaved, onOpenCa
         setSavedLabel(accountLabel); setStage('saved');
         if ('vaultId' in result && result.vaultId && 'entryId' in result && result.entryId) setSavedEntry({ vaultId: result.vaultId, id: result.entryId });
         onSaved?.();
+      } else if (result.status === 'prompt' && result.prompt && 'accounts' in result.prompt) {
+        // A failed write returns a rebuilt prompt with fresh opaque IDs; keep the user's choices on it.
+        const next = result.prompt;
+        setPrompt(next);
+        if (next.defaultTargetId) setTargetId(next.defaultTargetId);
+        if (accountId !== TYPED_ACCOUNT) setAccountId(next.defaultAccountId ?? '');
+        setError(true);
       } else if (result.status === 'stale' || result.status === 'dismissed') onDone();
       else setError(true);
     } catch { setError(true); } finally { setBusy(false); }
@@ -92,7 +99,7 @@ export function FederatedCaptureReview({ review, send, onDone, onSaved, onOpenCa
     identityTrailing={<span className="capture-provider"><img className="sign-in-provider-logo" data-provider={prompt.provider} src={providerLogos[prompt.provider]} alt={provider} /></span>}
     stage={stage} vault={target?.vaultLabel ?? ''} busy={busy} disabled={!ready} saveLabel={t('common.save')}
     {...(error ? { error: t('captureToast.error') } : {})}
-    {...(onOpenCapture ? { onIdentity: () => onOpenCapture(stage === 'saved', { kind: 'login', targetId, accountId: accountId === TYPED_ACCOUNT ? '' : accountId,
+    {...(onOpenCapture ? { onIdentity: () => onOpenCapture(stage === 'saved', { kind: 'login', targetId, accountId: accountId === TYPED_ACCOUNT ? '' : accountId, ...(accountId === TYPED_ACCOUNT ? { typedAccount: typed } : {}),
       methodMode: creating ? 'create' : 'update', entryName, autoUpdate: false, replace, form: null }) }
       : stage === 'saved' && savedEntry && navigation ? { onIdentity: () => { navigation.update({ view: 'vault', selected: savedEntry }); onDone(); } } : {})}
     menuActions={[

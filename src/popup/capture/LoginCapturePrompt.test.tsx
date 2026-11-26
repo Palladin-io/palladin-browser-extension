@@ -249,6 +249,34 @@ it('saves an OAuth account typed by the user and never sends it as a listed acco
   expect(await screen.findByText('GitHub · octo-cat')).toBeVisible();
 });
 
+it('retries an OAuth save on the rebuilt prompt with the typed account and refreshed IDs', async () => {
+  const prompt = {id:'flow',site:'example.com',provider:'github' as const,state:'ready' as const,accounts:[],defaultAccountId:null,
+    targets:[{id:'old-target',action:'update' as const,label:'Work',vaultLabel:'Personal',current:null}],defaultTargetId:'old-target'};
+  const send = vi.fn().mockResolvedValueOnce({status:'prompt',prompt:{...prompt,targets:[{...prompt.targets[0]!,id:'new-target'}],defaultTargetId:'new-target',error:'save-failed'}})
+    .mockResolvedValueOnce({status:'saved',action:'updated'});
+  render(<LoginCapturePrompt initialExpanded review={{kind:'federated',prompt}} send={send} onDone={()=>{}} />);
+  const account = screen.getByRole('combobox',{name:'Which GitHub account did you use?'});
+  fireEvent.change(account,{target:{value:'octo-cat'}});
+  fireEvent.click(screen.getByRole('button',{name:'Save'}));
+  expect(await screen.findByRole('alert')).toBeInTheDocument();
+  expect(account).toHaveValue('octo-cat');
+  fireEvent.click(screen.getByRole('button',{name:'Save'}));
+  await waitFor(()=>expect(send).toHaveBeenLastCalledWith(expect.objectContaining({type:'confirm',targetId:'new-target',account:'octo-cat'})));
+});
+it('hands a typed OAuth account to the popup and restores it there', () => {
+  const prompt = {id:'flow',site:'example.com',provider:'github' as const,state:'ready' as const,accounts:[],defaultAccountId:null,
+    targets:[{id:'existing',action:'update' as const,label:'Work',vaultLabel:'Personal',current:null}],defaultTargetId:'existing'};
+  const open = vi.fn();
+  const view = render(<LoginCapturePrompt initialExpanded onOpenCapture={open} review={{kind:'federated',prompt}} send={vi.fn()} onDone={()=>{}} />);
+  fireEvent.change(screen.getByRole('combobox',{name:'Which GitHub account did you use?'}),{target:{value:'octo-cat'}});
+  fireEvent.click(screen.getByRole('button',{name:'Work'}));
+  expect(open).toHaveBeenCalledWith(false, expect.objectContaining({kind:'login',typedAccount:'octo-cat',targetId:'existing'}));
+  view.unmount();
+  render(<LoginCapturePrompt initialExpanded initialDraft={open.mock.calls[0]![1]} review={{kind:'federated',prompt}} send={vi.fn()} onDone={()=>{}} />);
+  expect(screen.getByRole('combobox',{name:'Which GitHub account did you use?'})).toHaveValue('octo-cat');
+  expect(screen.getByRole('button',{name:'Save'})).toBeEnabled();
+});
+
 it('defaults OAuth to the existing match and creates only after explicitly choosing New', async () => {
   const send = vi.fn(async () => ({status:'saved' as const,action:'created' as const}));
   render(<LoginCapturePrompt review={{kind:'federated',prompt:{id:'flow',site:'example.com',provider:'google',state:'ready',accounts:[{id:'account',label:'alice@example.com',source:'vault'}],defaultAccountId:'account',targets:[{id:'existing',action:'update',label:'Work',vaultLabel:'Personal',current:null},{id:'create',action:'create',label:'example.com',vaultLabel:'Personal',current:null}],defaultTargetId:'existing'}}} send={send} onDone={()=>{}} />);

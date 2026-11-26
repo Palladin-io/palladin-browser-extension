@@ -422,12 +422,13 @@ export class FederatedSignInCoordinator {
     // A Palladin fill of a different account than the one chosen is an account switch: never suppress or guess.
     const evidence = flow.observedAccount ?? flow.usedAccount;
     const switched = chosenSame && evidence !== null && !sameSignInAccount(evidence, flow.chosen!.account);
-    const confirmed = flow.observedAccount ?? (switched ? (flow.usedManually ? flow.usedAccount : null)
-      : chosenSame ? flow.chosen!.account : flow.usedManually ? flow.usedAccount : null);
+    // The identifier submitted on Google's page only preselects: the user may still finish with another account.
+    const confirmed = switched ? (flow.usedManually ? flow.usedAccount : null)
+      : chosenSame ? flow.chosen!.account : flow.usedManually ? flow.usedAccount : null;
     // A prefilled guess is only a visible suggestion; it never proves that nothing needs saving.
     const soleAccount = providerAccounts.length > 0 && providerAccounts.every((candidate) =>
       sameSignInAccount(candidate.account, providerAccounts[0]!.account)) ? providerAccounts[0]!.account : null;
-    const preferred = confirmed ?? flow.usedAccount ?? (chosenSame ? null : soleAccount);
+    const preferred = flow.observedAccount ?? confirmed ?? flow.usedAccount ?? (chosenSame ? null : soleAccount);
     const alreadyRemembered = !switched && (chosenSame || confirmed !== null)
       && targets.credentials.some((credential) => credential.signIn.status === 'recognized'
         && credential.signIn.binding.provider === provider && sameSignInAccount(credential.signIn.binding.account, confirmed));
