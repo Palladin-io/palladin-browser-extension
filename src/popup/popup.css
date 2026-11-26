@@ -449,8 +449,11 @@ body {
   font-size:12px; color:var(--cv-t1); animation:one-click-undo-in 180ms ease-out; }
 @keyframes one-click-undo-in { from { opacity:0; transform:translateY(8px); } }
 @media (prefers-reduced-motion: reduce) { .one-click-undo:not(:empty) { animation:none; } }
-.settings-check.one-click-site { justify-content:space-between; padding-block:0; padding-right:4px; }
-.one-click-site > span { min-width:0; overflow-wrap:anywhere; }
+.settings-check.one-click-site { padding:4px 4px 4px 8px; }
+.one-click-site > span { flex:1; min-width:0; overflow-wrap:anywhere; }
+.one-click-site .entry-icon { flex-shrink:0; }
+.one-click-site .toolbar-icon { width:30px; height:30px; border:0; background:transparent; color:var(--cv-t2); }
+.one-click-site .toolbar-icon:hover { background:var(--cv-selection); color:var(--cv-t1); }
 .capture-setting-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; }
 .capture-setting-row > span { min-width:0; overflow-wrap:anywhere; font-size:13px; }
 .capture-setting-row small { display:block; color:var(--cv-t2); font-size:12px; }

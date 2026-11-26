@@ -795,11 +795,11 @@
   "oneClickSettings.title": "One-click sign-in",
   "oneClickSettings.show": "Show the sign-in suggestion",
   "oneClickSettings.enable": "Turn on",
-  "oneClickSettings.muted": "Sites with sign-in turned off",
+  "oneClickSettings.muted": "Ignored sites",
   "oneClickSettings.noMuted": "None",
-  "oneClickSettings.unmuteSite": "Turn on one-click sign-in on {name}",
+  "oneClickSettings.unmuteSite": "Remove {name} from ignored sites",
   "oneClickSettings.error": "Could not change settings. Try again.",
   "oneClickSettings.description": "Palladin offers to sign you in with a saved account in one click.",
-  "oneClickSettings.unmuted": "Turned on for {name}",
+  "oneClickSettings.unmuted": "Removed {name}",
   "oneClickSettings.undo": "Undo"
 }

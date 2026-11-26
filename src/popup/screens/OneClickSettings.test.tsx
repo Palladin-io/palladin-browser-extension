@@ -32,7 +32,7 @@ describe('one-click sign-in settings', () => {
   it('reenables the suggestion on a site the user chose never to show it', async () => {
     const storage = memoryStorage({ [ONE_CLICK_MUTED_KEY]: ['x.com', 'allegro.pl', 42] })
     render(<OneClickSettings storage={storage} />)
-    await userEvent.setup().click(await screen.findByRole('button', { name: 'Turn on one-click sign-in on x.com' }))
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Remove x.com from ignored sites' }))
     expect(storage.items[ONE_CLICK_MUTED_KEY]).toEqual(['allegro.pl'])
     expect(screen.queryByText('x.com')).not.toBeInTheDocument()
     expect(screen.getByText('allegro.pl')).toBeInTheDocument()
@@ -44,14 +44,14 @@ describe('one-click sign-in settings', () => {
       const storage = memoryStorage({ [ONE_CLICK_MUTED_KEY]: ['x.com', 'allegro.pl'] })
       render(<OneClickSettings storage={storage} />)
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-      await user.click(await screen.findByRole('button', { name: 'Turn on one-click sign-in on x.com' }))
-      expect(screen.getByRole('status')).toHaveTextContent('Turned on for x.com')
+      await user.click(await screen.findByRole('button', { name: 'Remove x.com from ignored sites' }))
+      expect(screen.getByRole('status')).toHaveTextContent('Removed x.com')
       await user.click(screen.getByRole('button', { name: 'Undo' }))
       expect(storage.items[ONE_CLICK_MUTED_KEY]).toEqual(['x.com', 'allegro.pl'])
       expect(screen.getByText('x.com')).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
 
-      await user.click(screen.getByRole('button', { name: 'Turn on one-click sign-in on allegro.pl' }))
+      await user.click(screen.getByRole('button', { name: 'Remove allegro.pl from ignored sites' }))
       await act(() => vi.advanceTimersByTimeAsync(6000))
       expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
       expect(storage.items[ONE_CLICK_MUTED_KEY]).toEqual(['x.com'])
@@ -61,5 +61,18 @@ describe('one-click sign-in settings', () => {
   it('shows an empty list when no site is turned off', async () => {
     render(<OneClickSettings storage={memoryStorage({})} />)
     expect(await screen.findByText('None')).toBeInTheDocument()
+  })
+})
+
+describe('ignored site icons', () => {
+  it('uses the icon of the saved Entry for that site and a key otherwise', async () => {
+    const { OneClickSiteEntries } = await import('./OneClickSettings')
+    const storage = memoryStorage({ [ONE_CLICK_MUTED_KEY]: ['login.example.com', 'other.test'] })
+    const entries = [{ id: 'e1', vaultId: 'v1', vaultName: 'Personal', name: 'Example', type: 1, urlDomain: 'example.com',
+      icon: 'globe', color: '#2563eb', updatedAt: '2026-11-26T00:00:00Z' }] as never
+    const { container } = render(<OneClickSiteEntries.Provider value={entries}><OneClickSettings storage={storage} /></OneClickSiteEntries.Provider>)
+    await screen.findByText('other.test')
+    const icons = [...container.querySelectorAll<HTMLElement>('.one-click-site .entry-icon')]
+    expect(icons.map((icon) => icon.style.color)).toEqual(['rgb(37, 99, 235)', ''])
   })
 })

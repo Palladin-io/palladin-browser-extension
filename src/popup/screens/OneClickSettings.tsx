@@ -1,10 +1,28 @@
-import { useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { ONE_CLICK_DISABLED_KEY, ONE_CLICK_MUTED_KEY, parseMutedHosts } from '@shared/config/one-click-preferences'
+import type { EntryMetadata } from '../../background/vault/entry-metadata'
+import { matchesTab } from '@shared/security/domain'
+import { ENTRY_TYPE_CREDENTIAL } from '../../background/vault/entry-metadata'
 import { Button } from '../components/Button'
+import { EntryIcon } from '../components/EntryIcon'
+import { PopupIcon } from '../components/PopupIcon'
 import { LoadingSkeleton } from '../components/LoadingSkeleton'
 import { useI18n } from '../i18n'
 
 const UNDO_MS = 6000
+
+/** Unlocked Entry metadata, so an ignored site shows the icon of its saved Entry. */
+export const OneClickSiteEntries = createContext<readonly EntryMetadata[]>([])
+
+/** Presentation only: an exact-host Entry wins, then any Entry on the same registrable domain. */
+function SiteIcon({ site }: { site: string }): React.JSX.Element {
+  const url = `https://${site}/`
+  const entries = useContext(OneClickSiteEntries).filter((item) => item.icon || item.color)
+  const entry = entries.find((item) => matchesTab(url, item.urlDomain))
+    ?? entries.find((item) => matchesTab(url, item.urlDomain, { exactSubdomain: false }))
+  return <EntryIcon name={site} type={entry?.type ?? ENTRY_TYPE_CREDENTIAL}
+    {...(entry?.icon ? { icon: entry.icon } : {})} {...(entry?.color ? { color: entry.color } : {})} />
+}
 
 interface Storage {
   get(keys: string[]): Promise<Record<string, unknown>>
@@ -62,11 +80,12 @@ export function OneClickSettings({ storage = chrome.storage.local }: { storage?:
       <h3 className="field-label">{t('oneClickSettings.muted')}</h3>
       {state.sites.length === 0 ? <p className="screen-subtitle">{t('oneClickSettings.noMuted')}</p> :
         state.sites.map((site) => <div className="settings-check one-click-site" key={site}>
+          <SiteIcon site={site} />
           <span>{site}</span>
-          <Button variant="ghost" aria-label={t('oneClickSettings.unmuteSite', { name: site })}
-            onClick={() => void unmute(state, site)}>
-            {t('oneClickSettings.enable')}
-          </Button>
+          <button type="button" className="toolbar-icon" aria-label={t('oneClickSettings.unmuteSite', { name: site })}
+            title={t('oneClickSettings.unmuteSite', { name: site })} onClick={() => void unmute(state, site)}>
+            <PopupIcon name="delete" />
+          </button>
         </div>)}
       <div className="one-click-undo" role="status" aria-live="polite">
         {undo ? <>

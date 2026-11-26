@@ -795,11 +795,11 @@
   "oneClickSettings.title": "Logowanie jednym kliknięciem",
   "oneClickSettings.show": "Pokazuj propozycję logowania",
   "oneClickSettings.enable": "Włącz",
-  "oneClickSettings.muted": "Strony z wyłączonym logowaniem",
+  "oneClickSettings.muted": "Ignorowane strony",
   "oneClickSettings.noMuted": "Brak",
-  "oneClickSettings.unmuteSite": "Włącz logowanie jednym kliknięciem na {name}",
+  "oneClickSettings.unmuteSite": "Usuń {name} z ignorowanych stron",
   "oneClickSettings.error": "Nie udało się zmienić ustawień. Spróbuj ponownie.",
   "oneClickSettings.description": "Palladin proponuje zalogowanie zapisanym kontem jednym kliknięciem.",
-  "oneClickSettings.unmuted": "Włączono dla {name}",
+  "oneClickSettings.unmuted": "Usunięto {name}",
   "oneClickSettings.undo": "Cofnij"
 }
