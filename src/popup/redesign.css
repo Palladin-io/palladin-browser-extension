@@ -1645,9 +1645,6 @@ html[data-extension-surface='side-panel'] .popup-header {
 .capture-review-identity > span:not(.entry-icon):not(.capture-provider) { min-width:0; flex:1; }
 .capture-review-identity .entry-icon-image { width:22px; height:22px; object-fit:contain; }
 
-.capture-update-context { border:1px solid var(--cv-border); border-radius:8px; padding:12px; font-size:12px; }
-.capture-update-context p { margin:5px 0; }
-.capture-update-context small { color:var(--cv-t3); }
 .capture-totp-badge { margin-left:auto; color:var(--cv-t3); }
 
 .capture-review-fields .entry-reveal-field{position:relative;display:block}
@@ -1668,3 +1665,28 @@ html:has(.popup[data-phase='locked']), html:has(.popup[data-phase='locked']) bod
   html:has(.popup[data-phase='locked']), html:has(.popup[data-phase='locked']) body,
   .popup[data-phase='locked'] { transition:none; }
 }
+
+/* Provider and service marks inside account and entry pickers. */
+.entry-autocomplete-control > .entry-icon { position:absolute; left:8px; top:50%; width:24px; height:24px; transform:translateY(-50%); pointer-events:none; }
+.entry-autocomplete-control > .entry-icon + .field-input { padding-left:42px; }
+.entry-autocomplete-control > .entry-icon img { width:16px; height:16px; object-fit:contain; }
+.entry-autocomplete-menu .entry-icon img { object-fit:contain; }
+.entry-icon img[data-mono="true"] { filter:brightness(0); }
+:root[data-theme="dark"] .entry-icon img[data-mono="true"] { filter:brightness(0) invert(1); }
+
+/* Compact capture form: essential fields, then a "More" disclosure with the review expansion motion. */
+.capture-review-fields:empty { padding-bottom:0; }
+.capture-username-choice, .capture-vault-choice { display:flex; flex-direction:column; }
+.capture-username-choice { gap:6px; }
+.capture-compact-row { display:flex; align-items:flex-end; gap:8px; }
+.capture-compact-row > .capture-vault-choice { flex:1 1 auto; min-width:0; }
+.capture-compact-row > [data-capture-more] { flex:0 0 auto; }
+[data-capture-more] svg { width:14px; height:14px; transform:rotate(90deg); transition:transform .24s ease; }
+[data-capture-more][aria-expanded="true"] svg { transform:rotate(-90deg); }
+.capture-card-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:end; gap:8px; }
+.capture-card-row:has(> [data-capture-more]) { grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto; }
+.capture-more-contents, .capture-more-contents > div { display:contents; }
+.capture-more-panel { display:grid; grid-template-rows:0fr; opacity:0; margin-top:-12px; transition:grid-template-rows .24s ease, opacity .2s ease, margin-top .24s ease; }
+.capture-more-panel > div { min-height:0; overflow:hidden; display:flex; flex-direction:column; gap:12px; padding:0 2px; margin:0 -2px; }
+.capture-more-panel[data-open="true"] { grid-template-rows:1fr; opacity:1; margin-top:0; }
+@media (prefers-reduced-motion: reduce) { [data-capture-more] svg, .capture-more-panel { transition:none; } }

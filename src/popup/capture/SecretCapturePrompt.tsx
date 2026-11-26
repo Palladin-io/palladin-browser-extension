@@ -1,6 +1,5 @@
 import type { CaptureDraft, CaptureFormDraft } from '../../shared/messaging/capture-draft';
 import { CaptureTransition } from './CaptureTransition';
-import { EntryAutocomplete } from '../components/EntryAutocomplete';
 import { cardNetwork } from '@shared/card-network';
 import { useEffect, useId, useRef, useState } from 'react';
 import { SECRET_CAPTURE_CHANNEL, isSecretCaptureInvalidation, type SecretCapturePopupCommand } from '@shared/messaging/secret-capture';
@@ -75,7 +74,9 @@ export function SecretCapturePrompt({ review, client, send = sendSecretCapture, 
 
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-  const initialTarget = initialExpanded && review.cardTargets?.length === 1 ? review.cardTargets[0] : undefined;
+  const initialTarget = initialExpanded ? review.cardTargets?.[0] : undefined;
+  const [creatingCard, setCreatingCard] = useState(false);
+  const [more, setMore] = useState(!!initialDraft?.form);
   const [targetId, setTargetId] = useState(initialDraft?.targetId ?? initialTarget?.id ?? '');
   const [selected, setSelected] = useState<Review | null>(initialExpanded ? review : null);
   const [selecting, setSelecting] = useState(false);
@@ -115,8 +116,8 @@ export function SecretCapturePrompt({ review, client, send = sendSecretCapture, 
       if (epoch !== selectionGeneration.current) return;
       if (result.status === 'review' && result.id === review.id) {
         setSelected(result);
-        const only = result.cardTargets?.length === 1 ? result.cardTargets[0] : undefined;
-        setTargetId(only?.id ?? ''); if (only) setVaultId(only.vaultId);
+        const first = result.cardTargets?.[0];
+        setTargetId(first?.id ?? ''); if (first) setVaultId(first.vaultId);
       }
       else setTerminal('stale');
     } catch { if (epoch === selectionGeneration.current) setActionError(true); }
@@ -137,20 +138,22 @@ export function SecretCapturePrompt({ review, client, send = sendSecretCapture, 
   return <CaptureReview title={t(card ? draftReview.cardTargets?.length ? 'captureReview.updateCardTitle' : 'captureReview.saveCard' : 'captureReview.saveKey')} savedTitle={t(card ? target ? 'captureReview.cardUpdated' : 'captureReview.cardSaved' : 'captureReview.keySaved')}
     origin={new URL(review.origin).hostname} name={name} detail={detail} identity={{ name, type: card ? ENTRY_TYPE_CREDIT_CARD : ENTRY_TYPE_KEY, ...(initialEntry.icon ? { icon: initialEntry.icon } : {}) }}
     {...(onOpenCapture ? {onIdentity: () => onOpenCapture(saved,{kind:'secret',targetId,vaultId,form:formDraft.current})} : {})} stage={saved ? 'saved' : selected ? 'review' : 'notice'} vault={review.vaults.find(vault => vault.id === vaultId)?.name ?? ''}
-    saveLabel={t(target ? 'captureReview.updateCard' : card ? 'captureReview.saveCardAction' : 'captureReview.saveKeyAction')} saveForm={formId} busy={selecting || saving} disabled={!vaultId || !!selected?.cardTargets?.length && !target}
-    {...(actionError ? { error: t('entry.error') } : {})} onReview={() => void beginReview()} onSave={() => {}} onDismiss={() => void dismiss()} onMute={() => void dismiss(true)} onDone={onDone}>
+    saveLabel={t(target ? 'captureReview.updateCard' : card ? 'captureReview.saveCardAction' : 'captureReview.saveKeyAction')} saveForm={formId} busy={selecting || saving} disabled={!vaultId || !!selected?.cardTargets?.length && !target && !creatingCard}
+    {...(actionError ? { error: t('entry.error') } : {})} onReview={() => void beginReview()} onSave={() => {}} menuActions={selected ? [
+      ...(selected.cardTargets ?? []).filter(item => item.id !== target?.id).map(item => ({
+        label: t('captureReview.changeEntry', { name: item.name }), onSelect: () => { setCreatingCard(false); setTargetId(item.id); setVaultId(item.vaultId); } })),
+      ...(target ? [{ label: t('captureReview.createCard'), onSelect: () => { setCreatingCard(true); setTargetId(''); } }] : []),
+    ] : []}
+    onDismiss={() => void dismiss()} onMute={() => void dismiss(true)} onDone={onDone}>
     {selected && !saved ? <>
-      {target ? <div className="capture-update-context"><strong>{t('captureReview.cardUpdateContext')}</strong><p>{target.name} · {detail} · {target.vaultName}</p>
-        <p>{t('card.expiryMonth')} / {t('card.expiryYear')}: {target.entry.expiryMonth}/{target.entry.expiryYear} → {initialEntry.entryType === 'creditCard' ? `${initialEntry.expiryMonth}/${initialEntry.expiryYear}` : ''}</p><small>{t('captureReview.cardUnchanged')}</small></div> : null}
-      {selected.cardTargets?.length ? <EntryAutocomplete label={t('captureReview.existingCard')} placeholder={t('captureReview.chooseCard')} value={targetId} disabled={saving}
-        options={selected.cardTargets.map(target => ({ id: target.id, name: target.name, detail: target.vaultName, ...(target.entry.icon ? {icon:target.entry.icon} : {}), type: ENTRY_TYPE_CREDIT_CARD }))}
-        onValueChange={id => { setTargetId(id); const target = selected.cardTargets?.find(target => target.id === id); if (target) setVaultId(target.vaultId); }} /> : null}
-      <label className="field-label">{t('captureReview.vault')}</label>
-      <FilterSelect floating aria-label={t('captureReview.vault')} value={vaultId} disabled={saving || !!selected.cardTargets?.length} onValueChange={setVaultId}>
-        {review.vaults.map(vault => <option value={vault.id} key={vault.id}>{vault.name}</option>)}
-      </FilterSelect>
-      {vaultId ? <AddEntryForm key={targetId || "create"} client={client} initialEntry={initialEntry} initialCaptureDraft={targetId===initialDraft?.targetId ? initialDraft.form ?? undefined : undefined} captureDraftRef={formDraft} captureFormId={formId} onBusyChange={setSaving} onSave={async entry => {
-        if (selected.cardTargets?.length && !target) throw Error('Choose an existing card');
+      {vaultId ? <AddEntryForm key={targetId || "create"} client={client}
+        compact={{ ...(target ? {} : { slot: <div className="capture-vault-choice">
+          <label className="field-label">{t('captureReview.vault')}</label>
+          <FilterSelect floating aria-label={t('captureReview.vault')} value={vaultId} disabled={saving} onValueChange={setVaultId}>
+            {review.vaults.map(vault => <option value={vault.id} key={vault.id}>{vault.name}</option>)}
+          </FilterSelect>
+        </div> }), open: more, onOpenChange: setMore }} initialEntry={initialEntry} initialCaptureDraft={targetId===initialDraft?.targetId ? initialDraft.form ?? undefined : undefined} captureDraftRef={formDraft} captureFormId={formId} onBusyChange={setSaving} onSave={async entry => {
+        if (selected.cardTargets?.length && !target && !creatingCard) throw Error('Choose an existing card');
         const epoch = selectionGeneration.current;
         const result = await send(target && entry.entryType === 'creditCard'
           ? { channel: SECRET_CAPTURE_CHANNEL, type: 'update', id: review.id, targetId: target.id, entry }

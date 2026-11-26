@@ -31,3 +31,14 @@ html:has(.capture-frame) { background:var(--cv-surface)!important; }
 .capture-frame .capture-review-footer { position:fixed; bottom:0; left:0; right:0; z-index:3; }
 
 .capture-frame .popup-header > .toolbar-icon svg { display:block; width:16px; height:16px; pointer-events:none; }
+
+/* Room for an account list to open downward; the host follows the frame height. */
+.capture-frame:has([role="combobox"][aria-expanded="true"]) { min-height:580px; }
+.capture-frame .capture-review-identity strong { font-size:15px; }
+.capture-frame .capture-review-identity small { font-size:13px; line-height:18px; }
+/* Selects and buttons in capture fields match the 38px / 13px text inputs and the Dismiss treatment. */
+.capture-frame .capture-review-fields .filter-select > [role="combobox"] { height:38px; font-size:13px; }
+.capture-frame .capture-review-fields [data-capture-more] { height:38px; min-height:38px; font-size:13px; }
+.capture-frame .capture-review-fields .btn--subtle { background:var(--cv-surface); color:var(--cv-t1); border:1px solid var(--cv-border); }
+.capture-frame .capture-review-fields .btn--subtle:hover { background:var(--cv-subtle); }
+

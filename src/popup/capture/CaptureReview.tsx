@@ -13,6 +13,7 @@ interface Props {
   onIdentity?(): void;
   busy?: boolean; disabled?: boolean; error?: string;
   onMute?(): void;
+  menuActions?: readonly { label: string; onSelect(): void }[];
   onReview(): void; onSave(): void; onDismiss(): void; onDone(): void;
 }
 export function CaptureReview(props: Props): React.JSX.Element {
@@ -54,7 +55,9 @@ export function CaptureReview(props: Props): React.JSX.Element {
             if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setMenuOpen(true); }
           }}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></button> : null}
         {menuVisible && props.onMute ? <div className="capture-site-preference" role="menu">
-          <button type="button" role="menuitem" autoFocus onClick={() => { setMenuOpen(false); props.onMute?.(); }}>
+          {(props.menuActions ?? []).map((action, index) => <button key={action.label} type="button" role="menuitem" autoFocus={index === 0}
+            onClick={() => { setMenuOpen(false); action.onSelect(); }}>{action.label}</button>)}
+          <button type="button" role="menuitem" autoFocus={!props.menuActions?.length} onClick={() => { setMenuOpen(false); props.onMute?.(); }}>
             {t('captureToast.mute')}<small>{registrableDomain(props.origin) ?? props.origin}</small>
           </button>
         </div> : null}

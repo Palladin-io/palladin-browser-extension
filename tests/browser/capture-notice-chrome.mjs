@@ -71,7 +71,7 @@ try {
         } finally { Element.prototype.attachShadow = attach; }
       }, { kind, theme, language });
       assert.equal(result.brand, 'Palladin.io');
-      assert.equal(result.title, (language==='pl'?{credential:'Zapisz login',card:'Zapisz kartę płatniczą',key:'Zapisz klucz API',totp:'Zapisz uwierzytelniacz',federated:'Zapamiętaj metodę logowania'}:{credential:'Save login',card:'Save payment card',key:'Save API key',totp:'Save authenticator',federated:'Remember sign-in method'})[kind]);
+      assert.equal(result.title, (language==='pl'?{credential:'Zapisz login',card:'Zapisz kartę płatniczą',key:'Zapisz klucz API',totp:'Zapisz 2FA',federated:'Zapamiętaj metodę logowania'}:{credential:'Save login',card:'Save payment card',key:'Save API key',totp:'Save authenticator',federated:'Remember sign-in method'})[kind]);
       assert.equal(result.logoWidth, 128, 'exact approved prototype shield derivative loads');
       assert.equal(result.headerHeight, 68);
       assert(result.gradient.startsWith('linear-gradient(110deg,'));

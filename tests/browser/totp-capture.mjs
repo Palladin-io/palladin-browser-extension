@@ -41,7 +41,7 @@ try {
   popup = await openNativePopup(worker, profile, extensionId); await popup.waitText('Save authenticator')
   await popup.screenshot('/tmp/cvt-737-totp-popup.png')
   const nameInput = '.capture-review-fields label input.field-input:not([role])'
-  const createLogin = async name => { await popup.click('Review'); await popup.click('Create a login entry'); await popup.fill(nameInput, name) }
+  const createLogin = async name => { await popup.click('Review'); await popup.click('More dismiss options'); await popup.click('Edit entry', 'menuitem'); await popup.fill(nameInput, name) }
   await createLogin('Synthetic account')
   await popup.click('Save authenticator'); await wait(() => api.writes.length === 1, 'encrypted create')
   const first = await api.decrypt(api.writes[0]); assert.equal(first.content.totp.secret, seed)
@@ -50,10 +50,10 @@ try {
   await page.goto('https://capture.example.test/other'); await page.evaluate(qr => { document.querySelector('a').remove(); const img = new Image(); img.src = `data:image/png;base64,${qr}`; document.body.append(img) }, qr)
   await wait(() => page.locator('palladin-capture').count(), 'QR notice')
   popup = await openNativePopup(worker, profile, extensionId); await popup.waitText('Save authenticator')
-  await popup.click('Review'); await popup.click('Credential', 'combobox'); await popup.click(/Synthetic account/, 'option')
-  assert(await popup.hasText('Replace existing authenticator'))
+  await popup.click('Review'); await wait(async () => (await popup.captureIdentityName()).includes('Synthetic account'), 'sole matching login preselected')
+  assert(await popup.hasText('Replace the saved authenticator for'))
   assert(await popup.buttonDisabled('Save authenticator')); assert.equal(api.writes.length, 1, 'replacement requires confirmation')
-  await popup.click('Replace existing authenticator', 'checkbox'); await popup.click('Save authenticator')
+  await popup.click(/^Replace the saved authenticator for/, 'checkbox'); await popup.click('Save authenticator')
   await wait(() => api.writes.length === 2, 'encrypted update')
   const updated = await api.decrypt(api.writes[1]); assert.equal(updated.content.totp.secret, nextSeed)
   assert.equal(updated.memberLabel, first.memberLabel); assert.equal(updated.content.username, first.content.username)
@@ -82,7 +82,7 @@ try {
   await page.evaluate(() => { document.querySelector('canvas').getContext('2d').drawImage(globalThis.syntheticQrImages[0], 0, 0) })
   await wait(() => page.locator('palladin-capture').count(), 'canvas-only automatic discovery')
   popup = await openNativePopup(worker, profile, extensionId); await popup.waitText('Save authenticator')
-  await popup.click('Review'); await popup.click('Replace existing authenticator', 'checkbox')
+  await popup.click('Review'); await popup.click(/^Replace the saved authenticator for/, 'checkbox')
   await page.evaluate(() => document.body.append(document.createElement('span')))
   await new Promise(resolve => setTimeout(resolve, 700))
   assert(await popup.hasText('Replace existing authenticator'), 'unrelated mutation preserves native review')

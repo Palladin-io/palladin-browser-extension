@@ -120,7 +120,15 @@ try {
     await popup.click('Review')
     await new Promise(resolve => setTimeout(resolve, 400))
     assert.equal(api.writes.length, writesBeforeReview, 'Opening native review must never save')
-    await popup.waitButton('Remember method')
+    await popup.waitButton('Save')
+  }
+  // The review opens on the default destination; another Entry is chosen explicitly from the Dismiss menu.
+  const reviewEntry = async (name, menuItem) => {
+    if (!name.test(await popup.captureIdentityName())) {
+      await popup.click('More dismiss options')
+      await popup.click(menuItem, 'menuitem')
+    }
+    await ui.wait(async () => name.test(await popup.captureIdentityName()), 'reviewed destination Entry')
   }
   const noSurface = async () => {
     await tab.waitForTimeout(1500)
@@ -152,12 +160,9 @@ try {
   await openReview()
   await popup.click('Which Google account did you use?', 'combobox')
   await popup.click(/work@corp\.example/, 'option')
-  await popup.click('Save sign-in method to', 'combobox')
-  await popup.click('A new login entry', 'option')
-  await popup.click('Save to Vault', 'combobox')
-  await popup.click('Personal', 'option')
-  assert.equal(api.writes.length, writesBefore, 'Choosing a provider account and destination is not a mutation')
-  await popup.click('Remember method')
+  assert.equal(await popup.hasText('New entry · Personal'), true, 'Without a service login the review creates a Personal Entry')
+  assert.equal(api.writes.length, writesBefore, 'Choosing a provider account is not a mutation')
+  await popup.click('Save')
   await ui.wait(() => api.writes.length === writesBefore + 1, 'encrypted create')
   const created = api.writes.at(-1)
   const createdSecret = await api.decrypt(created)
@@ -216,13 +221,10 @@ try {
   await ui.wait(async () => await ui.find('region', 'Remember sign-in method') && await ui.find('StaticText', 'GitHub'), 'popup prompt in opener tab')
   await openReview()
   await popup.click('Which GitHub account did you use?', 'combobox')
-  await popup.click('Account not specified', 'option')
-  await popup.click('Save sign-in method to', 'combobox')
-  await popup.click('An existing login entry', 'option')
-  await popup.click('Existing entry', 'combobox')
-  await popup.click(/Synthetic service \(alice\)/, 'option')
+  await popup.click("Don't specify an account", 'option')
+  await reviewEntry(/^Synthetic service \(alice\)$/, /^Add to Synthetic service \(alice\)/)
   const writesBeforeUpdate = api.writes.length
-  await popup.click('Remember method')
+  await popup.click('Save')
   await ui.wait(() => api.writes.length === writesBeforeUpdate + 1, 'encrypted update')
   const updated = api.writes.at(-1)
   assert.equal(updated.entryId, existing.entryId)
@@ -245,12 +247,9 @@ try {
   await openReview()
   await popup.click('Which Google account did you use?', 'combobox')
   await popup.click(/alice@gmail\.example/, 'option')
-  await popup.click('Save sign-in method to', 'combobox')
-  await popup.click('An existing login entry', 'option')
-  await popup.click('Existing entry', 'combobox')
-  await popup.click(/^app\.example\.test /, 'option')
+  await reviewEntry(/^app\.example\.test$/, /^Add to app\.example\.test /)
   const writesBeforeSecond = api.writes.length
-  await popup.click('Remember method')
+  await popup.click('Save')
   await ui.wait(() => api.writes.length === writesBeforeSecond + 1, 'second Google method encrypted update')
   const secondWrite = api.writes.at(-1)
   assert.equal(secondWrite.entryId, created.entryId)

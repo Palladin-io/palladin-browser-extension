@@ -6,19 +6,26 @@ import type { NativeLoginCaptureReview } from '../../shared/messaging/native-log
 const review: NativeLoginCaptureReview = { kind: 'credential', prompt: { id: 'capture', site: 'accounts.example.com', state: 'ready',
   targets: [{ id: 'one', action: 'update', label: 'Alice', vaultLabel: 'Personal' }, { id: 'two', action: 'update', label: 'Bob', vaultLabel: 'Personal' }], defaultTargetId: null },
   entry: { entryType: 'credential', label: 'Example', username: 'alice', password: 'captured', url: 'https://accounts.example.com' } };
-it('requires an ambiguous account choice and retains edited fields after save failure', async () => {
-  const send = vi.fn(async (command) => command.type === 'get' ? { status: 'review' as const, review } : { status: 'unavailable' as const });
+function chooseFromDismissMenu(name: string | RegExp) {
+  fireEvent.click(screen.getByRole('button', { name: 'More dismiss options' }));
+  fireEvent.click(screen.getByRole('menuitem', { name }));
+}
+it('reviews the first matching entry, offers the others from the Dismiss menu and keeps the choice after a failure', async () => {
+  const entryFor = (label: string) => ({ ...review.entry, label });
+  const send = vi.fn(async (command: import('../../shared/messaging/native-login-capture').NativeLoginCaptureCommand) => command.type === 'get'
+    ? { status: 'review' as const, review: { ...review, entry: entryFor(command.targetId === 'two' ? 'Bob entry' : 'Alice entry') } } : { status: 'unavailable' as const });
   render(<LoginCapturePrompt review={review} send={send} onDone={() => {}} />);
+  expect(await screen.findByText('Alice entry', { selector: 'strong' })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Review' })).toBeEnabled());
   fireEvent.click(screen.getByRole('button', { name: 'Review' }));
-  expect(screen.getByRole('button', { name: 'Update password' })).toBeDisabled();
-  fireEvent.click(screen.getByLabelText('Existing entry'));
-  fireEvent.click(screen.getByRole('option', { name: /Alice/ }));
-  await waitFor(() => expect(screen.getByLabelText('Name')).toHaveValue('Example'));
-  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Edited login' } });
+  expect(screen.queryByLabelText('Existing entry')).toBeNull();
+  expect(screen.queryByLabelText('Name')).toBeNull();
+  chooseFromDismissMenu('Change entry: Bob · Personal');
+  expect(await screen.findByText('Bob entry', { selector: 'strong' })).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Update password' }));
   await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Could not save'));
-  expect(screen.getByLabelText('Name')).toHaveValue('Edited login');
-  expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'save', targetId: 'one', entry: expect.objectContaining({ label: 'Edited login' }) }));
+  expect(screen.getByText('Bob entry', { selector: 'strong' })).toBeInTheDocument();
+  expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'save', targetId: 'two', entry: expect.objectContaining({ label: 'Bob entry', password: 'captured' }) }));
 });
 it('requires explicit confirmation before replacing a different remembered provider account', async () => {
   const send = vi.fn(async () => ({ status: 'saved' as const, action: 'updated' as const }));
@@ -26,9 +33,9 @@ it('requires explicit confirmation before replacing a different remembered provi
     accounts: [{ id: 'account', label: 'new@example.com', source: 'vault' }], defaultAccountId: 'account',
     targets: [{ id: 'target', action: 'update', label: 'Example', vaultLabel: 'Personal', current: { provider: 'apple', account: 'old@example.com' } }], defaultTargetId: 'target' } }} send={send} onDone={() => {}} />);
   fireEvent.click(screen.getByRole('button', { name: 'Review' }));
-  expect(screen.getByRole('button', { name: 'Remember method' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   fireEvent.click(screen.getByRole('checkbox', { name: 'Replace the remembered sign-in method' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Remember method' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'confirm', replace: true })));
 });
 it('rebinds a failed save to refreshed worker target IDs without losing edits', async () => {
@@ -41,12 +48,10 @@ it('rebinds a failed save to refreshed worker target IDs without losing edits', 
   });
   render(<LoginCapturePrompt review={initial} send={send} onDone={() => {}} />);
   fireEvent.click(screen.getByRole('button', { name: 'Review' }));
-  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Keep edited label' } });
   fireEvent.click(screen.getByRole('button', { name: 'Update password' }));
   await waitFor(() => expect(screen.getByRole('alert')).toBeVisible());
-  expect(screen.getByLabelText('Name')).toHaveValue('Keep edited label');
   fireEvent.click(screen.getByRole('button', { name: 'Update password' }));
-  await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ targetId: 'refreshed', entry: expect.objectContaining({ label: 'Keep edited label' }) })));
+  await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ targetId: 'refreshed', entry: expect.objectContaining({ password: 'captured' }) })));
 });
 it('discards a review fetched after navigation invalidation', async () => {
   const { act } = await import('@testing-library/react');
@@ -64,19 +69,26 @@ it('discards a review fetched after navigation invalidation', async () => {
 it('keeps signup identity correction available and resets the target after correction', async () => {
   const targets = [{ id: 'personal', action: 'create' as const, label: 'Personal', vaultLabel: 'Personal' }, { id: 'team', action: 'create' as const, label: 'Team', vaultLabel: 'Team' }];
   let selected: 'email' | 'nickname' | null = null;
-  const initial = { ...review, prompt: { ...review.prompt, usernameSelection: { selected }, targets: [], defaultTargetId: null } };
+  const usernameOptions = { email: 'alice@example.com', nickname: 'alice' };
+  const initial = { ...review, usernameOptions, prompt: { ...review.prompt, usernameSelection: { selected }, targets: [], defaultTargetId: null } };
   const send = vi.fn(async (command): Promise<import('../../shared/messaging/native-login-capture').NativeLoginCaptureResult> => {
     if (command.type === 'choose-username') { selected = command.choice; return { status: 'accepted' }; }
-    return { status: 'review', review: { ...review, prompt: { ...review.prompt, usernameSelection: { selected }, targets, defaultTargetId: 'personal' } } };
+    return { status: 'review', review: { ...review, usernameOptions, entry: { ...review.entry, username: usernameOptions[selected ?? 'email'] },
+      prompt: { ...review.prompt, usernameSelection: { selected }, targets, defaultTargetId: 'personal' } } };
   });
   render(<LoginCapturePrompt review={initial} send={send} onDone={() => {}} />);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Review' })).toBeEnabled());
   fireEvent.click(screen.getByRole('button', { name: 'Review' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Email' }));
   await waitFor(() => expect(screen.getByRole('combobox', {name:'Save to Vault'})).toHaveTextContent('Personal'));
+  expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'choose-username', choice: 'email' }));
+  expect(screen.getByText('alice@example.com', { selector: 'small' })).toBeInTheDocument();
   fireEvent.click(screen.getByRole('combobox', {name:'Save to Vault'}));
   fireEvent.click(screen.getByRole('option', { name: /Team/ }));
   await waitFor(() => expect(screen.getByRole('combobox', {name:'Save to Vault'})).toHaveTextContent('Team'));
-  fireEvent.click(screen.getByRole('button', { name: 'Nickname' }));
+  fireEvent.click(screen.getByRole('button', { name: 'More', expanded: false }));
+  fireEvent.click(screen.getByRole('combobox', { name: 'Username' }));
+  fireEvent.click(screen.getByRole('option', { name: 'alice (Nickname)' }));
+  await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'choose-username', choice: 'nickname' })));
   await waitFor(() => expect(screen.getByRole('combobox', {name:'Save to Vault'})).toHaveTextContent('Personal'));
   expect(send.mock.calls.some(([command]) => command.type === 'save')).toBe(false);
 });
@@ -115,7 +127,8 @@ it('retains the active editor through unrelated Vault revisions and clears it on
   let refresh!: (value: unknown) => void;
   let listener!: (message: unknown) => void;
   let gets = 0;
-  vi.stubGlobal('chrome', { runtime: { sendMessage: () => ++gets === 1 ? Promise.resolve({ status: 'review', sourceTabId: 1, review })
+  const newLogin = { ...review, prompt: { ...review.prompt, targets: [{ id: 'vault', action: 'create' as const, label: 'Personal', vaultLabel: 'Personal' }], defaultTargetId: 'vault' } };
+  vi.stubGlobal('chrome', { runtime: { sendMessage: () => ++gets === 1 ? Promise.resolve({ status: 'review', sourceTabId: 1, review: newLogin })
     : new Promise(resolve => { refresh = resolve; }), onMessage: { addListener: (next: typeof listener) => { listener = next; }, removeListener: () => {} } } });
   const { rerender, unmount } = render(<LoginCaptureSurface revision={0} />);
   try {
@@ -125,7 +138,7 @@ it('retains the active editor through unrelated Vault revisions and clears it on
     rerender(<LoginCaptureSurface revision={1} />);
     expect(screen.getByLabelText('Name')).toBe(name);
     expect(name).toHaveValue('Unsaved label');
-    await act(async () => { refresh({ status: 'review', sourceTabId: 1, review }); });
+    await act(async () => { refresh({ status: 'review', sourceTabId: 1, review: newLogin }); });
     expect(screen.getByLabelText('Name')).toBe(name);
     expect(name).toHaveValue('Unsaved label');
     await act(async () => { listener({ type: 'login-capture/invalidated', tabId: 1 }); });
@@ -172,15 +185,33 @@ it('discovers a same-document SPA capture after the surface initially has no pro
     expect(await screen.findByRole('button', { name: 'Review' })).toBeVisible();
   } finally { unmount(); vi.unstubAllGlobals(); }
 });
-it('shows password-update copy and retains the edited account in the saved summary', async () => {
-  render(<LoginCapturePrompt review={{...review,prompt:{...review.prompt,defaultTargetId:'one'}}} send={async()=>({status:'saved',action:'updated'})} onDone={()=>{}} />);
+it('shows only the new password with a preview for a password update and saves the worker entry', async () => {
+  const send = vi.fn(async () => ({status:'saved' as const,action:'updated' as const}));
+  render(<LoginCapturePrompt review={{...review,prompt:{...review.prompt,defaultTargetId:'one'}}} send={send} onDone={()=>{}} />);
   fireEvent.click(screen.getByRole('button',{name:'Review'}));
-  expect(screen.getByLabelText('New password')).toHaveValue('captured');
-  fireEvent.change(screen.getByLabelText('Username'),{target:{value:'edited-account'}});
+  const password = screen.getByLabelText('New password');
+  expect(password).toHaveValue('captured'); expect(password).toHaveAttribute('type','password');
+  expect(screen.queryByLabelText('Username')).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'Show New password'}));
+  expect(password).toHaveAttribute('type','text');
+  fireEvent.click(screen.getByRole('checkbox',{name:'Automatically update passwords for this account'}));
   fireEvent.click(screen.getByRole('button',{name:'Update password'}));
   expect(await screen.findByText('Password updated')).toBeVisible();
-  expect(screen.getByText('edited-account')).toBeVisible();
+  expect(send).toHaveBeenCalledWith(expect.objectContaining({type:'save',targetId:'one',autoUpdate:true,entry:review.entry}));
   expect(screen.queryByLabelText('New password')).toBeNull();
+});
+it('saves a new login from the password and Vault, with the other fields behind More', async () => {
+  const send = vi.fn(async () => ({status:'saved' as const,action:'created' as const}));
+  render(<LoginCapturePrompt initialExpanded review={{...review,prompt:{...review.prompt,targets:[{id:'vault',action:'create',label:'Personal',vaultLabel:'Personal'}],defaultTargetId:'vault'}}} send={send} onDone={()=>{}} />);
+  const more = screen.getByRole('button',{name:'More'});
+  expect(more).toHaveAttribute('aria-expanded','false');
+  expect(more.closest('.capture-compact-row')).toContainElement(screen.getByRole('combobox',{name:'Save to Vault'}));
+  expect(screen.getByLabelText('Password')).toHaveValue('captured');
+  expect(screen.getByLabelText('Username').closest('.capture-more-panel')).toHaveAttribute('inert');
+  fireEvent.click(more);
+  expect(screen.getByLabelText('Username').closest('.capture-more-panel')).not.toHaveAttribute('inert');
+  fireEvent.click(screen.getByRole('button',{name:'Save login'}));
+  await waitFor(()=>expect(send).toHaveBeenCalledWith(expect.objectContaining({type:'save',targetId:'vault',entry:expect.objectContaining({username:'alice',password:'captured'})})));
 });
 it('offers a Vault selector for a new login rather than an existing-entry search', () => {
   render(<LoginCapturePrompt review={{...review,prompt:{...review.prompt,targets:[{id:'vault',action:'create',label:'Personal',vaultLabel:'Personal'}],defaultTargetId:'vault'}}} send={async()=>({status:'stale'})} onDone={()=>{}} />);
@@ -193,24 +224,44 @@ it('confirms the OAuth account before choosing a new named login entry', async (
  render(<LoginCapturePrompt review={{kind:'federated',prompt:{id:'flow',site:'example.com',provider:'google',state:'ready',accounts:[{id:'account',label:'alice@example.com',source:'vault'}],defaultAccountId:'account',targets:[{id:'create',action:'create',label:'example.com',vaultLabel:'Personal',current:null}],defaultTargetId:'create'}}} send={send} onDone={()=>{}}/>);
  fireEvent.click(screen.getByRole('button',{name:'Review'}));
  expect(screen.getByRole('img',{name:'Google'})).toBeVisible();
+ expect(screen.getByLabelText('Which Google account did you use?')).toHaveValue('alice@example.com');
+ expect(screen.getByText('New entry · Personal')).toBeInTheDocument();
+ expect(screen.queryByLabelText('Entry name')).toBeNull();
+ chooseFromDismissMenu('Edit entry');
  expect(screen.getByLabelText('Entry name')).toHaveValue('example.com');
- expect(screen.getByLabelText('Which Google account did you use?').compareDocumentPosition(screen.getByRole('combobox',{name:'Save sign-in method to'})) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
  fireEvent.change(screen.getByLabelText('Entry name'),{target:{value:'Work GitHub'}});
- fireEvent.click(screen.getByRole('button',{name:'Remember method'}));
+ fireEvent.click(screen.getByRole('button',{name:'Save'}));
  await waitFor(()=>expect(send).toHaveBeenCalledWith(expect.objectContaining({type:'confirm',entryName:'Work GitHub',targetId:'create'})));
  expect(await screen.findByText('Google · alice@example.com')).toBeVisible();
+});
+
+it('saves an OAuth account typed by the user and never sends it as a listed account id', async () => {
+  const send = vi.fn(async () => ({status:'saved' as const,action:'updated' as const}));
+  render(<LoginCapturePrompt initialExpanded review={{kind:'federated',prompt:{id:'flow',site:'example.com',provider:'github',state:'ready',accounts:[{id:'account',label:'alice@example.com',source:'vault'}],defaultAccountId:null,targets:[{id:'existing',action:'update',label:'Work',vaultLabel:'Personal',current:null}],defaultTargetId:'existing'}}} send={send} onDone={()=>{}} />);
+  const account = screen.getByRole('combobox',{name:'Which GitHub account did you use?'});
+  expect(screen.getByRole('button',{name:'Save'})).toBeDisabled();
+  fireEvent.change(account,{target:{value:' octo-cat '}});
+  fireEvent.keyDown(account,{key:'Enter'});
+  expect(account).toHaveValue(' octo-cat ');
+  fireEvent.click(screen.getByRole('button',{name:'Save'}));
+  await waitFor(()=>expect(send).toHaveBeenCalledWith(expect.objectContaining({type:'confirm',account:'octo-cat',targetId:'existing'})));
+  expect(send).not.toHaveBeenCalledWith(expect.objectContaining({accountId:expect.anything()}));
+  expect(await screen.findByText('GitHub · octo-cat')).toBeVisible();
 });
 
 it('defaults OAuth to the existing match and creates only after explicitly choosing New', async () => {
   const send = vi.fn(async () => ({status:'saved' as const,action:'created' as const}));
   render(<LoginCapturePrompt review={{kind:'federated',prompt:{id:'flow',site:'example.com',provider:'google',state:'ready',accounts:[{id:'account',label:'alice@example.com',source:'vault'}],defaultAccountId:'account',targets:[{id:'existing',action:'update',label:'Work',vaultLabel:'Personal',current:null},{id:'create',action:'create',label:'example.com',vaultLabel:'Personal',current:null}],defaultTargetId:'existing'}}} send={send} onDone={()=>{}} />);
   fireEvent.click(screen.getByRole('button',{name:'Review'}));
-  expect(screen.getByLabelText('Existing entry')).toHaveValue('Work');
+  expect(screen.getByText('Work',{selector:'strong'})).toBeInTheDocument();
+  expect(screen.queryByLabelText('Existing entry')).toBeNull();
   expect(screen.queryByLabelText('Entry name')).toBeNull();
-  fireEvent.click(screen.getByRole('combobox',{name:'Save sign-in method to'}));
-  fireEvent.click(screen.getByRole('option',{name:'A new login entry'}));
+  chooseFromDismissMenu('Create a new entry');
   expect(screen.getByLabelText('Entry name')).toHaveValue('example.com');
-  fireEvent.click(screen.getByRole('button',{name:'Remember method'}));
+  fireEvent.click(screen.getByRole('button', { name: 'More dismiss options' }));
+  expect(screen.getByRole('menuitem',{name:'Add to Work'})).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'More dismiss options' }));
+  fireEvent.click(screen.getByRole('button',{name:'Save'}));
   await waitFor(()=>expect(send).toHaveBeenCalledWith(expect.objectContaining({type:'confirm',targetId:'create',accountId:'account'})));
 });
 it('restores partial form edits and update consent without reading or saving during handoff', () => {
@@ -229,12 +280,12 @@ it('restores partial form edits and update consent without reading or saving dur
  expect(send).not.toHaveBeenCalled();
 });
 it.each(['credential', 'federated'] as const)('mutes %s capture only after selecting the site action and retains review after failure', async kind => {
- const input: NativeLoginCaptureReview = kind === 'credential' ? review : {kind:'federated',prompt:{id:'capture',site:'accounts.example.com',state:'ready',provider:'google',accounts:[],defaultAccountId:null,targets:[],defaultTargetId:null}};
+ const input: NativeLoginCaptureReview = kind === 'credential' ? {...review,prompt:{...review.prompt,defaultTargetId:'one'}} : {kind:'federated',prompt:{id:'capture',site:'accounts.example.com',state:'ready',provider:'google',accounts:[],defaultAccountId:null,targets:[],defaultTargetId:null}};
  const send=vi.fn().mockResolvedValueOnce({status:'unavailable'}).mockResolvedValueOnce({status:'dismissed'}),done=vi.fn();
  render(<LoginCapturePrompt review={input} send={send} onDone={done} initialExpanded />);
  fireEvent.click(screen.getByRole('button',{name:'More dismiss options'}));
  expect(send).not.toHaveBeenCalled();
- fireEvent.click(screen.getByRole('menuitem'));
+ fireEvent.click(screen.getByRole('menuitem',{name:/Don't offer/}));
  await screen.findByRole('alert');expect(done).not.toHaveBeenCalled();
  expect(send).toHaveBeenCalledWith(expect.objectContaining({type:'mute',kind,promptId:'capture'}));
  fireEvent.click(screen.getByRole('button',{name:'Dismiss'}));

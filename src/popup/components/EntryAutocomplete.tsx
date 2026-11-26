@@ -5,10 +5,10 @@ import { PopupIcon } from './PopupIcon';
 import { ENTRY_TYPE_CREDENTIAL, type EntryTypeCode } from '../../background/vault/entry-metadata';
 import { useI18n } from '../i18n';
 
-export interface EntryAutocompleteOption { id: string; name: string; detail?: string; icon?: string; color?: string; type?: EntryTypeCode; account?: string; hasTotp?: boolean }
-export interface EntryAutocompleteProps { label: string; options: readonly EntryAutocompleteOption[]; value: string; onValueChange(value: string): void; disabled?: boolean; placeholder?: string }
+export interface EntryAutocompleteOption { id: string; name: string; detail?: string; icon?: string; color?: string; type?: EntryTypeCode; account?: string; hasTotp?: boolean; plain?: boolean }
+export interface EntryAutocompleteProps { label: string; options: readonly EntryAutocompleteOption[]; value: string; onValueChange(value: string): void; disabled?: boolean; placeholder?: string; logo?: string; logoMono?: boolean; showIcon?: boolean; customValue?: string; onCustomValue?(value: string): void }
 
-export function EntryAutocomplete({ label, options, value, onValueChange, disabled, placeholder }: EntryAutocompleteProps): React.JSX.Element {
+export function EntryAutocomplete({ label, options, value, onValueChange, disabled, placeholder, logo, logoMono, showIcon = false, customValue, onCustomValue }: EntryAutocompleteProps): React.JSX.Element {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState<string | null>(null);
@@ -45,12 +45,12 @@ export function EntryAutocomplete({ label, options, value, onValueChange, disabl
   return <div className="entry-autocomplete">
     <label className="field-label" htmlFor={`${id}-input`}>{label}</label>
     <div className="entry-autocomplete-control" ref={root}>
-      <input id={`${id}-input`} ref={input} role="combobox" className="field-input" aria-autocomplete="list" aria-expanded={expanded} aria-controls={expanded ? id : undefined}
+      {showIcon && query === null && selected && !selected.plain || logo && value && !selected?.plain ? (logo && !selected?.icon ? <span className='entry-icon'><img data-mono={logoMono} src={logo} alt='' /></span> : selected ? <EntryIcon name={selected.name} type={selected.type ?? ENTRY_TYPE_CREDENTIAL} {...(selected.icon ? { icon: selected.icon } : {})} /> : null) : null}<input id={`${id}-input`} ref={input} role="combobox" className="field-input" aria-autocomplete="list" aria-expanded={expanded} aria-controls={expanded ? id : undefined}
         aria-activedescendant={expanded && visible[active] ? `${id}-${active}` : undefined} autoComplete="off" disabled={disabled}
-        value={query ?? selected?.name ?? ''} placeholder={placeholder ?? t('captureReview.chooseEntry')}
+        value={query ?? selected?.name ?? customValue ?? ''} placeholder={placeholder ?? t('captureReview.chooseEntry')}
         onClick={() => { if (!expanded) show(); }} onFocus={show}
         onBlur={event => { if (!root.current?.contains(event.relatedTarget) && !menu.current?.contains(event.relatedTarget)) close(); }}
-        onChange={event => { setQuery(event.target.value); setLimit(5); setActive(-1); setOpen(true); onValueChange(''); }}
+        onChange={event => { setQuery(event.target.value); setLimit(5); setActive(-1); setOpen(true); if (onCustomValue) onCustomValue(event.target.value); else onValueChange(''); }}
         onKeyDown={event => {
           if (event.key === 'Escape' || event.key === 'Tab') { if (event.key === 'Escape') event.preventDefault(); close(); return; }
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -59,19 +59,19 @@ export function EntryAutocomplete({ label, options, value, onValueChange, disabl
             if (next >= limit) setLimit(current => current + 5);
             setActive(next);
           }
-          if (event.key === 'Enter' && expanded) { event.preventDefault(); const option = visible[active < 0 ? 0 : active]; if (option) choose(option); }
+          if (event.key === 'Enter' && expanded) { event.preventDefault(); const option = visible[active < 0 && !onCustomValue ? 0 : active]; if (option) choose(option); else if (onCustomValue) close(); }
         }} />
       <button type="button" tabIndex={-1} aria-label={t('captureReview.chooseEntry')} disabled={disabled} onMouseDown={event => event.preventDefault()} onClick={() => expanded ? close() : show()}><PopupIcon name="chevron" /></button>
     </div>
-    {selected?.detail ? <small className="capture-field-hint">{selected.account ? `${selected.account} · ` : ''}{selected.detail}</small> : null}
-    {expanded ? createPortal(<div ref={menu} className="entry-autocomplete-menu" style={position} id={id} role="listbox" aria-label={label}
+    {selected?.detail && !logo ? <small className="capture-field-hint">{selected.account ? `${selected.account} · ` : ''}{selected.detail}</small> : null}
+    {expanded && !(onCustomValue && matches.length === 0) ? createPortal(<div ref={menu} className="entry-autocomplete-menu" style={position} id={id} role="listbox" aria-label={label}
       onMouseDown={event => event.preventDefault()} onScroll={event => {
         const list = event.currentTarget;
         if (list.scrollTop > 0 && list.scrollTop + list.clientHeight >= list.scrollHeight - 8) setLimit(current => Math.min(matches.length, current + 5));
       }}>
       {visible.map((option, index) => <button key={option.id} id={`${id}-${index}`} type="button" role="option" tabIndex={-1} aria-selected={option.id === value}
         className={`entry-head${index === active ? ' entry-autocomplete-active' : ''}`} onClick={() => choose(option)}>
-        <EntryIcon name={option.name} type={option.type ?? ENTRY_TYPE_CREDENTIAL} {...(option.icon ? { icon: option.icon } : {})} {...(option.color ? { color: option.color } : {})} />
+        {logo && !option.icon && !option.plain ? <span className='entry-icon'><img className='entry-icon-image' data-mono={logoMono} src={logo} alt='' /></span> : <EntryIcon name={option.name} type={option.type ?? ENTRY_TYPE_CREDENTIAL} {...(option.icon ? { icon: option.icon } : {})} {...(option.color ? { color: option.color } : {})} />}
         <span className="entry-text"><span className="entry-name">{option.account || option.name}</span>{option.detail || option.account ? <span className="entry-sub">{option.account ? `${option.name} · ${option.detail ?? ''}` : option.detail}</span> : null}</span>
         {option.hasTotp ? <span className="capture-totp-badge" aria-label={t('captureReview.totpSavedBadge')} title={t('captureReview.totpSavedBadge')}><PopupIcon name="lock" /></span> : null}
       </button>)}

@@ -53,12 +53,13 @@ try {
   await page.mouse.click((model.content[0]+model.content[4])/2,(model.content[1]+model.content[5])/2);
   await wait(() => page.frames().some(f => f.url().includes('/capture-review/')), 'inline extension frame');
   const frame = page.frames().find(f => f.url().includes('/capture-review/'));
-  await frame.getByText(copy['captureReview.createLogin'], {exact:true}).waitFor();
+  await frame.getByRole('button', {name:copy['totpCapture.save'],exact:true}).waitFor();
   const siteImage = frame.locator('.capture-review-identity .entry-icon-image');
   await siteImage.waitFor();
   assert.equal(await siteImage.evaluate(async img => { await img.decode(); return img.naturalWidth; }), 32, 'authenticator review loads the catalog site PNG');
 
-  await frame.getByText(copy['captureReview.createLogin'], {exact:true}).click();
+  await frame.getByRole('button', {name:copy['captureToast.dismissOptions'],exact:true}).click();
+  await frame.getByRole('menuitem', {name:copy['captureReview.editEntry'],exact:true}).click();
   await frame.getByRole('textbox', {name:copy['totpCapture.name'],exact:true}).fill('Synthetic inline account');
   await wait(() => frame.evaluate(({locale,theme}) => document.documentElement.lang===locale && document.documentElement.dataset.theme===theme,{locale,theme}), 'review locale and theme');
   await page.waitForTimeout(800);

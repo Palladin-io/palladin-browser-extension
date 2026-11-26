@@ -149,7 +149,8 @@ try {
     for(const [autocomplete,value] of [['cc-number',pan],['cc-name','Synthetic Cardholder'],['cc-exp-month','12'],['cc-exp-year',year],['cc-csc',cvv]]) await page.locator(`[autocomplete="${autocomplete}"]`).fill(value);
     await page.getByRole('heading').click();await page.waitForTimeout(700);
     const frame=await openReview(name),count=api.writes.length;
-    if(name==='card-update')assert.equal(await frame.getByRole('combobox',{name:label('Existing card entry')}).inputValue(),'Visa','unique exact card auto-selected');
+    if(name==='card-update'){assert.equal(await frame.locator('.capture-review-identity strong').innerText(),'Visa','unique exact card auto-selected');assert.equal(await frame.getByRole('combobox').count(),0,'no existing-card picker');}
+    await frame.getByRole('button',{name:label('More'),exact:true}).click();
     assert(await frame.locator('input[type="password"][maxlength="4"]').inputValue()===cvv,'captured CVV');
     for(const fieldLabel of [label('Card number'),label('CVV / CVC')]){await frame.getByRole('button',{name:language==='pl'?`Pokaż ${fieldLabel}`:`Show ${fieldLabel}`,exact:true}).click();assert.equal(await frame.getByLabel(fieldLabel,{exact:true}).getAttribute('type'),'text');await frame.getByRole('button',{name:language==='pl'?`Ukryj ${fieldLabel}`:`Hide ${fieldLabel}`,exact:true}).click();assert.equal(await frame.getByLabel(fieldLabel,{exact:true}).getAttribute('type'),'password');}
     await page.waitForTimeout(400);await page.screenshot({path:path.join(artifacts,`${name}-fields.png`),clip:await page.locator('palladin-capture').last().boundingBox()});
@@ -167,8 +168,8 @@ try {
     assert(await frame.getByRole('img',{name:'Google',exact:true}).evaluate(image=>image.complete&&image.naturalWidth>0),'Bundled provider logo loads without catalog response');
     await frame.getByRole('combobox',{name:label('Which Google account did you use?')}).click();
     await frame.getByRole('option').last().click();
-    assert.equal(await frame.getByRole('combobox',{name:label('Save to Vault'),exact:true}).innerText(),'Personal','default writable Vault preselected');
-    await frame.getByRole('button',{name:label('Remember method'),exact:true}).click();
+    assert(await frame.getByText(language==='en'?'New entry · Personal':polish['captureReview.newEntryIn'].replace('{vault}','Personal'),{exact:true}).isVisible(),'default writable Vault preselected');
+    await frame.getByRole('button',{name:language==='en'?'Save':polish['common.save'],exact:true}).click();
     await saved(frame,'oauth',count,plain=>assert(plain.content.customFields.some(f=>f.type==='palladin.signin.v2'&&f.value.provider==='google'),'OAuth method encrypted'));}
   }
   if(selected('pending-draft')) {
@@ -180,6 +181,7 @@ try {
     await frame.getByRole('combobox',{name:label('Save to Vault')}).click();
     await frame.getByRole('option',{name:'Team',exact:true}).click();
     await wait(()=>frame.getByRole('button',{name:label('Save login'),exact:true}).isEnabled(),'selected Vault form ready');
+    await frame.getByRole('button',{name:label('More'),exact:true}).click();
     await frame.getByRole('textbox',{name:label('Name'),exact:true}).fill('Edited pending login');
     await frame.getByLabel(label('Username'),{exact:true}).fill('edited-pending-user');
     await frame.getByLabel(label('Password'),{exact:true}).fill('SyntheticEdited!002');

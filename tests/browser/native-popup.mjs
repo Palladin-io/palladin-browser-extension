@@ -148,6 +148,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface, attac
       return exceptionDetails ? {error:true} : result.value;
     },
     async hasCaptureReview() { return evaluate('Boolean(document.querySelector(".capture-review"))') },
+    async captureIdentityName() { return evaluate('document.querySelector(".capture-review-identity strong")?.textContent ?? ""') },
     async captureVaultIs(name) { return evaluate(`document.querySelector('.capture-review [role="combobox"][aria-label="Destination Vault"]')?.textContent === ${JSON.stringify(name)}`) },
     async captureCustomOptionNames() {
       return evaluate(`(() => {const options=[...document.querySelectorAll('.capture-custom-fields [role="option"]')];return {nativeSelect:!!document.querySelector('.capture-custom-fields select'),options:options.map(option=>option.textContent.trim()),geometry:options.map(option=>{const rect=option.getBoundingClientRect(),hit=document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);return {x:rect.x,y:rect.y,width:rect.width,height:rect.height,viewportWidth:innerWidth,viewportHeight:innerHeight,hitClass:hit?.className,hitTag:hit?.tagName};}),allReachable:options.every(option=>{const rect=option.getBoundingClientRect(),hit=document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);return rect.top>=0&&rect.bottom<=innerHeight&&!!hit&&(hit===option||option.contains(hit));})};})()`);

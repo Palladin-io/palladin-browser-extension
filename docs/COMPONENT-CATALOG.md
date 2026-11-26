@@ -15,7 +15,8 @@ The root `design/workbench/COMPONENTS.md` routes the offline mockup workflow.
 | Labelled field | `components/FormInput.tsx` | Label, error and input attributes. Reuse the actual form's secret reveal controls. |
 | Search | `components/SearchBar.tsx` | Existing global search, not a new raw input. |
 | Filter / policy choice | `components/FilterSelect.tsx` | Existing custom menu; choose single/multiple semantics from its props and consumer. Multi-select stays open on selection. |
-| Entry choice | `components/EntryAutocomplete.tsx` | Existing resource selection. |
+| Entry choice | `components/EntryAutocomplete.tsx` | Existing resource selection. `showIcon` shows the selected item's mark in the field; `logo`/`logoMono` show a provider mark for items without an icon; `onCustomValue` accepts free text (sign-in account); `plain` items have no icon. |
+| Capture review | `capture/CaptureReview.tsx` | Notice/review/saved shell for capture. Alternative destinations ("Add to", "Change entry", "Create a new entry/card", "Edit entry") go in `menuActions` above the site mute in the Dismiss arrow menu; never as extra fields or buttons in the review. |
 | Refresh / copy | `components/RefreshButton.tsx`, `components/CopyButton.tsx` | Preserve pending/clipboard behavior. |
 | Entity identity | `components/EntryIcon.tsx`, `components/AgentIcon.tsx`, `components/EntryGlyph.tsx` | Use the public asset resolver and glyph fallback; no arbitrary remote image URLs. |
 | Icon selection | `components/EntryIconPicker.tsx` | Existing glyph/catalog picker and supported presentation colors. |
@@ -32,7 +33,7 @@ The root `design/workbench/COMPONENTS.md` routes the offline mockup workflow.
 | Inbox / grant approval | `workspace/GrantsPanel.tsx` | Reuse policy form, duration/operation/field controls and decision actions; they are not separate exported design controls. |
 | Sharing | `workspace/SharingOverview.tsx`, `workspace/SharingPanel.tsx` | Overview/detail and Entry-context creation respectively. |
 | Logs / recent activity | `workspace/AuditPanel.tsx` | Full list and `preview` mode use the same rows; pass existing scope/target and navigation callbacks. |
-| Create Entry | `entries/AddEntryForm.tsx` | Pinned Back/type header, fields and footer; preserve the original composition. |
+| Create Entry | `entries/AddEntryForm.tsx` | Pinned Back/type header, fields and footer; preserve the original composition. In capture, `compact` shows the essential fields (password; card holder, `MM/YYYY` expiry and CVC; API key value) and a `slot` (Vault choice) beside the Dismiss-styled "More" button, which reveals the remaining fields with the review expansion motion. `usernameOptions` renders the sign-up identity choice as one dropdown. |
 | Generator | `generator/GeneratorPanel.tsx` | Existing password generator. |
 
 ## CSS-owned patterns
