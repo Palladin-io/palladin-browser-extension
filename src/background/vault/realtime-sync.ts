@@ -130,6 +130,8 @@ export interface VaultRealtimeConnectionDeps {
   invalidation(raw: unknown): void;
   repair(): void;
   workspaceChanged?(): void;
+  /** A new Inbox notification arrived; reconnect repair is not one. */
+  notification?(): void;
   connectivity?(connected: boolean): void;
 }
 
@@ -171,7 +173,9 @@ export class VaultRealtimeConnection {
       this.deps.invalidation(raw);
     });
     connection.on('ReceiveNotification', () => {
-      if (this.desired && generation === this.generation) this.deps.workspaceChanged?.();
+      if (!this.desired || generation !== this.generation) return;
+      this.deps.notification?.();
+      this.deps.workspaceChanged?.();
     });
     connection.onreconnecting(() => this.deps.connectivity?.(false));
     connection.onreconnected(() => {

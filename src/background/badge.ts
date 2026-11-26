@@ -2,7 +2,8 @@
  * Toolbar badge cleanup. The brand mark already contains a lock; Chromium's
  * tiny text badge obscures it and renders differently across platforms. Keep
  * the badge empty for every session state and show the authoritative state in
- * the popup header instead.
+ * the popup header instead. While unlocked, `InboxAttention` owns the badge for
+ * new Inbox notifications.
  *
  * {@link badgeForStatus} is pure so the mapping is unit-tested without a live
  * `chrome`; {@link applyBadge} adapts it onto the minimal {@link BadgeApi}.

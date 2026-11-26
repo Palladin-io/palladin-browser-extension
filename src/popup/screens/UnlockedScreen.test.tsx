@@ -105,6 +105,15 @@ describe("UnlockedScreen", () => {
     await waitFor(() => expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: commandType === 'workspace/shares' ? 'workspace/my-shares' : commandType }));
   });
 
+  it('clears the toolbar Inbox attention only after the Inbox tab is opened', async () => {
+    const user = userEvent.setup();
+    render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={makeClient()} captureClient={makeCaptureClient()} />);
+    await screen.findByText('API token');
+    expect(chrome.runtime.sendMessage).not.toHaveBeenCalledWith({ type: 'workspace/inbox-seen' });
+    await user.click(screen.getByRole('tab', { name: 'Inbox' }));
+    await waitFor(() => expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: 'workspace/inbox-seen' }));
+  });
+
   it('keeps the acknowledged success until Done despite vault and pending invalidations', async () => {
     const pending = { id: '11111111-1111-4111-8111-111111111111', title: 'Shared login',
       entryType: 'credential', vaults: [{ id: '22222222-2222-4222-8222-222222222222', name: 'Personal' }] };
