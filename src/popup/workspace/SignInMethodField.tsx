@@ -22,10 +22,12 @@ const providerLogos = { google: googleLogo, apple: appleLogo, microsoft: microso
 export interface MethodDraft { id: string; provider: SignInProvider; account: string | null; agentVisible: boolean }
 
 /** Shared extension-owned editor; draft values stay in popup memory until encrypted save. */
-export function SignInMethodsEditor({ methods, onSave, disabled = false }: {
+export function SignInMethodsEditor({ methods, onSave, disabled = false, inline = false }: {
  methods: readonly MethodDraft[];
  onSave(id: string | null, value: Omit<MethodDraft, 'id'> | null): Promise<void>;
  disabled?: boolean;
+ /** Entry detail: configured methods are ordinary Details rows, with no section heading or add action. */
+ inline?: boolean;
 }): React.JSX.Element {
  const { t } = useI18n();
  const providerRail = useRef<HTMLDivElement>(null);
@@ -72,16 +74,18 @@ export function SignInMethodsEditor({ methods, onSave, disabled = false }: {
   const rail = providerRail.current;
   rail?.scrollBy({ left: direction * rail.clientWidth * 0.75, behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
  }
- return <section className="sign-in-methods" aria-label={t('signIn.section')}>
-  <div className="entry-custom-fields-header sign-in-methods-header"><h3>{t('signIn.section')}</h3>
-   <button ref={addTrigger} type="button" className="toolbar-icon" aria-label={t('signIn.add')} disabled={disabled || busy || methods.length >= 20} onClick={() => edit()}><PopupIcon name="plus" /></button>
+ const rows = methods.map(method => inline
+  ? <div key={method.id} className="detail-field sign-in-method-row sign-in-method-detail">
+   <img className="sign-in-provider-logo" data-provider={method.provider} src={providerLogos[method.provider]} alt="" />
+   <span><small>{SIGN_IN_PROVIDER_NAMES[method.provider]}</small><span className="detail-field-value">{method.account ?? t('signIn.accountUnknown')}</span></span>
+   <div className="field-actions"><button type="button" className="toolbar-icon" aria-label={t('signIn.edit')} disabled={disabled || busy} onClick={() => edit(method)}><PopupIcon name="edit" /></button></div>
   </div>
-  {methods.map(method => <div key={method.id} className="detail-field sign-in-method-row">
+  : <div key={method.id} className="detail-field sign-in-method-row">
    <img className="sign-in-provider-logo" data-provider={method.provider} src={providerLogos[method.provider]} alt="" />
    <span><span>{SIGN_IN_PROVIDER_NAMES[method.provider]}</span><small>{method.account ?? t('signIn.accountUnknown')}</small></span>
    <button type="button" className="toolbar-icon" aria-label={t('signIn.edit')} disabled={disabled || busy} onClick={() => edit(method)}><PopupIcon name="edit" /></button>
-  </div>)}
-  {editing !== undefined ? createPortal(<dialog ref={dialog} className="entry-icon-dialog sign-in-method-dialog" aria-label={t(editing === null ? 'signIn.add' : 'signIn.edit')} onCancel={event => { event.preventDefault(); close(); }}>
+  </div>);
+ const editor = editing !== undefined ? createPortal(<dialog ref={dialog} className="entry-icon-dialog sign-in-method-dialog" aria-label={t(editing === null ? 'signIn.add' : 'signIn.edit')} onCancel={event => { event.preventDefault(); close(); }}>
    <div className="entry-icon-picker-heading sign-in-method-dialog-heading">
     <strong>{t(editing === null ? 'signIn.add' : 'signIn.edit')}</strong>
     <button type="button" className="toolbar-icon" aria-label={t('icon.close')} disabled={busy} onClick={close}>×</button>
@@ -108,7 +112,14 @@ export function SignInMethodsEditor({ methods, onSave, disabled = false }: {
     <Button variant="subtle" disabled={busy} onClick={close}>{t('signIn.cancel')}</Button>
     <Button loading={busy} disabled={disabled || account.trim().length > 256} onClick={() => void save()}>{t('signIn.save')}</Button>
    </div>
-  </dialog>, document.body) : null}
+  </dialog>, document.body) : null;
+ if (inline) return <>{rows}{editor}</>;
+ return <section className="sign-in-methods" aria-label={t('signIn.section')}>
+  <div className="entry-custom-fields-header sign-in-methods-header"><h3>{t('signIn.section')}</h3>
+   <button ref={addTrigger} type="button" className="toolbar-icon" aria-label={t('signIn.add')} disabled={disabled || busy || methods.length >= 20} onClick={() => edit()}><PopupIcon name="plus" /></button>
+  </div>
+  {rows}
+  {editor}
  </section>;
 }
 
@@ -116,8 +127,8 @@ export function SignInMethodField({ client, vaultId, entryId, view, onChanged }:
  client: WorkspaceClient; vaultId: string; entryId: string; view: EntrySignInView; onChanged(next: EntrySignInView): void;
 }): React.JSX.Element | null {
  const { locale } = useI18n();
- if (view.status === 'unsupported') return null;
- return <SignInMethodsEditor methods={view.methods} onSave={async (fieldId, binding) => {
+ if (view.status === 'unsupported' || !view.methods.length) return null;
+ return <SignInMethodsEditor inline methods={view.methods} onSave={async (fieldId, binding) => {
   await client.send({ type: 'workspace/sign-in', vaultId, entryId, fieldId, binding: binding ? { provider: binding.provider, account: binding.account } : null,
    agentVisible: binding?.agentVisible ?? false, locale: locale === 'pl' ? 'pl' : 'en' });
   const result = await client.send({ type: 'workspace/detail', vaultId, entryId });

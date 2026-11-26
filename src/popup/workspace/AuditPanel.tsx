@@ -283,9 +283,9 @@ export function AuditPanel({
                 <div className="audit-chips" hidden={preview}>
                   <span className="audit-type">{eventKeys[item.eventType] ? t(eventKeys[item.eventType]!) : t('audit.unknownEvent', { event: item.eventType })}</span>
                   {entry ? (
-                    <span><PopupIcon name="key" />{entry.name}</span>
+                    <span className="audit-entry"><PopupIcon name="key" />{entry.name}{entry.username ? <span className="audit-entry-login">{t(Date.parse(entry.updatedAt) > Date.parse(item.createdAt) ? 'audit.entryLoginCurrent' : 'audit.entryLogin', { login: entry.username })}</span> : null}</span>
                   ) : item.entryId ? (
-                    <span>{shorten(item.entryId)}</span>
+                    <span className="audit-entry"><PopupIcon name="key" />{t('share.unavailableEntry')} · {shorten(item.entryId)}</span>
                   ) : null}
                   {item.vaultId ? (
                     <span><PopupIcon name="vault" />

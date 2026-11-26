@@ -82,3 +82,18 @@ it('shows a complete short preview without a redundant navigation button', async
   await waitFor(() => expect(container.querySelectorAll('.audit-event')).toHaveLength(1));
   expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull();
 });
+
+it('identifies the exact Entry login by Entry ID and never claims a stale historical login', async () => {
+  const access = (id: string, entryId: string) => ({ id, eventType: 'credential.accessed', actorType: 'agent', agentId: 'agent', agentName: 'Synthetic agent', vaultId: 'vault', entryId, metadata: {}, createdAt: '2026-11-20T10:00:00Z' });
+  const client = createWorkspaceClient(vi.fn(async (command: WorkspaceCommand) => command.type === 'workspace/members'
+    ? { ok: true as const, data: { items: [] } }
+    : { ok: true as const, data: { items: [access('a', 'x-one'), access('b', 'x-two'), access('c', 'x-gone-00000000-0000')], nextCursor: null } }));
+  const entry = (id: string, username: string, updatedAt: string) => ({ id, vaultId: 'vault', vaultName: 'Personal', name: 'X', type: 1 as const, username, urlDomain: 'x.com', updatedAt });
+  const { container } = render(<I18nProvider locale="en"><AuditPanel client={client} entries={[
+    entry('x-one', 'synthetic_one', '2026-11-01T00:00:00Z'), entry('x-two', 'synthetic_two', '2026-11-25T00:00:00Z')]} /></I18nProvider>);
+  await waitFor(() => expect(container.querySelectorAll('.audit-entry')).toHaveLength(3));
+  const chips = [...container.querySelectorAll('.audit-entry')].map(chip => chip.textContent);
+  expect(chips).toContain('X· synthetic_one');
+  expect(chips).toContain('X· synthetic_two (current)');
+  expect(chips).toContain('Unavailable entry · x-gone-0…0-0000');
+});
