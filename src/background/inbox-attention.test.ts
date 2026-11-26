@@ -41,3 +41,15 @@ it('caps the badge and accepts only the exact seen message', () => {
   expect(isInboxSeenMessage({ type: 'workspace/inbox-seen', count: 0 })).toBe(false);
   expect(isInboxSeenMessage('workspace/inbox-seen')).toBe(false);
 });
+
+it('does not let a late unlock seed restore the badge after the Inbox was opened', async () => {
+  let resolve!: (value: number) => void;
+  const { attention, text } = setup(() => new Promise(r => { resolve = r; }));
+  const unlocking = attention.unlocked();
+  attention.seen();
+  resolve(4);
+  await unlocking;
+  expect(text()).toBe('');
+  attention.notified();
+  expect(text()).toBe('1');
+});

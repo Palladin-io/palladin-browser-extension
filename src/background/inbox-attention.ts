@@ -51,6 +51,8 @@ export class InboxAttention {
 
   seen(): void {
     if (!this.active) return;
+    // A pending-count seed still in flight must not restore what the user has seen.
+    ++this.generation;
     this.unseen = 0;
     this.render();
   }
