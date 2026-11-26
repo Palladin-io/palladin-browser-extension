@@ -451,14 +451,15 @@ export class FederatedSignInCoordinator {
     const alreadyRemembered = !switched && (chosenSame || confirmed !== null)
       && targets.credentials.some((credential) => credential.signIn.status === 'recognized'
         && credential.signIn.binding.provider === provider && sameSignInAccount(credential.signIn.binding.account, confirmed));
-    if (alreadyRemembered) {
-      this.flows.delete(source.tabId);
-      return null;
-    }
+    // Diagnosed on every completed round trip, whether or not a save prompt follows.
     if (flow.observedAccount === null && !flow.diagnosed) {
       flow.diagnosed = true;
       this.deps.diagnostic?.({ event: 'account-not-observed', serviceUrl: flow.serviceOrigin, provider,
         providerUrl: flow.providerScreen?.url ?? null, screen: flow.providerScreen?.shape ?? null });
+    }
+    if (alreadyRemembered) {
+      this.flows.delete(source.tabId);
+      return null;
     }
     const accounts = new Map<string, { account: string | null; entry: SignInEntryReference | null }>();
     const accountViews: SignInAccountOption[] = [];

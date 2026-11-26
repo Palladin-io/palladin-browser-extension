@@ -696,6 +696,18 @@ describe('sign-in compatibility diagnostics', () => {
     expect(read.diagnostic).not.toHaveBeenCalled();
   });
 
+  it('reports an unread account even when the remembered method suppresses the prompt', async () => {
+    const h = harness({ credentials: [credential('e', { status: 'recognized', fieldId: 'custom:1', binding: { provider: 'google', account: null, entry: null } } as Credential['signIn'])] });
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    const suggestion = await h.send({ type: 'suggest' });
+    const id = suggestion.status === 'suggestions' ? suggestion.suggestions[0]?.id : undefined;
+    expect(id).toBeDefined();
+    await h.send({ type: 'choose', suggestionId: id! });
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    expect(await back(h)).toBeNull();
+    expect(h.diagnostic).toHaveBeenCalledWith(expect.objectContaining({ event: 'account-not-observed', provider: 'google' }));
+  });
+
   it('accepts a screen shape only from a provider sign-in page in an active flow', async () => {
     const h = harness();
     expect(await h.send({ type: 'screen', screen: shape }, h.source(1, PAGE))).toEqual({ status: 'stale' });

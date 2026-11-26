@@ -106,6 +106,13 @@ describe("anonymous sign-in compatibility reports", () => {
     expect(JSON.stringify(bodies())).not.toMatch(/acme|secret|ada/);
   });
 
+  it("drops a tenant on a private public suffix", () => {
+    const { report, bodies } = signIn();
+    report({ event: "provider-unsupported", authorizationUrl: "https://acme.auth.us-east-1.amazoncognito.com/oauth2/authorize?client_id=c&redirect_uri=https%3A%2F%2Fexample.com&response_type=code" });
+    expect(bodies()[0]!.properties).toEqual(expect.objectContaining({ host: "amazoncognito.com" }));
+    expect(JSON.stringify(bodies())).not.toMatch(/acme/);
+  });
+
   it.each(["http://example.com/authorize", "https://192.168.1.10/authorize", "https://localhost/authorize"])("drops a non-public provider URL %s", url => {
     const { report, send } = signIn();
     report({ event: "provider-unsupported", authorizationUrl: url });

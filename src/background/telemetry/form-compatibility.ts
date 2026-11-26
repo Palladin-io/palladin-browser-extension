@@ -7,6 +7,7 @@
 
 import type { ProviderScreenShape } from "@shared/messaging/federated-signin";
 import { registrableDomain } from "@shared/security/domain";
+import { getDomain } from "tldts";
 
 export type FormCompatibilityIssue = "submit-action-missing";
 
@@ -79,8 +80,8 @@ export function createSignInCompatibilityReporter(config: FormCompatibilityConfi
   return (diagnostic: SignInDiagnostic): void => {
     if (diagnostic.event === "provider-unsupported") {
       const host = publicHttpsHost(diagnostic.authorizationUrl);
-      // The registrable domain names the provider without a tenant or employer subdomain.
-      const domain = host === null ? null : registrableDomain(host);
+      // ICANN-only reduction: private suffixes (e.g. hosted identity tenants) would keep the tenant name.
+      const domain = host === null ? null : getDomain(host, { allowPrivateDomains: false });
       if (domain !== null) report("ex:signin:provider-unsupported", domain);
       return;
     }
