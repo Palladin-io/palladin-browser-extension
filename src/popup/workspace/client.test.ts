@@ -15,6 +15,23 @@ it('shares one memory directory and performs at most one whole-directory repair 
   expect(send).toHaveBeenLastCalledWith({ type: 'workspace/members' });
 });
 
+it('allows one more directory repair after audit invalidation so later principals resolve', async () => {
+  let items = [{ agentId: 'first', name: 'Synthetic first' }];
+  const send = vi.fn(async (): Promise<WorkspaceReply> => ({ ok: true, data: { items } }));
+  const client = createWorkspaceClient(send);
+  await client.agents(['first']);
+  items = [...items, { agentId: 'second', name: 'Synthetic second' }];
+  await client.agents(['second']);
+  expect(send).toHaveBeenCalledTimes(2);
+  items = [...items, { agentId: 'third', name: 'Synthetic third' }];
+  await client.agents(['third']);
+  expect(send).toHaveBeenCalledTimes(2);
+  client.invalidate?.(['workspace/audit'], false);
+  await expect(client.agents(['third'])).resolves.toContainEqual({ agentId: 'third', name: 'Synthetic third' });
+  expect(send).toHaveBeenCalledTimes(3);
+  expect(send).toHaveBeenLastCalledWith({ type: 'workspace/agents' });
+});
+
 it('sends workspace commands directly without a build handshake', async () => {
   const sendMessage = vi.fn().mockResolvedValue({ ok: true, data: { pending: 2 } });
   vi.stubGlobal('chrome', { runtime: { sendMessage } });

@@ -1,4 +1,4 @@
-import type { MemberIdentity } from '../../shared/workspace/contracts';
+import type { AgentIdentity, MemberIdentity } from '../../shared/workspace/contracts';
 import type {
   WorkspaceCommand,
   WorkspaceReply,
@@ -17,6 +17,7 @@ export interface WorkspaceClient {
   invalidate?(types: readonly WorkspaceListType[], notify?: boolean): void;
   subscribe?(listener: (types: readonly WorkspaceListType[]) => void): () => void;
   members(visibleUserIds: readonly string[]): Promise<MemberIdentity[]>;
+  agents(visibleAgentIds: readonly string[]): Promise<AgentIdentity[]>;
   send<C extends WorkspaceCommand>(
     command: C,
   ): Promise<WorkspaceResults[C['type']]>;
@@ -30,31 +31,29 @@ export function createWorkspaceClient(
   });
   const lists = new Map<string, { type: WorkspaceListType; expires: number; result: Promise<WorkspaceResults[WorkspaceListType]> }>();
   const listeners = new Set<(types: readonly WorkspaceListType[]) => void>();
-  const invalidate = (types: readonly WorkspaceListType[], notify = true) => {
-    for (const [key, item] of lists) if (types.includes(item.type)) lists.delete(key);
-    if (notify) for (const listener of listeners) listener(types);
-  };
-  let directory: Promise<MemberIdentity[]> | null = null;
-  let repaired = false;
-  const readDirectory = async () => {
+  const members = directory(async () => {
     const response = await send({ type: 'workspace/members' });
     if (!response?.ok || !response.data || !('items' in response.data))
       throw new Error('network');
     return response.data.items as MemberIdentity[];
+  }, (member) => member.userId);
+  const agents = directory(async () => {
+    const response = await send({ type: 'workspace/agents' });
+    if (!response?.ok || !response.data || !('items' in response.data))
+      throw new Error('network');
+    return response.data.items as AgentIdentity[];
+  }, (agent) => agent.agentId);
+  const invalidate = (types: readonly WorkspaceListType[], notify = true) => {
+    for (const [key, item] of lists) if (types.includes(item.type)) lists.delete(key);
+    // New audit rows can reference principals created after the directories were read.
+    if (types.includes('workspace/audit')) { members.allowRepair(); agents.allowRepair(); }
+    if (notify) for (const listener of listeners) listener(types);
   };
   return {
     invalidate,
     subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    async members(visibleUserIds) {
-      directory ??= readDirectory().catch(() => []);
-      const current = await directory;
-      const known = new Set(current.map((member) => member.userId));
-      if (!repaired && visibleUserIds.some((id) => !known.has(id))) {
-        repaired = true;
-        directory = readDirectory().catch(() => current);
-      }
-      return directory;
-    },
+    members: members.resolve,
+    agents: agents.resolve,
     async send<C extends WorkspaceCommand>(
       command: C,
     ): Promise<WorkspaceResults[C['type']]> {
@@ -85,6 +84,25 @@ export function createWorkspaceClient(
         throw error;
       });
       return item.result as Promise<WorkspaceResults[C['type']]>;
+    },
+  };
+}
+
+/** One memory-only directory per popup client; unknown visible IDs trigger at most one whole-directory repair per audit invalidation. */
+function directory<T>(read: () => Promise<T[]>, idOf: (item: T) => string) {
+  let current: Promise<T[]> | null = null;
+  let repaired = false;
+  return {
+    allowRepair() { repaired = false; },
+    async resolve(visibleIds: readonly string[]): Promise<T[]> {
+      current ??= read().catch(() => []);
+      const loaded = await current;
+      const known = new Set(loaded.map(idOf));
+      if (!repaired && visibleIds.some((id) => !known.has(id))) {
+        repaired = true;
+        current = read().catch(() => loaded);
+      }
+      return current;
     },
   };
 }

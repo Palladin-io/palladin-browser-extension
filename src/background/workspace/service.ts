@@ -152,6 +152,8 @@ export class WorkspaceService {
         };
       case 'workspace/members':
         return { path: '/api/organization/member-directory', method: 'GET' };
+      case 'workspace/agents':
+        return { path: '/api/agents', method: 'GET' };
       case 'workspace/deny':
         return {
           path: `/api/vaults/${command.vaultId}/grants/${command.grantId}/deny`,
