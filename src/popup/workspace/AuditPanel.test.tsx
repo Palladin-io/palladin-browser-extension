@@ -2,7 +2,7 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../i18n';
-import { AuditPanel } from './AuditPanel';
+import { AuditPanel, middleEllipsis } from './AuditPanel';
 import { createWorkspaceClient } from './client';
 import type { WorkspaceCommand } from '../../shared/workspace/commands';
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -94,4 +94,13 @@ it('identifies the exact Entry login by Entry ID and never claims a stale histor
   await waitFor(() => expect(container.querySelectorAll('.audit-entry')).toHaveLength(3));
   expect([...container.querySelectorAll('.audit-entry')].map(chip => chip.textContent)).toEqual(['X', 'X', 'Unavailable entry · x-gone-0…0-0000']);
   expect([...container.querySelectorAll('.audit-login')].map(chip => chip.textContent)).toEqual(['synthetic_one', 'synthetic_two (current)']);
+});
+
+it('keeps both ends of a long Entry name or login and leaves short values intact', () => {
+  const login = 'marek.demo.with.a.very.long.mailbox.name@regional-subsidiary.example.com';
+  const shortened = middleEllipsis(login);
+  expect([...shortened]).toHaveLength(32);
+  expect(shortened.startsWith('marek.demo.with.a.v')).toBe(true);
+  expect(shortened.endsWith('.example.com')).toBe(true);
+  expect(middleEllipsis('@anna.demo')).toBe('@anna.demo');
 });

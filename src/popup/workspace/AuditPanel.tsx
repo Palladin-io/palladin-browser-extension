@@ -119,6 +119,9 @@ const eventKeys: Record<string, TranslationKey> = {
 };
 const shorten = (id: string) =>
   id.length > 18 ? `${id.slice(0, 8)}…${id.slice(-6)}` : id;
+/** Keeps both ends of a long Entry name or login visible; the chip title carries the full value. */
+export const middleEllipsis = (value: string, max = 32) =>
+  [...value].length > max ? `${[...value].slice(0, max - 13).join('')}…${[...value].slice(-12).join('')}` : value;
 
 export interface AuditTarget { kind: "grant" | "share"; id: string; vaultId: string; entryId?: string | undefined }
 export function matchesAuditTarget(item: AuditLogItem, target: AuditTarget): boolean {
@@ -283,12 +286,12 @@ export function AuditPanel({
                 <div className="audit-chips" hidden={preview}>
                   <span className="audit-type">{eventKeys[item.eventType] ? t(eventKeys[item.eventType]!) : t('audit.unknownEvent', { event: item.eventType })}</span>
                   {entry ? (
-                    <span className="audit-entry"><PopupIcon name="key" />{entry.name}</span>
+                    <span className="audit-entry" title={entry.name}><PopupIcon name="key" />{middleEllipsis(entry.name)}</span>
                   ) : item.entryId ? (
                     <span className="audit-entry"><PopupIcon name="key" />{t('share.unavailableEntry')} · {shorten(item.entryId)}</span>
                   ) : null}
                   {entry?.username ? (
-                    <span className="audit-login" title={entry.username}><PopupIcon name="user" /><span>{t(Date.parse(entry.updatedAt) > Date.parse(item.createdAt) ? 'audit.entryLoginCurrent' : 'audit.entryLogin', { login: entry.username })}</span></span>
+                    <span className="audit-login" title={entry.username}><PopupIcon name="user" />{t(Date.parse(entry.updatedAt) > Date.parse(item.createdAt) ? 'audit.entryLoginCurrent' : 'audit.entryLogin', { login: middleEllipsis(entry.username) })}</span>
                   ) : null}
                   {item.vaultId ? (
                     <span><PopupIcon name="vault" />

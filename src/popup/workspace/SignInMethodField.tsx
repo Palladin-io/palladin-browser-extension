@@ -76,9 +76,8 @@ export function SignInMethodsEditor({ methods, onSave, disabled = false, inline 
  }
  const rows = methods.map(method => inline
   ? <div key={method.id} className="detail-field sign-in-method-row">
-   <img className="sign-in-provider-logo" data-provider={method.provider} src={providerLogos[method.provider]} alt="" />
-   <span><small>{SIGN_IN_PROVIDER_NAMES[method.provider]}</small><span className="detail-field-value">{method.account ?? t('signIn.accountUnknown')}</span></span>
-   <div className="field-actions"><button type="button" className="toolbar-icon" aria-label={t('signIn.edit')} disabled={disabled || busy} onClick={() => edit(method)}><PopupIcon name="edit" /></button></div>
+   <span><small>{t('signIn.signInWith')}</small><span className="detail-field-value" title={method.account ?? undefined}>{method.account ?? SIGN_IN_PROVIDER_NAMES[method.provider]}</span></span>
+   <div className="field-actions"><button type="button" className="toolbar-icon" aria-label={`${t('signIn.edit')}: ${SIGN_IN_PROVIDER_NAMES[method.provider]}`} title={SIGN_IN_PROVIDER_NAMES[method.provider]} disabled={disabled || busy} onClick={() => edit(method)}><img className="sign-in-provider-logo" data-provider={method.provider} src={providerLogos[method.provider]} alt="" /></button></div>
   </div>
   : <div key={method.id} className="detail-field sign-in-method-row">
    <img className="sign-in-provider-logo" data-provider={method.provider} src={providerLogos[method.provider]} alt="" />

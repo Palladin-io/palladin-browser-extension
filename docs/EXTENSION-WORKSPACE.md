@@ -34,7 +34,7 @@ Logs use the organization audit endpoint with filters and cursor pagination. Ent
 Vault labels are resolved from unlocked metadata, while human actors use one memory-only
 current/former member directory with at most one missing-ID repair per unlocked surface.
 Unknown event types remain visible with a neutral presentation. The Entry chip is bound by
-the record's `entryId` and shows the Entry name with a separate login chip from the unlocked MemberIndex, so Entries
+the record's `entryId` and shows the Entry name with a separate login chip from the unlocked MemberIndex (long values keep both ends, full value on hover), so Entries
 on the same domain stay distinguishable; locked, deleted or inaccessible Entries show
 `Unavailable entry · prefix…suffix`. The login is the Entry's current login; the audit record holds only the opaque Entry ID, so when the Entry changed after the event the login is marked current rather than presented as the login used then.
 
@@ -97,7 +97,7 @@ pages, so the client deduplicates IDs and refreshes from the beginning to repair
 ## Multiple external sign-in methods
 
 Login creation uses a compact sign-in method editor as the final section before the
-footer. Entry detail shows configured methods as rows inside the Details card, with no
+footer. Entry detail shows each configured method as a "Sign in with" row (account, provider logo at the end opening the editor) inside the Details card, with no
 heading, empty state or add action when none exist. Each encrypted method has a stable custom field ID;
 worker mutations preserve all neighboring legacy, v2 and opaque fields and policies.
 OAuth-only Login creation is supported. Other create types reject sign-in input.

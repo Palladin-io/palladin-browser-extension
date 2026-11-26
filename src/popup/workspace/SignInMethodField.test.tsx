@@ -39,7 +39,8 @@ describe('popup sign-in collection', () => {
   const row = (await screen.findByText('first@test')).closest('.detail-field');
   expect(row?.parentElement).toHaveClass('detail-fields');
   expect(document.querySelectorAll('.detail-fields')).toHaveLength(1);
-  expect(row).toHaveTextContent('Google');
+  expect(row).toHaveTextContent('Sign in with');
+  expect(row?.querySelector('.field-actions button')).toHaveAccessibleName('Edit sign-in method: Google');
   expect(screen.queryByText('Sign-in methods')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Add a sign-in method' })).toBeNull();
  });
@@ -60,7 +61,7 @@ describe('popup sign-in collection', () => {
  });
  it('keeps provider suggestion mail free of account and Entry data', async () => {
   setup([{ id: methodId, provider: 'google', account: 'private-account', agentVisible: true }]);
-  await userEvent.click(await screen.findByRole('button', { name: 'Edit sign-in method' }));
+  await userEvent.click(await screen.findByRole('button', { name: /^Edit sign-in method/ }));
   const link = screen.getByRole('link', { name: 'Missing a provider? Let us know' });
   expect(link).toHaveAttribute('href', 'mailto:contact@example.test?subject=Sign-in%20provider%20suggestion');
   await userEvent.type(screen.getByRole('textbox', { name: 'Account (optional)' }), 'private-draft');
@@ -73,7 +74,7 @@ describe('popup sign-in collection', () => {
    return new DOMRect();
   });
   setup([{ id: methodId, provider: 'facebook', account: null, agentVisible: false }]);
-  await userEvent.click(await screen.findByRole('button', { name: 'Edit sign-in method' }));
+  await userEvent.click(await screen.findByRole('button', { name: /^Edit sign-in method/ }));
   const rail = screen.getByRole('group', { name: 'Provider' });
   expect(rail.scrollLeft).toBe(272);
   expect(screen.getByRole('button', { name: 'Facebook', pressed: true })).not.toHaveFocus();
@@ -88,7 +89,7 @@ describe('popup sign-in collection', () => {
   expect(await screen.findByText('first@test')).toBeVisible();
   expect(screen.getByText('second@test')).toBeVisible();
   expect(screen.queryByText(/Agents can see/)).toBeNull();
-  await userEvent.click(screen.getAllByRole('button', { name: 'Edit sign-in method' })[0]!);
+  await userEvent.click(screen.getAllByRole('button', { name: /^Edit sign-in method/ })[0]!);
   expect(screen.getByRole('checkbox')).toBeChecked();
   await userEvent.click(screen.getByRole('button', { name: 'Forget sign-in method' }));
   await waitFor(() => expect(send).toHaveBeenCalledWith({ type: 'workspace/sign-in', vaultId, entryId, fieldId: methodId, binding: null, agentVisible: false, locale: 'en' }));
@@ -105,7 +106,7 @@ describe('popup sign-in collection', () => {
  });
  it('discards provider/account/visibility edits on cancel and restores the original draft', async () => {
   const send = setup([{ id: methodId, provider: 'google', account: 'first@test', agentVisible: true }]);
-  const edit = await screen.findByRole('button', { name: 'Edit sign-in method' });
+  const edit = await screen.findByRole('button', { name: /^Edit sign-in method/ });
   await userEvent.click(edit);
   await userEvent.click(screen.getByRole('button', { name: 'Apple', pressed: false }));
   await userEvent.clear(screen.getByRole('textbox', { name: 'Account (optional)' }));
@@ -122,7 +123,7 @@ describe('popup sign-in collection', () => {
  });
  it('retains the editor when the worker refuses a write', async () => {
   setup([{ id: methodId, provider: 'google', account: null, agentVisible: false }], true);
-  await userEvent.click(await screen.findByRole('button', { name: 'Edit sign-in method' }));
+  await userEvent.click(await screen.findByRole('button', { name: /^Edit sign-in method/ }));
   await userEvent.click(screen.getByRole('button', { name: 'Save' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not save');
   expect(screen.getByRole('button', { name: 'Google', pressed: true })).toBeVisible();

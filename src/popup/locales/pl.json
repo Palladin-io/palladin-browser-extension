@@ -585,6 +585,7 @@
   "signIn.editorHint": "Dla tego samego konta w serwisie. Dodaj tylko metody już połączone w tym serwisie.",
   "signIn.providerAccountTitle": "Konto {provider}",
   "signIn.visibilityHint": "Tylko dostawca i odnośnik do wpisu. Dostęp jest przyznawany osobno.",
+  "signIn.signInWith": "Zaloguj przez",
   "signIn.section": "Metody logowania",
   "signIn.none": "Hasło lub nie zapamiętano",
   "signIn.unrecognized": "Danych metody logowania z innej aplikacji nie można tu wyświetlić.",

@@ -1233,8 +1233,6 @@ html[data-extension-surface='side-panel'] .popup-header {
 .grant-status { margin-left: 6px; }
 .grant-status[data-pending='true'] { color: color-mix(in srgb, var(--cv-pending) 60%, black); }
 .audit-chips .audit-type { color: color-mix(in srgb, var(--event-color) 60%, black); }
-.audit-chips .audit-login { max-width: 100%; min-width: 0; }
-.audit-chips .audit-login > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 0; padding: 0; background: none; }
 :root[data-theme='dark'] .grant-status[data-pending='true'] { color: var(--cv-pending); }
 :root[data-theme='dark'] .audit-chips .audit-type { color: var(--event-color); }
 .audit-icon, .grant-avatar { background: var(--cv-surface); border: 1px solid var(--cv-border); }
