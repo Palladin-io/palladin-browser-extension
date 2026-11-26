@@ -2,7 +2,7 @@ import {
   QrCode, ListChecks, RefreshCw, Shield, Layers, Hourglass, CircleX, Trash2, UserPlus,
   ExternalLink, ArrowLeft, Share2, Bot, Check, ChevronRight, CodeXml,
   Copy, CreditCard, Dice5, Eye, EyeOff, History, KeyRound,
-  LockKeyhole, LogOut, PanelRight, Pencil, Plus, Settings, TerminalSquare,
+  LockKeyhole, LogOut, PanelRight, Pencil, Plus, Settings, TerminalSquare, UserRound,
 } from 'lucide-react';
 
 const icons = {
@@ -36,6 +36,7 @@ const icons = {
   card: CreditCard,
   terminal: TerminalSquare,
   panel: PanelRight,
+  user: UserRound,
 };
 export type PopupIconName = keyof typeof icons;
 

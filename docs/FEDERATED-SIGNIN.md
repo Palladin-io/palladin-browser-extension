@@ -158,9 +158,9 @@ never submits and never bypasses MFA.
 
 ## Editing
 
-The popup Entry detail and Login creation form show a final "Sign-in methods"
-section after notes, before the footer. The empty section has its heading and plus;
-compact rows show provider logo/name, account and a pencil. Visibility is in the
+The Login creation form shows a final "Sign-in methods" section with its heading and
+plus. The popup Entry detail shows nothing when no method exists; configured methods are
+rows in the Details card with provider logo/name, account and a pencil. Visibility is in the
 native modal editor, with logo/name provider tiles, an optional manual account,
 a visibility switch and the standard Cancel/Save footer. The popup command does
 not offer new provider Entry linking; unchanged links are retained by the worker.

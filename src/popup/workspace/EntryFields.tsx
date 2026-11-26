@@ -156,12 +156,8 @@ export function EntryFields({
               </div>
             </div>
           ))}
+        {signIn ? <SignInMethodField client={client} vaultId={vaultId} entryId={entryId} view={signIn} onChanged={setSignIn} /> : null}
       </div>
-      {signIn && signIn.status !== 'unsupported' ? (
-        <div className="detail-fields sign-in-card">
-          <SignInMethodField client={client} vaultId={vaultId} entryId={entryId} view={signIn} onChanged={setSignIn} />
-        </div>
-      ) : null}
       {error ? <p role="alert">{t('workspace.error')}</p> : null}
     </>
   );

@@ -1210,7 +1210,6 @@ html[data-extension-surface='side-panel'] .popup-header {
   margin-top: 8px;
 }
 
-.detail-fields.sign-in-card { margin-top: 16px; }
 /* Shared panel component treatment, adapted to the native popup density. */
 .popup-header::before, .vault-footer::before { content: none; }
 .popup-header { background: linear-gradient(110deg, color-mix(in srgb, var(--cv-t3) 4%, var(--cv-surface)), var(--cv-surface)); }
@@ -1234,6 +1233,7 @@ html[data-extension-surface='side-panel'] .popup-header {
 .grant-status { margin-left: 6px; }
 .grant-status[data-pending='true'] { color: color-mix(in srgb, var(--cv-pending) 60%, black); }
 .audit-chips .audit-type { color: color-mix(in srgb, var(--event-color) 60%, black); }
+.audit-chips span > span[aria-hidden] { display: contents; }
 :root[data-theme='dark'] .grant-status[data-pending='true'] { color: var(--cv-pending); }
 :root[data-theme='dark'] .audit-chips .audit-type { color: var(--event-color); }
 .audit-icon, .grant-avatar { background: var(--cv-surface); border: 1px solid var(--cv-border); }
