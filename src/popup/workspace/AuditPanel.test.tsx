@@ -93,7 +93,7 @@ it('identifies the exact Entry login by Entry ID and never claims a stale histor
     entry('x-one', 'synthetic_one', '2026-11-01T00:00:00Z'), entry('x-two', 'synthetic_two', '2026-11-25T00:00:00Z')]} /></I18nProvider>);
   await waitFor(() => expect(container.querySelectorAll('.audit-entry')).toHaveLength(3));
   const chips = [...container.querySelectorAll('.audit-entry')].map(chip => chip.textContent);
-  expect(chips).toContain('X· synthetic_one');
-  expect(chips).toContain('X· synthetic_two (current)');
+  expect(chips).toContain('X · synthetic_one');
+  expect(chips).toContain('X · synthetic_two (current)');
   expect(chips).toContain('Unavailable entry · x-gone-0…0-0000');
 });
