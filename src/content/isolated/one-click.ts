@@ -12,6 +12,7 @@ import { hasLiveLoginObstacle } from './agent-live-obstacles';
 import { isFillable } from './credential-form-analysis';
 import { clickWithGetGuard, performBoundFill, submitFilledLoginTarget, type LoginTarget } from './fill';
 import { autocompleteTokens, hasOneTimeCodeHint } from './form-semantics';
+import { MAX_ONE_CLICK_MUTED, ONE_CLICK_DISABLED_KEY, ONE_CLICK_MUTED_KEY, parseMutedHosts } from '@shared/config/one-click-preferences';
 import { credentialScopeFor } from './login-controls';
 import { composedForm, queryOpenElements } from './open-dom';
 import { OneClickToast, type OneClickAccount, type OneClickCopyKey } from './one-click-toast';
@@ -20,8 +21,6 @@ import { observeSignInStep, isRegistrationUrl, type SignInStep } from './sign-in
 import { observeSignedState } from './signed-out';
 import { bindTotpTarget, fillTotp, type TotpBinding } from './totp-target';
 
-export const ONE_CLICK_MUTED_KEY = 'palladin.one-click.muted-hosts.v1';
-const MAX_MUTED = 500;
 const SCAN_DELAY_MS = 700;
 const SETTLE_MS = 250;
 const STEP_WAIT_MS = 15_000;
@@ -76,8 +75,7 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
   async function rememberMute(): Promise<void> {
     try {
       const stored = (await chrome.storage.local.get(ONE_CLICK_MUTED_KEY))[ONE_CLICK_MUTED_KEY];
-      const hosts = Array.isArray(stored) ? stored.filter((item): item is string => typeof item === 'string') : [];
-      await chrome.storage.local.set({ [ONE_CLICK_MUTED_KEY]: [...new Set([...hosts, host])].slice(-MAX_MUTED) });
+      await chrome.storage.local.set({ [ONE_CLICK_MUTED_KEY]: [...new Set([...parseMutedHosts(stored), host])].slice(-MAX_ONE_CLICK_MUTED) });
     } catch { /* The toast is already hidden for this tab. */ }
   }
 
@@ -366,15 +364,26 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
     const preferences = value === undefined ? DEFAULT_UI_PREFERENCES : parseUiPreferences(value);
     toast.setAppearance(resolveUiLocale(preferences.language, chrome.i18n.getUILanguage()), preferences.theme);
   };
+  const applyMuted = (values: Record<string, unknown>) => {
+    muted = values[ONE_CLICK_DISABLED_KEY] === true || parseMutedHosts(values[ONE_CLICK_MUTED_KEY]).includes(host);
+    if (muted && running === null) toast.hide();
+  };
   const storageChanged = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
-    if (area === 'local' && UI_PREFERENCES_STORAGE_KEY in changes) applyPreferences(changes[UI_PREFERENCES_STORAGE_KEY]?.newValue);
+    if (area !== 'local') return;
+    if (UI_PREFERENCES_STORAGE_KEY in changes) applyPreferences(changes[UI_PREFERENCES_STORAGE_KEY]?.newValue);
+    if (ONE_CLICK_DISABLED_KEY in changes || ONE_CLICK_MUTED_KEY in changes)
+      void chrome.storage.local.get([ONE_CLICK_DISABLED_KEY, ONE_CLICK_MUTED_KEY]).then(values => {
+        if (stopped) return;
+        const wasMuted = muted;
+        applyMuted(values);
+        if (wasMuted && !muted && !hidden) return refresh();
+      }).catch(() => undefined);
   };
   chrome.storage.onChanged.addListener(storageChanged);
-  void chrome.storage.local.get([UI_PREFERENCES_STORAGE_KEY, ONE_CLICK_MUTED_KEY]).then(values => {
+  void chrome.storage.local.get([UI_PREFERENCES_STORAGE_KEY, ONE_CLICK_DISABLED_KEY, ONE_CLICK_MUTED_KEY]).then(values => {
     if (stopped) return;
     applyPreferences(values[UI_PREFERENCES_STORAGE_KEY]);
-    const hosts: unknown = values[ONE_CLICK_MUTED_KEY];
-    muted = Array.isArray(hosts) && hosts.includes(host);
+    applyMuted(values);
     return refresh();
   }).catch(() => undefined);
 

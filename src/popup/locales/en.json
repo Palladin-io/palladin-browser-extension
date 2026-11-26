@@ -791,5 +791,15 @@
   "oneClick.sms": "Enter the verification code",
   "oneClick.captcha": "Confirm that you are not a robot",
   "oneClick.noAction": "Select the sign-in button",
-  "oneClick.chooseProvider": "Choose this {name} account"
+  "oneClick.chooseProvider": "Choose this {name} account",
+  "oneClickSettings.title": "One-click sign-in",
+  "oneClickSettings.show": "Show the sign-in suggestion",
+  "oneClickSettings.disable": "Turn off",
+  "oneClickSettings.enable": "Turn on",
+  "oneClickSettings.turnOff": "Turn off one-click sign-in",
+  "oneClickSettings.turnOn": "Turn on one-click sign-in",
+  "oneClickSettings.muted": "Sites with sign-in turned off",
+  "oneClickSettings.noMuted": "None",
+  "oneClickSettings.unmuteSite": "Turn on one-click sign-in on {name}",
+  "oneClickSettings.error": "Could not change settings. Try again."
 }
