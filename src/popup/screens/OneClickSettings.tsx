@@ -29,21 +29,21 @@ export function OneClickSettings({ storage = chrome.storage.local }: { storage?:
     } catch { setError(true) }
   }
 
-  return <div className="capture-settings">
+  return <div className="one-click-settings">
     {error ? <p className="settings-warning" role="alert">{t('oneClickSettings.error')}</p> : null}
     {!state ? (error ? null : <LoadingSkeleton />) : <>
-      <div className="capture-setting-row">
-        <span>{t('oneClickSettings.show')}</span>
-        <Button variant="subtle" aria-label={t(state.enabled ? 'oneClickSettings.turnOff' : 'oneClickSettings.turnOn')}
-          onClick={() => void save({ ...state, enabled: !state.enabled })}>
-          {t(state.enabled ? 'oneClickSettings.disable' : 'oneClickSettings.enable')}
-        </Button>
+      <div className="shared-unlock-setting-row">
+        <h2>{t('oneClickSettings.show')}</h2>
+        <button type="button" className="shared-unlock-toggle" role="switch" aria-checked={state.enabled}
+          aria-label={t('oneClickSettings.show')} onClick={() => void save({ ...state, enabled: !state.enabled })}>
+          <span aria-hidden="true" />
+        </button>
       </div>
       <h3 className="field-label">{t('oneClickSettings.muted')}</h3>
       {state.sites.length === 0 ? <p className="screen-subtitle">{t('oneClickSettings.noMuted')}</p> :
-        state.sites.map((site) => <div className="capture-setting-row" key={site}>
+        state.sites.map((site) => <div className="settings-check one-click-site" key={site}>
           <span>{site}</span>
-          <Button variant="subtle" aria-label={t('oneClickSettings.unmuteSite', { name: site })}
+          <Button variant="ghost" aria-label={t('oneClickSettings.unmuteSite', { name: site })}
             onClick={() => void save({ ...state, sites: state.sites.filter((item) => item !== site) })}>
             {t('oneClickSettings.enable')}
           </Button>
