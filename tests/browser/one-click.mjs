@@ -113,6 +113,7 @@ try {
   const toast = () => named('region', 'Sign in');
   const says = text => until(async () => (await texts()).includes(text), text);
   const press = async name => {
+    const matches = typeof name === 'string' ? value => value === name : value => name.test(value ?? '');
     let node;
     // Only the toast's own control: the site may carry the same caption.
     await until(async () => {
@@ -120,7 +121,7 @@ try {
       if (!region) return false;
       const inside = new Set([region.nodeId]);
       for (let changed = true; changed;) { changed = false; for (const item of all) if (!inside.has(item.nodeId) && inside.has(item.parentId)) { inside.add(item.nodeId); changed = true; } }
-      node = all.find(item => inside.has(item.nodeId) && item.role?.value === 'button' && item.name?.value === name);
+      node = all.find(item => inside.has(item.nodeId) && item.role?.value === 'button' && matches(item.name?.value));
       return Boolean(node);
     }, `toast button ${name}`);
     await page.waitForTimeout(650);
@@ -207,6 +208,21 @@ try {
     async covered() {
       await page.goto('https://cover.example.test/'); await until(async () => Boolean(await toast()), 'toast'); requests.length = 0; await press('Sign in');
       await page.waitForTimeout(1_500); assert.equal(requests.length, 0); assert.ok(await toast()); pass('a click through a page overlay does nothing');
+    },
+    async never() {
+      const shown = async target => (await (await context.newCDPSession(target)).send('Accessibility.getFullAXTree')).nodes.some(n => n.role?.value === 'region' && n.name?.value === 'Sign in');
+      await page.goto('https://totp.example.test/'); await until(async () => Boolean(await toast()), 'toast');
+      await press(/^Change account: /); await press(/^Never on this site/); await gone();
+      const other = await context.newPage(); await other.goto('https://totp.example.test/'); await other.waitForTimeout(3_000);
+      assert.equal(await shown(other), false, 'muted site');
+      assert.deepEqual(await worker.evaluate(async () => (await chrome.storage.local.get('palladin.one-click.muted-hosts.v1'))['palladin.one-click.muted-hosts.v1']), ['totp.example.test']);
+      await worker.evaluate(() => chrome.storage.local.set({ 'palladin.one-click.muted-hosts.v1': [] }));
+      await until(() => shown(other), 'toast after removing the ignored site');
+      await worker.evaluate(() => chrome.storage.local.set({ 'palladin.one-click.disabled.v1': true }));
+      await until(async () => !await shown(other), 'turned off everywhere', 3_000);
+      await other.reload(); await other.waitForTimeout(3_000); assert.equal(await shown(other), false, 'turned off');
+      await worker.evaluate(() => chrome.storage.local.remove('palladin.one-click.disabled.v1')); await other.close();
+      pass('never on this site, removing it in settings, and turning the feature off');
     },
     async countdown() {
       const other = await context.newPage(); await other.goto('https://x.com/'); const s = await context.newCDPSession(other);

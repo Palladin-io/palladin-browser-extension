@@ -66,6 +66,12 @@ button.account:hover {
   color: var(--cv-primary);
   font-size: 13px;
 }
+:host([data-theme="dark"]) .bar .sign-in {
+  color: var(--cv-t1);
+}
+:host([data-theme="dark"]) .bar .sign-in:hover {
+  background: var(--cv-subtle);
+}
 .bar .sign-in:hover {
   background: rgb(var(--cv-primary-rgb) / 0.09);
 }
@@ -103,15 +109,19 @@ button.account:hover {
   border-radius: 10px;
   box-shadow: 0 8px 24px #0002;
 }
-.menu .account {
-  width: 100%;
-  padding: 8px;
-}
+/* Stays reachable however many accounts the menu lists. */
 .menu .site-mute {
+  position: sticky;
+  bottom: -4px;
   width: 100%;
   border-top: 1px solid var(--cv-border);
   border-radius: 0;
   margin-top: 4px;
+  background: var(--cv-surface);
+}
+.menu .account {
+  width: 100%;
+  padding: 8px;
 }
 .account small {
   font-weight: 400;
@@ -120,58 +130,51 @@ button.account:hover {
   background: var(--cv-subtle);
 }
 
-.toast-brand {
-  display: flex;
-  align-items: center;
+/* Reuses the capture notice header gradient and grain as a slim brand strip. */
+.toast-strip.header {
+  justify-content: flex-start;
   gap: 4px;
+  height: auto;
+  min-height: 30px;
+  padding: 0 4px 0 16px;
+  border-bottom: 1px solid var(--cv-border);
+  border-radius: 11px 11px 0 0;
   color: var(--cv-t2);
   font-size: 11px;
   line-height: 1;
 }
+.toast-brand {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: auto;
+}
 .toast-brand img {
-  width: 12px;
-  height: 12px;
+  width: 13px;
+  height: 13px;
 }
 .toast-brand strong {
   font-weight: 600;
 }
+/* The wordmark matches the panel and landing: white in dark mode. */
+:host([data-theme="dark"]) .toast-brand strong {
+  color: var(--cv-t1);
+}
 .toast-brand strong span {
   color: var(--toast-brand);
 }
-.toast-brand {
-  position: absolute;
-  z-index: 2;
-  top: 0;
-  left: 18px;
-  height: 22px;
-  padding: 0 6px;
-  transform: translateY(-50%);
-  border: 1px solid var(--cv-border);
-  border-radius: 6px;
-  background: var(--cv-surface);
-}
-.toast-brand:has(.close) {
-  padding-right: 0;
-}
-.toast-brand .close {
-  position: relative;
+.toast-strip .close {
+  flex: none;
   width: 24px;
-  height: 20px;
-  margin-left: 2px;
-  border-left-color: var(--cv-border);
-  border-radius: 0 5px 5px 0;
+  height: 24px;
+  border-radius: 6px;
 }
-/* Keeps a 24 px target inside the 22 px chip. */
-.toast-brand .close::after {
-  content: "";
-  position: absolute;
-  inset: -3px 0;
-}
-.toast-brand .close svg {
+.toast-strip .close svg {
   width: 11px;
   height: 11px;
 }
-.toast-brand .close:hover {
+.toast-strip .close:hover {
+  background: var(--cv-subtle);
   color: var(--cv-t1);
 }
 .account-hint {
@@ -209,35 +212,27 @@ button.account:hover {
     transform: translateY(-16px);
   }
 }
-.countdown {
+.countdown-line {
   position: absolute;
-  z-index: 1;
-  inset: -1px;
-  width: calc(100% + 2px);
-  height: calc(100% + 2px);
-  overflow: visible;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  transform-origin: left;
+  transform: scaleX(0);
+  background: var(--cv-t3);
+  animation: countdown-line 12s linear forwards;
   pointer-events: none;
 }
-.countdown rect {
-  x: 0.5px;
-  y: 0.5px;
-  width: calc(100% - 1px);
-  height: calc(100% - 1px);
-  fill: none;
-  stroke: var(--cv-primary);
-  stroke-width: 1.5;
-  stroke-dasharray: 100;
-  animation: countdown 12s linear forwards;
-}
-.compact:hover .countdown rect,
-.compact:focus-within .countdown rect,
-.compact:has(.menu) .countdown rect,
-.compact[data-hidden] .countdown rect {
+.compact:hover .countdown-line,
+.compact:focus-within .countdown-line,
+.compact:has(.menu) .countdown-line,
+.compact[data-hidden] .countdown-line {
   animation-play-state: paused;
 }
-@keyframes countdown {
+@keyframes countdown-line {
   to {
-    stroke-dashoffset: -100;
+    transform: scaleX(1);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -257,7 +252,7 @@ button.account:hover {
   .sign-in:active span {
     transform: none;
   }
-  .countdown rect {
-    stroke: transparent;
+  .countdown-line {
+    background: transparent !important;
   }
 }

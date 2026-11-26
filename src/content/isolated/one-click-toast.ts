@@ -163,21 +163,25 @@ export class OneClickToast {
     row.append(...content);
     this.panel.setAttribute('role', role);
     this.panel.setAttribute('aria-label', this.text(label));
-    this.panel.replaceChildren(this.brand(closable), row, ...this.panel.querySelectorAll('.menu.leaving'));
-    if (expires) this.panel.append(this.countdown());
+    const strip = this.strip(closable);
+    if (expires) strip.append(this.countdown());
+    this.panel.replaceChildren(strip, row, ...this.panel.querySelectorAll('.menu.leaving'));
     this.mount();
   }
 
-  private brand(closable: boolean): HTMLDivElement {
+  private strip(closable: boolean): HTMLDivElement {
     const element = this.doc.createElement('div');
-    element.className = 'toast-brand';
+    element.className = 'header toast-strip';
+    const brand = this.doc.createElement('span');
+    brand.className = 'toast-brand';
     const logo = this.doc.createElement('img');
     logo.src = brandLogoUrl; logo.alt = '';
     const wordmark = this.doc.createElement('strong');
     const domain = this.doc.createElement('span');
     domain.textContent = '.io';
     wordmark.append('Palladin', domain);
-    element.append(logo, wordmark);
+    brand.append(logo, wordmark);
+    element.append(brand);
     if (closable) {
       const close = this.button('', 'close', () => this.events.dismiss());
       close.setAttribute('aria-label', this.text('oneClick.close'));
@@ -187,19 +191,14 @@ export class OneClickToast {
     return element;
   }
 
-  /** One pass around the border. Its end only hides the toast; it never signs in. */
-  private countdown(): SVGSVGElement {
-    const ns = 'http://www.w3.org/2000/svg';
-    const ring = this.doc.createElementNS(ns, 'svg');
-    ring.setAttribute('class', 'countdown');
-    ring.setAttribute('aria-hidden', 'true');
-    const path = this.doc.createElementNS(ns, 'rect');
-    path.setAttribute('pathLength', '100');
-    path.setAttribute('rx', '11.5');
-    path.style.animationDuration = `${COUNTDOWN_MS}ms`;
-    path.addEventListener('animationend', () => this.events.dismiss());
-    ring.append(path);
-    return ring;
+  /** Fills under the brand strip from the logo. Its end only hides the toast; it never signs in. */
+  private countdown(): HTMLDivElement {
+    const line = this.doc.createElement('div');
+    line.className = 'countdown-line';
+    line.setAttribute('aria-hidden', 'true');
+    line.style.animationDuration = `${COUNTDOWN_MS}ms`;
+    line.addEventListener('animationend', () => this.events.dismiss());
+    return line;
   }
 
   private line(account: OneClickAccount, title: string, detail: string): HTMLDivElement {

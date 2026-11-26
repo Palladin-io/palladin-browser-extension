@@ -776,7 +776,7 @@
   "oneClick.change": "Zmień",
   "oneClick.options": "Opcje",
   "oneClick.changeLabel": "Zmień konto: {name}",
-  "oneClick.mute": "Nie pokazuj na tej stronie",
+  "oneClick.mute": "Nigdy na tej stronie",
   "oneClick.close": "Zamknij propozycję logowania",
   "oneClick.locked": "Zablokowany",
   "oneClick.lockedDetail": "Odblokuj, aby się zalogować",

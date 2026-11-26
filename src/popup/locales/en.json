@@ -776,7 +776,7 @@
   "oneClick.change": "Change",
   "oneClick.options": "Options",
   "oneClick.changeLabel": "Change account: {name}",
-  "oneClick.mute": "Don't show on this site",
+  "oneClick.mute": "Never on this site",
   "oneClick.close": "Close sign-in suggestion",
   "oneClick.locked": "Locked",
   "oneClick.lockedDetail": "Unlock to sign in",

@@ -251,6 +251,10 @@ site. CAPTCHA, SMS or email codes, extra required fields and ambiguity are hande
 the user. The absence of a further stage is not reported as a successful login.
 Passive automatic fill is unchanged and never submits.
 
+"Never on this site" in the toast menu stores only that host name in extension-local
+storage. Settings list these ignored sites, remove them with a short undo, and can
+turn the toast off everywhere. Neither setting is sent to the server or analytics.
+
 
 
 Filling a password into a page intentionally releases that value to the exact
