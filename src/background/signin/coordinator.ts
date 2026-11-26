@@ -16,6 +16,7 @@ import {
 } from '@shared/signin/binding';
 import {
   classifyProviderUrl,
+  isGoogleAccountPage,
   isAuthorizationErrorReturn,
   isProviderSignInHost,
   SIGN_IN_PROVIDER_ACCOUNT_DOMAINS,
@@ -27,7 +28,6 @@ import type { SignInTargets, SignInWriteTarget } from '../vault/protocol2/creden
 
 const FLOW_TTL_MS = 10 * 60_000;
 const MAX_FLOWS = 20;
-const MAX_VAULT_ACCOUNTS = 10;
 const MAX_CREATE_TARGETS = 8;
 
 export interface SignInSource {
@@ -84,6 +84,8 @@ interface Flow {
   readonly providerTabIds: Set<number>;
   provider: SignInProvider | null;
   phase: 'started' | 'provider' | 'returned';
+  /** Submitted by the user on Google's own page in this flow; memory only. */
+  observedAccount: string | null;
   usedAccount: string | null;
   usedEntry: SignInEntryReference | null;
   usedManually: boolean;
@@ -228,7 +230,8 @@ export class FederatedSignInCoordinator {
     return matches.length === 1 ? matches[0]! : null;
   }
 
-  async dispatch(command: FederatedSignInCommand, source: SignInSource, entryName?: string, operationAuthorized?: () => Promise<boolean>): Promise<FederatedSignInResult> {
+  async dispatch(command: FederatedSignInCommand, source: SignInSource, entryName?: string, operationAuthorized?: () => Promise<boolean>,
+    manualAccount?: string): Promise<FederatedSignInResult> {
     if (operationAuthorized && !await operationAuthorized()) return { status: 'stale' };
     this.expire();
     const origin = httpsOrigin(source.url);
@@ -237,6 +240,8 @@ export class FederatedSignInCoordinator {
       case 'intent':
         this.start(source.tabId, origin);
         return { status: 'accepted' };
+      case 'account':
+        return this.observeAccount(command.account, source);
       case 'suggest':
         return this.suggest(source);
       case 'choose':
@@ -244,7 +249,7 @@ export class FederatedSignInCoordinator {
       case 'get':
         return { status: 'prompt', prompt: await this.prompt(source) };
       case 'confirm':
-        return this.confirm(command, source, entryName, operationAuthorized);
+        return this.confirm(command, source, entryName, operationAuthorized, manualAccount);
       case 'mute': {
         const flow = this.flows.get(source.tabId), stored = flow?.prompt;
         const session = await this.deps.getSession();
@@ -272,6 +277,17 @@ export class FederatedSignInCoordinator {
     }
   }
 
+  private async observeAccount(raw: string, source: SignInSource): Promise<FederatedSignInResult> {
+    if (!isGoogleAccountPage(source.url)) return { status: 'stale' };
+    const flow = this.flowForProviderTab(source.tabId) ?? this.flows.get(source.tabId);
+    const session = await this.deps.getSession();
+    const account = normalizeSignInAccount(raw);
+    if (!session?.unlocked || account === null || flow?.phase !== 'provider' || flow.provider !== 'google'
+      || this.flows.get(flow.serviceTabId) !== flow) return { status: 'stale' };
+    flow.observedAccount = account;
+    return { status: 'accepted' };
+  }
+
   private start(tabId: number, serviceOrigin: string): Flow {
     const existing = this.flows.get(tabId);
     if (existing !== undefined && existing.serviceOrigin === serviceOrigin && existing.phase !== 'returned') return existing;
@@ -280,7 +296,7 @@ export class FederatedSignInCoordinator {
       if (oldest) this.flows.delete(oldest[0]);
     }
     const flow: Flow = { serviceTabId: tabId, serviceOrigin, startedAt: this.now(), providerTabIds: new Set(),
-      provider: null, phase: 'started', usedAccount: null, usedEntry: null, usedManually: false, chosen: null, prompt: null, building: null, error: false };
+      provider: null, phase: 'started', observedAccount: null, usedAccount: null, usedEntry: null, usedManually: false, chosen: null, prompt: null, building: null, error: false };
     this.flows.set(tabId, flow);
     return flow;
   }
@@ -306,7 +322,7 @@ export class FederatedSignInCoordinator {
     // generic provider sign-in page can merely continue an established flow.
     if (flow.provider !== page.provider && !page.authorizationRequest) return;
     if (flow.provider !== null && flow.provider !== page.provider) {
-      flow.usedAccount = null; flow.usedEntry = null; flow.usedManually = false;
+      flow.observedAccount = null; flow.usedAccount = null; flow.usedEntry = null; flow.usedManually = false;
     }
     flow.provider = page.provider;
     flow.phase = 'provider';
@@ -404,12 +420,17 @@ export class FederatedSignInCoordinator {
     if ((await this.deps.getSession())?.generation !== session.generation || this.flows.get(source.tabId) !== flow) return null;
     const chosenSame = flow.chosen?.provider === provider;
     // A Palladin fill of a different account than the one chosen is an account switch: never suppress or guess.
-    const switched = chosenSame && flow.usedAccount !== null && !sameSignInAccount(flow.usedAccount, flow.chosen!.account);
-    const preferred = switched ? (flow.usedManually ? flow.usedAccount : null)
-      : chosenSame ? flow.chosen!.account : flow.usedManually ? flow.usedAccount : null;
-    const alreadyRemembered = !switched && (chosenSame || preferred !== null)
+    const evidence = flow.observedAccount ?? flow.usedAccount;
+    const switched = chosenSame && evidence !== null && !sameSignInAccount(evidence, flow.chosen!.account);
+    const confirmed = flow.observedAccount ?? (switched ? (flow.usedManually ? flow.usedAccount : null)
+      : chosenSame ? flow.chosen!.account : flow.usedManually ? flow.usedAccount : null);
+    // A prefilled guess is only a visible suggestion; it never proves that nothing needs saving.
+    const soleAccount = providerAccounts.length > 0 && providerAccounts.every((candidate) =>
+      sameSignInAccount(candidate.account, providerAccounts[0]!.account)) ? providerAccounts[0]!.account : null;
+    const preferred = confirmed ?? flow.usedAccount ?? (chosenSame ? null : soleAccount);
+    const alreadyRemembered = !switched && (chosenSame || confirmed !== null)
       && targets.credentials.some((credential) => credential.signIn.status === 'recognized'
-        && credential.signIn.binding.provider === provider && sameSignInAccount(credential.signIn.binding.account, preferred));
+        && credential.signIn.binding.provider === provider && sameSignInAccount(credential.signIn.binding.account, confirmed));
     if (alreadyRemembered) {
       this.flows.delete(source.tabId);
       return null;
@@ -434,6 +455,11 @@ export class FederatedSignInCoordinator {
       const icon = providerAccounts.find(candidate => sameSignInEntry(candidate.entry, entry) && entry !== null)?.icon;
       accountViews.push({ ...(icon ? { icon } : {}), id, label: value ?? '', source: sourceKind, ...(context ? { context } : {}) });
     };
+    if (flow.observedAccount !== null) {
+      const matches = providerAccounts.filter((candidate) => sameSignInAccount(candidate.account, flow.observedAccount));
+      addAccount(matches.length === 1 ? matches[0]!.account : flow.observedAccount,
+        matches.length === 1 ? matches[0]!.entry : null, 'observed');
+    }
     if (flow.chosen?.provider === provider && flow.chosen.account !== null) {
       addAccount(flow.chosen.account, discoverable(flow.chosen.entry), 'chosen');
     }
@@ -447,7 +473,7 @@ export class FederatedSignInCoordinator {
     const vaultAccounts = [...providerAccounts]
       .filter((candidate) => candidate.account.length <= 256)
       .sort((left, right) => left.account.localeCompare(right.account));
-    for (const candidate of vaultAccounts.slice(0, MAX_VAULT_ACCOUNTS)) addAccount(candidate.account, candidate.entry, 'vault');
+    for (const candidate of vaultAccounts) addAccount(candidate.account, candidate.entry, 'vault');
     addAccount(null, null, 'none');
     const defaultAccountId = preferred === null ? null
       : [...accounts.entries()].find(([, value]) => sameSignInAccount(value.account, preferred))?.[0] ?? null;
@@ -479,7 +505,7 @@ export class FederatedSignInCoordinator {
     }
     if (targetViews.length === 1) defaultTargetId = targetViews[0]!.id;
     const view: SignInPrompt = { id: this.createId(), site, provider, state: 'ready', accounts: accountViews,
-      notice: { kind: 'credential', site, name: site, detail: preferred ?? '' },
+      notice: { kind: 'credential', site, name: site, detail: confirmed ?? '' },
       targets: targetViews, defaultAccountId, defaultTargetId };
     flow.prompt = { view, accounts, targets: targetMap, documentId: source.documentId,
       browserDocumentId: captureDocumentKey(source) };
@@ -487,17 +513,18 @@ export class FederatedSignInCoordinator {
     return view;
   }
 
-  private async confirm(command: Extract<FederatedSignInCommand, { type: 'confirm' }>, source: SignInSource, entryName?: string, operationAuthorized?: () => Promise<boolean>):
-    Promise<FederatedSignInResult> {
+  private async confirm(command: Extract<FederatedSignInCommand, { type: 'confirm' }>, source: SignInSource, entryName?: string, operationAuthorized?: () => Promise<boolean>,
+    manualAccount?: string): Promise<FederatedSignInResult> {
     const flow = this.flows.get(source.tabId);
     const stored = flow?.prompt;
     if (flow === undefined || stored === undefined || stored === null || stored.view.id !== command.promptId
       || stored.browserDocumentId !== captureDocumentKey(source) || stored.documentId !== source.documentId
       || !this.sameService(source.url, flow) || flow.provider === null) return { status: 'stale' };
-    if (!stored.accounts.has(command.accountId) || !stored.targets.has(command.targetId)) return { status: 'stale' };
+    if (manualAccount === undefined && !stored.accounts.has(command.accountId) || !stored.targets.has(command.targetId)) return { status: 'stale' };
     const session = await this.deps.getSession();
     if (!session?.unlocked) return { status: 'prompt', prompt: await this.prompt(source) };
-    const chosenAccount = stored.accounts.get(command.accountId)!;
+    const chosenAccount = manualAccount === undefined ? stored.accounts.get(command.accountId)!
+      : { account: normalizeSignInAccount(manualAccount), entry: null };
     const binding: SignInBinding = { provider: flow.provider, account: chosenAccount.account, entry: chosenAccount.entry };
     const stillAuthorized = async () => (!operationAuthorized || await operationAuthorized()) && (await this.deps.getSession())?.generation === session.generation
       && this.flows.get(source.tabId) === flow && await this.deps.isCurrentDocument(source);

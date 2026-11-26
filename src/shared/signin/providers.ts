@@ -86,6 +86,11 @@ export function providerForAuthorizationUrl(raw: string): SignInProvider | null 
 }
 
 /** True for any host owned by a supported provider's sign-in surface. */
+/** Google's own account origin; the only provider page where a submitted account is observed. */
+export function isGoogleAccountPage(raw: string): boolean {
+  try { return new URL(raw).origin === 'https://accounts.google.com'; } catch { return false; }
+}
+
 export function isProviderSignInHost(raw: string): boolean {
   try {
     const host = new URL(raw).hostname.toLowerCase();

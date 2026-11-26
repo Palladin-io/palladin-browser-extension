@@ -1,7 +1,7 @@
 import { capturePreferences } from '../capture/preferences-runtime';
 import { initializeServerConfig, serverConfig } from '../config/server-runtime';
 import { currentLegacyCaptureLogin, captureDocumentRoutes, resolveCaptureSource } from '../capture/document-route-runtime';
-import { FEDERATED_SIGNIN_CHANNEL, type FederatedSignInCommand, type FederatedSignInRefresh } from '@shared/messaging/federated-signin'
+import { FEDERATED_SIGNIN_CHANNEL, MAX_SIGN_IN_PROMPT_ACCOUNTS, type FederatedSignInCommand, type FederatedSignInRefresh } from '@shared/messaging/federated-signin'
 import { isLiveCredentialDocument } from '../capture/credential-document'
 import { captureSourceFromSender } from '../capture/runtime'
 import { sessionManager } from '../session/runtime'
@@ -25,7 +25,7 @@ export const federatedSignIn = new FederatedSignInCoordinator({
   providerAccounts: async (provider) => {
     const domains = SIGN_IN_PROVIDER_ACCOUNT_DOMAINS[provider]
     const candidates = (await vaultData.getMetadata()).filter((entry) => entry.type === ENTRY_TYPE_CREDENTIAL
-      && entry.username && domains.includes(registrableDomain(entry.urlDomain) ?? '')).slice(0, 20)
+      && entry.username && domains.includes(registrableDomain(entry.urlDomain) ?? '')).slice(0, MAX_SIGN_IN_PROMPT_ACCOUNTS)
     const accounts = []
     for (const entry of candidates) {
       const account = normalizeSignInAccount(entry.username ?? null)

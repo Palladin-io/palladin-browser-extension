@@ -59,11 +59,13 @@ async function handleSource(command: NativeLoginCaptureCommand, source: Credenti
       const result = await federatedSignIn.dispatch({ channel: FEDERATED_SIGNIN_CHANNEL, documentId: source.documentId, type: 'get' }, source);
       if (result.status !== 'prompt' || result.prompt?.id !== command.promptId) return { status: 'stale' };
       const target = result.prompt.targets.find(target => target.id === command.targetId);
-      const account = result.prompt.accounts.find(account => account.id === command.accountId);
-      if (!target || !account || command.entryName !== undefined && target.action !== 'create' || target.current && (target.current.provider !== result.prompt.provider
-        || !sameSignInAccount(target.current.account, account.source === 'none' ? null : account.label)) && !command.replace) return { status: 'stale' };
+      const listed = command.accountId === undefined ? undefined : result.prompt.accounts.find(account => account.id === command.accountId);
+      const label = command.account !== undefined ? command.account.trim() : listed && listed.source !== 'none' ? listed.label : null;
+      if (!target || command.account === undefined && !listed || command.entryName !== undefined && target.action !== 'create' || target.current && (target.current.provider !== result.prompt.provider
+        || !sameSignInAccount(target.current.account, label)) && !command.replace) return { status: 'stale' };
       return federatedSignIn.dispatch({ channel: FEDERATED_SIGNIN_CHANNEL, documentId: source.documentId, type: 'confirm',
-        promptId: command.promptId, targetId: command.targetId, accountId: command.accountId, locale: command.locale }, source, command.entryName?.trim(), authorized);
+        promptId: command.promptId, targetId: command.targetId, accountId: command.accountId ?? '', locale: command.locale }, source, command.entryName?.trim(), authorized,
+        command.account?.trim());
     }
     if (command.type === 'choose-username') return credentialCaptureCoordinator.dispatch({ ...command,
       channel: CREDENTIAL_CAPTURE_CHANNEL, documentId: source.documentId }, source);

@@ -81,6 +81,14 @@ describe("credential capture worker", () => {
     await coordinator.dispatch(command({ type: 'save', promptId: selected.id, targetId: selected.defaultTargetId!, autoUpdate: false }), source);
     expect(save.mock.calls[0]![0]).toEqual({ kind: 'registration', username: options[choice], password: 'new', previousPassword: null });
   });
+  it('gives both signup identities only to the extension-owned native review, never to the page prompt', async () => {
+    const options = { email: 'contact@example.test', nickname: 'handle' };
+    await coordinator.dispatch(command({ type: 'submitted', submissionId: 'submission-123456789',
+      credential: { kind: 'registration', username: '', password: 'new', previousPassword: null, usernameOptions: options } }), source);
+    const page = prompt(await coordinator.dispatch(confirmed, source));
+    expect(JSON.stringify(page)).not.toContain('contact@example.test');
+    expect((await coordinator.nativeReview(source))?.usernameOptions).toEqual(options);
+  });
   it('invalidates old write targets when switching the selected signup identity', async () => {
     const options = { email: 'contact@example.test', nickname: 'handle' };
     await coordinator.dispatch(command({ type: 'submitted', submissionId: 'submission-123456789',

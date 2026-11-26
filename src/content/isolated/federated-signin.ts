@@ -18,6 +18,7 @@ import {
 } from '@shared/messaging/federated-signin';
 import { SIGN_IN_PROVIDER_NAMES, type SignInProvider } from '@shared/signin/providers';
 import { createAgentInjectDomAccess } from './agent-inject';
+import { observeProviderAccount } from './provider-account';
 import { createClosedSurface } from './closed-surface';
 import { detectProviderControls, providerForControl, uniqueProviderControl } from './federated-signin-detect';
 
@@ -349,6 +350,8 @@ export function startFederatedSignIn(doc: Document, documentId: string, isOtherO
     if (provider !== null) void dispatch({ type: 'intent', provider });
   };
   doc.addEventListener('click', clicked, true);
+  const stopObserving = observeProviderAccount(doc, () => doc.defaultView?.location.href ?? '',
+    (account) => void dispatch({ type: 'account', account }));
   const promptTimer = setTimeout(() => void refreshPrompt(), PROMPT_DELAY_MS);
   const suggestTimers = SUGGEST_DELAYS_MS.map((delay) => setTimeout(() => void suggest(), delay));
   const applyPreferences = () => surface.setAppearance(
@@ -377,6 +380,7 @@ export function startFederatedSignIn(doc: Document, documentId: string, isOtherO
     },
     stop() {
       stopped = true;
+      stopObserving();
       clearTimeout(promptTimer);
       suggestTimers.forEach(clearTimeout);
       doc.removeEventListener('click', clicked, true);

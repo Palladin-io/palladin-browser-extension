@@ -46,6 +46,16 @@ describe('native login capture authorization', () => {
   });
 });
 
+it('forwards a typed OAuth account as the trimmed manual account and compares it with the remembered binding', async () => {
+ runtime();mocks.federated.mockResolvedValue({status:'prompt',prompt:{id:'p',provider:'github',targets:[{id:'t',action:'update',current:{provider:'github',account:'octo-cat'}}],accounts:[]}});
+ const command={channel,type:'confirm',promptId:'p',targetId:'t',account:' octo-cat ',locale:'en',replace:false};
+ await dispatchNativeLoginCapture(command,sender,'extension',origin);
+ expect(mocks.federated).toHaveBeenLastCalledWith(expect.objectContaining({type:'confirm',promptId:'p',targetId:'t'}),expect.anything(),undefined,expect.any(Function),'octo-cat');
+ mocks.federated.mockClear();mocks.federated.mockResolvedValue({status:'prompt',prompt:{id:'p',provider:'github',targets:[{id:'t',action:'update',current:{provider:'github',account:'someone-else'}}],accounts:[]}});
+ expect(await dispatchNativeLoginCapture(command,sender,'extension',origin)).toEqual({status:'stale'});
+ expect(mocks.federated).toHaveBeenCalledTimes(1);
+});
+
 it('never applies a new-entry name to an existing OAuth target', async () => {
  runtime();mocks.federated.mockResolvedValue({status:'prompt',prompt:{id:'p',provider:'google',targets:[{id:'t',action:'update',current:null}],accounts:[{id:'a',source:'none',label:''}]}});
  expect(await dispatchNativeLoginCapture({channel,type:'confirm',promptId:'p',targetId:'t',accountId:'a',locale:'en',replace:false,entryName:'Rename attack'},sender,'extension',origin)).toEqual({status:'stale'});
