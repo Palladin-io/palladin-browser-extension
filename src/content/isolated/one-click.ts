@@ -67,7 +67,7 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
   const toast = new OneClickToast(doc, host, {
     signIn: account => void begin(account),
     unlock: () => { void inline({ type: 'inline/open-palladin' }); },
-    stop: () => { const current = running; cancelRun(); if (current) void send({ type: 'stop', runId: current.run.runId }); present(); },
+    stop: () => { const current = running; cancelRun(); if (current) void send({ type: 'stop', runId: current.run.runId }); presentedKey = ''; present(); },
     dismiss: () => { hidden = true; cancelRun(); toast.hide(); void send({ type: 'dismiss' }); },
     mute: () => { muted = true; hidden = true; toast.hide(); void send({ type: 'dismiss' }); void rememberMute(); },
   });
