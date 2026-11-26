@@ -57,6 +57,14 @@ describe('one-click run authority', () => {
     expect((await t.send({ type: 'step', runId, stage: 'password' }, t.at(HOME))).status).toBe('stopped');
     expect((await t.send({ type: 'step', runId, stage: 'totp' }, t.at(HOME))).status).toBe('stopped');
   });
+  it('a combined form after a rejected password never submits that password again', async () => {
+    const t = setup(); const runId = await t.start();
+    expect((await t.send({ type: 'step', runId, stage: 'password' }, t.at(HOME))).status).toBe('granted');
+    expect((await t.send({ type: 'step', runId, stage: 'login' }, t.at(HOME))).status).toBe('stopped');
+    const second = await t.start();
+    expect((await t.send({ type: 'step', runId: second, stage: 'identifier' }, t.at(HOME))).status).toBe('granted');
+    expect((await t.send({ type: 'step', runId: second, stage: 'login' }, t.at(HOME))).status).toBe('granted');
+  });
   it('a combined login also consumes identifier and password', async () => {
     const t = setup(); const runId = await t.start();
     await t.send({ type: 'step', runId, stage: 'login' }, t.at(HOME));

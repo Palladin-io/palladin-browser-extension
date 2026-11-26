@@ -83,7 +83,9 @@ export class OneClickRuns {
     }
     if (command.type !== 'step') return this.view(run, entry, source.url);
 
-    if (command.runId !== run.id || run.steps >= MAX_STEPS || run.used.has(command.stage)) {
+    // A combined form after a rejected password must not submit that password again.
+    if (command.runId !== run.id || run.steps >= MAX_STEPS || run.used.has(command.stage)
+      || (command.stage === 'login' && run.used.has('password'))) {
       this.byTab.delete(source.id);
       return { status: 'stopped' };
     }
