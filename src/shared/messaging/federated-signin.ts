@@ -20,6 +20,7 @@ export type SignInLocale = 'en' | 'pl';
 export type FederatedSignInCommand = DocumentCommand & (
   | { readonly type: 'intent'; readonly provider: SignInProvider }
   | { readonly type: 'account'; readonly account: string }
+  | { readonly type: 'screen'; readonly screen: ProviderScreenShape }
   | { readonly type: 'suggest' }
   | { readonly type: 'choose'; readonly suggestionId: string }
   | { readonly type: 'get' }
@@ -33,6 +34,23 @@ export type FederatedSignInCommand = DocumentCommand & (
   | { readonly type: 'dismiss' | 'mute'; readonly promptId: string }
   | { readonly type: 'unlock' }
 );
+
+/** Value-free shape of a provider sign-in screen for compatibility diagnostics; flags only. */
+export interface ProviderScreenShape {
+  readonly kind: 'identifier' | 'password' | 'account-chooser' | 'consent' | 'unknown';
+  readonly identifierField: boolean;
+  readonly passwordField: boolean;
+  readonly emailAttribute: boolean;
+  readonly emailText: boolean;
+}
+
+const PROVIDER_SCREEN_KINDS: readonly string[] = ['identifier', 'password', 'account-chooser', 'consent', 'unknown'];
+
+export function isProviderScreenShape(value: unknown): value is ProviderScreenShape {
+  return record(value) && only(value, ['kind', 'identifierField', 'passwordField', 'emailAttribute', 'emailText'])
+    && typeof value.kind === 'string' && PROVIDER_SCREEN_KINDS.includes(value.kind)
+    && ['identifierField', 'passwordField', 'emailAttribute', 'emailText'].every((key) => typeof value[key] === 'boolean');
+}
 
 /** Value-free worker -> content nudge to request the current prompt. */
 export interface FederatedSignInRefresh {
@@ -125,6 +143,8 @@ export function isFederatedSignInCommand(value: unknown): value is FederatedSign
       return only(value, [...base, 'provider']) && isSignInProvider(value.provider);
     case 'account':
       return only(value, [...base, 'account']) && isObservableSignInAccount(value.account);
+    case 'screen':
+      return only(value, [...base, 'screen']) && isProviderScreenShape(value.screen);
     case 'suggest':
     case 'get':
     case 'unlock':

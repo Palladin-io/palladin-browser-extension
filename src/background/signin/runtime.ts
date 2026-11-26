@@ -12,11 +12,15 @@ import { matchesTab, registrableDomain } from '@shared/security/domain'
 import { normalizeSignInAccount, readSignInMethods } from '@shared/signin/binding'
 import { SIGN_IN_PROVIDER_ACCOUNT_DOMAINS } from '@shared/signin/providers'
 import { ENTRY_TYPE_CREDENTIAL } from '../vault/entry-metadata'
+import { env } from '../config/env'
+import { createSignInCompatibilityReporter } from '../telemetry/form-compatibility'
 
 let sessionGeneration = 0
 
 export const federatedSignIn = new FederatedSignInCoordinator({
   preferences: capturePreferences,
+  diagnostic: createSignInCompatibilityReporter({ projectKey: env.posthogKey, ingestHost: env.posthogHost,
+    extensionVersion: chrome.runtime.getManifest().version }),
   getSession: async () => {
     await initializeServerConfig();
     const userId = await sessionManager.getUserId();

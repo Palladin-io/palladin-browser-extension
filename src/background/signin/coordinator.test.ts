@@ -28,6 +28,7 @@ function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata
   const mute = vi.fn(async (_profile: string, site: string) => { mutedSites.add(site); });
   let now = 1_000;
   const notify = vi.fn();
+  const diagnostic = vi.fn();
   const save = vi.fn(options.save ?? (async () => ({ action: 'updated' as const })));
   const targets = vi.fn(async (): Promise<SignInTargets> => ({ writable: true,
     vaults: options.vaults ?? [{ vaultId: 'vault-1', label: 'Personal', isDefault: true }], credentials: options.credentials ?? [] }));
@@ -42,6 +43,7 @@ function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata
     save,
     isCurrentDocument: async () => true,
     notify,
+    diagnostic,
     now: () => now,
     createId: () => `opaque-id-${String(++counter).padStart(8, '0')}`,
   });
@@ -54,7 +56,7 @@ function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata
     return result.status === 'prompt' ? result.prompt : null;
   };
   return {
-    coordinator, notify, save, targets, source, send, prompt, mute,
+    coordinator, notify, save, targets, source, send, prompt, mute, diagnostic,
     lock: () => { session = { ...session, unlocked: false, generation: session.generation + 1 }; coordinator.clear(); },
     advance: (ms: number) => { now += ms; },
   };
@@ -667,5 +669,46 @@ describe('observed and preselected provider accounts', () => {
   it('offers saved accounts beyond the former alphabetical limit of ten', async () => {
     const h = harness({ metadata: Array.from({ length: 25 }, (_, i) => provider({ id: `g${i}`, username: `user${String(i).padStart(2, '0')}@gmail.com` })) });
     start(h); expect((await back(h)).accounts.map(item => item.label)).toContain('user24@gmail.com');
+  });
+});
+
+describe('sign-in compatibility diagnostics', () => {
+  const PAGE = 'https://accounts.google.com/v3/signin/accountchooser';
+  const shape = { kind: 'account-chooser' as const, identifierField: false, passwordField: false, emailAttribute: true, emailText: true };
+  const start = (h: ReturnType<typeof harness>) => { h.coordinator.documentConnected(1, SERVICE, undefined); h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined); };
+  const back = async (h: ReturnType<typeof harness>) => { h.coordinator.documentConnected(1, 'https://app.example.com/callback', undefined); return h.prompt(); };
+
+  it('reports once per flow when the account was not read, with the last provider screen shape', async () => {
+    const h = harness();
+    start(h);
+    expect(await h.send({ type: 'screen', screen: shape }, h.source(1, PAGE))).toEqual({ status: 'accepted' });
+    await back(h); await h.prompt();
+    expect(h.diagnostic).toHaveBeenCalledTimes(1);
+    expect(h.diagnostic).toHaveBeenCalledWith({ event: 'account-not-observed', serviceUrl: 'https://app.example.com', provider: 'google', providerUrl: PAGE, screen: shape });
+  });
+
+  it('reports no provider screen when none was seen and nothing when the account was read', async () => {
+    const silent = harness(); start(silent); await back(silent);
+    expect(silent.diagnostic).toHaveBeenCalledWith(expect.objectContaining({ event: 'account-not-observed', providerUrl: null, screen: null }));
+    const read = harness(); start(read);
+    await read.send({ type: 'account', account: 'alice@gmail.com' }, read.source(1, 'https://accounts.google.com/v3/signin/identifier'));
+    await back(read);
+    expect(read.diagnostic).not.toHaveBeenCalled();
+  });
+
+  it('accepts a screen shape only from a provider sign-in page in an active flow', async () => {
+    const h = harness();
+    expect(await h.send({ type: 'screen', screen: shape }, h.source(1, PAGE))).toEqual({ status: 'stale' });
+    start(h);
+    expect(await h.send({ type: 'screen', screen: shape }, h.source(1, 'https://evil.example/'))).toEqual({ status: 'stale' });
+  });
+
+  it('reports an OAuth authorization request to an unsupported provider but not a supported one or an ordinary page', () => {
+    const h = harness();
+    h.coordinator.documentConnected(1, 'https://acme.okta.com/oauth2/v1/authorize?client_id=c&redirect_uri=https%3A%2F%2Fapp.example.com&response_type=code&state=s', undefined);
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    h.coordinator.documentConnected(1, 'https://shop.example.com/search?client_id=c', undefined);
+    expect(h.diagnostic.mock.calls).toEqual([[{ event: 'provider-unsupported',
+      authorizationUrl: 'https://acme.okta.com/oauth2/v1/authorize?client_id=c&redirect_uri=https%3A%2F%2Fapp.example.com&response_type=code&state=s' }]]);
   });
 });

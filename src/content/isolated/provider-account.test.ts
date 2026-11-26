@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, expect, it, vi } from 'vitest';
-import { observeProviderAccount } from './provider-account';
+import { describeProviderScreen, observeProviderAccount } from './provider-account';
 import { isFederatedSignInCommand } from '@shared/messaging/federated-signin';
 
 // Reduced from the public signed-out accounts.google.com/v3/signin/identifier DOM observed 2026-11-25
@@ -60,4 +60,30 @@ it('validates the account command', () => {
   expect(isFederatedSignInCommand({ ...base, account: 'alice@example.com' })).toBe(true);
   for (const account of ['', 'alice', 'a b@example.com', 'a\n@example.com', `${'a'.repeat(250)}@example.com`, 5]) expect(isFederatedSignInCommand({ ...base, account })).toBe(false);
   expect(isFederatedSignInCommand({ ...base, account: 'alice@example.com', provider: 'google' })).toBe(false);
+});
+
+it.each([
+  ['account chooser', '<ul><li><div data-identifier="ada@example.org" role="link">Ada</div></li></ul>', { kind: 'account-chooser', emailAttribute: true, emailText: false }],
+  ['identifier', '<input type="email" name="loginfmt">', { kind: 'identifier', identifierField: true }],
+  ['password', '<input type="email" name="loginfmt"><input type="password" name="passwd">', { kind: 'password', passwordField: true }],
+  ['consent', '<p>Continue as ada@example.org</p><button>Continue</button>', { kind: 'consent', emailText: true }],
+  ['unknown', '<button>Allow</button>', { kind: 'unknown', identifierField: false, passwordField: false, emailAttribute: false, emailText: false }],
+])('describes a %s screen with value-free flags only', (_name, html, expected) => {
+  document.body.innerHTML = html;
+  const rects = vi.spyOn(Element.prototype, 'getClientRects').mockReturnValue([{}] as unknown as DOMRectList);
+  Object.defineProperty(document.body, 'innerText', { configurable: true, get: () => document.body.textContent ?? '' });
+  try {
+    const screen = describeProviderScreen(document);
+    expect(screen).toMatchObject(expected);
+    expect(JSON.stringify(screen)).not.toMatch(/ada|example|loginfmt/);
+    expect(isFederatedSignInCommand({ channel: 'palladin.federated-signin', documentId: 'a'.repeat(32), type: 'screen', screen })).toBe(true);
+  } finally { rects.mockRestore(); delete (document.body as { innerText?: string }).innerText; }
+});
+it('rejects screen messages with extra keys, text or unknown kinds', () => {
+  const base = { channel: 'palladin.federated-signin', documentId: 'a'.repeat(32), type: 'screen' };
+  const screen = { kind: 'consent', identifierField: false, passwordField: false, emailAttribute: false, emailText: true };
+  expect(isFederatedSignInCommand({ ...base, screen })).toBe(true);
+  expect(isFederatedSignInCommand({ ...base, screen: { ...screen, email: 'ada@example.org' } })).toBe(false);
+  expect(isFederatedSignInCommand({ ...base, screen: { ...screen, kind: 'ada@example.org' } })).toBe(false);
+  expect(isFederatedSignInCommand({ ...base, screen: { ...screen, emailText: 'yes' } })).toBe(false);
 });

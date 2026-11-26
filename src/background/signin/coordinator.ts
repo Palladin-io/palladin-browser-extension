@@ -8,6 +8,7 @@ import type {
   SignInLocale,
   SignInPrompt,
   SignInTargetOption,
+  ProviderScreenShape,
 } from '@shared/messaging/federated-signin';
 import { MAX_SIGN_IN_PROMPT_ACCOUNTS, MAX_SIGN_IN_PROMPT_TARGETS } from '@shared/messaging/federated-signin';
 import { registrableDomain } from '@shared/security/domain';
@@ -19,11 +20,13 @@ import {
   isGoogleAccountPage,
   isAuthorizationErrorReturn,
   isProviderSignInHost,
+  isUnsupportedAuthorizationRequest,
   SIGN_IN_PROVIDER_ACCOUNT_DOMAINS,
   type ProviderPage,
   type SignInProvider,
 } from '@shared/signin/providers';
 import type { EntryMetadata } from '../vault/entry-metadata';
+import type { SignInDiagnostic } from '../telemetry/form-compatibility';
 import type { SignInTargets, SignInWriteTarget } from '../vault/protocol2/credential-writer';
 
 const FLOW_TTL_MS = 10 * 60_000;
@@ -65,6 +68,8 @@ export interface FederatedSignInDeps {
     stillAuthorized: () => Promise<boolean>, entryName?: string): Promise<{ action: 'created' | 'updated'; vaultId?: string; entryId?: string }>;
   isCurrentDocument(source: SignInSource): Promise<boolean>;
   notify(tabId: number): void;
+  /** Value-free compatibility diagnostics; URLs passed here are browser-authored. */
+  diagnostic?(diagnostic: SignInDiagnostic): void;
   now?: () => number;
   createId?: () => string;
 }
@@ -86,6 +91,9 @@ interface Flow {
   phase: 'started' | 'provider' | 'returned';
   /** Submitted by the user on Google's own page in this flow; memory only. */
   observedAccount: string | null;
+  /** Last value-free provider screen shape and its provider page URL, for diagnostics only. */
+  providerScreen: { readonly shape: ProviderScreenShape; readonly url: string } | null;
+  diagnosed: boolean;
   usedAccount: string | null;
   usedEntry: SignInEntryReference | null;
   usedManually: boolean;
@@ -148,6 +156,7 @@ export class FederatedSignInCoordinator {
       return;
     }
     if (isProviderSignInHost(url)) return;
+    if (isUnsupportedAuthorizationRequest(url)) this.deps.diagnostic?.({ event: 'provider-unsupported', authorizationUrl: url });
     const origin = httpsOrigin(url);
     const popupFlow = this.flowForProviderTab(tabId);
     if (popupFlow !== null && popupFlow.serviceTabId !== tabId) {
@@ -242,6 +251,8 @@ export class FederatedSignInCoordinator {
         return { status: 'accepted' };
       case 'account':
         return this.observeAccount(command.account, source);
+      case 'screen':
+        return this.observeScreen(command.screen, source);
       case 'suggest':
         return this.suggest(source);
       case 'choose':
@@ -288,6 +299,14 @@ export class FederatedSignInCoordinator {
     return { status: 'accepted' };
   }
 
+  private observeScreen(shape: ProviderScreenShape, source: SignInSource): FederatedSignInResult {
+    if (!isProviderSignInHost(source.url)) return { status: 'stale' };
+    const flow = this.flowForProviderTab(source.tabId) ?? this.flows.get(source.tabId);
+    if (flow?.phase !== 'provider' || this.flows.get(flow.serviceTabId) !== flow) return { status: 'stale' };
+    flow.providerScreen = { shape, url: source.url };
+    return { status: 'accepted' };
+  }
+
   private start(tabId: number, serviceOrigin: string): Flow {
     const existing = this.flows.get(tabId);
     if (existing !== undefined && existing.serviceOrigin === serviceOrigin && existing.phase !== 'returned') return existing;
@@ -296,7 +315,7 @@ export class FederatedSignInCoordinator {
       if (oldest) this.flows.delete(oldest[0]);
     }
     const flow: Flow = { serviceTabId: tabId, serviceOrigin, startedAt: this.now(), providerTabIds: new Set(),
-      provider: null, phase: 'started', observedAccount: null, usedAccount: null, usedEntry: null, usedManually: false, chosen: null, prompt: null, building: null, error: false };
+      provider: null, phase: 'started', observedAccount: null, providerScreen: null, diagnosed: false, usedAccount: null, usedEntry: null, usedManually: false, chosen: null, prompt: null, building: null, error: false };
     this.flows.set(tabId, flow);
     return flow;
   }
@@ -322,7 +341,7 @@ export class FederatedSignInCoordinator {
     // generic provider sign-in page can merely continue an established flow.
     if (flow.provider !== page.provider && !page.authorizationRequest) return;
     if (flow.provider !== null && flow.provider !== page.provider) {
-      flow.observedAccount = null; flow.usedAccount = null; flow.usedEntry = null; flow.usedManually = false;
+      flow.observedAccount = null; flow.providerScreen = null; flow.usedAccount = null; flow.usedEntry = null; flow.usedManually = false;
     }
     flow.provider = page.provider;
     flow.phase = 'provider';
@@ -435,6 +454,11 @@ export class FederatedSignInCoordinator {
     if (alreadyRemembered) {
       this.flows.delete(source.tabId);
       return null;
+    }
+    if (flow.observedAccount === null && !flow.diagnosed) {
+      flow.diagnosed = true;
+      this.deps.diagnostic?.({ event: 'account-not-observed', serviceUrl: flow.serviceOrigin, provider,
+        providerUrl: flow.providerScreen?.url ?? null, screen: flow.providerScreen?.shape ?? null });
     }
     const accounts = new Map<string, { account: string | null; entry: SignInEntryReference | null }>();
     const accountViews: SignInAccountOption[] = [];

@@ -100,6 +100,18 @@ export function isProviderSignInHost(raw: string): boolean {
 }
 
 /**
+ * An OAuth/OIDC authorization request on a host Palladin does not support as a
+ * provider. Only parameter names are inspected; no value is read or kept.
+ */
+export function isUnsupportedAuthorizationRequest(raw: string): boolean {
+  let url: URL;
+  try { url = new URL(raw); } catch { return false; }
+  if (url.protocol !== 'https:' || url.username || url.password || classifyProviderUrl(raw) !== null || isProviderSignInHost(raw)) return false;
+  const query = url.searchParams;
+  return query.has('client_id') && query.has('redirect_uri') && (query.has('response_type') || query.has('scope'));
+}
+
+/**
  * A return URL carrying an OAuth/OIDC error parameter means the user denied or
  * cancelled. Only the presence of the standard `error` name is inspected; no
  * authorization code, state or token value is read or kept.
