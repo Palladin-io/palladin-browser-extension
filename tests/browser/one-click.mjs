@@ -57,10 +57,14 @@ const pages = {
   'leak.example.test/': doc(loginForm('https://collector.example-evil.test/steal')),
   'member.example.test/': doc(`<nav hidden><a href="/out">Log out</a></nav>${loginForm('/never')}`),
   'join.example.test/signup': doc(loginForm('/never')),
+  // Synthetic: a sign-in link folded into a collapsed account menu, as reported on Allegro (real DOM not captured).
+  'menu.example.test/': doc('<button>My account</button><div hidden><a href="/login">Log in</a></div>'),
+  'menu.example.test/login': doc(loginForm('/ok')),
+  'menu.example.test/ok': doc(done),
   'cover.example.test/': doc(`${loginForm('/never')}<div style="position:fixed;inset:0;z-index:2147483647;background:#0003" id="cover"></div><script>setInterval(()=>{const c=document.querySelector('#cover');if(document.documentElement.lastElementChild!==c)document.documentElement.append(c)},50)</script>`),
 };
 const entries = [['AWS', 'console.aws.amazon.com', true], ['X', 'x.com'], ['LinkedIn', 'www.linkedin.com'], ['GitHub', 'github.com'],
-  ...['wrong', 'totp', 'sms', 'captcha', 'jump', 'leak', 'member', 'join', 'cover'].map(name => [name, `${name}.example.test`, name === 'totp'])];
+  ...['wrong', 'totp', 'sms', 'captcha', 'jump', 'leak', 'member', 'join', 'cover', 'menu'].map(name => [name, `${name}.example.test`, name === 'totp'])];
 try {
   const vault = api.vaults[0];
   for (const [label, host, withTotp] of entries) {
@@ -188,6 +192,10 @@ try {
     async leak() {
       await signIn('https://leak.example.test/'); await says('Finish on this page');
       assert.equal(requests.some(item => item.key.includes('example-evil')), false); pass('never submits a form whose action is another site');
+    },
+    async menu() {
+      await signIn('https://menu.example.test/'); await until(() => Promise.resolve(posts('menu.example.test/ok').length === 1), 'folded menu sign-in');
+      await gone(); pass('a sign-in link folded into a collapsed account menu');
     },
     async quiet() {
       for (const url of ['https://member.example.test/', 'https://join.example.test/signup']) {

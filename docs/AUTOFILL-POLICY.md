@@ -233,7 +233,8 @@ negatives. That is separate from real-site acceptance.
 Product-owner decision of 2026-11-25. A closed-surface toast may offer a matching
 Credential on any top-frame HTTPS page that shows evidence of being signed out: a
 recognized login step, or a visible sign-in control with no sign-out control in the
-DOM. Registration URLs and ambiguity produce no toast. Its countdown only hides it.
+DOM. A sign-in link folded into a collapsed account menu also counts when every such
+link leads to one destination and no sign-out control exists. Registration URLs and ambiguity produce no toast. Its countdown only hides it.
 
 One trusted, unobstructed "Sign in" click authorizes one memory-only run in the
 worker. The run is bound to tab, Entry, unlocked session and 60 seconds, with at most

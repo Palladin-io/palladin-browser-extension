@@ -20,17 +20,20 @@ function names(element: Element): string[] {
 /** Evidence from public controls only. A conflict or silence means unknown, so no prompt. */
 export function observeSignedState(doc: Document, hasSignInForm: boolean): SignedState {
   const controls = queryOpenElements<HTMLElement>(doc, CONTROLS).slice(0, MAX_CONTROLS);
-  const entries: HTMLElement[] = [];
+  const entries: HTMLElement[] = [], collapsed: HTMLAnchorElement[] = [];
   for (const control of controls) {
     const labels = names(control);
     // A collapsed menu still proves a session: its sign-out control is in the DOM.
     if (labels.some(label => SIGN_OUT.test(label))) return { state: 'signed-in' };
-    if (!isVisibleScopeHint(control)) continue;
-    if (labels.length > 0 && labels.every(label => SIGN_IN.has(label) || /^hello, sign in\b/.test(label))) entries.push(control);
+    if (labels.length === 0 || !labels.every(label => SIGN_IN.has(label) || /^hello, sign in\b/.test(label))) continue;
+    if (isVisibleScopeHint(control)) entries.push(control);
+    else if (control instanceof HTMLAnchorElement && control.hasAttribute('href')) collapsed.push(control);
   }
   if (hasSignInForm) return { state: 'signed-out', entry: null };
-  if (entries.length === 0) return { state: 'unknown' };
-  return { state: 'signed-out', entry: uniqueDestination(entries, doc) };
+  if (entries.length > 0) return { state: 'signed-out', entry: uniqueDestination(entries, doc) };
+  // A sign-in link folded into an account menu (Allegro): only a navigable link to one destination counts.
+  const folded = collapsed.length > 0 ? uniqueDestination(collapsed, doc) : null;
+  return folded === null ? { state: 'unknown' } : { state: 'signed-out', entry: folded };
 }
 
 /** Header and footer often repeat one link; different destinations are never guessed between. */
