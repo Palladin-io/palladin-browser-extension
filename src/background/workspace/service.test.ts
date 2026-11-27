@@ -96,7 +96,7 @@ describe('workspace command boundary', () => {
     const { service, fetch } = setup();
     for (const command of [
       { type: 'workspace/grants' }, { type: 'workspace/grant-summary' },
-      { type: 'workspace/audit' }, { type: 'workspace/members' },
+      { type: 'workspace/audit' }, { type: 'workspace/members' }, { type: 'workspace/agents' },
       { type: 'workspace/shares', vaultId, entryId: grantId },
       { type: 'workspace/revoke-share', vaultId, entryId: grantId, shareId: grantId },
     ]) {

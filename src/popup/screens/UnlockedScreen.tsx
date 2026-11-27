@@ -7,6 +7,7 @@ import { PopupViewProvider, usePopupView } from "../view/PopupView";
 import type { PopupViewState, PopupEntryRef } from "../../shared/messaging/popup-view";
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { usePendingGrants } from '../workspace/usePendingGrants';
+import { markInboxSeen } from '../workspace/inbox-seen';
 import { GrantsPanel } from '../workspace/GrantsPanel';
 import { SharingOverview } from '../workspace/SharingOverview';
 import { AuditPanel, type AuditTarget } from '../workspace/AuditPanel';
@@ -85,6 +86,7 @@ function UnlockedContent({
   const list = useVaultList(client, viewRevision);
   const navigation = usePopupView()!;
   const { query, vaultFilter, view, selected, scope } = navigation.state;
+  useEffect(() => { if (view === 'grants') markInboxSeen(); }, [view, pendingGrants.revision]);
   const setQuery = (query: string) => navigation.update({ query, scrollTop: 0, visibleCount: 100 });
   const setVaultFilter = (value: string[] | null | ((previous: string[] | null) => string[] | null)) =>
     navigation.update({ vaultFilter: typeof value === 'function' ? value(vaultFilter) : value, scrollTop: 0, visibleCount: 100 });

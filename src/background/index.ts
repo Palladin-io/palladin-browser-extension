@@ -74,6 +74,7 @@ import { startSafariSharedUnlockBrowser } from "./shared-unlock/safari-browser";
 import { startNativeAgentBridge } from "./agent/bootstrap";
 import { handleNativeAgentAlarm } from "./agent/runtime";
 import { applyBadge } from "./badge";
+import { InboxAttention, isInboxSeenMessage } from "./inbox-attention";
 import {
   handleServerConfigRuntimeMessage,
   isServerConfigCommand,
@@ -153,8 +154,16 @@ const vaultInvalidations = new VaultInvalidationCoordinator({
 function publishWorkspaceChanged(): void {
   void chrome.runtime.sendMessage({ type: 'workspace/changed' }).catch(() => undefined);
 }
+const inboxAttention = new InboxAttention({
+  action: chrome.action,
+  pendingGrants: async () => {
+    const reply = await workspaceService.handle({ type: 'workspace/grant-summary' });
+    return reply?.ok && reply.data && 'pending' in reply.data ? reply.data.pending : null;
+  },
+});
 const vaultRealtime = new VaultRealtimeConnection({
   workspaceChanged: publishWorkspaceChanged,
+  notification: () => inboxAttention.notified(),
   apiUrl: () => serverConfig.apiUrl,
   accessToken: () => sessionManager.getAccessToken(),
   invalidation: (raw) => vaultInvalidations.accept(raw),
@@ -307,6 +316,8 @@ sessionManager.hooks.onLocked(() => {
 });
 sessionManager.hooks.onUnlocked(() => sessionLiveness.setEnabled(true));
 sessionManager.hooks.onUnlocked(() => vaultRealtime.start());
+sessionManager.hooks.onUnlocked(() => void inboxAttention.unlocked());
+sessionManager.hooks.onLocked(() => inboxAttention.locked());
 sessionManager.hooks.onUnlocked(() => void ensureActiveTabSessionLiveness());
 // A toolbar unlock can restore activeTab access lost during extension reload.
 sessionManager.hooks.onUnlocked(() => void restoreContentScripts(true).catch(() => undefined));
@@ -827,6 +838,11 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
       }
       if (isCaptureSettingsCommand(raw)) {
         sendResponse(await handleCaptureSettings(raw));
+        return;
+      }
+      if (isInboxSeenMessage(raw)) {
+        inboxAttention.seen();
+        sendResponse({ ok: true });
         return;
       }
       const workspaceResult = await workspaceService.handle(raw);
