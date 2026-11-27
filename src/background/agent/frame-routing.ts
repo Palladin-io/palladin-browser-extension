@@ -3,6 +3,7 @@ import { TAB_URL_REQUEST_CHANNEL, isTabUrlResponse, parseAgentInjectForm, isAgen
 import { AGENT_LIVE_INSPECT_CHANNEL, AGENT_LIVE_PROBE_CHANNEL, parseLiveLoginProbe } from '@shared/messaging/agent-live';
 import { DEFERRED_CANCEL, parseSubmitReady } from '@shared/messaging/agent-deferred';
 import type { AgentFillDeps, AgentTabState, PreparedFrame } from './native-provider';
+import { matchesTab } from '@shared/security/domain';
 
 type Frame = chrome.webNavigation.GetAllFrameResultDetails;
 export interface FrameTransport {
@@ -15,12 +16,14 @@ export async function prepareLoginFrame(top: AgentTabState, transport: FrameTran
   if (!top.page) return null;
   const frames = await transport.frames(top.id);
   const outer = frames?.find(frame => frame.frameId === 0 && frame.parentFrameId === -1 && frame.documentLifecycle === 'active');
-  if (!frames || frames.length !== 2 || !outer || outer.url !== top.page.url) return null;
+  if (!frames || frames.filter(frame => frame.parentFrameId === 0).length !== 1
+    || !outer || outer.url !== top.page.url) return null;
   const visible = await transport.send(top.id, outer.documentId, { channel: AGENT_FRAME_LIST_CHANNEL });
   if (!Array.isArray(visible) || visible.length > 16 || !visible.every(url => typeof url === 'string')) return null;
   const candidates: PreparedFrame[] = [];
   for (const frame of frames) {
     if (frame.parentFrameId !== 0 || frame.parentDocumentId !== outer.documentId || frame.documentLifecycle !== 'active' || !sameSiteLoginFrame(outer.url, frame.url)
+      || frames.filter(candidate => candidate.url === frame.url).length !== 1
       || visible.filter(url => url === frame.url).length !== 1) continue;
     const deps = frameDeps(top, outer, frame, transport, isActive);
     const page = await deps.getPageById(top.id);
@@ -34,8 +37,8 @@ export async function prepareLoginFrame(top: AgentTabState, transport: FrameTran
 function frameDeps(top: AgentTabState, outer: Frame, initial: Frame, transport: FrameTransport, isActive: () => boolean): AgentFillDeps {
   // Navigation after a committed step may renew this child's document, but may
   // never select another frame, URL, outer document or iframe element/src.
-  // First support is deliberately limited to a single direct frame; matching
-  // a visible src to one of several browser frames is not an identity proof.
+  // One direct child binds the sole visible DOM iframe to its browser identity.
+  // Nested frames are never selected and do not invalidate that binding.
 
   let cleanup: { pendingId: string; documentId: string } | null = null;
   async function current(): Promise<{ frame: Frame; page: NonNullable<AgentTabState['page']> } | null> {
@@ -43,7 +46,9 @@ function frameDeps(top: AgentTabState, outer: Frame, initial: Frame, transport: 
     const frames = await transport.frames(top.id);
     const parent = frames?.find(frame => frame.frameId === 0);
     const frame = frames?.find(frame => frame.frameId === initial.frameId);
-    if (frames?.length !== 2 || !parent || parent.documentLifecycle !== 'active' || parent.documentId !== outer.documentId || parent.url !== outer.url
+    if (!frames || frames.filter(candidate => candidate.parentFrameId === 0).length !== 1
+      || frames.filter(candidate => candidate.url === initial.url).length !== 1
+      || !parent || parent.documentLifecycle !== 'active' || parent.documentId !== outer.documentId || parent.url !== outer.url
       || !frame || frame.parentFrameId !== 0 || frame.parentDocumentId !== outer.documentId || frame.documentLifecycle !== 'active' || frame.url !== initial.url) return null;
     const visible = await transport.send(top.id, outer.documentId, { channel: AGENT_FRAME_LIST_CHANNEL });
     if (!Array.isArray(visible) || visible.filter(url => url === initial.url).length !== 1) return null;
@@ -73,7 +78,7 @@ function frameDeps(top: AgentTabState, outer: Frame, initial: Frame, transport: 
       return parseLiveLoginProbe(await send({ channel: AGENT_LIVE_PROBE_CHANNEL, documentId, targetUrl }, documentId));
     },
     async fillDeferred(tabId, message) {
-      if (tabId !== top.id) return null;
+      if (tabId !== top.id || !matchesTab(initial.url, message.expectedDomain)) return null;
       const response = await send(message, message.documentId, message.pendingId);
       if (typeof response === 'object' && response !== null && 'ok' in response && response.ok === true
         && 'submitReady' in response && Object.keys(response).length === 2) {
@@ -94,7 +99,7 @@ function frameDeps(top: AgentTabState, outer: Frame, initial: Frame, transport: 
       await transport.send(top.id, target.documentId, { channel: DEFERRED_CANCEL, pendingId });
     },
     async sendStep(tabId, expectedDomain, documentId, step, values, requireExistingUsername) {
-      if (tabId !== top.id) return null;
+      if (tabId !== top.id || !matchesTab(initial.url, expectedDomain)) return null;
       const response = await send({ channel: AGENT_INJECT_STEP_CHANNEL, expectedDomain, documentId, step, values,
         ...(requireExistingUsername ? { requireExistingUsername: true } : {}) }, documentId);
       return isAgentInjectStepOutcome(response) ? response : null;
