@@ -27,6 +27,12 @@ login flow, the worker may send `ex:autofill:submit-action-missing` when an
 explicit "Log in" filled the form but found no unique enabled sign-in action.
 The purpose is service quality per site, not user tracking.
 
+Product-owner decision 2026-11-25 adds `ex:autofill:signin-prompt-missing`: an unlocked
+user with a matching Entry submitted a password by hand, or filled from the popup, on a
+page where no sign-in toast was offered. The content script sends a value-free signal;
+the worker checks the Entry match itself. Signed-in visits, muted and dismissed hosts
+and registration URLs are not reported. It uses the same payload and limits below.
+
 - Payload allowlist: event name, bare public HTTPS hostname, extension version.
   No path, query, fragment, port, page title, DOM, field value, Entry, Vault,
   account, installation or user identifier.

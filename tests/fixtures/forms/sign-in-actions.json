@@ -1,0 +1,368 @@
+{
+  "20min-login-identifier-2026-09-16": {
+    "action": "[data-form-specimen-node=\"6\"]"
+  },
+  "24ur-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"25\"]"
+  },
+  "abola-login-identifier-2026-09-16": {
+    "action": "[data-form-specimen-node=\"13\"]"
+  },
+  "abv-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"21\"]"
+  },
+  "adobe-login-identifier-2026-09-16": {
+    "action": "[data-form-specimen-node=\"19\"]"
+  },
+  "aftonbladet-login-identifier-2026-09-16": {
+    "action": "[data-form-specimen-node=\"7\"]"
+  },
+  "allegro-login-2026-09-15": {
+    "action": "button[type=\"submit\"]"
+  },
+  "amazon-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"317\"]"
+  },
+  "atlassian-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"44\"]"
+  },
+  "aws-iam-2026-09-18": {
+    "action": "[data-form-specimen-node=\"107\"]"
+  },
+  "aws-iam-context-2026-09-18": {
+    "action": "[data-form-specimen-node=\"115\"]"
+  },
+  "aws-root-identifier-2026-09-18": {
+    "action": "[data-form-specimen-node=\"61\"]"
+  },
+  "baidu-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"49\"]"
+  },
+  "bankier-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"15\"]"
+  },
+  "bbc-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"8\"]"
+  },
+  "bilibili-login-2026-09-16": {
+    "action": null,
+    "reason": "plain div action without a control role"
+  },
+  "booking-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"13\"]"
+  },
+  "canva-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"8\"]"
+  },
+  "ccc-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"21\"]"
+  },
+  "ceneo-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"22\"]"
+  },
+  "claude-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"5\"]"
+  },
+  "cnn-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"12\"]"
+  },
+  "decathlon-login-identifier-pl-2026-09-15": {
+    "action": "[data-form-specimen-node=\"18\"]"
+  },
+  "deepseek-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"31\"]"
+  },
+  "diag-login-identifier-2026-09-16": {
+    "action": "[data-form-specimen-node=\"17\"]"
+  },
+  "dir-bg-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"13\"]"
+  },
+  "discord-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"35\"]"
+  },
+  "doradcasmaku-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"12\"]"
+  },
+  "doz-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"14\"]"
+  },
+  "dr-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"18\"]"
+  },
+  "dropbox-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"9\"]"
+  },
+  "duolingo-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"18\"]"
+  },
+  "ebay-login-identifier-2026-09-16": {
+    "action": "[data-form-specimen-node=\"10\"]"
+  },
+  "empik-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"25\"]"
+  },
+  "epicgames-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"17\"]"
+  },
+  "etsy-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"87\"]"
+  },
+  "euro-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"27\"]"
+  },
+  "facebook-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"20\"]"
+  },
+  "fandom-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"26\"]"
+  },
+  "figma-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"22\"]"
+  },
+  "filmweb-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"12\"]"
+  },
+  "finn-login-identifier-2026-09-16": {
+    "action": "[data-form-specimen-node=\"21\"]"
+  },
+  "galaxus-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"13\"]"
+  },
+  "gazeta-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"7\"]"
+  },
+  "github-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"22\"]"
+  },
+  "globo-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"9\"]"
+  },
+  "google-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"81\"]"
+  },
+  "hln-login-identifier-2026-09-16": {
+    "action": "[data-form-specimen-node=\"10\"]"
+  },
+  "idnes-login-identifier-2026-09-16": {
+    "action": "[data-form-specimen-node=\"12\"]"
+  },
+  "idokep-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"22\"]"
+  },
+  "ikea-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"37\"]"
+  },
+  "iltalehti-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"11\"]"
+  },
+  "imdb-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"34\"]"
+  },
+  "inbox-lv-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"33\"]"
+  },
+  "index-hr-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"4\"]"
+  },
+  "inpost-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"45\"]"
+  },
+  "instagram-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"20\"]"
+  },
+  "interia-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"53\"]"
+  },
+  "jysk-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"25\"]"
+  },
+  "krone-login-identifier-2026-09-16": {
+    "action": "[data-form-specimen-node=\"17\"]"
+  },
+  "linkedin-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"202\"]"
+  },
+  "lubimyczytac-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"17\"]"
+  },
+  "mailru-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"45\"]"
+  },
+  "mbl-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"9\"]"
+  },
+  "meczyki-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"34\"]"
+  },
+  "mediaexpert-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"44\"]"
+  },
+  "microsoft-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"33\"]"
+  },
+  "morele-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"18\"]"
+  },
+  "naver-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"77\"]"
+  },
+  "netflix-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"36\"]"
+  },
+  "notion-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"7\"]"
+  },
+  "nrk-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"22\"]"
+  },
+  "nu-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"10\"]"
+  },
+  "nytimes-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"18\"]"
+  },
+  "olx-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"21\"]"
+  },
+  "onet-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"12\"]"
+  },
+  "otodom-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"21\"]"
+  },
+  "otomoto-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"21\"]"
+  },
+  "paypal-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"54\"]"
+  },
+  "pepper-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"14\"]"
+  },
+  "pinterest-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"33\"]"
+  },
+  "pracuj-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"6\"]"
+  },
+  "pravda-blog-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"18\"]"
+  },
+  "proton-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"32\"]"
+  },
+  "quora-login-pl-2026-09-15": {
+    "action": "[data-form-specimen-node=\"37\"]"
+  },
+  "record-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"11\"]"
+  },
+  "roblox-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"8\"]"
+  },
+  "rossmann-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"31\"]"
+  },
+  "rte-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"38\"]"
+  },
+  "rtvslo-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"9\"]"
+  },
+  "samsung-login-identifier-2026-09-16": {
+    "action": "[data-form-specimen-node=\"16\"]"
+  },
+  "seznam-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"22\"]"
+  },
+  "shein-login-identifier-2026-09-16": {
+    "action": "[data-form-specimen-node=\"200\"]"
+  },
+  "sinsay-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"19\"]"
+  },
+  "skroutz-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"34\"]"
+  },
+  "slack-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"5\"]"
+  },
+  "sme-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"26\"]"
+  },
+  "spotify-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"6\"]"
+  },
+  "srf-login-identifier-2026-09-15": {
+    "action": null,
+    "reason": "two unlabelled-purpose captions, Submit and Weiter"
+  },
+  "stackoverflow-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"20\"]"
+  },
+  "steam-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"15\"]"
+  },
+  "szarada-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"12\"]"
+  },
+  "tekstowo-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"16\"]"
+  },
+  "tiktok-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"14\"]"
+  },
+  "tv2-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"27\"]"
+  },
+  "tvp-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"27\"]"
+  },
+  "twitch-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"40\"]"
+  },
+  "usps-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"28\"]"
+  },
+  "vg-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"7\"]"
+  },
+  "vinted-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"19\"]"
+  },
+  "walmart-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"17\"]"
+  },
+  "wikipedia-login-2026-09-15": {
+    "action": "#wpLoginAttempt"
+  },
+  "wp-login-2026-09-15": {
+    "action": "button[type=\"submit\"]"
+  },
+  "wykop-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"25\"]"
+  },
+  "x-login-identifier-2026-09-15": {
+    "action": null,
+    "reason": "observed before typing: Continue is a plain div, not a control"
+  },
+  "xkom-login-2026-09-15": {
+    "action": "[data-form-specimen-node=\"19\"]"
+  },
+  "yahoo-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"27\"]"
+  },
+  "yandex-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"40\"]"
+  },
+  "zalando-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"15\"]"
+  },
+  "znanylekarz-login-2026-09-16": {
+    "action": "[data-form-specimen-node=\"31\"]"
+  },
+  "zoom-login-identifier-2026-09-15": {
+    "action": "[data-form-specimen-node=\"26\"]"
+  }
+}

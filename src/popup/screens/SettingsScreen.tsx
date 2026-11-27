@@ -5,6 +5,7 @@ import { useI18n } from "../i18n";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { ServerSettings } from "./ServerSettings";
 import { CaptureSettings } from "./CaptureSettings";
+import { OneClickSettings } from "./OneClickSettings";
 import { SharedUnlockSettings } from './SharedUnlockSettings';
 
 export interface SettingsScreenProps {
@@ -25,6 +26,7 @@ export function SettingsScreen({
     ['appearance', 'settings.appearance.title'],
     ['server', 'settings.server.title'],
     ['capture', 'captureSettings.title'],
+    ['one-click', 'oneClickSettings.title'],
     ['shared-unlock', 'sharedUnlockSettings.title'],
   ] as const;
   if (split) return (
@@ -37,7 +39,8 @@ export function SettingsScreen({
         {openSection !== 'shared-unlock' ? <h2>{t(sections.find(([id]) => id === openSection)![1])}</h2> : null}
         {openSection === 'appearance' ? <AppearanceSettings embedded /> :
           openSection === 'server' ? <ServerSettings onChanged={onServerChanged} embedded /> :
-          openSection === 'capture' ? <CaptureSettings /> : <SharedUnlockSettings />}
+          openSection === 'capture' ? <CaptureSettings /> :
+          openSection === 'one-click' ? <OneClickSettings /> : <SharedUnlockSettings />}
       </section>
     </div>
   );
@@ -63,6 +66,10 @@ export function SettingsScreen({
       <SettingsSection id="capture-settings" title={t("captureSettings.title")}
         open={openSection === "capture"} onToggle={() => toggle("capture")}>
         <CaptureSettings />
+      </SettingsSection>
+      <SettingsSection id="one-click-settings" title={t("oneClickSettings.title")}
+        open={openSection === "one-click"} onToggle={() => toggle("one-click")}>
+        <OneClickSettings />
       </SettingsSection>
       <SharedUnlockSettings />
       {versionLabel}

@@ -309,7 +309,8 @@ const EXTRA_STYLES = `
  * Top-frame HTTPS controller. Detection is a presentation hint; the worker
  * decides everything security-relevant from browser-authored sender data.
  */
-export function startFederatedSignIn(doc: Document, documentId: string, isOtherOwnedSurface: (element: Element) => boolean) {
+export function startFederatedSignIn(doc: Document, documentId: string, isOtherOwnedSurface: (element: Element) => boolean,
+  takeSuggestions: (items: readonly SignInSuggestion[], choose: (item: SignInSuggestion) => 'opened' | 'manual') => boolean = () => false) {
   let stopped = false;
   let preferences = DEFAULT_UI_PREFERENCES;
   let suggested = false;
@@ -317,12 +318,13 @@ export function startFederatedSignIn(doc: Document, documentId: string, isOtherO
   const dom = createAgentInjectDomAccess(doc, (element) => surface.isOwnedSurface(element) || isOtherOwnedSurface(element));
   const owned = (element: Element) => surface.isOwnedSurface(element) || isOtherOwnedSurface(element);
   const controls = () => detectProviderControls(doc, (element) => dom.isVisible(element), owned);
-  const surface = new FederatedSignInSurface(doc, documentId, send, (suggestion) => {
+  const openProvider = (suggestion: SignInSuggestion) => {
     const control = uniqueProviderControl(controls(), suggestion.provider);
     if (control === null) return 'manual';
     control.click();
-    return 'opened';
-  });
+    return 'opened' as const;
+  };
+  const surface = new FederatedSignInSurface(doc, documentId, send, openProvider);
   const dispatch = async (command: Body<FederatedSignInCommand>) => {
     try {
       const result = await send({ ...command, channel: FEDERATED_SIGNIN_CHANNEL, documentId } as FederatedSignInCommand);
@@ -337,7 +339,11 @@ export function startFederatedSignIn(doc: Document, documentId: string, isOtherO
     if (suggested || stopped || controls().length === 0) return;
     suggested = true;
     const result = await dispatch({ type: 'suggest' });
-    if (result?.status === 'suggestions') surface.showSuggestions(result.suggestions);
+    if (result?.status === 'suggestions' && !takeSuggestions(result.suggestions, (suggestion) => {
+      const outcome = openProvider(suggestion);
+      void dispatch({ type: 'choose', suggestionId: suggestion.id });
+      return outcome;
+    })) surface.showSuggestions(result.suggestions);
     // A locked Vault answers with no suggestions; unlocking must be able to ask again.
     if (result?.status !== 'suggestions' || result.suggestions.length === 0) suggested = false;
   };

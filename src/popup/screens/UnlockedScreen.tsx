@@ -29,6 +29,7 @@ import { GeneratorPanel } from '../generator/GeneratorPanel';
 import { createVaultClient, type VaultClient } from '../vault/client';
 import { filterEntries } from '../vault/filter';
 import { useVaultList } from '../vault/useVaultList';
+import { OneClickSiteEntries } from './OneClickSettings';
 import { configuredPanelUrl } from '@shared/config/web-app';
 import { useI18n } from '../i18n';
 import { ShareSavePrompt, usePendingShareSave } from '../share-save/ShareSavePrompt';
@@ -224,7 +225,7 @@ function UnlockedContent({
       </ScrollableTabs>
 
       <div className="vault-content">
-        {view === 'capture' && navigation.state.pendingCapture ? <PendingCaptureView onOpenEntry={(id,vaultId) => navigation.update({selected:{id,vaultId},view:'vault',pendingCapture:undefined})} capture={navigation.state.pendingCapture} client={client} onDone={() => navigation.update({view:'vault',pendingCapture:undefined})} /> : view === 'settings' ? settings : view === 'grants' ? (
+        {view === 'capture' && navigation.state.pendingCapture ? <PendingCaptureView onOpenEntry={(id,vaultId) => navigation.update({selected:{id,vaultId},view:'vault',pendingCapture:undefined})} capture={navigation.state.pendingCapture} client={client} onDone={() => navigation.update({view:'vault',pendingCapture:undefined})} /> : view === 'settings' ? <OneClickSiteEntries.Provider value={list.all}>{settings}</OneClickSiteEntries.Provider> : view === 'grants' ? (
           <GrantsPanel
             onShowLogs={showLogs}
             revision={pendingGrants.revision}

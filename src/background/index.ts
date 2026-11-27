@@ -65,6 +65,8 @@ import { handleCaptureSettings } from "./capture/settings-runtime";
 import { credentialCaptureCoordinator, credentialCaptureSource } from "./capture/credential-runtime";
 import { isFederatedSignInCommand } from "@shared/messaging/federated-signin";
 import { federatedSignIn, federatedSignInSource } from "./signin/runtime";
+import { OneClickRuns } from "./signin/one-click";
+import { isOneClickCommand } from "@shared/messaging/one-click";
 
 import { startChromiumSharedUnlockBrowser } from "./shared-unlock/chromium-browser";
 import { startFirefoxSharedUnlockBrowser } from "./shared-unlock/firefox-browser";
@@ -116,6 +118,13 @@ const SYNC_PERIOD_MINUTES = 15;
 const serverOperations = new ServerOperationBarrier();
 const sessionLiveness = new SessionLivenessPublisher();
 const inlineAutofillRecency = new InMemoryInlineAutofillRecency();
+const oneClickRuns = new OneClickRuns({
+  now: () => Date.now(),
+  newId: () => crypto.randomUUID(),
+  getStatus: () => sessionManager.getStatus(),
+  getMetadata: () => vaultData.getMetadata(),
+  reportMissingPrompt: (url) => reportFormCompatibility(url, "signin-prompt-missing"),
+});
 const shareSave = new ShareSaveCoordinator({
   now: () => Date.now(),
   keys: () => sessionManager.getKeys(),
@@ -319,6 +328,7 @@ sessionManager.hooks.onLocked(() => {
   vaultInvalidations.clear();
 });
 sessionManager.hooks.onLocked(() => inlineAutofillRecency.clear());
+sessionManager.hooks.onLocked(() => oneClickRuns.clear());
 
 // Sync the vault metadata cache on unlock (plan §6 trigger). Metadata + wrapped
 // keys are non-secret; this refetch never decrypts.
@@ -481,6 +491,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => { captureCoordinator.clearTab(tabId); inlineAutofillRecency.clearTab(tabId); credentialCaptureCoordinator.clearTab(tabId); if (totpCaptureCoordinator.clearTab(tabId)) publishTotpInvalidation(); clearTotpObservation(tabId); });
 chrome.tabs.onRemoved.addListener((tabId) => federatedSignIn.tabRemoved(tabId));
+chrome.tabs.onRemoved.addListener((tabId) => oneClickRuns.clearTab(tabId));
 
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isFederatedSignInCommand(raw)) return false;
@@ -629,6 +640,23 @@ const reportFormCompatibility = createFormCompatibilityReporter({
   projectKey: env.posthogKey,
   ingestHost: env.posthogHost,
   extensionVersion: chrome.runtime.getManifest().version,
+});
+
+chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
+  if (!isOneClickCommand(raw)) return false;
+  // Top frame only, with the browser-authenticated document and URL.
+  const source = sender.frameId === 0 && sender.tab?.incognito !== true
+    ? inlineAutofillSource({ channel: "palladin.inline-autofill.v1", type: "inline/list", documentId: raw.documentId }, sender, chrome.runtime.id) : null;
+  if (source === null) { sendResponse({ status: "idle" }); return false; }
+  void (async () => {
+    await initializeServerConfig();
+    const lease = serverOperations.tryAcquire();
+    if (lease === null) { sendResponse({ status: "idle" }); return; }
+    try { sendResponse(await oneClickRuns.dispatch(raw, source)); }
+    catch { sendResponse({ status: "stopped" }); }
+    finally { lease.release(); }
+  })();
+  return true;
 });
 
 chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {

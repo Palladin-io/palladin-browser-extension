@@ -228,7 +228,35 @@ identities and framework behavior. Chromium replays actual worker automatic fill
 followed by a synthetic authorized agent choice, plus changed-session and user-edit
 negatives. That is separate from real-site acceptance.
 
-## Accepted trust boundary
+## One-click sign-in
+
+Product-owner decision of 2026-11-25. A closed-surface toast may offer a matching
+Credential on any top-frame HTTPS page that shows evidence of being signed out: a
+recognized login step, or a visible sign-in control with no sign-out control in the
+DOM. A sign-in link folded into a collapsed account menu also counts when every such
+link leads to one destination and no sign-out control exists. Registration URLs and ambiguity produce no toast. Its countdown only hides it.
+
+One trusted, unobstructed "Sign in" click authorizes one memory-only run in the
+worker. The run is bound to tab, Entry, unlocked session and 60 seconds, with at most
+eight steps and each stage granted once, so a rejected password is never resubmitted.
+Before any value is requested it may move once to another HTTPS host in the same
+registrable domain (public suffix list, including private suffixes); afterwards the
+host is fixed. Another site, a second move, lock, Stop, tab close or worker restart
+ends it. The run grants stages only: every value still passes the ordinary fill gates,
+as an explicit exact or related choice of that Entry.
+
+Within a run Palladin may submit identifier, password and authenticator-code stages.
+It clicks the single unambiguous action of the bound scope, never a provider, recovery,
+registration or code-request action, and never a form whose destination is another
+site. CAPTCHA, SMS or email codes, extra required fields and ambiguity are handed to
+the user. The absence of a further stage is not reported as a successful login.
+Passive automatic fill is unchanged and never submits.
+
+"Never on this site" in the toast menu stores only that host name in extension-local
+storage. Settings list these ignored sites, remove them with a short undo, and can
+turn the toast off everywhere. Neither setting is sent to the server or analytics.
+
+
 
 Filling a password into a page intentionally releases that value to the exact
 stored origin, just as manual typing or another password manager would. Scripts
