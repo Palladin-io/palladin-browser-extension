@@ -14,16 +14,31 @@ identifiers and Vault contents are never analytics payloads. The only site data
 ever sent is the bare public hostname in the compatibility report below. The existing `ex:` event-name vocabulary is a
 reserved interface, not evidence that events are collected.
 
-Future telemetry requires an explicit product contract for purpose and scope,
-prior consent, per-installation activation, withdrawal, freshness, payload
-allowlisting and all startup/background paths. Store disclosures and privacy
+## Diagnostics versus product analytics
+
+Product-owner policy 2026-11-23:
+
+- **Product analytics** (how people use the product) requires the single
+  account-wide `product_analytics` consent, asked the same way on every client.
+  The extension asks once after unlock and offers the same choice in Settings,
+  with per-installation activation, withdrawal and freshness as on web/mobile
+  (see the backend `docs/architecture/consent-and-analytics.md`). The backend
+  scope `palladin_web_mobile` and consent sources must be extended to the
+  extension, with a new notice version, before the first extension product
+  analytics event ships. The extension has no such event today, so this flow
+  is not implemented yet.
+- **Diagnostics and errors** (where Palladin fails) are sent from every
+  installation without that consent, minimized and unlinkable to a person, as
+  in the compatibility report below.
+
+Any new event must be classified as one of the two before implementation. Store disclosures and privacy
 information must be reviewed before release. There is no advance cookie banner
 for a feature that does not collect analytics.
 
 ## Anonymous site-compatibility report
 
-Product-owner decision 2026-11-23: to learn which public sites break Palladin's
-login flow, the worker may send `ex:autofill:submit-action-missing` when an
+Diagnostics (product-owner decision 2026-11-23, not consent-gated): to learn
+which public sites break Palladin's login flow, the worker may send `ex:autofill:submit-action-missing` when an
 explicit "Log in" filled the form but found no unique enabled sign-in action.
 The purpose is service quality per site, not user tracking.
 
