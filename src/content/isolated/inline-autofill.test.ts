@@ -709,8 +709,8 @@ describe("inline autofill field discovery", () => {
   });
 
   it.each([
-    ["locked", "Palladin is locked", "Unlock Palladin"],
-    ["signed-out", "Sign in to Palladin to fill this login", "Sign in to Palladin"],
+    ["locked", "LockedUnlock to sign in", "Unlock"],
+    ["signed-out", "Signed outSign in to fill", "Sign in"],
   ] as const)("opens the %s session prompt automatically on a login form", async (
     status,
     expectedMessage,
@@ -840,7 +840,7 @@ describe("inline autofill field discovery", () => {
 
       await vi.waitFor(() => {
         expect(root?.textContent).toContain("Palladin suggestions are temporarily unavailable.");
-        expect(root?.textContent).not.toContain("Palladin blocked this fill for your safety.");
+        expect(root?.textContent).not.toContain("Fill blocked");
       });
     } finally {
       subject.stop();

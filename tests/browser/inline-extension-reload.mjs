@@ -62,7 +62,7 @@ try {
     await page.mouse.click(bounds.x+13,bounds.y+13);
     for (let attempt=0;attempt<50;attempt++) {
       const text=await statusText();
-      if (text.includes('No Palladin login matches this website.') || text.includes('temporarily unavailable') || text.includes('Palladin is locked.')) return text;
+      if (text.includes('No Palladin login matches this website.') || text.includes('temporarily unavailable') || text.includes('Unlock to sign in')) return text;
       await page.waitForTimeout(100);
     }
     await page.screenshot({path:'/tmp/palladin-reload-status-timeout.png'});
@@ -163,7 +163,7 @@ try {
   assert(stoppedByBrowser && versions.get(version.versionId)?.runningStatus==='running','browser stopped and restarted worker');
   await page.getByRole('heading',{name:'Sign in',exact:true}).click();
   const locked=await clickShield();
-  assert(locked.includes('Palladin is locked.'),'ordinary worker restart retains a working shield and loses unlocked key material');
+  assert(locked.includes('Unlock to sign in'),'ordinary worker restart retains a working shield and loses unlocked key material');
   assert.equal(await page.locator('palladin-autofill').count(),1);
   console.log('PASS ordinary worker restart: one responding shield, session locked');
 

@@ -82,7 +82,9 @@ type InlineKey =
   | "inline.loading"
   | "inline.empty"
   | "inline.locked"
+  | "inline.lockedDetail"
   | "inline.signedOut"
+  | "inline.signedOutDetail"
   | "inline.openPalladin"
   | "inline.unlockPalladin"
   | "inline.signInPalladin"
@@ -94,8 +96,11 @@ type InlineKey =
   | "inline.fillAndLogin"
   | "inline.logIn"
   | "inline.noForm"
+  | "inline.noFormDetail"
   | "inline.submitNotFound"
+  | "inline.submitNotFoundDetail"
   | "inline.blocked"
+  | "inline.blockedDetail"
   | "inline.close"
   | "inline.related";
 
@@ -1072,24 +1077,38 @@ class InlineWidget {
   }
 
   private renderSessionRequired(sessionStatus: "locked" | "signed-out"): void {
-    const wrapper = this.options.doc.createElement("div");
-    wrapper.className = "session-required";
-    const description = this.options.doc.createElement("div");
-    description.className = "status";
-    description.textContent = message(
-      this.options.locale(),
-      sessionStatus === "locked" ? "inline.locked" : "inline.signedOut",
-    );
+    const locked = sessionStatus === "locked";
     const open = this.options.doc.createElement("button");
     open.type = "button";
     open.className = "open-palladin";
-    open.textContent = message(
-      this.options.locale(),
-      sessionStatus === "locked" ? "inline.unlockPalladin" : "inline.signInPalladin",
-    );
+    open.textContent = message(this.options.locale(), locked ? "inline.unlockPalladin" : "inline.signInPalladin");
     open.addEventListener("click", () => void this.openPalladin());
-    wrapper.append(description, open);
-    this.panel.replaceChildren(this.createTitle(), wrapper);
+    this.renderNotice(locked ? "inline.locked" : "inline.signedOut", open);
+  }
+
+  /** One row like a suggestion: icon, a short title, one detail line and an optional action. */
+  private renderNotice(key: NoticeKey, action?: HTMLButtonElement): void {
+    const notice = NOTICES[key];
+    const row = this.options.doc.createElement("div");
+    row.className = "notice-row";
+    row.setAttribute("role", "status");
+    const line = this.options.doc.createElement("div");
+    line.className = "notice-line";
+    const icon = this.options.doc.createElement("span");
+    icon.className = "notice-icon";
+    icon.append(createIcon(this.options.doc, notice.icon, "0 0 24 24"));
+    const text = this.options.doc.createElement("span");
+    text.className = "entry-text";
+    const title = this.options.doc.createElement("strong");
+    title.textContent = message(this.options.locale(), key);
+    const detail = this.options.doc.createElement("span");
+    detail.className = "entry-name";
+    detail.textContent = message(this.options.locale(), notice.detail);
+    text.append(title, detail);
+    line.append(icon, text);
+    row.append(line);
+    if (action) row.append(action);
+    this.panel.replaceChildren(this.createTitle(), this.createCountdown(), row);
   }
 
   private async openPalladin(): Promise<void> {
@@ -1157,13 +1176,8 @@ class InlineWidget {
       row.append(option, submit);
       list.append(row);
     }
-    // The menu closes itself when the countdown under the header ends, like the one-click sign-in toast.
-    const countdown = this.options.doc.createElement("div");
-    countdown.className = "inline-countdown";
-    countdown.setAttribute("aria-hidden", "true");
-    countdown.addEventListener("animationend", () => this.close());
     const from = this.panel.hidden ? 0 : this.panel.getBoundingClientRect().height;
-    this.panel.replaceChildren(title, countdown, list);
+    this.panel.replaceChildren(title, this.createCountdown(), list);
     this.growFrom(from);
   }
 
@@ -1206,6 +1220,15 @@ class InlineWidget {
       loading.append(row);
     }
     this.panel.replaceChildren(this.createTitle(), loading);
+  }
+
+  /** The menu closes itself when the countdown under the header ends, like the one-click sign-in toast. */
+  private createCountdown(): HTMLDivElement {
+    const countdown = this.options.doc.createElement("div");
+    countdown.className = "inline-countdown";
+    countdown.setAttribute("aria-hidden", "true");
+    countdown.addEventListener("animationend", () => this.close());
+    return countdown;
   }
 
   private createTitle(): HTMLDivElement {
@@ -1316,11 +1339,28 @@ class InlineWidget {
   }
 
   private renderStatus(key: InlineKey): void {
+    if (isNoticeKey(key)) return this.renderNotice(key);
     const status = this.options.doc.createElement("div");
     status.className = "status";
     status.textContent = message(this.options.locale(), key);
-    this.panel.replaceChildren(this.createTitle(), status);
+    // Progress and the brief "filled" state close on their own; every other message counts down.
+    const settled = key !== "inline.filling" && key !== "inline.filled";
+    this.panel.replaceChildren(...[this.createTitle(), settled ? this.createCountdown() : null, status]
+      .filter((node): node is HTMLDivElement => node !== null));
   }
+}
+
+const NOTICES = {
+  "inline.locked": { icon: "M7 11V8a5 5 0 0 1 10 0v3M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z", detail: "inline.lockedDetail" },
+  "inline.signedOut": { icon: "M12 11.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM5 20a7 7 0 0 1 14 0", detail: "inline.signedOutDetail" },
+  "inline.blocked": { icon: "M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6zM12 9v4M12 16h.01", detail: "inline.blockedDetail" },
+  "inline.noForm": { icon: "M12 20.5a8.5 8.5 0 1 0 0-17 8.5 8.5 0 0 0 0 17zM12 8v4.5M12 16h.01", detail: "inline.noFormDetail" },
+  "inline.submitNotFound": { icon: "M9 4v10l2.5-2.5L14 17l2-1-2.5-5H17z", detail: "inline.submitNotFoundDetail" },
+} as const satisfies Record<string, { icon: string; detail: InlineKey }>;
+type NoticeKey = keyof typeof NOTICES;
+
+function isNoticeKey(key: InlineKey): key is NoticeKey {
+  return Object.hasOwn(NOTICES, key);
 }
 
 function loginValueSnapshot(target: LoginTarget): string {
@@ -1450,13 +1490,15 @@ export const INLINE_STYLES = `
   .loading-lines i:last-child { width:40%; height:8px; }
   .loading-action { width:32px; height:32px; }
   @keyframes palladin-loading { from { opacity:.42; } to { opacity:.88; } }
-  @media (prefers-reduced-motion:reduce) { .loading-lines i, .loading-action, .inline-countdown::after, .spinner, .list .option-row { animation:none; } }
+  @media (prefers-reduced-motion:reduce) { .loading-lines i, .loading-action, .inline-countdown::after, .spinner, .list .option-row, .notice-row { animation:none; } }
   .status { padding:16px 14px; color:var(--cv-t2); font-size:13px; line-height:1.5; }
   .update-notice { border-left:3px solid var(--cv-primary); }
-  .session-required { display:grid; gap:12px; padding:14px; }
-  .session-required .status { padding:0; }
-  .open-palladin { min-height:36px; border:0; border-radius:8px; background:var(--cv-primary); color:#fff; font:600 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif; cursor:pointer; }
-  .open-palladin:hover { background:var(--cv-primary-hover); }
+  .notice-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; padding:12px; animation:inline-row-in 200ms ease-out both; }
+  .notice-line { display:flex; align-items:center; gap:10px; min-width:0; min-height:52px; }
+  .notice-icon { display:grid; place-items:center; flex:0 0 32px; width:32px; height:32px; box-sizing:border-box; border:1px solid var(--cv-secondary-border); border-radius:8px; color:var(--cv-t2); }
+  .notice-icon svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .open-palladin { min-height:32px; padding:0 12px; border:1px solid var(--cv-secondary-border); border-radius:6px; background:var(--cv-card-bg); color:var(--cv-t1); font:600 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif; cursor:pointer; }
+  .open-palladin:hover { background:var(--cv-hover); }
   .open-palladin:focus-visible { outline:2px solid var(--cv-primary); outline-offset:2px; }
 `;
 

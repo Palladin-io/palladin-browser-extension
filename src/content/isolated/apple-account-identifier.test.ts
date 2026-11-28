@@ -148,8 +148,8 @@ describe('Apple Account password step - Polish variant with a passkey action', (
 
 describe('Apple Account password step - inline menu status after "Log in"', () => {
   it.each([
-    ['missing-action', "Login filled, but Palladin couldn't find the sign-in button. Click it yourself to continue."],
-    ['changed-account', 'The login form could not be filled.'],
+    ['missing-action', 'FilledClick the sign-in button'],
+    ['changed-account', "Couldn't fillThe form changed on the page"],
   ])('reports %s without misreporting the completed fill', async (variant, expected) => {
     vi.useRealTimers();
     const nativeAttachShadow = Element.prototype.attachShadow;
@@ -182,7 +182,7 @@ describe('Apple Account password step - inline menu status after "Log in"', () =
       root.querySelector<HTMLButtonElement>('.launcher')!.click();
       await vi.waitFor(() => expect(root.querySelector('.submit-login')).not.toBeNull());
       root.querySelector<HTMLButtonElement>('.submit-login')!.click();
-      await vi.waitFor(() => expect(root.querySelector('.status')?.textContent).toBe(expected), { timeout: 3_000 });
+      await vi.waitFor(() => expect(root.querySelector('.notice-row')?.textContent).toBe(expected), { timeout: 3_000 });
       expect(password.value).toBe('secret');
       const reports = send.mock.calls.map(([command]) => command).filter(command => command.type === 'inline/submit-unavailable');
       // The content script never names the site; the worker derives the host from the authenticated sender.
