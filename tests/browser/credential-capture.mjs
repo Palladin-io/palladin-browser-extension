@@ -321,7 +321,7 @@ try {
   popup = await openNativePopup(worker, profile, extensionId)
   if (await popup.hasButton('Back')) await popup.click('Back')
   await popup.click('Vault', 'tab')
-  await popup.click('Use strong password')
+  await popup.click('Generator')
   await popup.click('Fill')
   await popup.waitText('Filled in the active page')
   const generated = await page.getByLabel('Password', { exact: true }).inputValue()

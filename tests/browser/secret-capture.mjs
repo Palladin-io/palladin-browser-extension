@@ -34,8 +34,8 @@ const run = async (name, test) => {
     if (popup) {
       console.error('Value-free native targets', await popup.inspectTargets());
       try { console.error('Value-free capture state', await popup.captureDiagnostic()); console.error('Value-free popup state', {
-        review: await popup.hasCaptureReview(), duplicate: await popup.hasText('This exact item is already'),
-        expired: await popup.hasText('This capture expired'), error: await popup.hasText("Couldn't save this entry"),
+        review: await popup.hasCaptureReview(), duplicate: await popup.hasText('is already in '),
+        expired: await popup.hasText('The time to save this ran out'), error: await popup.hasText("Couldn't save this entry"),
         saveButton: await popup.hasButton('Save entry'), writes: api.writes.length,
       }) } catch { console.error('Native capture surface no longer available') }
     }
@@ -322,7 +322,7 @@ try {
     await visit('readonly', 1)
     const count = api.writes.length
     await openReview()
-    await popup.watchText('This exact item is already in the selected Vault. Nothing was changed.')
+    await popup.watchText('This API key is already in ')
     await popup.click('Save entry')
     await wait(() => popup.sawWatchedText(), 'actual duplicate feedback')
     assert.equal(api.writes.length, count)
