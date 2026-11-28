@@ -161,7 +161,9 @@ export function startGeneratorSuggestion(doc: Document, documentId: string, capt
     }
     /** Same row as the locked autofill menu; Unlock opens the toolbar popup like it does. */
     function showLocked(): void {
-      busy = false; closeMenu();
+      // A lock during Use disabled these; the restored offer must be fully usable again.
+      busy = false; closeMenu(); regenerate.disabled = false; menuArrow.disabled = false;
+      optionsBody.inert = optionsToggle.getAttribute('aria-expanded') !== 'true';
       const row = doc.createElement('div'); row.className = 'generator-locked'; row.setAttribute('role', 'status');
       const icon = doc.createElement('span'); icon.className = 'generator-locked-icon'; icon.append(lockIcon(doc));
       const text = doc.createElement('span'); text.className = 'generator-locked-text';

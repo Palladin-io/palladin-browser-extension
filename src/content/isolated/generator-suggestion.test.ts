@@ -148,3 +148,33 @@ it('shows the locked row instead of an error and unlocks through the toolbar pop
     expect(root.querySelector('.generator-locked')).toBeNull();
   } finally { suggestion.stop(); spy.mockRestore(); }
 });
+
+it('re-enables the generator controls when Palladin locked during Use and is unlocked again', async () => {
+  const closed = await import('./closed-surface');
+  const original = closed.createClosedSurface;
+  let root!: ShadowRoot;
+  const spy = vi.spyOn(closed, 'createClosedSurface').mockImplementation((doc, name) => {
+    const surface = original(doc, name); root = surface.shadow;
+    return { ...surface, acceptsAction: () => true };
+  });
+  const sendMessage = vi.fn(async (command) => command.type === 'preview'
+    ? { status: 'preview', previewId: 'preview_0123456789abcdef', value: 'synthetic-preview-123', expiresAt: Date.now() + 60_000 }
+    : command.type === 'use' ? { status: 'locked' } : { accepted: true });
+  vi.stubGlobal('chrome', { runtime: { sendMessage }, i18n: { getUILanguage: () => 'en' },
+    storage: { local: { get: async () => ({}) }, onChanged: { addListener: vi.fn(), removeListener: vi.fn() } } });
+  document.body.innerHTML = '<form><input type="password" autocomplete="new-password"></form>';
+  const input = document.querySelector('input')!;
+  vi.spyOn(input, 'getBoundingClientRect').mockReturnValue(new DOMRect(20, 20, 320, 40));
+  const capture = new PasswordCaptureController(document, () => 'https://example.test/signup', 'document_0123456789abcdef'); capture.scan();
+  const suggestion = startGeneratorSuggestion(document, 'document_0123456789abcdef', capture);
+  try {
+    await Promise.resolve(); input.focus();
+    await vi.waitFor(() => expect(root.querySelector('code')?.textContent).toBe('synthetic-preview-123'));
+    [...root.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Use password')!.click();
+    await vi.waitFor(() => expect(root.querySelector('.generator-locked')).not.toBeNull());
+    root.querySelector<HTMLButtonElement>('.generator-launcher')!.click();
+    await vi.waitFor(() => expect(root.querySelector('code')?.textContent).toBe('synthetic-preview-123'));
+    expect(root.querySelector<HTMLButtonElement>('[aria-label="Generate another password"]')?.disabled).toBe(false);
+    expect(root.querySelector<HTMLButtonElement>('[aria-label="More options"]')?.disabled).toBe(false);
+  } finally { suggestion.stop(); spy.mockRestore(); }
+});

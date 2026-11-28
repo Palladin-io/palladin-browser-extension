@@ -153,6 +153,9 @@ function CredentialCaptureReview({ review: initialReview, send, onDone, onSaved,
   }
   async function chooseUsername(choice: 'email' | 'nickname') {
     setBusy(true); setError(false);
+    // Only the login changes: the user's other edits and chosen Vault survive the rebuilt worker targets.
+    const previousTarget = review.prompt.targets.find(value => value.id === targetId);
+    const draft = formDraft.current;
     try {
       const choiceResult = await send({ channel, type: 'choose-username', promptId: review.prompt.id, choice });
       if (!alive.current) return;
@@ -160,7 +163,12 @@ function CredentialCaptureReview({ review: initialReview, send, onDone, onSaved,
       const result = await send({ channel, type: 'get' });
       if (!alive.current) return;
       if (result.status === 'review' && result.review?.kind === 'credential') {
-        setReview(result.review); setEntry(result.review.entry); setTargetId(result.review.prompt.defaultTargetId ?? '');
+        const targets = result.review.prompt.targets;
+        // A new login keeps its Vault; an update target belongs to the old login's Entry, so it resets to the worker default.
+        const same = previousTarget?.action === 'create'
+          ? targets.find(value => value.action === 'create' && value.vaultLabel === previousTarget.vaultLabel) : undefined;
+        if (draft) { const next = { ...draft, fields: { ...draft.fields, username: result.review.entry.username } }; restoredForm.current = next; formDraft.current = next; }
+        setReview(result.review); setEntry(result.review.entry); setTargetId(same?.id ?? result.review.prompt.defaultTargetId ?? '');
         setFormVersion(version => version + 1);
       } else onDone();
     } catch { if (alive.current) setError(true); }
