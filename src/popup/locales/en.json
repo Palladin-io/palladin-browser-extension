@@ -801,5 +801,6 @@
   "oneClickSettings.error": "Could not change settings. Try again.",
   "oneClickSettings.description": "Palladin offers to sign you in with a saved account in one click.",
   "oneClickSettings.unmuted": "Removed {name}",
-  "oneClickSettings.undo": "Undo"
+  "oneClickSettings.undo": "Undo",
+  "vault.updateTo": "Update to {version}"
 }

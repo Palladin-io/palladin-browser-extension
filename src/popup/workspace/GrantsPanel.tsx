@@ -245,7 +245,7 @@ export function GrantsPanel({
               aria-pressed={selected?.id === grant.id}
               onClick={() => void select(grant)}
             >
-              <AgentIcon iconKey={grant.agentIconKey} />
+              <AgentIcon iconKey={grant.agentIconKey} iconColor={grant.agentIconColor} name={grant.agentName} agentId={grant.agentId} />
               <span className="grant-row-content">
                 <strong title={grant.agentName ?? (grant.agentId ? shortId(grant.agentId) : t('grant.agent'))}>{grant.agentName ?? (grant.agentId ? shortId(grant.agentId) : t('grant.agent'))}</strong>
                 <span className="grant-list-resource">
@@ -271,7 +271,7 @@ export function GrantsPanel({
           <div className="entry-detail grant-detail">
             <div className="grant-information">
             <div className="grant-summary-card"><div className="grant-identities">
-<div className="grant-identity-column"><h4>{t('grant.agent')}</h4>            <div className="grant-agent-line"><AgentIcon iconKey={selected.agentIconKey} /><span className="grant-agent-identity"><strong title={selected.agentName ?? t('grant.agent')}>{selected.agentName ?? t('grant.agent')}</strong>
+<div className="grant-identity-column"><h4>{t('grant.agent')}</h4>            <div className="grant-agent-line"><AgentIcon iconKey={selected.agentIconKey} iconColor={selected.agentIconColor} name={selected.agentName} agentId={selected.agentId} /><span className="grant-agent-identity"><strong title={selected.agentName ?? t('grant.agent')}>{selected.agentName ?? t('grant.agent')}</strong>
               <span className="grant-status" data-status={selected.status} data-pending={selected.status === 'pending'}>{states[selected.status] ? t(states[selected.status]!) : selected.status}</span></span>
             </div>
 </div>
@@ -282,29 +282,18 @@ export function GrantsPanel({
               </div>
             </div>
 </div></div>
-            {selected.canRevoke ? <div className="grant-revoke-action">
-              <Button variant="danger" loading={busy} onClick={() => void decide('revoke')}>
-                <PopupIcon name="denied" />{t('grant.revoke')}
-              </Button>
-            </div> : null}
             {selected.encryptedReason ? (
               <section className="grant-purpose" aria-label={t('grant.encryptedReason')}>
                 <h4>{t('grant.encryptedReason')}</h4>
                 <p title={accessReason ?? review?.reason ?? undefined} tabIndex={0}>{accessReason ?? review?.reason ?? t(reasonLoading ? 'workspace.loading' : 'grant.reasonUnavailable')}{!accessReason && !review?.reason && !reasonLoading && reasonFailure ? ` [${reasonFailure}]` : ''}</p>
               </section>
             ) : null}
+            {selected.canRevoke ? <div className="grant-card-actions">
+              <Button variant="danger" block loading={busy} onClick={() => void decide('revoke')}>
+                <PopupIcon name="denied" />{t('grant.revoke')}
+              </Button>
+            </div> : null}
             </div>
-            <dl className="grant-metadata">
-              <div className="detail-field"><dt>{t('grant.expiresAt')}</dt><dd>{selected.expiresAt ? <RelativeTime value={selected.expiresAt} /> : t(selected.status === 'pending' ? 'grant.expiryOnApproval' : 'grant.noExpiry')}</dd></div>
-              <div className="detail-field"><dt>{t('grant.requestedAt')}</dt><dd><RelativeTime value={selected.createdAt} /></dd></div>
-              {selected.createdBy ? <>
-                <div className="detail-field"><dt>{t('grant.grantedBy')}</dt><dd>{selected.createdByName ?? shortId(selected.createdBy)}</dd></div>
-                <div className="detail-field"><dt>{t('grant.grantedAt')}</dt><dd>{selected.grantedAt ? <RelativeTime value={selected.grantedAt} /> : t('grant.dateUnavailable')}</dd></div>
-              </> : null}
-            </dl></div>
-            {onShowLogs ? <AuditPanel client={client} entries={entries} vaultId={selected.vaultId} entryId={selected.entryId ?? undefined}
-              target={{ kind: 'grant', id: selected.id, vaultId: selected.vaultId, entryId: selected.entryId ?? undefined }} preview
-              onViewAll={() => onShowLogs?.({ kind: 'grant', id: selected.id, vaultId: selected.vaultId, entryId: selected.entryId ?? undefined })} /> : null}
             {selected.status === 'pending' ? (
               <form
                 className="workspace-form"
@@ -465,12 +454,12 @@ export function GrantsPanel({
                     disabled={busy}
                     onClick={() => void select(selected)}
                   >
-                    {t('grant.review')}
+                    <PopupIcon name="refresh" />{t('grant.review')}
                   </Button>
                 )}
                 <div className="grant-decision-actions">
                   <Button type="button" variant="danger" disabled={busy} onClick={() => void decide('deny')}>
-                    {t('grant.deny')}
+                    <PopupIcon name="denied" />{t('grant.deny')}
                   </Button>
                     <Button
                       type="submit"
@@ -483,7 +472,7 @@ export function GrantsPanel({
                           !fields.length)
                       }
                     >
-                      {t('grant.approve')}
+                      <PopupIcon name="check" />{t('grant.approve')}
                     </Button>
                 </div>
                 <label className="grant-denial-reason">
@@ -497,6 +486,17 @@ export function GrantsPanel({
 
               </form>
             ) : null}
+            <dl className="grant-metadata">
+              <div className="detail-field"><dt>{t('grant.expiresAt')}</dt><dd>{selected.expiresAt ? <RelativeTime value={selected.expiresAt} /> : t(selected.status === 'pending' ? 'grant.expiryOnApproval' : 'grant.noExpiry')}</dd></div>
+              <div className="detail-field"><dt>{t('grant.requestedAt')}</dt><dd><RelativeTime value={selected.createdAt} /></dd></div>
+              {selected.createdBy ? <>
+                <div className="detail-field"><dt>{t('grant.grantedBy')}</dt><dd>{selected.createdByName ?? shortId(selected.createdBy)}</dd></div>
+                <div className="detail-field"><dt>{t('grant.grantedAt')}</dt><dd>{selected.grantedAt ? <RelativeTime value={selected.grantedAt} /> : t('grant.dateUnavailable')}</dd></div>
+              </> : null}
+            </dl></div>
+            {onShowLogs ? <AuditPanel client={client} entries={entries} vaultId={selected.vaultId} entryId={selected.entryId ?? undefined}
+              target={{ kind: 'grant', id: selected.id, vaultId: selected.vaultId, entryId: selected.entryId ?? undefined }} preview
+              onViewAll={() => onShowLogs?.({ kind: 'grant', id: selected.id, vaultId: selected.vaultId, entryId: selected.entryId ?? undefined })} /> : null}
           </div>
         ) : (
           <div className="detail-empty">{t('grant.select')}</div>

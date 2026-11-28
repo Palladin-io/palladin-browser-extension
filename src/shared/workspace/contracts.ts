@@ -30,6 +30,7 @@ export interface OrgGrant {
   agentAccessEpoch?: number | null;
   agentName?: string | null;
   agentIconKey?: string | null;
+  agentIconColor?: string | null;
   agentPublicKey?: string | null;
   recipientAgentKeyVersion?: number | null;
   agentSigningPublicKey?: string | null;
