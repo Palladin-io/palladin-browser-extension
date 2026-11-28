@@ -47,6 +47,26 @@ it.each([true, false])('exposes active grant revocation only when the API permit
   }
 });
 
+it('places grant actions after the request reason and pending settings before the grant dates', async () => {
+  const active = { id: 'active', vaultId: 'vault', agentName: 'Active agent', status: 'active', type: 'full', createdAt: '2026-10-01T10:00:00Z', encryptedReason: {}, canRevoke: true };
+  const pending = { id: 'pending', vaultId: 'vault', entryId: 'entry', agentName: 'Pending agent', status: 'pending', type: 'granular', createdAt: '2026-10-01T10:00:00Z' };
+  const send = vi.fn().mockImplementation(async command => ({ ok: true, data: command.type === 'workspace/grant-reason'
+    ? { reason: 'Run the requested report' }
+    : command.type === 'workspace/review-grant' ? { grant: pending, entryId: 'entry', revision: 4, methods: 4, fields: [] }
+    : { items: [active, pending], nextCursor: null } }));
+  render(<GrantsPanel client={createWorkspaceClient(send)} revision={0} entries={[]} />);
+  const follows = (first: Node, second: Node) => Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  fireEvent.click(await screen.findByRole('button', { name: /Active agent/ }));
+  await screen.findByText('Run the requested report');
+  expect(follows(screen.getByRole('region', { name: 'Encrypted request reason' }), screen.getByRole('button', { name: 'Revoke access' }))).toBe(true);
+
+  fireEvent.click(screen.getByRole('button', { name: /Pending agent/ }));
+  const approve = await screen.findByRole('button', { name: 'Approve access' });
+  expect(follows(screen.getByRole('button', { name: '2 h' }), approve)).toBe(true);
+  expect(follows(approve, screen.getByText('Created'))).toBe(true);
+});
+
 it.each([true, false])('clears inherited loading after a quiet refresh supersedes a pending manual refresh (success=%s)', async success => {
   const page = { ok: true, data: { items: [{ id: 'grant', vaultId: 'vault', agentName: 'Active agent', status: 'active', type: 'full', createdAt: '2026-10-01T10:00:00Z' }], nextCursor: null } };
   let finishManual!: (value: typeof page) => void;
