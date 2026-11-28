@@ -168,6 +168,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
   }
 
   async refresh(): Promise<EntryMetadata[]> {
+    console.log('DBG vault refresh', this.refreshInFlight !== null ? 'join' : 'start', new Error().stack?.split('\n').slice(2, 4).map(l => l.trim().split(' ')[1]).join('<'))
     if (this.refreshInFlight !== null) return this.refreshInFlight
     return this.startRefresh(false)
   }
@@ -188,6 +189,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
     this.refreshInFlightIsRepair = forceRepair
     try {
       const metadata = await refresh
+      console.log('DBG vault refreshed', metadata.length)
       this.lastSuccessfulRefreshAt = this.now()
       return metadata
     } finally {
@@ -253,7 +255,9 @@ export class Protocol2VaultDataService implements VaultDataSource {
       return []
     }
 
+    console.log('DBG vault listVaults request')
     const listedVaults = await this.withAuth((token) => this.deps.client.listVaults(token))
+    console.log('DBG vault listVaults response', listedVaults.map(v => (v as { memberSequence?: string }).memberSequence).join(','))
     this.lastUserId = userId
     this.currentVaults.clear()
     const detailedVaults: EncryptedVaultSummary[] = []
@@ -700,6 +704,7 @@ export class Protocol2VaultDataService implements VaultDataSource {
         }
         throw error
       }
+      console.log('DBG vault created committed')
       await this.refreshAfterCommittedMutation()
       return { status: 'created', entryId, vaultId: vault.id }
     } finally {
