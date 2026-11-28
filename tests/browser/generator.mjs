@@ -74,7 +74,7 @@ try {
     const panel = find(tree.root); if (!panel) return null;
     const { object } = await cdp.send('DOM.resolveNode', { nodeId: panel.nodeId });
     const result = await cdp.send('Runtime.callFunctionOn', { objectId: object.objectId, returnByValue: true, functionDeclaration: `function() {
-      const style = getComputedStyle(this), heading = getComputedStyle(this.querySelector('.generator-heading'));
+      const style = getComputedStyle(this), heading = getComputedStyle(this.querySelector('.generator-line-text'));
       const options = this.querySelector('.generator-options'), footer = this.querySelector('.generator-footer');
       return { value: this.querySelector('code').textContent, width: this.getBoundingClientRect().width, top: this.getBoundingClientRect().top,
         hidden: this.hidden, radius: style.borderRadius, headingFont: heading.fontSize, headingWeight: heading.fontWeight,
@@ -105,15 +105,17 @@ try {
   assert.equal(visible.top, fieldBox.y + fieldBox.height - 4, 'Approved attached placement');
   assert.equal(visible.lineHeight, '24px'); assert.equal(visible.regenerateHeight, 36); assert.equal(visible.regenerateWeight, '600');
   assert.equal(visible.radius, '8px'); assert.equal(visible.headingFont, '12px'); assert.equal(visible.headingWeight, '400');
-  assert.deepEqual(visible.buttons.map(button => button.text), ['Dismiss', 'Use password']);
-  assert.equal(visible.buttons[0].width, visible.buttons[1].width); assert.equal(visible.inputCount, 0);
+  // Dismiss + its menu arrow share one half with Use password; the closed menu holds the options item.
+  assert.deepEqual(visible.buttons.map(button => button.text), ['Dismiss', '', 'Password options', 'Use password']);
+  assert(Math.abs(visible.buttons[0].width + visible.buttons[1].width - visible.buttons[3].width) <= 1, 'Split Dismiss matches Use width');
+  assert.equal(visible.buttons[2].width, 0, 'Options item stays hidden until the arrow opens the menu'); assert.equal(visible.inputCount, 0);
   assert.equal(await page.locator('palladin-autofill').first().evaluate(host => host.shadowRoot), null);
   await page.screenshot({ path: 'test-results/generator/collapsed-light.png' });
   const firstPreview = visible.value;
   await clickSurfaceButton('Generate another password');
   visible = await waitPreview(); assert(visible.value !== firstPreview, 'Regenerate replaces the preview');
   assert.equal(await page.locator('[name=password]').inputValue(), '', 'Regenerate does not fill the site');
-  await clickSurfaceButton('Password options'); await page.waitForTimeout(300);
+  await clickSurfaceButton('More options'); await clickSurfaceButton('Password options', 'menuitem'); await page.waitForTimeout(300);
   assert.equal((await inspect()).transition, '0.24s, 0.18s');
   const slider = (await cdp.send('Accessibility.getFullAXTree')).nodes.find(node => !node.ignored && node.role?.value === 'slider' && node.name?.value === 'Length');
   assert(slider); const sliderBox = (await cdp.send('DOM.getBoxModel', { backendNodeId: slider.backendDOMNodeId })).model;
@@ -185,7 +187,7 @@ try {
   await page.goto('https://register.example.test/signup?mode=passphrase');
   await page.getByLabel('New password', { exact: true }).click();
   await waitPreview();
-  await clickSurfaceButton('Password options'); await page.waitForTimeout(300);
+  await clickSurfaceButton('More options'); await clickSurfaceButton('Password options', 'menuitem'); await page.waitForTimeout(300);
   await clickSurfaceButton('Type', 'combobox');
   await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter');
   await clickSurfaceButton('Separator', 'combobox'); await clickSurfaceButton('Dot', 'option');
@@ -218,8 +220,8 @@ try {
   await clickSurfaceButton('Dismiss'); assert.equal((await inspect()).hidden, true);
   assert.equal(await page.locator('[name=password]').inputValue(), '');
   await clickSurfaceButton('Suggest a strong password'); await waitPreview();
-  await clickSurfaceButton('Dismiss password suggestion'); assert.equal((await inspect()).hidden, true);
-  console.log('PASS: both dismiss controls close without fill and the real shield reopens suggestions');
+  await page.keyboard.press('Escape'); assert.equal((await inspect())?.hidden ?? true, true, 'Escape removes the suggestion');
+  console.log('PASS: Dismiss and Escape close without fill and the real shield reopens suggestions');
   }
   const polish=JSON.parse(await readFile('src/popup/locales/pl.json','utf8'));
   for (const theme of ['light','dark']) {
@@ -227,7 +229,7 @@ try {
     await page.goto(`https://register.example.test/signup?visual=pl-${theme}`);
     await page.getByLabel('New password',{exact:true}).click(); await waitPreview();
     await page.screenshot({path:`test-results/generator/pl-${theme}-collapsed.png`});
-    await clickSurfaceButton(polish['generator.inlineOptions']); await page.waitForTimeout(300);
+    await clickSurfaceButton(polish['generator.inlineMore']); await clickSurfaceButton(polish['generator.inlineOptions'],'menuitem'); await page.waitForTimeout(300);
     assert.equal((await inspect()).lengthOutputGap,0,'Length count aligns to caption right edge as approved prototype');
     await page.screenshot({path:`test-results/generator/pl-${theme}-password-options.png`});
     await clickSurfaceButton(polish['generator.inlineType'],'combobox');

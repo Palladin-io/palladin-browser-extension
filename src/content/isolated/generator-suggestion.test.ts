@@ -64,7 +64,10 @@ it('previews before use and sends only the displayed preview ID on a protected a
       click(label);
       [...root.querySelectorAll<HTMLButtonElement>('[role=option]')].find(button => button.textContent === option)!.click();
     };
-    click('Password options');
+    click('More options');
+    expect(root.querySelector('[aria-label="More options"]')?.getAttribute('aria-expanded')).toBe('true');
+    [...root.querySelectorAll<HTMLButtonElement>('[role=menuitem]')].find(button => button.textContent === 'Password options')!.click();
+    expect(root.querySelector('[role=menu]')?.hasAttribute('hidden')).toBe(true);
     click('Numbers');
     choose('Type', 'Passphrase');
     choose('Words', '6');
@@ -76,14 +79,14 @@ it('previews before use and sends only the displayed preview ID on a protected a
     expect(root.querySelector('[aria-label="Separator"]')?.textContent).toBe('Dot');
     click('Words'); click('Separator');
     expect(root.querySelector('[role=listbox][aria-label="Words"]')?.hasAttribute('hidden')).toBe(true);
-    root.querySelector('.generator-heading')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, composed: true }));
+    root.querySelector('.generator-line')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, composed: true }));
     expect(root.querySelector('[role=listbox][aria-label="Separator"]')?.hasAttribute('hidden')).toBe(true);
     await vi.waitFor(() => expect(use.disabled).toBe(false));
     use.click();
     await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'use', previewId: 'preview_0123456789abcdef' })));
     const command = sendMessage.mock.calls.find(([value]) => value.type === 'use')![0];
     expect(command).not.toHaveProperty('value');
-    expect(root.querySelector('.generator-heading')?.textContent).toContain('Use strong password');
+    expect(root.querySelector('.generator-line')?.textContent).toContain('Use strong password:');
   } finally { suggestion.stop(); spy.mockRestore(); }
 });
 
