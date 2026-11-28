@@ -61,6 +61,10 @@ export const federatedSignIn = new FederatedSignInCoordinator({
   save: (url, target, binding, label, stillAuthorized, entryName) => credentialWriter.saveSignIn(url, target, binding, label, stillAuthorized, entryName),
   isCurrentDocument: (source) => isLiveCredentialDocument(source, browserDocumentIdForTab,
     (tabId, message, options) => chrome.tabs.sendMessage(tabId, message, options), currentLegacyCaptureLogin),
+  isSupersededDocument(source) {
+    const live = browserDocumentIdForTab(source.tabId)
+    return source.browserDocumentId !== undefined && live !== null && live !== source.browserDocumentId
+  },
   notify(tabId) {
     const documentId = browserDocumentIdForTab(tabId)
     const refresh: FederatedSignInRefresh = { channel: FEDERATED_SIGNIN_CHANNEL, type: 'refresh' }

@@ -51,7 +51,10 @@ try {
     } else if (kind === 'key') {
       await page.waitForTimeout(600); await page.getByRole('button', { name: 'Generate' }).click();
     } else if (kind === 'oauth') {
-      await page.getByRole('link', { name: 'Continue with Google' }).click(); await page.getByRole('link', { name: 'Allow', exact: true }).click();
+      await page.getByRole('link', { name: 'Continue with Google' }).click();
+      // A person reads the consent page; a provider document the extension never attached to is not part of the flow.
+      await wait(() => worker.evaluate(extensionDocumentOn, 'accounts.google.com'), 'provider document observed');
+      await page.getByRole('link', { name: 'Allow', exact: true }).click();
     }
   }
   async function mutedSites() {
@@ -92,6 +95,14 @@ try {
   }
   assert.deepEqual(api.errors, []);
 } finally { popup?.close(); await context?.close(); await api.close(); await rm(profile, { recursive: true, force: true }); }
+
+async function extensionDocumentOn(host) {
+  for (const tab of await chrome.tabs.query({})) {
+    try { if (new URL((await chrome.tabs.sendMessage(tab.id, { channel: 'palladin.tab/current-url' }, { frameId: 0 })).url).hostname === host) return true; }
+    catch { /* Tabs without the content script do not answer. */ }
+  }
+  return false;
+}
 
 function fixture(url) {
   const html = body => `<!doctype html><html><body><h1>Synthetic capture</h1>${body}</body></html>`;
