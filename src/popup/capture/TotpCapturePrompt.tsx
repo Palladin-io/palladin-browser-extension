@@ -61,8 +61,8 @@ export function TotpCapturePrompt({ review, send = sendDefault, onDone, onSaved,
       <Button disabled={!target || busy} loading={busy} onClick={() => void save()}>{t(target?.hasTotp ? 'totpCapture.replaceAction' : 'common.save')}</Button>
     </div>
   </section>;
-  return <CaptureReview title={t('totpCapture.title')} savedTitle={t('captureReview.authenticatorSaved')} origin={new URL(review.origin).hostname}
-    name={savedIdentity?.name ?? (target?.action === 'update' ? target.name ?? target.label : new URL(review.origin).hostname)} {...((savedIdentity?.account ?? review.account) ? { detail: t('captureReview.totpIdentity',{account:savedIdentity?.account ?? review.account!}) } : {})} identity={{ name: new URL(review.origin).hostname, type: ENTRY_TYPE_CREDENTIAL, ...(review.icon ? {icon:review.icon} : {}) }}
+  return <CaptureReview title={t('totpCapture.title')} origin={new URL(review.origin).hostname}
+    name={savedIdentity?.name ?? (target?.action === 'update' ? target.name ?? target.label : new URL(review.origin).hostname)} {...((savedIdentity?.account ?? review.account) ? { detail: stage === 'saved' ? savedIdentity?.account ?? review.account! : t('captureReview.totpIdentity',{account:savedIdentity?.account ?? review.account!}) } : {})} identity={{ name: new URL(review.origin).hostname, type: ENTRY_TYPE_CREDENTIAL, ...(review.icon ? {icon:review.icon} : {}) }}
     stage={stage} {...(target ? { vault: target.vaultLabel } : {})} saveLabel={t('totpCapture.save')} busy={busy}
     disabled={!target || !!target.domainMismatch && !confirmDomainMismatch || !!target.hasTotp && !replace || target.action === 'create' && !label.trim()}
     {...(error ? { error: t('totpCapture.error') } : {})}

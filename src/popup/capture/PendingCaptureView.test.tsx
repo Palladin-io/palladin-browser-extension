@@ -36,7 +36,7 @@ it.each(['key','card'])('keeps the edited saved %s summary and opens the receipt
  const thumbnail=await screen.findByRole('button',{name:'Edited item'});
  expect(screen.queryByLabelText('Secret value')).toBeNull();
  expect(screen.queryByLabelText('Card number')).toBeNull();
- if(kind==='card')expect(screen.getByRole('heading',{name:'Payment card updated'})).toBeInTheDocument();
+ if(kind==='card')expect(screen.getByRole('status')).toHaveTextContent('Updated');
  fireEvent.click(thumbnail);
  expect(open).toHaveBeenCalledWith('saved-entry','saved-vault');
 });

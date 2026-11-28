@@ -99,7 +99,7 @@ it('keeps saved confirmation across the vault refresh until Done', async () => {
     await act(async () => {});
     expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
-    expect(screen.queryByText('Authenticator saved')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   } finally { vi.unstubAllGlobals(); }
 });
 it('opens the committed Entry from the saved authenticator summary', async () => {
@@ -209,7 +209,7 @@ it('retains the edited saved name and account after clearing the authenticator f
  fireEvent.change(screen.getByLabelText('Username'),{target:{value:'saved@example.com'}});
  fireEvent.click(screen.getByRole('button',{name:'Save authenticator'}));
  expect(await screen.findByText('Synthetic inline account')).toBeVisible();
- expect(screen.getByText('Account: saved@example.com · Authenticator')).toBeVisible();
+ expect(screen.getByText(/ · saved@example\.com$/)).toBeVisible();
  expect(screen.queryByLabelText('Name')).toBeNull();
 });
 it('passes edited unsaved authenticator fields and destination to thumbnail handoff', () => {

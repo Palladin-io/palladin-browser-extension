@@ -22,6 +22,10 @@ it('loads and saves only the scoped capture, then removes all secret editor fiel
     expect(document.body.textContent).not.toContain('synthetic-capture-secret');
     expect(send.mock.calls.map(([command]) => command.type)).toEqual(['get', 'save']);
     expect(runtimeSend).not.toHaveBeenCalled();
+    expect(screen.getByRole('status')).toHaveTextContent('Saved');
+    expect(connection.close).not.toHaveBeenCalled();
+    fireEvent.animationEnd(document.querySelector('.capture-countdown')!);
+    expect(connection.close).toHaveBeenCalledTimes(1);
   } finally { vi.unstubAllGlobals(); }
 });
 it('signals failed initialization without mounting a generic popup', async () => {

@@ -118,7 +118,7 @@ it('ignores a stale availability reply while an explicit save is in flight', asy
     await act(async () => { availability({ status: 'availability', available: false }); });
     expect(screen.getByRole('region', { name: 'Update password' })).toBeInTheDocument();
     await act(async () => { save({ status: 'saved', action: 'updated' }); });
-    expect(await screen.findByText('Password updated')).toBeVisible();
+    expect(await screen.findByRole('status')).toHaveTextContent('Updated');
   } finally { unmount(); timer.mockRestore(); vi.unstubAllGlobals(); }
 });
 it('retains the active editor through unrelated Vault revisions and clears it on actual invalidation', async () => {
@@ -167,7 +167,7 @@ it.each(['saving', 'saved'] as const)('ignores an outstanding refresh rejection 
     await act(async () => { rejectRefresh(new Error('Worker request interrupted')); });
     expect(screen.getByRole('region', { name: 'Update password' })).toBeInTheDocument();
     if (phase === 'saving') await act(async () => { save({ status: 'saved', action: 'updated' }); });
-    expect(await screen.findByText('Password updated')).toBeVisible();
+    expect(await screen.findByRole('status')).toHaveTextContent('Updated');
   } finally { unmount(); vi.unstubAllGlobals(); }
 });
 it('discovers a same-document SPA capture after the surface initially has no prompt', async () => {
@@ -196,7 +196,7 @@ it('shows only the new password with a preview for a password update and saves t
   expect(password).toHaveAttribute('type','text');
   fireEvent.click(screen.getByRole('checkbox',{name:'Automatically update passwords for this account'}));
   fireEvent.click(screen.getByRole('button',{name:'Update password'}));
-  expect(await screen.findByText('Password updated')).toBeVisible();
+  expect(await screen.findByRole('status')).toHaveTextContent('Updated');
   expect(send).toHaveBeenCalledWith(expect.objectContaining({type:'save',targetId:'one',autoUpdate:true,entry:review.entry}));
   expect(screen.queryByLabelText('New password')).toBeNull();
 });
@@ -247,7 +247,7 @@ it('confirms the OAuth account before choosing a new named login entry', async (
  fireEvent.change(screen.getByLabelText('Entry name'),{target:{value:'Work GitHub'}});
  fireEvent.click(screen.getByRole('button',{name:'Save'}));
  await waitFor(()=>expect(send).toHaveBeenCalledWith(expect.objectContaining({type:'confirm',entryName:'Work GitHub',targetId:'create'})));
- expect(await screen.findByText('Google · alice@example.com')).toBeVisible();
+ expect(await screen.findByText(/Google · alice@example\.com$/)).toBeVisible();
 });
 
 it('saves an OAuth account typed by the user and never sends it as a listed account id', async () => {
@@ -261,7 +261,7 @@ it('saves an OAuth account typed by the user and never sends it as a listed acco
   fireEvent.click(screen.getByRole('button',{name:'Save'}));
   await waitFor(()=>expect(send).toHaveBeenCalledWith(expect.objectContaining({type:'confirm',account:'octo-cat',targetId:'existing'})));
   expect(send).not.toHaveBeenCalledWith(expect.objectContaining({accountId:expect.anything()}));
-  expect(await screen.findByText('GitHub · octo-cat')).toBeVisible();
+  expect(await screen.findByText(/GitHub · octo-cat$/)).toBeVisible();
 });
 
 it('retries an OAuth save on the rebuilt prompt with the typed account and refreshed IDs', async () => {

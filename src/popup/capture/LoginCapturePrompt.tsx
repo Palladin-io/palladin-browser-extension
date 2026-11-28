@@ -176,7 +176,7 @@ function CredentialCaptureReview({ review: initialReview, send, onDone, onSaved,
   </div> : undefined;
   const autoUpdateOption = <label className="capture-checkbox"><input type="checkbox" checked={autoUpdate} onChange={event => setAutoUpdate(event.target.checked)} />{t('captureToast.autoUpdate')}</label>;
   return <CaptureReview title={t(updating ? 'captureReview.updatePassword' : 'captureReview.saveLogin')}
-    savedTitle={t(updating ? 'captureReview.passwordUpdated' : 'captureToast.saved')}
+    updated={target?.action === 'update'}
     origin={review.prompt.site} name={name} detail={savedIdentity?.detail ?? entry?.username ?? ''}
     identity={{ name, type: ENTRY_TYPE_CREDENTIAL, ...(savedIdentity?.icon ? { icon: savedIdentity.icon } : entry?.icon ? { icon: entry.icon } : {}) }}
     stage={stage} vault={target?.vaultLabel ?? ''} busy={busy} disabled={!target}

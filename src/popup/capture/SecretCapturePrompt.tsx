@@ -53,7 +53,7 @@ export interface SavedSecretSummary {
 export function SavedSecretCapture({ saved, onOpenEntry, onDone }: { saved: SavedSecretSummary; onOpenEntry(entryId: string, vaultId: string): void; onDone(): void }) {
   const { t } = useI18n();
   return <CaptureReview title={t(saved.card ? 'captureReview.saveCard' : 'captureReview.saveKey')}
-    savedTitle={t(saved.card ? saved.updated ? 'captureReview.cardUpdated' : 'captureReview.cardSaved' : 'captureReview.keySaved')} stage="saved"
+    updated={saved.updated} stage="saved"
     origin={saved.origin} name={saved.name} detail={saved.detail} vault={saved.vault}
     identity={{ name: saved.name, type: saved.card ? ENTRY_TYPE_CREDIT_CARD : ENTRY_TYPE_KEY, ...(saved.icon ? { icon: saved.icon } : {}) }}
     {...(saved.entryId && saved.vaultId ? { onIdentity: () => { onOpenEntry(saved.entryId!, saved.vaultId!); } } : {})}
@@ -135,8 +135,9 @@ export function SecretCapturePrompt({ review, client, send = sendSecretCapture, 
   if (terminal) return <section className="capture-review"><p role="status">{t(terminal === 'duplicate' ? 'secretCapture.duplicate' : 'secretCapture.expired')}</p><Button onClick={onDone}>{t('captureReview.done')}</Button></section>;
   const card = draftReview.candidate.kind === 'card';
   const name = initialEntry.label;
-  const detail = draftReview.candidate.kind === 'card' ? `•••• ${draftReview.candidate.cardNumber.slice(-4)} · ${t('entry.typeCard')}` : t('captureReview.capturedKey');
-  return <CaptureReview title={t(card ? draftReview.cardTargets?.length ? 'captureReview.updateCardTitle' : 'captureReview.saveCard' : 'captureReview.saveKey')} savedTitle={t(card ? target ? 'captureReview.cardUpdated' : 'captureReview.cardSaved' : 'captureReview.keySaved')}
+  const savedDetail = draftReview.candidate.kind === 'card' ? `•••• ${draftReview.candidate.cardNumber.slice(-4)}` : t('entry.typeKey');
+  const detail = saved ? savedDetail : draftReview.candidate.kind === 'card' ? `${savedDetail} · ${t('entry.typeCard')}` : t('captureReview.capturedKey');
+  return <CaptureReview title={t(card ? draftReview.cardTargets?.length ? 'captureReview.updateCardTitle' : 'captureReview.saveCard' : 'captureReview.saveKey')} updated={!!target}
     origin={new URL(review.origin).hostname} name={name} detail={detail} identity={{ name, type: card ? ENTRY_TYPE_CREDIT_CARD : ENTRY_TYPE_KEY, ...(initialEntry.icon ? { icon: initialEntry.icon } : {}) }}
     {...(onOpenCapture ? {onIdentity: () => onOpenCapture(saved,{kind:'secret',targetId,vaultId,form:formDraft.current})} : {})} stage={saved ? 'saved' : selected ? 'review' : 'notice'} vault={review.vaults.find(vault => vault.id === vaultId)?.name ?? ''}
     saveLabel={t(target ? 'captureReview.updateCard' : card ? 'captureReview.saveCardAction' : 'captureReview.saveKeyAction')} saveForm={formId} busy={selecting || saving} disabled={!vaultId || !!selected?.cardTargets?.length && !target && !creatingCard}
@@ -163,7 +164,7 @@ export function SecretCapturePrompt({ review, client, send = sendSecretCapture, 
         if (result.status === 'saved') {
           formDraft.current=null;
           setSaved(true); setSelected(null);
-          onSaved?.({ name: entry.label, detail, card, updated: !!target, ...(entry.icon ? { icon: entry.icon } : {}), origin: new URL(review.origin).hostname,
+          onSaved?.({ name: entry.label, detail: savedDetail, card, updated: !!target, ...(entry.icon ? { icon: entry.icon } : {}), origin: new URL(review.origin).hostname,
             vault: review.vaults.find(vault => vault.id === vaultId)?.name ?? '',
             ...('entryId' in result && typeof result.entryId === 'string' ? { entryId: result.entryId } : {}),
             ...('vaultId' in result && typeof result.vaultId === 'string' ? { vaultId: result.vaultId } : {}),

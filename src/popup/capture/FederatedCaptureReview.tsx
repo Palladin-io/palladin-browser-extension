@@ -92,7 +92,7 @@ export function FederatedCaptureReview({ review, send, onDone, onSaved, onOpenCa
     } catch { setError(true); } finally { setBusy(false); }
   }
 
-  return <CaptureReview title={t('captureReview.rememberMethod')} savedTitle={t('captureReview.methodSaved')} origin={prompt.site}
+  return <CaptureReview title={t('captureReview.rememberMethod')} origin={prompt.site}
     name={name} detail={stage === 'saved' ? `${provider} · ${savedLabel}` : creating ? t('captureReview.newEntryIn', { vault: target.vaultLabel })
       : target ? t('captureReview.vaultLocation', { name: target.vaultLabel }) : ''}
     identity={{ name, type: ENTRY_TYPE_CREDENTIAL, ...(review.icon ? { icon: review.icon } : {}) }}

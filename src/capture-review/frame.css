@@ -14,7 +14,6 @@ html:has(.capture-frame) { background:var(--cv-surface)!important; }
 .capture-frame .capture-review-fields { padding:0 20px 16px; max-height:340px; }
 .capture-frame .capture-review-footer { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); padding:12px 20px; }
 .capture-frame .capture-review-footer > button { min-width:0; width:100%; }
-.capture-frame .capture-review-footer[data-saved='true'] { grid-template-columns:1fr; }
 @media(prefers-reduced-motion:reduce) { .capture-frame *, .capture-frame *::before, .capture-frame *::after { animation:none!important; transition:none!important; } }
 .capture-frame .popup-header > .toolbar-icon { width:28px; height:28px; padding:0; display:grid; place-items:center; flex-shrink:0; }
 .capture-frame .brand-lockup { gap:16px; }
@@ -42,3 +41,10 @@ html:has(.capture-frame) { background:var(--cv-surface)!important; }
 .capture-frame .capture-review-fields .btn--subtle { background:var(--cv-surface); color:var(--cv-t1); border:1px solid var(--cv-border); }
 .capture-frame .capture-review-fields .btn--subtle:hover { background:var(--cv-subtle); }
 
+
+/* After a save the frame closes itself; the line fills under the logo strip like the one-click sign-in toast. */
+.capture-frame .popup-header { position:relative; }
+.capture-countdown { display:none; position:absolute; left:0; right:0; bottom:-1px; height:2px; transform-origin:left; transform:scaleX(0); background:var(--cv-t3); pointer-events:none; }
+.capture-frame:has(.capture-review[data-stage='saved']) .capture-countdown { display:block; animation:capture-countdown 6s linear forwards; }
+.capture-frame:hover .capture-countdown, .capture-frame:has([role='menu']) .capture-countdown { animation-play-state:paused; }
+@keyframes capture-countdown { to { transform:scaleX(1); } }

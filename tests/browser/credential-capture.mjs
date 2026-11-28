@@ -124,10 +124,10 @@ try {
     assert.equal(api.writes.length, writesBeforeReview, 'Opening native review must never save')
     await popup.waitButton(/^(Save login|Update password)$/)
   }
-  const waitSaved = () => wait(async () => await popup.hasText('Login saved') || await popup.hasText('Password updated'), 'native capture saved confirmation')
+  const waitSaved = () => wait(async () => await popup.hasText('Saved') || await popup.hasText('Updated'), 'native capture saved confirmation')
   const saveNativeReview = async () => {
     const updating = await popup.hasButton('Update password')
-    await popup.click(updating ? 'Update password' : 'Save login', 'button', { completedText: updating ? 'Password updated' : 'Login saved' })
+    await popup.click(updating ? 'Update password' : 'Save login', 'button', { completedText: updating ? 'Updated' : 'Saved' })
   }
   const saveCapture = async ({ vault } = {}) => {
     await openReview()
