@@ -25,6 +25,7 @@ function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata
   let counter = 0;
   let session = { unlocked: options.unlocked ?? true, generation: 1, profileId: 'profile' };
   const mutedSites = new Set<string>();
+  const supersededDocuments = new Set<string>();
   const mute = vi.fn(async (_profile: string, site: string) => { mutedSites.add(site); });
   let now = 1_000;
   const notify = vi.fn();
@@ -41,6 +42,7 @@ function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata
     localBindings: async () => options.credentials ?? [],
     save,
     isCurrentDocument: async () => true,
+    isSupersededDocument: (from) => supersededDocuments.has(from.browserDocumentId ?? ''),
     notify,
     now: () => now,
     createId: () => `opaque-id-${String(++counter).padStart(8, '0')}`,
@@ -54,7 +56,7 @@ function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata
     return result.status === 'prompt' ? result.prompt : null;
   };
   return {
-    coordinator, notify, save, targets, source, send, prompt, mute,
+    coordinator, notify, save, targets, source, send, prompt, mute, supersededDocuments,
     lock: () => { session = { ...session, unlocked: false, generation: session.generation + 1 }; coordinator.clear(); },
     advance: (ms: number) => { now += ms; },
   };
@@ -162,6 +164,17 @@ describe('FederatedSignInCoordinator', () => {
     h.coordinator.documentConnected(1, 'https://accounts.google.com/v3/signin/identifier?continue=https://mail.google.com', undefined);
     h.coordinator.documentConnected(1, 'https://news.example.org/', undefined);
     expect(await h.prompt(h.source(1, 'https://news.example.org/'))).toBeNull();
+  });
+
+  it('keeps the returned flow when the service page intent arrives after its document was replaced', async () => {
+    const h = harness();
+    const servicePage: SignInSource = { tabId: 1, browserDocumentId: 'browser-service', documentId: 'document-service-aaaaaa', url: SERVICE };
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    h.coordinator.documentConnected(1, 'https://app.example.com/callback', undefined);
+    h.supersededDocuments.add('browser-service');
+    expect(await h.send({ type: 'intent', provider: 'google' }, servicePage)).toEqual({ status: 'stale' });
+    expect(await h.prompt(h.source(1, 'https://app.example.com/callback'))).toMatchObject({ provider: 'google', state: 'ready' });
   });
 
   it('ignores lookalike provider hosts and does not cross to another service origin', async () => {

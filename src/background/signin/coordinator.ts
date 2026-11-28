@@ -64,6 +64,8 @@ export interface FederatedSignInDeps {
   save(url: string, target: SignInWriteTarget, binding: SignInBinding, label: string,
     stillAuthorized: () => Promise<boolean>, entryName?: string): Promise<{ action: 'created' | 'updated'; vaultId?: string; entryId?: string }>;
   isCurrentDocument(source: SignInSource): Promise<boolean>;
+  /** True once the browser has registered a newer top-frame document in the source tab. */
+  isSupersededDocument(source: SignInSource): boolean;
   notify(tabId: number): void;
   now?: () => number;
   createId?: () => string;
@@ -235,6 +237,9 @@ export class FederatedSignInCoordinator {
     if (origin === null) return { status: 'stale' };
     switch (command.type) {
       case 'intent':
+        // A click that navigates away may be delivered after the provider round trip;
+        // it must not replace the flow that the newer documents advanced.
+        if (this.deps.isSupersededDocument(source)) return { status: 'stale' };
         this.start(source.tabId, origin);
         return { status: 'accepted' };
       case 'suggest':
