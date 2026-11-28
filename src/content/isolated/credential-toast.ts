@@ -129,15 +129,16 @@ export class CredentialCaptureToast {
     header.append(close);
     const site = this.doc.createElement("div");
     site.className = "site";
-    // A locked prompt says what to do in the subtitle instead of where it was detected.
-    site.textContent = this.manualOpen ? this.text('inline.openFromToolbar')
+    // Errors and a locked prompt say what happened in the subtitle instead of where it was detected.
+    site.textContent = this.inlineError ? this.text('captureReview.openError')
+      : this.manualOpen ? this.text('inline.openFromToolbar')
       : prompt.state === 'locked' ? this.text('captureToast.locked')
       : this.text('captureReview.source').replace('{origin}',prompt.notice?.site ?? prompt.site);
-    if (this.manualOpen) site.setAttribute('role', 'alert');
+    if (this.inlineError) site.className = 'site error';
+    if (this.inlineError || this.manualOpen) site.setAttribute('role', 'alert');
     body.append(site);
     if (prompt.state === 'ready') body.append(captureNoticeIdentity(this.doc, prompt.notice ?? {kind:'credential',site:prompt.site,name:prompt.site,detail:''}, prompt.notice?.detail ?? ''));
     this.panel.replaceChildren(header, body);
-    if (this.inlineError) body.append(this.note('captureReview.openError', true));
     if (this.error) body.append(this.note("captureToast.error", true));
 
     const footer = this.doc.createElement("div");

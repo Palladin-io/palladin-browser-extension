@@ -111,11 +111,13 @@ export const CAPTURE_NOTICE_STYLES = `
   .choice-vault { display:block; margin-top:3px; color:var(--cv-t2); font-size:12px; }
   .note { font-size:12px; color:var(--cv-t2); margin:8px 0; }
   .error { color:var(--cv-primary); }
+  .site.error { animation:subtitle-error 220ms ease-out; }
+  @keyframes subtitle-error { from { opacity:0; transform:translateY(-3px); } to { opacity:1; transform:none; } }
   @keyframes notice-appear { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
   .notice-countdown { position:absolute; left:0; right:0; bottom:-1px; height:2px; transform-origin:left; transform:scaleX(0); background:var(--cv-t3); animation:notice-countdown 6s linear forwards; pointer-events:none; }
   :host(:hover) .notice-countdown { animation-play-state:paused; }
   @keyframes notice-countdown { to { transform:scaleX(1); } }
-  @media(prefers-reduced-motion:reduce) { .panel { animation:none; } .notice-countdown { animation-duration:1ms!important; animation-delay:var(--notice-hold,6s); } }
+  @media(prefers-reduced-motion:reduce) { .panel, .site.error { animation:none; } .notice-countdown { animation-duration:1ms!important; animation-delay:var(--notice-hold,6s); } }
 `;
 
 export function captureNoticeIdentity(doc: Document, identity: CaptureNoticeIdentity, detail: string, provider?: SignInProvider): HTMLDivElement {

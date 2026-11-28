@@ -90,12 +90,13 @@ export class SecretCaptureNotice {
       text.replaceChildren();
       const title=this.doc.createElement('h2');title.className='notice-title';title.textContent=copy[this.identity.kind==='card'?'captureReview.saveCard':this.identity.kind==='totp'?'totpCapture.title':'captureReview.saveKey'];
       const origin=this.doc.createElement('div');origin.className='site';origin.textContent=copy['captureReview.source'].replace('{origin}',this.identity.site);
+      if(this.reviewError){origin.className='site error';origin.setAttribute('role','alert');origin.textContent=copy['captureReview.openError'];}
       const type=copy[this.identity.kind==='card'?'entry.typeCard':this.identity.kind==='totp'?'captureReview.authenticator':'captureReview.capturedKey'];
       const detail=this.identity.kind==='card' ? `${this.identity.detail} · ${type}` : this.identity.kind==='totp' && this.identity.detail ? copy['captureReview.totpIdentity'].replace('{account}',this.identity.detail) : this.identity.detail || type;
       text.append(title,origin,captureNoticeIdentity(this.doc,{...this.identity,name:this.identity.name||type},detail));
     }
     if (this.locked) text.replaceChildren(this.lockedRow(copy));
-    if (this.reviewError) {
+    if (this.reviewError && !this.identity) {
       const error = this.doc.createElement('p'); error.setAttribute('role', 'alert');
       error.textContent = copy['captureReview.openError']; text.append(error);
     }

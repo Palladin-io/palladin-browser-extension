@@ -198,13 +198,14 @@ export class FederatedSignInSurface {
     header.append(this.close(() => this.perform({ type: 'dismiss', promptId: prompt.id })));
     const site = this.doc.createElement('div');
     site.className = 'site';
-    site.textContent = this.manualOpen ? this.text('inline.openFromToolbar')
+    site.textContent = this.inlineError ? this.text('captureReview.openError')
+      : this.manualOpen ? this.text('inline.openFromToolbar')
       : prompt.state === 'locked' ? this.text('signInToast.locked')
       : this.text('captureReview.source').replace('{origin}', prompt.site);
-    if (this.manualOpen) site.setAttribute('role', 'alert');
+    if (this.inlineError) site.className = 'site error';
+    if (this.inlineError || this.manualOpen) site.setAttribute('role', 'alert');
     body.append(site);
     this.panel.replaceChildren(header, body);
-    if (this.inlineError) body.append(this.paragraph('captureReview.openError', true));
     if (prompt.error === 'save-failed') body.append(this.paragraph('signInToast.error', true));
     const footer = this.footer(prompt.id);
     if (prompt.state === 'ready') {

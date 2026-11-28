@@ -147,6 +147,8 @@ describe('federated sign-in surface', () => {
     ui().getByRole('button', { name: locale === 'pl' ? 'Sprawdź' : 'Review' }).click();
     await vi.advanceTimersByTimeAsync(0);
     expect(ui().getByRole('alert')).toHaveTextContent(locale === 'pl' ? 'Nie udało się otworzyć formularza' : "Couldn't open the review");
+    expect(shadow.querySelector('.site.error')).toHaveTextContent(locale === 'pl' ? 'Nie udało się otworzyć formularza' : "Couldn't open the review");
+    expect(ui().queryByText(locale === 'pl' ? 'Wykryto na' : 'Captured on', { exact: false })).toBeNull();
     expect(ui().getByRole('button', { name: locale === 'pl' ? 'Spróbuj ponownie' : 'Try again' })).toBeVisible();
   });
 
