@@ -162,7 +162,10 @@ try {
   {const frame=await openReview('key'),count=api.writes.length;await frame.getByRole('button',{name:label('Save key'),exact:true}).click();await saved(frame,'key',count,plain=>assert(plain.content.value===key,'key roundtrip'));}
   }
   if(selected('oauth')) {
-  await page.goto('https://app.example.test/oauth');await page.getByRole('link',{name:'Continue with Google'}).click();await page.getByRole('link',{name:'Allow'}).click();
+  await page.goto('https://app.example.test/oauth');await page.getByRole('link',{name:'Continue with Google'}).click();
+  // A person reads the consent page; a provider document the extension never attached to is not part of the flow.
+  await wait(()=>worker.evaluate(async host=>{for(const tab of await chrome.tabs.query({})){try{if(new URL((await chrome.tabs.sendMessage(tab.id,{channel:'palladin.tab/current-url'},{frameId:0})).url).hostname===host)return true}catch{}}return false},'accounts.google.com'),'provider document observed');
+  await page.getByRole('link',{name:'Allow'}).click();
   {const frame=await openReview('oauth'),count=api.writes.length;
     assert(await frame.getByRole('img',{name:'Google',exact:true}).evaluate(image=>image.complete&&image.naturalWidth>0),'Bundled provider logo loads without catalog response');
     await frame.getByRole('combobox',{name:label('Which Google account did you use?')}).click();
