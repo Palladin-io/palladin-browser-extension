@@ -109,6 +109,16 @@ require a mockup. Do not restart the design from scratch for each feature.
    evidence. Include the mockup revision/link and visual/interaction results in
    the PR; retain the fixture flow as the baseline for subsequent work.
 
+On-page surface map: `design/workbench/notifications.html` in the Palladin root
+renders every surface this extension shows on web pages (capture notices, capture
+review frames, saved confirmations, short page notes, inline autofill suggestions,
+the inline generator and the one-click sign-in toast) from the pinned product
+sources with fictional fixtures, switchable between light/dark and PL/EN. When you
+add or change such a surface, add or update its entry in
+`design/workbench/src/oauth-review/notifications.tsx` in the matching root change
+and check it there in both themes. The popup itself is covered by
+`design/workbench/extension.html`, not by this map.
+
 Extension references: start with `docs/COMPONENT-CATALOG.md`, then
 `docs/POPUP-DESIGN.md` and the selected component source/current consumer.
 Style sources are `src/popup/popup.css`, `src/popup/redesign.css` and

@@ -218,7 +218,7 @@ export class OneClickToast {
 
   /** Only the label moves, so the click target never shifts under the pointer. */
   private action(key: OneClickCopyKey, action: () => void): HTMLButtonElement {
-    const element = this.button('', 'sign-in', action);
+    const element = this.button('', 'secondary sign-in', action);
     const label = this.doc.createElement('span');
     label.textContent = this.text(key);
     element.append(label);

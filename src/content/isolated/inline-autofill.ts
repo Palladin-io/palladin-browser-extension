@@ -1156,7 +1156,17 @@ class InlineWidget {
     countdown.className = "inline-countdown";
     countdown.setAttribute("aria-hidden", "true");
     countdown.addEventListener("animationend", () => this.close());
+    const from = this.panel.hidden ? 0 : this.panel.getBoundingClientRect().height;
     this.panel.replaceChildren(title, countdown, list);
+    this.growFrom(from);
+  }
+
+  private growFrom(from: number): void {
+    const view = this.options.doc.defaultView;
+    if (!from || typeof this.panel.animate !== "function" || view?.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const to = this.panel.getBoundingClientRect().height;
+    if (Math.abs(to - from) < 1) return;
+    this.panel.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 240, easing: "ease-out" });
   }
 
   /** The chosen row keeps its place; its arrow turns into a spinner and the countdown stops. */
@@ -1174,7 +1184,8 @@ class InlineWidget {
     loading.className = "loading";
     loading.setAttribute("role", "status");
     loading.setAttribute("aria-label", message(this.options.locale(), "inline.loading"));
-    for (let index = 0; index < 3; index += 1) {
+    // One placeholder row; the panel then grows to the real list.
+    {
       const row = this.options.doc.createElement("div");
       row.className = "loading-row";
       const text = this.options.doc.createElement("span");
@@ -1404,6 +1415,8 @@ export const INLINE_STYLES = `
   .list { display:flex; flex-direction:column; max-height:264px; overflow:auto; scrollbar-width:thin; scrollbar-color:var(--cv-secondary-border) transparent; }
   .option-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; padding:12px; flex-shrink:0; }
   .option-row + .option-row { border-top:1px solid var(--cv-border); }
+  .list .option-row { animation:inline-row-in 200ms ease-out both; }
+  @keyframes inline-row-in { from { opacity:0; } to { opacity:1; } }
   .option-row:hover { background:var(--cv-hover); }
   .option { display:flex; width:100%; align-items:center; gap:10px; min-width:0; min-height:52px; padding:0; border:0; background:transparent; color:inherit; text-align:left; cursor:pointer; }
   .option:focus-visible { outline:2px solid var(--cv-primary); outline-offset:-3px; border-radius:8px; }
@@ -1431,7 +1444,7 @@ export const INLINE_STYLES = `
   .loading-lines i:last-child { width:40%; height:8px; }
   .loading-action { width:54px; height:30px; }
   @keyframes palladin-loading { from { opacity:.42; } to { opacity:.88; } }
-  @media (prefers-reduced-motion:reduce) { .loading-lines i, .loading-action, .inline-countdown::after, .spinner { animation:none; } }
+  @media (prefers-reduced-motion:reduce) { .loading-lines i, .loading-action, .inline-countdown::after, .spinner, .list .option-row { animation:none; } }
   .status { padding:16px 14px; color:var(--cv-t2); font-size:13px; line-height:1.5; }
   .update-notice { border-left:3px solid var(--cv-primary); }
   .session-required { display:grid; gap:12px; padding:14px; }

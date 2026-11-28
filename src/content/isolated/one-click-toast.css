@@ -58,22 +58,9 @@ button.account:hover {
 .account small {
   pointer-events: none;
 }
+/* Sign in uses the same bordered secondary treatment as Stop. */
 .bar .sign-in {
   flex: none;
-  min-height: 36px;
-  padding: 7px 12px;
-  background: transparent;
-  color: var(--cv-primary);
-  font-size: 13px;
-}
-:host([data-theme="dark"]) .bar .sign-in {
-  color: var(--cv-t1);
-}
-:host([data-theme="dark"]) .bar .sign-in:hover {
-  background: var(--cv-subtle);
-}
-.bar .sign-in:hover {
-  background: rgb(var(--cv-primary-rgb) / 0.09);
 }
 .sign-in span {
   display: block;
