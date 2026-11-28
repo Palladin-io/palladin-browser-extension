@@ -245,7 +245,7 @@ export function GrantsPanel({
               aria-pressed={selected?.id === grant.id}
               onClick={() => void select(grant)}
             >
-              <AgentIcon iconKey={grant.agentIconKey} />
+              <AgentIcon iconKey={grant.agentIconKey} iconColor={grant.agentIconColor} name={grant.agentName} agentId={grant.agentId} />
               <span className="grant-row-content">
                 <strong title={grant.agentName ?? (grant.agentId ? shortId(grant.agentId) : t('grant.agent'))}>{grant.agentName ?? (grant.agentId ? shortId(grant.agentId) : t('grant.agent'))}</strong>
                 <span className="grant-list-resource">
@@ -271,7 +271,7 @@ export function GrantsPanel({
           <div className="entry-detail grant-detail">
             <div className="grant-information">
             <div className="grant-summary-card"><div className="grant-identities">
-<div className="grant-identity-column"><h4>{t('grant.agent')}</h4>            <div className="grant-agent-line"><AgentIcon iconKey={selected.agentIconKey} /><span className="grant-agent-identity"><strong title={selected.agentName ?? t('grant.agent')}>{selected.agentName ?? t('grant.agent')}</strong>
+<div className="grant-identity-column"><h4>{t('grant.agent')}</h4>            <div className="grant-agent-line"><AgentIcon iconKey={selected.agentIconKey} iconColor={selected.agentIconColor} name={selected.agentName} agentId={selected.agentId} /><span className="grant-agent-identity"><strong title={selected.agentName ?? t('grant.agent')}>{selected.agentName ?? t('grant.agent')}</strong>
               <span className="grant-status" data-status={selected.status} data-pending={selected.status === 'pending'}>{states[selected.status] ? t(states[selected.status]!) : selected.status}</span></span>
             </div>
 </div>

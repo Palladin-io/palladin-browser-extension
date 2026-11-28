@@ -18,6 +18,7 @@ The root `design/workbench/COMPONENTS.md` routes the offline mockup workflow.
 | Entry choice | `components/EntryAutocomplete.tsx` | Existing resource selection. |
 | Refresh / copy | `components/RefreshButton.tsx`, `components/CopyButton.tsx` | Preserve pending/clipboard behavior. |
 | Entity identity | `components/EntryIcon.tsx`, `components/AgentIcon.tsx`, `components/EntryGlyph.tsx` | Use the public asset resolver and glyph fallback; no arbitrary remote image URLs. |
+| Agent avatar | `components/AgentIcon.tsx` | Same precedence and colours as web and mobile: uploaded `public-asset:` image (neutral border) → glyph in `iconColor` or its default glyph colour → initials, then robot, tinted from `agentId` (shared palette and code-unit sum). Neutral `.grant-avatar` background with a 1.5px border in the glyph/initials colour. |
 | Icon selection | `components/EntryIconPicker.tsx` | Existing glyph/catalog picker and supported presentation colors. |
 | Public asset loading | `components/PublicAssetImages.tsx` | Shared image resolution; reuse through the existing identity components. |
 | TOTP badge | `components/TotpBadge.tsx` | Existing TOTP affordance; keep secret handling in its owner. |
