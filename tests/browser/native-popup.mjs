@@ -368,7 +368,7 @@ async function connectNativeSurface(worker, profile, extensionId, surface, attac
         && node.properties?.some(property => property.name === 'checked' && String(property.value.value) === String(checked))),
       `switch ${name}: ${checked}`)
     },
-    async waitText(text, timeoutMs) { await wait(() => evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`), text, timeoutMs) },
+    async waitText(text, timeoutMs) { try { await wait(() => evaluate(`document.body.innerText.includes(${JSON.stringify(text)})`), text, timeoutMs) } catch (error) { console.log('DBG popup text', JSON.stringify(await evaluate('document.body.innerText.slice(0, 400)').catch(() => 'n/a'))); console.log('DBG popup view', JSON.stringify(await command('Runtime.evaluate', { expression: `chrome.runtime.sendMessage({type:'popup/view/get'})`, awaitPromise: true, returnByValue: true }).then(r => r.result.value).catch(() => 'n/a'))); throw error } },
     async screenshot(file) { await wait(() => evaluate('document.getAnimations().every(animation => animation.effect?.getComputedTiming().iterations === Infinity || animation.playState !== "running")'), 'finite UI transitions settled'); const { data } = await command('Page.captureScreenshot'); await writeFile(file, Buffer.from(data, 'base64')) },
     async dismiss() {
       await send('Target.closeTarget', { targetId: target.targetId });
