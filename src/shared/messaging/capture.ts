@@ -223,7 +223,7 @@ export type GeneratorPreviewCommand = GeneratorPreviewBinding & (
   | { type: 'use'; previewId: string; operationId: string }
   | { type: 'dismiss'; previewId?: string }
 );
-export type GeneratorPreviewResult = CaptureGeneratedFillResult | { status: 'dismissed' }
+export type GeneratorPreviewResult = CaptureGeneratedFillResult | { status: 'dismissed' } | { status: 'locked' }
   | { status: 'preview'; previewId: string; value: string; expiresAt: number };
 export function isGeneratorPreviewCommand(value: unknown): value is GeneratorPreviewCommand {
   if (!isRecord(value) || value.channel !== GENERATOR_PREVIEW_CHANNEL || !isOpaqueId(value.documentId) || !isOpaqueId(value.candidateId)) return false;

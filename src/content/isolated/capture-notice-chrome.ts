@@ -95,6 +95,9 @@ export const CAPTURE_NOTICE_STYLES = `
   .notice-identity-text strong { display:block;font-size:13px;font-weight:600; }
   .notice-identity-text small { display:block;font-size:11px;color:var(--cv-t2); }
   .notice-provider { margin-left:auto; }
+  .notice-locked { display:flex; align-items:center; gap:10px; }
+  .notice-locked .notice-identity-icon svg { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .notice-locked .secondary { margin-left:auto; flex:none; }
   .dismiss-split { position:relative; display:flex; min-width:0; }
   .dismiss-split > .secondary:first-child { border-radius:6px 0 0 6px; border-right:0; }
   .dismiss-split > .dismiss-options { flex:0 0 32px; width:32px; padding:0; border-radius:0 6px 6px 0; display:grid; place-items:center; }

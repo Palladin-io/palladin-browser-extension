@@ -115,3 +115,30 @@ it('removes an open generator and its listeners when runtime invalidation throws
     suggestion.stop();
   }
 });
+
+it('shows the locked row instead of an error and unlocks through the toolbar popup', async () => {
+  const closed = await import('./closed-surface');
+  const original = closed.createClosedSurface;
+  let root!: ShadowRoot;
+  const spy = vi.spyOn(closed, 'createClosedSurface').mockImplementation((doc, name) => {
+    const surface = original(doc, name); root = surface.shadow;
+    return { ...surface, acceptsAction: () => true };
+  });
+  const sendMessage = vi.fn(async (command) => command.type === 'preview' ? { status: 'locked' }
+    : command.type === 'inline/open-palladin' ? { ok: true, kind: 'surface', status: 'unavailable' } : { accepted: true });
+  vi.stubGlobal('chrome', { runtime: { sendMessage }, i18n: { getUILanguage: () => 'en' },
+    storage: { local: { get: async () => ({}) }, onChanged: { addListener: vi.fn(), removeListener: vi.fn() } } });
+  document.body.innerHTML = '<form><input type="password" autocomplete="new-password"></form>';
+  const input = document.querySelector('input')!;
+  vi.spyOn(input, 'getBoundingClientRect').mockReturnValue(new DOMRect(20, 20, 320, 40));
+  const capture = new PasswordCaptureController(document, () => 'https://example.test/signup', 'document_0123456789abcdef'); capture.scan();
+  const suggestion = startGeneratorSuggestion(document, 'document_0123456789abcdef', capture);
+  try {
+    await Promise.resolve(); input.focus();
+    await vi.waitFor(() => expect(root.querySelector('.generator-locked')?.textContent).toBe('LockedUnlock to use a strong passwordUnlock'));
+    expect(root.querySelector('.generator-footer, code')).toBeNull();
+    root.querySelector<HTMLButtonElement>('.generator-locked-action')!.click();
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'inline/open-palladin', documentId: 'document_0123456789abcdef' })));
+    await vi.waitFor(() => expect(root.querySelector('.generator-locked small')?.textContent).toContain('Extensions menu'));
+  } finally { suggestion.stop(); spy.mockRestore(); }
+});

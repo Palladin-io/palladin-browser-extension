@@ -19,7 +19,10 @@ it('keeps notice closed, value-free, input-free and rejects a synthetic consent 
   expect(host.shadowRoot).toBeNull(); expect(root.querySelector('input,textarea,select')).toBeNull();
   expect(root.textContent).toContain('A key or payment card is ready to review');
   root.querySelector('button')!.click(); expect(actions).toBe(0);
-  notice.show(true); expect(root.textContent).toContain('Nothing was retained');
+  notice.show(true);
+  expect(root.querySelector('.notice-locked')?.textContent).toBe('LockedUnlock and try againUnlock');
+  expect(root.querySelector('.notice-footer')).toBeNull();
+  expect(root.querySelector('.notice-countdown')).not.toBeNull();
   notice.stop(); expect(document.querySelector('palladin-capture')).toBeNull(); spy.mockRestore();
 });
 
