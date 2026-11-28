@@ -734,7 +734,6 @@
   "captureReview.rememberMethod": "Remember sign-in method",
   "captureReview.entryName": "Entry name",
   "captureReview.totpIdentity": "Account: {account} · Authenticator",
-  "captureReview.vaultLocation": "Vault: {name}",
   "captureReview.totpSavedBadge": "Authenticator already saved",
   "captureReview.totpReplaceFor": "Replace the saved authenticator for {name}",
   "generator.inlinePreviewError": "Could not generate a password. Unlock Palladin and try again.",

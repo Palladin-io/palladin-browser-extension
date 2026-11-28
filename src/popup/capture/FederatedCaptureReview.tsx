@@ -94,7 +94,7 @@ export function FederatedCaptureReview({ review, send, onDone, onSaved, onOpenCa
 
   return <CaptureReview title={t('captureReview.rememberMethod')} origin={prompt.site}
     name={name} detail={stage === 'saved' ? `${provider} · ${savedLabel}` : creating ? t('captureReview.newEntryIn', { vault: target.vaultLabel })
-      : target ? t('captureReview.vaultLocation', { name: target.vaultLabel }) : ''}
+      : target?.vaultLabel ?? ''}
     identity={{ name, type: ENTRY_TYPE_CREDENTIAL, ...(review.icon ? { icon: review.icon } : {}) }}
     identityTrailing={<span className="capture-provider"><img className="sign-in-provider-logo" data-provider={prompt.provider} src={providerLogos[prompt.provider]} alt={provider} /></span>}
     stage={stage} vault={target?.vaultLabel ?? ''} busy={busy} disabled={!ready} saveLabel={t('common.save')}

@@ -734,7 +734,6 @@
   "captureReview.rememberMethod": "Zapamiętaj metodę logowania",
   "captureReview.entryName": "Nazwa wpisu",
   "captureReview.totpIdentity": "Konto: {account} · 2FA",
-  "captureReview.vaultLocation": "Vault: {name}",
   "captureReview.totpSavedBadge": "2FA już zapisane",
   "captureReview.totpReplaceFor": "Zastąp zapisane 2FA dla {name}",
   "generator.inlinePreviewError": "Nie udało się wygenerować hasła. Odblokuj Palladin i spróbuj ponownie.",
