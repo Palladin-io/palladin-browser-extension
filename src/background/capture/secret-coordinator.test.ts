@@ -187,6 +187,16 @@ it('tells a late save that the review timed out, Palladin locked or the page cha
   expect(timed.writes() + locked.writes() + moved.writes()).toBe(0);
 });
 
+it('reports expiry when the real three-minute timer removed the capture first', async () => {
+  vi.useFakeTimers();
+  try {
+    const f = fixture(); const observed = await f.coordinator.observe(candidate, source);
+    await vi.advanceTimersByTimeAsync(180_000);
+    expect(await f.coordinator.save('id' in observed ? observed.id : '', 'v', entry)).toEqual({ status: 'expired' });
+    expect(f.writes()).toBe(0);
+  } finally { vi.useRealTimers(); }
+});
+
 it('mutes all queued candidates for the site while retaining a different site', async () => {
   const f = fixture(); const first = await f.coordinator.observe(candidate, source);
   const second = await f.coordinator.observe({ ...candidate, value: 'synthetic-other-key' }, { ...source, url: 'https://other.example.test/keys' });

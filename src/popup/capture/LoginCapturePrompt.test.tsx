@@ -322,6 +322,16 @@ it('restores partial form edits and update consent without reading or saving dur
  expect(open).toHaveBeenCalledWith(false,expect.objectContaining({targetId:'one',autoUpdate:true,form:expect.objectContaining({customFields:draft.form.customFields})}));
  expect(send).not.toHaveBeenCalled();
 });
+it('reloads a handed-off target without form edits before an update can save it', async () => {
+ const send=vi.fn(async (command: import('../../shared/messaging/native-login-capture').NativeLoginCaptureCommand) => command.type === 'get'
+  ? { status: 'review' as const, review: { ...review, entry: { ...review.entry, label: 'Bob entry', username: 'bob' } } } : { status: 'saved' as const, action: 'updated' as const });
+ const draft={kind:'login' as const,targetId:'two',accountId:'',methodMode:'update' as const,entryName:'',autoUpdate:false,replace:false,form:null};
+ render(<LoginCapturePrompt initialExpanded initialDraft={draft} review={{...review,prompt:{...review.prompt,defaultTargetId:'one'}}} send={send} onDone={()=>{}}/>);
+ await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'get', targetId: 'two' })));
+ await waitFor(() => expect(screen.getByRole('button',{name:'Update password'})).toBeEnabled());
+ fireEvent.click(screen.getByRole('button',{name:'Update password'}));
+ await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'save', targetId: 'two', entry: expect.objectContaining({ label: 'Bob entry', username: 'bob' }) })));
+});
 it.each(['credential', 'federated'] as const)('mutes %s capture only after selecting the site action and retains review after failure', async kind => {
  const input: NativeLoginCaptureReview = kind === 'credential' ? {...review,prompt:{...review.prompt,defaultTargetId:'one'}} : {kind:'federated',prompt:{id:'capture',site:'accounts.example.com',state:'ready',provider:'google',accounts:[],defaultAccountId:null,targets:[],defaultTargetId:null}};
  const send=vi.fn().mockResolvedValueOnce({status:'unavailable'}).mockResolvedValueOnce({status:'dismissed'}),done=vi.fn();

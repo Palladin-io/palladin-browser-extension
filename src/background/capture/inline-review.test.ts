@@ -2,15 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { InlineCaptureReviewSessions } from './inline-review';
 import { INLINE_CAPTURE_REVIEW_CHANNEL as channel } from '../../shared/messaging/inline-capture-review';
 import { NATIVE_LOGIN_CAPTURE_CHANNEL } from '../../shared/messaging/native-login-capture';
+import { SECRET_CAPTURE_CHANNEL } from '../../shared/messaging/secret-capture';
 const sourceSender = { id: 'ext', tab: { id: 1 }, frameId: 0, documentId: 'top', url: 'https://example.com/', documentLifecycle: 'active' } as chrome.runtime.MessageSender;
 const frame = { id: 'ext', tab: { id: 1 }, frameId: 2, documentId: 'frame', url: 'chrome-extension://ext/src/capture-review/index.html', documentLifecycle: 'active' } as chrome.runtime.MessageSender;
-function setup() {
+function setup(overrides: Partial<ConstructorParameters<typeof InlineCaptureReviewSessions>[0]> = {}) {
   let generation = 1, visible = true, live = true, now = 0;
   const owner = {}, port = {};
   const sessions = new InlineCaptureReviewSessions({ runtimeId: 'ext', frameUrl: frame.url!, now: () => now,
     sessionGeneration: () => generation, current: async () => live, attest: async () => visible,
     verifyFrameParent: async () => true, candidate: async () => true,
-    dispatch: async () => ({ status: 'review', review: null }),
+    dispatch: async () => ({ status: 'review', review: null }), ...overrides,
   });
   return { sessions, owner, port, setGeneration: () => { generation++; }, hide: () => { visible = false; }, navigate: () => { live = false; }, expire: () => { now = 180_001; } };
 }
@@ -36,6 +37,14 @@ describe('inline capture capability', () => {
   it.each(['hide', 'navigate', 'setGeneration', 'expire'] as const)('revokes after %s', async action => {
     const f = await opened(); f[action]();
     expect(await f.sessions.dispatch(f.command, frame, f.port)).toEqual({ status: 'stale' });
+  });
+  it('tells the frame why a capture it can no longer reach was refused', async () => {
+    let reachable = true;
+    const f = setup({ candidate: async () => reachable, refusal: async () => ({ status: 'expired' }) });
+    const capability = await f.sessions.mint(sourceSender, { kind: 'secret', captureId: 'capture', documentId: 'isolated' }, f.owner);
+    expect(await f.sessions.connect(capability!, frame, f.port)).toBe(true);
+    reachable = false;
+    expect(await f.sessions.dispatch({ channel, capability: capability!, kind: 'secret', command: { channel: SECRET_CAPTURE_CHANNEL, type: 'get' } }, frame, f.port)).toEqual({ status: 'expired' });
   });
   it('rejects another capture and general privileged messages', async () => {
     const f = await opened();

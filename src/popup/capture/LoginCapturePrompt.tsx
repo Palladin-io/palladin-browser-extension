@@ -112,12 +112,17 @@ function CredentialCaptureReview({ review: initialReview, send, onDone, onSaved,
     if (usernameChoice === null && review.usernameOptions) void chooseUsername('email');
     // Without a worker default, the first matching entry is reviewed with its own worker-supplied fields.
     else if (!targetId) { const first = review.prompt.targets.find(value => value.action === 'update'); if (first) void selectTarget(first.id); }
+    // A handed-off choice without form edits must save that Entry's own fields, not the default target's.
+    else if (!initialDraft?.form && targetId !== (review.prompt.defaultTargetId ?? '')) void loadTarget(targetId);
   }, []);
 
   async function selectTarget(value: string) {
     restoredForm.current=undefined; formDraft.current=null;
     setTargetId(value); setAutoUpdate(false); setError(false);
     if (!value) return;
+    await loadTarget(value);
+  }
+  async function loadTarget(value: string) {
     const generation = ++request.current;
     setBusy(true);
     try {

@@ -73,10 +73,12 @@ export class SecretCaptureCoordinator {
     return ids;
   }
   private prune(): void {
-    for (const item of this.pending.values()) if (item.expires <= this.now()) {
-      this.remove(item.id); this.expired.add(item.id);
-      if (this.expired.size > 50) this.expired.delete(this.expired.values().next().value!);
-    }
+    for (const item of this.pending.values()) if (item.expires <= this.now()) this.expire(item.id);
+  }
+  /** Remembers why a capture disappeared, so a late save says it timed out rather than that the page changed. */
+  private expire(id: string): void {
+    this.remove(id); this.expired.add(id);
+    if (this.expired.size > 50) this.expired.delete(this.expired.values().next().value!);
   }
   private async authorized(item: Pending, generation: number, active = false): Promise<boolean> {
     const session = await this.deps.session();
@@ -106,7 +108,7 @@ export class SecretCaptureCoordinator {
     const item: Pending = { id: crypto.randomUUID(), candidate: { ...candidate }, source: { ...source }, session,
       expires: this.now() + 180_000, busy: false };
     this.pending.set(item.id, item);
-    this.timers.set(item.id, setTimeout(() => this.remove(item.id), 180_000));
+    this.timers.set(item.id, setTimeout(() => this.expire(item.id), 180_000));
     return { status: 'accepted', id: item.id, notice: this.notice(item) };
   }
   async contentStatus(source: SecretCaptureSource, dismissId?: string, mute = false): Promise<SecretCaptureResult> {
@@ -201,9 +203,15 @@ export class SecretCaptureCoordinator {
     }
     finally { item.busy = false; }
   }
+  /** Why an operation on this capture was refused; never carries capture contents. */
+  async refusal(id: string): Promise<SecretCaptureResult> {
+    this.prune();
+    if (!(await this.deps.session())?.unlocked) return { status: 'locked' };
+    return { status: !this.pending.has(id) && this.expired.has(id) ? 'expired' : 'stale' };
+  }
   async save(id: string, vaultId: string, entry: ManualEntrySaveInput, operationAuthorized: () => Promise<boolean> = async () => true): Promise<SecretCaptureResult> {
     this.prune(); const item = this.pending.get(id); const generation = this.generation;
-    if (!item) return { status: !(await this.deps.session())?.unlocked ? 'locked' : this.expired.has(id) ? 'expired' : 'stale' };
+    if (!item) return this.refusal(id);
     if (item.dismissed) return { status: 'stale' };
     if (item.busy) return { status: 'busy' };
     item.busy = true;

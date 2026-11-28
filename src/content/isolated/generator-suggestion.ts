@@ -111,6 +111,9 @@ export function startGeneratorSuggestion(doc: Document, documentId: string, capt
     const menuArrow = button('', copy('generator.inlineMore'), 'generator-split-arrow', () => {
       if (openedMenu?.menu === footerMenu) { closeMenu(); return; }
       closeMenu(); footerMenu.hidden = false; menuArrow.setAttribute('aria-expanded', 'true'); openedMenu = { menu: footerMenu, trigger: menuArrow };
+      // Near the bottom of the window the menu opens upwards so its only item stays reachable.
+      delete footerMenu.dataset['up'];
+      if (footerMenu.getBoundingClientRect().bottom > (doc.defaultView?.innerHeight ?? Infinity) - 8) footerMenu.dataset['up'] = 'true';
       optionsToggle.focus();
     });
     menuArrow.setAttribute('aria-haspopup', 'menu'); menuArrow.setAttribute('aria-expanded', 'false');
@@ -149,6 +152,8 @@ export function startGeneratorSuggestion(doc: Document, documentId: string, capt
         if (!active() || request !== id) return;
         if (result.status === 'locked') { showLocked(); return; }
         if (result.status !== 'preview') { status.textContent = copy('generator.inlinePreviewError'); return; }
+        // After unlocking elsewhere, the generator replaces its locked row with the offer again.
+        if (!valueRow.isConnected) card.replaceChildren(valueRow, optionsBody, footer);
         preview = result; value.textContent = result.value; status.hidden = true; use.disabled = false;
         expiry = setTimeout(() => { if (active()) dismiss(); }, Math.max(0, result.expiresAt - Date.now()));
         reposition();
@@ -285,7 +290,7 @@ const GENERATOR_STYLES = `
 .generator-line{padding:10px 12px}.generator-line-text{min-width:0;font-size:12px;color:var(--muted);overflow-wrap:anywhere}.generator-line-text code{color:var(--text)}
 .generator-footer--split{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.generator-split{position:relative;display:flex;min-width:0}.generator-footer .generator-split-main{flex:1;width:auto;min-width:0;border-radius:6px 0 0 6px;border-right:0}.generator-footer .generator-split-arrow{flex:0 0 auto;width:34px;padding:0;display:grid;place-items:center;border-radius:0 6px 6px 0;color:var(--muted)}.generator-split-arrow svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
 .generator-split-menu{position:absolute;z-index:2;top:calc(100% + 6px);left:0;width:max-content;max-width:280px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px #0003}.generator-footer .generator-split-menu>button{display:block;width:100%;min-height:0;padding:9px 10px;border:0;border-radius:6px;background:transparent;text-align:left;font-weight:500}.generator-split-menu>button:hover{background:var(--wash)}.generator-panel:has(.generator-split){overflow:visible}
-.generator-locked{display:flex;align-items:center;gap:10px;padding:12px}.generator-locked-icon{display:grid;place-items:center;flex:0 0 32px;width:32px;height:32px;border:1px solid var(--line);border-radius:8px;color:var(--muted)}.generator-locked-icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.generator-locked-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.generator-locked-text strong{font-size:13px;line-height:1.35}.generator-locked-text small{font-size:12px;color:var(--muted);overflow-wrap:anywhere}.generator-locked-action{flex:none;min-height:32px;padding:0 12px;font-size:13px}
+.generator-split-menu[data-up]{top:auto;bottom:calc(100% + 6px)}.generator-locked{display:flex;align-items:center;gap:10px;padding:12px}.generator-locked-icon{display:grid;place-items:center;flex:0 0 32px;width:32px;height:32px;border:1px solid var(--line);border-radius:8px;color:var(--muted)}.generator-locked-icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.generator-locked-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.generator-locked-text strong{font-size:13px;line-height:1.35}.generator-locked-text small{font-size:12px;color:var(--muted);overflow-wrap:anywhere}.generator-locked-action{flex:none;min-height:32px;padding:0 12px;font-size:13px}
 @media(prefers-reduced-motion:reduce){.generator-options{transition:none}}
 `;
 

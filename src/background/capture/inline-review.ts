@@ -18,6 +18,8 @@ export interface InlineCaptureReviewDependencies {
   navigateDraft?(kind: InlineCaptureKind, captureId: string, source: SecretCaptureSource): Promise<boolean>;
   navigateSaved?(receipt: {vaultId:string;entryId:string}, source: SecretCaptureSource): Promise<boolean>;
   candidate(kind: InlineCaptureKind, id: string, source: SecretCaptureSource): Promise<boolean>;
+  /** The refusal shown when an authorized-looking operation can no longer reach its capture; defaults to stale. */
+  refusal?(kind: InlineCaptureKind, id: string): Promise<InlineCaptureReviewResult>;
   dispatch(command: InlineCaptureReviewCommand, source: SecretCaptureSource, captureId: string, authorized: () => Promise<boolean>): Promise<InlineCaptureReviewResult>;
 }
 interface Session extends Request {
@@ -111,7 +113,8 @@ export class InlineCaptureReviewSessions {
         } catch {this.dropDraft(key);return {status:'stale'};}
         this.sessions.delete(raw.capability); return {status:'dismissed'};
       }
-      if (!await authorized() || !await this.deps.candidate(session.kind, session.captureId, session.source) || !await authorized()) return { status: 'stale' };
+      if (!await authorized() || !await this.deps.candidate(session.kind, session.captureId, session.source) || !await authorized())
+        return await this.deps.refusal?.(session.kind, session.captureId) ?? { status: 'stale' };
       const result = await this.deps.dispatch(raw, session.source, session.captureId, authorized);
       if (!await authorized()) return { status: 'stale' };
       if (result.status === 'saved') {

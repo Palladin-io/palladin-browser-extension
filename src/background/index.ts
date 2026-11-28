@@ -257,6 +257,7 @@ const inlineCaptureReview = createInlineCaptureReviewRuntime({
   resolveSource: resolveCaptureSource,
   verifyFrameParent: (frame, source) => source.legacyRouteId ? currentCaptureDocument(source) : verifyInlineReviewFrame(frame, source),
   candidate: matchesInlineCapture,
+  refusal: async (kind, id) => kind === 'secret' ? secretCaptureCoordinator.refusal(id) : { status: 'stale' },
   dispatch: dispatchInlineCapture,
   navigateDraft: (kind, id, source) => openCaptureDestination(source, { ...emptyPopupView(), view: 'capture', pendingCapture: {kind,id} }),
   navigateSaved: (receipt, source) => openCaptureDestination(source, { ...emptyPopupView(), selected: {id:receipt.entryId,vaultId:receipt.vaultId} }),

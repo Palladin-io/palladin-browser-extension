@@ -124,7 +124,9 @@ it('shows the locked row instead of an error and unlocks through the toolbar pop
     const surface = original(doc, name); root = surface.shadow;
     return { ...surface, acceptsAction: () => true };
   });
-  const sendMessage = vi.fn(async (command) => command.type === 'preview' ? { status: 'locked' }
+  let locked = true;
+  const sendMessage = vi.fn(async (command) => command.type === 'preview' ? locked ? { status: 'locked' }
+    : { status: 'preview', previewId: 'preview_0123456789abcdef', value: 'synthetic-after-unlock', expiresAt: Date.now() + 60_000 }
     : command.type === 'inline/open-palladin' ? { ok: true, kind: 'surface', status: 'unavailable' } : { accepted: true });
   vi.stubGlobal('chrome', { runtime: { sendMessage }, i18n: { getUILanguage: () => 'en' },
     storage: { local: { get: async () => ({}) }, onChanged: { addListener: vi.fn(), removeListener: vi.fn() } } });
@@ -140,5 +142,9 @@ it('shows the locked row instead of an error and unlocks through the toolbar pop
     root.querySelector<HTMLButtonElement>('.generator-locked-action')!.click();
     await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'inline/open-palladin', documentId: 'document_0123456789abcdef' })));
     await vi.waitFor(() => expect(root.querySelector('.generator-locked small')?.textContent).toBe('Open Palladin from the toolbar'));
+    locked = false;
+    root.querySelector<HTMLButtonElement>('.generator-launcher')!.click();
+    await vi.waitFor(() => expect(root.querySelector('code')?.textContent).toBe('synthetic-after-unlock'));
+    expect(root.querySelector('.generator-locked')).toBeNull();
   } finally { suggestion.stop(); spy.mockRestore(); }
 });

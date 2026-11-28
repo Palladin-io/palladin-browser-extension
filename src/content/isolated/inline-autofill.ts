@@ -1490,7 +1490,7 @@ export const INLINE_STYLES = `
   .loading-lines i:last-child { width:40%; height:8px; }
   .loading-action { width:32px; height:32px; }
   @keyframes palladin-loading { from { opacity:.42; } to { opacity:.88; } }
-  @media (prefers-reduced-motion:reduce) { .loading-lines i, .loading-action, .inline-countdown::after, .spinner, .list .option-row, .notice-row { animation:none; } }
+  @media (prefers-reduced-motion:reduce) { .loading-lines i, .loading-action, .spinner, .list .option-row, .notice-row { animation:none; } .inline-countdown::after { animation-duration:1ms; animation-delay:12s; } }
   .status { padding:16px 14px; color:var(--cv-t2); font-size:13px; line-height:1.5; }
   .notice-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; padding:12px; animation:inline-row-in 200ms ease-out both; }
   .notice-line { display:flex; align-items:center; gap:10px; min-width:0; min-height:52px; }
