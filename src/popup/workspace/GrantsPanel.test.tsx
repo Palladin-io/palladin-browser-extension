@@ -33,6 +33,31 @@ it('keeps expiry visible for a pending grant before approval', async () => {
   expect(screen.getByText('Expires')).toBeInTheDocument();
 });
 
+it.each([
+  ['convenience', 'Convenience', "The Agent's key is stored where the Agent runs, and other programs there can read it."],
+  ['hardened', 'Hardened', "The operating system protects the Agent's key from other programs."],
+] as const)('shows the Agent key protection level with its explanation (%s)', async (level, label, hint) => {
+  const grant = { id: 'pending', vaultId: 'vault', entryId: 'entry', agentName: 'Pending agent', agentKeyProtection: level, status: 'pending', type: 'granular', createdAt: '2026-10-01T10:00:00Z' };
+  const send = vi.fn().mockImplementation(async command => ({ ok: true, data: command.type === 'workspace/review-grant'
+    ? { grant, methods: 1, fields: [] }
+    : { items: [grant], nextCursor: null } }));
+  render(<GrantsPanel client={createWorkspaceClient(send)} revision={0} entries={[]} />);
+  fireEvent.click(await screen.findByRole('button', { name: /Pending agent/ }));
+  expect(await screen.findByText('Key protection')).toBeInTheDocument();
+  expect(screen.getByText(label)).toHaveAttribute('title', hint);
+});
+
+it('omits key protection when the Agent did not declare it', async () => {
+  const grant = { id: 'pending', vaultId: 'vault', entryId: 'entry', agentName: 'Pending agent', status: 'pending', type: 'granular', createdAt: '2026-10-01T10:00:00Z' };
+  const send = vi.fn().mockImplementation(async command => ({ ok: true, data: command.type === 'workspace/review-grant'
+    ? { grant, methods: 1, fields: [] }
+    : { items: [grant], nextCursor: null } }));
+  render(<GrantsPanel client={createWorkspaceClient(send)} revision={0} entries={[]} />);
+  fireEvent.click(await screen.findByRole('button', { name: /Pending agent/ }));
+  await screen.findByText('Expires');
+  expect(screen.queryByText('Key protection')).toBeNull();
+});
+
 it.each([true, false])('exposes active grant revocation only when the API permits it (%s)', async canRevoke => {
   const grant = { id: 'grant', vaultId: 'vault', agentName: 'Active agent', status: 'active', type: 'full', createdAt: '2026-10-01T10:00:00Z', canRevoke };
   const send = vi.fn().mockImplementation(async command => ({ ok: true, data: command.type === 'workspace/revoke-grant' ? null : { items: [grant], nextCursor: null } }));

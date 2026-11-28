@@ -295,6 +295,7 @@ export function GrantsPanel({
             ) : null}
             </div>
             <dl className="grant-metadata">
+              {selected.agentKeyProtection ? <div className="detail-field"><dt>{t('grant.keyProtection')}</dt><dd><span title={t(`grant.keyProtection.${selected.agentKeyProtection}Hint`)} tabIndex={0}>{t(`grant.keyProtection.${selected.agentKeyProtection}`)}</span></dd></div> : null}
               <div className="detail-field"><dt>{t('grant.expiresAt')}</dt><dd>{selected.expiresAt ? <RelativeTime value={selected.expiresAt} /> : t(selected.status === 'pending' ? 'grant.expiryOnApproval' : 'grant.noExpiry')}</dd></div>
               <div className="detail-field"><dt>{t('grant.requestedAt')}</dt><dd><RelativeTime value={selected.createdAt} /></dd></div>
               {selected.createdBy ? <>

@@ -30,6 +30,8 @@ export interface OrgGrant {
   agentAccessEpoch?: number | null;
   agentName?: string | null;
   agentIconKey?: string | null;
+  /** Key-protection tier the Agent declared at pairing; informational only. */
+  agentKeyProtection?: 'hardened' | 'convenience' | null;
   agentPublicKey?: string | null;
   recipientAgentKeyVersion?: number | null;
   agentSigningPublicKey?: string | null;
