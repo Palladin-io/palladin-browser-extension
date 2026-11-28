@@ -332,7 +332,9 @@ export function startFederatedSignIn(doc: Document, documentId: string, isOtherO
     } catch { return null; }
   };
   const refreshPrompt = async () => {
+    console.log('DBG content get', location.pathname);
     const result = await dispatch({ type: 'get' });
+    console.log('DBG content got', location.pathname, result?.status ?? 'null', result?.status === 'prompt' ? result.prompt?.state ?? 'none' : '');
     if (result !== null) surface.showResult(result);
   };
   const suggest = async () => {

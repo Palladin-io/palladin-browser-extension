@@ -139,6 +139,7 @@ export class FederatedSignInCoordinator {
 
   /** Called for every browser-registered top-frame document. */
   documentConnected(tabId: number, url: string, openerTabId: number | undefined): void {
+    console.log('DBG connected', tabId, new URL(url).host + new URL(url).pathname, this.flows.get(tabId)?.phase, openerTabId);
     this.expire();
     const fresh = !this.knownTabs.has(tabId);
     this.knownTabs.add(tabId);
@@ -175,6 +176,7 @@ export class FederatedSignInCoordinator {
     }
     if (origin !== null) this.lastServiceOrigin.set(tabId, origin);
     else this.lastServiceOrigin.delete(tabId);
+    console.log('DBG after', tabId, this.flows.get(tabId)?.phase, this.flows.get(tabId)?.provider);
   }
 
   tabRemoved(tabId: number): void {
@@ -234,6 +236,7 @@ export class FederatedSignInCoordinator {
     if (operationAuthorized && !await operationAuthorized()) return { status: 'stale' };
     this.expire();
     const origin = httpsOrigin(source.url);
+    console.log('DBG dispatch', command.type, new URL(source.url).pathname, this.flows.get(source.tabId)?.phase, this.deps.isSupersededDocument(source));
     if (origin === null) return { status: 'stale' };
     switch (command.type) {
       case 'intent':
@@ -386,6 +389,7 @@ export class FederatedSignInCoordinator {
       || !this.sameService(source.url, flow)) return null;
     const site = hostOf(flow.serviceOrigin);
     const session = await this.deps.getSession();
+    console.log('DBG prompt session', session?.unlocked);
     if (!session?.unlocked) {
       return { id: flow.prompt?.view.id ?? this.createId(), site, provider: flow.provider, state: 'locked',
         accounts: [], targets: [], defaultAccountId: null, defaultTargetId: null };

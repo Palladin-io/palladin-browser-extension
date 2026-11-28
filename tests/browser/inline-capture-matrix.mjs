@@ -30,6 +30,7 @@ try {
   context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: true, viewport: { width: 1200, height: 850 }, locale: 'en-US',
     args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`, '--remote-debugging-port=0'] })
   const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker'); const extensionId = new URL(worker.url()).host
+  worker.on('console', m => { if (m.text().startsWith('DBG')) console.log('W', Date.now() % 100000, m.text()) })
 
   await context.route('https://**/*', route => route.fulfill({contentType:'text/html',body:fixture(new URL(route.request().url()))}));
   const onboarding = context.pages().find(p => p.url().includes('/onboarding/')) ?? await context.waitForEvent('page', { predicate: p => p.url().includes('/onboarding/') })
@@ -39,7 +40,7 @@ try {
   await popup.fill('input[type="email"]', api.email); await popup.fill('input[type="password"]', api.password)
   await popup.click('Sign in'); await popup.waitText('No entries yet.'); await popup.dismiss(); popup = null
   await worker.evaluate(language=>chrome.storage.local.set({'palladin.ui.preferences':{language,theme:'system'}}),language);
-  const page = await context.newPage(); const cdp=await context.newCDPSession(page);
+  const page = await context.newPage(); const cdp=await context.newCDPSession(page); page.on('console', m => { if (m.text().startsWith('DBG')) console.log('P', Date.now() % 100000, m.text()) });
   async function visualVariants(frame, name, stage) {
     for (const theme of ['light','dark']) {
       await page.emulateMedia({colorScheme:theme});

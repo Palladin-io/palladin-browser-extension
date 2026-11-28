@@ -498,7 +498,7 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   if (!isFederatedSignInCommand(raw)) return false;
   void (async () => {
   const source = await federatedSignInSource(raw, sender);
-  if (source === null || sender.tab?.incognito === true) { sendResponse({ status: "stale" }); return; }
+  if (source === null || sender.tab?.incognito === true) { console.log('DBG stale-source', raw.type, sender.documentLifecycle, sender.frameId); sendResponse({ status: "stale" }); return; }
   if (raw.type === "unlock") {
     if (sender.tab?.windowId === undefined) { sendResponse({ status: "unavailable" }); return; }
     void openCapturePopup(sender.tab.windowId)
@@ -508,20 +508,21 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
   }
     await initializeServerConfig();
     const lease = serverOperations.tryAcquire();
-    if (lease === null) { sendResponse({ status: "unavailable" }); return; }
+    if (lease === null) { console.log('DBG nolease', raw.type); sendResponse({ status: "unavailable" }); return; }
     try {
       let result = await federatedSignIn.dispatch(raw, source);
       if (result.status === 'prompt' && result.prompt?.notice) {
         const notice = await resolveCaptureNoticeIcon(result.prompt.notice, url => credentialWriter.captureIcon(url), icon => loadInlineIcon(serverConfig.apiUrl, icon));
-        if (!await currentCaptureDocument({ ...source, frameId: 0, ...(source.browserDocumentId ? { topDocumentId: source.browserDocumentId } : source.legacyRouteId ? { legacyTopRouteId: source.legacyRouteId } : {}) }) || !sessionManager.getKeys()) { sendResponse({status:'stale'}); return; }
+        if (!await currentCaptureDocument({ ...source, frameId: 0, ...(source.browserDocumentId ? { topDocumentId: source.browserDocumentId } : source.legacyRouteId ? { legacyTopRouteId: source.legacyRouteId } : {}) }) || !sessionManager.getKeys()) { console.log('DBG notice-stale'); sendResponse({status:'stale'}); return; }
         result = { ...result, prompt: { ...result.prompt, notice } };
       }
+      console.log('DBG result', raw.type, result.status, result.status === 'prompt' ? result.prompt?.state ?? 'null' : '');
       sendResponse(result);
       if (result.status === 'prompt' && result.prompt?.state === 'ready') {
         void chrome.runtime.sendMessage({ type: 'login-capture/available', tabId: source.tabId }).catch(() => undefined);
       }
       if (result.status === "saved") publishSurfaceState(vaultChanged());
-    } catch { sendResponse({ status: "unavailable" }); }
+    } catch (e) { console.log("DBG throw", String(e)); sendResponse({ status: "unavailable" }); }
     finally { lease.release(); }
   })();
   return true;
