@@ -43,8 +43,9 @@ describe("inline autofill field discovery", () => {
       match: "exact" as const,
     };
 
-    expect(suggestionDetail(suggestion, "en")).toBe("Vault: TMo 10");
-    expect(suggestionDetail(suggestion, "pl")).toBe("Sejf: TMo 10");
+    expect(suggestionDetail(suggestion, "en")).toBe("TMo 10 · rogal_s_days");
+    expect(suggestionDetail(suggestion, "pl")).toBe("TMo 10 · rogal_s_days");
+    expect(suggestionDetail({ ...suggestion, username: "allegro.pl" }, "en")).toBe("TMo 10");
   });
 
   it("identifies a related host", () => {
@@ -60,7 +61,7 @@ describe("inline autofill field discovery", () => {
     };
 
     expect(suggestionDetail(suggestion, "en"))
-      .toBe("Related site: 1login.wp.pl · Vault: Personal");
+      .toBe("Related site: 1login.wp.pl · Personal · ada@wp.pl");
   });
 
   it("submits only the form owning the launcher field", () => {
@@ -472,6 +473,35 @@ describe("inline autofill field discovery", () => {
     subject.stop();
   });
 
+  it("closes the menu from its close button and when the countdown ends", async () => {
+    const nativeAttachShadow = Element.prototype.attachShadow;
+    const attachShadow = vi.spyOn(Element.prototype, "attachShadow").mockImplementation(function (
+      this: Element, init: ShadowRootInit,
+    ) { return nativeAttachShadow.call(this, { ...init, mode: "open" }); });
+    document.body.innerHTML = `<form><input autocomplete="username" value="typed"><input type="password"></form>`;
+    const subject = startInlineAutofill(document, "a".repeat(32), async () => ({
+      ok: true, kind: "suggestions", status: "ready", entries: [{
+        vaultId: "vault-id", entryId: "entry-id", name: "Shopping account", username: "shopper",
+        vaultName: "Personal", urlDomain: "example.com", updatedAt: "2026-10-17T00:00:00Z", match: "exact",
+      }],
+    }));
+    try {
+      const root = document.querySelector("palladin-autofill")!.shadowRoot!;
+      const panel = root.querySelector<HTMLElement>(".panel")!;
+      const open = async () => {
+        root.querySelector<HTMLButtonElement>(".launcher")!.click();
+        await vi.waitFor(() => expect(root.querySelector(".option")).not.toBeNull());
+        expect(panel.hidden).toBe(false);
+      };
+      await open();
+      root.querySelector<HTMLButtonElement>(".inline-close")!.click();
+      expect(panel.hidden).toBe(true);
+      await open();
+      root.querySelector(".inline-countdown")!.dispatchEvent(new Event("animationend"));
+      expect(panel.hidden).toBe(true);
+    } finally { subject.stop(); attachShadow.mockRestore(); }
+  });
+
   it("shows the entry name above a numeric login without a letter avatar", async () => {
     const nativeAttachShadow = Element.prototype.attachShadow;
     const attachShadow = vi.spyOn(Element.prototype, "attachShadow").mockImplementation(function (
@@ -489,8 +519,7 @@ describe("inline autofill field discovery", () => {
       const root = document.querySelector("palladin-autofill")!.shadowRoot!;
       root.querySelector<HTMLButtonElement>(".launcher")!.click();
       await vi.waitFor(() => expect(root.querySelector(".option strong")?.textContent).toBe("Shopping account"));
-      expect(root.querySelector(".entry-name")?.textContent).toBe("12345678");
-      expect(root.querySelector(".option")?.textContent).toContain("Vault: Personal");
+      expect(root.querySelector(".entry-name")?.textContent).toBe("Personal · 12345678");
       expect([...root.querySelectorAll(".option strong")].map(el => el.textContent)).toEqual(["Shopping account", "Shopping account"]);
       expect(root.querySelector(".entry-icon img")?.getAttribute("src")).toBe("data:image/png;base64,iVBORw0KGgo=");
       expect(root.querySelector(".account-avatar")).toBeNull();

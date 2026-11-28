@@ -227,6 +227,7 @@
   "inline.submitNotFound": "Login filled, but Palladin couldn't find the sign-in button. Click it yourself to continue.",
   "inline.blocked": "Palladin blocked this fill for your safety.",
   "inline.vault": "Vault",
+  "inline.close": "Close Palladin suggestions",
   "inline.related": "Related site",
   "capture.registration": "New password form detected",
   "capture.passwordChange": "Password change detected",

@@ -3,6 +3,7 @@ import { clearAutomaticFillProvenance, discardAutomaticFillProvenance } from './
 import en from "../../popup/locales/en.json";
 import pl from "../../popup/locales/pl.json";
 import palladinIconUrl from "../../../icons/icon-32.png?inline";
+import brandGrainUrl from "../../popup/assets/brand-grain.svg?inline";
 import { createClosedSurface } from "./closed-surface";
 import {
   DEFAULT_UI_PREFERENCES,
@@ -95,7 +96,7 @@ type InlineKey =
   | "inline.noForm"
   | "inline.submitNotFound"
   | "inline.blocked"
-  | "inline.vault"
+  | "inline.close"
   | "inline.related";
 
 export function startInlineAutofill(
@@ -623,8 +624,7 @@ class InlineAutofillController {
         const option = this.doc.createElement('button'); option.type = 'button'; option.className = 'option';
         const text = this.doc.createElement('span'); text.className = 'entry-text';
         const name = this.doc.createElement('strong'); name.textContent = entry.name; text.append(name);
-        if (entry.username && entry.username !== entry.name) { const account = this.doc.createElement('span'); account.className = 'entry-name'; account.textContent = entry.username; text.append(account); }
-        const detail = this.doc.createElement('small'); detail.textContent = suggestionDetail(entry, this.locale); text.append(detail);
+        const detail = this.doc.createElement('span'); detail.className = 'entry-name'; detail.textContent = suggestionDetail(entry, this.locale); text.append(detail);
         const icon = this.doc.createElement('span'); icon.className = 'entry-icon'; icon.setAttribute('aria-hidden', 'true'); icon.append(createCredentialIcon(this.doc));
         option.append(icon, text);
         option.addEventListener('click', () => {
@@ -633,7 +633,7 @@ class InlineAutofillController {
         });
         list.append(option);
       }
-      panel.replaceChildren(createInlineTitle(this.doc, this.locale), list); panel.hidden = false;
+      panel.replaceChildren(createInlineTitle(this.doc, this.locale, () => { panel.hidden = true; }), list); panel.hidden = false;
     })(); });
   }
 
@@ -676,12 +676,17 @@ class InlineAutofillController {
   }
 }
 
-function createInlineTitle(doc: Document, locale: UiLocale): HTMLDivElement {
+function createInlineTitle(doc: Document, locale: UiLocale, onClose: () => void): HTMLDivElement {
   const title = doc.createElement('div'); title.className = 'title';
   const icon = createBrandIcon(doc); icon.className = 'title-icon';
   const wordmark = doc.createElement('span'); wordmark.className = 'wordmark'; wordmark.textContent = 'Palladin';
   const suffix = doc.createElement('span'); suffix.className = 'wordmark-tld'; suffix.textContent = '.io'; wordmark.append(suffix);
-  title.setAttribute('aria-label', message(locale, 'inline.title')); title.append(icon, wordmark);
+  title.setAttribute('aria-label', message(locale, 'inline.title'));
+  const close = doc.createElement('button'); close.type = 'button'; close.className = 'inline-close';
+  close.setAttribute('aria-label', message(locale, 'inline.close'));
+  close.append(createIcon(doc, 'M6 6l12 12M18 6 6 18', '0 0 24 24'));
+  close.addEventListener('click', onClose);
+  title.append(icon, wordmark, close);
   return title;
 }
 
@@ -1115,13 +1120,8 @@ class InlineWidget {
       const primary = this.options.doc.createElement("strong");
       primary.textContent = label;
       text.append(primary);
-      if (entry.username && entry.username !== label) {
-        const username = this.options.doc.createElement("span");
-        username.className = "entry-name";
-        username.textContent = entry.username;
-        text.append(username);
-      }
-      const detail = this.options.doc.createElement("small");
+      const detail = this.options.doc.createElement("span");
+      detail.className = "entry-name";
       detail.textContent = suggestionDetail(entry, this.options.locale());
       text.append(detail);
       const icon = this.options.doc.createElement("span");
@@ -1136,21 +1136,37 @@ class InlineWidget {
         icon.replaceChildren(image);
       }
       option.append(icon, text);
-      option.addEventListener("click", () => void this.fill(entry));
-
       const submit = this.options.doc.createElement("button");
       submit.type = "button";
       submit.className = "submit-login";
       submit.title = message(this.options.locale(), "inline.fillAndLogin");
       submit.setAttribute("aria-label", `${submit.title}: ${entry.username || entry.name}`);
-      const submitLabel = this.options.doc.createElement("span");
-      submitLabel.textContent = message(this.options.locale(), "inline.logIn");
-      submit.append(submitLabel);
-      submit.addEventListener("click", () => void this.fill(entry, true));
+      submit.append(createIcon(this.options.doc, "M3 8h9M8.5 4.5 12 8l-3.5 3.5", "0 0 16 16"));
+      const choose = (submitAfterFill: boolean) => {
+        this.showBusy(row, submit);
+        void this.fill(entry, submitAfterFill, false, true);
+      };
+      option.addEventListener("click", () => choose(false));
+      submit.addEventListener("click", () => choose(true));
       row.append(option, submit);
       list.append(row);
     }
-    this.panel.replaceChildren(title, list);
+    // The menu closes itself when the countdown under the header ends, like the one-click sign-in toast.
+    const countdown = this.options.doc.createElement("div");
+    countdown.className = "inline-countdown";
+    countdown.setAttribute("aria-hidden", "true");
+    countdown.addEventListener("animationend", () => this.close());
+    this.panel.replaceChildren(title, countdown, list);
+  }
+
+  /** The chosen row keeps its place; its arrow turns into a spinner and the countdown stops. */
+  private showBusy(row: HTMLElement, submit: HTMLButtonElement): void {
+    this.panel.querySelector(".inline-countdown")?.remove();
+    for (const button of this.panel.querySelectorAll<HTMLButtonElement>(".option, .submit-login")) button.disabled = true;
+    row.dataset["busy"] = "true";
+    const spinner = this.options.doc.createElement("i");
+    spinner.className = "spinner";
+    submit.replaceChildren(spinner);
   }
 
   private renderLoading(): void {
@@ -1176,13 +1192,14 @@ class InlineWidget {
   }
 
   private createTitle(): HTMLDivElement {
-    return createInlineTitle(this.options.doc, this.options.locale());
+    return createInlineTitle(this.options.doc, this.options.locale(), () => this.close());
   }
 
   private async fill(
     entry: InlineAutofillSuggestion,
     submitAfterFill = false,
     silent = false,
+    progressShown = false,
   ): Promise<boolean> {
     let manualGeneration: number | null = null;
     if (!silent) {
@@ -1216,7 +1233,7 @@ class InlineWidget {
     let succeeded = false;
     let workerFilled = false;
     try {
-      if (!silent) this.renderStatus("inline.filling");
+      if (!silent && !progressShown) this.renderStatus("inline.filling");
       let raw: unknown;
       try {
         raw = await this.options.send({
@@ -1298,11 +1315,11 @@ function message(locale: UiLocale, key: InlineKey): string {
   return catalog[key];
 }
 
+/** One line under the entry name: vault first, then the account. */
 export function suggestionDetail(entry: InlineAutofillSuggestion, locale: UiLocale): string {
-  const vault = `${message(locale, "inline.vault")}: ${entry.vaultName}`;
-  return entry.match === "related"
-    ? `${message(locale, "inline.related")}: ${entry.urlDomain} · ${vault}`
-    : vault;
+  const account = entry.username && entry.username !== entry.name ? entry.username : "";
+  return [entry.match === "related" ? `${message(locale, "inline.related")}: ${entry.urlDomain}` : "", entry.vaultName, account]
+    .filter(Boolean).join(" · ");
 }
 
 function resolvedTheme(preference: ThemePreference, view: Window | null): "light" | "dark" {
@@ -1325,6 +1342,17 @@ function createCredentialIcon(doc: Document): SVGSVGElement {
   circle.setAttribute("r", ".5");
   circle.setAttribute("fill", "currentColor");
   icon.append(path, circle);
+  return icon;
+}
+
+function createIcon(doc: Document, d: string, viewBox: string): SVGSVGElement {
+  const ns = "http://www.w3.org/2000/svg";
+  const icon = doc.createElementNS(ns, "svg");
+  icon.setAttribute("viewBox", viewBox);
+  icon.setAttribute("aria-hidden", "true");
+  const path = doc.createElementNS(ns, "path");
+  path.setAttribute("d", d);
+  icon.append(path);
   return icon;
 }
 
@@ -1359,7 +1387,17 @@ export const INLINE_STYLES = `
   .launcher { width:26px; height:26px; padding:2px; border:0; border-radius:8px; background:transparent; box-shadow:none; cursor:pointer; pointer-events:auto; }
   .launcher:hover, .launcher:focus-visible { background:rgba(229,70,69,.1); outline:2px solid rgba(229,70,69,.3); outline-offset:1px; }
   .launcher img { display:block; width:22px; height:22px; object-fit:contain; }
-  .title { display:flex; align-items:center; gap:8px; padding:11px 14px; border-bottom:1px solid var(--cv-border); }
+  .title { position:relative; isolation:isolate; display:flex; align-items:center; gap:8px; padding:11px 14px; border-bottom:1px solid var(--cv-border); background:linear-gradient(110deg, color-mix(in srgb, var(--cv-t3) 4%, var(--cv-card-bg)), var(--cv-card-bg)); }
+  .title::before { content:""; position:absolute; inset:0; z-index:-1; pointer-events:none; background:url('${brandGrainUrl}') repeat; background-size:180px; opacity:.018; mask-image:linear-gradient(to bottom, #000, rgb(0 0 0 / .25)); }
+  :host([data-theme="dark"]) .title::before { opacity:.055; }
+  .inline-close { margin-left:auto; display:grid; place-items:center; width:28px; height:28px; padding:0; border:0; border-radius:6px; background:transparent; color:var(--cv-t2); cursor:pointer; }
+  .inline-close:hover { background:var(--cv-hover); color:var(--cv-t1); }
+  .inline-close:focus-visible { outline:2px solid var(--cv-primary); outline-offset:-2px; }
+  .inline-close svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
+  .inline-countdown { position:relative; height:0; }
+  .inline-countdown::after { content:""; position:absolute; left:0; right:0; top:-1px; height:2px; transform-origin:left; transform:scaleX(0); background:var(--cv-t3); animation:inline-countdown 12s linear forwards; }
+  .panel:hover .inline-countdown::after, .panel:focus-within .inline-countdown::after { animation-play-state:paused; }
+  @keyframes inline-countdown { to { transform:scaleX(1); } }
   .title-icon { display:block; width:20px; height:20px; object-fit:contain; }
   .wordmark { font-size:14px; line-height:1.35; font-weight:800; letter-spacing:-.3px; }
   .wordmark-tld { color:var(--cv-primary); }
@@ -1372,13 +1410,17 @@ export const INLINE_STYLES = `
   .entry-icon { display:flex; align-items:center; justify-content:center; flex:0 0 32px; width:32px; height:32px; border-radius:8px; background:var(--cv-hover); }
   .entry-icon img { display:block; width:24px; height:24px; object-fit:contain; }
   .credential-icon { flex-shrink:0; width:22px; height:22px; color:var(--cv-t2); fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-  .submit-login { display:inline-flex; align-items:center; justify-content:center; min-height:30px; padding:0 10px; border:0; border-radius:6px; background:var(--cv-primary); color:#fff; font-size:11px; line-height:1.2; font-weight:600; white-space:nowrap; cursor:pointer; }
-  .submit-login:hover { background:var(--cv-primary-hover); }
+  .submit-login { display:inline-flex; align-items:center; justify-content:center; width:32px; min-height:32px; padding:0; border:1px solid var(--cv-secondary-border); border-radius:6px; background:var(--cv-card-bg); color:var(--cv-t1); cursor:pointer; }
+  .submit-login:hover { background:var(--cv-hover); }
+  .submit-login svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .option:disabled, .submit-login:disabled { cursor:default; }
+  .spinner { display:block; width:14px; height:14px; border:2px solid var(--cv-secondary-border); border-top-color:var(--cv-t1); border-radius:50%; animation:inline-spin .8s linear infinite; }
+  @keyframes inline-spin { to { transform:rotate(360deg); } }
   .submit-login:focus-visible { outline:2px solid var(--cv-primary); outline-offset:2px; }
   .entry-text { flex:1; display:flex; flex-direction:column; min-width:0; gap:2px; }
   .entry-text strong, .entry-text .entry-name, .entry-text small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .entry-text strong { font-size:13px; line-height:1.35; font-weight:650; }
-  .entry-text .entry-name { color:var(--cv-t2); font-size:11px; line-height:1.4; }
+  .entry-text .entry-name { color:var(--cv-t2); font-size:12px; line-height:1.4; }
   .entry-text small { color:var(--cv-t3); font-size:10px; line-height:1.4; }
   .loading { display:flex; flex-direction:column; }
   .loading-row { display:grid; grid-template-columns:minmax(0,1fr) 58px; align-items:center; min-height:76px; padding:14px; }
@@ -1389,7 +1431,7 @@ export const INLINE_STYLES = `
   .loading-lines i:last-child { width:40%; height:8px; }
   .loading-action { width:54px; height:30px; }
   @keyframes palladin-loading { from { opacity:.42; } to { opacity:.88; } }
-  @media (prefers-reduced-motion:reduce) { .loading-lines i, .loading-action { animation:none; } }
+  @media (prefers-reduced-motion:reduce) { .loading-lines i, .loading-action, .inline-countdown::after, .spinner { animation:none; } }
   .status { padding:16px 14px; color:var(--cv-t2); font-size:13px; line-height:1.5; }
   .update-notice { border-left:3px solid var(--cv-primary); }
   .session-required { display:grid; gap:12px; padding:14px; }

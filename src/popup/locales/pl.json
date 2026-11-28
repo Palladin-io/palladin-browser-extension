@@ -227,6 +227,7 @@
   "inline.submitNotFound": "Dane logowania wpisane, ale Palladin nie znalazł przycisku logowania. Kliknij go ręcznie, aby kontynuować.",
   "inline.blocked": "Palladin zablokował to wypełnienie dla bezpieczeństwa.",
   "inline.vault": "Sejf",
+  "inline.close": "Zamknij podpowiedzi Palladin",
   "inline.related": "Powiązana strona",
   "capture.registration": "Wykryto formularz nowego hasła",
   "capture.passwordChange": "Wykryto zmianę hasła",
