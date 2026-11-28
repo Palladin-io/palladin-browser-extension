@@ -801,5 +801,6 @@
   "oneClickSettings.error": "Nie udało się zmienić ustawień. Spróbuj ponownie.",
   "oneClickSettings.description": "Palladin proponuje zalogowanie zapisanym kontem jednym kliknięciem.",
   "oneClickSettings.unmuted": "Usunięto {name}",
-  "oneClickSettings.undo": "Cofnij"
+  "oneClickSettings.undo": "Cofnij",
+  "vault.updateTo": "Zaktualizuj do {version}"
 }

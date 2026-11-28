@@ -1,3 +1,4 @@
+import { UpdateNotice } from '../components/UpdateNotice';
 import { PendingCaptureView } from '../capture/PendingCaptureView';
 import { LoginCaptureSurface } from '../capture/LoginCapturePrompt';
 import { TotpCaptureSurface } from '../capture/TotpCapturePrompt';
@@ -415,7 +416,7 @@ export function UnlockedFooter({
         <PopupIcon name="external" />
         <span>{t('vault.openWebPanel')}</span>
       </button>
-      {version ? <span className="vault-footer-version"><span aria-hidden="true">|</span> {t('settings.version', { version })}</span> : null}
+      <UpdateNotice fallback={version ? <span className="vault-footer-version"><span aria-hidden="true">|</span> {t('settings.version', { version })}</span> : null} />
       </div>
       <div className="vault-footer-actions">
         <button className="toolbar-icon" aria-label={t('vault.lock')} title={t('vault.lock')} disabled={busy !== null} onClick={() => void run('lock', onLock)}>

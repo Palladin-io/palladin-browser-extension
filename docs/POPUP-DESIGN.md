@@ -108,7 +108,9 @@ This is covered through UnlockedScreen and the worker-message transport, not
 only the synthetic preview navigation.
 
 The unlocked footer places the manifest version after Open web panel with a
-vertical separator; Lock and Sign out stay right-aligned. Split-view settings do not duplicate it; standalone locked settings
+vertical separator; Lock and Sign out stay right-aligned. When Chrome has
+downloaded a newer version, a red Update to X action replaces the version label;
+it reloads the extension, which locks the vault. Split-view settings do not duplicate it; standalone locked settings
 retain the version because the workspace footer is absent.
 
 Inbox and Sharing list titles/resource names remain one line with ellipsis and

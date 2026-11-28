@@ -91,6 +91,7 @@ it('places active links first, newest within each group, including appended page
     .mockResolvedValueOnce({ ok: true, data: { items: [item(2, 'active', '2026-10-06'), item(3, 'expired', '2026-10-02')], nextCursor: null } });
   render(<SharingOverview client={createWorkspaceClient(send)} vaultClient={{} as VaultClient} entries={entries.map((entry, i) => ({ ...entry, name: `Entry ${i}` }))} />);
   await screen.findByRole('button', { name: 'Entry 0 · Personal' });
+  await waitFor(() => expect(intersect).toBeDefined());
   act(() => intersect());
   await screen.findByRole('button', { name: 'Entry 2 · Personal' });
   expect(screen.getAllByRole('button', { name: /^Entry/ }).map(button => button.getAttribute('aria-label')))

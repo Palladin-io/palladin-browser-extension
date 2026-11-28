@@ -189,8 +189,10 @@ it('exposes only masked card identity and no key material in page notice metadat
   const f = fixture();
   const card = await f.coordinator.observe({kind:'card',cardNumber:'4242424242424242',cardholderName:'Synthetic',expiryMonth:'05',expiryYear:'2030',cvv:'987'},source);
   expect(card).toMatchObject({status:'accepted',notice:{kind:'card',name:'Visa',site:'pay.example.test',detail:'•••• 4242',cardBrand:'Visa'}});
-  expect(JSON.stringify(card)).not.toContain('4242424242424242');
-  expect(JSON.stringify(card)).not.toContain('987');
+  // The random notice id may contain any digits, so check everything except it.
+  const { id: _cardId, ...cardMetadata } = card as { id?: string };
+  expect(JSON.stringify(cardMetadata)).not.toContain('4242424242424242');
+  expect(JSON.stringify(cardMetadata)).not.toContain('987');
   const key = await f.coordinator.observe(candidate,source);
   expect(key).toMatchObject({status:'accepted',notice:{kind:'key',name:'pay.example.test',detail:''}});
   expect(JSON.stringify(key)).not.toContain(candidate.value);
