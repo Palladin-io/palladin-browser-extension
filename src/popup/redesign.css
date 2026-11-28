@@ -1449,6 +1449,10 @@ html[data-extension-surface='side-panel'] .popup-header {
 .vault-footer-info > .vault-footer-version { font-size: 12px; line-height: 18px; }
 .vault-footer-actions { justify-self: end; }
 .vault-footer-version > span { margin-right: 8px; color: var(--cv-border); }
+.vault-footer-update { display: inline-flex; align-items: center; white-space: nowrap; }
+.vault-footer-update > span { margin-right: 8px; color: var(--cv-border); font-size: 12px; }
+.vault-footer-update .link-btn { gap: 6px; min-height: 0; font-size: 12px; line-height: 18px; color: var(--cv-primary); }
+.vault-footer-update .popup-icon { width: 14px; height: 14px; }
 
 .entry-scope-header { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 .entry-scope-header .entry-icon { width: 30px; height: 30px; flex-shrink: 0; }

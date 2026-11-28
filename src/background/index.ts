@@ -1,3 +1,4 @@
+import { UPDATE_READY_KEY } from "@shared/config/extension-update";
 import { restoreContentScripts } from './restore-content-scripts';
 import { isCaptureDetectedMessage } from '@shared/messaging/capture';
 import { CAPTURE_DOCUMENT_PORT } from '@shared/messaging/capture-document';
@@ -905,6 +906,10 @@ async function removeUnusedServerPermission(
 
 void chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
 
+// Chrome applies a downloaded update when the worker is idle; the popup may apply it now.
+chrome.runtime.onUpdateAvailable.addListener((details) => {
+  void chrome.storage.session.set({ [UPDATE_READY_KEY]: details.version }).catch(() => undefined);
+});
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'update') void restoreContentScripts().catch(() => undefined);
   chrome.alarms.create(SYNC_ALARM, { periodInMinutes: SYNC_PERIOD_MINUTES });
