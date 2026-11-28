@@ -75,7 +75,7 @@ describe('secret capture coordinator', () => {
     const pending = f.coordinator.save(('id' in first ? first.id : ''), 'v', entry); await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
     expect(await f.coordinator.save(('id' in first ? first.id : ''), 'v', entry)).toEqual({ status: 'busy' });
     await vi.waitFor(() => expect(release).toBeTypeOf('function'));
-    f.lock(); release(); expect(await pending).toEqual({ status: 'stale' }); expect(f.writes()).toBe(0);
+    f.lock(); release(); expect(await pending).toEqual({ status: 'locked' }); expect(f.writes()).toBe(0);
   });
 });
 
@@ -172,6 +172,19 @@ it('rejects an observation when its own tab closes during admission', async () =
   expect(await f.coordinator.observe(candidate, source)).toEqual({ status: 'stale' });
   expect(await f.coordinator.review()).toEqual({ status: 'empty' });
   f.coordinator.clear();
+});
+
+it('tells a late save that the review timed out, Palladin locked or the page changed', async () => {
+  const timed = fixture(); const first = await timed.coordinator.observe(candidate, source);
+  timed.setNow(1 + 180_001);
+  expect(await timed.coordinator.save('id' in first ? first.id : '', 'v', entry)).toEqual({ status: 'expired' });
+  const locked = fixture(); const second = await locked.coordinator.observe(candidate, source);
+  locked.lock();
+  expect(await locked.coordinator.save('id' in second ? second.id : '', 'v', entry)).toEqual({ status: 'locked' });
+  const moved = fixture(); const third = await moved.coordinator.observe(candidate, source);
+  moved.navigate();
+  expect(await moved.coordinator.save('id' in third ? third.id : '', 'v', entry)).toEqual({ status: 'stale' });
+  expect(timed.writes() + locked.writes() + moved.writes()).toBe(0);
 });
 
 it('mutes all queued candidates for the site while retaining a different site', async () => {

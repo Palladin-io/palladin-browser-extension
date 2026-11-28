@@ -10,7 +10,8 @@ export function startGeneratorSuggestion(doc: Document, documentId: string, capt
   let surface: ReturnType<typeof createClosedSurface> | null = null;
   let selected: HTMLInputElement | null = null;
   let panel: HTMLDivElement | null = null;
-  let stopped = false, enabled = false, generation = 0;
+  // Dismiss or Escape keeps only the shield on this page until it reloads.
+  let stopped = false, enabled = false, generation = 0, declined = false;
   let preferences = parseUiPreferences(undefined);
   let revoke: (() => void) | null = null;
   const hide = () => { generation++; revoke?.(); revoke = null; capture.cancelGeneration(); surface?.host.remove(); surface = null; selected = null; panel = null; };
@@ -90,7 +91,7 @@ export function startGeneratorSuggestion(doc: Document, documentId: string, capt
       } catch { /* Reload already discarded the worker's preview; finish local disposal. */ }
     };
     revoke = () => { closeMenu(); doc.removeEventListener('pointerdown', outsideMenu); discard(); };
-    const dismiss = () => { closeMenu(); discard(); card.hidden = true; capture.cancelGeneration(); reposition(); };
+    const dismiss = () => { declined = true; closeMenu(); discard(); card.hidden = true; capture.cancelGeneration(); reposition(); };
     function button(text: string, label: string, className: string, action: () => void): HTMLButtonElement {
       const control = doc.createElement('button'); control.type = 'button'; control.className = className; control.textContent = text;
       if (label) { control.setAttribute('aria-label', label); control.title = label; }
@@ -219,7 +220,8 @@ export function startGeneratorSuggestion(doc: Document, documentId: string, capt
     const launcher = button('', copy('generator.inlineSuggest'), 'generator-launcher', () => { card.hidden = false; void refresh(); reposition(); });
     const logo = doc.createElement('img'); logo.src = brandLogoUrl; logo.alt = ''; logo.style.pointerEvents = 'none'; launcher.append(logo);
     card.append(valueRow, optionsBody, footer); current.shadow.append(style, launcher, card);
-    doc.documentElement.append(current.host); reposition(); void refresh();
+    if (declined) card.hidden = true;
+    doc.documentElement.append(current.host); reposition(); if (!declined) void refresh();
     if (typeof ResizeObserver !== 'undefined') {
       const observer = new ResizeObserver(reposition); observer.observe(card);
       const previous = revoke; revoke = () => { observer.disconnect(); previous?.(); };
@@ -227,7 +229,7 @@ export function startGeneratorSuggestion(doc: Document, documentId: string, capt
   };
   const focus = (event: FocusEvent) => { if (event.target === surface?.host) return; if (event.target instanceof HTMLInputElement) show(event.target); else hide(); };
   const input = () => { if (selected?.value) hide(); };
-  const key = (event: KeyboardEvent) => { if (event.key === 'Escape') hide(); };
+  const key = (event: KeyboardEvent) => { if (event.key === 'Escape' && surface) { declined = true; hide(); } };
   const changes = (values: Record<string, chrome.storage.StorageChange>, area: string) => {
     if (area !== 'local' || !(GENERATOR_SUGGESTIONS_KEY in values) && !(UI_PREFERENCES_STORAGE_KEY in values)) return;
     if (GENERATOR_SUGGESTIONS_KEY in values) enabled = values[GENERATOR_SUGGESTIONS_KEY]?.newValue !== false;

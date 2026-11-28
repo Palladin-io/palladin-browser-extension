@@ -1656,6 +1656,7 @@ html[data-extension-surface='side-panel'] .popup-header {
 
 .capture-review-footer[data-saved='true'] > * { animation:capture-footer-enter 180ms ease-out both; }
 /* The saved status takes the Dismiss half, in the same box, joined to its menu arrow. */
+.capture-review-failure { margin:0 20px 16px; color:var(--cv-t1); font-size:13px; line-height:1.45; overflow-wrap:anywhere; }
 .capture-saved-status { flex:1; display:flex; align-items:center; justify-content:center; min-width:0; border:1px solid var(--cv-border); border-radius:6px; background:var(--cv-surface); color:var(--cv-t1); font-size:13px; font-weight:600; }
 .capture-dismiss-split:has(.capture-dismiss-options) > .capture-saved-status { border-radius:6px 0 0 6px; border-right:0; }
 @keyframes capture-footer-enter { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }

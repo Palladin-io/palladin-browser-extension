@@ -238,3 +238,20 @@ it('keeps the secret review on mute failure and sends dismiss separately', async
  await waitFor(()=>expect(done).toHaveBeenCalledTimes(1));
  expect(send).toHaveBeenLastCalledWith(expect.objectContaining({type:'dismiss',id:'capture'}));
 });
+
+it.each([
+  ['duplicate', 'This API key is already in Personal. Nothing was changed.'],
+  ['expired', 'The time to save this ran out. Capture it again.'],
+  ['locked', 'Palladin locked before saving, so nothing was saved. Unlock it and capture again.'],
+  ['stale', 'The page changed before saving, so nothing was saved. Capture it again.'],
+] as const)('explains a %s save in the capture card style without the editor', async (status, message) => {
+  const keyReview = { ...card, candidate: { kind: 'key' as const, value: 'synthetic-secret' } };
+  const send = vi.fn(async (command: SecretCapturePopupCommand) => command.type === 'begin-review' ? keyReview : ({ status } as const));
+  render(<SecretCapturePrompt review={keyReview} client={{} as VaultClient} send={send} onDone={() => {}} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Save key' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(message);
+  expect(screen.getByRole('status')).toHaveTextContent('Not saved');
+  expect(screen.getByRole('button', { name: 'Done' })).toBeEnabled();
+  expect(screen.queryByLabelText('Secret value')).toBeNull();
+});

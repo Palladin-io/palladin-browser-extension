@@ -166,6 +166,7 @@ class InlineAutofillController {
   private readonly totpSurfaces = new Map<HTMLInputElement, { host: HTMLElement; panel: HTMLElement; button: HTMLButtonElement; target: HTMLInputElement[] }>();
   private totpPending: { id: string; target: HTMLInputElement[]; url: string; binding: TotpBinding; intent: "automatic" | "manual" } | null = null;
   private readonly widgets = new Map<HTMLInputElement, InlineWidget>();
+  private suggestionsDeclined = false;
   private observer: MutationObserver | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private readonly observedInputs = new Set<HTMLInputElement>();
@@ -530,6 +531,8 @@ class InlineAutofillController {
         closeOthers: () => {
           for (const other of this.widgets.values()) if (other !== widget) other.close();
         },
+        declined: () => this.suggestionsDeclined,
+        decline: () => { this.suggestionsDeclined = true; },
       });
       this.widgets.set(input, widget);
       widget.mount();
@@ -700,6 +703,9 @@ interface InlineWidgetOptions {
   readonly locale: () => UiLocale;
   readonly theme: () => "light" | "dark";
   readonly closeOthers: () => void;
+  /** After the user closes the suggestions, focus alone does not reopen them until the page reloads. */
+  readonly declined: () => boolean;
+  readonly decline: () => void;
   readonly onAutomaticFill: (entry: InlineAutofillSuggestion) => void;
   readonly onManualFill: () => number;
   readonly onManualSettled: (generation: number, success: boolean) => void;
@@ -957,7 +963,7 @@ class InlineWidget {
     // host filling is a separate, one-shot path below; the chooser opens only
     // for an actual browser user activation.
     const activated = this.options.doc.defaultView?.navigator.userActivation?.isActive === true;
-    if (activated) void this.open("focus");
+    if (activated && !this.options.declined()) void this.open("focus");
   };
 
   /**
@@ -1203,7 +1209,7 @@ class InlineWidget {
   }
 
   private createTitle(): HTMLDivElement {
-    return createInlineTitle(this.options.doc, this.options.locale(), () => this.close());
+    return createInlineTitle(this.options.doc, this.options.locale(), () => { this.options.decline(); this.close(); });
   }
 
   private async fill(

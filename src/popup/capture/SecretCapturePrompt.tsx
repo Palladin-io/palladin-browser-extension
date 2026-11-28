@@ -9,7 +9,6 @@ import { CaptureReview } from './CaptureReview';
 import { FilterSelect } from '../components/FilterSelect';
 import { ENTRY_TYPE_CREDIT_CARD, ENTRY_TYPE_KEY } from '../../background/vault/entry-metadata';
 import { AddEntryForm } from '../entries/AddEntryForm';
-import { Button } from '../components/Button';
 import { useI18n } from '../i18n';
 import type { VaultClient } from '../vault/client';
 
@@ -83,7 +82,7 @@ export function SecretCapturePrompt({ review, client, send = sendSecretCapture, 
   const [selecting, setSelecting] = useState(false);
   const draftReview = selected ?? review;
   const [vaultId, setVaultId] = useState(initialDraft?.vaultId ?? initialTarget?.vaultId ?? review.vaults.find(v => v.isDefault)?.id ?? review.vaults[0]?.id ?? '');
-  const [terminal, setTerminal] = useState<'stale' | 'duplicate' | null>(null);
+  const [terminal, setTerminal] = useState<'stale' | 'expired' | 'locked' | 'duplicate' | null>(null);
   const [actionError, setActionError] = useState(false);
   const selectionGeneration = useRef(0);
   useEffect(() => {
@@ -132,14 +131,14 @@ export function SecretCapturePrompt({ review, client, send = sendSecretCapture, 
     } catch { setActionError(true); }
     finally { setSelecting(false); }
   }
-  if (terminal) return <section className="capture-review"><p role="status">{t(terminal === 'duplicate' ? 'secretCapture.duplicate' : 'secretCapture.expired')}</p><Button onClick={onDone}>{t('captureReview.done')}</Button></section>;
   const card = draftReview.candidate.kind === 'card';
   const name = initialEntry.label;
   const savedDetail = draftReview.candidate.kind === 'card' ? `•••• ${draftReview.candidate.cardNumber.slice(-4)}` : t('entry.typeKey');
   const detail = saved ? savedDetail : draftReview.candidate.kind === 'card' ? `${savedDetail} · ${t('entry.typeCard')}` : t('captureReview.capturedKey');
   return <CaptureReview title={t(card ? draftReview.cardTargets?.length ? 'captureReview.updateCardTitle' : 'captureReview.saveCard' : 'captureReview.saveKey')} updated={!!target}
     origin={new URL(review.origin).hostname} name={name} detail={detail} identity={{ name, type: card ? ENTRY_TYPE_CREDIT_CARD : ENTRY_TYPE_KEY, ...(initialEntry.icon ? { icon: initialEntry.icon } : {}) }}
-    {...(onOpenCapture ? {onIdentity: () => onOpenCapture(saved,{kind:'secret',targetId,vaultId,form:formDraft.current})} : {})} stage={saved ? 'saved' : selected ? 'review' : 'notice'} vault={review.vaults.find(vault => vault.id === vaultId)?.name ?? ''}
+    {...(onOpenCapture && !terminal ? {onIdentity: () => onOpenCapture(saved,{kind:'secret',targetId,vaultId,form:formDraft.current})} : {})} stage={terminal ? 'failed' : saved ? 'saved' : selected ? 'review' : 'notice'}
+    {...(terminal ? { failure: t(terminal === 'duplicate' ? card ? 'secretCapture.duplicateCard' : 'secretCapture.duplicateKey' : terminal === 'locked' ? 'secretCapture.lockedBeforeSave' : `secretCapture.${terminal}`, { vault: review.vaults.find(vault => vault.id === vaultId)?.name ?? '' }) } : {})} vault={review.vaults.find(vault => vault.id === vaultId)?.name ?? ''}
     saveLabel={t(target ? 'captureReview.updateCard' : card ? 'captureReview.saveCardAction' : 'captureReview.saveKeyAction')} saveForm={formId} busy={selecting || saving} disabled={!vaultId || !!selected?.cardTargets?.length && !target && !creatingCard}
     {...(actionError ? { error: t('entry.error') } : {})} onReview={() => void beginReview()} onSave={() => {}} menuActions={selected ? [
       ...(selected.cardTargets ?? []).filter(item => item.id !== target?.id).map(item => ({
@@ -147,7 +146,7 @@ export function SecretCapturePrompt({ review, client, send = sendSecretCapture, 
       ...(target ? [{ label: t('captureReview.createCard'), onSelect: () => { setCreatingCard(true); setTargetId(''); } }] : []),
     ] : []}
     onDismiss={() => void dismiss()} onMute={() => void dismiss(true)} onDone={onDone}>
-    {selected && !saved ? <>
+    {selected && !saved && !terminal ? <>
       {vaultId ? <AddEntryForm key={targetId || "create"} client={client}
         compact={{ ...(target ? {} : { slot: <div className="capture-vault-choice">
           <label className="field-label">{t('captureReview.vault')}</label>
@@ -172,7 +171,7 @@ export function SecretCapturePrompt({ review, client, send = sendSecretCapture, 
           return { status: 'saved' };
         }
         if (result.status === 'review-required') { setSelected(null); setTargetId(''); setActionError(true); }
-        if (result.status === 'duplicate' || result.status === 'stale' || result.status === 'locked') setTerminal(result.status === 'duplicate' ? 'duplicate' : 'stale');
+        if (result.status === 'duplicate' || result.status === 'stale' || result.status === 'expired' || result.status === 'locked') setTerminal(result.status);
         throw Error('Capture save failed');
       }} /> : <p role="status">{t('secretCapture.unavailable')}</p>}
     </> : null}
