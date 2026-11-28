@@ -907,7 +907,7 @@ async function removeUnusedServerPermission(
 void chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
 
 // Chrome applies a downloaded update when the worker is idle; the popup may apply it now.
-chrome.runtime.onUpdateAvailable.addListener((details) => {
+chrome.runtime.onUpdateAvailable?.addListener((details) => {
   void chrome.storage.session.set({ [UPDATE_READY_KEY]: details.version }).catch(() => undefined);
 });
 chrome.runtime.onInstalled.addListener((details) => {
