@@ -3,7 +3,7 @@ import { createCaptureDismiss } from './capture-dismiss';
 import { openInlineCaptureReview } from './capture-review-host';
 import en from '../../popup/locales/en.json';
 import pl from '../../popup/locales/pl.json';
-import { captureNoticeIdentity, captureNoticeHeader, CAPTURE_NOTICE_STYLES } from './capture-notice-chrome';
+import { captureNoticeCountdown, captureNoticeIdentity, captureNoticeHeader, CAPTURE_NOTICE_STYLES } from './capture-notice-chrome';
 import {
   DEFAULT_UI_PREFERENCES, UI_PREFERENCES_STORAGE_KEY, parseUiPreferences, resolveUiLocale,
   type ThemePreference, type UiLocale,
@@ -100,7 +100,7 @@ export class FederatedSignInSurface {
     if (result.status === 'prompt' && result.prompt?.id === this.reviewingId) return;
     if (this.disposed) return;
     if (result.status === 'saved') {
-      this.note('signInToast.saved', 3_000);
+      this.note('signInToast.saved', 6_000);
     } else if (result.status === 'prompt' && result.prompt !== null) {
       if (this.prompt?.id !== result.prompt.id) {
         this.manualOpen = false;
@@ -123,10 +123,12 @@ export class FederatedSignInSurface {
     this.mode = 'note';
     this.prompt = null;
     this.panel.setAttribute('role', 'status');
-    this.panel.replaceChildren(captureNoticeHeader(this.doc), this.bodyTitle(key, name));
+    const header = captureNoticeHeader(this.doc);
+    header.append(this.close(() => this.hide()), captureNoticeCountdown(this.doc, closeAfter, () => this.hide()));
+    this.panel.replaceChildren(header, this.bodyTitle(key, name));
     this.mount();
     if (this.closeTimer !== null) clearTimeout(this.closeTimer);
-    this.closeTimer = setTimeout(() => this.hide(), closeAfter);
+    this.closeTimer = null;
   }
 
   private mount(): void {

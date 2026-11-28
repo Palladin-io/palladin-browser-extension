@@ -43,6 +43,17 @@ export function captureNoticeCloseIcon(doc: Document): SVGSVGElement {
   return icon;
 }
 
+/** Short notes close themselves when this line under the header fills, like the saved confirmation; hover pauses it. */
+export function captureNoticeCountdown(doc: Document, ms: number, onEnd: () => void): HTMLDivElement {
+  const line = doc.createElement('div');
+  line.className = 'notice-countdown';
+  line.setAttribute('aria-hidden', 'true');
+  line.style.animationDuration = `${ms}ms`;
+  line.style.setProperty('--notice-hold', `${ms}ms`);
+  line.addEventListener('animationend', onEnd);
+  return line;
+}
+
 export const CAPTURE_NOTICE_STYLES = `
   :host { color-scheme:light; --cv-primary:#D43E3E; --cv-primary-hover:color-mix(in srgb,var(--cv-primary) 90%,black);
     --cv-bg:#f3f5f8; --cv-surface:#fff; --cv-t3:#5a6478; --cv-grain-opacity:.018; --cv-t1:#0c0e12; --cv-t2:#5a6478;
@@ -98,7 +109,10 @@ export const CAPTURE_NOTICE_STYLES = `
   .note { font-size:12px; color:var(--cv-t2); margin:8px 0; }
   .error { color:var(--cv-primary); }
   @keyframes notice-appear { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
-  @media(prefers-reduced-motion:reduce) { .panel { animation:none; } }
+  .notice-countdown { position:absolute; left:0; right:0; bottom:-1px; height:2px; transform-origin:left; transform:scaleX(0); background:var(--cv-t3); animation:notice-countdown 6s linear forwards; pointer-events:none; }
+  :host(:hover) .notice-countdown { animation-play-state:paused; }
+  @keyframes notice-countdown { to { transform:scaleX(1); } }
+  @media(prefers-reduced-motion:reduce) { .panel { animation:none; } .notice-countdown { animation-duration:1ms!important; animation-delay:var(--notice-hold,6s); } }
 `;
 
 export function captureNoticeIdentity(doc: Document, identity: CaptureNoticeIdentity, detail: string, provider?: SignInProvider): HTMLDivElement {

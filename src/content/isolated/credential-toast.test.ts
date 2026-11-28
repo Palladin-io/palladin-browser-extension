@@ -46,6 +46,20 @@ describe("credential capture toast", () => {
     await vi.advanceTimersByTimeAsync(0);
   }
 
+  it('lets the automatic update note be closed and closes it when its countdown ends', async () => {
+    const host = () => document.querySelector('palladin-capture');
+    toast.show({ status: 'saved', action: 'updated' });
+    expect(shadow.querySelector('.panel')).toHaveAttribute('role', 'status');
+    expect(shadow.querySelector('.panel')).toHaveTextContent('Password updated');
+    expect(shadow.querySelector('.header .notice-countdown')).not.toBeNull();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(host()).not.toBeNull();
+    await click('Close');
+    expect(host()).toBeNull();
+    toast.show({ status: 'saved', action: 'updated' });
+    shadow.querySelector('.notice-countdown')!.dispatchEvent(new Event('animationend'));
+    expect(host()).toBeNull();
+  });
   it('keeps the branded header separate from the two review actions and site mute', () => {
     expect(shadow.querySelector('.notice-brand')?.textContent).toBe('Palladin.io');
     expect(shadow.querySelector('.notice-brand img')).not.toBeNull();

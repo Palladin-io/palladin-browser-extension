@@ -2,7 +2,7 @@ import { createCaptureDismiss } from './capture-dismiss';
 import { openInlineCaptureReview } from './capture-review-host';
 import en from "../../popup/locales/en.json";
 import pl from "../../popup/locales/pl.json";
-import { captureNoticeIdentity, captureNoticeHeader, captureNoticeCloseIcon, CAPTURE_NOTICE_STYLES } from "./capture-notice-chrome";
+import { captureNoticeCountdown, captureNoticeIdentity, captureNoticeHeader, captureNoticeCloseIcon, CAPTURE_NOTICE_STYLES } from "./capture-notice-chrome";
 import type { ThemePreference, UiLocale } from "@shared/config/ui-preferences";
 import {
   CREDENTIAL_CAPTURE_CHANNEL,
@@ -66,10 +66,16 @@ export class CredentialCaptureToast {
     if (this.disposed) return;
     if (result.status === "saved") {
       this.prompt = null;
-      this.panel.replaceChildren(captureNoticeHeader(this.doc), this.bodyTitle(result.action === "updated" ? "captureToast.updated" : "captureToast.saved"));
+      const header = captureNoticeHeader(this.doc);
+      const close = this.button("", "close", () => this.hide());
+      close.append(captureNoticeCloseIcon(this.doc));
+      close.setAttribute("aria-label", this.text("captureReview.close"));
+      header.append(close, captureNoticeCountdown(this.doc, 6_000, () => this.hide()));
+      this.panel.replaceChildren(header, this.bodyTitle(result.action === "updated" ? "captureToast.updated" : "captureToast.saved"));
       this.panel.setAttribute("role", "status");
       this.mount();
-      this.closeTimer = setTimeout(() => this.hide(), 3_000);
+      if (this.closeTimer !== null) clearTimeout(this.closeTimer);
+      this.closeTimer = null;
     } else if (result.status === "prompt" && result.prompt) {
       if (this.prompt?.id !== result.prompt.id) {
         if (this.closeTimer !== null) clearTimeout(this.closeTimer);
