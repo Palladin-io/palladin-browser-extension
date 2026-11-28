@@ -29,7 +29,8 @@ function browserDeps(): UpdateNoticeDeps | null {
   }
 }
 
-export function UpdateNotice({ deps: given }: { deps?: UpdateNoticeDeps }): React.JSX.Element | null {
+/** Replaces the version label once a newer version is downloaded. */
+export function UpdateNotice({ deps: given, fallback = null }: { deps?: UpdateNoticeDeps; fallback?: React.ReactNode }): React.JSX.Element | null {
   const { t } = useI18n()
   const deps = useMemo(() => given ?? browserDeps(), [given])
   const [ready, setReady] = useState<string | null>(null)
@@ -42,7 +43,7 @@ export function UpdateNotice({ deps: given }: { deps?: UpdateNoticeDeps }): Reac
     deps.checkForUpdate()
     return () => { active = false; stop() }
   }, [deps])
-  if (ready === null || deps === null) return null
+  if (ready === null || deps === null) return <>{fallback}</>
   return <span className="vault-footer-update">
     <span aria-hidden="true">|</span>
     <button type="button" className="link-btn" onClick={() => deps?.applyUpdate()}>
