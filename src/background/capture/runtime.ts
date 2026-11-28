@@ -108,9 +108,11 @@ export async function handleGeneratorPreview(raw: unknown, sender: chrome.runtim
   const source = sender.documentId == null ? await resolveCaptureSource(sender, raw.documentId) : captureSourceFromSender(sender, chrome.runtime.id);
   if (source && sender.frameId === 0 && raw.type === 'dismiss') return captureCoordinator.preview(raw, source);
   const keys = sessionManager.getKeys();
-  if (!source || sender.frameId !== 0 || keys === null || sender.documentLifecycle !== undefined && sender.documentLifecycle !== 'active') {
+  if (!source || sender.frameId !== 0 || sender.documentLifecycle !== undefined && sender.documentLifecycle !== 'active') {
     return { status: 'blocked', reason: 'stale-prompt', saveAvailable: false };
   }
+  // The inline autofill menu already tells this document that Palladin is locked; no value is involved.
+  if (keys === null) return { status: 'locked' };
   if (!(await generatorSuggestionsEnabled()) || sessionManager.getKeys() !== keys) return { status: 'blocked', reason: 'stale-prompt', saveAvailable: false };
   const result = await captureCoordinator.preview(raw, source);
   if (sessionManager.getKeys() !== keys) { captureCoordinator.clear(); return { status: 'blocked', reason: 'stale-prompt', saveAvailable: false }; }

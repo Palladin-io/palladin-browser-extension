@@ -1,6 +1,6 @@
 import type { ManualEntrySaveInput } from '../../background/vault/protocol2/service';
 import type { CredentialCapturePrompt, CredentialCaptureResult, UsernameChoice } from './credential-capture';
-import type { FederatedSignInResult, SignInLocale, SignInPrompt } from './federated-signin';
+import { isManualSignInAccount, type FederatedSignInResult, type SignInLocale, type SignInPrompt } from './federated-signin';
 
 export const NATIVE_LOGIN_CAPTURE_CHANNEL = 'palladin.native-login-capture' as const;
 export type CapturedLoginEntry = Extract<ManualEntrySaveInput, { entryType: 'credential' }>;
@@ -10,11 +10,12 @@ export type NativeLoginCaptureCommand = Base & (
   | { type: 'check'; promptId: string }
   | { type: 'save'; promptId: string; targetId: string; autoUpdate: boolean; entry: CapturedLoginEntry }
   | { type: 'choose-username'; promptId: string; choice: UsernameChoice }
-  | { type: 'confirm'; promptId: string; accountId: string; targetId: string; locale: SignInLocale; replace: boolean; entryName?: string }
+  | ({ type: 'confirm'; promptId: string; targetId: string; locale: SignInLocale; replace: boolean; entryName?: string }
+    & ({ accountId: string; account?: never } | { account: string; accountId?: never }))
   | { type: 'dismiss' | 'mute'; kind: 'credential' | 'federated'; promptId: string }
 );
 export type NativeLoginCaptureReview =
-  | { kind: 'credential'; prompt: CredentialCapturePrompt; entry: CapturedLoginEntry }
+  | { kind: 'credential'; prompt: CredentialCapturePrompt; entry: CapturedLoginEntry; usernameOptions?: Readonly<Record<UsernameChoice, string>> }
   | { kind: 'federated'; prompt: SignInPrompt; icon?: string; providerIcon?: string };
 export type NativeLoginCaptureResult =
   | { status: 'review'; review: NativeLoginCaptureReview | null; sourceTabId?: number }
@@ -33,7 +34,8 @@ export function isNativeLoginCaptureCommand(value: unknown, validEntry: (entry: 
     case 'save': return keys('promptId', 'targetId', 'autoUpdate', 'entry') && id('promptId') && id('targetId')
       && typeof item.autoUpdate === 'boolean' && validEntry(item.entry) && item.entry.entryType === 'credential';
     case 'choose-username': return keys('promptId', 'choice') && id('promptId') && (item.choice === 'email' || item.choice === 'nickname');
-    case 'confirm': return keys('promptId', 'accountId', 'targetId', 'locale', 'replace', 'entryName') && id('promptId') && id('accountId') && id('targetId')
+    case 'confirm': return keys('promptId', 'accountId', 'account', 'targetId', 'locale', 'replace', 'entryName') && id('promptId') && id('targetId')
+      && (item.account === undefined ? id('accountId') : item.accountId === undefined && isManualSignInAccount(item.account))
       && (item.locale === 'en' || item.locale === 'pl') && typeof item.replace === 'boolean'
       && (item.entryName === undefined || typeof item.entryName === 'string' && item.entryName.trim().length > 0 && item.entryName.length <= 512 && !/[\u0000-\u001f\u007f]/.test(item.entryName));
     case 'mute':

@@ -10,3 +10,10 @@ it('rejects oversized or foreign fields and invalid options at the private messa
  expect(isCaptureDraft({...base,replace:'true'})).toBe(false);
  expect(isCaptureDraft({kind:'secret',targetId:'',vaultId:'vault',form:{fields:{injected:'value'},customFields:[],methods:[],presentation:{}}})).toBe(false);
 });
+it('carries an optional typed OAuth account within the account length bound',()=>{
+ const login={kind:'login',targetId:'t',accountId:'',methodMode:'update',entryName:'',autoUpdate:false,replace:false,form:null};
+ expect(isCaptureDraft(login)).toBe(true);
+ expect(isCaptureDraft({...login,typedAccount:'octo-cat'})).toBe(true);
+ expect(isCaptureDraft({...login,typedAccount:'x'.repeat(257)})).toBe(false);
+ expect(isCaptureDraft({...login,typedAccount:7})).toBe(false);
+});

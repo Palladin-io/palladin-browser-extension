@@ -2,7 +2,7 @@ import { createCaptureDismiss } from './capture-dismiss';
 import { registrableDomain } from '@shared/security/domain';
 import { openInlineCaptureReview } from './capture-review-host';
 import type { CaptureNoticeIdentity } from '@shared/messaging/capture-notice';
-import { captureNoticeIdentity, captureNoticeHeader, captureNoticeCloseIcon, CAPTURE_NOTICE_STYLES } from './capture-notice-chrome';
+import { captureNoticeCountdown, captureNoticeIdentity, captureNoticeHeader, captureNoticeCloseIcon, CAPTURE_NOTICE_STYLES } from './capture-notice-chrome';
 import en from '../../popup/locales/en.json';
 import pl from '../../popup/locales/pl.json';
 import { DEFAULT_UI_PREFERENCES, UI_PREFERENCES_STORAGE_KEY, parseUiPreferences, resolveUiLocale } from '@shared/config/ui-preferences';
@@ -81,18 +81,22 @@ export class SecretCaptureNotice {
     const header = captureNoticeHeader(this.doc);
     const close=this.doc.createElement('button');close.type='button';close.className='close';close.append(captureNoticeCloseIcon(this.doc));close.setAttribute('aria-label',copy['captureToast.close']);
     close.addEventListener('click',event=>{if(this.surface.acceptsAction(event,close))void this.runAction('dismiss');});
-    header.append(close);panel.append(header);
+    header.append(close);
+    if (this.locked) header.append(captureNoticeCountdown(this.doc, 12_000, () => void this.runAction('dismiss')));
+    panel.append(header);
     const footer = this.doc.createElement('div'); footer.className = 'footer notice-footer';
-    const text = this.doc.createElement('div'); text.className = 'notice-body'; text.textContent = copy[this.locked ? 'secretCapture.locked' : this.kind === 'totp' ? 'totpCapture.notice' : 'secretCapture.notice'];
+    const text = this.doc.createElement('div'); text.className = 'notice-body'; text.textContent = copy[this.kind === 'totp' ? 'totpCapture.notice' : 'secretCapture.notice'];
     if (!this.locked && this.identity) {
       text.replaceChildren();
       const title=this.doc.createElement('h2');title.className='notice-title';title.textContent=copy[this.identity.kind==='card'?'captureReview.saveCard':this.identity.kind==='totp'?'totpCapture.title':'captureReview.saveKey'];
       const origin=this.doc.createElement('div');origin.className='site';origin.textContent=copy['captureReview.source'].replace('{origin}',this.identity.site);
+      if(this.reviewError){origin.className='site error';origin.setAttribute('role','alert');origin.textContent=copy['captureReview.openError'];}
       const type=copy[this.identity.kind==='card'?'entry.typeCard':this.identity.kind==='totp'?'captureReview.authenticator':'captureReview.capturedKey'];
       const detail=this.identity.kind==='card' ? `${this.identity.detail} · ${type}` : this.identity.kind==='totp' && this.identity.detail ? copy['captureReview.totpIdentity'].replace('{account}',this.identity.detail) : this.identity.detail || type;
       text.append(title,origin,captureNoticeIdentity(this.doc,{...this.identity,name:this.identity.name||type},detail));
     }
-    if (this.reviewError) {
+    if (this.locked) text.replaceChildren(this.lockedRow(copy));
+    if (this.reviewError && !this.identity) {
       const error = this.doc.createElement('p'); error.setAttribute('role', 'alert');
       error.textContent = copy['captureReview.openError']; text.append(error);
     }
@@ -103,7 +107,8 @@ export class SecretCaptureNotice {
       button.addEventListener('click', event => { if (!button.disabled && this.surface.acceptsAction(event,button)) void action(); });
       return button;
     };
-    if (!this.locked && this.identity) {
+    if (this.locked) { this.surface.shadow.replaceChildren(style, panel); return; }
+    if (this.identity) {
       this.dismissControl = createCaptureDismiss(this.doc, { button,
         dismissLabel: copy['secretCapture.dismiss'], muteLabel: copy['captureToast.mute'], optionsLabel: copy['captureToast.dismissOptions'],
         site: registrableDomain(`https://${this.identity.site}`) ?? this.identity.site,
@@ -111,8 +116,25 @@ export class SecretCaptureNotice {
       });
       footer.append(this.dismissControl.element);
     } else footer.append(button(copy['secretCapture.dismiss'],'secondary',() => this.runAction('dismiss')));
-    footer.append(button(copy['captureReview.review'],'primary',() => this.runAction('open')));
+    footer.append(button(copy[this.reviewError ? 'captureReview.tryAgain' : 'captureReview.review'],'primary',() => this.runAction('open')));
     panel.append(footer);
     this.surface.shadow.replaceChildren(style, panel);
+  }
+  /** Same row as the locked one-click sign-in: nothing was retained, so the only action is to unlock. */
+  private lockedRow(copy: typeof en): HTMLDivElement {
+    const row = this.doc.createElement('div'); row.className = 'notice-locked';
+    const icon = this.doc.createElement('span'); icon.className = 'notice-identity-icon';
+    const svg = this.doc.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+    const path = this.doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z');
+    svg.append(path); icon.append(svg);
+    const text = this.doc.createElement('span'); text.className = 'notice-identity-text';
+    const title = this.doc.createElement('strong'); title.textContent = copy['secretCapture.locked'];
+    const detail = this.doc.createElement('small'); detail.textContent = copy['secretCapture.lockedDetail'];
+    text.append(title, detail);
+    const unlock = this.doc.createElement('button'); unlock.type = 'button'; unlock.className = 'secondary'; unlock.textContent = copy['inline.unlockPalladin']; unlock.disabled = this.busy;
+    unlock.addEventListener('click', event => { if (!unlock.disabled && this.surface.acceptsAction(event, unlock)) void this.runAction('open'); });
+    row.append(icon, text, unlock);
+    return row;
   }
 }

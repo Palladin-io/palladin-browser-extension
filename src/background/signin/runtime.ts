@@ -1,7 +1,7 @@
 import { capturePreferences } from '../capture/preferences-runtime';
 import { initializeServerConfig, serverConfig } from '../config/server-runtime';
 import { currentLegacyCaptureLogin, captureDocumentRoutes, resolveCaptureSource } from '../capture/document-route-runtime';
-import { FEDERATED_SIGNIN_CHANNEL, type FederatedSignInCommand, type FederatedSignInRefresh } from '@shared/messaging/federated-signin'
+import { FEDERATED_SIGNIN_CHANNEL, MAX_SIGN_IN_PROMPT_ACCOUNTS, type FederatedSignInCommand, type FederatedSignInRefresh } from '@shared/messaging/federated-signin'
 import { isLiveCredentialDocument } from '../capture/credential-document'
 import { captureSourceFromSender } from '../capture/runtime'
 import { sessionManager } from '../session/runtime'
@@ -12,11 +12,15 @@ import { matchesTab, registrableDomain } from '@shared/security/domain'
 import { normalizeSignInAccount, readSignInMethods } from '@shared/signin/binding'
 import { SIGN_IN_PROVIDER_ACCOUNT_DOMAINS } from '@shared/signin/providers'
 import { ENTRY_TYPE_CREDENTIAL } from '../vault/entry-metadata'
+import { env } from '../config/env'
+import { createSignInCompatibilityReporter } from '../telemetry/form-compatibility'
 
 let sessionGeneration = 0
 
 export const federatedSignIn = new FederatedSignInCoordinator({
   preferences: capturePreferences,
+  diagnostic: createSignInCompatibilityReporter({ projectKey: env.posthogKey, ingestHost: env.posthogHost,
+    extensionVersion: chrome.runtime.getManifest().version }),
   getSession: async () => {
     await initializeServerConfig();
     const userId = await sessionManager.getUserId();
@@ -25,7 +29,7 @@ export const federatedSignIn = new FederatedSignInCoordinator({
   providerAccounts: async (provider) => {
     const domains = SIGN_IN_PROVIDER_ACCOUNT_DOMAINS[provider]
     const candidates = (await vaultData.getMetadata()).filter((entry) => entry.type === ENTRY_TYPE_CREDENTIAL
-      && entry.username && domains.includes(registrableDomain(entry.urlDomain) ?? '')).slice(0, 20)
+      && entry.username && domains.includes(registrableDomain(entry.urlDomain) ?? '')).slice(0, MAX_SIGN_IN_PROMPT_ACCOUNTS)
     const accounts = []
     for (const entry of candidates) {
       const account = normalizeSignInAccount(entry.username ?? null)

@@ -43,6 +43,17 @@ export function captureNoticeCloseIcon(doc: Document): SVGSVGElement {
   return icon;
 }
 
+/** Short notes close themselves when this line under the header fills, like the saved confirmation; hover pauses it. */
+export function captureNoticeCountdown(doc: Document, ms: number, onEnd: () => void): HTMLDivElement {
+  const line = doc.createElement('div');
+  line.className = 'notice-countdown';
+  line.setAttribute('aria-hidden', 'true');
+  line.style.animationDuration = `${ms}ms`;
+  line.style.setProperty('--notice-hold', `${ms}ms`);
+  line.addEventListener('animationend', onEnd);
+  return line;
+}
+
 export const CAPTURE_NOTICE_STYLES = `
   :host { color-scheme:light; --cv-primary:#D43E3E; --cv-primary-hover:color-mix(in srgb,var(--cv-primary) 90%,black);
     --cv-bg:#f3f5f8; --cv-surface:#fff; --cv-t3:#5a6478; --cv-grain-opacity:.018; --cv-t1:#0c0e12; --cv-t2:#5a6478;
@@ -84,6 +95,9 @@ export const CAPTURE_NOTICE_STYLES = `
   .notice-identity-text strong { display:block;font-size:13px;font-weight:600; }
   .notice-identity-text small { display:block;font-size:11px;color:var(--cv-t2); }
   .notice-provider { margin-left:auto; }
+  .notice-locked { display:flex; align-items:center; gap:10px; }
+  .notice-locked .notice-identity-icon svg { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .notice-locked .secondary { margin-left:auto; flex:none; }
   .dismiss-split { position:relative; display:flex; min-width:0; }
   .dismiss-split > .secondary:first-child { border-radius:6px 0 0 6px; border-right:0; }
   .dismiss-split > .dismiss-options { flex:0 0 32px; width:32px; padding:0; border-radius:0 6px 6px 0; display:grid; place-items:center; }
@@ -97,8 +111,13 @@ export const CAPTURE_NOTICE_STYLES = `
   .choice-vault { display:block; margin-top:3px; color:var(--cv-t2); font-size:12px; }
   .note { font-size:12px; color:var(--cv-t2); margin:8px 0; }
   .error { color:var(--cv-primary); }
+  .site.error { animation:subtitle-error 220ms ease-out; }
+  @keyframes subtitle-error { from { opacity:0; transform:translateY(-3px); } to { opacity:1; transform:none; } }
   @keyframes notice-appear { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
-  @media(prefers-reduced-motion:reduce) { .panel { animation:none; } }
+  .notice-countdown { position:absolute; left:0; right:0; bottom:-1px; height:2px; transform-origin:left; transform:scaleX(0); background:var(--cv-t3); animation:notice-countdown 6s linear forwards; pointer-events:none; }
+  :host(:hover) .notice-countdown { animation-play-state:paused; }
+  @keyframes notice-countdown { to { transform:scaleX(1); } }
+  @media(prefers-reduced-motion:reduce) { .panel, .site.error { animation:none; } .notice-countdown { animation-duration:1ms!important; animation-delay:var(--notice-hold,6s); } }
 `;
 
 export function captureNoticeIdentity(doc: Document, identity: CaptureNoticeIdentity, detail: string, provider?: SignInProvider): HTMLDivElement {

@@ -24,3 +24,12 @@ it('accepts an edited new-entry name but rejects empty, control-character and ov
  expect(isNativeLoginCaptureCommand(command)).toBe(true);
  for(const entryName of ['', '  ', 'x\nname', 'x'.repeat(513)]) expect(isNativeLoginCaptureCommand({...command,entryName})).toBe(false);
 });
+
+it('accepts exactly one account form and rejects typed accounts that are empty, overlong or contain control characters', () => {
+ const command={channel,type:'confirm',promptId:'p',targetId:'t',locale:'en',replace:false};
+ expect(isNativeLoginCaptureCommand({...command,accountId:'a'})).toBe(true);
+ expect(isNativeLoginCaptureCommand({...command,account:'octo-cat'})).toBe(true);
+ expect(isNativeLoginCaptureCommand(command)).toBe(false);
+ expect(isNativeLoginCaptureCommand({...command,accountId:'a',account:'octo-cat'})).toBe(false);
+ for(const account of ['', '   ', 'a\nb', 'a\u0000b', 'x'.repeat(257), 7]) expect(isNativeLoginCaptureCommand({...command,account})).toBe(false);
+});

@@ -19,7 +19,10 @@ it('keeps notice closed, value-free, input-free and rejects a synthetic consent 
   expect(host.shadowRoot).toBeNull(); expect(root.querySelector('input,textarea,select')).toBeNull();
   expect(root.textContent).toContain('A key or payment card is ready to review');
   root.querySelector('button')!.click(); expect(actions).toBe(0);
-  notice.show(true); expect(root.textContent).toContain('Nothing was retained');
+  notice.show(true);
+  expect(root.querySelector('.notice-locked')?.textContent).toBe('LockedUnlock and try againUnlock');
+  expect(root.querySelector('.notice-footer')).toBeNull();
+  expect(root.querySelector('.notice-countdown')).not.toBeNull();
   notice.stop(); expect(document.querySelector('palladin-capture')).toBeNull(); spy.mockRestore();
 });
 
@@ -29,7 +32,7 @@ it.each(['en', 'pl'])('does not tell the %s user to leave TOTP review before an 
   const spy = vi.spyOn(Element.prototype, 'attachShadow').mockImplementation(function (this: Element, init) { root = attach.call(this, init); return root; });
   const notice = new SecretCaptureNotice(document, async () => {}, 'totp');
   notice.show(false);
-  expect(root.textContent).not.toContain(locale === 'pl' ? 'Otwórz menu rozszerzeń przeglądarki' : 'Open your browser’s Extensions menu and click Palladin to continue.');
+  expect(root.textContent).not.toContain(locale === 'pl' ? 'Otwórz Palladin z paska narzędzi' : 'Open Palladin from the toolbar');
   expect(document.querySelector('palladin-capture')).toBeInTheDocument();
   notice.stop(); spy.mockRestore(); vi.unstubAllGlobals();
 });

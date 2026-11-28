@@ -174,7 +174,7 @@ Then:
     discovery resumes. While a fill is pending, hide or reassociate the username
     control and confirm the password is not written to that or another form.
 
-When Palladin is locked or signed out, use the inline **Open Palladin** action
+When Palladin is locked or signed out, use the inline **Unlock** or **Sign in** action
 and confirm the browser-owned side panel opens on the unlock/sign-in surface.
 
 The inline menu is extension-owned closed Shadow DOM. It may show the username

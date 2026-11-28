@@ -86,13 +86,21 @@ Helpers: `src/shared/signin/binding.ts` (parse/write) and
   (for example `ServiceLogin` or `AccountChooser` without `client_id`) can only
   continue a flow whose provider is already established, even after a click
   intent or a suggestion choice.
+- The email the user submits on `https://accounts.google.com` (trusted Next click
+  or Enter in the identifier field), only while that tab belongs to an unlocked,
+  established Google flow. It stays in worker memory with the flow, replaces an
+  earlier observation, and is written only by an explicit save. Product-owner
+  decision 2026-11-25. Nothing is read while typing; passwords, tokens and other
+  page content are never read. Selecting a row in Google's account chooser is not
+  observed yet: it needs a recorded specimen first.
 - The username of a provider Credential that Palladin itself filled on the
   provider page during the flow (taken from the unlocked MemberIndex).
 
 What it cannot and does not observe: which account the provider actually
 authenticated, whether the service accepted the result, browser-native
 FedCM/One Tap prompts, provider iframes, other browsers, and native apps.
-Palladin never reads provider page text to identify an account.
+Palladin never reads provider page text to identify an account, and the submitted
+Google identifier does not prove which account Google finally authenticated.
 
 ## Flow
 
@@ -106,16 +114,21 @@ Palladin never reads provider page text to identify an account.
    return (query or fragment) cancels silently.
 4. The worker sends a value-free refresh to S. Review expands the closed-shadow
    notification into a capture-only extension-origin iframe to remember the
-   sign-in method. The user must explicitly choose the provider
-   account (Palladin-filled, already remembered, saved provider Credentials or
-   "Account not specified") and where to remember it (an existing exact-host
-   Credential, or a new record only when there is no eligible existing match). A single
-   exact-host target is preselected; ambiguous targets require a choice. Provider
-   accounts are not preselected unless they come from the
-   user's own earlier choice or an explicit (manual) Palladin fill of a
-   Credential on that provider's account domain in this flow. An automatic fill
-   is offered but never preselected, because the user may switch accounts in the
-   provider's chooser; a fill that differs from the chosen account counts as an
+   sign-in method. The review shows the destination Entry card and one account
+   field: a listed provider account (Palladin-filled, already remembered or a
+   saved provider Credential), "Don't specify an account", or an account the
+   user types. A typed account reaches the worker only from the extension-owned
+   review as a separate `account` field, never from a page message, and is stored
+   with `entry: null`. The worker default target, otherwise the first existing
+   exact-host Credential, otherwise a new record in the default Vault, is shown
+   on the card. Other existing Credentials, a new record and editing the new
+   record's name or Vault are explicit choices in the Dismiss arrow menu. Provider
+   accounts are preselected, strongest first, from the observed Google identifier,
+   the user's own earlier choice, a Palladin fill in this flow, or the sole saved
+   account of that provider. Several saved accounts are never guessed. An
+   automatic fill or sole account is only a visible suggestion, because the user
+   may switch accounts in the provider's chooser: it never suppresses the prompt.
+   An observation or fill that differs from the chosen account counts as an
    account switch and still asks. Actions are ignored for 500 ms after the
    surface appears, so a page-triggered prompt cannot capture a pending click.
    Each account choice is one (account, provider Credential) pair: Credentials with

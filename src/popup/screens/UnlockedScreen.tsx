@@ -18,7 +18,6 @@ import { PopupIcon } from '../components/PopupIcon';
 import { EntryDetail } from '../components/EntryDetail';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { CapturePrompt } from '../capture/CapturePrompt';
 import { AddEntryForm } from '../entries/AddEntryForm';
 import { createCaptureClient, type CaptureClient } from '../capture/client';
 import { useCapturePrompt } from '../capture/useCapturePrompt';
@@ -103,7 +102,6 @@ function UnlockedContent({
     if (node) node.scrollTop = navigation.state.scrollTop;
   }, [navigation.state.scrollTop, selected]);
   const vaultOptions = useMemo(() => [...new Map(list.all.map(entry => [entry.vaultId, entry.vaultName])).entries()], [list.all]);
-  const [capturePrompt, setCapturePrompt] = useState(capture.prompt);
   const pendingShare = usePendingShareSave(shareRevision);
   const [heldShare, setHeldShare] = useState<typeof pendingShare>(null);
   const [shareDismissed, setShareDismissed] = useState<string | null>(null);
@@ -167,19 +165,6 @@ function UnlockedContent({
       <SecretCaptureSurface revision={viewRevision} client={client} onOpenEntry={(id, vaultId) => navigation.update({ selected: { id, vaultId }, view: 'vault' })} />
       </div> : null}
       <h2 className="sr-only">{t('vault.title')}</h2>
-      {capture.prompt !== null && view === 'vault' ? (
-        <CapturePrompt
-          prompt={capture.prompt}
-          onUseStrongPassword={() => {
-            setCapturePrompt(capture.prompt);
-            setView('generator');
-          }}
-          onDismiss={() => {
-            setCapturePrompt(null);
-            void capture.dismiss().catch(() => undefined);
-          }}
-        />
-      ) : null}
       <ScrollableTabs label={t('vault.popupView')} activeKey={view}>
         <button
           type="button"
@@ -257,16 +242,16 @@ function UnlockedContent({
         ) : view === 'add-entry' ? (
           <AddEntryForm client={client} onBack={() => setView('vault')} />
         ) : view === 'generator' ? (
-          capturePrompt === null ? (
+          capture.prompt === null ? (
             <GeneratorPanel client={client} />
           ) : (
             <GeneratorPanel
               client={client}
               capture={{
-                site: capturePrompt.site,
+                site: capture.prompt.site,
                 fill: (value) =>
-                  promptClient.fillGenerated(capturePrompt.id, value),
-                save: (value) => promptClient.save(capturePrompt.id, value),
+                  promptClient.fillGenerated(capture.prompt!.id, value),
+                save: (value) => promptClient.save(capture.prompt!.id, value),
               }}
             />
           )

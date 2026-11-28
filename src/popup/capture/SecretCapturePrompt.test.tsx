@@ -22,8 +22,7 @@ it.each(['review', 'failure'])('preserves unrelated editor edits and fences a la
     render(<Surface />); fireEvent.click(await screen.findByRole('button', { name: 'Review' }));
     fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Unsaved name' } });
     fireEvent.change(screen.getByLabelText('Cardholder name'), { target: { value: 'Unsaved holder' } });
-    fireEvent.change(screen.getByLabelText('Expiry month'), { target: { value: '12' } });
-    fireEvent.change(screen.getByLabelText('Expiry year'), { target: { value: '2031' } });
+    fireEvent.change(screen.getByLabelText('Expiry'), { target: { value: '12/2031' } });
     fireEvent.change(screen.getByLabelText('CVV / CVC'), { target: { value: '739' } });
     fireEvent.click(screen.getByRole('combobox', { name: 'Save to Vault' }));fireEvent.click(screen.getByRole('option', { name: 'Team' }));
     await act(async () => { for (const listener of listeners) listener({ type: 'secret-capture/available' }); });
@@ -31,8 +30,7 @@ it.each(['review', 'failure'])('preserves unrelated editor edits and fences a la
     await act(async () => response === 'review' ? release({ ...card, id: 'other-capture' }) : reject(Error('Source invalidated')));
     expect(screen.getByLabelText('Name')).toHaveValue('Unsaved name');
     expect(screen.getByLabelText('Cardholder name')).toHaveValue('Unsaved holder');
-    expect(screen.getByLabelText('Expiry month')).toHaveValue('12');
-    expect(screen.getByLabelText('Expiry year')).toHaveValue('2031');
+    expect(screen.getByLabelText('Expiry')).toHaveValue('12/2031');
     expect(screen.getByLabelText('CVV / CVC')).toHaveValue('739');
     expect(screen.getByRole('combobox', { name: 'Save to Vault' })).toHaveTextContent('Team');
     act(() => { for (const listener of listeners) listener({ type: 'secret-capture/invalidated', candidateIds: [card.id] }); });
@@ -54,7 +52,7 @@ it.each([{ candidateIds: undefined }, { candidateIds: ['capture'] }, { candidate
     await act(async () => release({ ...card, candidate: { kind: 'card', cardNumber: '4111111111111111', cardholderName: 'Latest selected holder', expiryMonth: '12', expiryYear: '2031' } }));
     if (candidateIds?.[0] === 'unrelated') {
       expect(screen.getByLabelText('Cardholder name')).toHaveValue('Latest selected holder');
-      expect(screen.getByLabelText('Expiry month')).toHaveValue('12');
+      expect(screen.getByLabelText('Expiry')).toHaveValue('12/2031');
       expect(screen.queryByRole('button', { name: 'Review' })).not.toBeInTheDocument();
     } else expect(screen.queryByLabelText('Card number')).not.toBeInTheDocument();
   } finally { vi.unstubAllGlobals(); }
@@ -68,8 +66,7 @@ describe('trusted secret capture editor', () => {
     expect(await screen.findByRole('combobox', { name: 'Save to Vault' })).toHaveTextContent('Personal');
     expect(screen.getByLabelText('Card number')).toHaveAttribute('type','password');
     fireEvent.change(screen.getByLabelText('Cardholder name'), { target: { value: 'Synthetic Holder' } });
-    fireEvent.change(screen.getByLabelText('Expiry month'), { target: { value: '08' } });
-    fireEvent.change(screen.getByLabelText('Expiry year'), { target: { value: '2030' } });
+    fireEvent.change(screen.getByLabelText('Expiry'), { target: { value: '082030' } });
     fireEvent.click(screen.getByRole('combobox', { name: 'Save to Vault' }));fireEvent.click(screen.getByRole('option', { name: 'Team' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save card' }));
     await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'save', vaultId: 'team', entry: expect.objectContaining({ cardholderName: 'Synthetic Holder', cardNumber: '4111111111111111', expiryYear: '2030' }) })));
@@ -154,11 +151,38 @@ it.each([false, true])('preselects an authoritative same-card target and preserv
   const send = vi.fn(async (command: SecretCapturePopupCommand) => command.type === 'begin-review' ? captured : { status: 'saved' as const });
   render(<SecretCapturePrompt initialExpanded={initialExpanded} review={captured} client={{} as VaultClient} send={send} onDone={() => {}} />);
   if (!initialExpanded) fireEvent.click(screen.getByRole('button', { name: 'Review' }));
-  expect(await screen.findByRole('combobox', { name: 'Existing card entry' })).toHaveValue('Travel Visa');
-  expect(screen.getByLabelText('Name')).toHaveValue('Travel Visa');
+  expect(await screen.findByText('Travel Visa', { selector: 'strong' })).toBeInTheDocument();
+  expect(screen.queryByRole('combobox')).toBeNull();
+  expect(screen.getByLabelText('Expiry')).toHaveValue('08/2030');
   expect(screen.getByLabelText('CVV / CVC')).toHaveValue('739');
   fireEvent.click(screen.getByRole('button', { name: 'Update card' }));
   await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'update', targetId: 'existing', entry: expect.objectContaining({ notes: 'Keep this note', cvv: '739', cardholderName: 'New Holder' }) })));
+});
+
+it('offers another matching card or a new card only from the Dismiss menu', async () => {
+  const entry = { entryType: 'creditCard' as const, cardNumber: '4111111111111111', cardholderName: 'Old Holder', expiryMonth: '01', expiryYear: '2028' };
+  const captured = { ...card, candidate: { kind: 'card' as const, cardNumber: '4111111111111111', cardholderName: 'New Holder', expiryMonth: '08', expiryYear: '2030' },
+    cardTargets: [{ id: 'travel', vaultId: 'v', revision: 'r', name: 'Travel Visa', vaultName: 'Personal', entry: { ...entry, label: 'Travel Visa' } },
+      { id: 'work', vaultId: 'team', revision: 'r', name: 'Work Visa', vaultName: 'Team', entry: { ...entry, label: 'Work Visa' } }] };
+  const send = vi.fn(async (command: SecretCapturePopupCommand) => command.type === 'begin-review' ? captured : { status: 'saved' as const });
+  render(<SecretCapturePrompt initialExpanded review={captured} client={{} as VaultClient} send={send} onDone={() => {}} />);
+  fireEvent.click(screen.getByRole('button', { name: 'More dismiss options' }));
+  expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Change entry: Work Visa', 'Create a new card', expect.stringContaining("Don't offer")]);
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Create a new card' }));
+  expect(await screen.findByRole('combobox', { name: 'Save to Vault' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Save card' }));
+  await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'save', vaultId: 'v' })));
+});
+
+it('keeps the explicit new-card choice when a draft is handed to the popup', async () => {
+  const entry = { entryType: 'creditCard' as const, label: 'Travel Visa', cardNumber: '4111111111111111', cardholderName: 'Old Holder', expiryMonth: '01', expiryYear: '2028' };
+  const captured = { ...card, candidate: { kind: 'card' as const, cardNumber: '4111111111111111', cardholderName: 'New Holder', expiryMonth: '08', expiryYear: '2030' },
+    cardTargets: [{ id: 'travel', vaultId: 'v', revision: 'r', name: 'Travel Visa', vaultName: 'Personal', entry }] };
+  const send = vi.fn(async () => ({ status: 'saved' as const }));
+  render(<SecretCapturePrompt initialExpanded initialDraft={{ kind: 'secret', targetId: '', vaultId: 'team', form: null }} review={captured} client={{} as VaultClient} send={send} onDone={() => {}} />);
+  expect(await screen.findByRole('combobox', { name: 'Save to Vault' })).toHaveTextContent('Team');
+  fireEvent.click(screen.getByRole('button', { name: 'Save card' }));
+  await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'save', vaultId: 'team' })));
 });
 
 it('retains only the safe saved summary across refresh and opens the committed item', async () => {
@@ -213,4 +237,21 @@ it('keeps the secret review on mute failure and sends dismiss separately', async
  fireEvent.click(screen.getByRole('button',{name:'Dismiss'}));
  await waitFor(()=>expect(done).toHaveBeenCalledTimes(1));
  expect(send).toHaveBeenLastCalledWith(expect.objectContaining({type:'dismiss',id:'capture'}));
+});
+
+it.each([
+  ['duplicate', 'This API key is already in Personal. Nothing was changed.'],
+  ['expired', 'The time to save this ran out. Capture it again.'],
+  ['locked', 'Palladin locked before saving, so nothing was saved. Unlock it and capture again.'],
+  ['stale', 'The page changed before saving, so nothing was saved. Capture it again.'],
+] as const)('explains a %s save in the capture card style without the editor', async (status, message) => {
+  const keyReview = { ...card, candidate: { kind: 'key' as const, value: 'synthetic-secret' } };
+  const send = vi.fn(async (command: SecretCapturePopupCommand) => command.type === 'begin-review' ? keyReview : ({ status } as const));
+  render(<SecretCapturePrompt review={keyReview} client={{} as VaultClient} send={send} onDone={() => {}} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Save key' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(message);
+  expect(screen.getByRole('status')).toHaveTextContent('Not saved');
+  expect(screen.getByRole('button', { name: 'Done' })).toBeEnabled();
+  expect(screen.queryByLabelText('Secret value')).toBeNull();
 });

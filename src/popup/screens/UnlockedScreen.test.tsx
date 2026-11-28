@@ -449,7 +449,7 @@ describe("UnlockedScreen", () => {
     expect(client.sync).toHaveBeenCalledTimes(syncCallsBeforeGeneration);
   });
 
-  it("offers a strong password in extension UI and fills only the bound candidate", async () => {
+  it("fills a generated password into the detected form from the Generator tab, without a banner", async () => {
     const captureClient = makeCaptureClient({
       getPrompt: vi.fn(async () => ({
         id: "prompt_0123456789abcdef",
@@ -467,9 +467,9 @@ describe("UnlockedScreen", () => {
     );
     const user = userEvent.setup();
 
-    expect(await screen.findByText("Password change detected")).toBeInTheDocument();
-    expect(screen.getByText(/then choose whether to save it/i)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Use strong password" }));
+    await waitFor(() => expect(captureClient.getPrompt).toHaveBeenCalled());
+    expect(screen.queryByText("Password change detected")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Generator" }));
 
     const generated = screen.getByLabelText("Generated value").textContent ?? "";
     await user.click(screen.getByRole("button", { name: "Fill" }));
@@ -495,7 +495,8 @@ describe("UnlockedScreen", () => {
     });
     render(<UnlockedScreen onLock={noop} onSignOut={noop} vaultClient={makeClient()} captureClient={captureClient} />);
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Use strong password' }));
+    await waitFor(() => expect(captureClient.getPrompt).toHaveBeenCalled());
+    await user.click(screen.getByRole('button', { name: 'Generator' }));
     await user.click(screen.getByRole('button', { name: 'Fill' }));
     expect(screen.getByRole('button', { name: 'Fill' })).toBeDisabled();
     if (change === 'select') await user.click(screen.getAllByRole('button', { pressed: false })[0]!);

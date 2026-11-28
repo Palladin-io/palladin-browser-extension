@@ -4,8 +4,9 @@ import { isSignInProvider, type SignInProvider } from '@shared/signin/providers'
 /**
  * Isolated content script <-> worker vocabulary for remembering how the user
  * signs in to an external service with a federated provider. Requests carry
- * no page-provided account text: provider identity is confirmed by the worker
- * from browser-authored URLs, and accounts come only from Palladin's own data.
+ * no service-page account text: provider identity is confirmed by the worker
+ * from browser-authored URLs. The only page-provided account is the identifier
+ * submitted on Google's own origin; it is a suggestion until the user saves it.
  */
 export const FEDERATED_SIGNIN_CHANNEL = 'palladin.federated-signin' as const;
 
@@ -18,6 +19,8 @@ export type SignInLocale = 'en' | 'pl';
 
 export type FederatedSignInCommand = DocumentCommand & (
   | { readonly type: 'intent'; readonly provider: SignInProvider }
+  | { readonly type: 'account'; readonly account: string }
+  | { readonly type: 'screen'; readonly screen: ProviderScreenShape }
   | { readonly type: 'suggest' }
   | { readonly type: 'choose'; readonly suggestionId: string }
   | { readonly type: 'get' }
@@ -31,6 +34,23 @@ export type FederatedSignInCommand = DocumentCommand & (
   | { readonly type: 'dismiss' | 'mute'; readonly promptId: string }
   | { readonly type: 'unlock' }
 );
+
+/** Value-free shape of a provider sign-in screen for compatibility diagnostics; flags only. */
+export interface ProviderScreenShape {
+  readonly kind: 'identifier' | 'password' | 'account-chooser' | 'consent' | 'unknown';
+  readonly identifierField: boolean;
+  readonly passwordField: boolean;
+  readonly emailAttribute: boolean;
+  readonly emailText: boolean;
+}
+
+const PROVIDER_SCREEN_KINDS: readonly string[] = ['identifier', 'password', 'account-chooser', 'consent', 'unknown'];
+
+export function isProviderScreenShape(value: unknown): value is ProviderScreenShape {
+  return record(value) && only(value, ['kind', 'identifierField', 'passwordField', 'emailAttribute', 'emailText'])
+    && typeof value.kind === 'string' && PROVIDER_SCREEN_KINDS.includes(value.kind)
+    && ['identifierField', 'passwordField', 'emailAttribute', 'emailText'].every((key) => typeof value[key] === 'boolean');
+}
 
 /** Value-free worker -> content nudge to request the current prompt. */
 export interface FederatedSignInRefresh {
@@ -50,7 +70,7 @@ export interface SignInSuggestion {
 export const MAX_SIGN_IN_PROMPT_ACCOUNTS = 32;
 export const MAX_SIGN_IN_PROMPT_TARGETS = 64;
 
-export type SignInAccountSource = 'chosen' | 'used' | 'saved' | 'vault' | 'none';
+export type SignInAccountSource = 'observed' | 'chosen' | 'used' | 'saved' | 'vault' | 'none';
 
 export interface SignInAccountOption {
   readonly id: string;
@@ -106,12 +126,25 @@ function text(value: unknown, minimum: number, maximum: number): value is string
   return typeof value === 'string' && value.length >= minimum && value.length <= maximum;
 }
 
+/** An account the user typed in the extension-owned review; never accepted from a page. */
+export function isManualSignInAccount(value: unknown): value is string {
+  return text(value, 1, 256) && value.trim().length > 0 && !/[\u0000-\u001f\u007f]/.test(value);
+}
+
+export function isObservableSignInAccount(value: unknown): value is string {
+  return text(value, 3, 256) && /^[^\s@\u0000-\u001f\u007f]+@[^\s@\u0000-\u001f\u007f]+$/.test(value);
+}
+
 export function isFederatedSignInCommand(value: unknown): value is FederatedSignInCommand {
   if (!record(value) || value.channel !== FEDERATED_SIGNIN_CHANNEL || !id(value.documentId)) return false;
   const base = ['channel', 'documentId', 'type'];
   switch (value.type) {
     case 'intent':
       return only(value, [...base, 'provider']) && isSignInProvider(value.provider);
+    case 'account':
+      return only(value, [...base, 'account']) && isObservableSignInAccount(value.account);
+    case 'screen':
+      return only(value, [...base, 'screen']) && isProviderScreenShape(value.screen);
     case 'suggest':
     case 'get':
     case 'unlock':
@@ -147,7 +180,7 @@ function suggestion(value: unknown): value is SignInSuggestion {
 
 function account(value: unknown): value is SignInAccountOption {
   return record(value) && only(value, ['id', 'label', 'source', 'context', 'icon']) && id(value.id) && text(value.label, 0, 512)
-    && ['chosen', 'used', 'saved', 'vault', 'none'].includes(value.source as string)
+    && ['observed', 'chosen', 'used', 'saved', 'vault', 'none'].includes(value.source as string)
     && (value.context === undefined || text(value.context, 1, 1024)) && (value.icon === undefined || text(value.icon, 1, 256));
 }
 

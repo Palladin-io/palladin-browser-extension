@@ -28,6 +28,7 @@ function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata
   const mute = vi.fn(async (_profile: string, site: string) => { mutedSites.add(site); });
   let now = 1_000;
   const notify = vi.fn();
+  const diagnostic = vi.fn();
   const save = vi.fn(options.save ?? (async () => ({ action: 'updated' as const })));
   const targets = vi.fn(async (): Promise<SignInTargets> => ({ writable: true,
     vaults: options.vaults ?? [{ vaultId: 'vault-1', label: 'Personal', isDefault: true }], credentials: options.credentials ?? [] }));
@@ -42,6 +43,7 @@ function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata
     save,
     isCurrentDocument: async () => true,
     notify,
+    diagnostic,
     now: () => now,
     createId: () => `opaque-id-${String(++counter).padStart(8, '0')}`,
   });
@@ -54,7 +56,7 @@ function harness(options: { credentials?: Credential[]; metadata?: EntryMetadata
     return result.status === 'prompt' ? result.prompt : null;
   };
   return {
-    coordinator, notify, save, targets, source, send, prompt, mute,
+    coordinator, notify, save, targets, source, send, prompt, mute, diagnostic,
     lock: () => { session = { ...session, unlocked: false, generation: session.generation + 1 }; coordinator.clear(); },
     advance: (ms: number) => { now += ms; },
   };
@@ -94,6 +96,21 @@ describe('FederatedSignInCoordinator', () => {
     expect(await h.send({ type: 'confirm', promptId: view.id, accountId: account.id, targetId: target.id, locale: 'en' })).toMatchObject({ status: 'saved' });
     expect(h.save).toHaveBeenCalledWith('https://app.example.com', { action: 'create', vaultId: 'vault-1' },
       { provider: 'google', account: 'alice@gmail.com', entry: { vaultId: 'vault-1', entryId: 'g1' } }, expect.any(String), expect.any(Function));
+  });
+
+  it('saves an account typed in the extension review only through the native manual-account argument', async () => {
+    const h = harness({ credentials: [credential('existing', { status: 'absent' })] });
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    h.coordinator.documentConnected(1, 'https://app.example.com/callback', undefined);
+    const view = (await h.prompt())!;
+    const confirm = { channel: FEDERATED_SIGNIN_CHANNEL, documentId: DOC, type: 'confirm' as const, promptId: view.id,
+      accountId: 'typed', targetId: view.defaultTargetId!, locale: 'en' as const };
+    expect(await h.coordinator.dispatch(confirm, h.source(1))).toEqual({ status: 'stale' });
+    expect(h.save).not.toHaveBeenCalled();
+    expect(await h.coordinator.dispatch(confirm, h.source(1), undefined, undefined, ' typed@example.com ')).toMatchObject({ status: 'saved' });
+    expect(h.save).toHaveBeenCalledWith('https://app.example.com', expect.objectContaining({ action: 'update' }),
+      { provider: 'google', account: 'typed@example.com', entry: null }, expect.any(String), expect.any(Function));
   });
 
   it('defaults to the personal Vault while retaining other writable choices', async () => {
@@ -289,15 +306,14 @@ describe('FederatedSignInCoordinator', () => {
   });
 
 
-  it('offers but never preselects an account that only automatic fill used', async () => {
+  it('preselects an account that only automatic fill used, as a visible suggestion', async () => {
     const h = harness({ metadata: [provider({ id: 'g1', username: 'alice@gmail.com' })] });
     h.coordinator.documentConnected(1, SERVICE, undefined);
     h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
     h.coordinator.providerFilled(1, 'https://accounts.google.com/v3/signin/identifier', googleEntry('alice@gmail.com'), 'automatic');
     h.coordinator.documentConnected(1, SERVICE, undefined);
     const view = (await h.prompt())!;
-    expect(view.defaultAccountId).toBeNull();
-    expect(view.accounts[0]).toMatchObject({ label: 'alice@gmail.com', source: 'used' });
+    expect(view.accounts[0]).toMatchObject({ id: view.defaultAccountId, label: 'alice@gmail.com', source: 'used' });
   });
 
   it('ignores a Palladin fill of another provider during the flow', async () => {
@@ -563,4 +579,148 @@ it.each(['live','other-document','locked'])('persists OAuth site mute only from 
   expect(await h.send({type:'mute',promptId:view.id},from)).toEqual({status:state==='live'?'dismissed':'stale'});
   if(state==='live') { expect(h.mute).toHaveBeenCalledWith('profile','example.com'); round(); expect(await h.prompt()).toBeNull(); }
   else expect(h.mute).not.toHaveBeenCalled();
+});
+
+describe('observed and preselected provider accounts', () => {
+  const PAGE = 'https://accounts.google.com/v3/signin/identifier';
+  const start = (h: ReturnType<typeof harness>) => { h.coordinator.documentConnected(1, SERVICE, undefined); h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined); };
+  const back = async (h: ReturnType<typeof harness>) => { h.coordinator.documentConnected(1, 'https://app.example.com/callback', undefined); return (await h.prompt())!; };
+  const selected = (view: SignInPrompt) => view.accounts.find(item => item.id === view.defaultAccountId);
+  const observe = (h: ReturnType<typeof harness>, account: string, url = PAGE, tab = 1) => h.send({ type: 'account', account }, h.source(tab, url));
+
+  it('preselects an observed account and links its only saved Credential', async () => {
+    const h = harness({ metadata: [provider({ id: 'g1', username: 'alice@gmail.com' }), provider({ id: 'g2', username: 'zoe@gmail.com' })] });
+    start(h); expect(await observe(h, 'ZOE@gmail.com')).toEqual({ status: 'accepted' });
+    const view = await back(h);
+    expect(selected(view)).toMatchObject({ label: 'zoe@gmail.com', source: 'observed' });
+    await h.send({ type: 'confirm', promptId: view.id, accountId: view.defaultAccountId!, targetId: view.defaultTargetId!, locale: 'en' });
+    expect(h.save.mock.calls[0]).toEqual(expect.arrayContaining([expect.objectContaining({ account: 'zoe@gmail.com', entry: { vaultId: 'vault-1', entryId: 'g2' } })]));
+  });
+  it('keeps an observed account without an Entry link when Credentials are ambiguous or absent', async () => {
+    for (const metadata of [[], [provider({ id: 'g1', username: 'zoe@gmail.com' }), provider({ id: 'g2', username: 'zoe@gmail.com' })]]) {
+      const h = harness({ metadata }); start(h); await observe(h, 'zoe@gmail.com');
+      const view = await back(h);
+      expect(selected(view)).toEqual({ id: view.defaultAccountId, label: 'zoe@gmail.com', source: 'observed' });
+    }
+  });
+  it('prefers the observed account over an earlier choice or fill and lets the last observation win', async () => {
+    const h = harness({ metadata: [provider({ id: 'g1', username: 'alice@gmail.com' })] });
+    start(h); h.coordinator.providerFilled(1, PAGE, googleEntry('alice@gmail.com', 'g1'), 'manual');
+    await observe(h, 'first@gmail.com'); await observe(h, 'last@gmail.com');
+    expect(selected(await back(h))?.label).toBe('last@gmail.com');
+  });
+  it('asks again when the observed account differs from the chosen remembered one', async () => {
+    const h = harness({ credentials: [credential('e', { status: 'recognized', fieldId: 'custom:1', binding: { provider: 'google', account: 'alice@gmail.com', entry: null } } as Credential['signIn'])] });
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    const list = await h.send({ type: 'suggest' });
+    if (list.status !== 'suggestions') throw new Error('suggestions');
+    await h.send({ type: 'choose', suggestionId: list.suggestions[0]!.id });
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    await observe(h, 'other@gmail.com');
+    expect(selected(await back(h))?.label).toBe('other@gmail.com');
+  });
+  it('still asks for an observed account that matches a remembered binding, because the final account is unconfirmed', async () => {
+    const h = harness({ credentials: [credential('e', { status: 'recognized', fieldId: 'custom:1', binding: { provider: 'google', account: 'alice@gmail.com', entry: null } } as Credential['signIn'])] });
+    start(h); await observe(h, 'alice@gmail.com');
+    const view = await back(h);
+    expect(selected(view)).toMatchObject({ label: 'alice@gmail.com', source: 'observed' });
+    expect(view?.notice?.detail).toBe('');
+  });
+  it('accepts an observation in the popup linked to the service tab', async () => {
+    const h = harness(); h.coordinator.documentConnected(1, SERVICE, undefined);
+    h.coordinator.documentConnected(2, GOOGLE_AUTH, 1);
+    await observe(h, 'pop@gmail.com', PAGE, 2); h.coordinator.tabRemoved(2);
+    expect(selected((await h.prompt())!)?.label).toBe('pop@gmail.com');
+  });
+  it.each(['https://evil.example/', 'https://github.com/login', 'https://accounts.google.com:8443/', 'http://accounts.google.com/'])('rejects an observation from %s', async url => {
+    const h = harness(); start(h);
+    expect(await observe(h, 'x@gmail.com', url)).toEqual({ status: 'stale' });
+    expect(selected(await back(h))).toBeUndefined();
+  });
+  it('rejects an observation without a provider flow, from another tab, while locked or after return', async () => {
+    const h = harness(); h.coordinator.documentConnected(1, SERVICE, undefined);
+    expect(await observe(h, 'x@gmail.com')).toEqual({ status: 'stale' });
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    expect(await observe(h, 'x@gmail.com', PAGE, 7)).toEqual({ status: 'stale' });
+    const view = await back(h); expect(selected(view)).toBeUndefined();
+    expect(await observe(h, 'x@gmail.com')).toEqual({ status: 'stale' });
+    const locked = harness({ unlocked: false }); start(locked);
+    expect(await observe(locked, 'x@gmail.com')).toEqual({ status: 'stale' });
+  });
+  it('drops an observation when the flow switches provider', async () => {
+    const h = harness(); start(h); await observe(h, 'x@gmail.com');
+    h.coordinator.documentConnected(1, 'https://github.com/login/oauth/authorize?client_id=x', undefined);
+    const view = await back(h);
+    expect(view.provider).toBe('github'); expect(view.accounts.map(item => item.label)).not.toContain('x@gmail.com');
+  });
+  it('preselects the sole saved provider account but never guesses between several', async () => {
+    const one = harness({ metadata: [provider({ id: 'g1', username: 'alice@gmail.com' })] }); start(one);
+    const guessed = await back(one);
+    expect(selected(guessed)?.label).toBe('alice@gmail.com');
+    expect(guessed.notice?.detail).toBe('');
+    const two = harness({ metadata: [provider({ id: 'g1', username: 'alice@gmail.com' }), provider({ id: 'g2', username: 'zoe@gmail.com' })] }); start(two);
+    expect((await back(two)).defaultAccountId).toBeNull();
+  });
+  it('does not treat a guessed account as proof that it is already remembered', async () => {
+    const h = harness({ metadata: [provider({ id: 'g1', username: 'alice@gmail.com' })],
+      credentials: [credential('e', { status: 'recognized', fieldId: 'custom:1', binding: { provider: 'google', account: 'alice@gmail.com', entry: null } } as Credential['signIn'])] });
+    start(h); expect(await back(h)).not.toBeNull();
+  });
+  it('offers saved accounts beyond the former alphabetical limit of ten', async () => {
+    const h = harness({ metadata: Array.from({ length: 25 }, (_, i) => provider({ id: `g${i}`, username: `user${String(i).padStart(2, '0')}@gmail.com` })) });
+    start(h); expect((await back(h)).accounts.map(item => item.label)).toContain('user24@gmail.com');
+  });
+});
+
+describe('sign-in compatibility diagnostics', () => {
+  const PAGE = 'https://accounts.google.com/v3/signin/accountchooser';
+  const shape = { kind: 'account-chooser' as const, identifierField: false, passwordField: false, emailAttribute: true, emailText: true };
+  const start = (h: ReturnType<typeof harness>) => { h.coordinator.documentConnected(1, SERVICE, undefined); h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined); };
+  const back = async (h: ReturnType<typeof harness>) => { h.coordinator.documentConnected(1, 'https://app.example.com/callback', undefined); return h.prompt(); };
+
+  it('reports once per flow when the account was not read, with the last provider screen shape', async () => {
+    const h = harness();
+    start(h);
+    expect(await h.send({ type: 'screen', screen: shape }, h.source(1, PAGE))).toEqual({ status: 'accepted' });
+    await back(h); await h.prompt();
+    expect(h.diagnostic).toHaveBeenCalledTimes(1);
+    expect(h.diagnostic).toHaveBeenCalledWith({ event: 'account-not-observed', serviceUrl: 'https://app.example.com', provider: 'google', providerUrl: PAGE, screen: shape });
+  });
+
+  it('reports no provider screen when none was seen and nothing when the account was read', async () => {
+    const silent = harness(); start(silent); await back(silent);
+    expect(silent.diagnostic).toHaveBeenCalledWith(expect.objectContaining({ event: 'account-not-observed', providerUrl: null, screen: null }));
+    const read = harness(); start(read);
+    await read.send({ type: 'account', account: 'alice@gmail.com' }, read.source(1, 'https://accounts.google.com/v3/signin/identifier'));
+    await back(read);
+    expect(read.diagnostic).not.toHaveBeenCalled();
+  });
+
+  it('reports an unread account even when the remembered method suppresses the prompt', async () => {
+    const h = harness({ credentials: [credential('e', { status: 'recognized', fieldId: 'custom:1', binding: { provider: 'google', account: null, entry: null } } as Credential['signIn'])] });
+    h.coordinator.documentConnected(1, SERVICE, undefined);
+    const suggestion = await h.send({ type: 'suggest' });
+    const id = suggestion.status === 'suggestions' ? suggestion.suggestions[0]?.id : undefined;
+    expect(id).toBeDefined();
+    await h.send({ type: 'choose', suggestionId: id! });
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    expect(await back(h)).toBeNull();
+    expect(h.diagnostic).toHaveBeenCalledWith(expect.objectContaining({ event: 'account-not-observed', provider: 'google' }));
+  });
+
+  it('accepts a screen shape only from a provider sign-in page in an active flow', async () => {
+    const h = harness();
+    expect(await h.send({ type: 'screen', screen: shape }, h.source(1, PAGE))).toEqual({ status: 'stale' });
+    start(h);
+    expect(await h.send({ type: 'screen', screen: shape }, h.source(1, 'https://evil.example/'))).toEqual({ status: 'stale' });
+  });
+
+  it('reports an OAuth authorization request to an unsupported provider but not a supported one or an ordinary page', () => {
+    const h = harness();
+    h.coordinator.documentConnected(1, 'https://acme.okta.com/oauth2/v1/authorize?client_id=c&redirect_uri=https%3A%2F%2Fapp.example.com&response_type=code&state=s', undefined);
+    h.coordinator.documentConnected(1, GOOGLE_AUTH, undefined);
+    h.coordinator.documentConnected(1, 'https://shop.example.com/search?client_id=c', undefined);
+    expect(h.diagnostic.mock.calls).toEqual([[{ event: 'provider-unsupported',
+      authorizationUrl: 'https://acme.okta.com/oauth2/v1/authorize?client_id=c&redirect_uri=https%3A%2F%2Fapp.example.com&response_type=code&state=s' }]]);
+  });
 });

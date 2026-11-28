@@ -15,7 +15,7 @@ describe("popup translations", () => {
   });
 
   it("interpolates only named values", () => {
-    expect(translate("pl", "capture.description", { site: "example.com" }))
+    expect(translate("pl", "captureReview.source", { origin: "example.com" }))
       .toContain("example.com");
   });
 });

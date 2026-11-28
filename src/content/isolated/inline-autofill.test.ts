@@ -43,8 +43,9 @@ describe("inline autofill field discovery", () => {
       match: "exact" as const,
     };
 
-    expect(suggestionDetail(suggestion, "en")).toBe("Vault: TMo 10");
-    expect(suggestionDetail(suggestion, "pl")).toBe("Sejf: TMo 10");
+    expect(suggestionDetail(suggestion, "en")).toBe("TMo 10 · rogal_s_days");
+    expect(suggestionDetail(suggestion, "pl")).toBe("TMo 10 · rogal_s_days");
+    expect(suggestionDetail({ ...suggestion, username: "allegro.pl" }, "en")).toBe("TMo 10");
   });
 
   it("identifies a related host", () => {
@@ -60,7 +61,7 @@ describe("inline autofill field discovery", () => {
     };
 
     expect(suggestionDetail(suggestion, "en"))
-      .toBe("Related site: 1login.wp.pl · Vault: Personal");
+      .toBe("Related site: 1login.wp.pl · Personal · ada@wp.pl");
   });
 
   it("submits only the form owning the launcher field", () => {
@@ -472,6 +473,35 @@ describe("inline autofill field discovery", () => {
     subject.stop();
   });
 
+  it("closes the menu from its close button and when the countdown ends", async () => {
+    const nativeAttachShadow = Element.prototype.attachShadow;
+    const attachShadow = vi.spyOn(Element.prototype, "attachShadow").mockImplementation(function (
+      this: Element, init: ShadowRootInit,
+    ) { return nativeAttachShadow.call(this, { ...init, mode: "open" }); });
+    document.body.innerHTML = `<form><input autocomplete="username" value="typed"><input type="password"></form>`;
+    const subject = startInlineAutofill(document, "a".repeat(32), async () => ({
+      ok: true, kind: "suggestions", status: "ready", entries: [{
+        vaultId: "vault-id", entryId: "entry-id", name: "Shopping account", username: "shopper",
+        vaultName: "Personal", urlDomain: "example.com", updatedAt: "2026-10-17T00:00:00Z", match: "exact",
+      }],
+    }));
+    try {
+      const root = document.querySelector("palladin-autofill")!.shadowRoot!;
+      const panel = root.querySelector<HTMLElement>(".panel")!;
+      const open = async () => {
+        root.querySelector<HTMLButtonElement>(".launcher")!.click();
+        await vi.waitFor(() => expect(root.querySelector(".option")).not.toBeNull());
+        expect(panel.hidden).toBe(false);
+      };
+      await open();
+      root.querySelector<HTMLButtonElement>(".inline-close")!.click();
+      expect(panel.hidden).toBe(true);
+      await open();
+      root.querySelector(".inline-countdown")!.dispatchEvent(new Event("animationend"));
+      expect(panel.hidden).toBe(true);
+    } finally { subject.stop(); attachShadow.mockRestore(); }
+  });
+
   it("shows the entry name above a numeric login without a letter avatar", async () => {
     const nativeAttachShadow = Element.prototype.attachShadow;
     const attachShadow = vi.spyOn(Element.prototype, "attachShadow").mockImplementation(function (
@@ -489,8 +519,7 @@ describe("inline autofill field discovery", () => {
       const root = document.querySelector("palladin-autofill")!.shadowRoot!;
       root.querySelector<HTMLButtonElement>(".launcher")!.click();
       await vi.waitFor(() => expect(root.querySelector(".option strong")?.textContent).toBe("Shopping account"));
-      expect(root.querySelector(".entry-name")?.textContent).toBe("12345678");
-      expect(root.querySelector(".option")?.textContent).toContain("Vault: Personal");
+      expect(root.querySelector(".entry-name")?.textContent).toBe("Personal · 12345678");
       expect([...root.querySelectorAll(".option strong")].map(el => el.textContent)).toEqual(["Shopping account", "Shopping account"]);
       expect(root.querySelector(".entry-icon img")?.getAttribute("src")).toBe("data:image/png;base64,iVBORw0KGgo=");
       expect(root.querySelector(".account-avatar")).toBeNull();
@@ -603,7 +632,7 @@ describe("inline autofill field discovery", () => {
     subject.stop();
   });
 
-  it("warns when a synchronized head changes after fill without refilling automatically", async () => {
+  it("warns when a synchronized head changes after fill and refills only on Fill", async () => {
     const nativeAttachShadow = Element.prototype.attachShadow;
     const attachShadow = vi.spyOn(Element.prototype, "attachShadow").mockImplementation(function (
       this: Element,
@@ -638,10 +667,14 @@ describe("inline autofill field discovery", () => {
       suggestion.updatedAt = "2026-08-29T08:01:00Z";
       subject.handleVaultChanged();
 
-      await vi.waitFor(() => expect(
-        document.querySelector("palladin-autofill")?.shadowRoot?.textContent,
-      ).toContain("Password for Work was updated - fill again"));
+      const root = document.querySelector("palladin-autofill")!.shadowRoot!;
+      await vi.waitFor(() => expect(root.querySelector(".notice-row")?.textContent)
+        .toBe("Password updatedWork · ada@example.comFill"));
       expect(send.mock.calls.filter(([command]) => command.type === "inline/fill")).toHaveLength(1);
+      root.querySelector<HTMLButtonElement>(".notice-action")!.click();
+      await vi.waitFor(() => expect(send).toHaveBeenLastCalledWith(expect.objectContaining({
+        type: "inline/fill", intent: "manual", entryId: "e1",
+      })));
     } finally {
       subject.stop();
       attachShadow.mockRestore();
@@ -680,8 +713,8 @@ describe("inline autofill field discovery", () => {
   });
 
   it.each([
-    ["locked", "Palladin is locked", "Unlock Palladin"],
-    ["signed-out", "Sign in to Palladin to fill this login", "Sign in to Palladin"],
+    ["locked", "LockedUnlock to sign in", "Unlock"],
+    ["signed-out", "Signed outSign in to fill", "Sign in"],
   ] as const)("opens the %s session prompt automatically on a login form", async (
     status,
     expectedMessage,
@@ -713,7 +746,7 @@ describe("inline autofill field discovery", () => {
       });
       document.querySelector("palladin-autofill")!.shadowRoot!.querySelector<HTMLButtonElement>(".open-palladin")!.click();
       await vi.waitFor(() => expect(document.querySelector("palladin-autofill")!.shadowRoot!.textContent)
-        .toContain("Open your browser’s Extensions menu and click Palladin to continue."));
+        .toContain("Open Palladin from the toolbar"));
       expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: "inline/fill" }));
     } finally {
       subject.stop();
@@ -811,7 +844,7 @@ describe("inline autofill field discovery", () => {
 
       await vi.waitFor(() => {
         expect(root?.textContent).toContain("Palladin suggestions are temporarily unavailable.");
-        expect(root?.textContent).not.toContain("Palladin blocked this fill for your safety.");
+        expect(root?.textContent).not.toContain("Fill blocked");
       });
     } finally {
       subject.stop();

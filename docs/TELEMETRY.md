@@ -1,7 +1,7 @@
 # Extension telemetry
 
 The distributed extension has no PostHog SDK and general capture is disabled.
-The one exception is the anonymous site-compatibility report below.
+The only exceptions are the anonymous compatibility reports below.
 `EXTENSION_TELEMETRY_RELEASED` is a compile-time false gate. The reserved
 `setAnalyticsTransport` hook does not retain or call its argument; a project key
 alone also cannot enable capture. Calls create no event object, identifier,
@@ -11,7 +11,8 @@ attempt to bypass that boundary.
 Autofill, native messaging and synchronization work independently of analytics.
 Page URLs, paths, query strings, browsing history, DOM, form values, account
 identifiers and Vault contents are never analytics payloads. The only site data
-ever sent is the bare public hostname in the compatibility report below. The existing `ex:` event-name vocabulary is a
+ever sent is a bare public hostname (or registrable domain) in the compatibility
+reports below. The existing `ex:` event-name vocabulary is a
 reserved interface, not evidence that events are collected.
 
 Future telemetry requires an explicit product contract for purpose and scope,
@@ -52,3 +53,30 @@ and registration URLs are not reported. It uses the same payload and limits belo
   project, and update store data-use disclosures and privacy information before
   shipping a build with a key. Any additional event or property needs a new
   product decision and this allowlist updated first.
+
+## Anonymous sign-in compatibility reports
+
+Product-owner decision 2026-11-26: to learn which provider sign-in screens and
+which OAuth providers Palladin does not handle yet, the worker may send two
+diagnostic events with the same transport, key, release gates, random
+per-event `distinct_id`, disabled person profile and GeoIP, 500-key worker cap
+and fail-silent behavior as the site-compatibility report.
+
+- `ex:signin:account-not-observed`, once per sign-in flow, when a supported
+  provider round trip finished without Palladin reading the account on the
+  provider's page. Allowlist: `host` (bare public hostname of the service the
+  user signs in to), `provider`, `provider_host` (bare public hostname of the
+  last provider sign-in page, or `none`), `screen` (`identifier`, `password`,
+  `account-chooser`, `consent`, `unknown` or `none`) and, when a screen was
+  seen, the booleans `identifier_field`, `password_field`, `email_attribute`
+  and `email_text`, plus the extension version.
+- `ex:signin:provider-unsupported` when a top-frame document is an OAuth/OIDC
+  authorization request (`client_id`, `redirect_uri` and `response_type` or
+  `scope` parameter names) on a host that is not a supported provider.
+  Allowlist: `host` = registrable domain of that host only (no tenant
+  subdomain), plus the extension version.
+- Hosts come only from browser-authored document URLs. The provider page sends
+  only the value-free screen shape (`ProviderScreenShape` flags); no account,
+  text, attribute, field value, path, query, OAuth parameter value, Entry,
+  Vault or installation identifier is sent. Incognito tabs are not observed.
+

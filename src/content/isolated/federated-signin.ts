@@ -3,7 +3,7 @@ import { createCaptureDismiss } from './capture-dismiss';
 import { openInlineCaptureReview } from './capture-review-host';
 import en from '../../popup/locales/en.json';
 import pl from '../../popup/locales/pl.json';
-import { captureNoticeIdentity, captureNoticeHeader, CAPTURE_NOTICE_STYLES } from './capture-notice-chrome';
+import { captureNoticeCountdown, captureNoticeIdentity, captureNoticeHeader, CAPTURE_NOTICE_STYLES } from './capture-notice-chrome';
 import {
   DEFAULT_UI_PREFERENCES, UI_PREFERENCES_STORAGE_KEY, parseUiPreferences, resolveUiLocale,
   type ThemePreference, type UiLocale,
@@ -18,6 +18,7 @@ import {
 } from '@shared/messaging/federated-signin';
 import { SIGN_IN_PROVIDER_NAMES, type SignInProvider } from '@shared/signin/providers';
 import { createAgentInjectDomAccess } from './agent-inject';
+import { observeProviderAccount, watchProviderScreen } from './provider-account';
 import { createClosedSurface } from './closed-surface';
 import { detectProviderControls, providerForControl, uniqueProviderControl } from './federated-signin-detect';
 
@@ -99,7 +100,7 @@ export class FederatedSignInSurface {
     if (result.status === 'prompt' && result.prompt?.id === this.reviewingId) return;
     if (this.disposed) return;
     if (result.status === 'saved') {
-      this.note('signInToast.saved', 3_000);
+      this.note('signInToast.saved', 6_000);
     } else if (result.status === 'prompt' && result.prompt !== null) {
       if (this.prompt?.id !== result.prompt.id) {
         this.manualOpen = false;
@@ -122,10 +123,12 @@ export class FederatedSignInSurface {
     this.mode = 'note';
     this.prompt = null;
     this.panel.setAttribute('role', 'status');
-    this.panel.replaceChildren(captureNoticeHeader(this.doc), this.bodyTitle(key, name));
+    const header = captureNoticeHeader(this.doc);
+    header.append(this.close(() => this.hide()), captureNoticeCountdown(this.doc, closeAfter, () => this.hide()));
+    this.panel.replaceChildren(header, this.bodyTitle(key, name));
     this.mount();
     if (this.closeTimer !== null) clearTimeout(this.closeTimer);
-    this.closeTimer = setTimeout(() => this.hide(), closeAfter);
+    this.closeTimer = null;
   }
 
   private mount(): void {
@@ -195,19 +198,21 @@ export class FederatedSignInSurface {
     header.append(this.close(() => this.perform({ type: 'dismiss', promptId: prompt.id })));
     const site = this.doc.createElement('div');
     site.className = 'site';
-    site.textContent = this.text('captureReview.source').replace('{origin}', prompt.site);
+    site.textContent = this.inlineError ? this.text('captureReview.openError')
+      : this.manualOpen ? this.text('inline.openFromToolbar')
+      : prompt.state === 'locked' ? this.text('signInToast.locked')
+      : this.text('captureReview.source').replace('{origin}', prompt.site);
+    if (this.inlineError) site.className = 'site error';
+    if (this.inlineError || this.manualOpen) site.setAttribute('role', 'alert');
     body.append(site);
     this.panel.replaceChildren(header, body);
-    if (this.inlineError) body.append(this.paragraph('captureReview.openError', true));
-    if (this.manualOpen) body.append(this.paragraph('inline.openFromToolbar', true));
     if (prompt.error === 'save-failed') body.append(this.paragraph('signInToast.error', true));
-    if (prompt.state === 'locked') body.append(this.paragraph('signInToast.locked'));
     const footer = this.footer(prompt.id);
     if (prompt.state === 'ready') {
       const identity = prompt.notice ?? {kind:'credential' as const,site:prompt.site,name:prompt.site,detail:''};
       body.append(captureNoticeIdentity(this.doc,identity,`${this.providerName(prompt.provider)}${identity.detail ? ` · ${identity.detail}` : ''}`,prompt.provider));
     }
-    footer.append(this.button(this.text(prompt.state === 'locked' ? 'signInToast.unlock' : 'captureReview.review'), 'primary', () => this.perform({ type: 'unlock' })));
+    footer.append(this.button(this.text(prompt.state === 'locked' ? 'signInToast.unlock' : this.inlineError ? 'captureReview.tryAgain' : 'captureReview.review'), 'primary', () => this.perform({ type: 'unlock' })));
     this.panel.append(footer);
   }
 
@@ -355,6 +360,10 @@ export function startFederatedSignIn(doc: Document, documentId: string, isOtherO
     if (provider !== null) void dispatch({ type: 'intent', provider });
   };
   doc.addEventListener('click', clicked, true);
+  const stopObserving = observeProviderAccount(doc, () => doc.defaultView?.location.href ?? '',
+    (account) => void dispatch({ type: 'account', account }));
+  const stopScreens = watchProviderScreen(doc, () => doc.defaultView?.location.href ?? '',
+    (screen) => void dispatch({ type: 'screen', screen }));
   const promptTimer = setTimeout(() => void refreshPrompt(), PROMPT_DELAY_MS);
   const suggestTimers = SUGGEST_DELAYS_MS.map((delay) => setTimeout(() => void suggest(), delay));
   const applyPreferences = () => surface.setAppearance(
@@ -383,6 +392,8 @@ export function startFederatedSignIn(doc: Document, documentId: string, isOtherO
     },
     stop() {
       stopped = true;
+      stopObserving();
+      stopScreens();
       clearTimeout(promptTimer);
       suggestTimers.forEach(clearTimeout);
       doc.removeEventListener('click', clicked, true);

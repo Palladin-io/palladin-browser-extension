@@ -4,13 +4,15 @@ import en from '../../popup/locales/en.json';
 import pl from '../../popup/locales/pl.json';
 import brandLogoUrl from '../../../icons/logo-source.png?inline';
 import { createClosedSurface } from './closed-surface';
+import { INLINE_AUTOFILL_CHANNEL } from '@shared/messaging/inline-autofill';
 import type { PasswordCaptureController } from './capture';
 
 export function startGeneratorSuggestion(doc: Document, documentId: string, capture: PasswordCaptureController) {
   let surface: ReturnType<typeof createClosedSurface> | null = null;
   let selected: HTMLInputElement | null = null;
   let panel: HTMLDivElement | null = null;
-  let stopped = false, enabled = false, generation = 0;
+  // Dismiss or Escape keeps only the shield on this page until it reloads.
+  let stopped = false, enabled = false, generation = 0, declined = false;
   let preferences = parseUiPreferences(undefined);
   let revoke: (() => void) | null = null;
   const hide = () => { generation++; revoke?.(); revoke = null; capture.cancelGeneration(); surface?.host.remove(); surface = null; selected = null; panel = null; };
@@ -54,11 +56,13 @@ export function startGeneratorSuggestion(doc: Document, documentId: string, capt
       ? doc.defaultView?.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' : preferences.theme;
     const style = doc.createElement('style'); style.textContent = GENERATOR_STYLES;
     const card = doc.createElement('div'); card.className = 'generator-panel'; panel = card;
-    const heading = doc.createElement('div'); heading.className = 'generator-heading';
-    const title = doc.createElement('span'); title.textContent = copy('capture.useStrong'); heading.append(title);
-    const valueRow = doc.createElement('div'); valueRow.className = 'generator-value';
-    const value = doc.createElement('code'); value.setAttribute('aria-label', copy('generator.generatedValue')); valueRow.append(value);
-    const status = doc.createElement('div'); status.className = 'generator-status'; status.setAttribute('role', 'status'); status.hidden = true; valueRow.append(status);
+    // One line: the offer and the generated value together; options and dismissal live in the footer.
+    const valueRow = doc.createElement('div'); valueRow.className = 'generator-value generator-line';
+    const line = doc.createElement('span'); line.className = 'generator-line-text';
+    const title = doc.createElement('span'); title.textContent = `${copy('capture.useStrong')}:`;
+    const value = doc.createElement('code'); value.setAttribute('aria-label', copy('generator.generatedValue'));
+    const status = doc.createElement('span'); status.className = 'generator-status'; status.setAttribute('role', 'status'); status.hidden = true;
+    line.append(title, ' ', value, status); valueRow.append(line);
     const optionsBody = doc.createElement('div'); optionsBody.className = 'generator-options'; optionsBody.id = 'generator-options'; optionsBody.inert = true; optionsBody.setAttribute('aria-hidden', 'true');
     const clip = doc.createElement('div'); clip.className = 'generator-options-clip';
     const optionsInner = doc.createElement('div'); optionsInner.className = 'generator-options-content'; clip.append(optionsInner); optionsBody.append(clip);
@@ -88,36 +92,54 @@ export function startGeneratorSuggestion(doc: Document, documentId: string, capt
       } catch { /* Reload already discarded the worker's preview; finish local disposal. */ }
     };
     revoke = () => { closeMenu(); doc.removeEventListener('pointerdown', outsideMenu); discard(); };
-    const dismiss = () => { closeMenu(); discard(); card.hidden = true; capture.cancelGeneration(); reposition(); };
+    const dismiss = () => { declined = true; closeMenu(); discard(); card.hidden = true; capture.cancelGeneration(); reposition(); };
     function button(text: string, label: string, className: string, action: () => void): HTMLButtonElement {
       const control = doc.createElement('button'); control.type = 'button'; control.className = className; control.textContent = text;
       if (label) { control.setAttribute('aria-label', label); control.title = label; }
       control.addEventListener('click', event => { if (!control.disabled && current.acceptsAction(event, control)) action(); });
       return control;
     }
-    const optionsToggle = button('⚙', copy('generator.inlineOptions'), 'generator-icon', () => {
+    const footerMenu = doc.createElement('div'); footerMenu.className = 'generator-split-menu'; footerMenu.setAttribute('role', 'menu'); footerMenu.hidden = true;
+    const optionsToggle = button(copy('generator.inlineOptions'), '', '', () => {
       closeMenu();
       const open = optionsToggle.getAttribute('aria-expanded') !== 'true';
       optionsToggle.setAttribute('aria-expanded', String(open)); optionsBody.classList.toggle('expanded', open);
       optionsBody.inert = !open; optionsBody.setAttribute('aria-hidden', String(!open)); reposition();
     });
-    optionsToggle.setAttribute('aria-expanded', 'false'); optionsToggle.setAttribute('aria-controls', optionsBody.id);
-    heading.append(optionsToggle, button('×', copy('generator.inlineClose'), 'generator-icon', dismiss));
+    optionsToggle.setAttribute('role', 'menuitem'); optionsToggle.setAttribute('aria-expanded', 'false'); optionsToggle.setAttribute('aria-controls', optionsBody.id);
+    footerMenu.append(optionsToggle);
+    const menuArrow = button('', copy('generator.inlineMore'), 'generator-split-arrow', () => {
+      if (openedMenu?.menu === footerMenu) { closeMenu(); return; }
+      closeMenu(); footerMenu.hidden = false; menuArrow.setAttribute('aria-expanded', 'true'); openedMenu = { menu: footerMenu, trigger: menuArrow };
+      // Near the bottom of the window the menu opens upwards so its only item stays reachable.
+      delete footerMenu.dataset['up'];
+      if (footerMenu.getBoundingClientRect().bottom > (doc.defaultView?.innerHeight ?? Infinity) - 8) footerMenu.dataset['up'] = 'true';
+      optionsToggle.focus();
+    });
+    menuArrow.setAttribute('aria-haspopup', 'menu'); menuArrow.setAttribute('aria-expanded', 'false');
+    menuArrow.append(chevronIcon(doc));
+    footerMenu.addEventListener('keydown', event => {
+      if (event.isTrusted && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeMenu(); menuArrow.focus(); }
+    });
     const regenerate = button('↻', copy('generator.inlineRegenerate'), 'generator-icon', () => void refresh()); valueRow.append(regenerate);
     const footer = doc.createElement('div'); footer.className = 'generator-footer';
     const use = button(copy('generator.inlineUse'), '', 'generator-primary', () => {
       if (busy || !preview || capture.candidateFor(input)?.id !== candidate.id) return;
-      busy = true; use.disabled = true; regenerate.disabled = true; optionsToggle.disabled = true; optionsBody.inert = true;
+      busy = true; use.disabled = true; regenerate.disabled = true; menuArrow.disabled = true; closeMenu(); optionsBody.inert = true;
       const operationId = crypto.randomUUID(); capture.authorizeGeneration(candidate.id, operationId);
       const previewId = preview.previewId;
       void chrome.runtime.sendMessage({ ...binding, type: 'use', previewId, operationId }).then((result: GeneratorPreviewResult) => {
         if (!active()) return;
         if (result.status === 'filled') { hide(); input.focus(); return; }
+        if (result.status === 'locked') { showLocked(); return; }
         status.textContent = copy('generator.inlineError'); status.hidden = false; preview = null; value.textContent = '';
-        busy = false; regenerate.disabled = false; optionsToggle.disabled = false; optionsBody.inert = optionsToggle.getAttribute('aria-expanded') !== 'true';
-      }).catch(() => { if (active()) { status.textContent = copy('generator.inlineError'); status.hidden = false; busy = false; regenerate.disabled = false; optionsToggle.disabled = false; optionsBody.inert = optionsToggle.getAttribute('aria-expanded') !== 'true'; } });
+        busy = false; regenerate.disabled = false; menuArrow.disabled = false; optionsBody.inert = optionsToggle.getAttribute('aria-expanded') !== 'true';
+      }).catch(() => { if (active()) { status.textContent = copy('generator.inlineError'); status.hidden = false; busy = false; regenerate.disabled = false; menuArrow.disabled = false; optionsBody.inert = optionsToggle.getAttribute('aria-expanded') !== 'true'; } });
     });
-    use.disabled = true; footer.append(button(copy('generator.inlineDismiss'), '', 'generator-dismiss', dismiss), use);
+    const split = doc.createElement('div'); split.className = 'generator-split';
+    split.append(button(copy('generator.inlineDismiss'), '', 'generator-dismiss generator-split-main', dismiss), menuArrow, footerMenu);
+    footer.className = 'generator-footer generator-footer--split';
+    use.disabled = true; footer.append(split, use);
     async function refresh(): Promise<void> {
       if (busy || !active()) return;
       const id = ++request; clearTimeout(expiry); preview = null; use.disabled = true; value.textContent = ''; status.hidden = false; status.textContent = copy('generator.inlineLoading');
@@ -128,11 +150,33 @@ export function startGeneratorSuggestion(doc: Document, documentId: string, capt
         if (!ack?.accepted) { status.textContent = copy('generator.inlinePreviewError'); return; }
         const result: GeneratorPreviewResult = await chrome.runtime.sendMessage({ ...binding, type: 'preview', options: { ...settings } });
         if (!active() || request !== id) return;
+        if (result.status === 'locked') { showLocked(); return; }
         if (result.status !== 'preview') { status.textContent = copy('generator.inlinePreviewError'); return; }
+        // After unlocking elsewhere, the generator replaces its locked row with the offer again.
+        if (!valueRow.isConnected) card.replaceChildren(valueRow, optionsBody, footer);
         preview = result; value.textContent = result.value; status.hidden = true; use.disabled = false;
         expiry = setTimeout(() => { if (active()) dismiss(); }, Math.max(0, result.expiresAt - Date.now()));
         reposition();
       } catch { if (active() && request === id) { status.textContent = copy('generator.inlinePreviewError'); status.hidden = false; } }
+    }
+    /** Same row as the locked autofill menu; Unlock opens the toolbar popup like it does. */
+    function showLocked(): void {
+      // A lock during Use disabled these; the restored offer must be fully usable again.
+      busy = false; closeMenu(); regenerate.disabled = false; menuArrow.disabled = false;
+      optionsBody.inert = optionsToggle.getAttribute('aria-expanded') !== 'true';
+      const row = doc.createElement('div'); row.className = 'generator-locked'; row.setAttribute('role', 'status');
+      const icon = doc.createElement('span'); icon.className = 'generator-locked-icon'; icon.append(lockIcon(doc));
+      const text = doc.createElement('span'); text.className = 'generator-locked-text';
+      const title = doc.createElement('strong'); title.textContent = copy('inline.locked');
+      const detail = doc.createElement('small'); detail.textContent = copy('generator.lockedDetail');
+      text.append(title, detail);
+      const unlock = button(copy('inline.unlockPalladin'), '', 'generator-locked-action', () => {
+        void chrome.runtime.sendMessage({ channel: INLINE_AUTOFILL_CHANNEL, type: 'inline/open-palladin', documentId })
+          .then((result: { status?: string } | undefined) => { if (!active()) return; if (result?.status === 'opened') hide(); else detail.textContent = copy('inline.openFromToolbar'); })
+          .catch(() => { if (active()) detail.textContent = copy('inline.openFromToolbar'); });
+      });
+      row.append(icon, text, unlock);
+      card.replaceChildren(row); reposition();
     }
     function select(label: string, selectedValue: string, choices: readonly { value: string; label: string }[], change: (value: string) => void): HTMLElement {
       const field = doc.createElement('div'); field.className = 'generator-field generator-select';
@@ -202,8 +246,9 @@ export function startGeneratorSuggestion(doc: Document, documentId: string, capt
     renderOptions();
     const launcher = button('', copy('generator.inlineSuggest'), 'generator-launcher', () => { card.hidden = false; void refresh(); reposition(); });
     const logo = doc.createElement('img'); logo.src = brandLogoUrl; logo.alt = ''; logo.style.pointerEvents = 'none'; launcher.append(logo);
-    card.append(heading, valueRow, optionsBody, footer); current.shadow.append(style, launcher, card);
-    doc.documentElement.append(current.host); reposition(); void refresh();
+    card.append(valueRow, optionsBody, footer); current.shadow.append(style, launcher, card);
+    if (declined) card.hidden = true;
+    doc.documentElement.append(current.host); reposition(); if (!declined) void refresh();
     if (typeof ResizeObserver !== 'undefined') {
       const observer = new ResizeObserver(reposition); observer.observe(card);
       const previous = revoke; revoke = () => { observer.disconnect(); previous?.(); };
@@ -211,7 +256,7 @@ export function startGeneratorSuggestion(doc: Document, documentId: string, capt
   };
   const focus = (event: FocusEvent) => { if (event.target === surface?.host) return; if (event.target instanceof HTMLInputElement) show(event.target); else hide(); };
   const input = () => { if (selected?.value) hide(); };
-  const key = (event: KeyboardEvent) => { if (event.key === 'Escape') hide(); };
+  const key = (event: KeyboardEvent) => { if (event.key === 'Escape' && surface) { declined = true; hide(); } };
   const changes = (values: Record<string, chrome.storage.StorageChange>, area: string) => {
     if (area !== 'local' || !(GENERATOR_SUGGESTIONS_KEY in values) && !(UI_PREFERENCES_STORAGE_KEY in values)) return;
     if (GENERATOR_SUGGESTIONS_KEY in values) enabled = values[GENERATOR_SUGGESTIONS_KEY]?.newValue !== false;
@@ -238,11 +283,29 @@ const GENERATOR_STYLES = `
 :host([data-theme=dark]){color-scheme:dark;--surface:#191c20;--text:#e8eaed;--muted:#b8c5d4;--line:rgba(232,234,237,.15);--wash:#22262c}
 *{box-sizing:border-box}[hidden]{display:none!important}button,input{font:inherit;color:inherit}button{cursor:pointer;min-height:36px;padding:7px 13px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font-size:12px;font-weight:600}button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}button:disabled{opacity:.5;cursor:default}
 .generator-panel{line-height:1.5;position:relative;left:0;width:100%;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);box-shadow:0 6px 20px #00000014;pointer-events:auto;max-height:calc(100vh - 16px);overflow:auto}
-.generator-heading{display:flex;align-items:center;padding:8px 12px 0;gap:4px;color:var(--muted);font-size:12px;font-weight:400}.generator-heading>span{flex:1}.generator-icon{border-color:transparent;background:transparent;color:var(--muted);font-weight:600}.generator-heading>.generator-icon{min-height:26px;padding:2px 6px}.generator-value{display:flex;align-items:center;justify-content:space-between;padding:6px 12px 10px;gap:8px}.generator-value code{font-size:12px;overflow-wrap:anywhere;min-width:0}.generator-value code:empty{display:none}.generator-status{min-width:0;font-size:12px;color:var(--muted)}
+.generator-icon{border-color:transparent;background:transparent;color:var(--muted);font-weight:600}.generator-value{display:flex;align-items:center;justify-content:space-between;padding:6px 12px 10px;gap:8px}.generator-value code{font-size:12px;overflow-wrap:anywhere;min-width:0}.generator-value code:empty{display:none}.generator-status{min-width:0;font-size:12px;color:var(--muted)}
 .generator-footer{border-top:1px solid var(--line);padding:10px 12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.generator-footer button{min-width:0;width:100%}.generator-primary{background:var(--accent);border-color:transparent;color:#fff}.generator-primary:hover{background:color-mix(in srgb,var(--accent) 90%,black)}
 .generator-options{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows 240ms ease,opacity 180ms ease}.generator-options.expanded{grid-template-rows:1fr;opacity:1}.generator-options-clip{overflow:hidden;min-height:0}.generator-options-content{padding:12px;border-top:1px solid var(--line)}.generator-field{display:grid;gap:5px;margin-bottom:12px;font-size:12px;font-weight:500}.generator-field>span{color:var(--muted)}.generator-field output{float:right}.generator-field input[type=range]{width:100%;min-height:36px;margin:0;padding:0;accent-color:var(--accent)}
 .generator-checks{display:flex;gap:16px}.generator-checkbox{display:flex;align-items:center;gap:8px;min-height:15px;padding:0;border:0;background:transparent;font-size:12px;font-weight:400}.generator-checkbox::before{content:'';width:15px;height:15px;border:1px solid var(--line);border-radius:3px}.generator-checkbox[aria-checked=true]::before{content:'✓';background:var(--accent);color:white;border-color:var(--accent);line-height:13px;text-align:center}
 .generator-select{position:relative}.generator-select-trigger{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;min-height:36px;padding:8px 12px;text-align:left;font-size:13px;font-weight:400}.generator-select-trigger svg{flex:none;color:var(--muted);pointer-events:none}.generator-select-menu{position:fixed;font:12px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--text);pointer-events:auto;z-index:2;background:var(--surface);padding:4px;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px #0002;max-height:230px;overflow:auto}.generator-option{display:block;width:100%;text-align:left;font-weight:400;padding:8px 12px;border-color:transparent}.generator-option[aria-selected=true]{border-color:var(--text)}.generator-option:hover{background:var(--wash)}
 .generator-launcher{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:32px;min-height:30px;padding:5px;border:0;background:transparent;pointer-events:auto}.generator-launcher img{width:21px;height:21px;object-fit:contain;display:block}
+.generator-line{padding:10px 12px}.generator-line-text{min-width:0;font-size:12px;color:var(--muted);overflow-wrap:anywhere}.generator-line-text code{color:var(--text)}
+.generator-footer--split{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.generator-split{position:relative;display:flex;min-width:0}.generator-footer .generator-split-main{flex:1;width:auto;min-width:0;border-radius:6px 0 0 6px;border-right:0}.generator-footer .generator-split-arrow{flex:0 0 auto;width:34px;padding:0;display:grid;place-items:center;border-radius:0 6px 6px 0;color:var(--muted)}.generator-split-arrow svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.generator-split-menu{position:absolute;z-index:2;top:calc(100% + 6px);left:0;width:max-content;max-width:280px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px #0003}.generator-footer .generator-split-menu>button{display:block;width:100%;min-height:0;padding:9px 10px;border:0;border-radius:6px;background:transparent;text-align:left;font-weight:500}.generator-split-menu>button:hover{background:var(--wash)}.generator-panel:has(.generator-split){overflow:visible}
+.generator-split-menu[data-up]{top:auto;bottom:calc(100% + 6px)}.generator-locked{display:flex;align-items:center;gap:10px;padding:12px}.generator-locked-icon{display:grid;place-items:center;flex:0 0 32px;width:32px;height:32px;border:1px solid var(--line);border-radius:8px;color:var(--muted)}.generator-locked-icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.generator-locked-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.generator-locked-text strong{font-size:13px;line-height:1.35}.generator-locked-text small{font-size:12px;color:var(--muted);overflow-wrap:anywhere}.generator-locked-action{flex:none;min-height:32px;padding:0 12px;font-size:13px}
 @media(prefers-reduced-motion:reduce){.generator-options{transition:none}}
 `;
+
+function lockIcon(doc: Document): SVGSVGElement {
+  const ns = 'http://www.w3.org/2000/svg';
+  const icon = doc.createElementNS(ns, 'svg'); icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('aria-hidden', 'true');
+  const path = doc.createElementNS(ns, 'path'); path.setAttribute('d', 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z'); icon.append(path);
+  return icon;
+}
+
+function chevronIcon(doc: Document): SVGSVGElement {
+  const ns = 'http://www.w3.org/2000/svg';
+  const icon = doc.createElementNS(ns, 'svg'); icon.setAttribute('viewBox', '0 0 16 16'); icon.setAttribute('aria-hidden', 'true');
+  const path = doc.createElementNS(ns, 'path'); path.setAttribute('d', 'm4 6 4 4 4-4'); icon.append(path);
+  return icon;
+}

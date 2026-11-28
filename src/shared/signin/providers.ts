@@ -86,12 +86,29 @@ export function providerForAuthorizationUrl(raw: string): SignInProvider | null 
 }
 
 /** True for any host owned by a supported provider's sign-in surface. */
+/** Google's own account origin; the only provider page where a submitted account is observed. */
+export function isGoogleAccountPage(raw: string): boolean {
+  try { return new URL(raw).origin === 'https://accounts.google.com'; } catch { return false; }
+}
+
 export function isProviderSignInHost(raw: string): boolean {
   try {
     const host = new URL(raw).hostname.toLowerCase();
     return ['accounts.google.com', 'appleid.apple.com', 'idmsa.apple.com', 'login.microsoftonline.com',
       'login.live.com', 'github.com', 'www.facebook.com', 'm.facebook.com', 'web.facebook.com'].includes(host);
   } catch { return false; }
+}
+
+/**
+ * An OAuth/OIDC authorization request on a host Palladin does not support as a
+ * provider. Only parameter names are inspected; no value is read or kept.
+ */
+export function isUnsupportedAuthorizationRequest(raw: string): boolean {
+  let url: URL;
+  try { url = new URL(raw); } catch { return false; }
+  if (url.protocol !== 'https:' || url.username || url.password || classifyProviderUrl(raw) !== null || isProviderSignInHost(raw)) return false;
+  const query = url.searchParams;
+  return query.has('client_id') && query.has('redirect_uri') && (query.has('response_type') || query.has('scope'));
 }
 
 /**

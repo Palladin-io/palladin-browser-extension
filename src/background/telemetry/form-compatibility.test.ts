@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createFormCompatibilityReporter } from "./form-compatibility";
+import { createFormCompatibilityReporter, createSignInCompatibilityReporter } from "./form-compatibility";
 
 function reporter(projectKey = "phc_public") {
   const send = vi.fn(async (_url: string, _body: string) => undefined);
@@ -78,5 +78,61 @@ describe("anonymous form-compatibility reports", () => {
     const report = createFormCompatibilityReporter({ projectKey: "phc", ingestHost: "https://eu.i.posthog.com", extensionVersion: "0.1.3", send });
     expect(() => report("https://example.com/", "submit-action-missing")).not.toThrow();
     await Promise.resolve();
+  });
+});
+
+describe("anonymous sign-in compatibility reports", () => {
+  function signIn(projectKey = "phc_public") {
+    const send = vi.fn(async (_url: string, _body: string) => undefined);
+    const report = createSignInCompatibilityReporter({ projectKey, ingestHost: "https://eu.i.posthog.com", extensionVersion: "0.1.3", send, randomId: () => "random" });
+    return { report, send, bodies: () => send.mock.calls.map(([, body]) => JSON.parse(body) as Record<string, unknown>) };
+  }
+  const screen = { kind: "account-chooser" as const, identifierField: false, passwordField: false, emailAttribute: true, emailText: true };
+
+  it("sends only hosts, the provider and value-free screen flags for an unread account", () => {
+    const { report, send, bodies } = signIn();
+    report({ event: "account-not-observed", serviceUrl: "https://App.Example.com/login?next=%2Fbilling&email=ada%40example.org",
+      provider: "google", providerUrl: "https://accounts.google.com/v3/signin/accountchooser?Email=ada%40example.org", screen });
+    expect(bodies()[0]).toEqual({ api_key: "phc_public", event: "ex:signin:account-not-observed", distinct_id: "random",
+      properties: { host: "app.example.com", provider: "google", provider_host: "accounts.google.com", screen: "account-chooser",
+        identifier_field: false, password_field: false, email_attribute: true, email_text: true,
+        extension_version: "0.1.3", $process_person_profile: false, $geoip_disable: true } });
+    expect(send.mock.calls[0]![1]).not.toMatch(/ada|example\.org|billing|accountchooser|login/);
+  });
+
+  it("marks a silent return without a provider screen", () => {
+    const { report, bodies } = signIn();
+    report({ event: "account-not-observed", serviceUrl: "https://app.example.com/", provider: "github", providerUrl: null, screen: null });
+    expect(bodies()[0]!.properties).toEqual(expect.objectContaining({ provider: "github", provider_host: "none", screen: "none" }));
+    expect(bodies()[0]!.properties).not.toHaveProperty("email_text");
+  });
+
+  it("reports an unsupported provider by registrable domain only, once", () => {
+    const { report, bodies } = signIn();
+    report({ event: "provider-unsupported", authorizationUrl: "https://acme.okta.com/oauth2/v1/authorize?client_id=secret&login_hint=ada%40example.org" });
+    report({ event: "provider-unsupported", authorizationUrl: "https://other.okta.com/oauth2/v1/authorize?client_id=c" });
+    expect(bodies()).toHaveLength(1);
+    expect(bodies()[0]).toEqual(expect.objectContaining({ event: "ex:signin:provider-unsupported", properties: expect.objectContaining({ host: "okta.com" }) }));
+    expect(JSON.stringify(bodies())).not.toMatch(/acme|secret|ada/);
+  });
+
+  it("drops a tenant on a private public suffix", () => {
+    const { report, bodies } = signIn();
+    report({ event: "provider-unsupported", authorizationUrl: "https://acme.auth.us-east-1.amazoncognito.com/oauth2/authorize?client_id=c&redirect_uri=https%3A%2F%2Fexample.com&response_type=code" });
+    expect(bodies()[0]!.properties).toEqual(expect.objectContaining({ host: "amazoncognito.com" }));
+    expect(JSON.stringify(bodies())).not.toMatch(/acme/);
+  });
+
+  it.each(["http://example.com/authorize", "https://192.168.1.10/authorize", "https://localhost/authorize"])("drops a non-public provider URL %s", url => {
+    const { report, send } = signIn();
+    report({ event: "provider-unsupported", authorizationUrl: url });
+    report({ event: "account-not-observed", serviceUrl: url, provider: "google", providerUrl: null, screen: null });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing without a build-injected project key", () => {
+    const { report, send } = signIn("");
+    report({ event: "provider-unsupported", authorizationUrl: "https://acme.okta.com/oauth2/v1/authorize?client_id=c" });
+    expect(send).not.toHaveBeenCalled();
   });
 });

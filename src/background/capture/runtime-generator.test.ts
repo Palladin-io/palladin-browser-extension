@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CAPTURE_DETECTED_CHANNEL } from '@shared/messaging/capture';
-import { captureCoordinator } from './runtime';
+import { CAPTURE_DETECTED_CHANNEL, GENERATOR_PREVIEW_CHANNEL } from '@shared/messaging/capture';
+import { captureCoordinator, handleGeneratorPreview } from './runtime';
 import { sessionManager } from '../session/runtime';
 import { registerTopFrameDocument } from '../tab-documents';
 
@@ -42,5 +42,16 @@ describe('generated fill runtime boundary', () => {
       expect(result).toMatchObject({ ok: true, kind: 'fill', fill: { status: 'no-form' } });
       expect(sendMessage.mock.calls.filter(([, message]) => message.channel === 'palladin.capture/fill')).toEqual([]);
     } finally { unregister?.(); unregisterOther?.(); }
+  });
+
+  it('tells the active top document that Palladin is locked, but not a child frame', async () => {
+    vi.spyOn(sessionManager, 'getKeys').mockReturnValue(null);
+    const command = { channel: GENERATOR_PREVIEW_CHANNEL, documentId: '0123456789abcdef0123456789abcdef',
+      candidateId: 'candidate_0123456789abcdef', type: 'preview', options: { mode: 'password', length: 20, digits: true, symbols: true } };
+    const sender = { id: 'extension-id', frameId: 0, documentId: 'browser-document-1', documentLifecycle: 'active',
+      url: 'https://accounts.example.com/register', tab: { id: 7, url: 'https://accounts.example.com/register' } } as chrome.runtime.MessageSender;
+    vi.stubGlobal('chrome', { runtime: { id: 'extension-id' } });
+    expect(await handleGeneratorPreview(command, sender)).toEqual({ status: 'locked' });
+    expect(await handleGeneratorPreview(command, { ...sender, frameId: 3 })).toMatchObject({ status: 'blocked' });
   });
 });

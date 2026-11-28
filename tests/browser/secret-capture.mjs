@@ -34,8 +34,8 @@ const run = async (name, test) => {
     if (popup) {
       console.error('Value-free native targets', await popup.inspectTargets());
       try { console.error('Value-free capture state', await popup.captureDiagnostic()); console.error('Value-free popup state', {
-        review: await popup.hasCaptureReview(), duplicate: await popup.hasText('This exact item is already'),
-        expired: await popup.hasText('This capture expired'), error: await popup.hasText("Couldn't save this entry"),
+        review: await popup.hasCaptureReview(), duplicate: await popup.hasText('is already in '),
+        expired: await popup.hasText('The time to save this ran out'), error: await popup.hasText("Couldn't save this entry"),
         saveButton: await popup.hasButton('Save entry'), writes: api.writes.length,
       }) } catch { console.error('Native capture surface no longer available') }
     }
@@ -137,7 +137,7 @@ async function saveKey(index, destination = 0) {
     await popup.dismiss(); popup=await openNativePopup(worker,profile,extensionId);
     await popup.waitButton('Review'); await popup.click('Review'); await popup.waitButton('Save entry');
   }
-  await popup.click('Save entry', 'button', {completedText:'API key saved'})
+  await popup.click('Save entry', 'button', {completedText:'Saved'})
   await wait(() => api.writes.length === count + 1, 'explicit encrypted key write')
   const write = api.writes.at(-1)
   const secret = await api.decrypt(write)
@@ -160,7 +160,7 @@ async function saveCard({ expectedName = '', month = '', year = '', number = pan
   if (!year) await popup.fill('input[autocomplete="cc-exp-year"]', '2031')
   assert(await popup.secretCaptureFieldsMatch({ 'input[autocomplete="cc-name"]': expectedName || 'Synthetic Cardholder',
     'input[autocomplete="cc-exp-month"]': month || '12', 'input[autocomplete="cc-exp-year"]': year || '2031' }), 'Completed native card fields are exact before save');
-  await popup.click('Save entry', 'button', {completedText:'Card saved'})
+  await popup.click('Save entry', 'button', {completedText:'Saved'})
   await wait(() => api.writes.length === count + 1, 'explicit encrypted card write')
   const write = api.writes.at(-1)
   const secret = await api.decrypt(write)
@@ -248,7 +248,7 @@ try {
     await openReview();
     assert(await popup.secretCaptureFieldsMatch({ 'input[type="password"][maxlength="4"]': '913' }));
     assert(await popup.hasButton('Update card'));
-    await popup.click('Update card', 'button', {completedText:'Card saved'});
+    await popup.click('Update card', 'button', {completedText:'Updated'});
     await wait(() => api.writes.length === count + 1, 'explicit encrypted card update');
     const write = api.writes.at(-1), secret = await api.decrypt(write);
     assert.equal(write.action, 'updated'); assert.equal(write.entryId, previous.entryId);
@@ -322,7 +322,7 @@ try {
     await visit('readonly', 1)
     const count = api.writes.length
     await openReview()
-    await popup.watchText('This exact item is already in the selected Vault. Nothing was changed.')
+    await popup.watchText('This API key is already in ')
     await popup.click('Save entry')
     await wait(() => popup.sawWatchedText(), 'actual duplicate feedback')
     assert.equal(api.writes.length, count)

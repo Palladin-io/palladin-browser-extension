@@ -46,6 +46,20 @@ describe("credential capture toast", () => {
     await vi.advanceTimersByTimeAsync(0);
   }
 
+  it('lets the automatic update note be closed and closes it when its countdown ends', async () => {
+    const host = () => document.querySelector('palladin-capture');
+    toast.show({ status: 'saved', action: 'updated' });
+    expect(shadow.querySelector('.panel')).toHaveAttribute('role', 'status');
+    expect(shadow.querySelector('.panel')).toHaveTextContent('Password updated');
+    expect(shadow.querySelector('.header .notice-countdown')).not.toBeNull();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(host()).not.toBeNull();
+    await click('Close');
+    expect(host()).toBeNull();
+    toast.show({ status: 'saved', action: 'updated' });
+    shadow.querySelector('.notice-countdown')!.dispatchEvent(new Event('animationend'));
+    expect(host()).toBeNull();
+  });
   it('keeps the branded header separate from the two review actions and site mute', () => {
     expect(shadow.querySelector('.notice-brand')?.textContent).toBe('Palladin.io');
     expect(shadow.querySelector('.notice-brand img')).not.toBeNull();
@@ -78,8 +92,10 @@ describe("credential capture toast", () => {
     openReview.mockResolvedValue(false);
     const label = locale === 'pl' ? 'Sprawdź' : 'Review';
     await click(label);
-    expect(ui().getByRole('button', { name: label })).toBeVisible();
-    expect(ui().getByRole('alert')).toHaveTextContent(locale === 'pl' ? 'Nie udało' : 'Could not');
+    expect(ui().getByRole('button', { name: locale === 'pl' ? 'Spróbuj ponownie' : 'Try again' })).toBeVisible();
+    expect(ui().getByRole('alert')).toHaveTextContent(locale === 'pl' ? 'Nie udało się otworzyć formularza' : "Couldn't open the review");
+    expect(shadow.querySelector('.site.error')).toHaveTextContent(locale === 'pl' ? 'Nie udało się otworzyć formularza' : "Couldn't open the review");
+    expect(ui().queryByText(locale === 'pl' ? 'Wykryto na' : 'Captured on', { exact: false })).toBeNull();
   });
   it('reveals site mute from Dismiss without dispatching an action', async () => {
     send.mockResolvedValue({ status: 'dismissed' });
@@ -103,6 +119,14 @@ describe("credential capture toast", () => {
     await click('Unlock Palladin');
     expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'unlock' }));
     expect(shadow.textContent).not.toContain('Alice');
+  });
+  it('says in the subtitle how to continue while locked', async () => {
+    toast.show({ status: 'prompt', prompt: { ...view, state: 'locked', targets: [], defaultTargetId: null } });
+    expect(shadow.querySelector('.site')).toHaveTextContent('Unlock to save this login');
+    expect(shadow.querySelector('.note')).toBeNull();
+    send.mockResolvedValue({ status: 'unavailable' });
+    await click('Unlock Palladin');
+    expect(ui().getByRole('alert')).toHaveTextContent('Open Palladin from the toolbar');
   });
   it('localizes the neutral notice and retains dark appearance', () => {
     toast.setAppearance('pl', 'dark');

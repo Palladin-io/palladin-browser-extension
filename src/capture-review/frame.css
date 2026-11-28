@@ -12,9 +12,9 @@ html:has(.capture-frame) { background:var(--cv-surface)!important; }
 .capture-frame .capture-review { border:0; border-radius:0; }
 .capture-frame .capture-review-identity { margin:16px 20px; }
 .capture-frame .capture-review-fields { padding:0 20px 16px; max-height:340px; }
+.capture-frame .capture-review-fields:empty { padding-bottom:0; }
 .capture-frame .capture-review-footer { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); padding:12px 20px; }
 .capture-frame .capture-review-footer > button { min-width:0; width:100%; }
-.capture-frame .capture-review-footer[data-saved='true'] { grid-template-columns:1fr; }
 @media(prefers-reduced-motion:reduce) { .capture-frame *, .capture-frame *::before, .capture-frame *::after { animation:none!important; transition:none!important; } }
 .capture-frame .popup-header > .toolbar-icon { width:28px; height:28px; padding:0; display:grid; place-items:center; flex-shrink:0; }
 .capture-frame .brand-lockup { gap:16px; }
@@ -31,3 +31,26 @@ html:has(.capture-frame) { background:var(--cv-surface)!important; }
 .capture-frame .capture-review-footer { position:fixed; bottom:0; left:0; right:0; z-index:3; }
 
 .capture-frame .popup-header > .toolbar-icon svg { display:block; width:16px; height:16px; pointer-events:none; }
+
+/* Room for an account list to open downward; the host follows the frame height. */
+.capture-frame:has([role="combobox"][aria-expanded="true"]) { min-height:580px; }
+.capture-frame .capture-review-identity strong { font-size:15px; }
+.capture-frame .capture-review-identity small { font-size:13px; line-height:18px; }
+/* Selects and buttons in capture fields match the 38px / 13px text inputs and the Dismiss treatment. */
+.capture-frame .capture-review-fields .filter-select > [role="combobox"] { height:38px; font-size:13px; }
+.capture-frame .capture-review-fields [data-capture-more] { height:38px; min-height:38px; font-size:13px; }
+.capture-frame .capture-review-fields .btn--subtle { background:var(--cv-surface); color:var(--cv-t1); border:1px solid var(--cv-border); }
+.capture-frame .capture-review-fields .btn--subtle:hover { background:var(--cv-subtle); }
+
+
+/* After a save the frame closes itself; the line fills under the logo strip like the one-click sign-in toast. */
+.capture-frame .popup-header { position:relative; }
+.capture-countdown { display:none; position:absolute; left:0; right:0; bottom:-1px; height:2px; transform-origin:left; transform:scaleX(0); background:var(--cv-t3); pointer-events:none; }
+.capture-frame:has(.capture-review[data-stage='saved']) .capture-countdown { display:block; animation:capture-countdown 6s linear forwards; }
+.capture-frame:hover .capture-countdown, .capture-frame:has(:focus-visible) .capture-countdown, .capture-frame:has([role='menu']) .capture-countdown { animation-play-state:paused; }
+/* The confirmation closes when this animation ends, so reduced motion keeps the timing without the moving line. */
+@media(prefers-reduced-motion:reduce) {
+  .capture-frame:has(.capture-review[data-stage='saved']) .capture-countdown { animation-name:capture-countdown!important; animation-duration:1ms!important; animation-timing-function:linear!important; animation-delay:6s!important; animation-fill-mode:forwards!important; }
+  .capture-frame:hover .capture-countdown, .capture-frame:has(:focus-visible) .capture-countdown, .capture-frame:has([role='menu']) .capture-countdown { animation-play-state:paused!important; }
+}
+@keyframes capture-countdown { to { transform:scaleX(1); } }

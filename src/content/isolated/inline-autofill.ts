@@ -3,6 +3,7 @@ import { clearAutomaticFillProvenance, discardAutomaticFillProvenance } from './
 import en from "../../popup/locales/en.json";
 import pl from "../../popup/locales/pl.json";
 import palladinIconUrl from "../../../icons/icon-32.png?inline";
+import brandGrainUrl from "../../popup/assets/brand-grain.svg?inline";
 import { createClosedSurface } from "./closed-surface";
 import {
   DEFAULT_UI_PREFERENCES,
@@ -81,7 +82,9 @@ type InlineKey =
   | "inline.loading"
   | "inline.empty"
   | "inline.locked"
+  | "inline.lockedDetail"
   | "inline.signedOut"
+  | "inline.signedOutDetail"
   | "inline.openPalladin"
   | "inline.unlockPalladin"
   | "inline.signInPalladin"
@@ -90,12 +93,16 @@ type InlineKey =
   | "inline.filling"
   | "inline.filled"
   | "inline.passwordUpdated"
+  | "inline.fillUpdated"
   | "inline.fillAndLogin"
   | "inline.logIn"
   | "inline.noForm"
+  | "inline.noFormDetail"
   | "inline.submitNotFound"
+  | "inline.submitNotFoundDetail"
   | "inline.blocked"
-  | "inline.vault"
+  | "inline.blockedDetail"
+  | "inline.close"
   | "inline.related";
 
 export function startInlineAutofill(
@@ -165,6 +172,7 @@ class InlineAutofillController {
   private readonly totpSurfaces = new Map<HTMLInputElement, { host: HTMLElement; panel: HTMLElement; button: HTMLButtonElement; target: HTMLInputElement[] }>();
   private totpPending: { id: string; target: HTMLInputElement[]; url: string; binding: TotpBinding; intent: "automatic" | "manual" } | null = null;
   private readonly widgets = new Map<HTMLInputElement, InlineWidget>();
+  private suggestionsDeclined = false;
   private observer: MutationObserver | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private readonly observedInputs = new Set<HTMLInputElement>();
@@ -529,6 +537,8 @@ class InlineAutofillController {
         closeOthers: () => {
           for (const other of this.widgets.values()) if (other !== widget) other.close();
         },
+        declined: () => this.suggestionsDeclined,
+        decline: () => { this.suggestionsDeclined = true; },
       });
       this.widgets.set(input, widget);
       widget.mount();
@@ -623,8 +633,7 @@ class InlineAutofillController {
         const option = this.doc.createElement('button'); option.type = 'button'; option.className = 'option';
         const text = this.doc.createElement('span'); text.className = 'entry-text';
         const name = this.doc.createElement('strong'); name.textContent = entry.name; text.append(name);
-        if (entry.username && entry.username !== entry.name) { const account = this.doc.createElement('span'); account.className = 'entry-name'; account.textContent = entry.username; text.append(account); }
-        const detail = this.doc.createElement('small'); detail.textContent = suggestionDetail(entry, this.locale); text.append(detail);
+        const detail = this.doc.createElement('span'); detail.className = 'entry-name'; detail.textContent = suggestionDetail(entry, this.locale); text.append(detail);
         const icon = this.doc.createElement('span'); icon.className = 'entry-icon'; icon.setAttribute('aria-hidden', 'true'); icon.append(createCredentialIcon(this.doc));
         option.append(icon, text);
         option.addEventListener('click', () => {
@@ -633,7 +642,7 @@ class InlineAutofillController {
         });
         list.append(option);
       }
-      panel.replaceChildren(createInlineTitle(this.doc, this.locale), list); panel.hidden = false;
+      panel.replaceChildren(createInlineTitle(this.doc, this.locale, () => { panel.hidden = true; }), list); panel.hidden = false;
     })(); });
   }
 
@@ -676,12 +685,17 @@ class InlineAutofillController {
   }
 }
 
-function createInlineTitle(doc: Document, locale: UiLocale): HTMLDivElement {
+function createInlineTitle(doc: Document, locale: UiLocale, onClose: () => void): HTMLDivElement {
   const title = doc.createElement('div'); title.className = 'title';
   const icon = createBrandIcon(doc); icon.className = 'title-icon';
   const wordmark = doc.createElement('span'); wordmark.className = 'wordmark'; wordmark.textContent = 'Palladin';
   const suffix = doc.createElement('span'); suffix.className = 'wordmark-tld'; suffix.textContent = '.io'; wordmark.append(suffix);
-  title.setAttribute('aria-label', message(locale, 'inline.title')); title.append(icon, wordmark);
+  title.setAttribute('aria-label', message(locale, 'inline.title'));
+  const close = doc.createElement('button'); close.type = 'button'; close.className = 'inline-close';
+  close.setAttribute('aria-label', message(locale, 'inline.close'));
+  close.append(createIcon(doc, 'M6 6l12 12M18 6 6 18', '0 0 24 24'));
+  close.addEventListener('click', onClose);
+  title.append(icon, wordmark, close);
   return title;
 }
 
@@ -695,6 +709,9 @@ interface InlineWidgetOptions {
   readonly locale: () => UiLocale;
   readonly theme: () => "light" | "dark";
   readonly closeOthers: () => void;
+  /** After the user closes the suggestions, focus alone does not reopen them until the page reloads. */
+  readonly declined: () => boolean;
+  readonly decline: () => void;
   readonly onAutomaticFill: (entry: InlineAutofillSuggestion) => void;
   readonly onManualFill: () => number;
   readonly onManualSettled: (generation: number, success: boolean) => void;
@@ -890,22 +907,20 @@ class InlineWidget {
       name: current.name,
       updatedAt: current.updatedAt,
     };
-    this.showPasswordUpdated(current.name);
+    this.showPasswordUpdated(current);
   }
 
-  private showPasswordUpdated(name: string): void {
+  /** Fill is the same explicit choice as picking the Entry from the list. */
+  private showPasswordUpdated(entry: InlineAutofillSuggestion): void {
     this.options.closeOthers();
     this.panel.hidden = false;
-    const generation = ++this.openGeneration;
-    const status = this.options.doc.createElement("div");
-    status.className = "status update-notice";
-    status.setAttribute("role", "status");
-    status.textContent = message(this.options.locale(), "inline.passwordUpdated")
-      .replace("{name}", name);
-    this.panel.replaceChildren(this.createTitle(), status);
-    setTimeout(() => {
-      if (this.openGeneration === generation) this.close();
-    }, 5_000);
+    this.openGeneration += 1;
+    const fill = this.options.doc.createElement("button");
+    fill.type = "button";
+    fill.className = "notice-action";
+    fill.textContent = message(this.options.locale(), "inline.fillUpdated");
+    fill.addEventListener("click", () => void this.fill(entry));
+    this.renderNotice("inline.passwordUpdated", fill, [entry.name, entry.username].filter(Boolean).join(" · "));
   }
 
   refreshPreferences(): void {
@@ -952,7 +967,7 @@ class InlineWidget {
     // host filling is a separate, one-shot path below; the chooser opens only
     // for an actual browser user activation.
     const activated = this.options.doc.defaultView?.navigator.userActivation?.isActive === true;
-    if (activated) void this.open("focus");
+    if (activated && !this.options.declined()) void this.open("focus");
   };
 
   /**
@@ -1061,24 +1076,38 @@ class InlineWidget {
   }
 
   private renderSessionRequired(sessionStatus: "locked" | "signed-out"): void {
-    const wrapper = this.options.doc.createElement("div");
-    wrapper.className = "session-required";
-    const description = this.options.doc.createElement("div");
-    description.className = "status";
-    description.textContent = message(
-      this.options.locale(),
-      sessionStatus === "locked" ? "inline.locked" : "inline.signedOut",
-    );
+    const locked = sessionStatus === "locked";
     const open = this.options.doc.createElement("button");
     open.type = "button";
-    open.className = "open-palladin";
-    open.textContent = message(
-      this.options.locale(),
-      sessionStatus === "locked" ? "inline.unlockPalladin" : "inline.signInPalladin",
-    );
+    open.className = "notice-action open-palladin";
+    open.textContent = message(this.options.locale(), locked ? "inline.unlockPalladin" : "inline.signInPalladin");
     open.addEventListener("click", () => void this.openPalladin());
-    wrapper.append(description, open);
-    this.panel.replaceChildren(this.createTitle(), wrapper);
+    this.renderNotice(locked ? "inline.locked" : "inline.signedOut", open);
+  }
+
+  /** One row like a suggestion: icon, a short title, one detail line and an optional action. */
+  private renderNotice(key: NoticeKey, action?: HTMLButtonElement, detailText?: string): void {
+    const notice = NOTICES[key];
+    const row = this.options.doc.createElement("div");
+    row.className = "notice-row";
+    row.setAttribute("role", "status");
+    const line = this.options.doc.createElement("div");
+    line.className = "notice-line";
+    const icon = this.options.doc.createElement("span");
+    icon.className = "notice-icon";
+    icon.append(createIcon(this.options.doc, notice.icon, "0 0 24 24"));
+    const text = this.options.doc.createElement("span");
+    text.className = "entry-text";
+    const title = this.options.doc.createElement("strong");
+    title.textContent = message(this.options.locale(), key);
+    const detail = this.options.doc.createElement("span");
+    detail.className = "entry-name";
+    detail.textContent = detailText ?? (notice.detail ? message(this.options.locale(), notice.detail) : "");
+    text.append(title, detail);
+    line.append(icon, text);
+    row.append(line);
+    if (action) row.append(action);
+    this.panel.replaceChildren(this.createTitle(), this.createCountdown(), row);
   }
 
   private async openPalladin(): Promise<void> {
@@ -1115,13 +1144,8 @@ class InlineWidget {
       const primary = this.options.doc.createElement("strong");
       primary.textContent = label;
       text.append(primary);
-      if (entry.username && entry.username !== label) {
-        const username = this.options.doc.createElement("span");
-        username.className = "entry-name";
-        username.textContent = entry.username;
-        text.append(username);
-      }
-      const detail = this.options.doc.createElement("small");
+      const detail = this.options.doc.createElement("span");
+      detail.className = "entry-name";
       detail.textContent = suggestionDetail(entry, this.options.locale());
       text.append(detail);
       const icon = this.options.doc.createElement("span");
@@ -1136,21 +1160,42 @@ class InlineWidget {
         icon.replaceChildren(image);
       }
       option.append(icon, text);
-      option.addEventListener("click", () => void this.fill(entry));
-
       const submit = this.options.doc.createElement("button");
       submit.type = "button";
       submit.className = "submit-login";
       submit.title = message(this.options.locale(), "inline.fillAndLogin");
       submit.setAttribute("aria-label", `${submit.title}: ${entry.username || entry.name}`);
-      const submitLabel = this.options.doc.createElement("span");
-      submitLabel.textContent = message(this.options.locale(), "inline.logIn");
-      submit.append(submitLabel);
-      submit.addEventListener("click", () => void this.fill(entry, true));
+      submit.append(createIcon(this.options.doc, "M3 8h9M8.5 4.5 12 8l-3.5 3.5", "0 0 16 16"));
+      const choose = (submitAfterFill: boolean) => {
+        this.showBusy(row, submit);
+        void this.fill(entry, submitAfterFill, false, true);
+      };
+      option.addEventListener("click", () => choose(false));
+      submit.addEventListener("click", () => choose(true));
       row.append(option, submit);
       list.append(row);
     }
-    this.panel.replaceChildren(title, list);
+    const from = this.panel.hidden ? 0 : this.panel.getBoundingClientRect().height;
+    this.panel.replaceChildren(title, this.createCountdown(), list);
+    this.growFrom(from);
+  }
+
+  private growFrom(from: number): void {
+    const view = this.options.doc.defaultView;
+    if (!from || typeof this.panel.animate !== "function" || view?.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const to = this.panel.getBoundingClientRect().height;
+    if (Math.abs(to - from) < 1) return;
+    this.panel.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 240, easing: "ease-out" });
+  }
+
+  /** The chosen row keeps its place; its arrow turns into a spinner and the countdown stops. */
+  private showBusy(row: HTMLElement, submit: HTMLButtonElement): void {
+    this.panel.querySelector(".inline-countdown")?.remove();
+    for (const button of this.panel.querySelectorAll<HTMLButtonElement>(".option, .submit-login")) button.disabled = true;
+    row.dataset["busy"] = "true";
+    const spinner = this.options.doc.createElement("i");
+    spinner.className = "spinner";
+    submit.replaceChildren(spinner);
   }
 
   private renderLoading(): void {
@@ -1158,7 +1203,8 @@ class InlineWidget {
     loading.className = "loading";
     loading.setAttribute("role", "status");
     loading.setAttribute("aria-label", message(this.options.locale(), "inline.loading"));
-    for (let index = 0; index < 3; index += 1) {
+    // One placeholder row; the panel then grows to the real list.
+    {
       const row = this.options.doc.createElement("div");
       row.className = "loading-row";
       const text = this.options.doc.createElement("span");
@@ -1175,14 +1221,24 @@ class InlineWidget {
     this.panel.replaceChildren(this.createTitle(), loading);
   }
 
+  /** The menu closes itself when the countdown under the header ends, like the one-click sign-in toast. */
+  private createCountdown(): HTMLDivElement {
+    const countdown = this.options.doc.createElement("div");
+    countdown.className = "inline-countdown";
+    countdown.setAttribute("aria-hidden", "true");
+    countdown.addEventListener("animationend", () => this.close());
+    return countdown;
+  }
+
   private createTitle(): HTMLDivElement {
-    return createInlineTitle(this.options.doc, this.options.locale());
+    return createInlineTitle(this.options.doc, this.options.locale(), () => { this.options.decline(); this.close(); });
   }
 
   private async fill(
     entry: InlineAutofillSuggestion,
     submitAfterFill = false,
     silent = false,
+    progressShown = false,
   ): Promise<boolean> {
     let manualGeneration: number | null = null;
     if (!silent) {
@@ -1216,7 +1272,7 @@ class InlineWidget {
     let succeeded = false;
     let workerFilled = false;
     try {
-      if (!silent) this.renderStatus("inline.filling");
+      if (!silent && !progressShown) this.renderStatus("inline.filling");
       let raw: unknown;
       try {
         raw = await this.options.send({
@@ -1282,11 +1338,29 @@ class InlineWidget {
   }
 
   private renderStatus(key: InlineKey): void {
+    if (isNoticeKey(key)) return this.renderNotice(key);
     const status = this.options.doc.createElement("div");
     status.className = "status";
     status.textContent = message(this.options.locale(), key);
-    this.panel.replaceChildren(this.createTitle(), status);
+    // Progress and the brief "filled" state close on their own; every other message counts down.
+    const settled = key !== "inline.filling" && key !== "inline.filled";
+    this.panel.replaceChildren(...[this.createTitle(), settled ? this.createCountdown() : null, status]
+      .filter((node): node is HTMLDivElement => node !== null));
   }
+}
+
+const NOTICES = {
+  "inline.locked": { icon: "M7 11V8a5 5 0 0 1 10 0v3M6 11h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z", detail: "inline.lockedDetail" },
+  "inline.signedOut": { icon: "M12 11.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM5 20a7 7 0 0 1 14 0", detail: "inline.signedOutDetail" },
+  "inline.blocked": { icon: "M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6zM12 9v4M12 16h.01", detail: "inline.blockedDetail" },
+  "inline.noForm": { icon: "M12 20.5a8.5 8.5 0 1 0 0-17 8.5 8.5 0 0 0 0 17zM12 8v4.5M12 16h.01", detail: "inline.noFormDetail" },
+  "inline.submitNotFound": { icon: "M9 4v10l2.5-2.5L14 17l2-1-2.5-5H17z", detail: "inline.submitNotFoundDetail" },
+  "inline.passwordUpdated": { icon: "M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4", detail: null },
+} as const satisfies Record<string, { icon: string; detail: InlineKey | null }>;
+type NoticeKey = keyof typeof NOTICES;
+
+function isNoticeKey(key: InlineKey): key is NoticeKey {
+  return Object.hasOwn(NOTICES, key);
 }
 
 function loginValueSnapshot(target: LoginTarget): string {
@@ -1298,11 +1372,11 @@ function message(locale: UiLocale, key: InlineKey): string {
   return catalog[key];
 }
 
+/** One line under the entry name: vault first, then the account. */
 export function suggestionDetail(entry: InlineAutofillSuggestion, locale: UiLocale): string {
-  const vault = `${message(locale, "inline.vault")}: ${entry.vaultName}`;
-  return entry.match === "related"
-    ? `${message(locale, "inline.related")}: ${entry.urlDomain} · ${vault}`
-    : vault;
+  const account = entry.username && entry.username !== entry.name ? entry.username : "";
+  return [entry.match === "related" ? `${message(locale, "inline.related")}: ${entry.urlDomain}` : "", entry.vaultName, account]
+    .filter(Boolean).join(" · ");
 }
 
 function resolvedTheme(preference: ThemePreference, view: Window | null): "light" | "dark" {
@@ -1325,6 +1399,17 @@ function createCredentialIcon(doc: Document): SVGSVGElement {
   circle.setAttribute("r", ".5");
   circle.setAttribute("fill", "currentColor");
   icon.append(path, circle);
+  return icon;
+}
+
+function createIcon(doc: Document, d: string, viewBox: string): SVGSVGElement {
+  const ns = "http://www.w3.org/2000/svg";
+  const icon = doc.createElementNS(ns, "svg");
+  icon.setAttribute("viewBox", viewBox);
+  icon.setAttribute("aria-hidden", "true");
+  const path = doc.createElementNS(ns, "path");
+  path.setAttribute("d", d);
+  icon.append(path);
   return icon;
 }
 
@@ -1359,44 +1444,61 @@ export const INLINE_STYLES = `
   .launcher { width:26px; height:26px; padding:2px; border:0; border-radius:8px; background:transparent; box-shadow:none; cursor:pointer; pointer-events:auto; }
   .launcher:hover, .launcher:focus-visible { background:rgba(229,70,69,.1); outline:2px solid rgba(229,70,69,.3); outline-offset:1px; }
   .launcher img { display:block; width:22px; height:22px; object-fit:contain; }
-  .title { display:flex; align-items:center; gap:8px; padding:11px 14px; border-bottom:1px solid var(--cv-border); }
+  .title { position:relative; isolation:isolate; display:flex; align-items:center; gap:8px; padding:11px 14px; border-bottom:1px solid var(--cv-border); background:linear-gradient(110deg, color-mix(in srgb, var(--cv-t3) 4%, var(--cv-card-bg)), var(--cv-card-bg)); }
+  .title::before { content:""; position:absolute; inset:0; z-index:-1; pointer-events:none; background:url('${brandGrainUrl}') repeat; background-size:180px; opacity:.018; mask-image:linear-gradient(to bottom, #000, rgb(0 0 0 / .25)); }
+  :host([data-theme="dark"]) .title::before { opacity:.055; }
+  .inline-close { margin-left:auto; display:grid; place-items:center; width:28px; height:28px; padding:0; border:0; border-radius:6px; background:transparent; color:var(--cv-t2); cursor:pointer; }
+  .inline-close:hover { background:var(--cv-hover); color:var(--cv-t1); }
+  .inline-close:focus-visible { outline:2px solid var(--cv-primary); outline-offset:-2px; }
+  .inline-close svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
+  .inline-countdown { position:relative; height:0; }
+  .inline-countdown::after { content:""; position:absolute; left:0; right:0; top:-1px; height:2px; transform-origin:left; transform:scaleX(0); background:var(--cv-t3); animation:inline-countdown 12s linear forwards; }
+  .panel:hover .inline-countdown::after, .panel:focus-within .inline-countdown::after { animation-play-state:paused; }
+  @keyframes inline-countdown { to { transform:scaleX(1); } }
   .title-icon { display:block; width:20px; height:20px; object-fit:contain; }
   .wordmark { font-size:14px; line-height:1.35; font-weight:800; letter-spacing:-.3px; }
   .wordmark-tld { color:var(--cv-primary); }
   .list { display:flex; flex-direction:column; max-height:264px; overflow:auto; scrollbar-width:thin; scrollbar-color:var(--cv-secondary-border) transparent; }
   .option-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; padding:12px; flex-shrink:0; }
   .option-row + .option-row { border-top:1px solid var(--cv-border); }
+  .list .option-row { animation:inline-row-in 200ms ease-out both; }
+  @keyframes inline-row-in { from { opacity:0; } to { opacity:1; } }
   .option-row:hover { background:var(--cv-hover); }
   .option { display:flex; width:100%; align-items:center; gap:10px; min-width:0; min-height:52px; padding:0; border:0; background:transparent; color:inherit; text-align:left; cursor:pointer; }
   .option:focus-visible { outline:2px solid var(--cv-primary); outline-offset:-3px; border-radius:8px; }
   .entry-icon { display:flex; align-items:center; justify-content:center; flex:0 0 32px; width:32px; height:32px; border-radius:8px; background:var(--cv-hover); }
   .entry-icon img { display:block; width:24px; height:24px; object-fit:contain; }
   .credential-icon { flex-shrink:0; width:22px; height:22px; color:var(--cv-t2); fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-  .submit-login { display:inline-flex; align-items:center; justify-content:center; min-height:30px; padding:0 10px; border:0; border-radius:6px; background:var(--cv-primary); color:#fff; font-size:11px; line-height:1.2; font-weight:600; white-space:nowrap; cursor:pointer; }
-  .submit-login:hover { background:var(--cv-primary-hover); }
+  .submit-login { display:inline-flex; align-items:center; justify-content:center; width:32px; min-height:32px; padding:0; border:1px solid var(--cv-secondary-border); border-radius:6px; background:var(--cv-card-bg); color:var(--cv-t1); cursor:pointer; }
+  .submit-login:hover { background:var(--cv-hover); }
+  .submit-login svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .option:disabled, .submit-login:disabled { cursor:default; }
+  .spinner { display:block; width:14px; height:14px; border:2px solid var(--cv-secondary-border); border-top-color:var(--cv-t1); border-radius:50%; animation:inline-spin .8s linear infinite; }
+  @keyframes inline-spin { to { transform:rotate(360deg); } }
   .submit-login:focus-visible { outline:2px solid var(--cv-primary); outline-offset:2px; }
   .entry-text { flex:1; display:flex; flex-direction:column; min-width:0; gap:2px; }
   .entry-text strong, .entry-text .entry-name, .entry-text small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .entry-text strong { font-size:13px; line-height:1.35; font-weight:650; }
-  .entry-text .entry-name { color:var(--cv-t2); font-size:11px; line-height:1.4; }
+  .entry-text .entry-name { color:var(--cv-t2); font-size:12px; line-height:1.4; }
   .entry-text small { color:var(--cv-t3); font-size:10px; line-height:1.4; }
   .loading { display:flex; flex-direction:column; }
-  .loading-row { display:grid; grid-template-columns:minmax(0,1fr) 58px; align-items:center; min-height:76px; padding:14px; }
+  .loading-row { display:grid; grid-template-columns:minmax(0,1fr) 32px; align-items:center; min-height:76px; padding:14px; }
   .loading-row + .loading-row { border-top:1px solid var(--cv-border); }
   .loading-lines { display:flex; flex-direction:column; gap:7px; }
   .loading-lines i, .loading-action { display:block; border-radius:6px; background:var(--cv-skeleton); animation:palladin-loading 1.15s ease-in-out infinite alternate; }
   .loading-lines i:first-child { width:62%; height:11px; }
   .loading-lines i:last-child { width:40%; height:8px; }
-  .loading-action { width:54px; height:30px; }
+  .loading-action { width:32px; height:32px; }
   @keyframes palladin-loading { from { opacity:.42; } to { opacity:.88; } }
-  @media (prefers-reduced-motion:reduce) { .loading-lines i, .loading-action { animation:none; } }
+  @media (prefers-reduced-motion:reduce) { .loading-lines i, .loading-action, .spinner, .list .option-row, .notice-row { animation:none; } .inline-countdown::after { animation-duration:1ms; animation-delay:12s; } }
   .status { padding:16px 14px; color:var(--cv-t2); font-size:13px; line-height:1.5; }
-  .update-notice { border-left:3px solid var(--cv-primary); }
-  .session-required { display:grid; gap:12px; padding:14px; }
-  .session-required .status { padding:0; }
-  .open-palladin { min-height:36px; border:0; border-radius:8px; background:var(--cv-primary); color:#fff; font:600 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif; cursor:pointer; }
-  .open-palladin:hover { background:var(--cv-primary-hover); }
-  .open-palladin:focus-visible { outline:2px solid var(--cv-primary); outline-offset:2px; }
+  .notice-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; padding:12px; animation:inline-row-in 200ms ease-out both; }
+  .notice-line { display:flex; align-items:center; gap:10px; min-width:0; min-height:52px; }
+  .notice-icon { display:grid; place-items:center; flex:0 0 32px; width:32px; height:32px; box-sizing:border-box; border:1px solid var(--cv-secondary-border); border-radius:8px; color:var(--cv-t2); }
+  .notice-icon svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .notice-action { min-height:32px; padding:0 12px; border:1px solid var(--cv-secondary-border); border-radius:6px; background:var(--cv-card-bg); color:var(--cv-t1); font:600 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif; cursor:pointer; }
+  .notice-action:hover { background:var(--cv-hover); }
+  .notice-action:focus-visible { outline:2px solid var(--cv-primary); outline-offset:2px; }
 `;
 
 /** Exact matches fill passively; a related Entry only as this tab's explicit continuation. */

@@ -13,7 +13,7 @@ export async function dispatchInlineCapture(command: InlineCaptureReviewCommand,
   captureId: string, authorized: () => Promise<boolean>): Promise<InlineCaptureReviewResult> {
   if (command.command.type === 'open-draft' || command.command.type === 'open-saved') return {status:'stale'};
   const current = async () => await authorized() && await matchesInlineCapture(command.kind, captureId, source);
-  if (!await current()) return { status: 'stale' };
+  if (!await current()) return command.kind === 'secret' ? secretCaptureCoordinator.refusal(captureId) : { status: 'stale' };
   if (command.kind === 'login' && 'channel' in command.command) return handleScopedLoginCapture(command.command, source, captureId, authorized);
   if (command.kind === 'secret') {
     const operation = command.command;

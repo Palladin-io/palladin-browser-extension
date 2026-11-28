@@ -40,13 +40,17 @@ const INITIAL = {
   notes: "",
 };
 
-export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, captureFormId, onBusyChange, afterCredentialUrl, capturePasswordUpdate, initialCaptureDraft, captureDraftRef }: {
+export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, captureFormId, onBusyChange, afterCredentialUrl, capturePasswordUpdate, initialCaptureDraft, captureDraftRef, compact, usernameOptions, onUsernameChange }: {
   readonly initialCaptureDraft?: CaptureFormDraft | undefined;
   readonly captureDraftRef?: RefObject<CaptureFormDraft | null>;
   readonly client: VaultClient;
   readonly captureFormId?: string;
   readonly capturePasswordUpdate?: boolean;
   readonly afterCredentialUrl?: React.ReactNode;
+  /** Capture review layout: the essential fields first, the rest behind a "More" disclosure. */
+  readonly compact?: { readonly slot?: React.ReactNode; readonly open: boolean; readonly onOpenChange: (open: boolean) => void };
+  readonly usernameOptions?: readonly { readonly value: string; readonly kind: 'email' | 'nickname' }[];
+  readonly onUsernameChange?: (value: string) => void;
   readonly onBusyChange?: (busy: boolean) => void;
   readonly onBack?: (() => void) | undefined;
   readonly initialEntry?: ManualEntrySaveInput;
@@ -54,6 +58,8 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, ca
   readonly onSaved?: () => void;
 }): React.JSX.Element {
   const { t } = useI18n();
+  const compactCapture = !!captureFormId && !!compact && (initialEntry?.entryType === 'credential' && !capturePasswordUpdate
+    || initialEntry?.entryType === 'creditCard' || initialEntry?.entryType === 'key');
   const [entryType, setEntryType] = useState<EntryType>(initialEntry?.entryType ?? "credential");
   const [draft, setDraft] = useState(() => ({ ...INITIAL, ...initialEntry, ...initialCaptureDraft?.fields }));
   const [methods, setMethods] = useState<MethodDraft[]>(() => initialCaptureDraft?.methods ?? (initialEntry?.entryType === 'credential' ? [...(initialEntry.signInMethods ?? [])] : []));
@@ -107,6 +113,22 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, ca
     } finally { onBusyChange?.(false); }
   }
 
+  const moreToggle = compact ? <Button variant="subtle" data-capture-more aria-expanded={compact.open}
+    onClick={() => compact.onOpenChange(!compact.open)}>{t('captureReview.more')}<PopupIcon name="chevron" /></Button> : null;
+  const compactFields = !compactCapture ? null : entryType === 'key'
+    ? <EntryField revealable label={t('entry.value')} value={draft.value} onChange={(value) => update('value', value)} required maxLength={16_384} autoComplete="off" type="password" />
+    : entryType === 'credential'
+      ? <EntryField revealable label={t('entry.password')} value={draft.password} onChange={(value) => update('password', value)} required={methods.length === 0} autoComplete="off" type="password" maxLength={4096} />
+      : <>
+        <EntryField label={t('card.cardholder')} value={draft.cardholderName} onChange={(value) => update('cardholderName', value)} required autoComplete="off" />
+        <div className="capture-card-row">
+          <EntryField label={t('card.expiry')} value={expiryText(draft.expiryMonth, draft.expiryYear)}
+            onChange={(value) => { const expiry = parseExpiry(value); update('expiryMonth', expiry.month); update('expiryYear', expiry.year); }}
+            required autoComplete="off" inputMode="numeric" pattern="(0[1-9]|1[0-2])/[0-9]{4}" maxLength={7} placeholder={t('card.expiryPlaceholder')} />
+          <EntryField revealable label={t('card.cvv')} value={draft.cvv} onChange={(value) => update('cvv', value)} autoComplete="off" type="password" inputMode="numeric" pattern="[0-9]{3,4}" maxLength={4} />
+          {compact?.slot ? null : moreToggle}
+        </div>
+      </>;
   return (
     <form id={captureFormId} className={`entry-form${captureFormId ? " entry-form--capture" : ""}`} onSubmit={(event) => void submit(event)}>
       {!captureFormId ? <div className="entry-create-header">
@@ -119,6 +141,11 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, ca
         </FilterSelect>
       </div> : null}
       <div className="entry-create-scroll"><div className="entry-create-fields">
+      {compactCapture ? <>
+        {compactFields}
+        {compact?.slot || entryType !== 'creditCard' ? <div className="capture-compact-row">{compact?.slot}{moreToggle}</div> : null}
+      </> : null}
+      <div className={compactCapture ? 'capture-more-panel' : 'capture-more-contents'} data-open={compactCapture ? compact?.open : undefined} inert={compactCapture && !compact?.open}><div>
       <div className="entry-create-name">
       {!captureFormId ? <EntryIconPicker value={presentation} onChange={setPresentation} disabled={status === "saving"} type={entryType === 'credential' ? ENTRY_CREDENTIAL : entryType === 'key' ? ENTRY_KEY : entryType === 'script' ? ENTRY_SCRIPT : ENTRY_CREDIT_CARD} /> : null}
       <EntryField
@@ -132,14 +159,19 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, ca
 
       {entryType === "credential" ? <>
         <div className="entry-create-credentials">
-        <EntryField label={t("entry.username")} value={draft.username} onChange={(value) => update("username", value)} autoComplete={captureFormId ? "off" : "username"} maxLength={512} />
-        <EntryField label={t(capturePasswordUpdate ? "captureReview.newPassword" : "entry.password")} value={draft.password} onChange={(value) => update("password", value)} required={methods.length === 0} autoComplete={captureFormId ? "off" : "new-password"} type="password" maxLength={4096} />
+        {usernameOptions ? <div className="capture-username-choice">
+          <span className="field-label">{t("entry.username")}</span>
+          <FilterSelect floating aria-label={t("entry.username")} value={draft.username} onValueChange={(value: string) => { update("username", value); onUsernameChange?.(value); }}>
+            {usernameOptions.map(option => <option key={option.value} value={option.value}>{t("captureReview.usernameOption", { value: option.value, kind: t(option.kind === "email" ? "captureToast.email" : "captureToast.nickname") })}</option>)}
+          </FilterSelect>
+        </div> : <EntryField label={t("entry.username")} value={draft.username} onChange={(value) => update("username", value)} autoComplete={captureFormId ? "off" : "username"} maxLength={512} />}
+        {compactCapture ? null : <EntryField label={t(capturePasswordUpdate ? "captureReview.newPassword" : "entry.password")} value={draft.password} onChange={(value) => update("password", value)} required={methods.length === 0} autoComplete={captureFormId ? "off" : "new-password"} type="password" maxLength={4096} />}
         </div>
         <EntryField label={t("entry.url")} value={draft.url} onChange={(value) => update("url", value)} autoComplete={captureFormId ? "off" : "url"} type="url" maxLength={2048} placeholder="https://example.com" />
         {afterCredentialUrl}
       </> : null}
 
-      {entryType === "key" ? (
+      {entryType === "key" && !compactCapture ? (
         initialEntry ? <EntryField label={t("entry.value")} value={draft.value} onChange={(value) => update("value", value)} required maxLength={16_384} autoComplete="off" type="password" /> : <EntryTextArea label={t("entry.value")} value={draft.value} onChange={(value) => update("value", value)} required maxLength={16_384} monospace />
       ) : null}
 
@@ -157,14 +189,14 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, ca
       </> : null}
 
       {entryType === "creditCard" ? <>
-        <EntryField label={t("card.cardholder")} value={draft.cardholderName} onChange={(value) => update("cardholderName", value)} required autoComplete={captureFormId ? "off" : "cc-name"} />
+        {compactCapture ? null : <EntryField label={t("card.cardholder")} value={draft.cardholderName} onChange={(value) => update("cardholderName", value)} required autoComplete={captureFormId ? "off" : "cc-name"} />}
         <EntryField revealable={!!captureFormId} label={t("card.number")} value={draft.cardNumber} onChange={(value) => update("cardNumber", value)} required autoComplete={initialEntry ? "off" : "cc-number"} type={initialEntry ? "password" : "text"} inputMode="numeric" pattern="[0-9 -]{8,32}" maxLength={32} />
         {!captureFormId ? <EntryField revealable={!!captureFormId} label={t("card.cvv")} value={draft.cvv} onChange={(value) => update("cvv", value)} autoComplete="off" type="password" inputMode="numeric" pattern="[0-9]{3,4}" maxLength={4} /> : null}
-        <div className="entry-form-expiry">
+        {compactCapture ? null : <div className="entry-form-expiry">
           <EntryField label={t("card.expiryMonth")} value={draft.expiryMonth} onChange={(value) => update("expiryMonth", value)} required autoComplete={captureFormId ? "off" : "cc-exp-month"} inputMode="numeric" pattern="(0[1-9]|1[0-2])" placeholder={t("card.expiryMonthPlaceholder")} />
           <EntryField label={t("card.expiryYear")} value={draft.expiryYear} onChange={(value) => update("expiryYear", value)} required autoComplete={captureFormId ? "off" : "cc-exp-year"} inputMode="numeric" pattern="[0-9]{4}" placeholder={t("card.expiryYearPlaceholder")} />
-        </div>
-        {captureFormId ? <>
+        </div>}
+        {captureFormId && !compactCapture ? <>
         <EntryField revealable={!!captureFormId} label={t("card.cvv")} value={draft.cvv} onChange={(value) => update("cvv", value)} autoComplete="off" type="password" inputMode="numeric" pattern="[0-9]{3,4}" maxLength={4} />
           {initialEntry?.entryType === "creditCard" && initialEntry.cvv ? <p className="capture-field-hint">{t("captureReview.capturedCvv")}</p> : null}
         </> : null}
@@ -183,6 +215,7 @@ export function AddEntryForm({ client, initialEntry, onSave, onSaved, onBack, ca
           : id === null ? [...current, { id: `custom:${crypto.randomUUID()}`, ...value }]
           : current.map(method => method.id === id ? { id, ...value } : method));
       }} /> : null}
+      </div></div>
       </div></div>
       {!captureFormId ? <div className="entry-create-footer">
       {onBack ? <Button variant="subtle" disabled={status === 'saving'} onClick={onBack}>{t('common.cancel')}</Button> : null}
@@ -428,4 +461,15 @@ function statusMessage(status: SaveStatus, t: Translate): string {
   if (status === "blocked") return t("entry.blocked");
   if (status === "error") return t("entry.error");
   return "";
+}
+
+function expiryText(month: string, year: string): string {
+  return year ? `${month}/${year}` : month;
+}
+
+/** Accepts "MM/YYYY" or the same digits typed without the separator. */
+function parseExpiry(value: string): { month: string; year: string } {
+  const digits = value.replace(/[^0-9/]/g, '');
+  const [month = '', year = ''] = digits.includes('/') ? digits.split('/') : [digits.slice(0, 2), digits.slice(2)];
+  return { month: month.slice(0, 2), year: year.slice(0, 4) };
 }

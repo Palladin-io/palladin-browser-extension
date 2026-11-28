@@ -36,17 +36,19 @@ export type SecretCaptureResult =
   | { status: 'accepted'; id: string; notice: CaptureNoticeIdentity }
   | { status: 'review'; id: string; icon?: string; candidate: SecretCandidate; origin: string; vaults: readonly SecretCaptureVault[]; cardTargets?: readonly SecretCardTarget[] }
   | { status: 'saved'; entryId?: string; vaultId?: string }
-  | { status: 'empty' | 'stale' | 'locked' | 'muted' | 'full' | 'busy' | 'error' | 'review-required' | 'duplicate' | 'dismissed' };
+  | { status: 'empty' | 'stale' | 'expired' | 'locked' | 'muted' | 'full' | 'busy' | 'error' | 'review-required' | 'duplicate' | 'dismissed' };
 
 export class SecretCaptureCoordinator {
   private readonly pending = new Map<string, Pending>();
+  /** Opaque IDs of reviews that timed out, so a late save can say why it failed. */
+  private readonly expired = new Set<string>();
   private generation = 0;
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly tabEpochs = new Map<number, symbol>();
   private readonly now: () => number;
   constructor(private readonly deps: Deps) { this.now = deps.now ?? Date.now; }
   clear(): void {
-    this.generation++; this.pending.clear(); this.tabEpochs.clear();
+    this.generation++; this.pending.clear(); this.expired.clear(); this.tabEpochs.clear();
     for (const timer of this.timers.values()) clearTimeout(timer);
     this.timers.clear();
   }
@@ -71,7 +73,12 @@ export class SecretCaptureCoordinator {
     return ids;
   }
   private prune(): void {
-    for (const item of this.pending.values()) if (item.expires <= this.now()) this.remove(item.id);
+    for (const item of this.pending.values()) if (item.expires <= this.now()) this.expire(item.id);
+  }
+  /** Remembers why a capture disappeared, so a late save says it timed out rather than that the page changed. */
+  private expire(id: string): void {
+    this.remove(id); this.expired.add(id);
+    if (this.expired.size > 50) this.expired.delete(this.expired.values().next().value!);
   }
   private async authorized(item: Pending, generation: number, active = false): Promise<boolean> {
     const session = await this.deps.session();
@@ -101,7 +108,7 @@ export class SecretCaptureCoordinator {
     const item: Pending = { id: crypto.randomUUID(), candidate: { ...candidate }, source: { ...source }, session,
       expires: this.now() + 180_000, busy: false };
     this.pending.set(item.id, item);
-    this.timers.set(item.id, setTimeout(() => this.remove(item.id), 180_000));
+    this.timers.set(item.id, setTimeout(() => this.expire(item.id), 180_000));
     return { status: 'accepted', id: item.id, notice: this.notice(item) };
   }
   async contentStatus(source: SecretCaptureSource, dismissId?: string, mute = false): Promise<SecretCaptureResult> {
@@ -196,25 +203,34 @@ export class SecretCaptureCoordinator {
     }
     finally { item.busy = false; }
   }
+  /** Why an operation on this capture was refused; never carries capture contents. */
+  async refusal(id: string): Promise<SecretCaptureResult> {
+    this.prune();
+    if (!(await this.deps.session())?.unlocked) return { status: 'locked' };
+    return { status: !this.pending.has(id) && this.expired.has(id) ? 'expired' : 'stale' };
+  }
   async save(id: string, vaultId: string, entry: ManualEntrySaveInput, operationAuthorized: () => Promise<boolean> = async () => true): Promise<SecretCaptureResult> {
     this.prune(); const item = this.pending.get(id); const generation = this.generation;
-    if (!item || item.dismissed) return { status: 'stale' };
+    if (!item) return this.refusal(id);
+    if (item.dismissed) return { status: 'stale' };
     if (item.busy) return { status: 'busy' };
     item.busy = true;
     const authorized = async () => await operationAuthorized() && await this.authorized(item, generation, true);
+    // Tell the user why nothing was saved: the review timed out, Palladin locked, or the page changed.
+    const lost = async (): Promise<SecretCaptureResult> => ({ status: item.expires <= this.now() ? 'expired' : (await this.deps.session())?.unlocked ? 'stale' : 'locked' });
     try {
-      if (!await authorized()) return { status: 'stale' };
-      if (entry.entryType !== (item.candidate.kind === 'key' ? 'key' : 'creditCard')) return { status: 'stale' };
-      if (!(await this.deps.vaults()).some(vault => vault.id === vaultId) || !await authorized()) return { status: 'stale' };
+      if (!await authorized()) return await lost();
+      if (entry.entryType !== (item.candidate.kind === 'key' ? 'key' : 'creditCard')) return await lost();
+      if (!(await this.deps.vaults()).some(vault => vault.id === vaultId) || !await authorized()) return await lost();
       if (await this.deps.duplicate(entry, vaultId)) {
-        if (!await authorized()) return { status: 'stale' };
+        if (!await authorized()) return await lost();
         item.dismissed = true; return { status: 'duplicate' };
       }
-      if (!await authorized()) return { status: 'stale' };
+      if (!await authorized()) return await lost();
       const result = await this.deps.save(entry, vaultId, authorized, () => this.generation === generation && this.pending.get(id) === item && !item.dismissed && item.expires > this.now());
       if (result.status !== 'saved') return { status: 'error' };
       item.dismissed = true; return result;
-    } catch { return { status: await authorized() ? 'error' : 'stale' }; }
+    } catch { return await authorized() ? { status: 'error' } : await lost(); }
     finally { item.busy = false; }
   }
 }

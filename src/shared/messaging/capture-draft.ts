@@ -6,7 +6,7 @@ export interface CaptureFormDraft {
   presentation: {icon?:string;color?:string};
 }
 export type CaptureDraft =
- | {kind:'login';targetId:string;accountId:string;methodMode:'create'|'update';entryName:string;autoUpdate:boolean;replace:boolean;form:CaptureFormDraft|null}
+ | {kind:'login';targetId:string;accountId:string;typedAccount?:string;methodMode:'create'|'update';entryName:string;autoUpdate:boolean;replace:boolean;form:CaptureFormDraft|null}
  | {kind:'secret';targetId:string;vaultId:string;form:CaptureFormDraft|null}
  | {kind:'totp';targetId:string;label:string;username:string;replace:boolean;confirmDomainMismatch:boolean};
 const record=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==='object'&&!Array.isArray(value);
@@ -25,6 +25,6 @@ export function isCaptureDraft(value:unknown):value is CaptureDraft {
  if(!record(value)||!string(value.targetId)||JSON.stringify(value).length>512000)return false;
  if(value.kind==='totp')return keys(value,['kind','targetId','label','username','replace','confirmDomainMismatch'])&&string(value.label)&&string(value.username)&&typeof value.replace==='boolean'&&typeof value.confirmDomainMismatch==='boolean';
  if(value.kind==='secret')return keys(value,['kind','targetId','vaultId','form'])&&string(value.vaultId)&&form(value.form);
- return value.kind==='login'&&keys(value,['kind','targetId','accountId','methodMode','entryName','autoUpdate','replace','form'])&&string(value.accountId)&&['create','update'].includes(String(value.methodMode))&&string(value.entryName)&&typeof value.autoUpdate==='boolean'&&typeof value.replace==='boolean'&&form(value.form);
+ return value.kind==='login'&&keys(value,['kind','targetId','accountId','typedAccount','methodMode','entryName','autoUpdate','replace','form'])&&string(value.accountId)&&(value.typedAccount===undefined||string(value.typedAccount,256))&&['create','update'].includes(String(value.methodMode))&&string(value.entryName)&&typeof value.autoUpdate==='boolean'&&typeof value.replace==='boolean'&&form(value.form);
 }
 export const CAPTURE_DRAFT_CHANNEL='palladin.capture-draft.v1';

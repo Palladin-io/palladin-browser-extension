@@ -64,7 +64,10 @@ it('previews before use and sends only the displayed preview ID on a protected a
       click(label);
       [...root.querySelectorAll<HTMLButtonElement>('[role=option]')].find(button => button.textContent === option)!.click();
     };
-    click('Password options');
+    click('More options');
+    expect(root.querySelector('[aria-label="More options"]')?.getAttribute('aria-expanded')).toBe('true');
+    [...root.querySelectorAll<HTMLButtonElement>('[role=menuitem]')].find(button => button.textContent === 'Password options')!.click();
+    expect(root.querySelector('[role=menu]')?.hasAttribute('hidden')).toBe(true);
     click('Numbers');
     choose('Type', 'Passphrase');
     choose('Words', '6');
@@ -76,14 +79,14 @@ it('previews before use and sends only the displayed preview ID on a protected a
     expect(root.querySelector('[aria-label="Separator"]')?.textContent).toBe('Dot');
     click('Words'); click('Separator');
     expect(root.querySelector('[role=listbox][aria-label="Words"]')?.hasAttribute('hidden')).toBe(true);
-    root.querySelector('.generator-heading')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, composed: true }));
+    root.querySelector('.generator-line')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, composed: true }));
     expect(root.querySelector('[role=listbox][aria-label="Separator"]')?.hasAttribute('hidden')).toBe(true);
     await vi.waitFor(() => expect(use.disabled).toBe(false));
     use.click();
     await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'use', previewId: 'preview_0123456789abcdef' })));
     const command = sendMessage.mock.calls.find(([value]) => value.type === 'use')![0];
     expect(command).not.toHaveProperty('value');
-    expect(root.querySelector('.generator-heading')?.textContent).toContain('Use strong password');
+    expect(root.querySelector('.generator-line')?.textContent).toContain('Use strong password:');
   } finally { suggestion.stop(); spy.mockRestore(); }
 });
 
@@ -111,4 +114,67 @@ it('removes an open generator and its listeners when runtime invalidation throws
     sendMessage.mockResolvedValue({ accepted: true, status: 'blocked' });
     suggestion.stop();
   }
+});
+
+it('shows the locked row instead of an error and unlocks through the toolbar popup', async () => {
+  const closed = await import('./closed-surface');
+  const original = closed.createClosedSurface;
+  let root!: ShadowRoot;
+  const spy = vi.spyOn(closed, 'createClosedSurface').mockImplementation((doc, name) => {
+    const surface = original(doc, name); root = surface.shadow;
+    return { ...surface, acceptsAction: () => true };
+  });
+  let locked = true;
+  const sendMessage = vi.fn(async (command) => command.type === 'preview' ? locked ? { status: 'locked' }
+    : { status: 'preview', previewId: 'preview_0123456789abcdef', value: 'synthetic-after-unlock', expiresAt: Date.now() + 60_000 }
+    : command.type === 'inline/open-palladin' ? { ok: true, kind: 'surface', status: 'unavailable' } : { accepted: true });
+  vi.stubGlobal('chrome', { runtime: { sendMessage }, i18n: { getUILanguage: () => 'en' },
+    storage: { local: { get: async () => ({}) }, onChanged: { addListener: vi.fn(), removeListener: vi.fn() } } });
+  document.body.innerHTML = '<form><input type="password" autocomplete="new-password"></form>';
+  const input = document.querySelector('input')!;
+  vi.spyOn(input, 'getBoundingClientRect').mockReturnValue(new DOMRect(20, 20, 320, 40));
+  const capture = new PasswordCaptureController(document, () => 'https://example.test/signup', 'document_0123456789abcdef'); capture.scan();
+  const suggestion = startGeneratorSuggestion(document, 'document_0123456789abcdef', capture);
+  try {
+    await Promise.resolve(); input.focus();
+    await vi.waitFor(() => expect(root.querySelector('.generator-locked')?.textContent).toBe('LockedUnlock to use a strong passwordUnlock'));
+    expect(root.querySelector('.generator-footer, code')).toBeNull();
+    root.querySelector<HTMLButtonElement>('.generator-locked-action')!.click();
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'inline/open-palladin', documentId: 'document_0123456789abcdef' })));
+    await vi.waitFor(() => expect(root.querySelector('.generator-locked small')?.textContent).toBe('Open Palladin from the toolbar'));
+    locked = false;
+    root.querySelector<HTMLButtonElement>('.generator-launcher')!.click();
+    await vi.waitFor(() => expect(root.querySelector('code')?.textContent).toBe('synthetic-after-unlock'));
+    expect(root.querySelector('.generator-locked')).toBeNull();
+  } finally { suggestion.stop(); spy.mockRestore(); }
+});
+
+it('re-enables the generator controls when Palladin locked during Use and is unlocked again', async () => {
+  const closed = await import('./closed-surface');
+  const original = closed.createClosedSurface;
+  let root!: ShadowRoot;
+  const spy = vi.spyOn(closed, 'createClosedSurface').mockImplementation((doc, name) => {
+    const surface = original(doc, name); root = surface.shadow;
+    return { ...surface, acceptsAction: () => true };
+  });
+  const sendMessage = vi.fn(async (command) => command.type === 'preview'
+    ? { status: 'preview', previewId: 'preview_0123456789abcdef', value: 'synthetic-preview-123', expiresAt: Date.now() + 60_000 }
+    : command.type === 'use' ? { status: 'locked' } : { accepted: true });
+  vi.stubGlobal('chrome', { runtime: { sendMessage }, i18n: { getUILanguage: () => 'en' },
+    storage: { local: { get: async () => ({}) }, onChanged: { addListener: vi.fn(), removeListener: vi.fn() } } });
+  document.body.innerHTML = '<form><input type="password" autocomplete="new-password"></form>';
+  const input = document.querySelector('input')!;
+  vi.spyOn(input, 'getBoundingClientRect').mockReturnValue(new DOMRect(20, 20, 320, 40));
+  const capture = new PasswordCaptureController(document, () => 'https://example.test/signup', 'document_0123456789abcdef'); capture.scan();
+  const suggestion = startGeneratorSuggestion(document, 'document_0123456789abcdef', capture);
+  try {
+    await Promise.resolve(); input.focus();
+    await vi.waitFor(() => expect(root.querySelector('code')?.textContent).toBe('synthetic-preview-123'));
+    [...root.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Use password')!.click();
+    await vi.waitFor(() => expect(root.querySelector('.generator-locked')).not.toBeNull());
+    root.querySelector<HTMLButtonElement>('.generator-launcher')!.click();
+    await vi.waitFor(() => expect(root.querySelector('code')?.textContent).toBe('synthetic-preview-123'));
+    expect(root.querySelector<HTMLButtonElement>('[aria-label="Generate another password"]')?.disabled).toBe(false);
+    expect(root.querySelector<HTMLButtonElement>('[aria-label="More options"]')?.disabled).toBe(false);
+  } finally { suggestion.stop(); spy.mockRestore(); }
 });

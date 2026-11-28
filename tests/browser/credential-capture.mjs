@@ -124,10 +124,10 @@ try {
     assert.equal(api.writes.length, writesBeforeReview, 'Opening native review must never save')
     await popup.waitButton(/^(Save login|Update password)$/)
   }
-  const waitSaved = () => wait(async () => await popup.hasText('Login saved') || await popup.hasText('Password updated'), 'native capture saved confirmation')
+  const waitSaved = () => wait(async () => await popup.hasText('Saved') || await popup.hasText('Updated'), 'native capture saved confirmation')
   const saveNativeReview = async () => {
     const updating = await popup.hasButton('Update password')
-    await popup.click(updating ? 'Update password' : 'Save login', 'button', { completedText: updating ? 'Password updated' : 'Login saved' })
+    await popup.click(updating ? 'Update password' : 'Save login', 'button', { completedText: updating ? 'Updated' : 'Saved' })
   }
   const saveCapture = async ({ vault } = {}) => {
     await openReview()
@@ -237,14 +237,16 @@ try {
     await page.getByRole('button', { name: 'Submit', exact: true }).click()
     await page.getByRole('status').waitFor()
     await openReview()
-    assert.equal(await popup.hasButton('Email'), true)
-    assert.equal(await popup.hasButton('Nickname'), true)
+    await popup.waitButton('More')
     assert.equal(api.writes.length, count)
-    await popup.click(initialChoice)
+    await popup.click('More')
+    await popup.click('Username', 'combobox')
+    await popup.click(new RegExp(`\\(${initialChoice}\\)$`), 'option')
     await popup.click('Save to Vault', 'combobox')
     await popup.click(/Team/, 'option')
     assert.equal(api.writes.length, count, 'Identity and Vault selection are not saves')
-    await popup.click(finalChoice)
+    await popup.click('Username', 'combobox')
+    await popup.click(new RegExp(`\\(${finalChoice}\\)$`), 'option')
     await popup.waitButton(/^(Save login|Update password)$/)
     assert.equal(api.writes.length, count)
     await saveNativeReview()
@@ -257,7 +259,7 @@ try {
     assert.equal(saved.content.urlDomain, `identity-${selected}.example.test`)
     await waitSaved()
   }
-  console.log('PASS: email/nickname chooser has no default, resets prior write targets, and saves only the explicitly chosen identity')
+  console.log('PASS: email/nickname dropdown starts with the e-mail, resets prior write targets on change, and saves the finally chosen identity')
 
   before = api.writes.length
   for (const mode of ['spa', 'classic']) {
@@ -319,7 +321,7 @@ try {
   popup = await openNativePopup(worker, profile, extensionId)
   if (await popup.hasButton('Back')) await popup.click('Back')
   await popup.click('Vault', 'tab')
-  await popup.click('Use strong password')
+  await popup.click('Generator')
   await popup.click('Fill')
   await popup.waitText('Filled in the active page')
   const generated = await page.getByLabel('Password', { exact: true }).inputValue()
@@ -404,8 +406,12 @@ try {
     password: 'Synthetic-ambiguous-updated!', previousPassword: 'Synthetic-ambiguous-team!' })
   await openReview()
   assert.equal(api.writes.length, before + 1, 'Ambiguous accounts are never automatically updated')
-  await popup.click('Existing entry', 'combobox')
-  await popup.click(/Second exact-host account.*Team/, 'option')
+  // The review opens on the first match; any other Entry is chosen explicitly from the Dismiss menu.
+  if (!await popup.hasText('Second exact-host account')) {
+    await popup.click('More dismiss options')
+    await popup.click(/^Change entry: Second exact-host account.*Team$/, 'menuitem')
+  }
+  await popup.waitText('Second exact-host account')
   assert.equal(api.writes.length, before + 1, 'Choosing a concrete Entry is not a mutation')
   await saveNativeReview()
   await wait(() => api.writes.length === before + 2, 'explicitly selected account update')
@@ -413,7 +419,7 @@ try {
   assert.equal(api.writes.at(-1).vaultId, teamCandidate.vaultId)
   assert.equal((await api.decrypt(personalCandidate)).content.password, 'Synthetic-ambiguous-personal!')
   assert.equal((await api.decrypt(teamCandidate)).content.password, 'Synthetic-ambiguous-updated!')
-  console.log('PASS: ambiguous exact-host accounts require selection and update only the selected Entry')
+  console.log('PASS: ambiguous exact-host accounts are never automatically updated and update only the explicitly reviewed Entry')
 
   before = api.writes.length
   const boundaryPassword = 'Synthetic-boundary-only!'

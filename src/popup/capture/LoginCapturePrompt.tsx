@@ -2,16 +2,10 @@ import type { CaptureDraft, CaptureFormDraft } from '../../shared/messaging/capt
 import { FilterSelect } from '../components/FilterSelect';
 import { useEffect, useRef, useState } from 'react';
 import { ENTRY_TYPE_CREDENTIAL } from '../../background/vault/entry-metadata';
-import { NATIVE_LOGIN_CAPTURE_CHANNEL, type NativeLoginCaptureCommand, type NativeLoginCaptureResult, type NativeLoginCaptureReview } from '../../shared/messaging/native-login-capture';
-import { SIGN_IN_PROVIDER_NAMES } from '../../shared/signin/providers';
-import { sameSignInAccount } from '../../shared/signin/binding';
-import { EntryAutocomplete } from '../components/EntryAutocomplete';
-import googleLogo from '../assets/sign-in-providers/google.svg';
-import appleLogo from '../assets/sign-in-providers/apple.svg';
-import microsoftLogo from '../assets/sign-in-providers/microsoft.svg';
-import githubLogo from '../assets/sign-in-providers/github.svg';
-import facebookLogo from '../assets/sign-in-providers/facebook.svg';
-import { Button } from '../components/Button';
+import { NATIVE_LOGIN_CAPTURE_CHANNEL, type CapturedLoginEntry, type NativeLoginCaptureCommand, type NativeLoginCaptureResult, type NativeLoginCaptureReview } from '../../shared/messaging/native-login-capture';
+import type { CredentialCapturePrompt } from '../../shared/messaging/credential-capture';
+import { PopupIcon } from '../components/PopupIcon';
+import { FederatedCaptureReview } from './FederatedCaptureReview';
 import { AddEntryForm } from '../entries/AddEntryForm';
 import { useI18n } from '../i18n';
 import { usePopupView } from '../view/PopupView';
@@ -19,7 +13,6 @@ import { createVaultClient } from '../vault/client';
 import { CaptureReview, type CaptureReviewStage } from './CaptureReview';
 
 type Send = (command: NativeLoginCaptureCommand) => Promise<NativeLoginCaptureResult>;
-const providerLogos = {google:googleLogo,apple:appleLogo,microsoft:microsoftLogo,github:githubLogo,facebook:facebookLogo};
 const sendNative: Send = async command => chrome.runtime.sendMessage(command);
 const vaultClient = createVaultClient();
 function safeSummary(review: NativeLoginCaptureReview): NativeLoginCaptureReview {
@@ -76,23 +69,33 @@ export function LoginCaptureSurface({ revision }: { revision: number }): React.J
     onDone={() => { saved.current = false; promptId.current = null; setReview(null); }} /> : null;
 }
 
-export function LoginCapturePrompt({ review: initialReview, send, onDone, onSaved, onOpenCapture, initialDraft, initialExpanded = false, client = vaultClient }: {
+export function LoginCapturePrompt(props: {
   initialDraft?: Extract<CaptureDraft,{kind:'login'}> | undefined; onOpenCapture?(saved: boolean, draft?: CaptureDraft): void; initialExpanded?: boolean; client?: ReturnType<typeof createVaultClient>; review: NativeLoginCaptureReview; send: Send; onDone(): void; onSaved?(): void;
 }): React.JSX.Element {
-  const { t, locale } = useI18n();
+  const { review, ...rest } = props;
+  return review.kind === 'federated'
+    ? <FederatedCaptureReview review={review} send={props.send} onDone={props.onDone} {...(props.onSaved ? { onSaved: props.onSaved } : {})}
+      {...(props.onOpenCapture ? { onOpenCapture: props.onOpenCapture } : {})} initialDraft={props.initialDraft} initialExpanded={props.initialExpanded ?? false} />
+    : <CredentialCaptureReview review={review} {...rest} />;
+}
+
+function CredentialCaptureReview({ review: initialReview, send, onDone, onSaved, onOpenCapture, initialDraft, initialExpanded = false, client = vaultClient }: {
+  initialDraft?: Extract<CaptureDraft,{kind:'login'}> | undefined; onOpenCapture?(saved: boolean, draft?: CaptureDraft): void; initialExpanded?: boolean; client?: ReturnType<typeof createVaultClient>;
+  review: Extract<NativeLoginCaptureReview, { kind: 'credential' }>; send: Send; onDone(): void; onSaved?(): void;
+}): React.JSX.Element {
+  const { t } = useI18n();
   const [review, setReview] = useState(initialReview);
   const navigation = usePopupView();
   const [savedEntry, setSavedEntry] = useState<{vaultId:string;id:string} | null>(null);
   const [savedIdentity, setSavedIdentity] = useState<{name:string;detail:string;icon?:string} | null>(null);
   const [stage, setStage] = useState<CaptureReviewStage>(initialExpanded ? 'review' : 'notice');
   const [targetId, setTargetId] = useState(initialDraft?.targetId ?? review.prompt.defaultTargetId ?? '');
-  const [accountId, setAccountId] = useState(initialDraft?.accountId ?? (review.kind === 'federated' ? review.prompt.defaultAccountId ?? '' : ''));
-  const [entry, setEntry] = useState(review.kind === 'credential' ? review.entry : null);
+  const [entry, setEntry] = useState<CapturedLoginEntry | null>(review.entry);
   const [formVersion, setFormVersion] = useState(0);
-  const [methodMode, setMethodMode] = useState<'create'|'update'>(initialDraft?.methodMode ?? (review.prompt.targets.some(value => value.action === 'update') ? 'update' : 'create'));
-  const [entryName, setEntryName] = useState(initialDraft?.entryName ?? review.prompt.site);
   const [autoUpdate, setAutoUpdate] = useState(initialDraft?.autoUpdate ?? false);
-  const [replace, setReplace] = useState(initialDraft?.replace ?? false);
+  // A restored handoff reopens the fields the user was editing.
+  const [more, setMore] = useState(!!initialDraft?.form);
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const formDraft=useRef<CaptureFormDraft|null>(initialDraft?.form ?? null);
@@ -101,18 +104,25 @@ export function LoginCapturePrompt({ review: initialReview, send, onDone, onSave
   const request = useRef(0);
   useEffect(() => { alive.current = true; return () => { alive.current = false; request.current++; }; }, []);
   const target = review.prompt.targets.find(value => value.id === targetId);
-  const account = review.kind === 'federated' ? review.prompt.accounts.find(value => value.id === accountId) : null;
-  const provider = review.kind === 'federated' ? SIGN_IN_PROVIDER_NAMES[review.prompt.provider] : null;
-  const federatedTarget = review.kind === 'federated' ? review.prompt.targets.find(value => value.id === targetId) : null;
-  const replacing = review.kind === 'federated' && !!federatedTarget?.current
-    && (federatedTarget.current.provider !== review.prompt.provider || !sameSignInAccount(federatedTarget.current.account, account?.source === 'none' ? null : account?.label ?? null));
   const channel = NATIVE_LOGIN_CAPTURE_CHANNEL;
   const formId = `login-capture-${review.prompt.id}`;
+  const usernameChoice = review.prompt.usernameSelection?.selected;
+  useEffect(() => {
+    // Sign-up reviews start with the e-mail candidate; the user can switch to the nickname before saving.
+    if (usernameChoice === null && review.usernameOptions) void chooseUsername('email');
+    // Without a worker default, the first matching entry is reviewed with its own worker-supplied fields.
+    else if (!targetId) { const first = review.prompt.targets.find(value => value.action === 'update'); if (first) void selectTarget(first.id); }
+    // A handed-off choice without form edits must save that Entry's own fields, not the default target's.
+    else if (!initialDraft?.form && targetId !== (review.prompt.defaultTargetId ?? '')) void loadTarget(targetId);
+  }, []);
 
   async function selectTarget(value: string) {
     restoredForm.current=undefined; formDraft.current=null;
-    setTargetId(value); setAutoUpdate(false); setReplace(false); setError(false);
-    if (review.kind !== 'credential' || !value) return;
+    setTargetId(value); setAutoUpdate(false); setError(false);
+    if (!value) return;
+    await loadTarget(value);
+  }
+  async function loadTarget(value: string) {
     const generation = ++request.current;
     setBusy(true);
     try {
@@ -129,16 +139,13 @@ export function LoginCapturePrompt({ review: initialReview, send, onDone, onSave
     try {
       const result = await send(command);
       if (!alive.current) return false;
-      if (result.status === 'saved') { formDraft.current=null;restoredForm.current=undefined; setSavedIdentity({ name: command.type === 'save' ? command.entry.label : target?.action === 'create' ? entryName.trim() : target?.label ?? review.prompt.site,
-        detail: command.type === 'save' ? command.entry.username : `${provider ?? ''} · ${account?.label ?? ''}`,
-        ...(entry?.icon ? { icon: entry.icon } : {}) }); if (result.vaultId && result.entryId) setSavedEntry({ vaultId: result.vaultId, id: result.entryId }); setEntry(null); setReview(value => safeSummary(value)); setStage('saved'); onSaved?.(); return true; }
+      if (result.status === 'saved') { formDraft.current=null;restoredForm.current=undefined; setSavedIdentity({ name: command.type === 'save' ? command.entry.label : target?.label ?? review.prompt.site,
+        detail: command.type === 'save' ? command.entry.username : '',
+        ...(entry?.icon ? { icon: entry.icon } : {}) }); if (result.vaultId && result.entryId) setSavedEntry({ vaultId: result.vaultId, id: result.entryId }); setEntry(null); setReview(value => safeSummary(value) as typeof value); setStage('saved'); onSaved?.(); return true; }
       if (result.status === 'stale' || result.status === 'dismissed') { onDone(); return false; }
-      if (result.status === 'prompt' && result.prompt && review.kind === 'credential' && !('accounts' in result.prompt)) {
-        setReview(value => value.kind === 'credential' ? { ...value, prompt: result.prompt! } as NativeLoginCaptureReview : value);
+      if (result.status === 'prompt' && result.prompt && !('accounts' in result.prompt)) {
+        setReview(value => ({ ...value, prompt: result.prompt as CredentialCapturePrompt }));
         setTargetId(result.prompt.defaultTargetId ?? '');
-      }
-      if (result.status === 'prompt' && result.prompt && review.kind === 'federated' && 'accounts' in result.prompt) {
-        setReview({ ...review, prompt: result.prompt }); setTargetId(result.prompt.defaultTargetId ?? ''); setAccountId(result.prompt.defaultAccountId ?? '');
       }
       setError(true); return false;
     } catch { if (alive.current) setError(true); return false; }
@@ -159,67 +166,57 @@ export function LoginCapturePrompt({ review: initialReview, send, onDone, onSave
     } catch { if (alive.current) setError(true); }
     finally { if (alive.current) setBusy(false); }
   }
-  const updating = review.kind === 'credential' && review.prompt.targets.some(value => value.action === 'update');
+  const updating = review.prompt.targets.some(value => value.action === 'update');
+  // A restored handoff keeps the full editor so the user's unsaved field edits stay visible.
+  const quickUpdate = target?.action === 'update' && !restoredForm.current;
+  const usernameOptions = review.usernameOptions && usernameChoice
+    ? (['email', 'nickname'] as const).map(kind => ({ value: review.usernameOptions![kind], kind })) : undefined;
   const name = savedIdentity?.name ?? entry?.label ?? target?.label ?? review.prompt.site;
-  return <CaptureReview title={review.kind === 'credential' ? t(updating ? 'captureReview.updatePassword' : 'captureReview.saveLogin') : t('captureReview.rememberMethod')}
-    savedTitle={review.kind === 'credential' ? t(updating ? 'captureReview.passwordUpdated' : 'captureToast.saved') : t('captureReview.methodSaved')}
-    origin={review.prompt.site} name={name} detail={savedIdentity?.detail ?? (review.kind === 'credential' ? entry?.username ?? '' : t('captureReview.accountPending', {provider: provider ?? ''}))}
-    identity={{ name, type: ENTRY_TYPE_CREDENTIAL, ...(savedIdentity?.icon ? { icon: savedIdentity.icon } : entry?.icon ? { icon: entry.icon } : review.kind === 'federated' && review.icon ? { icon: review.icon } : {}) }}
-    identityTrailing={review.kind === 'federated' ? <span className="capture-provider"><img src={providerLogos[review.prompt.provider]} alt={provider ?? review.prompt.provider} /></span> : undefined}
-    stage={stage} vault={target?.vaultLabel ?? ''} busy={busy} disabled={!target || review.kind === 'federated' && (!account || replacing && !replace || target?.action === 'create' && !entryName.trim())}
-    saveLabel={review.kind === 'credential' ? t(updating ? 'captureReview.updatePassword' : 'captureReview.saveLogin') : t('captureReview.rememberAction')}
-    {...(review.kind === 'credential' ? { saveForm: formId } : {})} {...(error ? { error: t('captureToast.error') } : {})}
-    {...(onOpenCapture ? {onIdentity: () => onOpenCapture(stage === 'saved',{kind:'login',targetId,accountId,methodMode,entryName,autoUpdate,replace,form:formDraft.current})} : stage === 'saved' && savedEntry && navigation ? {onIdentity: () => { navigation.update({view:'vault',selected:savedEntry});onDone(); }} : {})}
+  const creating = !updating || target?.action === 'create';
+  const vaultChoice = creating ? <div className="capture-vault-choice">
+    <label className="field-label">{t('captureReview.vault')}</label>
+    <FilterSelect floating aria-label={t('captureReview.vault')} value={targetId} disabled={busy} onValueChange={value => void selectTarget(value)}>
+      {review.prompt.targets.filter(value => value.action === 'create').map(value => <option value={value.id} key={value.id}>{value.vaultLabel}</option>)}
+    </FilterSelect>
+  </div> : undefined;
+  const autoUpdateOption = <label className="capture-checkbox"><input type="checkbox" checked={autoUpdate} onChange={event => setAutoUpdate(event.target.checked)} />{t('captureToast.autoUpdate')}</label>;
+  return <CaptureReview title={t(updating ? 'captureReview.updatePassword' : 'captureReview.saveLogin')}
+    updated={target?.action === 'update'}
+    origin={review.prompt.site} name={name} detail={savedIdentity?.detail ?? entry?.username ?? ''}
+    identity={{ name, type: ENTRY_TYPE_CREDENTIAL, ...(savedIdentity?.icon ? { icon: savedIdentity.icon } : entry?.icon ? { icon: entry.icon } : {}) }}
+    stage={stage} vault={target?.vaultLabel ?? ''} busy={busy} disabled={!target}
+    saveLabel={t(updating ? 'captureReview.updatePassword' : 'captureReview.saveLogin')} {...(quickUpdate ? {} : { saveForm: formId })} {...(error ? { error: t('captureToast.error') } : {})}
+    {...(onOpenCapture ? {onIdentity: () => onOpenCapture(stage === 'saved',{kind:'login',targetId,accountId:'',methodMode:'update',entryName:'',autoUpdate,replace:false,form:formDraft.current})} : stage === 'saved' && savedEntry && navigation ? {onIdentity: () => { navigation.update({view:'vault',selected:savedEntry});onDone(); }} : {})}
+    menuActions={updating ? [
+      ...review.prompt.targets.filter(value => value.action === 'update' && value.id !== targetId).map(value => ({
+        label: t('captureReview.changeEntry', { name: t('captureReview.entryInVault', { name: value.label, vault: value.vaultLabel }) }), onSelect: () => void selectTarget(value.id) })),
+      ...(quickUpdate ? review.prompt.targets.filter(value => value.action === 'create').slice(0, 1).map(value => ({
+        label: t('captureReview.createEntry'), onSelect: () => void selectTarget(value.id) })) : []),
+    ] : []}
     onReview={() => setStage('review')} onDone={onDone}
-    onDismiss={() => void finish({ channel, type: 'dismiss', kind: review.kind, promptId: review.prompt.id })}
-    onMute={() => void finish({ channel, type: 'mute', kind: review.kind, promptId: review.prompt.id })}
-    onSave={() => { if (review.kind === 'federated' && target && account && (!replacing || replace)) void finish({ channel, type: 'confirm', promptId: review.prompt.id,
-      targetId, accountId, locale: locale === 'pl' ? 'pl' : 'en', replace, ...(target.action === 'create' ? {entryName:entryName.trim()} : {}) }); }}>
-    {review.kind === 'credential' && review.prompt.usernameSelection ? <div>
-      <p>{t('captureToast.chooseUsername')}</p>{(['email', 'nickname'] as const).map(choice => <Button key={choice} onClick={() => void chooseUsername(choice)}>{t(choice === 'email' ? 'captureToast.email' : 'captureToast.nickname')}</Button>)}
-    </div> : null}
-    {review.kind !== 'credential' || review.prompt.usernameSelection?.selected !== null ? <>
-      {review.kind === 'credential' ? !updating ? <><label className="field-label">{t('captureReview.vault')}</label>
-        <FilterSelect floating aria-label={t('captureReview.vault')} value={targetId} disabled={busy} onValueChange={value => void selectTarget(value)}>
-          {review.prompt.targets.map(value => <option value={value.id} key={value.id}>{value.vaultLabel}</option>)}
-        </FilterSelect></> : <EntryAutocomplete label={t('captureReview.existingEntry')}
-        options={review.prompt.targets.map(value => ({ id: value.id, name: value.label, detail: t('captureReview.vaultLocation', {name:value.vaultLabel}), ...('icon' in value && value.icon ? { icon: value.icon } : {}), ...('color' in value && value.color ? { color: value.color } : {}), type: ENTRY_TYPE_CREDENTIAL }))}
-        value={targetId} onValueChange={value => void selectTarget(value)} disabled={busy} /> : null}
-
-      {review.kind === 'credential' && entry ? <AddEntryForm key={`${targetId}:${formVersion}`} client={client} initialEntry={entry} captureDraftRef={formDraft} initialCaptureDraft={restoredForm.current}
-        captureFormId={formId} capturePasswordUpdate={updating} onBusyChange={setBusy}
-        afterCredentialUrl={target?.action === 'update' ? <label className="capture-checkbox"><input type="checkbox" checked={autoUpdate} onChange={event => setAutoUpdate(event.target.checked)} />{t('captureToast.autoUpdate')}</label> : undefined}
+    onDismiss={() => void finish({ channel, type: 'dismiss', kind: 'credential', promptId: review.prompt.id })}
+    onMute={() => void finish({ channel, type: 'mute', kind: 'credential', promptId: review.prompt.id })}
+    onSave={() => { if (quickUpdate && entry && !busy) void finish({ channel, type: 'save', promptId: review.prompt.id, targetId, autoUpdate, entry }); }}>
+    {quickUpdate && entry ? <>
+      <label><span className="field-label">{t('captureReview.newPassword')}</span><span className="entry-reveal-field">
+        <input className="field-input" readOnly type={showPassword ? 'text' : 'password'} value={entry.password} />
+        <button type="button" className="toolbar-icon" aria-label={`${t(showPassword ? 'field.hide' : 'field.show')} ${t('captureReview.newPassword')}`} aria-pressed={showPassword}
+          onClick={() => setShowPassword(value => !value)}><PopupIcon name={showPassword ? 'eye-off' : 'eye'} /></button>
+      </span></label>
+      {autoUpdateOption}
+    </> : null}
+    {review.prompt.usernameSelection?.selected !== null && entry && !quickUpdate ? <AddEntryForm key={`${targetId}:${formVersion}`} client={client} initialEntry={entry} captureDraftRef={formDraft} initialCaptureDraft={restoredForm.current}
+        captureFormId={formId} capturePasswordUpdate={!creating} onBusyChange={setBusy}
+        {...(creating ? { compact: { ...(vaultChoice ? { slot: vaultChoice } : {}), open: more, onOpenChange: setMore } } : {})}
+        {...(usernameOptions ? { usernameOptions, onUsernameChange: (value: string) => {
+          const choice = usernameOptions.find(option => option.value === value)?.kind; if (choice && choice !== usernameChoice) void chooseUsername(choice);
+        } } : {})}
+        afterCredentialUrl={target?.action === 'update' ? autoUpdateOption : undefined}
         onSave={async next => {
           if (next.entryType !== 'credential' || !target || busy) throw new Error('Capture target required');
           setEntry(next);
           if (!await finish({ channel, type: 'save', promptId: review.prompt.id, targetId, autoUpdate, entry: next })) throw new Error('Capture save failed');
           return { status: 'saved' };
         }} /> : null}
-      {review.kind === 'federated' ? <>
-        <EntryAutocomplete label={t('signInToast.whichAccount', { name: provider ?? '' })}
-          options={review.prompt.accounts.map(value => ({ id: value.id, name: value.source === 'none' ? t('signInToast.accountUnknown') : value.label, ...(value.context ? { detail: value.context } : {}), ...(value.icon ? { icon: value.icon } : {}), type: ENTRY_TYPE_CREDENTIAL }))}
-          value={accountId} onValueChange={value => { setAccountId(value); setReplace(false); }} disabled={busy} />
-        <label className="field-label">{t('captureReview.methodDestination')}</label>
-        <FilterSelect floating aria-label={t('captureReview.methodDestination')} value={methodMode} disabled={busy} onValueChange={value => {
-          const mode=value === 'create' ? 'create' : 'update';setMethodMode(mode);setReplace(false);
-          const choices=review.prompt.targets.filter(item=>item.action===mode);
-          setTargetId(choices.length===1 ? choices[0]!.id : choices.some(item=>item.id===review.prompt.defaultTargetId) ? review.prompt.defaultTargetId! : '');
-        }}>
-          <option value="create" disabled={!review.prompt.targets.some(item=>item.action==='create')}>{t('captureReview.newLogin')}</option>
-          <option value="update" disabled={!review.prompt.targets.some(item=>item.action==='update')}>{t('captureReview.existingLogin')}</option>
-        </FilterSelect>
-        {methodMode === 'create' ? <>
-          <label className="field-label">{t('captureReview.vault')}</label>
-          <FilterSelect floating aria-label={t('captureReview.vault')} value={targetId} disabled={busy} onValueChange={setTargetId}>
-            {review.prompt.targets.filter(item=>item.action==='create').map(item=><option key={item.id} value={item.id}>{item.vaultLabel}</option>)}
-          </FilterSelect>
-          <label className="field-label">{t('captureReview.entryName')}<input className="field-input" autoComplete="off" value={entryName} maxLength={512} required disabled={busy} onChange={event=>setEntryName(event.target.value)} /></label>
-        </> : <EntryAutocomplete label={t('captureReview.existingEntry')} value={targetId} disabled={busy}
-          options={review.prompt.targets.filter(item=>item.action==='update').map(item=>({id:item.id,name:item.label,detail:t('captureReview.vaultLocation',{name:item.vaultLabel}),...(item.icon ? {icon:item.icon} : {})}))}
-          onValueChange={value=>{setTargetId(value);setReplace(false);}} />}
-        <p className="capture-field-hint">{t(methodMode === 'create' ? 'captureReview.methodNewHint' : 'captureReview.methodExistingHint',{site:review.prompt.site,provider:provider ?? ''})}</p>
-        {replacing ? <label className="capture-checkbox"><input type="checkbox" checked={replace} onChange={event => setReplace(event.target.checked)} />{t('captureReview.replaceSignIn')}</label> : null}
-      </> : null}
-    </> : null}
   </CaptureReview>;
 }
