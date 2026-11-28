@@ -34,8 +34,8 @@ it('keeps expiry visible for a pending grant before approval', async () => {
 });
 
 it.each([
-  ['convenience', 'Convenience', "The Agent's key is stored where the Agent runs, and other programs there can read it."],
-  ['hardened', 'Hardened', "The operating system protects the Agent's key from other programs."],
+  ['convenience', 'Convenience', "The system the Agent runs on, for example a hosted AI sandbox, has no secure key storage, so other programs there can read the Agent's key. The level depends on what that system supports."],
+  ['hardened', 'Hardened', "The system the Agent runs on offers secure key storage, for example the macOS Keychain or a dedicated Linux account, so other programs cannot read the Agent's key. The level depends on what that system supports."],
 ] as const)('shows the Agent key protection level with its explanation (%s)', async (level, label, hint) => {
   const grant = { id: 'pending', vaultId: 'vault', entryId: 'entry', agentName: 'Pending agent', agentKeyProtection: level, status: 'pending', type: 'granular', createdAt: '2026-10-01T10:00:00Z' };
   const send = vi.fn().mockImplementation(async command => ({ ok: true, data: command.type === 'workspace/review-grant'
