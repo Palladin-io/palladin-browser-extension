@@ -20,7 +20,7 @@ export interface EntryIconProps {
 export function EntryIcon({ name, type, icon, color }: EntryIconProps): React.JSX.Element {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const imageUrl = usePublicAssetImage(icon);
-  const style = color ? { color } : undefined;
+  const style = color ? { color, borderColor: color } : undefined;
   const label = name.trim() || "Entry";
 
   return (

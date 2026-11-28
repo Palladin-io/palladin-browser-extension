@@ -1019,7 +1019,6 @@ html[data-extension-surface='side-panel'] .popup-header {
 
 
 .audit-chips .popup-icon { width: 12px; height: 12px; }
-.grant-avatar img { width: 62.5%; height: 62.5%; object-fit: contain; border-radius: 5px; }
 .grant-detail-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .grant-detail-heading h3 { margin: 0; }
 @media (max-width: 600px) { .audit-primary { flex-wrap: wrap; gap: 2px; } }
@@ -1672,4 +1671,10 @@ html:has(.popup[data-phase='locked']), html:has(.popup[data-phase='locked']) bod
   .popup[data-phase='locked'] { transition:none; }
 }
 .grant-avatar--initials { font-size: 12px; font-weight: 700; line-height: 1; }
-.grant-avatar { border-width: 1.5px; }
+/* Shared Agent/Entry identity tile: one radius and fill, glyph-coloured border, frameless images. */
+.entry-icon, .grant-avatar { border-radius: 9px; border: 1.5px solid var(--cv-border); background: var(--cv-surface); }
+.entry-icon:has(> img), .grant-avatar:has(> img) { border: 0; background: transparent; overflow: hidden; }
+.entry-icon > img, .grant-avatar > img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.entry-icon-grid .entry-icon { border: 0; }
+.entry-icon-grid button { border-width: 1.5px; border-radius: 9px; }
+.entry-icon-grid button[aria-pressed=true] { border-color: var(--cv-border); background: transparent; outline: 2px solid var(--cv-t1); outline-offset: 2px; }
