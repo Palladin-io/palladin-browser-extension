@@ -44,6 +44,21 @@ it('uses server-resolved agent names instead of displaying their IDs', async () 
   expect(screen.queryByText('opaque-agent-id')).toBeNull();
 });
 
+it('resolves a system grant.expired row for an Agent enrolled after the directory was read', async () => {
+  let agents: { agentId: string; name: string }[] = [];
+  const send = vi.fn(async (command: WorkspaceCommand) => command.type === 'workspace/members'
+    ? { ok: true as const, data: { items: [] } }
+    : command.type === 'workspace/agents'
+      ? { ok: true as const, data: { items: agents } }
+      : { ok: true as const, data: { items: [{ id: 'event', eventType: 'grant.expired', actorType: 'system', agentId: 'new-agent-identifier', agentName: null, metadata: {}, createdAt: '2026-11-26T10:00:00Z' }], nextCursor: null } });
+  const client = createWorkspaceClient(send);
+  await client.agents([]);
+  agents = [{ agentId: 'new-agent-identifier', name: 'Synthetic new agent' }];
+  render(<AuditPanel client={client} entries={[]} />);
+  await screen.findByText('Synthetic new agent');
+  expect(screen.queryByText('new-agen…tifier')).toBeNull();
+});
+
 it.each(['en', 'pl'] as const)('keeps unknown audit event identifiers visible in %s', async locale => {
   const client = createWorkspaceClient(vi.fn(async (command: WorkspaceCommand) => command.type === 'workspace/members'
     ? { ok: true as const, data: { items: [] } }

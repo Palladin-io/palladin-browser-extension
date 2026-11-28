@@ -124,6 +124,7 @@ try {
     throw new Error(`Inline browser regression timed out: ${label}`);
   };
   const click = async name => {
+    if (name === 'Open Palladin suggestions') await closeOneClick();
     let node;
     await wait(async () => {
       node = (await cdp.send('Accessibility.getFullAXTree')).nodes.find(node => !node.ignored && node.role?.value === 'button' && node.name?.value === name);
@@ -131,6 +132,15 @@ try {
     }, name);
     const { model } = await cdp.send('DOM.getBoxModel', { backendNodeId: node.backendDOMNodeId });
     await page.mouse.click((model.content[0] + model.content[4]) / 2, (model.content[1] + model.content[5]) / 2);
+  };
+  // One-click sign-in now offers a centered toast on these login pages; close it so it cannot cover the field shield.
+  const closeOneClick = async () => {
+    const node = (await cdp.send('Accessibility.getFullAXTree')).nodes.find(item => !item.ignored && item.role?.value === 'button' && item.name?.value === 'Close sign-in suggestion');
+    if (!node) return;
+    const { model } = await cdp.send('DOM.getBoxModel', { backendNodeId: node.backendDOMNodeId });
+    await page.waitForTimeout(600);
+    await page.mouse.click((model.content[0] + model.content[4]) / 2, (model.content[1] + model.content[5]) / 2);
+    await wait(async () => await page.locator('palladin-capture').count() === 0, 'one-click toast closed');
   };
   const aligned = async selector => {
     await wait(() => page.evaluate(selector => {

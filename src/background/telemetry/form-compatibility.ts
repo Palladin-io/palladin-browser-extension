@@ -9,7 +9,7 @@ import type { ProviderScreenShape } from "@shared/messaging/federated-signin";
 import { registrableDomain } from "@shared/security/domain";
 import { getDomain } from "tldts";
 
-export type FormCompatibilityIssue = "submit-action-missing";
+export type FormCompatibilityIssue = "submit-action-missing" | "signin-prompt-missing";
 
 export interface FormCompatibilityConfig {
   /** Build-injected public PostHog project key; empty disables reporting. */

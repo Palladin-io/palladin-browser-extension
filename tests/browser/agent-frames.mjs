@@ -45,13 +45,19 @@ try {
   async function prepare() {
     await worker.evaluate(() => globalThis.frameHarness.reset());
     await page.locator('#login').waitFor();
-    const tabId = await worker.evaluate(async () => {
-      for (const tab of await chrome.tabs.query({})) {
-        try { const current=await chrome.tabs.sendMessage(tab.id,{channel:'palladin.tab/current-url'},{frameId:0});
-          if(current.url.startsWith('https://appstoreconnect.apple.com/')) return tab.id;
-        } catch { /* Non-page extension tabs. */ }
-      }
-    });
+    // The content script may answer after the DOM is ready, especially on slower CI runners.
+    let tabId;
+    for (let i=0;i<100 && tabId===undefined;i++) {
+      tabId = await worker.evaluate(async () => {
+        for (const tab of await chrome.tabs.query({})) {
+          try { const current=await chrome.tabs.sendMessage(tab.id,{channel:'palladin.tab/current-url'},{frameId:0});
+            if(current.url.startsWith('https://appstoreconnect.apple.com/')) return tab.id;
+          } catch { /* Non-page extension tabs, or a content script that is not ready yet. */ }
+        }
+      });
+      if (tabId===undefined) await new Promise(resolve=>setTimeout(resolve,50));
+    }
+    assert.notEqual(tabId, undefined, 'content script answered');
     let result;
     for (let i=0;i<50;i++) {
       try { result=await send({ protocol:'palladin.inject-provider.v1',type:'prepare',nonce:'a'.repeat(64),targetTabId:tabId,targetUrl:page.url(),liveDetection:true }); if(result.outcome==='ready') break; } catch {}
