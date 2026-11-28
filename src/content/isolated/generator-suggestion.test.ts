@@ -139,6 +139,6 @@ it('shows the locked row instead of an error and unlocks through the toolbar pop
     expect(root.querySelector('.generator-footer, code')).toBeNull();
     root.querySelector<HTMLButtonElement>('.generator-locked-action')!.click();
     await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'inline/open-palladin', documentId: 'document_0123456789abcdef' })));
-    await vi.waitFor(() => expect(root.querySelector('.generator-locked small')?.textContent).toContain('Extensions menu'));
+    await vi.waitFor(() => expect(root.querySelector('.generator-locked small')?.textContent).toBe('Open Palladin from the toolbar'));
   } finally { suggestion.stop(); spy.mockRestore(); }
 });

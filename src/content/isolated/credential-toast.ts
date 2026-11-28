@@ -129,15 +129,17 @@ export class CredentialCaptureToast {
     header.append(close);
     const site = this.doc.createElement("div");
     site.className = "site";
-    site.textContent = this.text('captureReview.source').replace('{origin}',prompt.notice?.site ?? prompt.site);
+    // A locked prompt says what to do in the subtitle instead of where it was detected.
+    site.textContent = this.manualOpen ? this.text('inline.openFromToolbar')
+      : prompt.state === 'locked' ? this.text('captureToast.locked')
+      : this.text('captureReview.source').replace('{origin}',prompt.notice?.site ?? prompt.site);
+    if (this.manualOpen) site.setAttribute('role', 'alert');
     body.append(site);
     if (prompt.state === 'ready') body.append(captureNoticeIdentity(this.doc, prompt.notice ?? {kind:'credential',site:prompt.site,name:prompt.site,detail:''}, prompt.notice?.detail ?? ''));
     this.panel.replaceChildren(header, body);
     if (this.inlineError) body.append(this.note('captureReview.openError', true));
-    if (this.manualOpen) body.append(this.note("inline.openFromToolbar", true));
     if (this.error) body.append(this.note("captureToast.error", true));
 
-    if (prompt.state === "locked") body.append(this.note('captureToast.locked'));
     const footer = this.doc.createElement("div");
     footer.className = "footer";
     this.dismissControl = createCaptureDismiss(this.doc, {
@@ -145,7 +147,7 @@ export class CredentialCaptureToast {
       dismissLabel: this.text('secretCapture.dismiss'), muteLabel: this.text('captureToast.mute'), optionsLabel: this.text('captureToast.dismissOptions'), site: prompt.site,
       onDismiss: () => this.perform({type:'dismiss',promptId:prompt.id}), onMute: () => this.perform({type:'mute',promptId:prompt.id}),
     });
-    footer.append(this.dismissControl.element, this.button(this.text(prompt.state === 'locked' ? 'captureToast.unlock' : 'captureReview.review'), 'primary', () => this.perform({ type: 'unlock' })));
+    footer.append(this.dismissControl.element, this.button(this.text(prompt.state === 'locked' ? 'captureToast.unlock' : this.inlineError ? 'captureReview.tryAgain' : 'captureReview.review'), 'primary', () => this.perform({ type: 'unlock' })));
     this.panel.append(footer);
   }
 

@@ -198,19 +198,20 @@ export class FederatedSignInSurface {
     header.append(this.close(() => this.perform({ type: 'dismiss', promptId: prompt.id })));
     const site = this.doc.createElement('div');
     site.className = 'site';
-    site.textContent = this.text('captureReview.source').replace('{origin}', prompt.site);
+    site.textContent = this.manualOpen ? this.text('inline.openFromToolbar')
+      : prompt.state === 'locked' ? this.text('signInToast.locked')
+      : this.text('captureReview.source').replace('{origin}', prompt.site);
+    if (this.manualOpen) site.setAttribute('role', 'alert');
     body.append(site);
     this.panel.replaceChildren(header, body);
     if (this.inlineError) body.append(this.paragraph('captureReview.openError', true));
-    if (this.manualOpen) body.append(this.paragraph('inline.openFromToolbar', true));
     if (prompt.error === 'save-failed') body.append(this.paragraph('signInToast.error', true));
-    if (prompt.state === 'locked') body.append(this.paragraph('signInToast.locked'));
     const footer = this.footer(prompt.id);
     if (prompt.state === 'ready') {
       const identity = prompt.notice ?? {kind:'credential' as const,site:prompt.site,name:prompt.site,detail:''};
       body.append(captureNoticeIdentity(this.doc,identity,`${this.providerName(prompt.provider)}${identity.detail ? ` · ${identity.detail}` : ''}`,prompt.provider));
     }
-    footer.append(this.button(this.text(prompt.state === 'locked' ? 'signInToast.unlock' : 'captureReview.review'), 'primary', () => this.perform({ type: 'unlock' })));
+    footer.append(this.button(this.text(prompt.state === 'locked' ? 'signInToast.unlock' : this.inlineError ? 'captureReview.tryAgain' : 'captureReview.review'), 'primary', () => this.perform({ type: 'unlock' })));
     this.panel.append(footer);
   }
 

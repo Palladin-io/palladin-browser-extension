@@ -93,6 +93,7 @@ type InlineKey =
   | "inline.filling"
   | "inline.filled"
   | "inline.passwordUpdated"
+  | "inline.fillUpdated"
   | "inline.fillAndLogin"
   | "inline.logIn"
   | "inline.noForm"
@@ -906,22 +907,20 @@ class InlineWidget {
       name: current.name,
       updatedAt: current.updatedAt,
     };
-    this.showPasswordUpdated(current.name);
+    this.showPasswordUpdated(current);
   }
 
-  private showPasswordUpdated(name: string): void {
+  /** Fill is the same explicit choice as picking the Entry from the list. */
+  private showPasswordUpdated(entry: InlineAutofillSuggestion): void {
     this.options.closeOthers();
     this.panel.hidden = false;
-    const generation = ++this.openGeneration;
-    const status = this.options.doc.createElement("div");
-    status.className = "status update-notice";
-    status.setAttribute("role", "status");
-    status.textContent = message(this.options.locale(), "inline.passwordUpdated")
-      .replace("{name}", name);
-    this.panel.replaceChildren(this.createTitle(), status);
-    setTimeout(() => {
-      if (this.openGeneration === generation) this.close();
-    }, 5_000);
+    this.openGeneration += 1;
+    const fill = this.options.doc.createElement("button");
+    fill.type = "button";
+    fill.className = "notice-action";
+    fill.textContent = message(this.options.locale(), "inline.fillUpdated");
+    fill.addEventListener("click", () => void this.fill(entry));
+    this.renderNotice("inline.passwordUpdated", fill, [entry.name, entry.username].filter(Boolean).join(" · "));
   }
 
   refreshPreferences(): void {
@@ -1080,14 +1079,14 @@ class InlineWidget {
     const locked = sessionStatus === "locked";
     const open = this.options.doc.createElement("button");
     open.type = "button";
-    open.className = "open-palladin";
+    open.className = "notice-action open-palladin";
     open.textContent = message(this.options.locale(), locked ? "inline.unlockPalladin" : "inline.signInPalladin");
     open.addEventListener("click", () => void this.openPalladin());
     this.renderNotice(locked ? "inline.locked" : "inline.signedOut", open);
   }
 
   /** One row like a suggestion: icon, a short title, one detail line and an optional action. */
-  private renderNotice(key: NoticeKey, action?: HTMLButtonElement): void {
+  private renderNotice(key: NoticeKey, action?: HTMLButtonElement, detailText?: string): void {
     const notice = NOTICES[key];
     const row = this.options.doc.createElement("div");
     row.className = "notice-row";
@@ -1103,7 +1102,7 @@ class InlineWidget {
     title.textContent = message(this.options.locale(), key);
     const detail = this.options.doc.createElement("span");
     detail.className = "entry-name";
-    detail.textContent = message(this.options.locale(), notice.detail);
+    detail.textContent = detailText ?? (notice.detail ? message(this.options.locale(), notice.detail) : "");
     text.append(title, detail);
     line.append(icon, text);
     row.append(line);
@@ -1356,7 +1355,8 @@ const NOTICES = {
   "inline.blocked": { icon: "M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6zM12 9v4M12 16h.01", detail: "inline.blockedDetail" },
   "inline.noForm": { icon: "M12 20.5a8.5 8.5 0 1 0 0-17 8.5 8.5 0 0 0 0 17zM12 8v4.5M12 16h.01", detail: "inline.noFormDetail" },
   "inline.submitNotFound": { icon: "M9 4v10l2.5-2.5L14 17l2-1-2.5-5H17z", detail: "inline.submitNotFoundDetail" },
-} as const satisfies Record<string, { icon: string; detail: InlineKey }>;
+  "inline.passwordUpdated": { icon: "M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4", detail: null },
+} as const satisfies Record<string, { icon: string; detail: InlineKey | null }>;
 type NoticeKey = keyof typeof NOTICES;
 
 function isNoticeKey(key: InlineKey): key is NoticeKey {
@@ -1492,14 +1492,13 @@ export const INLINE_STYLES = `
   @keyframes palladin-loading { from { opacity:.42; } to { opacity:.88; } }
   @media (prefers-reduced-motion:reduce) { .loading-lines i, .loading-action, .inline-countdown::after, .spinner, .list .option-row, .notice-row { animation:none; } }
   .status { padding:16px 14px; color:var(--cv-t2); font-size:13px; line-height:1.5; }
-  .update-notice { border-left:3px solid var(--cv-primary); }
   .notice-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; padding:12px; animation:inline-row-in 200ms ease-out both; }
   .notice-line { display:flex; align-items:center; gap:10px; min-width:0; min-height:52px; }
   .notice-icon { display:grid; place-items:center; flex:0 0 32px; width:32px; height:32px; box-sizing:border-box; border:1px solid var(--cv-secondary-border); border-radius:8px; color:var(--cv-t2); }
   .notice-icon svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-  .open-palladin { min-height:32px; padding:0 12px; border:1px solid var(--cv-secondary-border); border-radius:6px; background:var(--cv-card-bg); color:var(--cv-t1); font:600 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif; cursor:pointer; }
-  .open-palladin:hover { background:var(--cv-hover); }
-  .open-palladin:focus-visible { outline:2px solid var(--cv-primary); outline-offset:2px; }
+  .notice-action { min-height:32px; padding:0 12px; border:1px solid var(--cv-secondary-border); border-radius:6px; background:var(--cv-card-bg); color:var(--cv-t1); font:600 13px/1 system-ui,-apple-system,"Segoe UI",sans-serif; cursor:pointer; }
+  .notice-action:hover { background:var(--cv-hover); }
+  .notice-action:focus-visible { outline:2px solid var(--cv-primary); outline-offset:2px; }
 `;
 
 /** Exact matches fill passively; a related Entry only as this tab's explicit continuation. */

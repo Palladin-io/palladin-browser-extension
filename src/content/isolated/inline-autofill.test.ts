@@ -632,7 +632,7 @@ describe("inline autofill field discovery", () => {
     subject.stop();
   });
 
-  it("warns when a synchronized head changes after fill without refilling automatically", async () => {
+  it("warns when a synchronized head changes after fill and refills only on Fill", async () => {
     const nativeAttachShadow = Element.prototype.attachShadow;
     const attachShadow = vi.spyOn(Element.prototype, "attachShadow").mockImplementation(function (
       this: Element,
@@ -667,10 +667,14 @@ describe("inline autofill field discovery", () => {
       suggestion.updatedAt = "2026-08-29T08:01:00Z";
       subject.handleVaultChanged();
 
-      await vi.waitFor(() => expect(
-        document.querySelector("palladin-autofill")?.shadowRoot?.textContent,
-      ).toContain("Password for Work was updated - fill again"));
+      const root = document.querySelector("palladin-autofill")!.shadowRoot!;
+      await vi.waitFor(() => expect(root.querySelector(".notice-row")?.textContent)
+        .toBe("Password updatedWork · ada@example.comFill"));
       expect(send.mock.calls.filter(([command]) => command.type === "inline/fill")).toHaveLength(1);
+      root.querySelector<HTMLButtonElement>(".notice-action")!.click();
+      await vi.waitFor(() => expect(send).toHaveBeenLastCalledWith(expect.objectContaining({
+        type: "inline/fill", intent: "manual", entryId: "e1",
+      })));
     } finally {
       subject.stop();
       attachShadow.mockRestore();
@@ -742,7 +746,7 @@ describe("inline autofill field discovery", () => {
       });
       document.querySelector("palladin-autofill")!.shadowRoot!.querySelector<HTMLButtonElement>(".open-palladin")!.click();
       await vi.waitFor(() => expect(document.querySelector("palladin-autofill")!.shadowRoot!.textContent)
-        .toContain("Open your browser’s Extensions menu and click Palladin to continue."));
+        .toContain("Open Palladin from the toolbar"));
       expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: "inline/fill" }));
     } finally {
       subject.stop();

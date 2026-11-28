@@ -32,7 +32,7 @@ it.each(['en', 'pl'])('does not tell the %s user to leave TOTP review before an 
   const spy = vi.spyOn(Element.prototype, 'attachShadow').mockImplementation(function (this: Element, init) { root = attach.call(this, init); return root; });
   const notice = new SecretCaptureNotice(document, async () => {}, 'totp');
   notice.show(false);
-  expect(root.textContent).not.toContain(locale === 'pl' ? 'Otwórz menu rozszerzeń przeglądarki' : 'Open your browser’s Extensions menu and click Palladin to continue.');
+  expect(root.textContent).not.toContain(locale === 'pl' ? 'Otwórz Palladin z paska narzędzi' : 'Open Palladin from the toolbar');
   expect(document.querySelector('palladin-capture')).toBeInTheDocument();
   notice.stop(); spy.mockRestore(); vi.unstubAllGlobals();
 });

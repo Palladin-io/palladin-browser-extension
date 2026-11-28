@@ -115,7 +115,7 @@ export class SecretCaptureNotice {
       });
       footer.append(this.dismissControl.element);
     } else footer.append(button(copy['secretCapture.dismiss'],'secondary',() => this.runAction('dismiss')));
-    footer.append(button(copy['captureReview.review'],'primary',() => this.runAction('open')));
+    footer.append(button(copy[this.reviewError ? 'captureReview.tryAgain' : 'captureReview.review'],'primary',() => this.runAction('open')));
     panel.append(footer);
     this.surface.shadow.replaceChildren(style, panel);
   }

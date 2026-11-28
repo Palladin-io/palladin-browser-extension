@@ -92,8 +92,8 @@ describe("credential capture toast", () => {
     openReview.mockResolvedValue(false);
     const label = locale === 'pl' ? 'Sprawdź' : 'Review';
     await click(label);
-    expect(ui().getByRole('button', { name: label })).toBeVisible();
-    expect(ui().getByRole('alert')).toHaveTextContent(locale === 'pl' ? 'Nie udało' : 'Could not');
+    expect(ui().getByRole('button', { name: locale === 'pl' ? 'Spróbuj ponownie' : 'Try again' })).toBeVisible();
+    expect(ui().getByRole('alert')).toHaveTextContent(locale === 'pl' ? 'Nie udało się otworzyć formularza' : "Couldn't open the review");
   });
   it('reveals site mute from Dismiss without dispatching an action', async () => {
     send.mockResolvedValue({ status: 'dismissed' });
@@ -117,6 +117,14 @@ describe("credential capture toast", () => {
     await click('Unlock Palladin');
     expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'unlock' }));
     expect(shadow.textContent).not.toContain('Alice');
+  });
+  it('says in the subtitle how to continue while locked', async () => {
+    toast.show({ status: 'prompt', prompt: { ...view, state: 'locked', targets: [], defaultTargetId: null } });
+    expect(shadow.querySelector('.site')).toHaveTextContent('Unlock to save this login');
+    expect(shadow.querySelector('.note')).toBeNull();
+    send.mockResolvedValue({ status: 'unavailable' });
+    await click('Unlock Palladin');
+    expect(ui().getByRole('alert')).toHaveTextContent('Open Palladin from the toolbar');
   });
   it('localizes the neutral notice and retains dark appearance', () => {
     toast.setAppearance('pl', 'dark');
