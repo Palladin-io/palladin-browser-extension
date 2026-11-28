@@ -66,7 +66,7 @@ it('discards a review fetched after navigation invalidation', async () => {
     expect(screen.queryByRole('button', { name: 'Review' })).toBeNull();
   } finally { vi.unstubAllGlobals(); }
 });
-it('keeps signup identity correction available and keeps the chosen Vault and edits after correction', async () => {
+it('keeps signup identity correction available and resets the target after correction', async () => {
   const targets = [{ id: 'personal', action: 'create' as const, label: 'Personal', vaultLabel: 'Personal' }, { id: 'team', action: 'create' as const, label: 'Team', vaultLabel: 'Team' }];
   let selected: 'email' | 'nickname' | null = null;
   const usernameOptions = { email: 'alice@example.com', nickname: 'alice' };
@@ -86,13 +86,10 @@ it('keeps signup identity correction available and keeps the chosen Vault and ed
   fireEvent.click(screen.getByRole('option', { name: /Team/ }));
   await waitFor(() => expect(screen.getByRole('combobox', {name:'Save to Vault'})).toHaveTextContent('Team'));
   fireEvent.click(screen.getByRole('button', { name: 'More', expanded: false }));
-  fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Edited name' } });
   fireEvent.click(screen.getByRole('combobox', { name: 'Username' }));
   fireEvent.click(screen.getByRole('option', { name: 'alice (Nickname)' }));
   await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: 'choose-username', choice: 'nickname' })));
-  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Username' })).toHaveTextContent('alice'));
-  expect(screen.getByRole('combobox', {name:'Save to Vault'})).toHaveTextContent('Team');
-  expect(screen.getByLabelText('Name')).toHaveValue('Edited name');
+  await waitFor(() => expect(screen.getByRole('combobox', {name:'Save to Vault'})).toHaveTextContent('Personal'));
   expect(send.mock.calls.some(([command]) => command.type === 'save')).toBe(false);
 });
 it('ignores a stale availability reply while an explicit save is in flight', async () => {

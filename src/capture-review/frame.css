@@ -49,5 +49,8 @@ html:has(.capture-frame) { background:var(--cv-surface)!important; }
 .capture-frame:has(.capture-review[data-stage='saved']) .capture-countdown { display:block; animation:capture-countdown 6s linear forwards; }
 .capture-frame:hover .capture-countdown, .capture-frame:has(:focus-visible) .capture-countdown, .capture-frame:has([role='menu']) .capture-countdown { animation-play-state:paused; }
 /* The confirmation closes when this animation ends, so reduced motion keeps the timing without the moving line. */
-@media(prefers-reduced-motion:reduce) { .capture-frame:has(.capture-review[data-stage='saved']) .capture-countdown { animation:capture-countdown 1ms linear 6s forwards!important; } }
+@media(prefers-reduced-motion:reduce) {
+  .capture-frame:has(.capture-review[data-stage='saved']) .capture-countdown { animation-name:capture-countdown!important; animation-duration:1ms!important; animation-timing-function:linear!important; animation-delay:6s!important; animation-fill-mode:forwards!important; }
+  .capture-frame:hover .capture-countdown, .capture-frame:has(:focus-visible) .capture-countdown, .capture-frame:has([role='menu']) .capture-countdown { animation-play-state:paused!important; }
+}
 @keyframes capture-countdown { to { transform:scaleX(1); } }
